@@ -7,9 +7,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Pls keep the filenames sorted
 set(SOURCE_FILES
+    functional/detail/concepts.hpp
     functional/and_then.hpp
+    functional/concepts.hpp
+    functional/fail.hpp
+    functional/functor.hpp
     functional/fwd.hpp
-    functional/operator.hpp
+    functional/inspect.hpp
     functional/or_else.hpp
     functional/recover.hpp
     functional/transform_error.hpp
