@@ -17,6 +17,9 @@ struct or_else_t;
 struct recover_t;
 struct fail_t;
 struct inspect_t;
+struct filter_t; // TODO (a.k.a allow-filter)
+struct remove_t; // TODO (reverse of filter)
+struct match_t;  // TODO (conversion to arbitrary type)
 } // namespace fn
 
 template <typename T> struct incomplete;
