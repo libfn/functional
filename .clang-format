@@ -71,7 +71,7 @@ BraceWrapping:
   SplitEmptyRecord: true
   SplitEmptyNamespace: true
 BreakAfterJavaFieldAnnotations: false
-BreakBeforeBinaryOperators: None
+BreakBeforeBinaryOperators: true
 BreakBeforeConceptDeclarations: Always
 BreakBeforeBraces: WebKit
 BreakBeforeTernaryOperators: true

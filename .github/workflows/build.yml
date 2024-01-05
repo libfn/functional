@@ -1,0 +1,57 @@
+name: build
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    container: fedora:39
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+        - linux
+        configuration:
+        - Debug
+        - Release
+    steps:
+    - name: Install prerequisites
+      run: |
+        dnf -y update
+        dnf -y install git cmake ninja-build gcc gcc-c++ libstdc++-static
+        dnf -y clean all
+    # NOTE must be after installation of git
+    - uses: actions/checkout@v3
+      with:
+        submodules: 'true'
+    - name: Verify compiler compatibility
+      env:
+        SOURCE: |
+          #include <optional>
+          #include <expected>
+          #include <cstdio>
+          int main() {
+            using type1=std::expected<int, const char*>;
+            using type2=std::optional<int>;
+            return type1{1}.and_then([](int i) -> type1 { std::puts("OK expected"); return {i-1}; }).value()
+              + type2{2}.and_then([](int i) -> type2 { std::puts("OK optional"); return {i-2}; }).value();
+          }
+      run: |
+        FILE=$(mktemp --tmpdir XXXXXX.cpp)
+        printf "$SOURCE\n" > $FILE
+        OUT=$(mktemp --tmpdir  XXXXXX)
+        g++ -std=c++23 -Wall $FILE -o $OUT
+        $OUT
+    - name: Prepare build
+      run: |
+        mkdir .build
+        cd .build
+        cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} .. -G Ninja
+    - name: Build all
+      run: |
+        cd .build
+        cmake --build .
+    - name: Run tests
+      run: |
+        cd .build
+        ctest --output-on-failure
