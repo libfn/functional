@@ -72,6 +72,7 @@ jobs:
         TARGET: ${{ matrix.configuration == 'Debug' && 'coverage' || 'all' }}
       run: |
         cd .build
+        ln -s ../external/catch2/src src # gcov workaround
         cmake --build . --target ${TARGET}
 
     - name: Run tests
