@@ -24,9 +24,6 @@ tests cases are around compile-time language parts, such as overload resolution 
 
 Nevertheless, each branch and function must have been executed in the unit tests at least once.
 
-[![codecov-graph](https://codecov.io/gh/Bronek/functional/graphs/tree.svg?token=3RHT38SEU0)](https://codecov.io/gh/Bronek/functional)
-
-
 ## Acknowledgments
 
 Gašper Ažman for providing the inspiration in ["(Fun)ctional C++ and the M-word"][gasper-functional-presentation]
