@@ -12,4 +12,8 @@ set(SOURCE_FILES
 add_executable(${PROJECT_NAME} ${SOURCE_FILES})
 target_link_libraries(${PROJECT_NAME} include catch2_main Catch2::Catch2)
 
-add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME} -r console)
+add_test(
+    NAME ${PROJECT_NAME}
+    COMMAND ${PROJECT_NAME} -r console
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+)
