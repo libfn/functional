@@ -19,11 +19,25 @@ jobs:
       run: |
         dnf -y update
         dnf -y install git cmake ninja-build gcc gcc-c++ libstdc++-static
-        dnf -y clean all
-    # NOTE must be after installation of git
+
+    # To enable submodules, git must be installed before actions/checkout@v3
     - uses: actions/checkout@v3
       with:
         submodules: 'true'
+
+    # We need gcovr for coverage reporting, when in Debug mode
+    - name: Prepare gcovr
+      if: ${{ matrix.configuration == 'Debug' }}
+      run: |
+        dnf -y install python3.11
+        python3.11 -m venv /venv
+        PATH=/venv/bin:${PATH} pip --no-cache-dir install 'gcovr<7'
+        echo "/venv/bin" >> $GITHUB_PATH
+
+    - name: Cleanup installation files
+      run: |
+        dnf -y clean all
+
     - name: Verify compiler compatibility
       env:
         SOURCE: |
@@ -42,16 +56,36 @@ jobs:
         OUT=$(mktemp --tmpdir  XXXXXX)
         g++ -std=c++23 -Wall $FILE -o $OUT
         $OUT
+
     - name: Prepare build
+      env:
+        COVERAGE: ${{ matrix.configuration == 'Debug' && 'ON' || 'OFF' }}
+        CMAKE_GENERATOR: Ninja
       run: |
         mkdir .build
         cd .build
-        cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} .. -G Ninja
+        cmake -DCOVERAGE=${COVERAGE} -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ..
+
+    # In Debug mode, this step also runs tests and prepares coverage report
     - name: Build all
+      env:
+        TARGET: ${{ matrix.configuration == 'Debug' && 'coverage' || 'all' }}
       run: |
         cd .build
-        cmake --build .
+        ln -s ../external/catch2/src src # gcov workaround
+        cmake --build . --target ${TARGET}
+
     - name: Run tests
+      if: ${{ matrix.configuration != 'Debug' }}
       run: |
         cd .build
         ctest --output-on-failure
+
+    - name: Upload coverage report
+      if: ${{ matrix.configuration == 'Debug' }}
+      uses: codecov/codecov-action@v3
+      with:
+        files: .build/coverage.xml
+        fail_ci_if_error: true
+        verbose: true
+        token: ${{ secrets.CODECOV_TOKEN }}
