@@ -17,6 +17,7 @@ struct or_else_t;
 struct recover_t;
 struct fail_t;
 struct inspect_t;
+struct filter_t;
 } // namespace fn
 
 template <typename T> struct incomplete;

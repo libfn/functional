@@ -1,10 +1,11 @@
-// Copyright (c) 2024 Bronek Kozicki
+// Copyright (c) 2024 Bronek Kozicki, Alex Kremer
 //
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
 #include "functional/and_then.hpp"
 #include "functional/fail.hpp"
+#include "functional/filter.hpp"
 #include "functional/fwd.hpp"
 #include "functional/inspect.hpp"
 #include "functional/or_else.hpp"
@@ -18,6 +19,12 @@
 
 struct Error final {
   std::string what;
+
+  bool operator==(Error const &) const = default;
+  friend auto operator<<(std::ostream &os, Error const &self) -> std::ostream &
+  {
+    return (os << self.what);
+  }
 };
 
 TEST_CASE(
@@ -116,4 +123,33 @@ TEST_CASE("Demo optional",
                   | fn::recover([]() { return -1; });
   CHECK(o1.has_value());
   CHECK(o1.value() == -1);
+}
+
+TEST_CASE("Filter for expected", "[expected][filter]")
+{
+  using namespace fn;
+
+  constexpr auto fn1 = [](int i) {
+    return std::expected<int, Error>{i}
+           | filter([](auto &&v) noexcept -> bool { return v == 42; },
+                    [](auto &&v) {
+                      return Error{"Wrong value " + std::to_string(v)};
+                    });
+  };
+
+  CHECK(fn1(42).value() == 42);
+  CHECK(fn1(13).error() == Error("Wrong value 13"));
+}
+
+TEST_CASE("Filter for optional", "[optional][filter]")
+{
+  using namespace fn;
+
+  constexpr auto fn1 = [](int i) {
+    return std::optional<int>{i}
+           | filter([](auto &&v) noexcept -> bool { return v == 42; });
+  };
+
+  CHECK(fn1(42).value() == 42);
+  CHECK(not fn1(13).has_value());
 }
