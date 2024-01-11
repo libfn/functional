@@ -13,7 +13,16 @@ endif()
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -Wall -Wextra -Wpedantic")
+add_compile_options(
+  -march=native -Wall -Wextra -Wpedantic "$<$<CONFIG:DEBUG>:-Og>"
+)
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  # Workaround for std::expected not available in clang
+  add_compile_options(
+    -stdlib=libstdc++ -D__cpp_concepts=202002 -Wno-builtin-macro-redefined
+  )
+endif()
 
 add_subdirectory(include)
 

@@ -66,7 +66,6 @@ jobs:
         CMAKE_GENERATOR: Ninja
         CC: ${{ matrix.compiler == 'gcc' && '/usr/bin/gcc' || ' /usr/bin/clang' }}
         CXX: ${{ matrix.compiler == 'gcc' && '/usr/bin/g++' || ' /usr/bin/clang++' }}
-        CXXFLAGS: ${{ matrix.compiler == 'clang' && '-stdlib=libstdc++ -D__cpp_concepts=202002 -Wno-builtin-macro-redefined' || '' }}
       run: |
         mkdir .build
         cd .build
