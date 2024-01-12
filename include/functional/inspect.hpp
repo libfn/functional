@@ -6,7 +6,7 @@
 #ifndef INCLUDE_FUNCTIONAL_INSPECT
 #define INCLUDE_FUNCTIONAL_INSPECT
 
-#include "functional/concepts.hpp"
+#include "functional/detail/concepts.hpp"
 #include "functional/functor.hpp"
 #include "functional/fwd.hpp"
 
@@ -15,37 +15,45 @@
 
 namespace fn {
 
-struct inspect_t final {
+constexpr static struct inspect_t final {
   auto operator()(auto &&...fn) const noexcept
-      -> functor<inspect_t, std::decay_t<decltype(fn)>...>
+      -> functor<inspect_t, decltype(fn)...>
     requires(sizeof...(fn) > 0)
   {
-    using functor_type = functor<inspect_t, std::decay_t<decltype(fn)>...>;
-    return functor_type{{std::forward<decltype(fn)>(fn)...}};
+    return {std::forward<decltype(fn)>(fn)...};
   }
-};
-constexpr static inspect_t inspect = {};
+} inspect = {};
 
-auto monadic_apply(some_optional auto &&v, inspect_t const &,
-                   some_tuple auto &&fn) noexcept -> auto
-  requires(std::tuple_size_v<std::decay_t<decltype(fn)>> == 2)
+auto monadic_apply(some_expected auto &&v, inspect_t, auto &&fn1,
+                   auto &&fn2) noexcept -> decltype(auto)
+  requires requires {
+    fn1(std::as_const(v.value()));
+    fn2(std::as_const(v.error()));
+  }
 {
+  static_assert(std::is_void_v<decltype(fn1(std::as_const(v.value())))>);
+  static_assert(std::is_void_v<decltype(fn2(std::as_const(v.error())))>);
   if (v.has_value()) {
-    std::get<0>(std::forward<decltype(fn)>(fn))(std::as_const(*v));
+    std::forward<decltype(fn1)>(fn1)(std::as_const(v.value()));
   } else {
-    std::get<1>(std::forward<decltype(fn)>(fn))();
+    std::forward<decltype(fn2)>(fn2)(std::as_const(v.error()));
   }
   return std::forward<decltype(v)>(v);
 }
 
-auto monadic_apply(some_expected auto &&v, inspect_t const &,
-                   some_tuple auto &&fn) noexcept -> auto
-  requires(std::tuple_size_v<std::decay_t<decltype(fn)>> == 2)
+auto monadic_apply(some_optional auto &&v, inspect_t, auto &&fn1,
+                   auto &&fn2) noexcept -> decltype(auto)
+  requires requires {
+    fn1(std::as_const(v.value()));
+    fn2();
+  }
 {
+  static_assert(std::is_void_v<decltype(fn1(std::as_const(v.value())))>);
+  static_assert(std::is_void_v<decltype(fn2())>);
   if (v.has_value()) {
-    std::get<0>(std::forward<decltype(fn)>(fn))(std::as_const(v.value()));
+    std::forward<decltype(fn1)>(fn1)(std::as_const(v.value()));
   } else {
-    std::get<1>(std::forward<decltype(fn)>(fn))(std::as_const(v.error()));
+    std::forward<decltype(fn2)>(fn2)();
   }
   return std::forward<decltype(v)>(v);
 }

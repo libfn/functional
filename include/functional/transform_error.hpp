@@ -6,7 +6,7 @@
 #ifndef INCLUDE_FUNCTIONAL_TRANSFORM_ERROR
 #define INCLUDE_FUNCTIONAL_TRANSFORM_ERROR
 
-#include "functional/concepts.hpp"
+#include "functional/detail/concepts.hpp"
 #include "functional/functor.hpp"
 #include "functional/fwd.hpp"
 
@@ -15,22 +15,21 @@
 
 namespace fn {
 
-struct transform_error_t final {
+constexpr static struct transform_error_t final {
   auto operator()(auto &&fn) const noexcept
-      -> functor<transform_error_t, std::decay_t<decltype(fn)>>
+      -> functor<transform_error_t, decltype(fn)>
   {
-    using functor_type = functor<transform_error_t, std::decay_t<decltype(fn)>>;
-    return functor_type{{std::forward<decltype(fn)>(fn)}};
+    return {std::forward<decltype(fn)>(fn)};
   }
-};
-constexpr static transform_error_t transform_error = {};
+} transform_error = {};
 
-auto monadic_apply(some_monadic_type auto &&v, transform_error_t const &,
-                   some_tuple auto &&fn) noexcept -> auto
-  requires(std::tuple_size_v<std::decay_t<decltype(fn)>> == 1)
+// Not supported by optional since there's no error type
+auto monadic_apply(some_expected auto &&v, transform_error_t,
+                   auto &&fn) noexcept -> decltype(auto)
+  requires requires { fn(v.error()); }
 {
   return std::forward<decltype(v)>(v).transform_error(
-      std::get<0>(std::forward<decltype(fn)>(fn)));
+      std::forward<decltype(fn)>(fn));
 }
 
 } // namespace fn

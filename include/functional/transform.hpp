@@ -6,7 +6,7 @@
 #ifndef INCLUDE_FUNCTIONAL_TRANSFORM
 #define INCLUDE_FUNCTIONAL_TRANSFORM
 
-#include "functional/concepts.hpp"
+#include "functional/detail/concepts.hpp"
 #include "functional/functor.hpp"
 #include "functional/fwd.hpp"
 
@@ -15,22 +15,19 @@
 
 namespace fn {
 
-struct transform_t final {
+constexpr static struct transform_t final {
   auto operator()(auto &&fn) const noexcept
-      -> functor<transform_t, std::decay_t<decltype(fn)>>
+      -> functor<transform_t, decltype(fn)>
   {
-    using functor_type = functor<transform_t, std::decay_t<decltype(fn)>>;
-    return functor_type{{std::forward<decltype(fn)>(fn)}};
+    return {std::forward<decltype(fn)>(fn)};
   }
-};
-constexpr static transform_t transform = {};
+} transform = {};
 
-auto monadic_apply(some_monadic_type auto &&v, transform_t const &,
-                   some_tuple auto &&fn) noexcept -> auto
-  requires(std::tuple_size_v<std::decay_t<decltype(fn)>> == 1)
+auto monadic_apply(some_monadic_type auto &&v, transform_t, auto &&fn) noexcept
+    -> decltype(auto)
+  requires requires { fn(v.value()); }
 {
-  return std::forward<decltype(v)>(v).transform(
-      std::get<0>(std::forward<decltype(fn)>(fn)));
+  return std::forward<decltype(v)>(v).transform(std::forward<decltype(fn)>(fn));
 }
 
 } // namespace fn

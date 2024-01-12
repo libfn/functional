@@ -6,7 +6,7 @@
 #ifndef INCLUDE_FUNCTIONAL_AND_THEN
 #define INCLUDE_FUNCTIONAL_AND_THEN
 
-#include "functional/concepts.hpp"
+#include "functional/detail/concepts.hpp"
 #include "functional/functor.hpp"
 #include "functional/fwd.hpp"
 
@@ -15,22 +15,18 @@
 
 namespace fn {
 
-struct and_then_t final {
-  auto operator()(auto &&fn) const noexcept
-      -> functor<and_then_t, std::decay_t<decltype(fn)>>
+constexpr static struct and_then_t final {
+  auto operator()(auto &&fn) const noexcept -> functor<and_then_t, decltype(fn)>
   {
-    using functor_type = functor<and_then_t, std::decay_t<decltype(fn)>>;
-    return functor_type{{std::forward<decltype(fn)>(fn)}};
+    return {std::forward<decltype(fn)>(fn)};
   }
-};
-constexpr static and_then_t and_then = {};
+} and_then = {};
 
-auto monadic_apply(some_monadic_type auto &&v, and_then_t const &,
-                   some_tuple auto &&fn) noexcept -> auto
-  requires(std::tuple_size_v<std::decay_t<decltype(fn)>> == 1)
+auto monadic_apply(some_monadic_type auto &&v, and_then_t, auto &&fn) noexcept
+    -> decltype(auto)
+  requires requires { fn(v.value()); }
 {
-  return std::forward<decltype(v)>(v).and_then(
-      std::get<0>(std::forward<decltype(fn)>(fn)));
+  return std::forward<decltype(v)>(v).and_then(std::forward<decltype(fn)>(fn));
 }
 
 } // namespace fn
