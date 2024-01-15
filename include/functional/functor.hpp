@@ -18,9 +18,8 @@ template <typename Functor, typename... Args> struct functor final {
 
   friend auto operator|(auto &&v, functor const &self) noexcept -> auto
     requires requires {
-               monadic_apply(std::forward<decltype(v)>(v), functor_type{},
-                             self.args);
-             }
+      monadic_apply(std::forward<decltype(v)>(v), functor_type{}, self.args);
+    }
   {
     return monadic_apply(std::forward<decltype(v)>(v), functor_type{},
                          self.args);
@@ -28,9 +27,9 @@ template <typename Functor, typename... Args> struct functor final {
 
   friend auto operator|(auto &&v, functor &&self) noexcept -> auto
     requires requires {
-               monadic_apply(std::forward<decltype(v)>(v), functor_type{},
-                             std::move(self.args));
-             }
+      monadic_apply(std::forward<decltype(v)>(v), functor_type{},
+                    std::move(self.args));
+    }
   {
     return monadic_apply(std::forward<decltype(v)>(v), functor_type{},
                          std::move(self.args));
