@@ -21,15 +21,20 @@ constexpr static struct transform_t final {
   {
     return {std::forward<decltype(fn)>(fn)};
   }
+
+  struct apply;
 } transform = {};
 
-auto monadic_apply(some_monadic_type auto &&v, transform_t, auto &&fn) noexcept
-    -> decltype(auto)
-  requires std::invocable<decltype(fn),
-                          decltype(std::forward<decltype(v)>(v).value())>
-{
-  return std::forward<decltype(v)>(v).transform(std::forward<decltype(fn)>(fn));
-}
+struct transform_t::apply final {
+  static auto operator()(some_monadic_type auto &&v, auto &&fn) noexcept
+      -> decltype(auto)
+    requires std::invocable<decltype(fn),
+                            decltype(std::forward<decltype(v)>(v).value())>
+  {
+    return std::forward<decltype(v)>(v).transform(
+        std::forward<decltype(fn)>(fn));
+  }
+};
 
 } // namespace fn
 

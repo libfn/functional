@@ -20,22 +20,26 @@ constexpr inline struct or_else_t final {
   {
     return {std::forward<decltype(fn)>(fn)};
   }
+
+  struct apply;
 } or_else = {};
 
-auto monadic_apply(some_expected auto &&v, or_else_t, auto &&fn) noexcept
-    -> decltype(auto)
-  requires std::invocable<decltype(fn),
-                          decltype(std::forward<decltype(v)>(v).error())>
-{
-  return std::forward<decltype(v)>(v).or_else(std::forward<decltype(fn)>(fn));
-}
+struct or_else_t::apply final {
+  static auto operator()(some_expected auto &&v, auto &&fn) noexcept
+      -> decltype(auto)
+    requires std::invocable<decltype(fn),
+                            decltype(std::forward<decltype(v)>(v).error())>
+  {
+    return std::forward<decltype(v)>(v).or_else(std::forward<decltype(fn)>(fn));
+  }
 
-auto monadic_apply(some_optional auto &&v, or_else_t, auto &&fn) noexcept
-    -> decltype(auto)
-  requires std::invocable<decltype(fn)>
-{
-  return std::forward<decltype(v)>(v).or_else(std::forward<decltype(fn)>(fn));
-}
+  static auto operator()(some_optional auto &&v, auto &&fn) noexcept
+      -> decltype(auto)
+    requires std::invocable<decltype(fn)>
+  {
+    return std::forward<decltype(v)>(v).or_else(std::forward<decltype(fn)>(fn));
+  }
+};
 
 } // namespace fn
 

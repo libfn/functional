@@ -22,40 +22,44 @@ constexpr inline struct inspect_t final {
   {
     return {std::forward<decltype(fn)>(fn)...};
   }
+
+  struct apply;
 } inspect = {};
 
-auto monadic_apply(some_expected auto &&v, inspect_t, auto &&fn1,
-                   auto &&fn2) noexcept -> decltype(v)
-  requires std::invocable<decltype(fn1),
-                          decltype(std::forward<decltype(v)>(v).value())>
-           && std::invocable<decltype(fn2),
-                             decltype(std::forward<decltype(v)>(v).error())>
-{
-  static_assert(std::is_void_v<decltype(fn1(std::as_const(v.value())))>);
-  static_assert(std::is_void_v<decltype(fn2(std::as_const(v.error())))>);
-  if (v.has_value()) {
-    std::forward<decltype(fn1)>(fn1)(std::as_const(v.value()));
-  } else {
-    std::forward<decltype(fn2)>(fn2)(std::as_const(v.error()));
+struct inspect_t::apply final {
+  static auto operator()(some_expected auto &&v, auto &&fn1,
+                         auto &&fn2) noexcept -> decltype(v)
+    requires std::invocable<decltype(fn1),
+                            decltype(std::forward<decltype(v)>(v).value())>
+             && std::invocable<decltype(fn2),
+                               decltype(std::forward<decltype(v)>(v).error())>
+  {
+    static_assert(std::is_void_v<decltype(fn1(std::as_const(v.value())))>);
+    static_assert(std::is_void_v<decltype(fn2(std::as_const(v.error())))>);
+    if (v.has_value()) {
+      std::forward<decltype(fn1)>(fn1)(std::as_const(v.value()));
+    } else {
+      std::forward<decltype(fn2)>(fn2)(std::as_const(v.error()));
+    }
+    return std::forward<decltype(v)>(v);
   }
-  return std::forward<decltype(v)>(v);
-}
 
-auto monadic_apply(some_optional auto &&v, inspect_t, auto &&fn1,
-                   auto &&fn2) noexcept -> decltype(v)
-  requires std::invocable<decltype(fn1),
-                          decltype(std::forward<decltype(v)>(v).value())>
-           && std::invocable<decltype(fn2)>
-{
-  static_assert(std::is_void_v<decltype(fn1(std::as_const(v.value())))>);
-  static_assert(std::is_void_v<decltype(fn2())>);
-  if (v.has_value()) {
-    std::forward<decltype(fn1)>(fn1)(std::as_const(v.value()));
-  } else {
-    std::forward<decltype(fn2)>(fn2)();
+  static auto operator()(some_optional auto &&v, auto &&fn1,
+                         auto &&fn2) noexcept -> decltype(v)
+    requires std::invocable<decltype(fn1),
+                            decltype(std::forward<decltype(v)>(v).value())>
+             && std::invocable<decltype(fn2)>
+  {
+    static_assert(std::is_void_v<decltype(fn1(std::as_const(v.value())))>);
+    static_assert(std::is_void_v<decltype(fn2())>);
+    if (v.has_value()) {
+      std::forward<decltype(fn1)>(fn1)(std::as_const(v.value()));
+    } else {
+      std::forward<decltype(fn2)>(fn2)();
+    }
+    return std::forward<decltype(v)>(v);
   }
-  return std::forward<decltype(v)>(v);
-}
+};
 
 } // namespace fn
 

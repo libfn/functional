@@ -24,21 +24,10 @@ concept some_optional = detail::_is_some_optional<T &>;
 template <typename T>
 concept some_monadic_type = some_expected<T> || some_optional<T>;
 
-template <typename V, typename Functor, typename... Args>
-concept some_monadic_apply
-    = some_monadic_type<V>                                   //
-      && std::same_as<std::remove_cvref_t<Functor>, Functor> //
-      && requires {
-           monadic_apply(
-               std::declval<V>(),       //
-               std::declval<Functor>(), //
-               std::declval<
-                   std::add_rvalue_reference_t<detail::as_value_t<Args>>>()...);
-           // NOTE, the type transformation on Args does not transform an lvalue
-           // into rvalue (because add_rvalue_reference_t respects reference
-           // collapsing rules). It is meant to simulate the return type of one
-           // of the many possible overloads of detail::get(detail::not_tuple).
-         };
+template <typename Functor, typename V, typename... Args>
+concept monadic_invocable
+    = some_monadic_type<V> //
+      && std::invocable<typename Functor::apply, V, Args...>;
 
 template <typename Functor, typename... Args> struct functor final {
   using functor_type = Functor;
@@ -46,21 +35,21 @@ template <typename Functor, typename... Args> struct functor final {
   detail::not_tuple<detail::as_value_t<Args>...> data;
 
   static_assert(sizeof...(Args) > 0); // NOTE Consider relaxing
-  static_assert(std::is_same_v<std::remove_cvref_t<Functor>, Functor>
-                && std::is_empty_v<Functor>
-                && std::is_default_constructible_v<Functor>);
+  static_assert(std::is_empty_v<Functor>
+                && std::is_empty_v<typename Functor::apply>
+                && std::is_default_constructible_v<Functor>
+                && std::is_default_constructible_v<typename Functor::apply>);
 
   friend auto operator|(some_monadic_type auto &&v, auto &&self) noexcept
       -> decltype(auto)
     requires std::same_as<std::remove_cvref_t<decltype(self)>, functor>
-             && some_monadic_apply<decltype(v), functor_type, Args...>
+             && monadic_invocable<functor_type, decltype(v), Args...>
   {
     return
         [&v, &self]<unsigned... I>(
             std::integer_sequence<unsigned, I...>) noexcept -> decltype(auto) {
-          return monadic_apply(             //
-              std::forward<decltype(v)>(v), //
-              functor_type{},               //
+          return Functor::apply::template operator()( //
+              std::forward<decltype(v)>(v),           //
               detail::get<I>(std::forward<decltype(self)>(self).data)...);
         }(std::make_integer_sequence<unsigned, size>{});
   }
