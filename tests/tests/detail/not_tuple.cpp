@@ -13,14 +13,14 @@ struct Foo final {};
 static_assert([](auto &&v) constexpr -> bool {
   return requires { get<0>(v); } //
          && !requires { get<1>(v); };
-}(not_tuple<1, Foo>{}));
+}(not_tuple<Foo>{}));
 
 static_assert([](auto &&v) constexpr -> bool {
   return requires { get<0>(v); }    //
          && requires { get<1>(v); } //
          && !requires { get<2>(v); };
   ;
-}(not_tuple<2, Foo, Foo>{}));
+}(not_tuple<Foo, Foo>{}));
 
 static_assert([](auto &&v) constexpr -> bool {
   return requires { get<0>(v); }    //
@@ -28,7 +28,7 @@ static_assert([](auto &&v) constexpr -> bool {
          && requires { get<2>(v); } //
          && !requires { get<3>(v); };
   ;
-}(not_tuple<3, Foo, Foo, Foo>{}));
+}(not_tuple<Foo, Foo, Foo>{}));
 
 static_assert([](auto &&v) constexpr -> bool {
   return requires { get<0>(v); }    //
@@ -37,48 +37,48 @@ static_assert([](auto &&v) constexpr -> bool {
          && requires { get<3>(v); } //
          && !requires { get<4>(v); };
   ;
-}(not_tuple<4, Foo, Foo, Foo, Foo>{}));
+}(not_tuple<Foo, Foo, Foo, Foo>{}));
 
 // clang-format off
 struct A { int v; };
-static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<1, A>>())), A &&>);
-static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<1, A> const>())), A const &&>);
-static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<1, A> &>())), A &>);
-static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<1, A> const &>())), A const &>);
-static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<1, A> &&>())), A &&>);
-static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<1, A> const &&>())), A const &&>);
+static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<A>>())), A &&>);
+static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<A> const>())), A const &&>);
+static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<A> &>())), A &>);
+static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<A> const &>())), A const &>);
+static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<A> &&>())), A &&>);
+static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<A> const &&>())), A const &&>);
 
-static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<1, A &>>())), A &>);
-static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<1, A &> const>())), A const &>);
-static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<1, A &> &>())), A &>);
-static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<1, A &> const &>())), A const &>);
-static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<1, A &> &&>())), A &>);
-static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<1, A &> const &&>())), A const &>);
+static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<A &>>())), A &>);
+static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<A &> const>())), A const &>);
+static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<A &> &>())), A &>);
+static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<A &> const &>())), A const &>);
+static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<A &> &&>())), A &>);
+static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<A &> const &&>())), A const &>);
 
-static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<1, A const &>>())), A const &>);
-static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<1, A const &> const>())), A const &>);
-static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<1, A const &> &>())), A const &>);
-static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<1, A const &> const &>())), A const &>);
-static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<1, A const &> &&>())), A const &>);
-static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<1, A const &> const &&>())), A const &>);
+static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<A const &>>())), A const &>);
+static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<A const &> const>())), A const &>);
+static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<A const &> &>())), A const &>);
+static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<A const &> const &>())), A const &>);
+static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<A const &> &&>())), A const &>);
+static_assert(std::is_same_v<decltype(get<0>(std::declval<not_tuple<A const &> const &&>())), A const &>);
 
 struct B { int v; };
-static_assert(std::is_same_v<decltype(get<1>(std::declval<not_tuple<2, A, B> const>())), B const &&>);
-static_assert(std::is_same_v<decltype(get<1>(std::declval<not_tuple<2, A, B &> const &&>())), B const &>);
-static_assert(std::is_same_v<decltype(get<1>(std::declval<not_tuple<2, A, B> const &>())), B const &>);
-static_assert(std::is_same_v<decltype(get<1>(std::declval<not_tuple<2, A, B const> &>())), B const &>);
+static_assert(std::is_same_v<decltype(get<1>(std::declval<not_tuple<A, B> const>())), B const &&>);
+static_assert(std::is_same_v<decltype(get<1>(std::declval<not_tuple<A, B &> const &&>())), B const &>);
+static_assert(std::is_same_v<decltype(get<1>(std::declval<not_tuple<A, B> const &>())), B const &>);
+static_assert(std::is_same_v<decltype(get<1>(std::declval<not_tuple<A, B const> &>())), B const &>);
 
 struct C { int v; };
-static_assert(std::is_same_v<decltype(get<2>(std::declval<not_tuple<3, A, B, C> const>())), C const &&>);
-static_assert(std::is_same_v<decltype(get<2>(std::declval<not_tuple<3, A, B, C &> const &&>())), C const &>);
-static_assert(std::is_same_v<decltype(get<2>(std::declval<not_tuple<3, A, B, C> const &>())), C const &>);
-static_assert(std::is_same_v<decltype(get<2>(std::declval<not_tuple<3, A, B, C const> &>())), C const &>);
+static_assert(std::is_same_v<decltype(get<2>(std::declval<not_tuple<A, B, C> const>())), C const &&>);
+static_assert(std::is_same_v<decltype(get<2>(std::declval<not_tuple<A, B, C &> const &&>())), C const &>);
+static_assert(std::is_same_v<decltype(get<2>(std::declval<not_tuple<A, B, C> const &>())), C const &>);
+static_assert(std::is_same_v<decltype(get<2>(std::declval<not_tuple<A, B, C const> &>())), C const &>);
 
 struct D { int v; };
-static_assert(std::is_same_v<decltype(get<3>(std::declval<not_tuple<4, A, B, C, D> const>())), D const &&>);
-static_assert(std::is_same_v<decltype(get<3>(std::declval<not_tuple<4, A, B, C, D &> const &&>())), D const &>);
-static_assert(std::is_same_v<decltype(get<3>(std::declval<not_tuple<4, A, B, C, D> const &>())), D const &>);
-static_assert(std::is_same_v<decltype(get<3>(std::declval<not_tuple<4, A, B, C, D const> &>())), D const &>);
+static_assert(std::is_same_v<decltype(get<3>(std::declval<not_tuple<A, B, C, D> const>())), D const &&>);
+static_assert(std::is_same_v<decltype(get<3>(std::declval<not_tuple<A, B, C, D &> const &&>())), D const &>);
+static_assert(std::is_same_v<decltype(get<3>(std::declval<not_tuple<A, B, C, D> const &>())), D const &>);
+static_assert(std::is_same_v<decltype(get<3>(std::declval<not_tuple<A, B, C, D const> &>())), D const &>);
 // clang-format on
 } // namespace fn::detail
 
@@ -87,7 +87,7 @@ TEST_CASE("detail::not_tuple", "[not_tuple]")
   using namespace fn::detail;
   C c{3};
   D d{4};
-  using T1 = not_tuple<4, A, B const, C &, D const &>;
+  using T1 = not_tuple<A, B const, C &, D const &>;
   T1 t1 = {{1}, {2}, c, d};
   CHECK(get<0>(t1).v == 1);
   CHECK(get<1>(t1).v == 2);

@@ -30,20 +30,13 @@ template <typename T> using as_value_t = decltype(_as_value<T>);
 
 // Add const to second type, if first type is const
 template <typename T, typename V> extern V _apply_const;
-template <typename T, typename V> extern V const _apply_const<T const, V>;
 template <typename T, typename V> extern V const _apply_const<T const &, V>;
-template <typename T, typename V> extern V const _apply_const<T const &&, V>;
-template <typename T, typename V> extern V const &_apply_const<T const, V &>;
 template <typename T, typename V> extern V const &_apply_const<T const &, V &>;
-template <typename T, typename V> extern V const &_apply_const<T const &&, V &>;
-template <typename T, typename V> extern V const &&_apply_const<T const, V &&>;
 template <typename T, typename V>
 extern V const &&_apply_const<T const &, V &&>;
-template <typename T, typename V>
-extern V const &&_apply_const<T const &&, V &&>;
 
 template <typename T, typename V>
-using apply_const_t = decltype(_apply_const<T, V>);
+using apply_const_t = decltype(_apply_const<T &, V>);
 
 // NOTE: Unlike apply_const_t above this is not exact: prvalue parameters are
 // changed to xvalue. This is meant to disable copying of the return value.

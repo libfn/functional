@@ -10,12 +10,12 @@
 #include "functional/functor.hpp"
 #include "functional/fwd.hpp"
 
-#include <type_traits>
+#include <concepts>
 #include <utility>
 
 namespace fn {
 
-constexpr static struct transform_error_t final {
+constexpr inline struct transform_error_t final {
   auto operator()(auto &&fn) const noexcept
       -> functor<transform_error_t, decltype(fn)>
   {
@@ -26,7 +26,8 @@ constexpr static struct transform_error_t final {
 // Not supported by optional since there's no error type
 auto monadic_apply(some_expected auto &&v, transform_error_t,
                    auto &&fn) noexcept -> decltype(auto)
-  requires requires { fn(v.error()); }
+  requires std::invocable<decltype(fn),
+                          decltype(std::forward<decltype(v)>(v).error())>
 {
   return std::forward<decltype(v)>(v).transform_error(
       std::forward<decltype(fn)>(fn));

@@ -10,12 +10,12 @@
 #include "functional/functor.hpp"
 #include "functional/fwd.hpp"
 
-#include <type_traits>
+#include <concepts>
 #include <utility>
 
 namespace fn {
 
-constexpr static struct and_then_t final {
+constexpr inline struct and_then_t final {
   auto operator()(auto &&fn) const noexcept -> functor<and_then_t, decltype(fn)>
   {
     return {std::forward<decltype(fn)>(fn)};
@@ -24,7 +24,8 @@ constexpr static struct and_then_t final {
 
 auto monadic_apply(some_monadic_type auto &&v, and_then_t, auto &&fn) noexcept
     -> decltype(auto)
-  requires requires { fn(v.value()); }
+  requires std::invocable<decltype(fn),
+                          decltype(std::forward<decltype(v)>(v).value())>
 {
   return std::forward<decltype(v)>(v).and_then(std::forward<decltype(fn)>(fn));
 }

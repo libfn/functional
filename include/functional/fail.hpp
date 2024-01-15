@@ -10,12 +10,12 @@
 #include "functional/functor.hpp"
 #include "functional/fwd.hpp"
 
-#include <type_traits>
+#include <concepts>
 #include <utility>
 
 namespace fn {
 
-constexpr static struct fail_t final {
+constexpr inline struct fail_t final {
   auto operator()(auto &&fn) const noexcept -> functor<fail_t, decltype(fn)>
   {
     return {std::forward<decltype(fn)>(fn)};
@@ -24,7 +24,8 @@ constexpr static struct fail_t final {
 
 auto monadic_apply(some_expected auto &&v, fail_t, auto &&fn) noexcept
     -> decltype(auto)
-  requires requires { fn(v.value()); }
+  requires std::invocable<decltype(fn),
+                          decltype(std::forward<decltype(v)>(v).value())>
 {
   using error_type = detail::as_value_t<decltype(fn(v.value()))>;
   using value_type = std::remove_cvref_t<decltype(v)>::value_type;
@@ -41,7 +42,8 @@ auto monadic_apply(some_expected auto &&v, fail_t, auto &&fn) noexcept
 
 auto monadic_apply(some_optional auto &&v, fail_t, auto &&fn) noexcept
     -> decltype(auto)
-  requires requires { fn(v.value()); }
+  requires std::invocable<decltype(fn),
+                          decltype(std::forward<decltype(v)>(v).value())>
 {
   using type = std::remove_cvref_t<decltype(v)>;
   static_assert(std::is_void_v<decltype(fn(v.value()))>);

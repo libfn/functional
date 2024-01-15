@@ -20,42 +20,39 @@ struct Error final {
   std::string what;
 };
 
-template <typename T> struct immovable_Value final {
+template <typename T> struct ImmovableValue final {
   T value;
 
-  constexpr immovable_Value(T &&v) noexcept : value(v) {}
-  constexpr auto operator==(immovable_Value const &) const noexcept -> bool
+  constexpr ImmovableValue(T &&v) noexcept : value(v) {}
+  constexpr auto operator==(ImmovableValue const &) const noexcept -> bool
       = default;
 
-  constexpr immovable_Value(immovable_Value const &) = delete;
-  constexpr immovable_Value(immovable_Value &&) = delete;
-  constexpr immovable_Value &operator=(immovable_Value const &) = delete;
-  constexpr immovable_Value &operator=(immovable_Value &&) = delete;
+  constexpr ImmovableValue(ImmovableValue const &) = delete;
+  constexpr ImmovableValue(ImmovableValue &&) = delete;
+  constexpr ImmovableValue &operator=(ImmovableValue const &) = delete;
+  constexpr ImmovableValue &operator=(ImmovableValue &&) = delete;
 };
-template <typename T> immovable_Value(T &&) -> immovable_Value<T>;
+template <typename T> ImmovableValue(T &&) -> ImmovableValue<T>;
 
-template <typename Fn> struct immovable_Fn final {
+template <typename Fn> struct ImmovableFn final {
   Fn fn;
 
-  constexpr immovable_Fn(Fn &&fn) noexcept : fn(fn) {}
+  constexpr ImmovableFn(Fn &&fn) noexcept : fn(fn) {}
   constexpr auto operator()(auto &&...args) const noexcept -> decltype(auto)
     requires requires { fn(args...); }
   {
     return fn(std::forward<decltype(args)>(args)...);
   }
 
-  constexpr immovable_Fn(immovable_Fn const &) = delete;
-  constexpr immovable_Fn(immovable_Fn &&) = delete;
-  constexpr immovable_Fn &operator=(immovable_Fn const &) = delete;
-  constexpr immovable_Fn &operator=(immovable_Fn &&) = delete;
+  constexpr ImmovableFn(ImmovableFn const &) = delete;
+  constexpr ImmovableFn(ImmovableFn &&) = delete;
+  constexpr ImmovableFn &operator=(ImmovableFn const &) = delete;
+  constexpr ImmovableFn &operator=(ImmovableFn &&) = delete;
 };
-template <typename Fn> immovable_Fn(Fn &&) -> immovable_Fn<Fn>;
+template <typename Fn> ImmovableFn(Fn &&) -> ImmovableFn<Fn>;
 
-template <typename T> struct incomplete;
-
-TEST_CASE(
-    "Demo expected",
-    "[expected][and_then][transform_error][transform][inspect][recover][fail]")
+TEST_CASE("Demo expected", "[expected][and_then][transform_error][transform]["
+                           "inspect][recover][fail][immovable]")
 {
   constexpr auto fn1 = [](const char *str, double &peek) {
     using namespace fn;
@@ -72,14 +69,14 @@ TEST_CASE(
 
     // Immovable operations must be captured as lvalues, and functor will store
     // reference to them rather than make a copy
-    constexpr auto fn1 = [j = immovable_Value{-1}](
+    constexpr auto fn1 = [j = ImmovableValue{-1}](
                              int i) noexcept -> std::expected<double, Error> {
       if (i < j.value) {
         return std::unexpected<Error>{"Too small"};
       }
       return {i + 0.5};
     };
-    constexpr auto const fn2 = immovable_Fn{
+    constexpr auto const fn2 = ImmovableFn{
         [](double v) noexcept -> int { return std::floor(v - 0.5); }};
 
     return (parse(str) //

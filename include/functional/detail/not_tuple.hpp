@@ -8,16 +8,16 @@
 
 namespace fn::detail {
 
-template <unsigned Size, typename... Args> struct not_tuple;
+template <typename... Args> struct not_tuple;
 
-template <typename Arg0> struct not_tuple<1, Arg0> final {
+template <typename Arg0> struct not_tuple<Arg0> final {
   constexpr static unsigned size = 1;
   Arg0 v0;
 
   static_assert(!std::is_rvalue_reference_v<Arg0>);
 };
 
-template <typename Arg0, typename Arg1> struct not_tuple<2, Arg0, Arg1> final {
+template <typename Arg0, typename Arg1> struct not_tuple<Arg0, Arg1> final {
   constexpr static unsigned size = 2;
   Arg0 v0;
   Arg1 v1;
@@ -27,7 +27,7 @@ template <typename Arg0, typename Arg1> struct not_tuple<2, Arg0, Arg1> final {
 };
 
 template <typename Arg0, typename Arg1, typename Arg2>
-struct not_tuple<3, Arg0, Arg1, Arg2> final {
+struct not_tuple<Arg0, Arg1, Arg2> final {
   constexpr static unsigned size = 3;
   Arg0 v0;
   Arg1 v1;
@@ -39,7 +39,7 @@ struct not_tuple<3, Arg0, Arg1, Arg2> final {
 };
 
 template <typename Arg0, typename Arg1, typename Arg2, typename Arg3>
-struct not_tuple<4, Arg0, Arg1, Arg2, Arg3> final {
+struct not_tuple<Arg0, Arg1, Arg2, Arg3> final {
   constexpr static unsigned size = 4;
   Arg0 v0;
   Arg1 v1;
@@ -53,18 +53,18 @@ struct not_tuple<4, Arg0, Arg1, Arg2, Arg3> final {
 };
 
 template <typename T> constexpr bool is_not_tuple = false;
-template <unsigned Size, typename... Args>
-constexpr bool is_not_tuple<not_tuple<Size, Args...>> = true;
-template <unsigned Size, typename... Args>
-constexpr bool is_not_tuple<not_tuple<Size, Args...> const> = true;
-template <unsigned Size, typename... Args>
-constexpr bool is_not_tuple<not_tuple<Size, Args...> &> = true;
-template <unsigned Size, typename... Args>
-constexpr bool is_not_tuple<not_tuple<Size, Args...> const &> = true;
-template <unsigned Size, typename... Args>
-constexpr bool is_not_tuple<not_tuple<Size, Args...> &&> = true;
-template <unsigned Size, typename... Args>
-constexpr bool is_not_tuple<not_tuple<Size, Args...> const &&> = true;
+template <typename... Args>
+constexpr bool is_not_tuple<not_tuple<Args...>> = true;
+template <typename... Args>
+constexpr bool is_not_tuple<not_tuple<Args...> const> = true;
+template <typename... Args>
+constexpr bool is_not_tuple<not_tuple<Args...> &> = true;
+template <typename... Args>
+constexpr bool is_not_tuple<not_tuple<Args...> const &> = true;
+template <typename... Args>
+constexpr bool is_not_tuple<not_tuple<Args...> &&> = true;
+template <typename... Args>
+constexpr bool is_not_tuple<not_tuple<Args...> const &&> = true;
 
 template <typename T>
 concept some_not_tuple = is_not_tuple<T>;

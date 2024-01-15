@@ -10,12 +10,12 @@
 #include "functional/functor.hpp"
 #include "functional/fwd.hpp"
 
-#include <type_traits>
+#include <concepts>
 #include <utility>
 
 namespace fn {
 
-constexpr static struct or_else_t final {
+constexpr inline struct or_else_t final {
   auto operator()(auto &&fn) const noexcept -> functor<or_else_t, decltype(fn)>
   {
     return {std::forward<decltype(fn)>(fn)};
@@ -24,14 +24,15 @@ constexpr static struct or_else_t final {
 
 auto monadic_apply(some_expected auto &&v, or_else_t, auto &&fn) noexcept
     -> decltype(auto)
-  requires requires { fn(v.error()); }
+  requires std::invocable<decltype(fn),
+                          decltype(std::forward<decltype(v)>(v).error())>
 {
   return std::forward<decltype(v)>(v).or_else(std::forward<decltype(fn)>(fn));
 }
 
 auto monadic_apply(some_optional auto &&v, or_else_t, auto &&fn) noexcept
     -> decltype(auto)
-  requires requires { fn(); }
+  requires std::invocable<decltype(fn)>
 {
   return std::forward<decltype(v)>(v).or_else(std::forward<decltype(fn)>(fn));
 }

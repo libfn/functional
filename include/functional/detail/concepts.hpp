@@ -10,32 +10,17 @@
 #include <optional>
 
 namespace fn::detail {
-template <typename T> constexpr bool is_some_expected = false;
+template <typename T> constexpr bool _is_some_expected = false;
 template <typename T, typename Err>
-constexpr bool is_some_expected<std::expected<T, Err>> = true;
+constexpr bool _is_some_expected<std::expected<T, Err> &> = true;
 template <typename T, typename Err>
-constexpr bool is_some_expected<std::expected<T, Err> const> = true;
-template <typename T, typename Err>
-constexpr bool is_some_expected<std::expected<T, Err> &> = true;
-template <typename T, typename Err>
-constexpr bool is_some_expected<std::expected<T, Err> const &> = true;
-template <typename T, typename Err>
-constexpr bool is_some_expected<std::expected<T, Err> &&> = true;
-template <typename T, typename Err>
-constexpr bool is_some_expected<std::expected<T, Err> const &&> = true;
+constexpr bool _is_some_expected<std::expected<T, Err> const &> = true;
 
-template <typename T> constexpr bool is_some_optional = false;
-template <typename T> constexpr bool is_some_optional<std::optional<T>> = true;
+template <typename T> constexpr bool _is_some_optional = false;
 template <typename T>
-constexpr bool is_some_optional<std::optional<T> const> = true;
+constexpr bool _is_some_optional<std::optional<T> &> = true;
 template <typename T>
-constexpr bool is_some_optional<std::optional<T> &> = true;
-template <typename T>
-constexpr bool is_some_optional<std::optional<T> const &> = true;
-template <typename T>
-constexpr bool is_some_optional<std::optional<T> &&> = true;
-template <typename T>
-constexpr bool is_some_optional<std::optional<T> const &&> = true;
+constexpr bool _is_some_optional<std::optional<T> const &> = true;
 } // namespace fn::detail
 
 #endif // INCLUDE_FUNCTIONAL_DETAIL_CONCEPTS

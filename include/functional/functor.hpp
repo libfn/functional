@@ -16,10 +16,10 @@
 namespace fn {
 
 template <typename T>
-concept some_expected = detail::is_some_expected<T>;
+concept some_expected = detail::_is_some_expected<T &>;
 
 template <typename T>
-concept some_optional = detail::is_some_optional<T>;
+concept some_optional = detail::_is_some_optional<T &>;
 
 template <typename T>
 concept some_monadic_type = some_expected<T> || some_optional<T>;
@@ -43,7 +43,7 @@ concept some_monadic_apply
 template <typename Functor, typename... Args> struct functor final {
   using functor_type = Functor;
   constexpr static unsigned size = sizeof...(Args);
-  detail::not_tuple<(sizeof...(Args)), detail::as_value_t<Args>...> data;
+  detail::not_tuple<detail::as_value_t<Args>...> data;
 
   static_assert(sizeof...(Args) > 0); // NOTE Consider relaxing
   static_assert(std::is_same_v<std::remove_cvref_t<Functor>, Functor>

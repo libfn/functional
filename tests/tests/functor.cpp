@@ -5,7 +5,8 @@
 
 #include "functional/functor.hpp"
 
-constexpr static struct dummy_t final {
+namespace {
+constexpr inline struct dummy_t final {
   auto operator()(auto &&fn) const noexcept
       -> fn::functor<dummy_t, decltype(fn)>
   {
@@ -21,6 +22,7 @@ auto monadic_apply(fn::some_monadic_type auto &&v, dummy_t, auto &&fn) noexcept
     return std::forward<decltype(fn)>(fn)(std::forward<decltype(v)>(v));
   });
 }
+} // namespace
 
 namespace fn {
 constexpr auto fn1 = [](int i) constexpr -> int { return i + 1; };
