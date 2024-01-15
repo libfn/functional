@@ -9,7 +9,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(TESTS_SOURCE_FILES
     detail/not_tuple.cpp
     detail/traits.cpp
+    and_then.cpp
+    fail.cpp
     functor.cpp
+    inspect.cpp
+    or_else.cpp
 )
 add_executable(${PROJECT_NAME} ${TESTS_SOURCE_FILES})
 target_link_libraries(${PROJECT_NAME} include catch2_main Catch2::Catch2)

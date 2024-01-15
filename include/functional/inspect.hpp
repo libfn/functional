@@ -29,10 +29,9 @@ constexpr inline struct inspect_t final {
 struct inspect_t::apply final {
   static auto operator()(some_expected auto &&v, auto &&fn1,
                          auto &&fn2) noexcept -> decltype(v)
-    requires std::invocable<decltype(fn1),
-                            decltype(std::forward<decltype(v)>(v).value())>
+    requires std::invocable<decltype(fn1), decltype(std::as_const(v.value()))>
              && std::invocable<decltype(fn2),
-                               decltype(std::forward<decltype(v)>(v).error())>
+                               decltype(std::as_const(v.error()))>
   {
     static_assert(std::is_void_v<decltype(fn1(std::as_const(v.value())))>);
     static_assert(std::is_void_v<decltype(fn2(std::as_const(v.error())))>);
@@ -46,8 +45,7 @@ struct inspect_t::apply final {
 
   static auto operator()(some_optional auto &&v, auto &&fn1,
                          auto &&fn2) noexcept -> decltype(v)
-    requires std::invocable<decltype(fn1),
-                            decltype(std::forward<decltype(v)>(v).value())>
+    requires std::invocable<decltype(fn1), decltype(std::as_const(v.value()))>
              && std::invocable<decltype(fn2)>
   {
     static_assert(std::is_void_v<decltype(fn1(std::as_const(v.value())))>);

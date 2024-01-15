@@ -30,16 +30,12 @@ struct fail_t::apply final {
     requires std::invocable<decltype(fn),
                             decltype(std::forward<decltype(v)>(v).value())>
   {
-    using error_type = detail::as_value_t<decltype(fn(v.value()))>;
-    using value_type = std::remove_cvref_t<decltype(v)>::value_type;
-    static_assert(
-        std::is_convertible_v<
-            typename std::remove_cvref_t<decltype(v)>::error_type, error_type>);
-    using type = std::expected<value_type, error_type>;
+    using type = std::remove_cvref_t<decltype(v)>;
     return std::forward<decltype(v)>(v).and_then( //
         [&fn](auto &&...args) noexcept -> type {
-          return std::unexpected<error_type>{std::forward<decltype(fn)>(fn)(
-              std::forward<decltype(args)>(args)...)};
+          return std::unexpected<typename type::error_type>{
+              std::forward<decltype(fn)>(fn)(
+                  std::forward<decltype(args)>(args)...)};
         });
   }
 
