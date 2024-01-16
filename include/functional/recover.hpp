@@ -33,18 +33,16 @@ struct recover_t::apply final {
                             decltype(std::forward<decltype(v)>(v).error())>
              && (!std::is_void_v<decltype(v.value())>)
   {
-    using error_type = std::remove_cvref_t<decltype(v)>::error_type;
-    using value_type = detail::as_value_t<decltype(fn(
-        std::forward<decltype(v)>(v).error()))>;
+    using type = std::remove_cvref_t<decltype(v)>;
     static_assert(
         std::is_convertible_v<
-            typename std::remove_cvref_t<decltype(v)>::value_type, value_type>);
-    using type = std::expected<value_type, error_type>;
-    return std::forward<decltype(v)>(v).or_else(
-        [&fn](auto &&arg) noexcept -> type {
-          return {
-              std::forward<decltype(fn)>(fn)(std::forward<decltype(arg)>(arg))};
-        });
+            std::invoke_result_t<
+                decltype(fn), decltype(std::forward<decltype(v)>(v).error())>,
+            typename type::value_type>);
+    return std::forward<decltype(v)>(v).or_else([&fn](auto &&arg) noexcept {
+      return type{std::in_place, std::forward<decltype(fn)>(fn)(
+                                     std::forward<decltype(arg)>(arg))};
+    });
   }
 
   static auto operator()(some_expected auto &&v, auto &&fn) noexcept
@@ -53,29 +51,27 @@ struct recover_t::apply final {
                             decltype(std::forward<decltype(v)>(v).error())>
              && (std::is_void_v<decltype(v.value())>)
   {
-    using error_type = std::remove_cvref_t<decltype(v)>::error_type;
-    using value_type = detail::as_value_t<decltype(fn(
-        std::forward<decltype(v)>(v).error()))>;
-    static_assert(std::is_default_constructible_v<value_type>);
-    using type = std::expected<value_type, error_type>;
-    return std::forward<decltype(v)>(v).or_else(
-        [&fn](auto &&arg) noexcept -> type {
-          return {
-              std::forward<decltype(fn)>(fn)(std::forward<decltype(arg)>(arg))};
-        });
+    using type = std::remove_cvref_t<decltype(v)>;
+    static_assert(
+        std::is_void_v<std::invoke_result_t<
+            decltype(fn), decltype(std::forward<decltype(v)>(v).error())>>);
+    return std::forward<decltype(v)>(v).or_else([&fn](auto &&arg) noexcept {
+      std::forward<decltype(fn)>(fn)(
+          std::forward<decltype(arg)>(arg)); // side-effects only
+      return type{std::in_place};
+    });
   }
 
   static auto operator()(some_optional auto &&v, auto &&fn) noexcept
       -> decltype(auto)
     requires std::invocable<decltype(fn)>
   {
-    using value_type = detail::as_value_t<decltype(fn())>;
-    static_assert(
-        std::is_convertible_v<
-            typename std::remove_cvref_t<decltype(v)>::value_type, value_type>);
-    using type = std::optional<value_type>;
-    return std::forward<decltype(v)>(v).or_else([&fn]() noexcept -> type {
-      return {std::forward<decltype(fn)>(fn)()};
+    using type = std::remove_cvref_t<decltype(v)>;
+    static_assert(std::is_convertible_v<std::invoke_result_t<decltype(fn)>,
+                                        typename type::value_type>);
+
+    return std::forward<decltype(v)>(v).or_else([&fn]() noexcept {
+      return type{std::in_place, std::forward<decltype(fn)>(fn)()};
     });
   }
 };

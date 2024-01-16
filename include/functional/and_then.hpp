@@ -25,7 +25,26 @@ constexpr inline struct and_then_t final {
 } and_then = {};
 
 struct and_then_t::apply final {
-  static auto operator()(some_monadic_type auto &&v, auto &&fn) noexcept
+  static auto operator()(some_expected auto &&v, auto &&fn) noexcept
+      -> decltype(auto)
+    requires std::invocable<decltype(fn),
+                            decltype(std::forward<decltype(v)>(v).value())>
+             && (!std::is_void_v<decltype(v.value())>)
+  {
+    return std::forward<decltype(v)>(v).and_then(
+        std::forward<decltype(fn)>(fn));
+  }
+
+  static auto operator()(some_expected auto &&v, auto &&fn) noexcept
+      -> decltype(auto)
+    requires std::invocable<decltype(fn)>
+             && (std::is_void_v<decltype(v.value())>)
+  {
+    return std::forward<decltype(v)>(v).and_then(
+        std::forward<decltype(fn)>(fn));
+  }
+
+  static auto operator()(some_optional auto &&v, auto &&fn) noexcept
       -> decltype(auto)
     requires std::invocable<decltype(fn),
                             decltype(std::forward<decltype(v)>(v).value())>

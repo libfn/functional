@@ -30,6 +30,7 @@ struct fail_t::apply final {
       -> decltype(auto)
     requires std::invocable<decltype(fn),
                             decltype(std::forward<decltype(v)>(v).value())>
+             && (!std::is_void_v<decltype(v.value())>)
   {
     using type = std::remove_cvref_t<decltype(v)>;
     static_assert(
@@ -41,6 +42,21 @@ struct fail_t::apply final {
         [&fn](auto &&arg) noexcept -> type {
           return std::unexpected<typename type::error_type>{
               std::forward<decltype(fn)>(fn)(std::forward<decltype(arg)>(arg))};
+        });
+  }
+
+  static auto operator()(some_expected auto &&v, auto &&fn) noexcept
+      -> decltype(auto)
+    requires std::invocable<decltype(fn)>
+             && (std::is_void_v<decltype(v.value())>)
+  {
+    using type = std::remove_cvref_t<decltype(v)>;
+    static_assert(std::is_convertible_v<std::invoke_result_t<decltype(fn)>,
+                                        typename type::error_type>);
+    return std::forward<decltype(v)>(v).and_then( //
+        [&fn]() noexcept -> type {
+          return std::unexpected<typename type::error_type>{
+              std::forward<decltype(fn)>(fn)()};
         });
   }
 

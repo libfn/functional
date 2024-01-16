@@ -23,7 +23,7 @@ struct Xint final {
 };
 } // namespace
 
-TEST_CASE("and_then", "[and_then][expected]")
+TEST_CASE("and_then", "[and_then][expected][expected_value]")
 {
   using namespace fn;
 
@@ -42,7 +42,7 @@ TEST_CASE("and_then", "[and_then][expected]")
   }([](int &&) -> operand_t { throw 0; })); // alow move from rvalue
   static_assert(not [](auto &&fn) constexpr->bool {
     return monadic_invocable<and_then_t, operand_t const, decltype(fn)>;
-  }([](int &&) -> operand_t { throw 0; })); // disallow removing const-qualifier
+  }([](int &&) -> operand_t { throw 0; })); // disallow removing const
   static_assert(not [](auto &&fn) constexpr->bool {
     return monadic_invocable<and_then_t, operand_t &, decltype(fn)>;
   }([](int &&) -> operand_t { throw 0; })); // disallow move from lvalue
@@ -51,7 +51,7 @@ TEST_CASE("and_then", "[and_then][expected]")
   }([](int &) -> operand_t { throw 0; })); // allow lvalue binding
   static_assert(not [](auto &&fn) constexpr->bool {
     return monadic_invocable<and_then_t, operand_t const &, decltype(fn)>;
-  }([](int &) -> operand_t { throw 0; })); // disallow removing const-qualifier
+  }([](int &) -> operand_t { throw 0; })); // disallow removing const
   static_assert(not [](auto &&fn) constexpr->bool {
     return monadic_invocable<and_then_t, operand_t, decltype(fn)>;
   }([](int &) -> operand_t { throw 0; })); // disallow lvalue binding to rvalue
@@ -147,6 +147,115 @@ TEST_CASE("and_then", "[and_then][expected]")
   }
 }
 
+TEST_CASE("and_then", "[and_then][expected][expected_void]")
+{
+  using namespace fn;
+
+  using operand_t = std::expected<void, Error>;
+  int count = 0;
+  auto fnValue = [&count]() -> operand_t {
+    count += 1;
+    return {};
+  };
+
+  static_assert(monadic_invocable<and_then_t, operand_t, decltype(fnValue)>);
+  static_assert([](auto &&fn) constexpr -> bool {
+    return monadic_invocable<and_then_t, operand_t, decltype(fn)>;
+  }([](auto...) -> operand_t { return {}; })); // allow generic call
+  static_assert([](auto &&fn) constexpr -> bool {
+    return monadic_invocable<and_then_t, operand_t, decltype(fn)>;
+  }([]() -> operand_t { return {}; })); // allow conversion
+
+  static_assert(not [](auto &&fn) constexpr->bool {
+    return monadic_invocable<and_then_t, operand_t, decltype(fn)>;
+  }([](auto) -> operand_t { return {}; })); // wrong arity
+  static_assert(not [](auto &&fn) constexpr->bool {
+    return monadic_invocable<and_then_t, operand_t, decltype(fn)>;
+  }([](auto, auto) -> operand_t { return {}; })); // wrong arity
+
+  constexpr auto wrong = []() -> operand_t { throw 0; };
+  auto fnFail = [&count]() -> operand_t {
+    return std::unexpected<Error>("Got " + std::to_string(++count));
+  };
+  auto fnXabs
+      = [&count]() -> std::expected<Xint, Error> { return {{++count}}; };
+
+  WHEN("operand is lvalue")
+  {
+    WHEN("operand is value")
+    {
+      operand_t a{std::in_place};
+      using T = decltype(a | and_then(fnValue));
+      static_assert(std::is_same_v<T, operand_t>);
+      (a | and_then(fnValue)).value();
+      CHECK(count == 1);
+
+      WHEN("fail")
+      {
+        using T = decltype(a | and_then(fnFail));
+        static_assert(std::is_same_v<T, operand_t>);
+        REQUIRE((a | and_then(fnFail)).error().what == "Got 2");
+      }
+
+      WHEN("change type")
+      {
+        using T = decltype(a | and_then(fnXabs));
+        static_assert(std::is_same_v<T, std::expected<Xint, Error>>);
+        REQUIRE((a | and_then(fnXabs)).value().value == 2);
+      }
+    }
+    WHEN("operand is error")
+    {
+      operand_t a{std::unexpect, "Not good"};
+      using T = decltype(a | and_then(wrong));
+      static_assert(std::is_same_v<T, operand_t>);
+      REQUIRE((a //
+               | and_then(wrong))
+                  .error()
+                  .what
+              == "Not good");
+    }
+  }
+
+  WHEN("operand is rvalue")
+  {
+    WHEN("operand is value")
+    {
+      using T = decltype(operand_t{std::in_place} | and_then(fnValue));
+      static_assert(std::is_same_v<T, operand_t>);
+      (operand_t{std::in_place} | and_then(fnValue)).value();
+      CHECK(count == 1);
+
+      WHEN("fail")
+      {
+        using T = decltype(operand_t{std::in_place} | and_then(fnFail));
+        static_assert(std::is_same_v<T, operand_t>);
+        REQUIRE((operand_t{std::in_place} | and_then(fnFail)).error().what
+                == "Got 2");
+      }
+
+      WHEN("change type")
+      {
+        using T = decltype(operand_t{std::in_place} | and_then(fnXabs));
+        static_assert(std::is_same_v<T, std::expected<Xint, Error>>);
+        REQUIRE((operand_t{std::in_place} | and_then(fnXabs)).value().value
+                == 2);
+      }
+    }
+    WHEN("operand is error")
+    {
+      using T
+          = decltype(operand_t{std::unexpect, "Not good"} | and_then(wrong));
+      static_assert(std::is_same_v<T, operand_t>);
+      REQUIRE((operand_t{std::unexpect, "Not good"} //
+               | and_then(wrong))
+                  .error()
+                  .what
+              == "Not good");
+    }
+  }
+}
+
 TEST_CASE("and_then", "[and_then][optional]")
 {
   using namespace fn;
@@ -166,7 +275,7 @@ TEST_CASE("and_then", "[and_then][optional]")
   }([](int &&) -> operand_t { throw 0; })); // alow move from rvalue
   static_assert(not [](auto &&fn) constexpr->bool {
     return monadic_invocable<and_then_t, operand_t const, decltype(fn)>;
-  }([](int &&) -> operand_t { throw 0; })); // disallow removing const-qualifier
+  }([](int &&) -> operand_t { throw 0; })); // disallow removing const
   static_assert(not [](auto &&fn) constexpr->bool {
     return monadic_invocable<and_then_t, operand_t &, decltype(fn)>;
   }([](int &&) -> operand_t { throw 0; })); // disallow move from lvalue
@@ -175,7 +284,7 @@ TEST_CASE("and_then", "[and_then][optional]")
   }([](int &) -> operand_t { throw 0; })); // allow lvalue binding
   static_assert(not [](auto &&fn) constexpr->bool {
     return monadic_invocable<and_then_t, operand_t const &, decltype(fn)>;
-  }([](int &) -> operand_t { throw 0; })); // disallow removing const-qualifier
+  }([](int &) -> operand_t { throw 0; })); // disallow removing const
   static_assert(not [](auto &&fn) constexpr->bool {
     return monadic_invocable<and_then_t, operand_t, decltype(fn)>;
   }([](int &) -> operand_t { throw 0; })); // disallow lvalue binding to rvalue

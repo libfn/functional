@@ -27,7 +27,7 @@ template <typename... Ts> struct Overload : Ts... {
 
 } // namespace
 
-TEST_CASE("inspect with two functions", "[inspect][expected]")
+TEST_CASE("inspect with two functions", "[inspect][expected][expected_value]")
 {
   using namespace fn;
 
@@ -69,12 +69,12 @@ TEST_CASE("inspect with two functions", "[inspect][expected]")
     return monadic_invocable<inspect_t, operand_t, decltype(fn1),
                              decltype(fn2)>;
   }([](int &) -> operand_t { throw 0; },
-    [](Error) {})); // disallow removing const-qualifier
+    [](Error) {})); // disallow removing const
   static_assert(not [](auto &&fn1, auto fn2) constexpr->bool {
     return monadic_invocable<inspect_t, operand_t, decltype(fn1),
                              decltype(fn2)>;
   }([](int) -> operand_t { throw 0; },
-    [](Error &) {})); // disallow removing const-qualifier
+    [](Error &) {})); // disallow removing const
 
   static_assert(not [](auto &&fn1, auto fn2) constexpr->bool {
     return monadic_invocable<inspect_t, operand_t, decltype(fn1),
@@ -143,7 +143,110 @@ TEST_CASE("inspect with two functions", "[inspect][expected]")
   }
 }
 
-TEST_CASE("inspect with one function", "[inspect][expected]")
+TEST_CASE("inspect with two functions", "[inspect][expected][expected_void]")
+{
+  using namespace fn;
+
+  using operand_t = std::expected<void, Error>;
+  int count = 0;
+  std::string error = {};
+  auto fnValue = [&count]() -> void { count += 1; };
+  auto fnError = [&error](auto v) -> void { error = v; };
+
+  static_assert(monadic_invocable<inspect_t, operand_t, decltype(fnValue),
+                                  decltype(fnError)>);
+  static_assert([](auto &&fn) constexpr -> bool {
+    return monadic_invocable<inspect_t, operand_t, decltype(fn), decltype(fn)>;
+  }([](auto...) -> void { throw 0; })); // allow generic call
+  static_assert([](auto &&fn1, auto fn2) constexpr -> bool {
+    return monadic_invocable<inspect_t, operand_t, decltype(fn1),
+                             decltype(fn2)>;
+  }([]() -> operand_t { throw 0; },
+    [](std::string_view) {})); // allow conversions
+  static_assert([](auto &&fn1, auto fn2) constexpr -> bool {
+    return monadic_invocable<inspect_t, operand_t &&, decltype(fn1),
+                             decltype(fn2)>;
+  }([]() -> operand_t { throw 0; }, [](Error) {})); // allow copy from rvalue
+  static_assert([](auto &&fn1, auto fn2) constexpr -> bool {
+    return monadic_invocable<inspect_t, operand_t &&, decltype(fn1),
+                             decltype(fn2)>;
+  }([]() -> operand_t { throw 0; },
+    [](Error const &) {})); // allow binding to const lvalue
+  static_assert(not [](auto &&fn1, auto fn2) constexpr->bool {
+    return monadic_invocable<inspect_t, operand_t &&, decltype(fn1),
+                             decltype(fn2)>;
+  }([]() -> operand_t { throw 0; }, [](Error &&) {})); // disallow move
+  static_assert(not [](auto &&fn1, auto fn2) constexpr->bool {
+    return monadic_invocable<inspect_t, operand_t, decltype(fn1),
+                             decltype(fn2)>;
+  }([]() -> operand_t { throw 0; }, [](Error &) {})); // disallow removing const
+
+  static_assert(not [](auto &&fn1, auto fn2) constexpr->bool {
+    return monadic_invocable<inspect_t, operand_t, decltype(fn1),
+                             decltype(fn2)>;
+  }([]() -> operand_t { throw 0; }, [](std::size_t) {})); // wrong type
+  static_assert(not [](auto &&fn1, auto fn2) constexpr->bool {
+    return monadic_invocable<inspect_t, operand_t, decltype(fn1),
+                             decltype(fn2)>;
+  }([](auto) -> operand_t { throw 0; },
+    [](std::string_view) {})); // wrong arity
+  static_assert(not [](auto &&fn1, auto fn2) constexpr->bool {
+    return monadic_invocable<inspect_t, operand_t, decltype(fn1),
+                             decltype(fn2)>;
+  }([](auto, auto) -> operand_t { throw 0; },
+    [](std::string_view) {})); // wrong arity
+
+  constexpr auto wrong = [](auto...) -> void { throw 0; };
+
+  WHEN("operand is lvalue")
+  {
+    WHEN("operand is value")
+    {
+      operand_t a{std::in_place};
+      using T = decltype(a | inspect(fnValue, wrong));
+      static_assert(std::is_same_v<T, operand_t &>);
+      (a | inspect(fnValue, wrong)).value();
+      CHECK(count == 1);
+    }
+    WHEN("operand is error")
+    {
+      operand_t a{std::unexpect, "Not good"};
+      using T = decltype(a | inspect(wrong, fnError));
+      static_assert(std::is_same_v<T, operand_t &>);
+      REQUIRE((a //
+               | inspect(wrong, fnError))
+                  .error()
+                  .what
+              == "Not good");
+      CHECK(error == "Not good");
+    }
+  }
+
+  WHEN("operand is rvalue")
+  {
+    WHEN("operand is value")
+    {
+      using T = decltype(operand_t{std::in_place} | inspect(fnValue, wrong));
+      static_assert(std::is_same_v<T, operand_t &&>);
+      (operand_t{std::in_place} | inspect(fnValue, wrong)).value();
+      CHECK(count == 1);
+    }
+    WHEN("operand is error")
+    {
+      using T = decltype(operand_t{std::unexpect, "Not good"}
+                         | inspect(wrong, fnError));
+      static_assert(std::is_same_v<T, operand_t &&>);
+      REQUIRE((operand_t{std::unexpect, "Not good"} //
+               | inspect(wrong, fnError))
+                  .error()
+                  .what
+              == "Not good");
+      CHECK(error == "Not good");
+    }
+  }
+}
+
+TEST_CASE("inspect with one function", "[inspect][expected][inspect_generic]")
 {
   using namespace fn;
 
@@ -185,11 +288,11 @@ TEST_CASE("inspect with one function", "[inspect][expected]")
   static_assert(not [](auto &&fn) constexpr->bool {
     return monadic_invocable<inspect_t, operand_t, decltype(fn)>;
   }(Overload{[](int &) -> operand_t { throw 0; },
-             [](Error) {}})); // disallow removing const-qualifier
+             [](Error) {}})); // disallow removing const
   static_assert(not [](auto &&fn) constexpr->bool {
     return monadic_invocable<inspect_t, operand_t, decltype(fn)>;
   }(Overload{[](int) -> operand_t { throw 0; },
-             [](Error &) {}})); // disallow removing const-qualifier
+             [](Error &) {}})); // disallow removing const
 
   static_assert(not [](auto &&fn) constexpr->bool {
     return monadic_invocable<inspect_t, operand_t, decltype(fn)>;
@@ -252,6 +355,110 @@ TEST_CASE("inspect with one function", "[inspect][expected]")
   }
 }
 
+TEST_CASE("inspect with one function",
+          "[inspect][expected][inspect_generic][expected_void]")
+{
+  using namespace fn;
+
+  using operand_t = std::expected<void, Error>;
+  int count = 0;
+  std::string error = {};
+  auto fnValue = [&count, &error](auto... v) -> void {
+    if constexpr (sizeof...(v) == 0) {
+      count += 1;
+    } else {
+      error = ("" + ... + v.what);
+    }
+  };
+
+  static_assert(monadic_invocable<inspect_t, operand_t, decltype(fnValue)>);
+  static_assert([](auto &&fn) constexpr -> bool {
+    return monadic_invocable<inspect_t, operand_t, decltype(fn)>;
+  }([](auto...) -> void { throw 0; })); // allow generic call
+  static_assert([](auto &&fn) constexpr -> bool {
+    return monadic_invocable<inspect_t, operand_t, decltype(fn)>;
+  }(Overload{[]() -> operand_t { throw 0; },
+             [](std::string_view) {}})); // allow conversions
+  static_assert([](auto &&fn) constexpr -> bool {
+    return monadic_invocable<inspect_t, operand_t &&, decltype(fn)>;
+  }(Overload{[]() -> operand_t { throw 0; },
+             [](Error) {}})); // allow copy from rvalue
+  static_assert([](auto &&fn) constexpr -> bool {
+    return monadic_invocable<inspect_t, operand_t &&, decltype(fn)>;
+  }(Overload{[]() -> operand_t { throw 0; },
+             [](Error const &) {}})); // allow binding to const lvalue
+  static_assert(not [](auto &&fn) constexpr->bool {
+    return monadic_invocable<inspect_t, operand_t &&, decltype(fn)>;
+  }(Overload{[]() -> operand_t { throw 0; },
+             [](Error &&) {}})); // disallow move
+  static_assert(not [](auto &&fn) constexpr->bool {
+    return monadic_invocable<inspect_t, operand_t, decltype(fn)>;
+  }(Overload{[]() -> operand_t { throw 0; },
+             [](Error &) {}})); // disallow removing const
+
+  static_assert(not [](auto &&fn) constexpr->bool {
+    return monadic_invocable<inspect_t, operand_t, decltype(fn)>;
+  }(Overload{[]() -> operand_t { throw 0; },
+             [](std::size_t) {}})); // wrong type
+  static_assert(not [](auto &&fn) constexpr->bool {
+    return monadic_invocable<inspect_t, operand_t, decltype(fn)>;
+  }(Overload{[](auto) -> operand_t { throw 0; },
+             [](std::string_view) {}})); // wrong arity
+  static_assert(not [](auto &&fn) constexpr->bool {
+    return monadic_invocable<inspect_t, operand_t, decltype(fn)>;
+  }(Overload{[]() -> operand_t { throw 0; },
+             [](auto, auto) {}})); // wrong arity
+
+  WHEN("operand is lvalue")
+  {
+    WHEN("operand is value")
+    {
+      operand_t a{std::in_place};
+      using T = decltype(a | inspect(fnValue));
+      static_assert(std::is_same_v<T, operand_t &>);
+      (a | inspect(fnValue)).value();
+      CHECK(count == 1);
+    }
+    WHEN("operand is error")
+    {
+      operand_t a{std::unexpect, "Not good"};
+      using T = decltype(a | inspect(fnValue));
+      static_assert(std::is_same_v<T, operand_t &>);
+      REQUIRE((a //
+               | inspect(fnValue))
+                  .error()
+                  .what
+              == "Not good");
+      CHECK(error == "Not good");
+      CHECK(count == 0);
+    }
+  }
+
+  WHEN("operand is rvalue")
+  {
+    WHEN("operand is value")
+    {
+      using T = decltype(operand_t{std::in_place} | inspect(fnValue));
+      static_assert(std::is_same_v<T, operand_t &&>);
+      (operand_t{std::in_place} | inspect(fnValue)).value();
+      CHECK(count == 1);
+    }
+    WHEN("operand is error")
+    {
+      using T
+          = decltype(operand_t{std::unexpect, "Not good"} | inspect(fnValue));
+      static_assert(std::is_same_v<T, operand_t &&>);
+      REQUIRE((operand_t{std::unexpect, "Not good"} //
+               | inspect(fnValue))
+                  .error()
+                  .what
+              == "Not good");
+      CHECK(error == "Not good");
+      CHECK(count == 0);
+    }
+  }
+}
+
 TEST_CASE("inspect with two functions", "[inspect][optional]")
 {
   using namespace fn;
@@ -286,8 +493,7 @@ TEST_CASE("inspect with two functions", "[inspect][optional]")
   static_assert(not [](auto &&fn1, auto fn2) constexpr->bool {
     return monadic_invocable<inspect_t, operand_t, decltype(fn1),
                              decltype(fn2)>;
-  }([](int &) -> operand_t { throw 0; },
-    []() {})); // disallow removing const-qualifier
+  }([](int &) -> operand_t { throw 0; }, []() {})); // disallow removing const
 
   constexpr auto wrong = [](auto...) -> void { throw 0; };
 
@@ -332,7 +538,7 @@ TEST_CASE("inspect with two functions", "[inspect][optional]")
   }
 }
 
-TEST_CASE("inspect with one function", "[inspect][optional]")
+TEST_CASE("inspect with one function", "[inspect][optional][inspect_generic]")
 {
   using namespace fn;
 
@@ -369,7 +575,7 @@ TEST_CASE("inspect with one function", "[inspect][optional]")
   static_assert(not [](auto &&fn) constexpr->bool {
     return monadic_invocable<inspect_t, operand_t, decltype(fn)>;
   }(Overload{[](int &) -> operand_t { throw 0; },
-             []() {}})); // disallow removing const-qualifier
+             []() {}})); // disallow removing const
 
   static_assert(not [](auto &&fn) constexpr->bool {
     return monadic_invocable<inspect_t, operand_t, decltype(fn)>;

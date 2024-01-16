@@ -14,6 +14,9 @@ set(TESTS_SOURCE_FILES
     functor.cpp
     inspect.cpp
     or_else.cpp
+    recover.cpp
+    transform_error.cpp
+    transform.cpp
 )
 add_executable(${PROJECT_NAME} ${TESTS_SOURCE_FILES})
 target_link_libraries(${PROJECT_NAME} include catch2_main Catch2::Catch2)
