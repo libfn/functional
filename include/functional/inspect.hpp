@@ -33,12 +33,35 @@ struct inspect_t::apply final {
              && std::invocable<decltype(fn2),
                                decltype(std::as_const(v.error()))>
   {
-    static_assert(std::is_void_v<decltype(fn1(std::as_const(v.value())))>);
-    static_assert(std::is_void_v<decltype(fn2(std::as_const(v.error())))>);
+    static_assert(
+        std::is_void_v<std::invoke_result_t<
+            decltype(fn1), decltype(std::forward<decltype(v)>(v).value())>>);
+    static_assert(
+        std::is_void_v<std::invoke_result_t<
+            decltype(fn2), decltype(std::forward<decltype(v)>(v).error())>>);
     if (v.has_value()) {
       std::forward<decltype(fn1)>(fn1)(std::as_const(v.value()));
     } else {
       std::forward<decltype(fn2)>(fn2)(std::as_const(v.error()));
+    }
+    return std::forward<decltype(v)>(v);
+  }
+
+  static auto operator()(some_expected auto &&v, auto &&fn) noexcept
+      -> decltype(v)
+    requires std::invocable<decltype(fn), decltype(std::as_const(v.value()))>
+             && std::invocable<decltype(fn), decltype(std::as_const(v.error()))>
+  {
+    static_assert(
+        std::is_void_v<std::invoke_result_t<
+            decltype(fn), decltype(std::forward<decltype(v)>(v).value())>>);
+    static_assert(
+        std::is_void_v<std::invoke_result_t<
+            decltype(fn), decltype(std::forward<decltype(v)>(v).error())>>);
+    if (v.has_value()) {
+      std::forward<decltype(fn)>(fn)(std::as_const(v.value()));
+    } else {
+      std::forward<decltype(fn)>(fn)(std::as_const(v.error()));
     }
     return std::forward<decltype(v)>(v);
   }
@@ -48,12 +71,31 @@ struct inspect_t::apply final {
     requires std::invocable<decltype(fn1), decltype(std::as_const(v.value()))>
              && std::invocable<decltype(fn2)>
   {
-    static_assert(std::is_void_v<decltype(fn1(std::as_const(v.value())))>);
-    static_assert(std::is_void_v<decltype(fn2())>);
+    static_assert(
+        std::is_void_v<std::invoke_result_t<
+            decltype(fn1), decltype(std::forward<decltype(v)>(v).value())>>);
+    static_assert(std::is_void_v<std::invoke_result_t<decltype(fn2)>>);
     if (v.has_value()) {
       std::forward<decltype(fn1)>(fn1)(std::as_const(v.value()));
     } else {
       std::forward<decltype(fn2)>(fn2)();
+    }
+    return std::forward<decltype(v)>(v);
+  }
+
+  static auto operator()(some_optional auto &&v, auto &&fn) noexcept
+      -> decltype(v)
+    requires std::invocable<decltype(fn), decltype(std::as_const(v.value()))>
+             && std::invocable<decltype(fn)>
+  {
+    static_assert(
+        std::is_void_v<std::invoke_result_t<
+            decltype(fn), decltype(std::forward<decltype(v)>(v).value())>>);
+    static_assert(std::is_void_v<std::invoke_result_t<decltype(fn)>>);
+    if (v.has_value()) {
+      std::forward<decltype(fn)>(fn)(std::as_const(v.value()));
+    } else {
+      std::forward<decltype(fn)>(fn)();
     }
     return std::forward<decltype(v)>(v);
   }

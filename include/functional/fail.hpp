@@ -11,6 +11,7 @@
 #include "functional/fwd.hpp"
 
 #include <concepts>
+#include <type_traits>
 #include <utility>
 
 namespace fn {
@@ -31,11 +32,15 @@ struct fail_t::apply final {
                             decltype(std::forward<decltype(v)>(v).value())>
   {
     using type = std::remove_cvref_t<decltype(v)>;
+    static_assert(
+        std::is_convertible_v<
+            std::invoke_result_t<
+                decltype(fn), decltype(std::forward<decltype(v)>(v).value())>,
+            typename type::error_type>);
     return std::forward<decltype(v)>(v).and_then( //
-        [&fn](auto &&...args) noexcept -> type {
+        [&fn](auto &&arg) noexcept -> type {
           return std::unexpected<typename type::error_type>{
-              std::forward<decltype(fn)>(fn)(
-                  std::forward<decltype(args)>(args)...)};
+              std::forward<decltype(fn)>(fn)(std::forward<decltype(arg)>(arg))};
         });
   }
 
@@ -45,7 +50,9 @@ struct fail_t::apply final {
                             decltype(std::forward<decltype(v)>(v).value())>
   {
     using type = std::remove_cvref_t<decltype(v)>;
-    static_assert(std::is_void_v<decltype(fn(v.value()))>);
+    static_assert(
+        std::is_void_v<std::invoke_result_t<
+            decltype(fn), decltype(std::forward<decltype(v)>(v).value())>>);
     if (v.has_value()) {
       std::forward<decltype(fn)>(fn)(
           std::forward<decltype(v)>(v).value()); // side-effects only

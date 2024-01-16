@@ -36,6 +36,31 @@ TEST_CASE("or_else", "[or_else][expected]")
   static_assert([](auto &&fn) constexpr -> bool {
     return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
   }([](std::string_view) -> operand_t { throw 0; })); // allow conversion
+  static_assert([](auto &&fn) constexpr -> bool {
+    return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
+  }([](Error &&) -> operand_t { throw 0; })); // alow move from rvalue
+  static_assert(not [](auto &&fn) constexpr->bool {
+    return monadic_invocable<or_else_t, operand_t const, decltype(fn)>;
+  }([](Error &&) -> operand_t {
+    throw 0;
+  })); // disallow removing const-qualifier
+  static_assert(not [](auto &&fn) constexpr->bool {
+    return monadic_invocable<or_else_t, operand_t &, decltype(fn)>;
+  }([](Error &&) -> operand_t { throw 0; })); // disallow move from lvalue
+  static_assert([](auto &&fn) constexpr -> bool {
+    return monadic_invocable<or_else_t, operand_t &, decltype(fn)>;
+  }([](Error &) -> operand_t { throw 0; })); // allow lvalue binding
+  static_assert(not [](auto &&fn) constexpr->bool {
+    return monadic_invocable<or_else_t, operand_t const &, decltype(fn)>;
+  }([](Error &) -> operand_t {
+    throw 0;
+  })); // disallow removing const-qualifier
+  static_assert(not [](auto &&fn) constexpr->bool {
+    return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
+  }([](Error &) -> operand_t {
+    throw 0;
+  })); // disallow lvalue binding to rvalue
+
   static_assert(not [](auto &&fn) constexpr->bool {
     return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
   }([](int) {})); // wrong type

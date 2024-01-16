@@ -24,17 +24,33 @@ TEST_CASE("fail", "[fail][expected]")
 
   using operand_t = std::expected<int, Error>;
   constexpr auto fnValue
-      = [](auto i) -> Error { return {"Got " + std::to_string(i)}; };
-  constexpr auto fnError = [](auto) -> Error { throw 0; };
+      = [](int i) -> Error { return {"Got " + std::to_string(i)}; };
 
   static_assert(monadic_invocable<fail_t, operand_t, decltype(fnValue)>);
-  static_assert(monadic_invocable<fail_t, operand_t, decltype(fnError)>);
   static_assert([](auto &&fn) constexpr -> bool {
     return monadic_invocable<fail_t, operand_t, decltype(fn)>;
   }([](auto...) -> Error { throw 0; })); // allow generic call
   static_assert([](auto &&fn) constexpr -> bool {
     return monadic_invocable<fail_t, operand_t, decltype(fn)>;
   }([](unsigned) -> Error { throw 0; })); // allow conversion
+  static_assert([](auto &&fn) constexpr -> bool {
+    return monadic_invocable<fail_t, operand_t, decltype(fn)>;
+  }([](int &&) -> Error { throw 0; })); // alow move from rvalue
+  static_assert(not [](auto &&fn) constexpr->bool {
+    return monadic_invocable<fail_t, operand_t const, decltype(fn)>;
+  }([](int &&) -> Error { throw 0; })); // disallow removing const-qualifier
+  static_assert(not [](auto &&fn) constexpr->bool {
+    return monadic_invocable<fail_t, operand_t &, decltype(fn)>;
+  }([](int &&) -> Error { throw 0; })); // disallow move from lvalue
+  static_assert([](auto &&fn) constexpr -> bool {
+    return monadic_invocable<fail_t, operand_t &, decltype(fn)>;
+  }([](int &) -> Error { throw 0; })); // allow lvalue binding
+  static_assert(not [](auto &&fn) constexpr->bool {
+    return monadic_invocable<fail_t, operand_t const &, decltype(fn)>;
+  }([](int &) -> Error { throw 0; })); // disallow removing const-qualifier
+  static_assert(not [](auto &&fn) constexpr->bool {
+    return monadic_invocable<fail_t, operand_t, decltype(fn)>;
+  }([](int &) -> Error { throw 0; })); // disallow lvalue binding to rvalue
 
   static_assert(not [](auto &&fn) constexpr->bool {
     return monadic_invocable<fail_t, operand_t, decltype(fn)>;
@@ -47,9 +63,14 @@ TEST_CASE("fail", "[fail][expected]")
   }([](int, int) {})); // wrong arity
 
   struct Derived : Error {};
+  constexpr auto fnDerived = [](auto...) -> Derived { return {}; };
   static_assert([](auto &&fn) constexpr -> bool {
     return monadic_invocable<fail_t, operand_t, decltype(fn)>;
-  }([](auto...) -> Derived { throw 0; })); // allow return type conversion
+  }(fnDerived)); // allow return type conversion
+  static_assert(std::is_same_v<operand_t, decltype(std::declval<operand_t>()
+                                                   | fail(fnDerived))>);
+
+  constexpr auto wrong = [](int) -> Error { throw 0; };
 
   WHEN("operand is lvalue")
   {
@@ -63,10 +84,10 @@ TEST_CASE("fail", "[fail][expected]")
     WHEN("operand is error")
     {
       operand_t a{std::unexpect, "Not good"};
-      using T = decltype(a | fail(fnError));
+      using T = decltype(a | fail(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a //
-               | fail(fnError))
+               | fail(wrong))
                   .error()
                   .what
               == "Not good");
@@ -84,10 +105,10 @@ TEST_CASE("fail", "[fail][expected]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{std::unexpect, "Not good"} | fail(fnError));
+      using T = decltype(operand_t{std::unexpect, "Not good"} | fail(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((operand_t{std::unexpect, "Not good"} //
-               | fail(fnError))
+               | fail(wrong))
                   .error()
                   .what
               == "Not good");
@@ -112,6 +133,25 @@ TEST_CASE("fail", "[fail][optional]")
   static_assert([](auto &&fn) constexpr -> bool {
     return monadic_invocable<fail_t, operand_t, decltype(fn)>;
   }([](unsigned) {})); // allow conversion
+  static_assert([](auto &&fn) constexpr -> bool {
+    return monadic_invocable<fail_t, operand_t, decltype(fn)>;
+  }([](int &&) -> void { throw 0; })); // alow move from rvalue
+  static_assert(not [](auto &&fn) constexpr->bool {
+    return monadic_invocable<fail_t, operand_t const, decltype(fn)>;
+  }([](int &&) -> void { throw 0; })); // disallow removing const-qualifier
+  static_assert(not [](auto &&fn) constexpr->bool {
+    return monadic_invocable<fail_t, operand_t &, decltype(fn)>;
+  }([](int &&) -> void { throw 0; })); // disallow move from lvalue
+  static_assert([](auto &&fn) constexpr -> bool {
+    return monadic_invocable<fail_t, operand_t &, decltype(fn)>;
+  }([](int &) -> void { throw 0; })); // allow lvalue binding
+  static_assert(not [](auto &&fn) constexpr->bool {
+    return monadic_invocable<fail_t, operand_t const &, decltype(fn)>;
+  }([](int &) -> void { throw 0; })); // disallow removing const-qualifier
+  static_assert(not [](auto &&fn) constexpr->bool {
+    return monadic_invocable<fail_t, operand_t, decltype(fn)>;
+  }([](int &) -> void { throw 0; })); // disallow lvalue binding to rvalue
+
   static_assert(not [](auto &&fn) constexpr->bool {
     return monadic_invocable<fail_t, operand_t, decltype(fn)>;
   }([](std::string) {})); // wrong type
