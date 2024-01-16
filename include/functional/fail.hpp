@@ -46,12 +46,11 @@ struct fail_t::apply final {
   {
     using type = std::remove_cvref_t<decltype(v)>;
     static_assert(std::is_void_v<decltype(fn(v.value()))>);
-    return std::forward<decltype(v)>(v).and_then( //
-        [&fn](auto &&arg) noexcept -> type {
-          std::forward<decltype(fn)>(fn)(
-              std::forward<decltype(arg)>(arg)); // side-effects only
-          return {std::nullopt};
-        });
+    if (v.has_value()) {
+      std::forward<decltype(fn)>(fn)(
+          std::forward<decltype(v)>(v).value()); // side-effects only
+    }
+    return type{std::nullopt};
   }
 };
 
