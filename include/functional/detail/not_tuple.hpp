@@ -26,48 +26,14 @@ template <typename Arg0, typename Arg1> struct not_tuple<Arg0, Arg1> final {
                 && !std::is_rvalue_reference_v<Arg1>);
 };
 
-template <typename Arg0, typename Arg1, typename Arg2>
-struct not_tuple<Arg0, Arg1, Arg2> final {
-  constexpr static unsigned size = 3;
-  Arg0 v0;
-  Arg1 v1;
-  Arg2 v2;
-
-  static_assert(!std::is_rvalue_reference_v<Arg0>
-                && !std::is_rvalue_reference_v<Arg1>
-                && !std::is_rvalue_reference_v<Arg2>);
-};
-
-template <typename Arg0, typename Arg1, typename Arg2, typename Arg3>
-struct not_tuple<Arg0, Arg1, Arg2, Arg3> final {
-  constexpr static unsigned size = 4;
-  Arg0 v0;
-  Arg1 v1;
-  Arg2 v2;
-  Arg3 v3;
-
-  static_assert(!std::is_rvalue_reference_v<Arg0>
-                && !std::is_rvalue_reference_v<Arg1>
-                && !std::is_rvalue_reference_v<Arg2>
-                && !std::is_rvalue_reference_v<Arg3>);
-};
-
-template <typename T> constexpr bool is_not_tuple = false;
+template <typename T> constexpr bool _is_not_tuple = false;
 template <typename... Args>
-constexpr bool is_not_tuple<not_tuple<Args...>> = true;
+constexpr bool _is_not_tuple<not_tuple<Args...> &> = true;
 template <typename... Args>
-constexpr bool is_not_tuple<not_tuple<Args...> const> = true;
-template <typename... Args>
-constexpr bool is_not_tuple<not_tuple<Args...> &> = true;
-template <typename... Args>
-constexpr bool is_not_tuple<not_tuple<Args...> const &> = true;
-template <typename... Args>
-constexpr bool is_not_tuple<not_tuple<Args...> &&> = true;
-template <typename... Args>
-constexpr bool is_not_tuple<not_tuple<Args...> const &&> = true;
+constexpr bool _is_not_tuple<not_tuple<Args...> const &> = true;
 
 template <typename T>
-concept some_not_tuple = is_not_tuple<T>;
+concept some_not_tuple = _is_not_tuple<T &>;
 
 template <unsigned I>
 auto get(some_not_tuple auto &&v) noexcept -> decltype(auto) //
@@ -81,20 +47,6 @@ auto get(some_not_tuple auto &&v) noexcept -> decltype(auto) //
   requires(I == 1) && (std::decay_t<decltype(v)>::size >= 2)
 {
   return apply_const<decltype(v)>(std::forward<decltype(v)>(v).v1);
-}
-
-template <unsigned I>
-auto get(some_not_tuple auto &&v) noexcept -> decltype(auto) //
-  requires(I == 2) && (std::decay_t<decltype(v)>::size >= 3)
-{
-  return apply_const<decltype(v)>(std::forward<decltype(v)>(v).v2);
-}
-
-template <unsigned I>
-auto get(some_not_tuple auto &&v) noexcept -> decltype(auto) //
-  requires(I == 3) && (std::decay_t<decltype(v)>::size >= 4)
-{
-  return apply_const<decltype(v)>(std::forward<decltype(v)>(v).v3);
 }
 
 } // namespace fn::detail

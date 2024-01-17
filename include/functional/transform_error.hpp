@@ -26,7 +26,6 @@ constexpr inline struct transform_error_t final {
 } transform_error = {};
 
 struct transform_error_t::apply final {
-  // Not supported by optional since there's no error type
   static auto operator()(some_expected auto &&v, auto &&fn) noexcept
       -> decltype(auto)
     requires std::invocable<decltype(fn),
@@ -35,6 +34,10 @@ struct transform_error_t::apply final {
     return std::forward<decltype(v)>(v).transform_error(
         std::forward<decltype(fn)>(fn));
   }
+
+  // No support for optional, since there's no error state
+  static auto operator()(some_optional auto &&v, auto &&...args) noexcept
+      = delete;
 };
 
 } // namespace fn
