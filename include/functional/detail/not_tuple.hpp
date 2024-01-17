@@ -8,6 +8,8 @@
 
 namespace fn::detail {
 
+// TODO replace not_tuple and remove apply_const from this header
+
 template <typename... Args> struct not_tuple;
 
 template <typename Arg0> struct not_tuple<Arg0> final {
@@ -34,6 +36,17 @@ constexpr bool _is_not_tuple<not_tuple<Args...> const &> = true;
 
 template <typename T>
 concept some_not_tuple = _is_not_tuple<T &>;
+
+template <typename T, typename V>
+using apply_const_t = decltype(detail::_apply_const<T &, V>);
+
+// NOTE: Unlike apply_const_t above this is not exact: prvalue parameters are
+// changed to xvalue. This is meant to disable copying of the return value.
+template <typename T>
+constexpr auto apply_const(auto &&v) noexcept -> decltype(auto)
+{
+  return static_cast<apply_const_t<T, decltype(v)>>(v);
+}
 
 template <unsigned I>
 auto get(some_not_tuple auto &&v) noexcept -> decltype(auto) //

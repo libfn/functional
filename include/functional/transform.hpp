@@ -9,6 +9,7 @@
 #include "functional/detail/concepts.hpp"
 #include "functional/functor.hpp"
 #include "functional/fwd.hpp"
+#include "functional/utility.hpp"
 
 #include <concepts>
 #include <utility>
@@ -19,7 +20,7 @@ constexpr static struct transform_t final {
   auto operator()(auto &&fn) const noexcept
       -> functor<transform_t, decltype(fn)>
   {
-    return {std::forward<decltype(fn)>(fn)};
+    return {FWD(fn)};
   }
 
   struct apply;
@@ -28,12 +29,10 @@ constexpr static struct transform_t final {
 struct transform_t::apply final {
   static auto operator()(some_expected auto &&v, auto &&fn) noexcept
       -> decltype(auto)
-    requires std::invocable<decltype(fn),
-                            decltype(std::forward<decltype(v)>(v).value())>
+    requires std::invocable<decltype(fn), decltype(FWD(v).value())>
              && (!std::is_void_v<decltype(v.value())>)
   {
-    return std::forward<decltype(v)>(v).transform(
-        std::forward<decltype(fn)>(fn));
+    return FWD(v).transform(FWD(fn));
   }
 
   static auto operator()(some_expected auto &&v, auto &&fn) noexcept
@@ -41,17 +40,14 @@ struct transform_t::apply final {
     requires std::invocable<decltype(fn)>
              && (std::is_void_v<decltype(v.value())>)
   {
-    return std::forward<decltype(v)>(v).transform(
-        std::forward<decltype(fn)>(fn));
+    return FWD(v).transform(FWD(fn));
   }
 
   static auto operator()(some_optional auto &&v, auto &&fn) noexcept
       -> decltype(auto)
-    requires std::invocable<decltype(fn),
-                            decltype(std::forward<decltype(v)>(v).value())>
+    requires std::invocable<decltype(fn), decltype(FWD(v).value())>
   {
-    return std::forward<decltype(v)>(v).transform(
-        std::forward<decltype(fn)>(fn));
+    return FWD(v).transform(FWD(fn));
   }
 };
 

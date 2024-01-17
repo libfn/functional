@@ -4,6 +4,7 @@
 // or copy at https://opensource.org/licenses/ISC
 
 #include "functional/functor.hpp"
+#include "functional/utility.hpp"
 
 #include <catch2/catch_all.hpp>
 
@@ -12,7 +13,7 @@ constexpr inline struct dummy_t final {
   auto operator()(auto &&fn) const noexcept
       -> fn::functor<dummy_t, decltype(fn)>
   {
-    return {std::forward<decltype(fn)>(fn)};
+    return {FWD(fn)};
   }
 
   struct apply final {
@@ -20,9 +21,8 @@ constexpr inline struct dummy_t final {
         -> decltype(auto)
       requires requires { fn(v.value()); }
     {
-      return std::forward<decltype(v)>(v).transform([&fn](auto &&v) noexcept {
-        return std::forward<decltype(fn)>(fn)(std::forward<decltype(v)>(v));
-      });
+      return FWD(v).transform(
+          [&fn](auto &&v) noexcept { return FWD(fn)(FWD(v)); });
     }
   };
 } dummy = {};

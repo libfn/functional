@@ -11,6 +11,7 @@
 #include "functional/recover.hpp"
 #include "functional/transform.hpp"
 #include "functional/transform_error.hpp"
+#include "functional/utility.hpp"
 
 #include <catch2/catch_all.hpp>
 
@@ -41,7 +42,7 @@ template <typename Fn> struct ImmovableFn final {
   constexpr auto operator()(auto &&...args) const noexcept -> decltype(auto)
     requires requires { fn(args...); }
   {
-    return fn(std::forward<decltype(args)>(args)...);
+    return fn(FWD(args)...);
   }
 
   constexpr ImmovableFn(ImmovableFn const &) = delete;

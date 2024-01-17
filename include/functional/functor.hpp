@@ -8,6 +8,7 @@
 
 #include "functional/detail/concepts.hpp"
 #include "functional/detail/not_tuple.hpp"
+#include "functional/utility.hpp"
 
 #include <concepts>
 #include <type_traits>
@@ -32,7 +33,7 @@ concept monadic_invocable
 template <typename Functor, typename... Args> struct functor final {
   using functor_type = Functor;
   constexpr static unsigned size = sizeof...(Args);
-  detail::not_tuple<detail::as_value_t<Args>...> data;
+  detail::not_tuple<as_value_t<Args>...> data;
 
   static_assert(sizeof...(Args) > 0); // NOTE Consider relaxing
   static_assert(std::is_empty_v<Functor>
@@ -48,9 +49,8 @@ template <typename Functor, typename... Args> struct functor final {
     return
         [&v, &self]<unsigned... I>(
             std::integer_sequence<unsigned, I...>) noexcept -> decltype(auto) {
-          return Functor::apply::template operator()( //
-              std::forward<decltype(v)>(v),           //
-              detail::get<I>(std::forward<decltype(self)>(self).data)...);
+          return Functor::apply::template operator()(
+              FWD(v), detail::get<I>(FWD(self).data)...);
         }(std::make_integer_sequence<unsigned, size>{});
   }
 };

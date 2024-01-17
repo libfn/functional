@@ -19,6 +19,7 @@ set(INCLUDE_SOURCE_FILES
     functional/recover.hpp
     functional/transform_error.hpp
     functional/transform.hpp
+    functional/utility.hpp
 )
 
 add_library(${PROJECT_NAME} INTERFACE ${INCLUDE_SOURCE_FILES})

@@ -9,6 +9,7 @@
 #include "functional/detail/concepts.hpp"
 #include "functional/functor.hpp"
 #include "functional/fwd.hpp"
+#include "functional/utility.hpp"
 
 #include <concepts>
 #include <utility>
@@ -18,7 +19,7 @@ namespace fn {
 constexpr inline struct or_else_t final {
   auto operator()(auto &&fn) const noexcept -> functor<or_else_t, decltype(fn)>
   {
-    return {std::forward<decltype(fn)>(fn)};
+    return {FWD(fn)};
   }
 
   struct apply;
@@ -27,17 +28,16 @@ constexpr inline struct or_else_t final {
 struct or_else_t::apply final {
   static auto operator()(some_expected auto &&v, auto &&fn) noexcept
       -> decltype(auto)
-    requires std::invocable<decltype(fn),
-                            decltype(std::forward<decltype(v)>(v).error())>
+    requires std::invocable<decltype(fn), decltype(FWD(v).error())>
   {
-    return std::forward<decltype(v)>(v).or_else(std::forward<decltype(fn)>(fn));
+    return FWD(v).or_else(FWD(fn));
   }
 
   static auto operator()(some_optional auto &&v, auto &&fn) noexcept
       -> decltype(auto)
     requires std::invocable<decltype(fn)>
   {
-    return std::forward<decltype(v)>(v).or_else(std::forward<decltype(fn)>(fn));
+    return FWD(v).or_else(FWD(fn));
   }
 };
 
