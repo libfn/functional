@@ -63,32 +63,3 @@ TEST_CASE("user-defined monadic operation", "[functor]")
         == 13);
   CHECK((std::optional{42} | dummy(fn1)).value() == 43);
 }
-
-namespace fn {
-static_assert(some_expected<std::expected<int, bool>>);
-static_assert(some_expected<std::expected<int, bool> const>);
-static_assert(some_expected<std::expected<int, bool> &>);
-static_assert(some_expected<std::expected<int, bool> const &>);
-static_assert(some_expected<std::expected<int, bool> &&>);
-static_assert(some_expected<std::expected<int, bool> const &&>);
-
-static_assert(some_optional<std::optional<int>>);
-static_assert(some_optional<std::optional<int> const>);
-static_assert(some_optional<std::optional<int> &>);
-static_assert(some_optional<std::optional<int> const &>);
-static_assert(some_optional<std::optional<int> &&>);
-static_assert(some_optional<std::optional<int> const &&>);
-
-static_assert(some_monadic_type<std::expected<int, bool>>);
-static_assert(some_monadic_type<std::expected<int, bool> const>);
-static_assert(some_monadic_type<std::expected<int, bool> &>);
-static_assert(some_monadic_type<std::expected<int, bool> const &>);
-static_assert(some_monadic_type<std::expected<int, bool> &&>);
-static_assert(some_monadic_type<std::expected<int, bool> const &&>);
-static_assert(some_monadic_type<std::optional<int>>);
-static_assert(some_monadic_type<std::optional<int> const>);
-static_assert(some_monadic_type<std::optional<int> &>);
-static_assert(some_monadic_type<std::optional<int> const &>);
-static_assert(some_monadic_type<std::optional<int> &&>);
-static_assert(some_monadic_type<std::optional<int> const &&>);
-} // namespace fn

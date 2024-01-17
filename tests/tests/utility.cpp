@@ -7,6 +7,7 @@
 
 #include <catch2/catch_all.hpp>
 
+#include <expected>
 #include <optional>
 
 namespace fn {
@@ -65,6 +66,33 @@ static_assert(std::is_same_v<decltype(apply_const<float const &&>(std::declval<i
 static_assert(std::is_same_v<decltype(apply_const<float &&>      (std::declval<int &&>())), int &&>);
 static_assert(std::is_same_v<decltype(apply_const<float const &&>(std::declval<int &&>())), int const &&>);
 // clang-format on
+
+static_assert(some_expected<std::expected<int, bool>>);
+static_assert(some_expected<std::expected<int, bool> const>);
+static_assert(some_expected<std::expected<int, bool> &>);
+static_assert(some_expected<std::expected<int, bool> const &>);
+static_assert(some_expected<std::expected<int, bool> &&>);
+static_assert(some_expected<std::expected<int, bool> const &&>);
+
+static_assert(some_optional<std::optional<int>>);
+static_assert(some_optional<std::optional<int> const>);
+static_assert(some_optional<std::optional<int> &>);
+static_assert(some_optional<std::optional<int> const &>);
+static_assert(some_optional<std::optional<int> &&>);
+static_assert(some_optional<std::optional<int> const &&>);
+
+static_assert(some_monadic_type<std::expected<int, bool>>);
+static_assert(some_monadic_type<std::expected<int, bool> const>);
+static_assert(some_monadic_type<std::expected<int, bool> &>);
+static_assert(some_monadic_type<std::expected<int, bool> const &>);
+static_assert(some_monadic_type<std::expected<int, bool> &&>);
+static_assert(some_monadic_type<std::expected<int, bool> const &&>);
+static_assert(some_monadic_type<std::optional<int>>);
+static_assert(some_monadic_type<std::optional<int> const>);
+static_assert(some_monadic_type<std::optional<int> &>);
+static_assert(some_monadic_type<std::optional<int> const &>);
+static_assert(some_monadic_type<std::optional<int> &&>);
+static_assert(some_monadic_type<std::optional<int> const &&>);
 } // namespace fn
 
 extern int value;
@@ -100,31 +128,90 @@ static_assert(      //
         decltype(FWD(const_rvalue)),
         decltype(std::forward<decltype(const_rvalue)>(const_rvalue))>);
 
-TEST_CASE("detail::apply_const", "[apply_const]")
+TEST_CASE("not_tuple", "[not_tuple]")
 {
-  struct A final {};
-  using namespace fn;
-  CHECK(std::is_same_v<decltype(apply_const<int>(A{})), A &&>);
-  CHECK(std::is_same_v<decltype(apply_const<int const>(A{})), A const &&>);
+  using fn::not_tuple;
 
-  A a = {};
-  // NOTE std::move below do *not* leave us with moved-from objects
-  CHECK(std::is_same_v< //
-        decltype(apply_const<int>(std::move(a))), A &&>);
-  CHECK(std::is_same_v< //
-        decltype(apply_const<int const>(std::move(a))), A const &&>);
-  CHECK(std::is_same_v< //
-        decltype(apply_const<int>(a)), A &>);
-  CHECK(std::is_same_v< //
-        decltype(apply_const<int const>(a)), A const &>);
+  struct A final {
+    int v = 0;
+  };
+  using T = not_tuple<int, int const, int &, int const &>;
+  int val1 = 15;
+  int const val2 = 92;
+  T v{3, 14, val1, val2};
 
-  CHECK(std::is_same_v< //
-        decltype(apply_const<int>(std::move(std::as_const(a)))), A const &&>);
-  CHECK(std::is_same_v< //
-        decltype(apply_const<int const>(std::move(std::as_const(a)))),
-        A const &&>);
-  CHECK(std::is_same_v< //
-        decltype(apply_const<int>(std::as_const(a))), A const &>);
-  CHECK(std::is_same_v< //
-        decltype(apply_const<int const>(std::as_const(a))), A const &>);
+  static_assert([&](auto &&fn) constexpr {
+    return requires { T::invoke(v, fn, A{}); };
+  }([](auto &&...) {})); // generic call
+  static_assert([&](auto &&fn) constexpr {
+    return requires { T::invoke(v, fn, A{}); };
+  }([](A, auto &&...) {})); // also generic call
+  static_assert([&](auto &&fn) constexpr {
+    return requires { T::invoke(v, fn, A{}); };
+  }([](A, int, int, int, int) {})); // pass everything by value
+  static_assert([&](auto &&fn) constexpr {
+    return requires { T::invoke(v, fn, A{}); };
+  }([](A const &, int const &, int const &, int const &, int const &) {
+  })); // pass everything by const reference
+  static_assert([&](auto &&fn) constexpr {
+    return requires { T::invoke(v, fn, A{}); };
+  }([](A, int, int, int &, int const &) {})); // bind lvalues
+  static_assert([&](auto &&fn) constexpr {
+    return requires { T::invoke(v, fn, A{}); };
+  }([](A &&, int &&, int &&, int &, int const &) {
+  })); // bind rvalues and lvalues
+  static_assert([&](auto &&fn) constexpr {
+    return requires { T::invoke(v, fn, A{}); };
+  }([](A const, int const, int const, int const &, int const &) {
+  })); // pass values or lvalues promoted to const
+
+  static_assert(not [&](auto &&fn) constexpr {
+    return requires { T::invoke(v, fn, A{}); };
+  }([](A &, auto &&...) {})); // cannot bind rvalue to lvalue reference
+  static_assert(not [&](auto &&fn) constexpr {
+    return requires { T::invoke(v, fn, A{}); };
+  }([](A, int &, auto &&...) {})); // cannot bind rvalue to lvalue reference
+  static_assert(not [&](auto &&fn) constexpr {
+    return requires { T::invoke(v, fn, A{}); };
+  }([](A, int, int, int &&, int) {})); // cannot bind lvalue to rvalue reference
+  static_assert(not [&](auto &&fn) constexpr {
+    return requires { T::invoke(v, fn, A{}); };
+  }([](A, int, int, int, int &&) {})); // cannot bind lvalue to rvalue reference
+  static_assert(not [&](auto &&fn) constexpr {
+    return requires { T::invoke(v, fn, A{}); };
+  }([](A, int, int, int, int const &&) {
+  })); // cannot bind lvalue to const rvalue reference
+  static_assert(not [&](auto &&fn) constexpr {
+    return requires { T::invoke(v, fn, A{}); };
+  }([](int, auto &&...) {})); // bad type
+  static_assert(not [&](auto &&fn) constexpr {
+    return requires { T::invoke(v, fn, A{}); };
+  }([](auto, auto, auto, auto) {})); // bad arity
+  static_assert(not [&](auto &&fn) constexpr {
+    return requires { T::invoke(v, fn, A{}); };
+  }([](auto, auto, auto, auto, auto, auto) {})); // bad arity
+
+  CHECK(T::invoke(v,
+                  [](auto... args) noexcept -> int { return (0 + ... + args); })
+        == 3 + 14 + 15 + 92);
+  CHECK(T::invoke(
+            v, [](A, auto... args) noexcept -> int { return (0 + ... + args); },
+            A{})
+        == 3 + 14 + 15 + 92);
+
+  A a;
+  constexpr auto fn1 = [](A &dest, auto... args) noexcept -> A & {
+    dest.v = (0 + ... + args);
+    return dest;
+  };
+  CHECK(T::invoke(v, fn1, a).v == 3 + 14 + 15 + 92);
+  static_assert(std::is_same_v<decltype(T::invoke(v, fn1, a)), A &>);
+
+  constexpr auto fn2
+      = [](A &&dest, auto &&...) noexcept -> A && { return std::move(dest); };
+  static_assert(
+      std::is_same_v<decltype(T::invoke(v, fn2, std::move(a))), A &&>);
+
+  constexpr auto fn3 = [](A &&dest, auto &&...) noexcept -> A { return dest; };
+  static_assert(std::is_same_v<decltype(T::invoke(v, fn3, std::move(a))), A>);
 }

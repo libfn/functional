@@ -7,7 +7,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Pls keep the filenames sorted
 set(TESTS_SOURCE_FILES
-    detail/not_tuple.cpp
     and_then.cpp
     fail.cpp
     functor.cpp

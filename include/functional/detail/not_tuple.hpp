@@ -8,59 +8,28 @@
 
 namespace fn::detail {
 
-// TODO replace not_tuple and remove apply_const from this header
+template <std::size_t I, typename T> struct _element {
+  T v;
 
-template <typename... Args> struct not_tuple;
-
-template <typename Arg0> struct not_tuple<Arg0> final {
-  constexpr static unsigned size = 1;
-  Arg0 v0;
-
-  static_assert(!std::is_rvalue_reference_v<Arg0>);
+  static_assert(not std::is_rvalue_reference_v<T>);
 };
 
-template <typename Arg0, typename Arg1> struct not_tuple<Arg0, Arg1> final {
-  constexpr static unsigned size = 2;
-  Arg0 v0;
-  Arg1 v1;
+template <typename, typename...> struct not_tuple_base;
 
-  static_assert(!std::is_rvalue_reference_v<Arg0>
-                && !std::is_rvalue_reference_v<Arg1>);
+template <std::size_t... Is, typename... Ts>
+struct not_tuple_base<std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
+  template <typename Self, typename Fn, typename... Args>
+  static auto invoke(Self &&self, Fn &&fn, Args &&...args) noexcept
+      -> decltype(auto)
+    requires std::invocable<
+        decltype(fn), decltype(args)...,
+        decltype(apply_const_t<Self, Ts>(self._element<Is, Ts>::v))...>
+  {
+    return std::forward<decltype(fn)>(fn)(
+        std::forward<decltype(args)>(args)...,
+        apply_const_t<Self, Ts>(self._element<Is, Ts>::v)...);
+  }
 };
-
-template <typename T> constexpr bool _is_not_tuple = false;
-template <typename... Args>
-constexpr bool _is_not_tuple<not_tuple<Args...> &> = true;
-template <typename... Args>
-constexpr bool _is_not_tuple<not_tuple<Args...> const &> = true;
-
-template <typename T>
-concept some_not_tuple = _is_not_tuple<T &>;
-
-template <typename T, typename V>
-using apply_const_t = decltype(detail::_apply_const<T &, V>);
-
-// NOTE: Unlike apply_const_t above this is not exact: prvalue parameters are
-// changed to xvalue. This is meant to disable copying of the return value.
-template <typename T>
-constexpr auto apply_const(auto &&v) noexcept -> decltype(auto)
-{
-  return static_cast<apply_const_t<T, decltype(v)>>(v);
-}
-
-template <unsigned I>
-auto get(some_not_tuple auto &&v) noexcept -> decltype(auto) //
-  requires(I == 0) && (std::decay_t<decltype(v)>::size >= 1)
-{
-  return apply_const<decltype(v)>(std::forward<decltype(v)>(v).v0);
-}
-
-template <unsigned I>
-auto get(some_not_tuple auto &&v) noexcept -> decltype(auto) //
-  requires(I == 1) && (std::decay_t<decltype(v)>::size >= 2)
-{
-  return apply_const<decltype(v)>(std::forward<decltype(v)>(v).v1);
-}
 
 } // namespace fn::detail
 
