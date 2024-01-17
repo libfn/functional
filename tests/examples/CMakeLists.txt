@@ -6,10 +6,10 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Pls keep the filenames sorted
-set(SOURCE_FILES
+set(EXAMPLES_SOURCE_FILES
     simple.cpp
 )
-add_executable(${PROJECT_NAME} ${SOURCE_FILES})
+add_executable(${PROJECT_NAME} ${EXAMPLES_SOURCE_FILES})
 target_link_libraries(${PROJECT_NAME} include catch2_main Catch2::Catch2)
 
 add_test(

@@ -9,7 +9,7 @@
 namespace fn {
 // NOTE Some forward declarations can lead to hard to troubleshoot compilation
 //      errors. Only declare select, useful monostate datatypes here, e.g.
-//      monadic operators.
+//      monadic operations.
 struct and_then_t;
 struct transform_t;
 struct transform_error_t;
@@ -18,7 +18,5 @@ struct recover_t;
 struct fail_t;
 struct inspect_t;
 } // namespace fn
-
-template <typename T> struct incomplete;
 
 #endif // INCLUDE_FUNCTIONAL_FWD

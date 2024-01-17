@@ -6,35 +6,75 @@
 #ifndef INCLUDE_FUNCTIONAL_RECOVER
 #define INCLUDE_FUNCTIONAL_RECOVER
 
-#include "functional/concepts.hpp"
+#include "functional/detail/concepts.hpp"
+#include "functional/detail/traits.hpp"
 #include "functional/functor.hpp"
 #include "functional/fwd.hpp"
 
+#include <concepts>
 #include <type_traits>
 #include <utility>
 
 namespace fn {
 
-struct recover_t final {
-  auto operator()(auto &&fn) const noexcept
-      -> functor<recover_t, std::decay_t<decltype(fn)>>
+constexpr inline struct recover_t final {
+  auto operator()(auto &&fn) const noexcept -> functor<recover_t, decltype(fn)>
   {
-    using functor_type = functor<recover_t, std::decay_t<decltype(fn)>>;
-    return functor_type{{std::forward<decltype(fn)>(fn)}};
+    return {std::forward<decltype(fn)>(fn)};
+  }
+
+  struct apply;
+} recover = {};
+
+struct recover_t::apply final {
+  static auto operator()(some_expected auto &&v, auto &&fn) noexcept
+      -> decltype(auto)
+    requires std::invocable<decltype(fn),
+                            decltype(std::forward<decltype(v)>(v).error())>
+             && (!std::is_void_v<decltype(v.value())>)
+  {
+    using type = std::remove_cvref_t<decltype(v)>;
+    static_assert(
+        std::is_convertible_v<
+            std::invoke_result_t<
+                decltype(fn), decltype(std::forward<decltype(v)>(v).error())>,
+            typename type::value_type>);
+    return std::forward<decltype(v)>(v).or_else([&fn](auto &&arg) noexcept {
+      return type{std::in_place, std::forward<decltype(fn)>(fn)(
+                                     std::forward<decltype(arg)>(arg))};
+    });
+  }
+
+  static auto operator()(some_expected auto &&v, auto &&fn) noexcept
+      -> decltype(auto)
+    requires std::invocable<decltype(fn),
+                            decltype(std::forward<decltype(v)>(v).error())>
+             && (std::is_void_v<decltype(v.value())>)
+  {
+    using type = std::remove_cvref_t<decltype(v)>;
+    static_assert(
+        std::is_void_v<std::invoke_result_t<
+            decltype(fn), decltype(std::forward<decltype(v)>(v).error())>>);
+    return std::forward<decltype(v)>(v).or_else([&fn](auto &&arg) noexcept {
+      std::forward<decltype(fn)>(fn)(
+          std::forward<decltype(arg)>(arg)); // side-effects only
+      return type{std::in_place};
+    });
+  }
+
+  static auto operator()(some_optional auto &&v, auto &&fn) noexcept
+      -> decltype(auto)
+    requires std::invocable<decltype(fn)>
+  {
+    using type = std::remove_cvref_t<decltype(v)>;
+    static_assert(std::is_convertible_v<std::invoke_result_t<decltype(fn)>,
+                                        typename type::value_type>);
+
+    return std::forward<decltype(v)>(v).or_else([&fn]() noexcept {
+      return type{std::in_place, std::forward<decltype(fn)>(fn)()};
+    });
   }
 };
-constexpr static recover_t recover = {};
-
-auto monadic_apply(some_monadic_type auto &&v, recover_t const &,
-                   some_tuple auto &&fn) noexcept -> auto
-  requires(std::tuple_size_v<std::decay_t<decltype(fn)>> == 1)
-{
-  using type = std::decay_t<decltype(v)>;
-  return std::forward<decltype(v)>(v).or_else([&fn](auto &&...args) -> type {
-    return {std::get<0>(std::forward<decltype(fn)>(fn))(
-        std::forward<decltype(args)>(args)...)};
-  });
-}
 
 } // namespace fn
 

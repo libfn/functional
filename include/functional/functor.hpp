@@ -6,33 +6,52 @@
 #ifndef INCLUDE_FUNCTIONAL_FUNCTOR
 #define INCLUDE_FUNCTIONAL_FUNCTOR
 
-#include <tuple>
+#include "functional/detail/concepts.hpp"
+#include "functional/detail/not_tuple.hpp"
+
+#include <concepts>
+#include <type_traits>
 #include <utility>
 
 namespace fn {
 
+template <typename T>
+concept some_expected = detail::_is_some_expected<T &>;
+
+template <typename T>
+concept some_optional = detail::_is_some_optional<T &>;
+
+template <typename T>
+concept some_monadic_type = some_expected<T> || some_optional<T>;
+
+template <typename Functor, typename V, typename... Args>
+concept monadic_invocable
+    = some_monadic_type<V> //
+      && std::invocable<typename Functor::apply, V, Args...>;
+
 template <typename Functor, typename... Args> struct functor final {
   using functor_type = Functor;
   constexpr static unsigned size = sizeof...(Args);
-  std::tuple<Args...> args;
+  detail::not_tuple<detail::as_value_t<Args>...> data;
 
-  friend auto operator|(auto &&v, functor const &self) noexcept -> auto
-    requires requires {
-      monadic_apply(std::forward<decltype(v)>(v), functor_type{}, self.args);
-    }
-  {
-    return monadic_apply(std::forward<decltype(v)>(v), functor_type{},
-                         self.args);
-  }
+  static_assert(sizeof...(Args) > 0); // NOTE Consider relaxing
+  static_assert(std::is_empty_v<Functor>
+                && std::is_empty_v<typename Functor::apply>
+                && std::is_default_constructible_v<Functor>
+                && std::is_default_constructible_v<typename Functor::apply>);
 
-  friend auto operator|(auto &&v, functor &&self) noexcept -> auto
-    requires requires {
-      monadic_apply(std::forward<decltype(v)>(v), functor_type{},
-                    std::move(self.args));
-    }
+  friend auto operator|(some_monadic_type auto &&v, auto &&self) noexcept
+      -> decltype(auto)
+    requires std::same_as<std::remove_cvref_t<decltype(self)>, functor>
+             && monadic_invocable<functor_type, decltype(v), Args...>
   {
-    return monadic_apply(std::forward<decltype(v)>(v), functor_type{},
-                         std::move(self.args));
+    return
+        [&v, &self]<unsigned... I>(
+            std::integer_sequence<unsigned, I...>) noexcept -> decltype(auto) {
+          return Functor::apply::template operator()( //
+              std::forward<decltype(v)>(v),           //
+              detail::get<I>(std::forward<decltype(self)>(self).data)...);
+        }(std::make_integer_sequence<unsigned, size>{});
   }
 };
 

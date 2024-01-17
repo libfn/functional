@@ -6,10 +6,11 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Pls keep the filenames sorted
-set(SOURCE_FILES
+set(INCLUDE_SOURCE_FILES
     functional/detail/concepts.hpp
+    functional/detail/not_tuple.hpp
+    functional/detail/traits.hpp
     functional/and_then.hpp
-    functional/concepts.hpp
     functional/fail.hpp
     functional/functor.hpp
     functional/fwd.hpp
@@ -20,5 +21,5 @@ set(SOURCE_FILES
     functional/transform.hpp
 )
 
-add_library(${PROJECT_NAME} INTERFACE ${SOURCE_FILES})
+add_library(${PROJECT_NAME} INTERFACE ${INCLUDE_SOURCE_FILES})
 target_include_directories(${PROJECT_NAME} INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
