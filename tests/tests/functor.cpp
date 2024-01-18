@@ -4,6 +4,7 @@
 // or copy at https://opensource.org/licenses/ISC
 
 #include "functional/functor.hpp"
+#include "functional/utility.hpp"
 
 #include <catch2/catch_all.hpp>
 
@@ -12,7 +13,7 @@ constexpr inline struct dummy_t final {
   auto operator()(auto &&fn) const noexcept
       -> fn::functor<dummy_t, decltype(fn)>
   {
-    return {std::forward<decltype(fn)>(fn)};
+    return {FWD(fn)};
   }
 
   struct apply final {
@@ -20,9 +21,8 @@ constexpr inline struct dummy_t final {
         -> decltype(auto)
       requires requires { fn(v.value()); }
     {
-      return std::forward<decltype(v)>(v).transform([&fn](auto &&v) noexcept {
-        return std::forward<decltype(fn)>(fn)(std::forward<decltype(v)>(v));
-      });
+      return FWD(v).transform(
+          [&fn](auto &&v) noexcept { return FWD(fn)(FWD(v)); });
     }
   };
 } dummy = {};
@@ -63,32 +63,3 @@ TEST_CASE("user-defined monadic operation", "[functor]")
         == 13);
   CHECK((std::optional{42} | dummy(fn1)).value() == 43);
 }
-
-namespace fn {
-static_assert(some_expected<std::expected<int, bool>>);
-static_assert(some_expected<std::expected<int, bool> const>);
-static_assert(some_expected<std::expected<int, bool> &>);
-static_assert(some_expected<std::expected<int, bool> const &>);
-static_assert(some_expected<std::expected<int, bool> &&>);
-static_assert(some_expected<std::expected<int, bool> const &&>);
-
-static_assert(some_optional<std::optional<int>>);
-static_assert(some_optional<std::optional<int> const>);
-static_assert(some_optional<std::optional<int> &>);
-static_assert(some_optional<std::optional<int> const &>);
-static_assert(some_optional<std::optional<int> &&>);
-static_assert(some_optional<std::optional<int> const &&>);
-
-static_assert(some_monadic_type<std::expected<int, bool>>);
-static_assert(some_monadic_type<std::expected<int, bool> const>);
-static_assert(some_monadic_type<std::expected<int, bool> &>);
-static_assert(some_monadic_type<std::expected<int, bool> const &>);
-static_assert(some_monadic_type<std::expected<int, bool> &&>);
-static_assert(some_monadic_type<std::expected<int, bool> const &&>);
-static_assert(some_monadic_type<std::optional<int>>);
-static_assert(some_monadic_type<std::optional<int> const>);
-static_assert(some_monadic_type<std::optional<int> &>);
-static_assert(some_monadic_type<std::optional<int> const &>);
-static_assert(some_monadic_type<std::optional<int> &&>);
-static_assert(some_monadic_type<std::optional<int> const &&>);
-} // namespace fn

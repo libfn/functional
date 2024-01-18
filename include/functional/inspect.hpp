@@ -9,6 +9,7 @@
 #include "functional/detail/concepts.hpp"
 #include "functional/functor.hpp"
 #include "functional/fwd.hpp"
+#include "functional/utility.hpp"
 
 #include <concepts>
 #include <utility>
@@ -18,9 +19,9 @@ namespace fn {
 constexpr inline struct inspect_t final {
   auto operator()(auto &&...fn) const noexcept
       -> functor<inspect_t, decltype(fn)...>
-    requires(sizeof...(fn) > 0)
+    requires(sizeof...(fn) > 0) && (sizeof...(fn) <= 2)
   {
-    return {std::forward<decltype(fn)>(fn)...};
+    return {FWD(fn)...};
   }
 
   struct apply;
@@ -34,18 +35,16 @@ struct inspect_t::apply final {
                                decltype(std::as_const(v.error()))>
              && (!std::is_void_v<decltype(v.value())>)
   {
-    static_assert(
-        std::is_void_v<std::invoke_result_t<
-            decltype(fn1), decltype(std::forward<decltype(v)>(v).value())>>);
-    static_assert(
-        std::is_void_v<std::invoke_result_t<
-            decltype(fn2), decltype(std::forward<decltype(v)>(v).error())>>);
+    static_assert(std::is_void_v<std::invoke_result_t<
+                      decltype(fn1), decltype(std::as_const(v.value()))>>);
+    static_assert(std::is_void_v<std::invoke_result_t<
+                      decltype(fn2), decltype(std::as_const(v.error()))>>);
     if (v.has_value()) {
-      std::forward<decltype(fn1)>(fn1)(std::as_const(v.value()));
+      FWD(fn1)(std::as_const(v.value()));
     } else {
-      std::forward<decltype(fn2)>(fn2)(std::as_const(v.error()));
+      FWD(fn2)(std::as_const(v.error()));
     }
-    return std::forward<decltype(v)>(v);
+    return FWD(v);
   }
 
   static auto operator()(some_expected auto &&v, auto &&fn1,
@@ -56,15 +55,14 @@ struct inspect_t::apply final {
              && (std::is_void_v<decltype(v.value())>)
   {
     static_assert(std::is_void_v<std::invoke_result_t<decltype(fn1)>>);
-    static_assert(
-        std::is_void_v<std::invoke_result_t<
-            decltype(fn2), decltype(std::forward<decltype(v)>(v).error())>>);
+    static_assert(std::is_void_v<std::invoke_result_t<
+                      decltype(fn2), decltype(std::as_const(v.error()))>>);
     if (v.has_value()) {
-      std::forward<decltype(fn1)>(fn1)();
+      FWD(fn1)();
     } else {
-      std::forward<decltype(fn2)>(fn2)(std::as_const(v.error()));
+      FWD(fn2)(std::as_const(v.error()));
     }
-    return std::forward<decltype(v)>(v);
+    return FWD(v);
   }
 
   static auto operator()(some_expected auto &&v, auto &&fn) noexcept
@@ -73,18 +71,16 @@ struct inspect_t::apply final {
              && std::invocable<decltype(fn), decltype(std::as_const(v.error()))>
              && (!std::is_void_v<decltype(v.value())>)
   {
-    static_assert(
-        std::is_void_v<std::invoke_result_t<
-            decltype(fn), decltype(std::forward<decltype(v)>(v).value())>>);
-    static_assert(
-        std::is_void_v<std::invoke_result_t<
-            decltype(fn), decltype(std::forward<decltype(v)>(v).error())>>);
+    static_assert(std::is_void_v<std::invoke_result_t<
+                      decltype(fn), decltype(std::as_const(v.value()))>>);
+    static_assert(std::is_void_v<std::invoke_result_t<
+                      decltype(fn), decltype(std::as_const(v.error()))>>);
     if (v.has_value()) {
-      std::forward<decltype(fn)>(fn)(std::as_const(v.value()));
+      FWD(fn)(std::as_const(v.value()));
     } else {
-      std::forward<decltype(fn)>(fn)(std::as_const(v.error()));
+      FWD(fn)(std::as_const(v.error()));
     }
-    return std::forward<decltype(v)>(v);
+    return FWD(v);
   }
 
   static auto operator()(some_expected auto &&v, auto &&fn) noexcept
@@ -94,15 +90,14 @@ struct inspect_t::apply final {
              && (std::is_void_v<decltype(v.value())>)
   {
     static_assert(std::is_void_v<std::invoke_result_t<decltype(fn)>>);
-    static_assert(
-        std::is_void_v<std::invoke_result_t<
-            decltype(fn), decltype(std::forward<decltype(v)>(v).error())>>);
+    static_assert(std::is_void_v<std::invoke_result_t<
+                      decltype(fn), decltype(std::as_const(v.error()))>>);
     if (v.has_value()) {
-      std::forward<decltype(fn)>(fn)();
+      FWD(fn)();
     } else {
-      std::forward<decltype(fn)>(fn)(std::as_const(v.error()));
+      FWD(fn)(std::as_const(v.error()));
     }
-    return std::forward<decltype(v)>(v);
+    return FWD(v);
   }
 
   static auto operator()(some_optional auto &&v, auto &&fn1,
@@ -110,16 +105,15 @@ struct inspect_t::apply final {
     requires std::invocable<decltype(fn1), decltype(std::as_const(v.value()))>
              && std::invocable<decltype(fn2)>
   {
-    static_assert(
-        std::is_void_v<std::invoke_result_t<
-            decltype(fn1), decltype(std::forward<decltype(v)>(v).value())>>);
+    static_assert(std::is_void_v<std::invoke_result_t<
+                      decltype(fn1), decltype(std::as_const(v.value()))>>);
     static_assert(std::is_void_v<std::invoke_result_t<decltype(fn2)>>);
     if (v.has_value()) {
-      std::forward<decltype(fn1)>(fn1)(std::as_const(v.value()));
+      FWD(fn1)(std::as_const(v.value()));
     } else {
-      std::forward<decltype(fn2)>(fn2)();
+      FWD(fn2)();
     }
-    return std::forward<decltype(v)>(v);
+    return FWD(v);
   }
 
   static auto operator()(some_optional auto &&v, auto &&fn) noexcept
@@ -127,16 +121,15 @@ struct inspect_t::apply final {
     requires std::invocable<decltype(fn), decltype(std::as_const(v.value()))>
              && std::invocable<decltype(fn)>
   {
-    static_assert(
-        std::is_void_v<std::invoke_result_t<
-            decltype(fn), decltype(std::forward<decltype(v)>(v).value())>>);
+    static_assert(std::is_void_v<std::invoke_result_t<
+                      decltype(fn), decltype(std::as_const(v.value()))>>);
     static_assert(std::is_void_v<std::invoke_result_t<decltype(fn)>>);
     if (v.has_value()) {
-      std::forward<decltype(fn)>(fn)(std::as_const(v.value()));
+      FWD(fn)(std::as_const(v.value()));
     } else {
-      std::forward<decltype(fn)>(fn)();
+      FWD(fn)();
     }
-    return std::forward<decltype(v)>(v);
+    return FWD(v);
   }
 };
 

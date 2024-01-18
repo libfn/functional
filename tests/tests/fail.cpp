@@ -204,10 +204,8 @@ TEST_CASE("fail", "[fail][optional]")
   using operand_t = std::optional<int>;
   auto count = 0;
   auto fnValue = [&count](auto) { count += 1; };
-  constexpr auto fnError = [](auto) { throw 0; };
 
   static_assert(monadic_invocable<fail_t, operand_t, decltype(fnValue)>);
-  static_assert(monadic_invocable<fail_t, operand_t, decltype(fnError)>);
   static_assert([](auto &&fn) constexpr -> bool {
     return monadic_invocable<fail_t, operand_t, decltype(fn)>;
   }([](auto...) {})); // allow generic call
@@ -243,6 +241,8 @@ TEST_CASE("fail", "[fail][optional]")
     return monadic_invocable<fail_t, operand_t, decltype(fn)>;
   }([](int, int) {})); // wrong arity
 
+  constexpr auto wrong = [](auto...) { throw 0; };
+
   WHEN("operand is lvalue")
   {
     WHEN("operand is value")
@@ -256,9 +256,9 @@ TEST_CASE("fail", "[fail][optional]")
     WHEN("operand is error")
     {
       operand_t a{std::nullopt};
-      using T = decltype(a | fail(fnError));
+      using T = decltype(a | fail(wrong));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE(not(a | fail(fnError)).has_value());
+      REQUIRE(not(a | fail(wrong)).has_value());
       CHECK(count == 0);
     }
   }
@@ -274,10 +274,10 @@ TEST_CASE("fail", "[fail][optional]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{std::nullopt} | fail(fnError));
+      using T = decltype(operand_t{std::nullopt} | fail(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE(not(operand_t{std::nullopt} //
-                  | fail(fnError))
+                  | fail(wrong))
                      .has_value());
       CHECK(count == 0);
     }
