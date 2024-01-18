@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Pls keep the filenames sorted
 set(TESTS_SOURCE_FILES
+    detail/fwd_macro.cpp
     and_then.cpp
     fail.cpp
     functor.cpp

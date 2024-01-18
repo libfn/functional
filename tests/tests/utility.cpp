@@ -95,47 +95,14 @@ static_assert(some_monadic_type<std::optional<int> &&>);
 static_assert(some_monadic_type<std::optional<int> const &&>);
 } // namespace fn
 
-extern int value;
-extern int const const_value;
-static_assert(                //
-    std::is_same_v<           //
-        decltype(FWD(value)), //
-        decltype(std::forward<decltype(value)>(value))>);
-static_assert(      //
-    std::is_same_v< //
-        decltype(FWD(const_value)),
-        decltype(std::forward<decltype(const_value)>(const_value))>);
-
-extern int &lvalue;
-extern int const &const_lvalue;
-static_assert(      //
-    std::is_same_v< //
-        decltype(FWD(lvalue)),
-        decltype(std::forward<decltype(lvalue)>(lvalue))>);
-static_assert(      //
-    std::is_same_v< //
-        decltype(FWD(const_lvalue)),
-        decltype(std::forward<decltype(const_lvalue)>(const_lvalue))>);
-
-extern int &&rvalue;
-extern int const &&const_rvalue;
-static_assert(      //
-    std::is_same_v< //
-        decltype(FWD(rvalue)),
-        decltype(std::forward<decltype(rvalue)>(rvalue))>);
-static_assert(      //
-    std::is_same_v< //
-        decltype(FWD(const_rvalue)),
-        decltype(std::forward<decltype(const_rvalue)>(const_rvalue))>);
-
-TEST_CASE("not_tuple", "[not_tuple]")
+TEST_CASE("closure", "[closure]")
 {
-  using fn::not_tuple;
+  using fn::closure;
 
   struct A final {
     int v = 0;
   };
-  using T = not_tuple<int, int const, int &, int const &>;
+  using T = closure<int, int const, int &, int const &>;
   int val1 = 15;
   int const val2 = 92;
   T v{3, 14, val1, val2};
@@ -158,7 +125,7 @@ TEST_CASE("not_tuple", "[not_tuple]")
   }([](A, int, int, int &, int const &) {})); // bind lvalues
   static_assert([&](auto &&fn) constexpr {
     return requires { T::invoke(v, fn, A{}); };
-  }([](A &&, int &&, int &&, int &, int const &) {
+  }([](A &&, int &&, int const &&, int &, int const &) {
   })); // bind rvalues and lvalues
   static_assert([&](auto &&fn) constexpr {
     return requires { T::invoke(v, fn, A{}); };
@@ -176,11 +143,16 @@ TEST_CASE("not_tuple", "[not_tuple]")
   }([](A, int, int, int &&, int) {})); // cannot bind lvalue to rvalue reference
   static_assert(not [&](auto &&fn) constexpr {
     return requires { T::invoke(v, fn, A{}); };
-  }([](A, int, int, int, int &&) {})); // cannot bind lvalue to rvalue reference
+  }([](A, int, int, int, int &&) {
+  })); // cannot bind const lvalue to rvalue reference
   static_assert(not [&](auto &&fn) constexpr {
     return requires { T::invoke(v, fn, A{}); };
   }([](A, int, int, int, int const &&) {
-  })); // cannot bind lvalue to const rvalue reference
+  })); // cannot bind const lvalue to const rvalue reference
+  static_assert(not [&](auto &&fn) constexpr {
+    return requires { T::invoke(v, fn, A{}); };
+  }([](A &&, int, int &&, int, int) {
+  })); // cannot bind const rvalue to non-const rvalue reference
   static_assert(not [&](auto &&fn) constexpr {
     return requires { T::invoke(v, fn, A{}); };
   }([](int, auto &&...) {})); // bad type
@@ -214,4 +186,53 @@ TEST_CASE("not_tuple", "[not_tuple]")
 
   constexpr auto fn3 = [](A &&dest, auto &&...) noexcept -> A { return dest; };
   static_assert(std::is_same_v<decltype(T::invoke(v, fn3, std::move(a))), A>);
+}
+
+TEST_CASE("closure with immovable data", "[closure][immovable]")
+{
+  using fn::closure;
+
+  struct ImmovableType {
+    int value = 0;
+
+    constexpr explicit ImmovableType(int i) noexcept : value(i) {}
+
+    ImmovableType(ImmovableType const &) = delete;
+    ImmovableType &operator=(ImmovableType const &) = delete;
+    ImmovableType(ImmovableType &&) = delete;
+    ImmovableType &operator=(ImmovableType &&) = delete;
+
+    constexpr bool operator==(ImmovableType const &other) const noexcept
+    {
+      return value == other.value;
+    }
+  };
+
+  using T = closure<ImmovableType, ImmovableType const, ImmovableType &,
+                    ImmovableType const &>;
+  ImmovableType val1{15};
+  ImmovableType const val2{92};
+  T v{ImmovableType{3}, ImmovableType{14}, val1, val2};
+
+  static_assert([&](auto &&fn) constexpr {
+    return requires { T::invoke(v, fn); };
+  }([](auto &&...) {})); // generic call
+  static_assert([&](auto &&fn) constexpr {
+    return requires { T::invoke(v, fn); };
+  }([](ImmovableType const &, ImmovableType const &, ImmovableType const &,
+       ImmovableType const &) {})); // pass everything by const reference
+  static_assert([&](auto &&fn) constexpr {
+    return requires { T::invoke(v, fn); };
+  }([](ImmovableType &&, ImmovableType const &&, ImmovableType &,
+       ImmovableType const &) {})); // bind rvalues and lvalues
+
+  static_assert(not [&](auto &&fn) constexpr {
+    return requires { T::invoke(v, fn); };
+  }([](ImmovableType, auto &&...) {})); // cannot pass immovable by value
+
+  CHECK(T::invoke(v,
+                  [](auto &&...args) noexcept -> int {
+                    return (0 + ... + args.value);
+                  })
+        == 3 + 14 + 15 + 92);
 }

@@ -6,13 +6,10 @@
 #ifndef INCLUDE_FUNCTIONAL_UTILITY
 #define INCLUDE_FUNCTIONAL_UTILITY
 
+#include "functional/detail/closure.hpp"
 #include "functional/detail/concepts.hpp"
-#include "functional/detail/not_tuple.hpp"
+#include "functional/detail/fwd_macro.hpp"
 #include "functional/detail/traits.hpp"
-
-// This FWD macro is a functional equivalent to std::forward<decltype(v)>(v),
-// but it saves compilation time (and typing) when used frequently.
-#define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 
 namespace fn {
 
@@ -39,8 +36,7 @@ constexpr auto apply_const(auto &&v) noexcept -> decltype(auto)
 }
 
 template <typename... Ts>
-struct not_tuple
-    : detail::not_tuple_base<std::index_sequence_for<Ts...>, Ts...> {};
+struct closure : detail::closure_base<std::index_sequence_for<Ts...>, Ts...> {};
 
 } // namespace fn
 
