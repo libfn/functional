@@ -7,6 +7,7 @@
 #include "functional/fail.hpp"
 #include "functional/fwd.hpp"
 #include "functional/inspect.hpp"
+#include "functional/inspect_error.hpp"
 #include "functional/or_else.hpp"
 #include "functional/recover.hpp"
 #include "functional/transform.hpp"
@@ -52,8 +53,8 @@ template <typename Fn> struct ImmovableFn final {
 };
 template <typename Fn> ImmovableFn(Fn &&) -> ImmovableFn<Fn>;
 
-TEST_CASE("Demo expected", "[expected][and_then][transform_error][transform]["
-                           "inspect][recover][fail][immovable]")
+TEST_CASE("Demo expected", "[expected][and_then][transform_error][transform]"
+                           "[inspect][inspect_error][recover][fail][immovable]")
 {
   constexpr auto fn1 = [](const char *str, double &peek) {
     using namespace fn;
@@ -86,8 +87,8 @@ TEST_CASE("Demo expected", "[expected][and_then][transform_error][transform]["
                 return std::runtime_error{v.what};
               })
             | transform(fn2)
-            | inspect(
-                [&peek](double d) noexcept -> void { peek = d; },
+            | inspect([&peek](double d) noexcept -> void { peek = d; })
+            | inspect_error(
                 [&peek](std::runtime_error) noexcept -> void { peek = 0; })
             | recover([](auto...) noexcept -> int { return -13; })
             //
@@ -131,8 +132,8 @@ TEST_CASE("Demo optional",
                 }
                 return {std::nullopt};
               })
-            | inspect([&peek](int d) noexcept -> void { peek = d; },
-                      [&peek]() noexcept -> void { peek = 0; })
+            | inspect([&peek](int d) noexcept -> void { peek = d; })
+            | inspect_error([&peek]() noexcept -> void { peek = 0; })
             | or_else([]() noexcept -> std::optional<int> { return -13; })
             | transform([](int i) noexcept -> double { return i + 0.5; })
             //
