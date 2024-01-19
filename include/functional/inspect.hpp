@@ -28,57 +28,15 @@ constexpr inline struct inspect_t final {
 } inspect = {};
 
 struct inspect_t::apply final {
-  static auto operator()(some_expected auto &&v, auto &&fn1,
-                         auto &&fn2) noexcept -> decltype(v)
-    requires std::invocable<decltype(fn1), decltype(std::as_const(v.value()))>
-             && std::invocable<decltype(fn2),
-                               decltype(std::as_const(v.error()))>
-             && (!std::is_void_v<decltype(v.value())>)
-  {
-    static_assert(std::is_void_v<std::invoke_result_t<
-                      decltype(fn1), decltype(std::as_const(v.value()))>>);
-    static_assert(std::is_void_v<std::invoke_result_t<
-                      decltype(fn2), decltype(std::as_const(v.error()))>>);
-    if (v.has_value()) {
-      FWD(fn1)(std::as_const(v.value()));
-    } else {
-      FWD(fn2)(std::as_const(v.error()));
-    }
-    return FWD(v);
-  }
-
-  static auto operator()(some_expected auto &&v, auto &&fn1,
-                         auto &&fn2) noexcept -> decltype(v)
-    requires std::invocable<decltype(fn1)>
-             && std::invocable<decltype(fn2),
-                               decltype(std::as_const(v.error()))>
-             && (std::is_void_v<decltype(v.value())>)
-  {
-    static_assert(std::is_void_v<std::invoke_result_t<decltype(fn1)>>);
-    static_assert(std::is_void_v<std::invoke_result_t<
-                      decltype(fn2), decltype(std::as_const(v.error()))>>);
-    if (v.has_value()) {
-      FWD(fn1)();
-    } else {
-      FWD(fn2)(std::as_const(v.error()));
-    }
-    return FWD(v);
-  }
-
   static auto operator()(some_expected auto &&v, auto &&fn) noexcept
       -> decltype(v)
     requires std::invocable<decltype(fn), decltype(std::as_const(v.value()))>
-             && std::invocable<decltype(fn), decltype(std::as_const(v.error()))>
              && (!std::is_void_v<decltype(v.value())>)
   {
     static_assert(std::is_void_v<std::invoke_result_t<
                       decltype(fn), decltype(std::as_const(v.value()))>>);
-    static_assert(std::is_void_v<std::invoke_result_t<
-                      decltype(fn), decltype(std::as_const(v.error()))>>);
     if (v.has_value()) {
       FWD(fn)(std::as_const(v.value()));
-    } else {
-      FWD(fn)(std::as_const(v.error()));
     }
     return FWD(v);
   }
@@ -86,32 +44,11 @@ struct inspect_t::apply final {
   static auto operator()(some_expected auto &&v, auto &&fn) noexcept
       -> decltype(v)
     requires std::invocable<decltype(fn)>
-             && std::invocable<decltype(fn), decltype(std::as_const(v.error()))>
              && (std::is_void_v<decltype(v.value())>)
   {
     static_assert(std::is_void_v<std::invoke_result_t<decltype(fn)>>);
-    static_assert(std::is_void_v<std::invoke_result_t<
-                      decltype(fn), decltype(std::as_const(v.error()))>>);
     if (v.has_value()) {
       FWD(fn)();
-    } else {
-      FWD(fn)(std::as_const(v.error()));
-    }
-    return FWD(v);
-  }
-
-  static auto operator()(some_optional auto &&v, auto &&fn1,
-                         auto &&fn2) noexcept -> decltype(v)
-    requires std::invocable<decltype(fn1), decltype(std::as_const(v.value()))>
-             && std::invocable<decltype(fn2)>
-  {
-    static_assert(std::is_void_v<std::invoke_result_t<
-                      decltype(fn1), decltype(std::as_const(v.value()))>>);
-    static_assert(std::is_void_v<std::invoke_result_t<decltype(fn2)>>);
-    if (v.has_value()) {
-      FWD(fn1)(std::as_const(v.value()));
-    } else {
-      FWD(fn2)();
     }
     return FWD(v);
   }
@@ -119,15 +56,11 @@ struct inspect_t::apply final {
   static auto operator()(some_optional auto &&v, auto &&fn) noexcept
       -> decltype(v)
     requires std::invocable<decltype(fn), decltype(std::as_const(v.value()))>
-             && std::invocable<decltype(fn)>
   {
     static_assert(std::is_void_v<std::invoke_result_t<
                       decltype(fn), decltype(std::as_const(v.value()))>>);
-    static_assert(std::is_void_v<std::invoke_result_t<decltype(fn)>>);
     if (v.has_value()) {
       FWD(fn)(std::as_const(v.value()));
-    } else {
-      FWD(fn)();
     }
     return FWD(v);
   }

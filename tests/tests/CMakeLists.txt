@@ -11,6 +11,7 @@ set(TESTS_SOURCE_FILES
     and_then.cpp
     fail.cpp
     functor.cpp
+    inspect_error.cpp
     inspect.cpp
     or_else.cpp
     recover.cpp
