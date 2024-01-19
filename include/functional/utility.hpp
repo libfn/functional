@@ -7,21 +7,10 @@
 #define INCLUDE_FUNCTIONAL_UTILITY
 
 #include "functional/detail/closure.hpp"
-#include "functional/detail/concepts.hpp"
 #include "functional/detail/fwd_macro.hpp"
 #include "functional/detail/traits.hpp"
 
 namespace fn {
-
-template <typename T>
-concept some_expected = detail::_is_some_expected<T &>;
-
-template <typename T>
-concept some_optional = detail::_is_some_optional<T &>;
-
-template <typename T>
-concept some_monadic_type = some_expected<T> || some_optional<T>;
-
 template <typename T> using as_value_t = decltype(detail::_as_value<T>);
 
 template <typename T, typename V>

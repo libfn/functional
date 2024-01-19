@@ -6,8 +6,8 @@
 #ifndef INCLUDE_FUNCTIONAL_FUNCTOR
 #define INCLUDE_FUNCTIONAL_FUNCTOR
 
+#include "functional/concepts.hpp"
 #include "functional/detail/closure.hpp"
-#include "functional/detail/concepts.hpp"
 #include "functional/utility.hpp"
 
 #include <concepts>
@@ -15,7 +15,6 @@
 #include <utility>
 
 namespace fn {
-
 template <typename Functor, typename V, typename... Args>
 concept monadic_invocable
     = some_monadic_type<V> //

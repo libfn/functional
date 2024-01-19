@@ -7,7 +7,6 @@
 
 #include <catch2/catch_all.hpp>
 
-#include <expected>
 #include <optional>
 
 namespace fn {
@@ -66,33 +65,6 @@ static_assert(std::is_same_v<decltype(apply_const<float const &&>(std::declval<i
 static_assert(std::is_same_v<decltype(apply_const<float &&>      (std::declval<int &&>())), int &&>);
 static_assert(std::is_same_v<decltype(apply_const<float const &&>(std::declval<int &&>())), int const &&>);
 // clang-format on
-
-static_assert(some_expected<std::expected<int, bool>>);
-static_assert(some_expected<std::expected<int, bool> const>);
-static_assert(some_expected<std::expected<int, bool> &>);
-static_assert(some_expected<std::expected<int, bool> const &>);
-static_assert(some_expected<std::expected<int, bool> &&>);
-static_assert(some_expected<std::expected<int, bool> const &&>);
-
-static_assert(some_optional<std::optional<int>>);
-static_assert(some_optional<std::optional<int> const>);
-static_assert(some_optional<std::optional<int> &>);
-static_assert(some_optional<std::optional<int> const &>);
-static_assert(some_optional<std::optional<int> &&>);
-static_assert(some_optional<std::optional<int> const &&>);
-
-static_assert(some_monadic_type<std::expected<int, bool>>);
-static_assert(some_monadic_type<std::expected<int, bool> const>);
-static_assert(some_monadic_type<std::expected<int, bool> &>);
-static_assert(some_monadic_type<std::expected<int, bool> const &>);
-static_assert(some_monadic_type<std::expected<int, bool> &&>);
-static_assert(some_monadic_type<std::expected<int, bool> const &&>);
-static_assert(some_monadic_type<std::optional<int>>);
-static_assert(some_monadic_type<std::optional<int> const>);
-static_assert(some_monadic_type<std::optional<int> &>);
-static_assert(some_monadic_type<std::optional<int> const &>);
-static_assert(some_monadic_type<std::optional<int> &&>);
-static_assert(some_monadic_type<std::optional<int> const &&>);
 } // namespace fn
 
 TEST_CASE("closure", "[closure]")
