@@ -6,15 +6,34 @@
 #ifndef INCLUDE_FUNCTIONAL_TRANSFORM
 #define INCLUDE_FUNCTIONAL_TRANSFORM
 
+#include "functional/concepts.hpp"
 #include "functional/detail/concepts.hpp"
 #include "functional/functor.hpp"
 #include "functional/fwd.hpp"
 #include "functional/utility.hpp"
 
 #include <concepts>
+#include <type_traits>
 #include <utility>
 
 namespace fn {
+template <typename Fn, typename V>
+concept invocable_transform
+    = (some_expected_non_void<V> && requires(Fn &&fn, V &&v) {
+        {
+          std::invoke(FWD(fn), FWD(v).value())
+        } -> convertible_to_expected<
+            typename std::remove_cvref_t<decltype(v)>::error_type>;
+      }) || (some_expected_void<V> && requires(Fn &&fn, V &&v) {
+        {
+          std::invoke(FWD(fn))
+        } -> convertible_to_expected<
+            typename std::remove_cvref_t<decltype(v)>::error_type>;
+      }) || (some_optional<V> && requires(Fn &&fn, V &&v) {
+        {
+          std::invoke(FWD(fn), FWD(v).value())
+        } -> convertible_to_optional;
+      });
 
 constexpr static struct transform_t final {
   auto operator()(auto &&fn) const noexcept
@@ -27,25 +46,9 @@ constexpr static struct transform_t final {
 } transform = {};
 
 struct transform_t::apply final {
-  static auto operator()(some_expected auto &&v, auto &&fn) noexcept
-      -> decltype(auto)
-    requires std::invocable<decltype(fn), decltype(FWD(v).value())>
-             && (!std::is_void_v<decltype(v.value())>)
-  {
-    return FWD(v).transform(FWD(fn));
-  }
-
-  static auto operator()(some_expected auto &&v, auto &&fn) noexcept
-      -> decltype(auto)
-    requires std::invocable<decltype(fn)>
-             && (std::is_void_v<decltype(v.value())>)
-  {
-    return FWD(v).transform(FWD(fn));
-  }
-
-  static auto operator()(some_optional auto &&v, auto &&fn) noexcept
-      -> decltype(auto)
-    requires std::invocable<decltype(fn), decltype(FWD(v).value())>
+  static auto operator()(some_monadic_type auto &&v, auto &&fn) noexcept
+      -> same_kind<decltype(v)> auto
+    requires invocable_transform<decltype(fn) &&, decltype(v) &&>
   {
     return FWD(v).transform(FWD(fn));
   }

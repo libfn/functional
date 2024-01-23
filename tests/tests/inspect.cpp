@@ -21,6 +21,15 @@ struct Error final {
   operator std::string_view() const { return what; }
 };
 
+struct Value final {
+  int value;
+  static int count;
+
+  auto fn() const & noexcept -> void { count += value; }
+};
+
+int Value::count = 0;
+
 } // namespace
 
 TEST_CASE("inspect expected", "[inspect][expected][expected_value]")
@@ -45,6 +54,9 @@ TEST_CASE("inspect expected", "[inspect][expected][expected_value]")
     return monadic_invocable<inspect_t, operand_t &&, decltype(fn)>;
   }([](int const &) -> void {})); // allow binding to const lvalue
 
+  static_assert(not [](auto &&fn) constexpr->bool {
+    return monadic_invocable<inspect_t, operand_t, decltype(fn)>;
+  }([](unsigned) -> int { return 0; })); // bad return type
   static_assert(not [](auto &&fn) constexpr->bool {
     return monadic_invocable<inspect_t, operand_t &&, decltype(fn)>;
   }([](int &&) -> void {})); // disallow move
@@ -85,6 +97,16 @@ TEST_CASE("inspect expected", "[inspect][expected][expected_value]")
                   .what
               == "Not good");
     }
+    WHEN("calling member function")
+    {
+      using operand_t = std::expected<Value, Error>;
+      operand_t a{std::in_place, 12};
+      using T = decltype(a | inspect(&Value::fn));
+      static_assert(std::is_same_v<T, operand_t &>);
+      auto const before = Value::count;
+      REQUIRE((a | inspect(&Value::fn)).value().value == 12);
+      CHECK(Value::count == before + 12);
+    }
   }
 
   WHEN("operand is rvalue")
@@ -105,6 +127,16 @@ TEST_CASE("inspect expected", "[inspect][expected][expected_value]")
                   .error()
                   .what
               == "Not good");
+    }
+    WHEN("calling member function")
+    {
+      using operand_t = std::expected<Value, Error>;
+      using T = decltype(operand_t{std::in_place, 12} | inspect(&Value::fn));
+      static_assert(std::is_same_v<T, operand_t &&>);
+      auto const before = Value::count;
+      REQUIRE((operand_t{std::in_place, 12} | inspect(&Value::fn)).value().value
+              == 12);
+      CHECK(Value::count == before + 12);
     }
   }
 }
@@ -231,6 +263,16 @@ TEST_CASE("inspect optional", "[inspect][optional]")
       static_assert(std::is_same_v<T, operand_t &>);
       REQUIRE(not(a | inspect(wrong)).has_value());
     }
+    WHEN("calling member function")
+    {
+      using operand_t = std::optional<Value>;
+      operand_t a{std::in_place, 12};
+      using T = decltype(a | inspect(&Value::fn));
+      static_assert(std::is_same_v<T, operand_t &>);
+      auto const before = Value::count;
+      REQUIRE((a | inspect(&Value::fn)).value().value == 12);
+      CHECK(Value::count == before + 12);
+    }
   }
 
   WHEN("operand is rvalue")
@@ -250,5 +292,63 @@ TEST_CASE("inspect optional", "[inspect][optional]")
                   | inspect(wrong))
                      .has_value());
     }
+    WHEN("calling member function")
+    {
+      using operand_t = std::optional<Value>;
+      using T = decltype(operand_t{std::in_place, 12} | inspect(&Value::fn));
+      static_assert(std::is_same_v<T, operand_t &&>);
+      auto const before = Value::count;
+      REQUIRE((operand_t{std::in_place, 12} | inspect(&Value::fn)).value().value
+              == 12);
+      CHECK(Value::count == before + 12);
+    }
   }
 }
+
+namespace fn {
+namespace {
+struct Error {};
+struct Xerror final : Error {};
+struct Value final {};
+
+template <typename T> constexpr auto fn_int = [](int) -> T { throw 0; };
+
+template <typename T>
+constexpr auto fn_generic = [](auto &&...) -> T { throw 0; };
+
+constexpr auto fn_int_lvalue = [](int &) {};
+constexpr auto fn_int_const_lvalue = [](int const &) {};
+constexpr auto fn_int_rvalue = [](int &&) {};
+constexpr auto fn_int_const_rvalue = [](int const &&) {};
+} // namespace
+
+// clang-format off
+static_assert(invocable_inspect<decltype(fn_int<void>), std::expected<int, Error>>);
+static_assert(not invocable_inspect<decltype(fn_int<int>), std::expected<int, Error>>); // wrong return type
+static_assert(invocable_inspect<decltype(fn_generic<void>), std::expected<void, Error>>);
+static_assert(not invocable_inspect<decltype(fn_generic<int>), std::expected<void, Error>>); // wrong return type
+static_assert(invocable_inspect<decltype(fn_generic<void>), std::expected<Value, Error>>);
+static_assert(not invocable_inspect<decltype(fn_int<void>), std::expected<Value, Error>>); // wrong parameter type
+static_assert(invocable_inspect<decltype(fn_int<void>), std::expected<unsigned, Xerror>>); // parameter type conversion
+static_assert(not invocable_inspect<decltype(fn_int<void>), std::expected<Value, Error>>); // wrong parameter type
+
+static_assert(invocable_inspect<decltype(fn_generic<void>), std::optional<int>>);
+static_assert(not invocable_inspect<decltype(fn_generic<int>), std::optional<Value>>); // wrong return type
+
+// binding to const lvalue-ref
+static_assert(invocable_inspect<decltype(fn_int_const_lvalue), std::expected<int, Error>>);
+static_assert(invocable_inspect<decltype(fn_int_const_lvalue), std::expected<int, Error> const>);
+static_assert(invocable_inspect<decltype(fn_int_const_lvalue), std::expected<int, Error> &>);
+static_assert(invocable_inspect<decltype(fn_int_const_lvalue), std::expected<int, Error> const &>);
+static_assert(invocable_inspect<decltype(fn_int_const_lvalue), std::expected<int, Error> &&>);
+static_assert(invocable_inspect<decltype(fn_int_const_lvalue), std::expected<int, Error> const &&>);
+
+// cannot bind const to non-const lvalue-ref
+static_assert(not invocable_inspect<decltype(fn_int_lvalue), std::expected<int, Error>>);
+// cannot bind lvalue to const rvalue-ref
+static_assert(not invocable_inspect<decltype(fn_int_const_rvalue), std::expected<int, Error>>);
+// cannot bind lvalue to rvalue-ref
+static_assert(not invocable_inspect<decltype(fn_int_rvalue), std::expected<int, Error>>);
+
+// clang-format on
+} // namespace fn

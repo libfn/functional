@@ -12,9 +12,17 @@
 #include "functional/utility.hpp"
 
 #include <concepts>
+#include <expected>
 #include <utility>
 
 namespace fn {
+template <typename Fn, typename V>
+concept invocable_transform_error
+    = (some_expected<V> && requires(Fn &&fn, V &&v) {
+        {
+          std::invoke(FWD(fn), FWD(v).error())
+        } -> convertible_to_unexpected;
+      });
 
 constexpr inline struct transform_error_t final {
   auto operator()(auto &&fn) const noexcept
@@ -28,8 +36,8 @@ constexpr inline struct transform_error_t final {
 
 struct transform_error_t::apply final {
   static auto operator()(some_expected auto &&v, auto &&fn) noexcept
-      -> decltype(auto)
-    requires std::invocable<decltype(fn), decltype(FWD(v).error())>
+      -> same_value_kind<decltype(v)> auto
+    requires invocable_transform_error<decltype(fn) &&, decltype(v) &&>
   {
     return FWD(v).transform_error(FWD(fn));
   }

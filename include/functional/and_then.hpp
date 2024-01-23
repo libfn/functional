@@ -6,7 +6,7 @@
 #ifndef INCLUDE_FUNCTIONAL_AND_THEN
 #define INCLUDE_FUNCTIONAL_AND_THEN
 
-#include "functional/detail/concepts.hpp"
+#include "functional/concepts.hpp"
 #include "functional/functor.hpp"
 #include "functional/fwd.hpp"
 #include "functional/utility.hpp"
@@ -15,6 +15,21 @@
 #include <utility>
 
 namespace fn {
+template <typename Fn, typename V>
+concept invocable_and_then
+    = (some_expected_non_void<V> && requires(Fn &&fn, V &&v) {
+        {
+          std::invoke(FWD(fn), FWD(v).value())
+        } -> same_kind<V>;
+      }) || (some_expected_void<V> && requires(Fn &&fn) {
+        {
+          std::invoke(FWD(fn))
+        } -> same_kind<V>;
+      }) || (some_optional<V> && requires(Fn &&fn, V &&v) {
+        {
+          std::invoke(FWD(fn), FWD(v).value())
+        } -> same_kind<V>;
+      });
 
 constexpr inline struct and_then_t final {
   auto operator()(auto &&fn) const noexcept -> functor<and_then_t, decltype(fn)>
@@ -26,25 +41,9 @@ constexpr inline struct and_then_t final {
 } and_then = {};
 
 struct and_then_t::apply final {
-  static auto operator()(some_expected auto &&v, auto &&fn) noexcept
-      -> decltype(auto)
-    requires std::invocable<decltype(fn), decltype(FWD(v).value())>
-             && (!std::is_void_v<decltype(v.value())>)
-  {
-    return FWD(v).and_then(FWD(fn));
-  }
-
-  static auto operator()(some_expected auto &&v, auto &&fn) noexcept
-      -> decltype(auto)
-    requires std::invocable<decltype(fn)>
-             && (std::is_void_v<decltype(v.value())>)
-  {
-    return FWD(v).and_then(FWD(fn));
-  }
-
-  static auto operator()(some_optional auto &&v, auto &&fn) noexcept
-      -> decltype(auto)
-    requires std::invocable<decltype(fn), decltype(FWD(v).value())>
+  static auto operator()(some_monadic_type auto &&v, auto &&fn) noexcept
+      -> same_kind<decltype(v)> auto
+    requires invocable_and_then<decltype(fn) &&, decltype(v) &&>
   {
     return FWD(v).and_then(FWD(fn));
   }
