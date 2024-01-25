@@ -12,6 +12,7 @@ set(INCLUDE_SOURCE_FILES
     functional/detail/fwd_macro.hpp
     functional/detail/traits.hpp
     functional/and_then.hpp
+    functional/concepts.hpp
     functional/fail.hpp
     functional/functor.hpp
     functional/fwd.hpp

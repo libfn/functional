@@ -6,18 +6,35 @@
 #ifndef INCLUDE_FUNCTIONAL_INSPECT
 #define INCLUDE_FUNCTIONAL_INSPECT
 
+#include "functional/concepts.hpp"
 #include "functional/detail/concepts.hpp"
 #include "functional/functor.hpp"
 #include "functional/fwd.hpp"
 #include "functional/utility.hpp"
 
 #include <concepts>
+#include <type_traits>
 #include <utility>
 
 namespace fn {
+template <typename Fn, typename V>
+concept invocable_inspect
+    = (some_expected_non_void<V> && requires(Fn &&fn, V &&v) {
+        {
+          std::invoke(FWD(fn), std::as_const(v).value())
+        } -> std::same_as<void>;
+      }) || (some_expected_void<V> && requires(Fn &&fn) {
+        {
+          std::invoke(FWD(fn))
+        } -> std::same_as<void>;
+      }) || (some_optional<V> && requires(Fn &&fn, V &&v) {
+        {
+          std::invoke(FWD(fn), std::as_const(v).value())
+        } -> std::same_as<void>;
+      });
 
 constexpr inline struct inspect_t final {
-  auto operator()(auto &&...fn) const noexcept
+  constexpr auto operator()(auto &&...fn) const noexcept
       -> functor<inspect_t, decltype(fn)...>
     requires(sizeof...(fn) > 0) && (sizeof...(fn) <= 2)
   {
@@ -28,39 +45,22 @@ constexpr inline struct inspect_t final {
 } inspect = {};
 
 struct inspect_t::apply final {
-  static auto operator()(some_expected auto &&v, auto &&fn) noexcept
+  static constexpr auto operator()(some_expected auto &&v, auto &&fn) noexcept
       -> decltype(v)
-    requires std::invocable<decltype(fn), decltype(std::as_const(v.value()))>
-             && (!std::is_void_v<decltype(v.value())>)
+    requires invocable_inspect<decltype(fn), decltype(v)>
   {
-    static_assert(std::is_void_v<std::invoke_result_t<
-                      decltype(fn), decltype(std::as_const(v.value()))>>);
-    if (v.has_value()) {
-      FWD(fn)(std::as_const(v.value()));
-    }
+    std::as_const(v).transform([&fn](auto const &...args) -> void {
+      std::invoke(FWD(fn), FWD(args)...); // side-effects only
+    });
     return FWD(v);
   }
 
-  static auto operator()(some_expected auto &&v, auto &&fn) noexcept
+  static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept
       -> decltype(v)
-    requires std::invocable<decltype(fn)>
-             && (std::is_void_v<decltype(v.value())>)
+    requires invocable_inspect<decltype(fn), decltype(v)>
   {
-    static_assert(std::is_void_v<std::invoke_result_t<decltype(fn)>>);
     if (v.has_value()) {
-      FWD(fn)();
-    }
-    return FWD(v);
-  }
-
-  static auto operator()(some_optional auto &&v, auto &&fn) noexcept
-      -> decltype(v)
-    requires std::invocable<decltype(fn), decltype(std::as_const(v.value()))>
-  {
-    static_assert(std::is_void_v<std::invoke_result_t<
-                      decltype(fn), decltype(std::as_const(v.value()))>>);
-    if (v.has_value()) {
-      FWD(fn)(std::as_const(v.value()));
+      std::invoke(FWD(fn), std::as_const(v).value()); // side-effects only
     }
     return FWD(v);
   }

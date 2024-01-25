@@ -6,6 +6,7 @@
 #ifndef INCLUDE_FUNCTIONAL_OR_ELSE
 #define INCLUDE_FUNCTIONAL_OR_ELSE
 
+#include "functional/concepts.hpp"
 #include "functional/detail/concepts.hpp"
 #include "functional/functor.hpp"
 #include "functional/fwd.hpp"
@@ -15,9 +16,21 @@
 #include <utility>
 
 namespace fn {
+template <typename Fn, typename V>
+concept invocable_or_else //
+    = (some_expected<V> && requires(Fn &&fn, V &&v) {
+        {
+          std::invoke(FWD(fn), FWD(v).error())
+        } -> same_value_kind<V>;
+      }) || (some_optional<V> && requires(Fn &&fn) {
+        {
+          std::invoke(FWD(fn))
+        } -> same_value_kind<V>;
+      });
 
 constexpr inline struct or_else_t final {
-  auto operator()(auto &&fn) const noexcept -> functor<or_else_t, decltype(fn)>
+  constexpr auto operator()(auto &&fn) const noexcept
+      -> functor<or_else_t, decltype(fn)>
   {
     return {FWD(fn)};
   }
@@ -26,16 +39,10 @@ constexpr inline struct or_else_t final {
 } or_else = {};
 
 struct or_else_t::apply final {
-  static auto operator()(some_expected auto &&v, auto &&fn) noexcept
-      -> decltype(auto)
-    requires std::invocable<decltype(fn), decltype(FWD(v).error())>
-  {
-    return FWD(v).or_else(FWD(fn));
-  }
-
-  static auto operator()(some_optional auto &&v, auto &&fn) noexcept
-      -> decltype(auto)
-    requires std::invocable<decltype(fn)>
+  static constexpr auto operator()(some_monadic_type auto &&v,
+                                   auto &&fn) noexcept
+      -> same_value_kind<decltype(v)> auto
+    requires invocable_or_else<decltype(fn), decltype(v)>
   {
     return FWD(v).or_else(FWD(fn));
   }

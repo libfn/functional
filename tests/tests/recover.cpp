@@ -255,3 +255,36 @@ TEST_CASE("recover", "[recover][optional]")
     }
   }
 }
+
+TEST_CASE("constexpr recover expected", "[recover][constexpr][expected]")
+{
+  enum class Error { ThresholdExceeded, SomethingElse };
+  using T = std::expected<int, Error>;
+
+  constexpr auto fn = [](Error e) constexpr noexcept -> int {
+    if (e == Error::SomethingElse)
+      return 0;
+    return 1;
+  };
+  constexpr auto r1 = T{2} | fn::recover(fn);
+  static_assert(r1.value() == 2);
+  constexpr auto r2 = T{std::unexpect, Error::SomethingElse} | fn::recover(fn);
+  static_assert(r2.value() == 0);
+  constexpr auto r3
+      = T{std::unexpect, Error::ThresholdExceeded} | fn::recover(fn);
+  static_assert(r3.value() == 1);
+
+  SUCCEED();
+}
+
+TEST_CASE("constexpr recover optional", "[recover][constexpr][optional]")
+{
+  using T = std::optional<int>;
+  constexpr auto fn = []() constexpr noexcept -> int { return 13; };
+  constexpr auto r1 = T{0} | fn::recover(fn);
+  static_assert(r1.value() == 0);
+  constexpr auto r2 = T{} | fn::recover(fn);
+  static_assert(r2.value() == 13);
+
+  SUCCEED();
+}

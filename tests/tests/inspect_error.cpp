@@ -17,14 +17,14 @@
 namespace {
 struct Error final {
   std::string what;
+  static int count;
 
   operator std::string_view() const { return what; }
+
+  auto finalize() const & -> void { count += what.size(); }
 };
 
-template <typename... Ts> struct Overload : Ts... {
-  using Ts::operator()...;
-};
-
+int Error::count = 0;
 } // namespace
 
 TEST_CASE("inspect_error expected", "[inspect_error][expected]")
@@ -43,6 +43,9 @@ TEST_CASE("inspect_error expected", "[inspect_error][expected]")
   static_assert([](auto &&fn) constexpr -> bool {
     return monadic_invocable<inspect_error_t, operand_t, decltype(fn)>;
   }([](std::string_view) -> void {})); // allow conversions
+  static_assert(not [](auto &&fn) constexpr->bool {
+    return monadic_invocable<inspect_error_t, operand_t, decltype(fn)>;
+  }([](std::string_view) -> int { return 0; })); // wrong return type
   static_assert([](auto &&fn) constexpr -> bool {
     return monadic_invocable<inspect_error_t, operand_t &&, decltype(fn)>;
   }([](Error) -> void {})); // allow copy from rvalue
@@ -90,6 +93,19 @@ TEST_CASE("inspect_error expected", "[inspect_error][expected]")
               == "Not good");
       CHECK(error == "Not good");
     }
+    WHEN("calling member function")
+    {
+      operand_t a{std::unexpect, "Not good"};
+      using T = decltype(a | inspect_error(&Error::finalize));
+      static_assert(std::is_same_v<T, operand_t &>);
+      auto const before = Error::count;
+      REQUIRE((a //
+               | inspect_error(&Error::finalize))
+                  .error()
+                  .what
+              == "Not good");
+      CHECK(Error::count == before + 8);
+    }
   }
 
   WHEN("operand is rvalue")
@@ -112,6 +128,19 @@ TEST_CASE("inspect_error expected", "[inspect_error][expected]")
                   .what
               == "Not good");
       CHECK(error == "Not good");
+    }
+    WHEN("calling member function")
+    {
+      using T = decltype(operand_t{std::unexpect, "Not good"}
+                         | inspect_error(&Error::finalize));
+      static_assert(std::is_same_v<T, operand_t &&>);
+      auto const before = Error::count;
+      REQUIRE((operand_t{std::unexpect, "Not good"} //
+               | inspect_error(&Error::finalize))
+                  .error()
+                  .what
+              == "Not good");
+      CHECK(Error::count == before + 8);
     }
   }
 }
@@ -174,3 +203,81 @@ TEST_CASE("inspect_error optional", "[inspect_error][optional]")
     }
   }
 }
+
+TEST_CASE("constexpr inspect_error expected",
+          "[inspect_error][constexpr][expected]")
+{
+  enum class Error { ThresholdExceeded, SomethingElse };
+  using T = std::expected<int, Error>;
+  constexpr auto fn = [](Error) constexpr noexcept -> void {};
+  constexpr auto r1 = T{0} | fn::inspect_error(fn);
+  static_assert(r1.value() == 0);
+  constexpr auto r2
+      = T{std::unexpect, Error::SomethingElse} | fn::inspect_error(fn);
+  static_assert(r2.error() == Error::SomethingElse);
+
+  SUCCEED();
+}
+
+TEST_CASE("constexpr inspect_error optional",
+          "[inspect_error][constexpr][optional]")
+{
+  using T = std::optional<int>;
+  constexpr auto fn = []() constexpr noexcept -> void {};
+  constexpr auto r1 = T{0} | fn::inspect_error(fn);
+  static_assert(r1.value() == 0);
+  constexpr auto r2 = T{} | fn::inspect_error(fn);
+  static_assert(not r2.has_value());
+
+  SUCCEED();
+}
+
+namespace fn {
+namespace {
+struct Error {};
+struct Xerror final : Error {};
+struct Value final {};
+
+template <typename T> constexpr auto fn_int = [](int) -> T { throw 0; };
+
+template <typename T> constexpr auto fn_Error = [](Error) -> T { throw 0; };
+
+template <typename T>
+constexpr auto fn_generic = [](auto &&...) -> T { throw 0; };
+
+constexpr auto fn_int_lvalue = [](int &) {};
+constexpr auto fn_int_const_lvalue = [](int const &) {};
+constexpr auto fn_int_rvalue = [](int &&) {};
+constexpr auto fn_int_const_rvalue = [](int const &&) {};
+} // namespace
+
+// clang-format off
+static_assert(invocable_inspect_error<decltype(fn_Error<void>), std::expected<int, Error>>);
+static_assert(invocable_inspect_error<decltype(fn_generic<void>), std::expected<void, Error>>);
+static_assert(invocable_inspect_error<decltype(fn_int<void>), std::expected<void, int>>);
+static_assert(not invocable_inspect_error<decltype(fn_int<int>), std::expected<void, int>>); // wrong return type
+static_assert(not invocable_inspect_error<decltype(fn_int<void>), std::expected<void, Error>>); // wrong parameter type
+static_assert(invocable_inspect_error<decltype(fn_Error<void>), std::expected<void, Xerror>>); // parameter type conversion
+static_assert(invocable_inspect_error<decltype(fn_generic<void>), std::expected<Value, Error>>);
+static_assert(not invocable_inspect_error<decltype(fn_int<void>), std::expected<Value, Error>>); // wrong parameter type
+
+static_assert(invocable_inspect_error<decltype(fn_generic<void>), std::optional<int>>);
+static_assert(not invocable_inspect_error<decltype(fn_generic<int>), std::optional<Value>>); // wrong return type
+
+// binding to const lvalue-ref
+static_assert(invocable_inspect_error<decltype(fn_int_const_lvalue), std::expected<void, int>>);
+static_assert(invocable_inspect_error<decltype(fn_int_const_lvalue), std::expected<void, int> const>);
+static_assert(invocable_inspect_error<decltype(fn_int_const_lvalue), std::expected<void, int> &>);
+static_assert(invocable_inspect_error<decltype(fn_int_const_lvalue), std::expected<void, int> const &>);
+static_assert(invocable_inspect_error<decltype(fn_int_const_lvalue), std::expected<void, int> &&>);
+static_assert(invocable_inspect_error<decltype(fn_int_const_lvalue), std::expected<void, int> const &&>);
+
+// cannot bind const to non-const lvalue-ref
+static_assert(not invocable_inspect_error<decltype(fn_int_lvalue), std::expected<void, int>>);
+// cannot bind lvalue to const rvalue-ref
+static_assert(not invocable_inspect_error<decltype(fn_int_const_rvalue), std::expected<void, int>>);
+// cannot bind lvalue to rvalue-ref
+static_assert(not invocable_inspect_error<decltype(fn_int_rvalue), std::expected<void, int>>);
+
+// clang-format on
+} // namespace fn

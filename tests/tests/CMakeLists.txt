@@ -9,6 +9,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(TESTS_SOURCE_FILES
     detail/fwd_macro.cpp
     and_then.cpp
+    concepts.cpp
     fail.cpp
     functor.cpp
     inspect_error.cpp

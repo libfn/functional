@@ -15,38 +15,45 @@
 #include <utility>
 
 namespace fn {
+template <typename Fn, typename V>
+concept invocable_inspect_error
+    = (some_expected<V> && requires(Fn &&fn, V &&v) {
+        {
+          std::invoke(FWD(fn), std::as_const(v).error())
+        } -> std::same_as<void>;
+      }) || (some_optional<V> && requires(Fn &&fn) {
+        {
+          std::invoke(FWD(fn))
+        } -> std::same_as<void>;
+      });
 
 constexpr inline struct inspect_error_t final {
-  auto operator()(auto &&...fn) const noexcept
-      -> functor<inspect_error_t, decltype(fn)...>
-    requires(sizeof...(fn) > 0) && (sizeof...(fn) <= 2)
+  constexpr auto operator()(auto &&fn) const noexcept
+      -> functor<inspect_error_t, decltype(fn)>
   {
-    return {FWD(fn)...};
+    return {FWD(fn)};
   }
 
   struct apply;
 } inspect_error = {};
 
 struct inspect_error_t::apply final {
-  static auto operator()(some_expected auto &&v, auto &&fn) noexcept
+  static constexpr auto operator()(some_expected auto &&v, auto &&fn) noexcept
       -> decltype(v)
-    requires std::invocable<decltype(fn), decltype(std::as_const(v.error()))>
+    requires invocable_inspect_error<decltype(fn), decltype(v)>
   {
-    static_assert(std::is_void_v<std::invoke_result_t<
-                      decltype(fn), decltype(std::as_const(v.error()))>>);
     if (not v.has_value()) {
-      FWD(fn)(std::as_const(v.error()));
+      std::invoke(FWD(fn), std::as_const(v).error()); // side-effects only
     }
     return FWD(v);
   }
 
-  static auto operator()(some_optional auto &&v, auto &&fn) noexcept
+  static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept
       -> decltype(v)
-    requires std::invocable<decltype(fn)>
+    requires invocable_inspect_error<decltype(fn), decltype(v)>
   {
-    static_assert(std::is_void_v<std::invoke_result_t<decltype(fn)>>);
     if (not v.has_value()) {
-      FWD(fn)();
+      std::invoke(FWD(fn)); // side-effects only
     }
     return FWD(v);
   }

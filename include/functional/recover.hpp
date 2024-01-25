@@ -6,6 +6,7 @@
 #ifndef INCLUDE_FUNCTIONAL_RECOVER
 #define INCLUDE_FUNCTIONAL_RECOVER
 
+#include "functional/concepts.hpp"
 #include "functional/detail/concepts.hpp"
 #include "functional/detail/traits.hpp"
 #include "functional/functor.hpp"
@@ -17,9 +18,25 @@
 #include <utility>
 
 namespace fn {
+template <typename Fn, typename V>
+concept invocable_recover
+    = (some_expected_non_void<V> && requires(Fn &&fn, V &&v) {
+        {
+          std::invoke(FWD(fn), FWD(v).error())
+        } -> std::convertible_to<typename std::remove_cvref_t<V>::value_type>;
+      }) || (some_expected_void<V> && requires(Fn &&fn, V &&v) {
+        {
+          std::invoke(FWD(fn), FWD(v).error())
+        } -> std::same_as<void>;
+      }) || (some_optional<V> && requires(Fn &&fn, V &&v) {
+        {
+          std::invoke(FWD(fn))
+        } -> std::convertible_to<typename std::remove_cvref_t<V>::value_type>;
+      });
 
 constexpr inline struct recover_t final {
-  auto operator()(auto &&fn) const noexcept -> functor<recover_t, decltype(fn)>
+  constexpr auto operator()(auto &&fn) const noexcept
+      -> functor<recover_t, decltype(fn)>
   {
     return {FWD(fn)};
   }
@@ -28,43 +45,35 @@ constexpr inline struct recover_t final {
 } recover = {};
 
 struct recover_t::apply final {
-  static auto operator()(some_expected auto &&v, auto &&fn) noexcept
-      -> decltype(auto)
-    requires std::invocable<decltype(fn), decltype(FWD(v).error())>
-             && (!std::is_void_v<decltype(v.value())>)
+  static constexpr auto operator()(some_expected_non_void auto &&v,
+                                   auto &&fn) noexcept
+      -> same_monadic_type_as<decltype(v)> auto
+    requires invocable_recover<decltype(fn), decltype(v)>
   {
     using type = std::remove_cvref_t<decltype(v)>;
-    static_assert(std::is_convertible_v<
-                  std::invoke_result_t<decltype(fn), decltype(FWD(v).error())>,
-                  typename type::value_type>);
-    return FWD(v).or_else([&fn](auto &&arg) noexcept -> decltype(auto) {
+    return FWD(v).or_else([&fn](auto &&arg) noexcept -> type {
       return type{std::in_place, FWD(fn)(FWD(arg))};
     });
   }
 
-  static auto operator()(some_expected auto &&v, auto &&fn) noexcept
-      -> decltype(auto)
-    requires std::invocable<decltype(fn), decltype(FWD(v).error())>
-             && (std::is_void_v<decltype(v.value())>)
+  static constexpr auto operator()(some_expected_void auto &&v,
+                                   auto &&fn) noexcept
+      -> same_monadic_type_as<decltype(v)> auto
+    requires invocable_recover<decltype(fn), decltype(v)>
   {
     using type = std::remove_cvref_t<decltype(v)>;
-    static_assert(
-        std::is_void_v<
-            std::invoke_result_t<decltype(fn), decltype(FWD(v).error())>>);
-    return FWD(v).or_else([&fn](auto &&arg) noexcept -> decltype(auto) {
+    return FWD(v).or_else([&fn](auto &&arg) noexcept -> type {
       FWD(fn)(FWD(arg)); // side-effects only
       return type{std::in_place};
     });
   }
 
-  static auto operator()(some_optional auto &&v, auto &&fn) noexcept
-      -> decltype(auto)
-    requires std::invocable<decltype(fn)>
+  static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept
+      -> same_monadic_type_as<decltype(v)> auto
+    requires invocable_recover<decltype(fn), decltype(v)>
   {
     using type = std::remove_cvref_t<decltype(v)>;
-    static_assert(std::is_convertible_v<std::invoke_result_t<decltype(fn)>,
-                                        typename type::value_type>);
-    return FWD(v).or_else([&fn]() noexcept -> decltype(auto) {
+    return FWD(v).or_else([&fn]() noexcept -> type {
       return type{std::in_place, FWD(fn)()};
     });
   }

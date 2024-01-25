@@ -7,7 +7,6 @@
 
 #include <catch2/catch_all.hpp>
 
-#include <expected>
 #include <optional>
 
 namespace fn {
@@ -66,33 +65,6 @@ static_assert(std::is_same_v<decltype(apply_const<float const &&>(std::declval<i
 static_assert(std::is_same_v<decltype(apply_const<float &&>      (std::declval<int &&>())), int &&>);
 static_assert(std::is_same_v<decltype(apply_const<float const &&>(std::declval<int &&>())), int const &&>);
 // clang-format on
-
-static_assert(some_expected<std::expected<int, bool>>);
-static_assert(some_expected<std::expected<int, bool> const>);
-static_assert(some_expected<std::expected<int, bool> &>);
-static_assert(some_expected<std::expected<int, bool> const &>);
-static_assert(some_expected<std::expected<int, bool> &&>);
-static_assert(some_expected<std::expected<int, bool> const &&>);
-
-static_assert(some_optional<std::optional<int>>);
-static_assert(some_optional<std::optional<int> const>);
-static_assert(some_optional<std::optional<int> &>);
-static_assert(some_optional<std::optional<int> const &>);
-static_assert(some_optional<std::optional<int> &&>);
-static_assert(some_optional<std::optional<int> const &&>);
-
-static_assert(some_monadic_type<std::expected<int, bool>>);
-static_assert(some_monadic_type<std::expected<int, bool> const>);
-static_assert(some_monadic_type<std::expected<int, bool> &>);
-static_assert(some_monadic_type<std::expected<int, bool> const &>);
-static_assert(some_monadic_type<std::expected<int, bool> &&>);
-static_assert(some_monadic_type<std::expected<int, bool> const &&>);
-static_assert(some_monadic_type<std::optional<int>>);
-static_assert(some_monadic_type<std::optional<int> const>);
-static_assert(some_monadic_type<std::optional<int> &>);
-static_assert(some_monadic_type<std::optional<int> const &>);
-static_assert(some_monadic_type<std::optional<int> &&>);
-static_assert(some_monadic_type<std::optional<int> const &&>);
 } // namespace fn
 
 TEST_CASE("closure", "[closure]")
@@ -235,4 +207,15 @@ TEST_CASE("closure with immovable data", "[closure][immovable]")
                     return (0 + ... + args.value);
                   })
         == 3 + 14 + 15 + 92);
+}
+
+TEST_CASE("constexpr closure", "[closure][constexpr]")
+{
+  constexpr fn::closure<int, int> v2{3, 14};
+  constexpr auto r2 = fn::closure<int, int>::invoke(
+      v2, [](auto &&...args) constexpr noexcept -> int {
+        return (0 + ... + args);
+      });
+  static_assert(r2 == 3 + 14);
+  SUCCEED();
 }
