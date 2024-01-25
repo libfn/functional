@@ -33,7 +33,8 @@ concept invocable_fail
       });
 
 constexpr inline struct fail_t final {
-  auto operator()(auto &&fn) const noexcept -> functor<fail_t, decltype(fn)>
+  constexpr auto operator()(auto &&fn) const noexcept
+      -> functor<fail_t, decltype(fn)>
   {
     return {FWD(fn)};
   }
@@ -42,7 +43,7 @@ constexpr inline struct fail_t final {
 } fail = {};
 
 struct fail_t::apply final {
-  static auto operator()(some_expected auto &&v, auto &&fn) noexcept
+  static constexpr auto operator()(some_expected auto &&v, auto &&fn) noexcept
       -> same_kind<decltype(v)> auto
     requires invocable_fail<decltype(fn) &&, decltype(v) &&>
   {
@@ -54,7 +55,7 @@ struct fail_t::apply final {
         });
   }
 
-  static auto operator()(some_optional auto &&v, auto &&fn) noexcept
+  static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept
       -> same_kind<decltype(v)> auto
     requires invocable_fail<decltype(fn) &&, decltype(v) &&>
   {

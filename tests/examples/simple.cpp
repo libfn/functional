@@ -56,7 +56,7 @@ template <typename Fn> ImmovableFn(Fn &&) -> ImmovableFn<Fn>;
 TEST_CASE("Demo expected", "[expected][and_then][transform_error][transform]"
                            "[inspect][inspect_error][recover][fail][immovable]")
 {
-  constexpr auto fn1 = [](const char *str, double &peek) {
+  constexpr auto fn1 = [](char const *str, double &peek) {
     using namespace fn;
 
     constexpr auto parse
@@ -104,7 +104,7 @@ TEST_CASE("Demo expected", "[expected][and_then][transform_error][transform]"
   CHECK(fn1("-3", d) == -13);
   CHECK(d == 0);
 
-  const auto e1 = std::expected<int, Error>{0} //
+  auto const e1 = std::expected<int, Error>{0} //
                   | fn::fail([](int) noexcept -> Error { return {"Dummy"}; });
   CHECK(not e1.has_value());
   CHECK(e1.error().what == "Dummy");
@@ -113,7 +113,7 @@ TEST_CASE("Demo expected", "[expected][and_then][transform_error][transform]"
 TEST_CASE("Demo optional",
           "[optional][and_then][or_else][inspect][transform][fail][recover]")
 {
-  constexpr auto fn1 = [](const char *str, int &peek) {
+  constexpr auto fn1 = [](char const *str, int &peek) {
     using namespace fn;
 
     constexpr auto parse = [](char const *str) noexcept -> std::optional<int> {
@@ -149,7 +149,7 @@ TEST_CASE("Demo optional",
   CHECK(fn1("-2", i) == -12.5);
   CHECK(i == 0);
 
-  const auto o1 = std::optional<int>{0} //
+  auto const o1 = std::optional<int>{0} //
                   | fn::fail([](int) noexcept {})
                   | fn::recover([]() { return -1; });
   CHECK(o1.has_value());

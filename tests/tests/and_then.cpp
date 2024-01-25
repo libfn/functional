@@ -888,6 +888,88 @@ TEST_CASE("and_then", "[and_then][optional]")
   }
 }
 
+TEST_CASE("constexpr and_then expected", "[and_then][constexpr][expected]")
+{
+  enum class Error { ThresholdExceeded, SomethingElse };
+  using T = std::expected<int, Error>;
+
+  WHEN("same value type")
+  {
+    constexpr auto fn = [](int i) constexpr noexcept -> T {
+      if (i < 3)
+        return {i + 1};
+      return std::unexpected<Error>{Error::ThresholdExceeded};
+    };
+    constexpr auto r1 = T{0} | fn::and_then(fn);
+    static_assert(r1.value() == 1);
+    constexpr auto r2
+        = r1 | fn::and_then(fn) | fn::and_then(fn) | fn::and_then(fn);
+    static_assert(r2.error() == Error::ThresholdExceeded);
+  }
+
+  WHEN("different value type")
+  {
+    using T1 = std::expected<bool, Error>;
+    constexpr auto fn = [](int i) constexpr noexcept -> T1 {
+      if (i == 1)
+        return {true};
+      if (i == 0)
+        return {false};
+      return std::unexpected<Error>{Error::SomethingElse};
+    };
+    constexpr auto r1 = T{1} | fn::and_then(fn);
+    static_assert(
+        std::is_same_v<decltype(r1), std::expected<bool, Error> const>);
+    static_assert(r1.value() == true);
+    constexpr auto r2 = T{0} | fn::and_then(fn);
+    static_assert(r2.value() == false);
+    constexpr auto r3 = T{2} | fn::and_then(fn);
+    static_assert(r3.error() == Error::SomethingElse);
+  }
+
+  SUCCEED();
+}
+
+TEST_CASE("constexpr and_then optional", "[and_then][constexpr][optional]")
+{
+  using T = std::optional<int>;
+
+  WHEN("same value type")
+  {
+    constexpr auto fn = [](int i) constexpr noexcept -> T {
+      if (i < 3)
+        return {i + 1};
+      return {};
+    };
+    constexpr auto r1 = T{0} | fn::and_then(fn);
+    static_assert(r1.value() == 1);
+    constexpr auto r2
+        = r1 | fn::and_then(fn) | fn::and_then(fn) | fn::and_then(fn);
+    static_assert(not r2.has_value());
+  }
+
+  WHEN("different value type")
+  {
+    using T1 = std::optional<bool>;
+    constexpr auto fn = [](int i) constexpr noexcept -> T1 {
+      if (i == 1)
+        return {true};
+      if (i == 0)
+        return {false};
+      return {};
+    };
+    constexpr auto r1 = T{1} | fn::and_then(fn);
+    static_assert(std::is_same_v<decltype(r1), std::optional<bool> const>);
+    static_assert(r1.value() == true);
+    constexpr auto r2 = T{0} | fn::and_then(fn);
+    static_assert(r2.value() == false);
+    constexpr auto r3 = T{2} | fn::and_then(fn);
+    static_assert(not r3.has_value());
+  }
+
+  SUCCEED();
+}
+
 namespace fn {
 namespace {
 struct Error {};

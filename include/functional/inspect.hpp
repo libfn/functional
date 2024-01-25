@@ -34,7 +34,7 @@ concept invocable_inspect
       });
 
 constexpr inline struct inspect_t final {
-  auto operator()(auto &&...fn) const noexcept
+  constexpr auto operator()(auto &&...fn) const noexcept
       -> functor<inspect_t, decltype(fn)...>
     requires(sizeof...(fn) > 0) && (sizeof...(fn) <= 2)
   {
@@ -45,7 +45,7 @@ constexpr inline struct inspect_t final {
 } inspect = {};
 
 struct inspect_t::apply final {
-  static auto operator()(some_expected auto &&v, auto &&fn) noexcept
+  static constexpr auto operator()(some_expected auto &&v, auto &&fn) noexcept
       -> same_kind<decltype(v)> auto &&
     requires invocable_inspect<decltype(fn) &&, decltype(v) &&>
   {
@@ -55,7 +55,7 @@ struct inspect_t::apply final {
     return FWD(v);
   }
 
-  static auto operator()(some_optional auto &&v, auto &&fn) noexcept
+  static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept
       -> same_kind<decltype(v)> auto &&
     requires invocable_inspect<decltype(fn) &&, decltype(v) &&>
   {

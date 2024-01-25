@@ -25,7 +25,7 @@ concept invocable_transform_error
       });
 
 constexpr inline struct transform_error_t final {
-  auto operator()(auto &&fn) const noexcept
+  constexpr auto operator()(auto &&fn) const noexcept
       -> functor<transform_error_t, decltype(fn)>
   {
     return {FWD(fn)};
@@ -35,7 +35,7 @@ constexpr inline struct transform_error_t final {
 } transform_error = {};
 
 struct transform_error_t::apply final {
-  static auto operator()(some_expected auto &&v, auto &&fn) noexcept
+  static constexpr auto operator()(some_expected auto &&v, auto &&fn) noexcept
       -> same_value_kind<decltype(v)> auto
     requires invocable_transform_error<decltype(fn) &&, decltype(v) &&>
   {

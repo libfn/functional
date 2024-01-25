@@ -32,7 +32,8 @@ concept invocable_and_then
       });
 
 constexpr inline struct and_then_t final {
-  auto operator()(auto &&fn) const noexcept -> functor<and_then_t, decltype(fn)>
+  constexpr auto operator()(auto &&fn) const noexcept
+      -> functor<and_then_t, decltype(fn)>
   {
     return {FWD(fn)};
   }
@@ -41,7 +42,8 @@ constexpr inline struct and_then_t final {
 } and_then = {};
 
 struct and_then_t::apply final {
-  static auto operator()(some_monadic_type auto &&v, auto &&fn) noexcept
+  static constexpr auto operator()(some_monadic_type auto &&v,
+                                   auto &&fn) noexcept
       -> same_kind<decltype(v)> auto
     requires invocable_and_then<decltype(fn) &&, decltype(v) &&>
   {

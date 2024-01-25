@@ -35,8 +35,8 @@ concept invocable_transform
         } -> convertible_to_optional;
       });
 
-constexpr static struct transform_t final {
-  auto operator()(auto &&fn) const noexcept
+static constexpr struct transform_t final {
+  constexpr auto operator()(auto &&fn) const noexcept
       -> functor<transform_t, decltype(fn)>
   {
     return {FWD(fn)};
@@ -46,7 +46,8 @@ constexpr static struct transform_t final {
 } transform = {};
 
 struct transform_t::apply final {
-  static auto operator()(some_monadic_type auto &&v, auto &&fn) noexcept
+  static constexpr auto operator()(some_monadic_type auto &&v,
+                                   auto &&fn) noexcept
       -> same_kind<decltype(v)> auto
     requires invocable_transform<decltype(fn) &&, decltype(v) &&>
   {

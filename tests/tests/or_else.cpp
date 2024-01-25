@@ -8,6 +8,7 @@
 
 #include <catch2/catch_all.hpp>
 
+#include <compare>
 #include <expected>
 #include <optional>
 #include <string>
@@ -391,6 +392,66 @@ TEST_CASE("or_else", "[or_else][optional]")
       }
     }
   }
+}
+
+TEST_CASE("constexpr or_else expected", "[or_else][constexpr][expected]")
+{
+  enum class Error { ThresholdExceeded, SomethingElse };
+  using T = std::expected<int, Error>;
+
+  WHEN("same error type")
+  {
+    constexpr auto fn = [](Error e) constexpr noexcept -> T {
+      if (e == Error::SomethingElse)
+        return {0};
+      return std::unexpected<Error>{e};
+    };
+    constexpr auto r1 = T{0} | fn::or_else(fn);
+    static_assert(r1.value() == 0);
+    constexpr auto r2
+        = T{std::unexpect, Error::SomethingElse} | fn::or_else(fn);
+    static_assert(r2.value() == 0);
+    constexpr auto r3
+        = T{std::unexpect, Error::ThresholdExceeded} | fn::or_else(fn);
+    static_assert(r3.error() == Error::ThresholdExceeded);
+  }
+
+  WHEN("different error type")
+  {
+    struct UnrecoverableError final {
+      constexpr UnrecoverableError() {}
+      constexpr bool operator==(UnrecoverableError const &) const noexcept
+          = default;
+    };
+    using T1 = std::expected<int, UnrecoverableError>;
+    constexpr auto fn = [](Error e) constexpr noexcept -> T1 {
+      if (e == Error::SomethingElse)
+        return {true};
+      return T1{std::unexpect};
+    };
+    constexpr auto r1
+        = T{std::unexpect, Error::SomethingElse} | fn::or_else(fn);
+    static_assert(std::is_same_v<decltype(r1),
+                                 std::expected<int, UnrecoverableError> const>);
+    static_assert(r1.value() == true);
+    constexpr auto r2
+        = T{std::unexpect, Error::ThresholdExceeded} | fn::or_else(fn);
+    static_assert(r2.error() == UnrecoverableError{});
+  }
+
+  SUCCEED();
+}
+
+TEST_CASE("constexpr or_else optional", "[or_else][constexpr][optional]")
+{
+  using T = std::optional<int>;
+  constexpr auto fn = []() constexpr noexcept -> T { return {1}; };
+  constexpr auto r1 = T{0} | fn::or_else(fn);
+  static_assert(r1.value() == 0);
+  constexpr auto r2 = T{} | fn::or_else(fn);
+  static_assert(r2.value() == 1);
+
+  SUCCEED();
 }
 
 namespace fn {

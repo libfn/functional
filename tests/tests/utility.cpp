@@ -208,3 +208,14 @@ TEST_CASE("closure with immovable data", "[closure][immovable]")
                   })
         == 3 + 14 + 15 + 92);
 }
+
+TEST_CASE("constexpr closure", "[closure][constexpr]")
+{
+  constexpr fn::closure<int, int> v2{3, 14};
+  constexpr auto r2 = fn::closure<int, int>::invoke(
+      v2, [](auto &&...args) constexpr noexcept -> int {
+        return (0 + ... + args);
+      });
+  static_assert(r2 == 3 + 14);
+  SUCCEED();
+}

@@ -204,6 +204,34 @@ TEST_CASE("inspect_error optional", "[inspect_error][optional]")
   }
 }
 
+TEST_CASE("constexpr inspect_error expected",
+          "[inspect_error][constexpr][expected]")
+{
+  enum class Error { ThresholdExceeded, SomethingElse };
+  using T = std::expected<int, Error>;
+  constexpr auto fn = [](Error) constexpr noexcept -> void {};
+  constexpr auto r1 = T{0} | fn::inspect_error(fn);
+  static_assert(r1.value() == 0);
+  constexpr auto r2
+      = T{std::unexpect, Error::SomethingElse} | fn::inspect_error(fn);
+  static_assert(r2.error() == Error::SomethingElse);
+
+  SUCCEED();
+}
+
+TEST_CASE("constexpr inspect_error optional",
+          "[inspect_error][constexpr][optional]")
+{
+  using T = std::optional<int>;
+  constexpr auto fn = []() constexpr noexcept -> void {};
+  constexpr auto r1 = T{0} | fn::inspect_error(fn);
+  static_assert(r1.value() == 0);
+  constexpr auto r2 = T{} | fn::inspect_error(fn);
+  static_assert(not r2.has_value());
+
+  SUCCEED();
+}
+
 namespace fn {
 namespace {
 struct Error {};

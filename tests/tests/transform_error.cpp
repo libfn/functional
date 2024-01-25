@@ -149,3 +149,53 @@ TEST_CASE("transform_error", "[transform_error][optional]")
   static_assert(
       not monadic_invocable<transform_error_t, operand_t, decltype(fnError)>);
 }
+
+TEST_CASE("constexpr transform_error expected",
+          "[transform_error][constexpr][expected]")
+{
+  enum class Error { ThresholdExceeded, SomethingElse, Unknown };
+  using T = std::expected<int, Error>;
+
+  WHEN("same error type")
+  {
+    constexpr auto fn = [](Error e) constexpr noexcept -> Error {
+      if (e == Error::ThresholdExceeded)
+        return e;
+      return Error::SomethingElse;
+    };
+    constexpr auto r1 = T{0} | fn::transform_error(fn);
+    static_assert(r1.value() == 0);
+    constexpr auto r2
+        = T{std::unexpect, Error::ThresholdExceeded} | fn::transform_error(fn);
+    static_assert(r2.error() == Error::ThresholdExceeded);
+    constexpr auto r3
+        = T{std::unexpect, Error::SomethingElse} | fn::transform_error(fn);
+    static_assert(r3.error() == Error::SomethingElse);
+    constexpr auto r4
+        = T{std::unexpect, Error::Unknown} | fn::transform_error(fn);
+    static_assert(r4.error() == Error::SomethingElse);
+  }
+
+  WHEN("different error type")
+  {
+    struct UnrecoverableError final {
+      constexpr UnrecoverableError() {}
+      constexpr bool operator==(UnrecoverableError const &) const noexcept
+          = default;
+    };
+    constexpr auto fn
+        = [](Error) constexpr noexcept -> UnrecoverableError { return {}; };
+    constexpr auto r1 = T{0} | fn::transform_error(fn);
+    static_assert(std::is_same_v<decltype(r1),
+                                 std::expected<int, UnrecoverableError> const>);
+    static_assert(r1.value() == 0);
+    constexpr auto r2
+        = T{std::unexpect, Error::ThresholdExceeded} | fn::transform_error(fn);
+    static_assert(r2.error() == UnrecoverableError{});
+    constexpr auto r3
+        = T{std::unexpect, Error::SomethingElse} | fn::transform_error(fn);
+    static_assert(r3.error() == UnrecoverableError{});
+  }
+
+  SUCCEED();
+}

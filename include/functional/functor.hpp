@@ -23,7 +23,7 @@ concept monadic_invocable
 template <typename Functor, typename... Args> struct functor final {
   using functor_type = Functor;
   using functor_apply = typename functor_type::apply;
-  constexpr static unsigned size = sizeof...(Args);
+  static constexpr unsigned size = sizeof...(Args);
   using data_t = closure<as_value_t<Args>...>;
   data_t data;
 
@@ -32,8 +32,8 @@ template <typename Functor, typename... Args> struct functor final {
                 && std::is_default_constructible_v<functor_type>
                 && std::is_default_constructible_v<functor_apply>);
 
-  friend auto operator|(some_monadic_type auto &&v, auto &&self) noexcept
-      -> decltype(auto)
+  constexpr friend auto operator|(some_monadic_type auto &&v,
+                                  auto &&self) noexcept -> decltype(auto)
     requires std::same_as<std::remove_cvref_t<decltype(self)>, functor>
              && monadic_invocable<functor_type, decltype(v), Args...>
   {

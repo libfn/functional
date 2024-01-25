@@ -28,7 +28,7 @@ concept invocable_inspect_error
       });
 
 constexpr inline struct inspect_error_t final {
-  auto operator()(auto &&fn) const noexcept
+  constexpr auto operator()(auto &&fn) const noexcept
       -> functor<inspect_error_t, decltype(fn)>
   {
     return {FWD(fn)};
@@ -38,7 +38,7 @@ constexpr inline struct inspect_error_t final {
 } inspect_error = {};
 
 struct inspect_error_t::apply final {
-  static auto operator()(some_expected auto &&v, auto &&fn) noexcept
+  static constexpr auto operator()(some_expected auto &&v, auto &&fn) noexcept
       -> same_kind<decltype(v)> auto &&
     requires invocable_inspect_error<decltype(fn) &&, decltype(v) &&>
   {
@@ -48,7 +48,7 @@ struct inspect_error_t::apply final {
     return FWD(v);
   }
 
-  static auto operator()(some_optional auto &&v, auto &&fn) noexcept
+  static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept
       -> same_kind<decltype(v)> auto &&
     requires invocable_inspect_error<decltype(fn) &&, decltype(v) &&>
   {

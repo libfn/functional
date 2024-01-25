@@ -312,3 +312,89 @@ TEST_CASE("transform", "[transform][optional]")
     }
   }
 }
+
+TEST_CASE("constexpr transform expected", "[transform][constexpr][expected]")
+{
+  enum class Error { ThresholdExceeded, SomethingElse };
+  using T = std::expected<int, Error>;
+
+  WHEN("same value type")
+  {
+    constexpr auto fn = [](int i) constexpr noexcept -> int {
+      if (i < 2)
+        return i + 1;
+      return i;
+    };
+    constexpr auto r1 = T{0} | fn::transform(fn);
+    static_assert(r1.value() == 1);
+    constexpr auto r2
+        = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
+    static_assert(r2.value() == 2);
+    constexpr auto r3
+        = T{std::unexpect, Error::SomethingElse} | fn::transform(fn);
+    static_assert(r3.error() == Error::SomethingElse);
+  }
+
+  WHEN("different value type")
+  {
+    constexpr auto fn = [](int i) constexpr noexcept -> bool {
+      if (i == 1)
+        return true;
+      return false;
+    };
+    constexpr auto r1 = T{1} | fn::transform(fn);
+    static_assert(
+        std::is_same_v<decltype(r1), std::expected<bool, Error> const>);
+    static_assert(r1.value() == true);
+    constexpr auto r2 = T{0} | fn::transform(fn);
+    static_assert(r2.value() == false);
+    constexpr auto r3 = T{2} | fn::transform(fn);
+    static_assert(r3.value() == false);
+    constexpr auto r4
+        = T{std::unexpect, Error::SomethingElse} | fn::transform(fn);
+    static_assert(r4.error() == Error::SomethingElse);
+  }
+
+  SUCCEED();
+}
+
+TEST_CASE("constexpr transform optional", "[transform][constexpr][optional]")
+{
+  using T = std::optional<int>;
+
+  WHEN("same value type")
+  {
+    constexpr auto fn = [](int i) constexpr noexcept -> int {
+      if (i < 2)
+        return i + 1;
+      return i;
+    };
+    constexpr auto r1 = T{0} | fn::transform(fn);
+    static_assert(r1.value() == 1);
+    constexpr auto r2
+        = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
+    static_assert(r2.value() == 2);
+    constexpr auto r4 = T{} | fn::transform(fn);
+    static_assert(not r4.has_value());
+  }
+
+  WHEN("different value type")
+  {
+    constexpr auto fn1 = [](int i) constexpr noexcept -> bool {
+      if (i == 1)
+        return true;
+      return false;
+    };
+    constexpr auto r1 = T{1} | fn::transform(fn1);
+    static_assert(std::is_same_v<decltype(r1), std::optional<bool> const>);
+    static_assert(r1.value() == true);
+    constexpr auto r2 = T{0} | fn::transform(fn1);
+    static_assert(r2.value() == false);
+    constexpr auto r3 = T{2} | fn::transform(fn1);
+    static_assert(r3.value() == false);
+    constexpr auto r4 = T{} | fn::transform(fn1);
+    static_assert(not r4.has_value());
+  }
+
+  SUCCEED();
+}

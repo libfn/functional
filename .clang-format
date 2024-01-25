@@ -149,7 +149,8 @@ PenaltyIndentedWhitespace: 0
 PenaltyReturnTypeOnItsOwnLine: 60
 PointerAlignment: Right
 PPIndentWidth:   -1
-QualifierAlignment: Leave
+QualifierAlignment: Custom
+QualifierOrder: ['static', 'constexpr', 'inline', 'friend', 'type', 'const', 'volatile']
 ReferenceAlignment: Pointer
 ReflowComments:  true
 RemoveBracesLLVM: false

@@ -347,6 +347,33 @@ TEST_CASE("fail", "[fail][optional]")
   }
 }
 
+TEST_CASE("constexpr fail expected", "[fail][constexpr][expected]")
+{
+  enum class Error { ThresholdExceeded, SomethingElse };
+  using T = std::expected<int, Error>;
+  constexpr auto fn = [](int i) constexpr noexcept -> Error {
+    if (i < 3)
+      return Error::SomethingElse;
+    return Error::ThresholdExceeded;
+  };
+  constexpr auto r1 = T{0} | fn::fail(fn);
+  static_assert(r1.error() == Error::SomethingElse);
+  constexpr auto r2 = T{3} | fn::fail(fn);
+  static_assert(r2.error() == Error::ThresholdExceeded);
+
+  SUCCEED();
+}
+
+TEST_CASE("constexpr fail optional", "[fail][constexpr][optional]")
+{
+  using T = std::optional<int>;
+  constexpr auto fn = [](int) constexpr noexcept -> void {};
+  constexpr auto r1 = T{0} | fn::fail(fn);
+  static_assert(not r1.has_value());
+
+  SUCCEED();
+}
+
 namespace fn {
 namespace {
 struct Error {};
