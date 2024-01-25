@@ -14,6 +14,7 @@ set(INCLUDE_SOURCE_FILES
     functional/and_then.hpp
     functional/concepts.hpp
     functional/fail.hpp
+    functional/filter.hpp
     functional/functor.hpp
     functional/fwd.hpp
     functional/inspect_error.hpp

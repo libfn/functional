@@ -72,6 +72,10 @@ template <class T>
 concept convertible_to_optional = requires {
   static_cast<std::optional<std::remove_cvref_t<T>>>(std::declval<T>());
 };
+
+template <class T>
+concept convertible_to_bool
+    = requires { static_cast<bool>(std::declval<T>()); };
 } // namespace fn
 
 #endif // INCLUDE_FUNCTIONAL_CONCEPTS

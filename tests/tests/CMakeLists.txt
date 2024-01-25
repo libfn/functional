@@ -11,6 +11,7 @@ set(TESTS_SOURCE_FILES
     and_then.cpp
     concepts.cpp
     fail.cpp
+    filter.cpp
     functor.cpp
     inspect_error.cpp
     inspect.cpp
@@ -21,7 +22,7 @@ set(TESTS_SOURCE_FILES
     utility.cpp
 )
 add_executable(${PROJECT_NAME} ${TESTS_SOURCE_FILES})
-target_link_libraries(${PROJECT_NAME} include catch2_main Catch2::Catch2)
+target_link_libraries(${PROJECT_NAME} include util catch2_main Catch2::Catch2)
 
 add_test(
     NAME ${PROJECT_NAME}
