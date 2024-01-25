@@ -39,8 +39,8 @@ constexpr inline struct inspect_error_t final {
 
 struct inspect_error_t::apply final {
   static constexpr auto operator()(some_expected auto &&v, auto &&fn) noexcept
-      -> same_kind<decltype(v)> auto &&
-    requires invocable_inspect_error<decltype(fn) &&, decltype(v) &&>
+      -> decltype(v)
+    requires invocable_inspect_error<decltype(fn), decltype(v)>
   {
     if (not v.has_value()) {
       std::invoke(FWD(fn), std::as_const(v).error()); // side-effects only
@@ -49,8 +49,8 @@ struct inspect_error_t::apply final {
   }
 
   static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept
-      -> same_kind<decltype(v)> auto &&
-    requires invocable_inspect_error<decltype(fn) &&, decltype(v) &&>
+      -> decltype(v)
+    requires invocable_inspect_error<decltype(fn), decltype(v)>
   {
     if (not v.has_value()) {
       std::invoke(FWD(fn)); // side-effects only

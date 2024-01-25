@@ -42,7 +42,7 @@ struct or_else_t::apply final {
   static constexpr auto operator()(some_monadic_type auto &&v,
                                    auto &&fn) noexcept
       -> same_value_kind<decltype(v)> auto
-    requires invocable_or_else<decltype(fn) &&, decltype(v) &&>
+    requires invocable_or_else<decltype(fn), decltype(v)>
   {
     return FWD(v).or_else(FWD(fn));
   }

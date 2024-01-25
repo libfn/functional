@@ -59,6 +59,9 @@ concept same_value_kind
           && std::same_as<typename std::remove_cvref_t<U>::value_type,
                           typename std::remove_cvref_t<T>::value_type>);
 
+template <typename T, typename U>
+concept same_monadic_type_as = same_kind<T, U> && same_value_kind<T, U>;
+
 template <class T>
 concept convertible_to_unexpected = requires {
   static_cast<std::unexpected<std::remove_cvref_t<T>>>(std::declval<T>());

@@ -44,8 +44,8 @@ constexpr inline struct fail_t final {
 
 struct fail_t::apply final {
   static constexpr auto operator()(some_expected auto &&v, auto &&fn) noexcept
-      -> same_kind<decltype(v)> auto
-    requires invocable_fail<decltype(fn) &&, decltype(v) &&>
+      -> same_monadic_type_as<decltype(v)> auto
+    requires invocable_fail<decltype(fn), decltype(v)>
   {
     using type = std::remove_cvref_t<decltype(v)>;
     return FWD(v).and_then( //
@@ -56,8 +56,8 @@ struct fail_t::apply final {
   }
 
   static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept
-      -> same_kind<decltype(v)> auto
-    requires invocable_fail<decltype(fn) &&, decltype(v) &&>
+      -> same_monadic_type_as<decltype(v)> auto
+    requires invocable_fail<decltype(fn), decltype(v)>
   {
     using type = std::remove_cvref_t<decltype(v)>;
     if (v.has_value()) {

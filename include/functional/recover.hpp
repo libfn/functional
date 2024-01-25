@@ -6,6 +6,7 @@
 #ifndef INCLUDE_FUNCTIONAL_RECOVER
 #define INCLUDE_FUNCTIONAL_RECOVER
 
+#include "functional/concepts.hpp"
 #include "functional/detail/concepts.hpp"
 #include "functional/detail/traits.hpp"
 #include "functional/functor.hpp"
@@ -46,8 +47,8 @@ constexpr inline struct recover_t final {
 struct recover_t::apply final {
   static constexpr auto operator()(some_expected_non_void auto &&v,
                                    auto &&fn) noexcept
-      -> same_kind<decltype(v)> auto
-    requires invocable_recover<decltype(fn) &&, decltype(v) &&>
+      -> same_monadic_type_as<decltype(v)> auto
+    requires invocable_recover<decltype(fn), decltype(v)>
   {
     using type = std::remove_cvref_t<decltype(v)>;
     return FWD(v).or_else([&fn](auto &&arg) noexcept -> type {
@@ -57,8 +58,8 @@ struct recover_t::apply final {
 
   static constexpr auto operator()(some_expected_void auto &&v,
                                    auto &&fn) noexcept
-      -> same_kind<decltype(v)> auto
-    requires invocable_recover<decltype(fn) &&, decltype(v) &&>
+      -> same_monadic_type_as<decltype(v)> auto
+    requires invocable_recover<decltype(fn), decltype(v)>
   {
     using type = std::remove_cvref_t<decltype(v)>;
     return FWD(v).or_else([&fn](auto &&arg) noexcept -> type {
@@ -68,8 +69,8 @@ struct recover_t::apply final {
   }
 
   static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept
-      -> same_kind<decltype(v)> auto
-    requires invocable_recover<decltype(fn) &&, decltype(v) &&>
+      -> same_monadic_type_as<decltype(v)> auto
+    requires invocable_recover<decltype(fn), decltype(v)>
   {
     using type = std::remove_cvref_t<decltype(v)>;
     return FWD(v).or_else([&fn]() noexcept -> type {

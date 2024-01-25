@@ -45,7 +45,7 @@ struct and_then_t::apply final {
   static constexpr auto operator()(some_monadic_type auto &&v,
                                    auto &&fn) noexcept
       -> same_kind<decltype(v)> auto
-    requires invocable_and_then<decltype(fn) &&, decltype(v) &&>
+    requires invocable_and_then<decltype(fn), decltype(v)>
   {
     return FWD(v).and_then(FWD(fn));
   }
