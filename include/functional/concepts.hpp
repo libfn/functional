@@ -33,12 +33,6 @@ concept some_optional = detail::_is_some_optional<T &>;
 template <typename T>
 concept some_monadic_type = some_expected<T> || some_optional<T>;
 
-template <typename T, typename U>
-concept similar_expected
-    = some_expected<T> && some_expected<U>
-      && std::same_as<typename std::remove_cvref_t<T>::error_type,
-                      typename std::remove_cvref_t<U>::error_type>;
-
 // NOTE `same_kind` is a fundamental concept in category theory; it allows
 // transformation of a value_type, but not an error_type (where applicable)
 template <typename T, typename U>
