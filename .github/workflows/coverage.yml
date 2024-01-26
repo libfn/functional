@@ -66,6 +66,7 @@ jobs:
         cmake --build . --target coverage
 
     - name: Upload coverage report
+      if: ${{ github.event_name == 'push' }}
       uses: wandalen/wretry.action@v1.3.0
       with:
         action: codecov/codecov-action@v3
