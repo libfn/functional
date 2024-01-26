@@ -1,33 +1,32 @@
-name: build
+name: coverage
 
 on: [push, pull_request]
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-    container: fedora:39
+    container: gcc:13.2-bookworm
     strategy:
       fail-fast: false
-      matrix:
-        platform:
-        - linux
-        configuration:
-        - Debug
-        - Release
-        compiler:
-        - clang
-        - gcc
     steps:
-    - name: Install prerequisites
-      run: |
-        dnf -y update
-        dnf -y install git cmake ninja-build clang gcc gcc-c++ libstdc++-static
-        dnf -y clean all
-
-    # To enable submodules, git must be installed before actions/checkout@v3
     - uses: actions/checkout@v3
       with:
         submodules: 'true'
+
+    - name: Install prerequisites
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        apt-get update -y
+        apt-get install -y --no-install-recommends cmake ninja-build python3-pip python3-venv
+        apt-get clean -y
+
+    # We need gcovr for coverage reporting
+    - name: Prepare gcovr
+      run: |
+        python3 -m venv /venv
+        PATH=/venv/bin:${PATH} pip --no-cache-dir install 'gcovr<7'
+        echo "/venv/bin" >> $GITHUB_PATH
 
     - name: Verify compiler compatibility
       env:
@@ -51,23 +50,30 @@ jobs:
     - name: Prepare build
       env:
         CMAKE_GENERATOR: Ninja
-        CC: ${{ matrix.compiler == 'gcc' && '/usr/bin/gcc' || ' /usr/bin/clang' }}
-        CXX: ${{ matrix.compiler == 'gcc' && '/usr/bin/g++' || ' /usr/bin/clang++' }}
+        CC: /usr/local/bin/gcc
+        CXX: /usr/local/bin/g++
       run: |
         mkdir .build
         cd .build
-        cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ..
+        cmake -DCOVERAGE=ON -DCMAKE_BUILD_TYPE=Debug ..
         COMPILER=$( grep "CMAKE_CXX_COMPILER:FILEPATH" CMakeCache.txt | sed "s|CMAKE_CXX_COMPILER:FILEPATH=/|/|" )
         printf "C++ compiler: %s\nC++ compiler version: %s\n" "$COMPILER" "$( $COMPILER --version | head -1 )"
 
-    # In Debug mode on gcc compiler, this step also runs tests and prepares coverage report
-    - name: Build all
+    - name: Run coverage target
       run: |
         cd .build
         ln -s ../external/catch2/src src # gcov workaround
-        cmake --build . --target all
+        cmake --build . --target coverage
 
-    - name: Run tests
-      run: |
-        cd .build
-        ctest --output-on-failure
+    - name: Upload coverage report
+      if: ${{ github.event_name == 'push' }}
+      uses: wandalen/wretry.action@v1.3.0
+      with:
+        action: codecov/codecov-action@v3
+        with: |
+          files: .build/coverage.xml
+          fail_ci_if_error: true
+          verbose: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+        attempt_limit: 5
+        attempt_delay: 35000 # in milliseconds
