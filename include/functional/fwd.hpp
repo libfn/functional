@@ -16,6 +16,7 @@ struct transform_error_t;
 struct or_else_t;
 struct recover_t;
 struct fail_t;
+struct filter_t;
 struct inspect_t;
 } // namespace fn
 
