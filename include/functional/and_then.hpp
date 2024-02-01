@@ -16,7 +16,7 @@
 
 namespace fn {
 template <typename Fn, typename V>
-concept invocable_and_then
+concept invocable_and_then //
     = (some_expected_non_void<V> && requires(Fn &&fn, V &&v) {
         {
           std::invoke(FWD(fn), FWD(v).value())
@@ -32,8 +32,7 @@ concept invocable_and_then
       });
 
 constexpr inline struct and_then_t final {
-  constexpr auto operator()(auto &&fn) const noexcept
-      -> functor<and_then_t, decltype(fn)>
+  constexpr auto operator()(auto &&fn) const noexcept -> functor<and_then_t, decltype(fn)> //
   {
     return {FWD(fn)};
   }
@@ -42,9 +41,7 @@ constexpr inline struct and_then_t final {
 } and_then = {};
 
 struct and_then_t::apply final {
-  static constexpr auto operator()(some_monadic_type auto &&v,
-                                   auto &&fn) noexcept
-      -> same_kind<decltype(v)> auto
+  static constexpr auto operator()(some_monadic_type auto &&v, auto &&fn) noexcept -> same_kind<decltype(v)> auto
     requires invocable_and_then<decltype(fn), decltype(v)>
   {
     return FWD(v).and_then(FWD(fn));

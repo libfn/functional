@@ -79,9 +79,8 @@ TEST_CASE("closure", "[closure]")
   int const val2 = 92;
   T v{3, 14, val1, val2};
 
-  static_assert([&](auto &&fn) constexpr {
-    return requires { T::invoke(v, fn, A{}); };
-  }([](auto &&...) {})); // generic call
+  static_assert(
+      [&](auto &&fn) constexpr { return requires { T::invoke(v, fn, A{}); }; }([](auto &&...) {})); // generic call
   static_assert([&](auto &&fn) constexpr {
     return requires { T::invoke(v, fn, A{}); };
   }([](A, auto &&...) {})); // also generic call
@@ -90,19 +89,16 @@ TEST_CASE("closure", "[closure]")
   }([](A, int, int, int, int) {})); // pass everything by value
   static_assert([&](auto &&fn) constexpr {
     return requires { T::invoke(v, fn, A{}); };
-  }([](A const &, int const &, int const &, int const &, int const &) {
-  })); // pass everything by const reference
+  }([](A const &, int const &, int const &, int const &, int const &) {})); // pass everything by const reference
   static_assert([&](auto &&fn) constexpr {
     return requires { T::invoke(v, fn, A{}); };
   }([](A, int, int, int &, int const &) {})); // bind lvalues
   static_assert([&](auto &&fn) constexpr {
     return requires { T::invoke(v, fn, A{}); };
-  }([](A &&, int &&, int const &&, int &, int const &) {
-  })); // bind rvalues and lvalues
+  }([](A &&, int &&, int const &&, int &, int const &) {})); // bind rvalues and lvalues
   static_assert([&](auto &&fn) constexpr {
     return requires { T::invoke(v, fn, A{}); };
-  }([](A const, int const, int const, int const &, int const &) {
-  })); // pass values or lvalues promoted to const
+  }([](A const, int const, int const, int const &, int const &) {})); // pass values or lvalues promoted to const
 
   static_assert(not [&](auto &&fn) constexpr {
     return requires { T::invoke(v, fn, A{}); };
@@ -115,19 +111,15 @@ TEST_CASE("closure", "[closure]")
   }([](A, int, int, int &&, int) {})); // cannot bind lvalue to rvalue reference
   static_assert(not [&](auto &&fn) constexpr {
     return requires { T::invoke(v, fn, A{}); };
-  }([](A, int, int, int, int &&) {
-  })); // cannot bind const lvalue to rvalue reference
+  }([](A, int, int, int, int &&) {})); // cannot bind const lvalue to rvalue reference
   static_assert(not [&](auto &&fn) constexpr {
     return requires { T::invoke(v, fn, A{}); };
-  }([](A, int, int, int, int const &&) {
-  })); // cannot bind const lvalue to const rvalue reference
+  }([](A, int, int, int, int const &&) {})); // cannot bind const lvalue to const rvalue reference
   static_assert(not [&](auto &&fn) constexpr {
     return requires { T::invoke(v, fn, A{}); };
-  }([](A &&, int, int &&, int, int) {
-  })); // cannot bind const rvalue to non-const rvalue reference
-  static_assert(not [&](auto &&fn) constexpr {
-    return requires { T::invoke(v, fn, A{}); };
-  }([](int, auto &&...) {})); // bad type
+  }([](A &&, int, int &&, int, int) {})); // cannot bind const rvalue to non-const rvalue reference
+  static_assert(
+      not [&](auto &&fn) constexpr { return requires { T::invoke(v, fn, A{}); }; }([](int, auto &&...) {})); // bad type
   static_assert(not [&](auto &&fn) constexpr {
     return requires { T::invoke(v, fn, A{}); };
   }([](auto, auto, auto, auto) {})); // bad arity
@@ -135,12 +127,9 @@ TEST_CASE("closure", "[closure]")
     return requires { T::invoke(v, fn, A{}); };
   }([](auto, auto, auto, auto, auto, auto) {})); // bad arity
 
-  CHECK(T::invoke(v,
-                  [](auto... args) noexcept -> int { return (0 + ... + args); })
-        == 3 + 14 + 15 + 92);
+  CHECK(T::invoke(v, [](auto... args) noexcept -> int { return (0 + ... + args); }) == 3 + 14 + 15 + 92);
   CHECK(T::invoke(
-            v, [](A, auto... args) noexcept -> int { return (0 + ... + args); },
-            A{})
+            v, [](A, auto... args) noexcept -> int { return (0 + ... + args); }, A{})
         == 3 + 14 + 15 + 92);
 
   A a;
@@ -151,10 +140,8 @@ TEST_CASE("closure", "[closure]")
   CHECK(T::invoke(v, fn1, a).v == 3 + 14 + 15 + 92);
   static_assert(std::is_same_v<decltype(T::invoke(v, fn1, a)), A &>);
 
-  constexpr auto fn2
-      = [](A &&dest, auto &&...) noexcept -> A && { return std::move(dest); };
-  static_assert(
-      std::is_same_v<decltype(T::invoke(v, fn2, std::move(a))), A &&>);
+  constexpr auto fn2 = [](A &&dest, auto &&...) noexcept -> A && { return std::move(dest); };
+  static_assert(std::is_same_v<decltype(T::invoke(v, fn2, std::move(a))), A &&>);
 
   constexpr auto fn3 = [](A &&dest, auto &&...) noexcept -> A { return dest; };
   static_assert(std::is_same_v<decltype(T::invoke(v, fn3, std::move(a))), A>);
@@ -174,48 +161,36 @@ TEST_CASE("closure with immovable data", "[closure][immovable]")
     ImmovableType(ImmovableType &&) = delete;
     ImmovableType &operator=(ImmovableType &&) = delete;
 
-    constexpr bool operator==(ImmovableType const &other) const noexcept
-    {
-      return value == other.value;
-    }
+    constexpr bool operator==(ImmovableType const &other) const noexcept { return value == other.value; }
   };
 
-  using T = closure<ImmovableType, ImmovableType const, ImmovableType &,
-                    ImmovableType const &>;
+  using T = closure<ImmovableType, ImmovableType const, ImmovableType &, ImmovableType const &>;
   ImmovableType val1{15};
   ImmovableType const val2{92};
   T v{ImmovableType{3}, ImmovableType{14}, val1, val2};
 
+  static_assert([&](auto &&fn) constexpr { return requires { T::invoke(v, fn); }; }([](auto &&...) {})); // generic call
   static_assert([&](auto &&fn) constexpr {
     return requires { T::invoke(v, fn); };
-  }([](auto &&...) {})); // generic call
+  }([](ImmovableType const &, ImmovableType const &, ImmovableType const &, ImmovableType const &) {
+  })); // pass everything by const reference
   static_assert([&](auto &&fn) constexpr {
     return requires { T::invoke(v, fn); };
-  }([](ImmovableType const &, ImmovableType const &, ImmovableType const &,
-       ImmovableType const &) {})); // pass everything by const reference
-  static_assert([&](auto &&fn) constexpr {
-    return requires { T::invoke(v, fn); };
-  }([](ImmovableType &&, ImmovableType const &&, ImmovableType &,
-       ImmovableType const &) {})); // bind rvalues and lvalues
+  }([](ImmovableType &&, ImmovableType const &&, ImmovableType &, ImmovableType const &) {
+  })); // bind rvalues and lvalues
 
   static_assert(not [&](auto &&fn) constexpr {
     return requires { T::invoke(v, fn); };
   }([](ImmovableType, auto &&...) {})); // cannot pass immovable by value
 
-  CHECK(T::invoke(v,
-                  [](auto &&...args) noexcept -> int {
-                    return (0 + ... + args.value);
-                  })
-        == 3 + 14 + 15 + 92);
+  CHECK(T::invoke(v, [](auto &&...args) noexcept -> int { return (0 + ... + args.value); }) == 3 + 14 + 15 + 92);
 }
 
 TEST_CASE("constexpr closure", "[closure][constexpr]")
 {
   constexpr fn::closure<int, int> v2{3, 14};
-  constexpr auto r2 = fn::closure<int, int>::invoke(
-      v2, [](auto &&...args) constexpr noexcept -> int {
-        return (0 + ... + args);
-      });
+  constexpr auto r2
+      = fn::closure<int, int>::invoke(v2, [](auto &&...args) constexpr noexcept -> int { return (0 + ... + args); });
   static_assert(r2 == 3 + 14);
   SUCCEED();
 }

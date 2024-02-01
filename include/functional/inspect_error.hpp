@@ -16,7 +16,7 @@
 
 namespace fn {
 template <typename Fn, typename V>
-concept invocable_inspect_error
+concept invocable_inspect_error //
     = (some_expected<V> && requires(Fn &&fn, V &&v) {
         {
           std::invoke(FWD(fn), std::as_const(v).error())
@@ -28,8 +28,7 @@ concept invocable_inspect_error
       });
 
 constexpr inline struct inspect_error_t final {
-  constexpr auto operator()(auto &&fn) const noexcept
-      -> functor<inspect_error_t, decltype(fn)>
+  constexpr auto operator()(auto &&fn) const noexcept -> functor<inspect_error_t, decltype(fn)> //
   {
     return {FWD(fn)};
   }
@@ -38,8 +37,7 @@ constexpr inline struct inspect_error_t final {
 } inspect_error = {};
 
 struct inspect_error_t::apply final {
-  static constexpr auto operator()(some_expected auto &&v, auto &&fn) noexcept
-      -> decltype(v)
+  static constexpr auto operator()(some_expected auto &&v, auto &&fn) noexcept -> decltype(v)
     requires invocable_inspect_error<decltype(fn), decltype(v)>
   {
     if (not v.has_value()) {
@@ -48,8 +46,7 @@ struct inspect_error_t::apply final {
     return FWD(v);
   }
 
-  static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept
-      -> decltype(v)
+  static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept -> decltype(v)
     requires invocable_inspect_error<decltype(fn), decltype(v)>
   {
     if (not v.has_value()) {

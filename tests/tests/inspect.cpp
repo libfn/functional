@@ -134,8 +134,7 @@ TEST_CASE("inspect expected", "[inspect][expected][expected_value]")
       using T = decltype(operand_t{std::in_place, 12} | inspect(&Value::fn));
       static_assert(std::is_same_v<T, operand_t &&>);
       auto const before = Value::count;
-      REQUIRE((operand_t{std::in_place, 12} | inspect(&Value::fn)).value().value
-              == 12);
+      REQUIRE((operand_t{std::in_place, 12} | inspect(&Value::fn)).value().value == 12);
       CHECK(Value::count == before + 12);
     }
   }
@@ -298,8 +297,7 @@ TEST_CASE("inspect optional", "[inspect][optional]")
       using T = decltype(operand_t{std::in_place, 12} | inspect(&Value::fn));
       static_assert(std::is_same_v<T, operand_t &&>);
       auto const before = Value::count;
-      REQUIRE((operand_t{std::in_place, 12} | inspect(&Value::fn)).value().value
-              == 12);
+      REQUIRE((operand_t{std::in_place, 12} | inspect(&Value::fn)).value().value == 12);
       CHECK(Value::count == before + 12);
     }
   }
@@ -338,8 +336,7 @@ struct Value final {};
 
 template <typename T> constexpr auto fn_int = [](int) -> T { throw 0; };
 
-template <typename T>
-constexpr auto fn_generic = [](auto &&...) -> T { throw 0; };
+template <typename T> constexpr auto fn_generic = [](auto &&...) -> T { throw 0; };
 
 constexpr auto fn_int_lvalue = [](int &) {};
 constexpr auto fn_int_const_lvalue = [](int const &) {};

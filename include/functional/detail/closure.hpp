@@ -25,11 +25,9 @@ template <std::size_t... Is, typename... Ts>
 struct closure_base<std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
   template <typename Self, typename Fn, typename... Args>
   static constexpr auto invoke(Self &&self, Fn &&fn, Args &&...args) noexcept
-      -> decltype(FWD(fn)(FWD(args)..., apply_const_t<Self, Ts &&>(
-                                            self._element<Is, Ts>::v)...))
+      -> decltype(FWD(fn)(FWD(args)..., apply_const_t<Self, Ts &&>(self._element<Is, Ts>::v)...))
   {
-    return FWD(fn)(FWD(args)...,
-                   apply_const_t<Self, Ts &&>(self._element<Is, Ts>::v)...);
+    return FWD(fn)(FWD(args)..., apply_const_t<Self, Ts &&>(self._element<Is, Ts>::v)...);
   }
 };
 

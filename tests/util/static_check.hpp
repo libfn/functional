@@ -15,17 +15,14 @@ struct static_check {
   template <typename OperationType, typename... HandlerTypes> struct bind_left {
     template <typename OperandType> static constexpr bool invocable(auto &&fn)
     {
-      return fn::monadic_invocable<OperationType, OperandType, HandlerTypes...,
-                                   decltype(fn)>;
+      return fn::monadic_invocable<OperationType, OperandType, HandlerTypes..., decltype(fn)>;
     }
   };
 
-  template <typename OperationType, typename... HandlerTypes>
-  struct bind_right {
+  template <typename OperationType, typename... HandlerTypes> struct bind_right {
     template <typename OperandType> static constexpr bool invocable(auto &&fn)
     {
-      return fn::monadic_invocable<OperationType, OperandType, decltype(fn),
-                                   HandlerTypes...>;
+      return fn::monadic_invocable<OperationType, OperandType, decltype(fn), HandlerTypes...>;
     }
   };
 };

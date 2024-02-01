@@ -35,8 +35,7 @@ TEST_CASE("inspect_error expected", "[inspect_error][expected]")
   std::string error = {};
   auto fnError = [&error](auto v) -> void { error = v; };
 
-  static_assert(
-      monadic_invocable<inspect_error_t, operand_t, decltype(fnError)>);
+  static_assert(monadic_invocable<inspect_error_t, operand_t, decltype(fnError)>);
   static_assert([](auto &&fn) constexpr -> bool {
     return monadic_invocable<inspect_error_t, operand_t, decltype(fn)>;
   }([](auto...) -> void { throw 0; })); // allow generic call
@@ -114,13 +113,11 @@ TEST_CASE("inspect_error expected", "[inspect_error][expected]")
     {
       using T = decltype(operand_t{std::in_place, 12} | inspect_error(wrong));
       static_assert(std::is_same_v<T, operand_t &&>);
-      REQUIRE((operand_t{std::in_place, 12} | inspect_error(wrong)).value()
-              == 12);
+      REQUIRE((operand_t{std::in_place, 12} | inspect_error(wrong)).value() == 12);
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{std::unexpect, "Not good"}
-                         | inspect_error(fnError));
+      using T = decltype(operand_t{std::unexpect, "Not good"} | inspect_error(fnError));
       static_assert(std::is_same_v<T, operand_t &&>);
       REQUIRE((operand_t{std::unexpect, "Not good"} //
                | inspect_error(fnError))
@@ -131,8 +128,7 @@ TEST_CASE("inspect_error expected", "[inspect_error][expected]")
     }
     WHEN("calling member function")
     {
-      using T = decltype(operand_t{std::unexpect, "Not good"}
-                         | inspect_error(&Error::finalize));
+      using T = decltype(operand_t{std::unexpect, "Not good"} | inspect_error(&Error::finalize));
       static_assert(std::is_same_v<T, operand_t &&>);
       auto const before = Error::count;
       REQUIRE((operand_t{std::unexpect, "Not good"} //
@@ -153,8 +149,7 @@ TEST_CASE("inspect_error optional", "[inspect_error][optional]")
   int error = 0;
   auto fnError = [&error]() -> void { error += 1; };
 
-  static_assert(
-      monadic_invocable<inspect_error_t, operand_t, decltype(fnError)>);
+  static_assert(monadic_invocable<inspect_error_t, operand_t, decltype(fnError)>);
   static_assert([](auto &&fn) constexpr -> bool {
     return monadic_invocable<inspect_error_t, operand_t, decltype(fn)>;
   }([](auto...) -> void { throw 0; })); // allow generic call
@@ -204,23 +199,20 @@ TEST_CASE("inspect_error optional", "[inspect_error][optional]")
   }
 }
 
-TEST_CASE("constexpr inspect_error expected",
-          "[inspect_error][constexpr][expected]")
+TEST_CASE("constexpr inspect_error expected", "[inspect_error][constexpr][expected]")
 {
   enum class Error { ThresholdExceeded, SomethingElse };
   using T = std::expected<int, Error>;
   constexpr auto fn = [](Error) constexpr noexcept -> void {};
   constexpr auto r1 = T{0} | fn::inspect_error(fn);
   static_assert(r1.value() == 0);
-  constexpr auto r2
-      = T{std::unexpect, Error::SomethingElse} | fn::inspect_error(fn);
+  constexpr auto r2 = T{std::unexpect, Error::SomethingElse} | fn::inspect_error(fn);
   static_assert(r2.error() == Error::SomethingElse);
 
   SUCCEED();
 }
 
-TEST_CASE("constexpr inspect_error optional",
-          "[inspect_error][constexpr][optional]")
+TEST_CASE("constexpr inspect_error optional", "[inspect_error][constexpr][optional]")
 {
   using T = std::optional<int>;
   constexpr auto fn = []() constexpr noexcept -> void {};
@@ -242,8 +234,7 @@ template <typename T> constexpr auto fn_int = [](int) -> T { throw 0; };
 
 template <typename T> constexpr auto fn_Error = [](Error) -> T { throw 0; };
 
-template <typename T>
-constexpr auto fn_generic = [](auto &&...) -> T { throw 0; };
+template <typename T> constexpr auto fn_generic = [](auto &&...) -> T { throw 0; };
 
 constexpr auto fn_int_lvalue = [](int &) {};
 constexpr auto fn_int_const_lvalue = [](int const &) {};
