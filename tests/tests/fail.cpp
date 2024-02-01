@@ -347,14 +347,13 @@ template <typename E> constexpr auto fn_int_lvalue = [](int &) -> E { throw 0; }
 template <typename E> constexpr auto fn_int_rvalue = [](int &&) -> E { throw 0; };
 } // namespace
 
-// clang-format off
 static_assert(invocable_fail<decltype(fn_int<Error>), std::expected<int, Error>>);
 static_assert(invocable_fail<decltype(fn_generic<Error>), std::expected<void, Error>>);
-static_assert(invocable_fail<decltype(fn_int<Xerror>), std::expected<int, Error>>); // return type conversion
-static_assert(not invocable_fail<decltype(fn_int<Error>), std::expected<int, Xerror>>); // cannot convert error
-static_assert(not invocable_fail<decltype(fn_generic<Error>), std::expected<void, Xerror>>); // cannot convert error
+static_assert(invocable_fail<decltype(fn_int<Xerror>), std::expected<int, Error>>);           // return type conversion
+static_assert(not invocable_fail<decltype(fn_int<Error>), std::expected<int, Xerror>>);       // cannot convert error
+static_assert(not invocable_fail<decltype(fn_generic<Error>), std::expected<void, Xerror>>);  // cannot convert error
 static_assert(not invocable_fail<decltype(fn_generic<Error>), std::expected<Value, Xerror>>); // cannot convert error
-static_assert(not invocable_fail<decltype(fn_int<Error>), std::expected<Value, Error>>); // wrong parameter type
+static_assert(not invocable_fail<decltype(fn_int<Error>), std::expected<Value, Error>>);      // wrong parameter type
 static_assert(invocable_fail<decltype(fn_generic<Error>), std::expected<Value, Error>>);
 
 static_assert(invocable_fail<decltype(fn_int<void>), std::optional<int>>);
@@ -362,9 +361,10 @@ static_assert(not invocable_fail<decltype(fn_int<void>), std::optional<Value>>);
 static_assert(invocable_fail<decltype(fn_generic<void>), std::optional<Value>>);
 static_assert(not invocable_fail<decltype(fn_generic<Error>), std::optional<Value>>); // bad return type
 
-static_assert(not invocable_fail<decltype(fn_int_lvalue<Error>), std::expected<int, Error>>); // cannot bind temporary to lvalue
-static_assert(invocable_fail<decltype(fn_int_lvalue<Error>), std::expected<int, Error>&>);
+static_assert(
+    not invocable_fail<decltype(fn_int_lvalue<Error>), std::expected<int, Error>>); // cannot bind temporary to lvalue
+static_assert(invocable_fail<decltype(fn_int_lvalue<Error>), std::expected<int, Error> &>);
 static_assert(invocable_fail<decltype(fn_int_rvalue<Error>), std::expected<int, Error>>);
-static_assert(not invocable_fail<decltype(fn_int_rvalue<Error>), std::expected<int, Error>&>); // cannot bind lvalue to rvalue-ref
-// clang-format on
+static_assert(not invocable_fail<decltype(fn_int_rvalue<Error>),
+                                 std::expected<int, Error> &>); // cannot bind lvalue to rvalue-ref
 } // namespace fn
