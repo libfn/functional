@@ -1,10 +1,11 @@
-// Copyright (c) 2024 Bronek Kozicki
+// Copyright (c) 2024 Bronek Kozicki, Alex Kremer
 //
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
 #include "functional/and_then.hpp"
 #include "functional/functor.hpp"
+#include "static_check.hpp"
 
 #include <catch2/catch_all.hpp>
 
@@ -13,6 +14,8 @@
 #include <optional>
 #include <string>
 #include <utility>
+
+using namespace util;
 
 namespace {
 struct Error final {
@@ -544,43 +547,43 @@ TEST_CASE("and_then", "[and_then][expected][expected_value]")
   using operand_t = std::expected<int, Error>;
   constexpr auto fnValue = [](int i) -> operand_t { return {i + 1}; };
 
-  static_assert(
-      fn::monadic_invocable<fn::and_then_t, operand_t, decltype(fnValue)>);
-  static_assert([](auto &&fn) constexpr -> bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t, decltype(fn)>;
-  }([](auto...) -> operand_t { throw 0; })); // allow generic call
-  static_assert([](auto &&fn) constexpr -> bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t, decltype(fn)>;
-  }([](unsigned) -> operand_t { throw 0; })); // allow conversion
-  static_assert([](auto &&fn) constexpr -> bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t, decltype(fn)>;
-  }([](int &&) -> operand_t { throw 0; })); // alow move from rvalue
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t const, decltype(fn)>;
-  }([](int &&) -> operand_t { throw 0; })); // disallow removing const
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t &, decltype(fn)>;
-  }([](int &&) -> operand_t { throw 0; })); // disallow move from lvalue
-  static_assert([](auto &&fn) constexpr -> bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t &, decltype(fn)>;
-  }([](int &) -> operand_t { throw 0; })); // allow lvalue binding
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t const &,
-                                 decltype(fn)>;
-  }([](int &) -> operand_t { throw 0; })); // disallow removing const
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t, decltype(fn)>;
-  }([](int &) -> operand_t { throw 0; })); // disallow lvalue binding to rvalue
+  using check = static_check::bind_right<and_then_t>;
 
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t, decltype(fn)>;
-  }([](std::string) {})); // wrong type
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t, decltype(fn)>;
-  }([]() {})); // wrong arity
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t, decltype(fn)>;
-  }([](int, int) {})); // wrong arity
+  // lvalue operand
+  // --------------
+  static_assert(monadic_invocable<and_then_t, operand_t, decltype(fnValue)>);
+
+  static_assert(check::invocable<operand_t>(
+      [](auto...) -> operand_t { throw 0; })); // allow generic call
+  static_assert(check::invocable<operand_t>(
+      [](unsigned) -> operand_t { throw 0; })); // allow conversion
+  static_assert(not check::invocable<operand_t const>(
+      [](int &&) -> operand_t { throw 0; })); // disallow removing const
+  static_assert(not check::invocable<operand_t &>(
+      [](int &&) -> operand_t { throw 0; })); // disallow move from lvalue
+  static_assert(check::invocable<operand_t &>(
+      [](int &) -> operand_t { throw 0; })); // allow lvalue binding
+  static_assert(not check::invocable<operand_t const &>(
+      [](int &) -> operand_t { throw 0; })); // disallow removing const
+
+  // rvalue operand
+  // --------------
+  static_assert(monadic_invocable<and_then_t, operand_t &&, decltype(fnValue)>);
+
+  static_assert(check::invocable<operand_t &&>(
+      [](int &&) -> operand_t { throw 0; })); // alow move from rvalue
+  static_assert(not check::invocable<operand_t &&>([](int &) -> operand_t {
+    throw 0;
+  })); // disallow lvalue binding to rvalue
+  static_assert(check::invocable<operand_t &&>([](int const &) -> operand_t {
+    throw 0;
+  })); // allow const lvalue ref binding to rvalue
+
+  static_assert(
+      not check::invocable<operand_t>([](std::string) {})); // wrong type
+  static_assert(not check::invocable<operand_t>([]() {}));  // wrong arity
+  static_assert(
+      not check::invocable<operand_t>([](int, int) {})); // wrong arity
 
   constexpr auto wrong = [](int) -> operand_t { throw 0; };
   constexpr auto fnFail = [](int i) -> operand_t {
@@ -674,21 +677,18 @@ TEST_CASE("and_then", "[and_then][expected][expected_void]")
     return {};
   };
 
-  static_assert(
-      fn::monadic_invocable<fn::and_then_t, operand_t, decltype(fnValue)>);
-  static_assert([](auto &&fn) constexpr -> bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t, decltype(fn)>;
-  }([](auto...) -> operand_t { return {}; })); // allow generic call
-  static_assert([](auto &&fn) constexpr -> bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t, decltype(fn)>;
-  }([]() -> operand_t { return {}; })); // allow conversion
+  using check = static_check::bind_right<and_then_t>;
 
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t, decltype(fn)>;
-  }([](auto) -> operand_t { return {}; })); // wrong arity
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t, decltype(fn)>;
-  }([](auto, auto) -> operand_t { return {}; })); // wrong arity
+  static_assert(monadic_invocable<and_then_t, operand_t, decltype(fnValue)>);
+
+  static_assert(check::invocable<operand_t>(
+      [](auto...) -> operand_t { return {}; })); // allow generic call
+  static_assert(check::invocable<operand_t>(
+      []() -> operand_t { return {}; })); // allow conversion
+  static_assert(not check::invocable<operand_t>(
+      [](auto) -> operand_t { return {}; })); // wrong arity
+  static_assert(not check::invocable<operand_t>(
+      [](auto, auto) -> operand_t { return {}; })); // wrong arity
 
   constexpr auto wrong = []() -> operand_t { throw 0; };
   auto fnFail = [&count]() -> operand_t {
@@ -780,43 +780,45 @@ TEST_CASE("and_then", "[and_then][optional]")
   using operand_t = std::optional<int>;
   constexpr auto fnValue = [](int i) -> operand_t { return {i + 1}; };
 
+  using check = static_check::bind_right<and_then_t>;
+
+  // lvalue operand
+  // --------------
   static_assert(
       fn::monadic_invocable<fn::and_then_t, operand_t, decltype(fnValue)>);
-  static_assert([](auto &&fn) constexpr -> bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t, decltype(fn)>;
-  }([](auto...) -> operand_t { throw 0; })); // allow generic call
-  static_assert([](auto &&fn) constexpr -> bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t, decltype(fn)>;
-  }([](unsigned) -> operand_t { throw 0; })); // allow conversion
-  static_assert([](auto &&fn) constexpr -> bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t, decltype(fn)>;
-  }([](int &&) -> operand_t { throw 0; })); // alow move from rvalue
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t const, decltype(fn)>;
-  }([](int &&) -> operand_t { throw 0; })); // disallow removing const
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t &, decltype(fn)>;
-  }([](int &&) -> operand_t { throw 0; })); // disallow move from lvalue
-  static_assert([](auto &&fn) constexpr -> bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t &, decltype(fn)>;
-  }([](int &) -> operand_t { throw 0; })); // allow lvalue binding
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t const &,
-                                 decltype(fn)>;
-  }([](int &) -> operand_t { throw 0; })); // disallow removing const
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t, decltype(fn)>;
-  }([](int &) -> operand_t { throw 0; })); // disallow lvalue binding to rvalue
 
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t, decltype(fn)>;
-  }([](std::string) {})); // wrong type
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t, decltype(fn)>;
-  }([]() {})); // wrong arity
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return fn::monadic_invocable<fn::and_then_t, operand_t, decltype(fn)>;
-  }([](int, int) {})); // wrong arity
+  static_assert(check::invocable<operand_t>(
+      [](auto...) -> operand_t { throw 0; })); // allow generic call
+  static_assert(check::invocable<operand_t>(
+      [](unsigned) -> operand_t { throw 0; })); // allow conversion
+  static_assert(not check::invocable<operand_t const>(
+      [](int &&) -> operand_t { throw 0; })); // disallow removing const
+  static_assert(not check::invocable<operand_t &>(
+      [](int &&) -> operand_t { throw 0; })); // disallow move from lvalue
+  static_assert(check::invocable<operand_t &>(
+      [](int &) -> operand_t { throw 0; })); // allow lvalue binding
+  static_assert(not check::invocable<operand_t const &>(
+      [](int &) -> operand_t { throw 0; })); // disallow removing const
+
+  static_assert(
+      not check::invocable<operand_t>([](std::string) {})); // wrong type
+  static_assert(not check::invocable<operand_t>([]() {}));  // wrong arity
+  static_assert(
+      not check::invocable<operand_t>([](int, int) {})); // wrong arity
+
+  // rvalue operand
+  // --------------
+  static_assert(
+      fn::monadic_invocable<fn::and_then_t, operand_t &&, decltype(fnValue)>);
+
+  static_assert(check::invocable<operand_t &&>(
+      [](int &&) -> operand_t { throw 0; })); // alow move from rvalue
+  static_assert(not check::invocable<operand_t &&>([](int &) -> operand_t {
+    throw 0;
+  })); // disallow lvalue binding to rvalue
+  static_assert(check::invocable<operand_t &&>([](int const &) -> operand_t {
+    throw 0;
+  })); // allow const lvalue ref binding to rvalue
 
   constexpr auto wrong = [](int) -> operand_t { throw 0; };
   constexpr auto fnFail = [](int) -> operand_t { return {}; };
