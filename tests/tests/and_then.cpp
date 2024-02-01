@@ -784,8 +784,7 @@ TEST_CASE("and_then", "[and_then][optional]")
 
   // lvalue operand
   // --------------
-  static_assert(
-      fn::monadic_invocable<fn::and_then_t, operand_t, decltype(fnValue)>);
+  static_assert(monadic_invocable<and_then_t, operand_t, decltype(fnValue)>);
 
   static_assert(check::invocable<operand_t>(
       [](auto...) -> operand_t { throw 0; })); // allow generic call
@@ -808,8 +807,7 @@ TEST_CASE("and_then", "[and_then][optional]")
 
   // rvalue operand
   // --------------
-  static_assert(
-      fn::monadic_invocable<fn::and_then_t, operand_t &&, decltype(fnValue)>);
+  static_assert(monadic_invocable<and_then_t, operand_t &&, decltype(fnValue)>);
 
   static_assert(check::invocable<operand_t &&>(
       [](int &&) -> operand_t { throw 0; })); // alow move from rvalue
