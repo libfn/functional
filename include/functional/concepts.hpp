@@ -18,14 +18,10 @@ template <typename T>
 concept some_expected = detail::_is_some_expected<T &>;
 
 template <typename T>
-concept some_expected_void
-    = some_expected<T>
-      && std::same_as<void, typename std::remove_cvref_t<T>::value_type>;
+concept some_expected_void = some_expected<T> && std::same_as<void, typename std::remove_cvref_t<T>::value_type>;
 
 template <typename T>
-concept some_expected_non_void
-    = some_expected<T>
-      && !std::same_as<void, typename std::remove_cvref_t<T>::value_type>;
+concept some_expected_non_void = some_expected<T> && !std::same_as<void, typename std::remove_cvref_t<T>::value_type>;
 
 template <typename T>
 concept some_optional = detail::_is_some_optional<T &>;
@@ -38,8 +34,7 @@ concept some_monadic_type = some_expected<T> || some_optional<T>;
 template <typename T, typename U>
 concept same_kind
     = (some_expected<T> && some_expected<U>
-       && std::same_as<typename std::remove_cvref_t<T>::error_type,
-                       typename std::remove_cvref_t<U>::error_type>)
+       && std::same_as<typename std::remove_cvref_t<T>::error_type, typename std::remove_cvref_t<U>::error_type>)
       || (some_optional<T> && some_optional<U>);
 
 // NOTE similar to the above, but not nearly as useful since it only allows
@@ -47,35 +42,27 @@ concept same_kind
 template <typename T, typename U>
 concept same_value_kind
     = (some_expected<T> && some_expected<U>
-       && std::same_as<typename std::remove_cvref_t<T>::value_type,
-                       typename std::remove_cvref_t<U>::value_type>)
+       && std::same_as<typename std::remove_cvref_t<T>::value_type, typename std::remove_cvref_t<U>::value_type>)
       || (some_optional<T> && some_optional<U>
-          && std::same_as<typename std::remove_cvref_t<U>::value_type,
-                          typename std::remove_cvref_t<T>::value_type>);
+          && std::same_as<typename std::remove_cvref_t<U>::value_type, typename std::remove_cvref_t<T>::value_type>);
 
 template <typename T, typename U>
 concept same_monadic_type_as = same_kind<T, U> && same_value_kind<T, U>;
 
 template <class T>
-concept convertible_to_unexpected = requires {
-  static_cast<std::unexpected<std::remove_cvref_t<T>>>(std::declval<T>());
-};
+concept convertible_to_unexpected
+    = requires { static_cast<std::unexpected<std::remove_cvref_t<T>>>(std::declval<T>()); };
 
 template <class T, typename E>
-concept convertible_to_expected
-    = (not std::same_as<T, void> && requires {
-        static_cast<std::expected<std::remove_cvref_t<T>, E>>(
-            std::declval<T>());
-      }) || (std::same_as<T, void>);
+concept convertible_to_expected = (not std::same_as<T, void> && requires {
+                                    static_cast<std::expected<std::remove_cvref_t<T>, E>>(std::declval<T>());
+                                  }) || (std::same_as<T, void>);
 
 template <class T>
-concept convertible_to_optional = requires {
-  static_cast<std::optional<std::remove_cvref_t<T>>>(std::declval<T>());
-};
+concept convertible_to_optional = requires { static_cast<std::optional<std::remove_cvref_t<T>>>(std::declval<T>()); };
 
 template <class T>
-concept convertible_to_bool
-    = requires { static_cast<bool>(std::declval<T>()); };
+concept convertible_to_bool = requires { static_cast<bool>(std::declval<T>()); };
 } // namespace fn
 
 #endif // INCLUDE_FUNCTIONAL_CONCEPTS

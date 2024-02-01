@@ -26,8 +26,7 @@ template <typename T> struct ImmovableValue final {
   T value;
 
   constexpr ImmovableValue(T &&v) noexcept : value(v) {}
-  constexpr auto operator==(ImmovableValue const &) const noexcept -> bool
-      = default;
+  constexpr auto operator==(ImmovableValue const &) const noexcept -> bool = default;
 
   constexpr ImmovableValue(ImmovableValue const &) = delete;
   constexpr ImmovableValue(ImmovableValue &&) = delete;
@@ -59,8 +58,7 @@ TEST_CASE("Demo expected", "[expected][and_then][transform_error][transform]"
   constexpr auto fn1 = [](char const *str, double &peek) {
     using namespace fn;
 
-    constexpr auto parse
-        = [](char const *str) noexcept -> std::expected<int, Error> {
+    constexpr auto parse = [](char const *str) noexcept -> std::expected<int, Error> {
       int tmp = {};
       char const *end = str + std::strlen(str);
       if (std::from_chars(str, end, tmp).ptr == end) {
@@ -71,25 +69,19 @@ TEST_CASE("Demo expected", "[expected][and_then][transform_error][transform]"
 
     // Immovable operations must be captured as lvalues, and functor will store
     // reference to them rather than make a copy
-    constexpr auto fn1 = [j = ImmovableValue{-1}](
-                             int i) noexcept -> std::expected<double, Error> {
+    constexpr auto fn1 = [j = ImmovableValue{-1}](int i) noexcept -> std::expected<double, Error> {
       if (i < j.value) {
         return std::unexpected<Error>{"Too small"};
       }
       return {i + 0.5};
     };
-    constexpr auto const fn2 = ImmovableFn{
-        [](double v) noexcept -> int { return std::floor(v - 0.5); }};
+    constexpr auto const fn2 = ImmovableFn{[](double v) noexcept -> int { return std::floor(v - 0.5); }};
 
     return (parse(str) //
             | and_then(fn1)
-            | transform_error([](Error v) noexcept -> std::runtime_error {
-                return std::runtime_error{v.what};
-              })
-            | transform(fn2)
-            | inspect([&peek](double d) noexcept -> void { peek = d; })
-            | inspect_error(
-                [&peek](std::runtime_error) noexcept -> void { peek = 0; })
+            | transform_error([](Error v) noexcept -> std::runtime_error { return std::runtime_error{v.what}; })
+            | transform(fn2) | inspect([&peek](double d) noexcept -> void { peek = d; })
+            | inspect_error([&peek](std::runtime_error) noexcept -> void { peek = 0; })
             | recover([](auto...) noexcept -> int { return -13; })
             //
             )
@@ -110,8 +102,7 @@ TEST_CASE("Demo expected", "[expected][and_then][transform_error][transform]"
   CHECK(e1.error().what == "Dummy");
 }
 
-TEST_CASE("Demo optional",
-          "[optional][and_then][or_else][inspect][transform][fail][recover]")
+TEST_CASE("Demo optional", "[optional][and_then][or_else][inspect][transform][fail][recover]")
 {
   constexpr auto fn1 = [](char const *str, int &peek) {
     using namespace fn;
@@ -150,8 +141,7 @@ TEST_CASE("Demo optional",
   CHECK(i == 0);
 
   auto const o1 = std::optional<int>{0} //
-                  | fn::fail([](int) noexcept {})
-                  | fn::recover([]() { return -1; });
+                  | fn::fail([](int) noexcept {}) | fn::recover([]() { return -1; });
   CHECK(o1.has_value());
   CHECK(o1.value() == -1);
 }

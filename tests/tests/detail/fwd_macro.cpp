@@ -16,27 +16,22 @@ static_assert(                //
         decltype(std::forward<decltype(value)>(value))>);
 static_assert(      //
     std::is_same_v< //
-        decltype(FWD(const_value)),
-        decltype(std::forward<decltype(const_value)>(const_value))>);
+        decltype(FWD(const_value)), decltype(std::forward<decltype(const_value)>(const_value))>);
 
 extern int &lvalue;
 extern int const &const_lvalue;
 static_assert(      //
     std::is_same_v< //
-        decltype(FWD(lvalue)),
-        decltype(std::forward<decltype(lvalue)>(lvalue))>);
+        decltype(FWD(lvalue)), decltype(std::forward<decltype(lvalue)>(lvalue))>);
 static_assert(      //
     std::is_same_v< //
-        decltype(FWD(const_lvalue)),
-        decltype(std::forward<decltype(const_lvalue)>(const_lvalue))>);
+        decltype(FWD(const_lvalue)), decltype(std::forward<decltype(const_lvalue)>(const_lvalue))>);
 
 extern int &&rvalue;
 extern int const &&const_rvalue;
 static_assert(      //
     std::is_same_v< //
-        decltype(FWD(rvalue)),
-        decltype(std::forward<decltype(rvalue)>(rvalue))>);
+        decltype(FWD(rvalue)), decltype(std::forward<decltype(rvalue)>(rvalue))>);
 static_assert(      //
     std::is_same_v< //
-        decltype(FWD(const_rvalue)),
-        decltype(std::forward<decltype(const_rvalue)>(const_rvalue))>);
+        decltype(FWD(const_rvalue)), decltype(std::forward<decltype(const_rvalue)>(const_rvalue))>);

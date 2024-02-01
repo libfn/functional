@@ -18,7 +18,7 @@
 
 namespace fn {
 template <typename Fn, typename V>
-concept invocable_inspect
+concept invocable_inspect //
     = (some_expected_non_void<V> && requires(Fn &&fn, V &&v) {
         {
           std::invoke(FWD(fn), std::as_const(v).value())
@@ -34,8 +34,7 @@ concept invocable_inspect
       });
 
 constexpr inline struct inspect_t final {
-  constexpr auto operator()(auto &&...fn) const noexcept
-      -> functor<inspect_t, decltype(fn)...>
+  constexpr auto operator()(auto &&...fn) const noexcept -> functor<inspect_t, decltype(fn)...>
     requires(sizeof...(fn) > 0) && (sizeof...(fn) <= 2)
   {
     return {FWD(fn)...};
@@ -45,8 +44,7 @@ constexpr inline struct inspect_t final {
 } inspect = {};
 
 struct inspect_t::apply final {
-  static constexpr auto operator()(some_expected auto &&v, auto &&fn) noexcept
-      -> decltype(v)
+  static constexpr auto operator()(some_expected auto &&v, auto &&fn) noexcept -> decltype(v)
     requires invocable_inspect<decltype(fn), decltype(v)>
   {
     std::as_const(v).transform([&fn](auto const &...args) -> void {
@@ -55,8 +53,7 @@ struct inspect_t::apply final {
     return FWD(v);
   }
 
-  static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept
-      -> decltype(v)
+  static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept -> decltype(v)
     requires invocable_inspect<decltype(fn), decltype(v)>
   {
     if (v.has_value()) {

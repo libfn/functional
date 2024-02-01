@@ -16,9 +16,8 @@
 
 namespace fn {
 template <typename Functor, typename V, typename... Args>
-concept monadic_invocable
-    = some_monadic_type<V> //
-      && std::invocable<typename Functor::apply, V, Args...>;
+concept monadic_invocable //
+    = some_monadic_type<V> && std::invocable<typename Functor::apply, V, Args...>;
 
 template <typename Functor, typename... Args> struct functor final {
   using functor_type = Functor;
@@ -29,11 +28,9 @@ template <typename Functor, typename... Args> struct functor final {
 
   static_assert(sizeof...(Args) > 0); // NOTE Consider relaxing
   static_assert(std::is_empty_v<functor_type> && std::is_empty_v<functor_apply>
-                && std::is_default_constructible_v<functor_type>
-                && std::is_default_constructible_v<functor_apply>);
+                && std::is_default_constructible_v<functor_type> && std::is_default_constructible_v<functor_apply>);
 
-  constexpr friend auto operator|(some_monadic_type auto &&v,
-                                  auto &&self) noexcept -> decltype(auto)
+  constexpr friend auto operator|(some_monadic_type auto &&v, auto &&self) noexcept -> decltype(auto)
     requires std::same_as<std::remove_cvref_t<decltype(self)>, functor>
              && monadic_invocable<functor_type, decltype(v), Args...>
   {

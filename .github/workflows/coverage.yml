@@ -3,7 +3,7 @@ name: coverage
 on: [push, pull_request]
 
 jobs:
-  build:
+  coverage:
     runs-on: ubuntu-22.04
     container: gcc:13.2-bookworm
     strategy:

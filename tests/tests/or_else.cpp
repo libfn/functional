@@ -42,14 +42,12 @@ TEST_CASE("or_else", "[or_else][expected][expected_value]")
 
   using operand_t = std::expected<int, Error>;
   constexpr auto fnError = [](Error e) -> operand_t { return {e.what.size()}; };
-  constexpr auto fnXerror = [](Error e) -> std::expected<int, Xerror> {
-    return std::unexpected<Xerror>{"Was: " + e.what};
-  };
+  constexpr auto fnXerror
+      = [](Error e) -> std::expected<int, Xerror> { return std::unexpected<Xerror>{"Was: " + e.what}; };
 
   static_assert(monadic_invocable<or_else_t, operand_t, decltype(fnError)>);
-  static_assert(
-      monadic_invocable<or_else_t, operand_t,
-                        decltype(fnXerror)>); // allow error type transformation
+  static_assert(monadic_invocable<or_else_t, operand_t,
+                                  decltype(fnXerror)>); // allow error type transformation
   static_assert([](auto &&fn) constexpr -> bool {
     return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
   }([](auto...) -> operand_t { throw 0; })); // allow generic call
@@ -73,9 +71,7 @@ TEST_CASE("or_else", "[or_else][expected][expected_value]")
   }([](Error &) -> operand_t { throw 0; })); // disallow removing const
   static_assert(not [](auto &&fn) constexpr->bool {
     return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
-  }([](Error &) -> operand_t {
-    throw 0;
-  })); // disallow lvalue binding to rvalue
+  }([](Error &) -> operand_t { throw 0; })); // disallow lvalue binding to rvalue
 
   static_assert(not [](auto &&fn) constexpr->bool {
     return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
@@ -88,9 +84,7 @@ TEST_CASE("or_else", "[or_else][expected][expected_value]")
   }([](int, int) {})); // wrong arity
 
   constexpr auto wrong = [](Error) -> operand_t { throw 0; };
-  constexpr auto fnFail = [](Error v) -> operand_t {
-    return std::unexpected<Error>("Got: " + v.what);
-  };
+  constexpr auto fnFail = [](Error v) -> operand_t { return std::unexpected<Error>("Got: " + v.what); };
 
   WHEN("operand is lvalue")
   {
@@ -152,16 +146,13 @@ TEST_CASE("or_else", "[or_else][expected][expected_value]")
     }
     WHEN("operand is error")
     {
-      using T
-          = decltype(operand_t{std::unexpect, "Not good"} | or_else(fnError));
+      using T = decltype(operand_t{std::unexpect, "Not good"} | or_else(fnError));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{std::unexpect, "Not good"} | or_else(fnError)).value()
-              == 8);
+      REQUIRE((operand_t{std::unexpect, "Not good"} | or_else(fnError)).value() == 8);
 
       WHEN("fail")
       {
-        using T
-            = decltype(operand_t{std::unexpect, "Not good"} | or_else(fnFail));
+        using T = decltype(operand_t{std::unexpect, "Not good"} | or_else(fnFail));
         static_assert(std::is_same_v<T, operand_t>);
         REQUIRE((operand_t{std::unexpect, "Not good"} //
                  | or_else(fnFail))
@@ -172,13 +163,9 @@ TEST_CASE("or_else", "[or_else][expected][expected_value]")
     }
     WHEN("calling member function")
     {
-      using T = decltype(operand_t{std::unexpect, "Not good"}
-                         | or_else(&Error::fn<operand_t>));
+      using T = decltype(operand_t{std::unexpect, "Not good"} | or_else(&Error::fn<operand_t>));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{std::unexpect, "Not good"}
-               | or_else(&Error::fn<operand_t>))
-                  .value()
-              == 8);
+      REQUIRE((operand_t{std::unexpect, "Not good"} | or_else(&Error::fn<operand_t>)).value() == 8);
     }
   }
 }
@@ -193,9 +180,8 @@ TEST_CASE("or_else", "[or_else][expected][expected_void]")
     count += 1;
     return {};
   };
-  constexpr auto fnXerror = [](Error e) -> std::expected<void, Xerror> {
-    return std::unexpected<Xerror>{"Was: " + e.what};
-  };
+  constexpr auto fnXerror
+      = [](Error e) -> std::expected<void, Xerror> { return std::unexpected<Xerror>{"Was: " + e.what}; };
 
   static_assert(monadic_invocable<or_else_t, operand_t, decltype(fnError)>);
   static_assert(monadic_invocable<or_else_t, operand_t, decltype(fnXerror)>);
@@ -222,9 +208,7 @@ TEST_CASE("or_else", "[or_else][expected][expected_void]")
   }([](Error &) -> operand_t { return {}; })); // disallow removing const
   static_assert(not [](auto &&fn) constexpr->bool {
     return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
-  }([](Error &) -> operand_t {
-    return {};
-  })); // disallow lvalue binding to rvalue
+  }([](Error &) -> operand_t { return {}; })); // disallow lvalue binding to rvalue
 
   static_assert(not [](auto &&fn) constexpr->bool {
     return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
@@ -237,9 +221,7 @@ TEST_CASE("or_else", "[or_else][expected][expected_void]")
   }([](int, int) {})); // wrong arity
 
   constexpr auto wrong = [](Error) -> operand_t { throw 0; };
-  constexpr auto fnFail = [](Error v) -> operand_t {
-    return std::unexpected<Error>("Got: " + v.what);
-  };
+  constexpr auto fnFail = [](Error v) -> operand_t { return std::unexpected<Error>("Got: " + v.what); };
 
   WHEN("operand is lvalue")
   {
@@ -296,15 +278,13 @@ TEST_CASE("or_else", "[or_else][expected][expected_void]")
     }
     WHEN("operand is error")
     {
-      using T
-          = decltype(operand_t{std::unexpect, "Not good"} | or_else(fnError));
+      using T = decltype(operand_t{std::unexpect, "Not good"} | or_else(fnError));
       static_assert(std::is_same_v<T, operand_t>);
       (operand_t{std::unexpect, "Not good"} | or_else(fnError)).value();
 
       WHEN("fail")
       {
-        using T
-            = decltype(operand_t{std::unexpect, "Not good"} | or_else(fnFail));
+        using T = decltype(operand_t{std::unexpect, "Not good"} | or_else(fnFail));
         static_assert(std::is_same_v<T, operand_t>);
         REQUIRE((operand_t{std::unexpect, "Not good"} //
                  | or_else(fnFail))
@@ -315,13 +295,10 @@ TEST_CASE("or_else", "[or_else][expected][expected_void]")
     }
     WHEN("calling member function")
     {
-      using T = decltype(operand_t{std::unexpect, "Not good"}
-                         | or_else(&Error::finalize<operand_t>));
+      using T = decltype(operand_t{std::unexpect, "Not good"} | or_else(&Error::finalize<operand_t>));
       static_assert(std::is_same_v<T, operand_t>);
       auto const before = Error::count;
-      (operand_t{std::unexpect, "Not good"}
-       | or_else(&Error::finalize<operand_t>))
-          .value();
+      (operand_t{std::unexpect, "Not good"} | or_else(&Error::finalize<operand_t>)).value();
       CHECK(Error::count == before + 8);
     }
   }
@@ -408,11 +385,9 @@ TEST_CASE("constexpr or_else expected", "[or_else][constexpr][expected]")
     };
     constexpr auto r1 = T{0} | fn::or_else(fn);
     static_assert(r1.value() == 0);
-    constexpr auto r2
-        = T{std::unexpect, Error::SomethingElse} | fn::or_else(fn);
+    constexpr auto r2 = T{std::unexpect, Error::SomethingElse} | fn::or_else(fn);
     static_assert(r2.value() == 0);
-    constexpr auto r3
-        = T{std::unexpect, Error::ThresholdExceeded} | fn::or_else(fn);
+    constexpr auto r3 = T{std::unexpect, Error::ThresholdExceeded} | fn::or_else(fn);
     static_assert(r3.error() == Error::ThresholdExceeded);
   }
 
@@ -420,8 +395,7 @@ TEST_CASE("constexpr or_else expected", "[or_else][constexpr][expected]")
   {
     struct UnrecoverableError final {
       constexpr UnrecoverableError() {}
-      constexpr bool operator==(UnrecoverableError const &) const noexcept
-          = default;
+      constexpr bool operator==(UnrecoverableError const &) const noexcept = default;
     };
     using T1 = std::expected<int, UnrecoverableError>;
     constexpr auto fn = [](Error e) constexpr noexcept -> T1 {
@@ -429,13 +403,10 @@ TEST_CASE("constexpr or_else expected", "[or_else][constexpr][expected]")
         return {true};
       return T1{std::unexpect};
     };
-    constexpr auto r1
-        = T{std::unexpect, Error::SomethingElse} | fn::or_else(fn);
-    static_assert(std::is_same_v<decltype(r1),
-                                 std::expected<int, UnrecoverableError> const>);
+    constexpr auto r1 = T{std::unexpect, Error::SomethingElse} | fn::or_else(fn);
+    static_assert(std::is_same_v<decltype(r1), std::expected<int, UnrecoverableError> const>);
     static_assert(r1.value() == true);
-    constexpr auto r2
-        = T{std::unexpect, Error::ThresholdExceeded} | fn::or_else(fn);
+    constexpr auto r2 = T{std::unexpect, Error::ThresholdExceeded} | fn::or_else(fn);
     static_assert(r2.error() == UnrecoverableError{});
   }
 
@@ -461,12 +432,9 @@ struct Xerror final : Error {};
 struct Value final {};
 
 template <typename T> constexpr auto fn_Error = [](Error) -> T { throw 0; };
-template <typename T>
-constexpr auto fn_generic = [](auto &&...) -> T { throw 0; };
-template <typename T>
-constexpr auto fn_int_lvalue = [](int &) -> T { throw 0; };
-template <typename T>
-constexpr auto fn_int_rvalue = [](int &&) -> T { throw 0; };
+template <typename T> constexpr auto fn_generic = [](auto &&...) -> T { throw 0; };
+template <typename T> constexpr auto fn_int_lvalue = [](int &) -> T { throw 0; };
+template <typename T> constexpr auto fn_int_rvalue = [](int &&) -> T { throw 0; };
 } // namespace
 
 // clang-format off

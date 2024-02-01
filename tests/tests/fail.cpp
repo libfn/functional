@@ -36,8 +36,7 @@ TEST_CASE("fail", "[fail][expected][expected_value]")
   using namespace fn;
 
   using operand_t = std::expected<int, Error>;
-  constexpr auto fnValue
-      = [](int i) -> Error { return {"Got " + std::to_string(i)}; };
+  constexpr auto fnValue = [](int i) -> Error { return {"Got " + std::to_string(i)}; };
 
   static_assert(monadic_invocable<fail_t, operand_t, decltype(fnValue)>);
   static_assert([](auto &&fn) constexpr -> bool {
@@ -56,9 +55,7 @@ TEST_CASE("fail", "[fail][expected][expected_value]")
     return monadic_invocable<fail_t, operand_t, decltype(fn)>;
   }([](auto...) -> Derived { throw 0; })); // conversion
   static_assert(
-      std::is_same_v<operand_t,
-                     decltype(std::declval<operand_t>()
-                              | fail([](auto...) -> Derived { throw 0; }))>);
+      std::is_same_v<operand_t, decltype(std::declval<operand_t>() | fail([](auto...) -> Derived { throw 0; }))>);
   static_assert([](auto &&fn) constexpr -> bool {
     return monadic_invocable<fail_t, operand_t, decltype(fn)>;
   }([](int &&) -> Error { throw 0; })); // alow move from rvalue
@@ -92,8 +89,7 @@ TEST_CASE("fail", "[fail][expected][expected_value]")
   static_assert([](auto &&fn) constexpr -> bool {
     return monadic_invocable<fail_t, operand_t, decltype(fn)>;
   }(fnDerived)); // allow return type conversion
-  static_assert(std::is_same_v<operand_t, decltype(std::declval<operand_t>()
-                                                   | fail(fnDerived))>);
+  static_assert(std::is_same_v<operand_t, decltype(std::declval<operand_t>() | fail(fnDerived))>);
 
   constexpr auto wrong = [](int) -> Error { throw 0; };
 
@@ -133,8 +129,7 @@ TEST_CASE("fail", "[fail][expected][expected_value]")
     {
       using T = decltype(operand_t{std::in_place, 12} | fail(fnValue));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{std::in_place, 12} | fail(fnValue)).error().what
-              == "Got 12");
+      REQUIRE((operand_t{std::in_place, 12} | fail(fnValue)).error().what == "Got 12");
     }
     WHEN("operand is error")
     {
@@ -151,8 +146,7 @@ TEST_CASE("fail", "[fail][expected][expected_value]")
       using operand_t = std::expected<Value, Error>;
       using T = decltype(operand_t{std::in_place, 12} | fail(&Value::fn));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{std::in_place, 12} | fail(&Value::fn)).error().what
-              == "Was 12");
+      REQUIRE((operand_t{std::in_place, 12} | fail(&Value::fn)).error().what == "Was 12");
     }
   }
 }
@@ -163,8 +157,7 @@ TEST_CASE("fail", "[fail][expected][expected_void]")
 
   using operand_t = std::expected<void, Error>;
   int count = 0;
-  auto fnValue
-      = [&count]() -> Error { return {"Got " + std::to_string(++count)}; };
+  auto fnValue = [&count]() -> Error { return {"Got " + std::to_string(++count)}; };
 
   static_assert(monadic_invocable<fail_t, operand_t, decltype(fnValue)>);
   static_assert([](auto &&fn) constexpr -> bool {
@@ -188,8 +181,7 @@ TEST_CASE("fail", "[fail][expected][expected_void]")
   static_assert([](auto &&fn) constexpr -> bool {
     return monadic_invocable<fail_t, operand_t, decltype(fn)>;
   }(fnDerived)); // allow return type conversion
-  static_assert(std::is_same_v<operand_t, decltype(std::declval<operand_t>()
-                                                   | fail(fnDerived))>);
+  static_assert(std::is_same_v<operand_t, decltype(std::declval<operand_t>() | fail(fnDerived))>);
 
   constexpr auto wrong = []() -> Error { throw 0; };
 
@@ -221,8 +213,7 @@ TEST_CASE("fail", "[fail][expected][expected_void]")
     {
       using T = decltype(operand_t{std::in_place} | fail(fnValue));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{std::in_place} | fail(fnValue)).error().what
-              == "Got 1");
+      REQUIRE((operand_t{std::in_place} | fail(fnValue)).error().what == "Got 1");
     }
     WHEN("operand is error")
     {
@@ -340,8 +331,7 @@ TEST_CASE("fail", "[fail][optional]")
       using T = decltype(operand_t{std::in_place, 12} | fail(&Value::finalize));
       static_assert(std::is_same_v<T, operand_t>);
       auto const before = Value::count;
-      REQUIRE(not(operand_t{std::in_place, 12} | fail(&Value::finalize))
-                     .has_value());
+      REQUIRE(not(operand_t{std::in_place, 12} | fail(&Value::finalize)).has_value());
       CHECK(Value::count == before + 12);
     }
   }
@@ -382,14 +372,11 @@ struct Value final {};
 
 template <typename E> constexpr auto fn_int = [](int) -> E { throw 0; };
 
-template <typename E>
-constexpr auto fn_generic = [](auto &&...) -> E { throw 0; };
+template <typename E> constexpr auto fn_generic = [](auto &&...) -> E { throw 0; };
 
-template <typename E>
-constexpr auto fn_int_lvalue = [](int &) -> E { throw 0; };
+template <typename E> constexpr auto fn_int_lvalue = [](int &) -> E { throw 0; };
 
-template <typename E>
-constexpr auto fn_int_rvalue = [](int &&) -> E { throw 0; };
+template <typename E> constexpr auto fn_int_rvalue = [](int &&) -> E { throw 0; };
 } // namespace
 
 // clang-format off
