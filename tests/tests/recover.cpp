@@ -41,8 +41,7 @@ TEST_CASE("recover", "[recover][expected][expected_value]")
   }([](auto...) -> unsigned { return 0; })); // result conversion to operand_t
   static_assert(std::is_same_v<              //
                 operand_t,                   //
-                decltype(std::declval<operand_t>()
-                         | recover([](auto...) -> unsigned { return 0; }))>);
+                decltype(std::declval<operand_t>() | recover([](auto...) -> unsigned { return 0; }))>);
   static_assert([](auto &&fn) constexpr -> bool {
     return monadic_invocable<recover_t, operand_t, decltype(fn)>;
   }([](Error &&) -> int { return 0; })); // alow move from rvalue
@@ -102,11 +101,9 @@ TEST_CASE("recover", "[recover][expected][expected_value]")
     }
     WHEN("operand is error")
     {
-      using T
-          = decltype(operand_t{std::unexpect, "Not good"} | recover(fnError));
+      using T = decltype(operand_t{std::unexpect, "Not good"} | recover(fnError));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{std::unexpect, "Not good"} | recover(fnError)).value()
-              == 8);
+      REQUIRE((operand_t{std::unexpect, "Not good"} | recover(fnError)).value() == 8);
     }
   }
 }
@@ -188,8 +185,7 @@ TEST_CASE("recover", "[recover][expected][expected_void]")
     }
     WHEN("operand is error")
     {
-      using T
-          = decltype(operand_t{std::unexpect, "Not good"} | recover(fnError));
+      using T = decltype(operand_t{std::unexpect, "Not good"} | recover(fnError));
       static_assert(std::is_same_v<T, operand_t>);
       (operand_t{std::unexpect, "Not good"} | recover(fnError)).value();
       REQUIRE(count == 1);
@@ -213,8 +209,7 @@ TEST_CASE("recover", "[recover][optional]")
   }([]() -> unsigned { return 0; })); // result conversion to operand_t
   static_assert(std::is_same_v<       //
                 operand_t,            //
-                decltype(std::declval<operand_t>()
-                         | recover([]() -> unsigned { return 0; }))>);
+                decltype(std::declval<operand_t>() | recover([]() -> unsigned { return 0; }))>);
   static_assert(not [](auto &&fn) constexpr->bool {
     return monadic_invocable<recover_t, operand_t, decltype(fn)>;
   }([](auto) {})); // wrong arity
@@ -270,8 +265,7 @@ TEST_CASE("constexpr recover expected", "[recover][constexpr][expected]")
   static_assert(r1.value() == 2);
   constexpr auto r2 = T{std::unexpect, Error::SomethingElse} | fn::recover(fn);
   static_assert(r2.value() == 0);
-  constexpr auto r3
-      = T{std::unexpect, Error::ThresholdExceeded} | fn::recover(fn);
+  constexpr auto r3 = T{std::unexpect, Error::ThresholdExceeded} | fn::recover(fn);
   static_assert(r3.value() == 1);
 
   SUCCEED();

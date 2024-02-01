@@ -29,8 +29,7 @@ concept invocable_or_else //
       });
 
 constexpr inline struct or_else_t final {
-  constexpr auto operator()(auto &&fn) const noexcept
-      -> functor<or_else_t, decltype(fn)>
+  constexpr auto operator()(auto &&fn) const noexcept -> functor<or_else_t, decltype(fn)> //
   {
     return {FWD(fn)};
   }
@@ -39,9 +38,7 @@ constexpr inline struct or_else_t final {
 } or_else = {};
 
 struct or_else_t::apply final {
-  static constexpr auto operator()(some_monadic_type auto &&v,
-                                   auto &&fn) noexcept
-      -> same_value_kind<decltype(v)> auto
+  static constexpr auto operator()(some_monadic_type auto &&v, auto &&fn) noexcept -> same_value_kind<decltype(v)> auto
     requires invocable_or_else<decltype(fn), decltype(v)>
   {
     return FWD(v).or_else(FWD(fn));

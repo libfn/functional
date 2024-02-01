@@ -19,7 +19,7 @@
 
 namespace fn {
 template <typename Pred, typename Err, typename V>
-concept invocable_filter
+concept invocable_filter //
     = (some_expected_non_void<V> && requires(Pred &&pred, Err &&on_err, V &&v) {
         {
           std::invoke(FWD(pred), std::as_const(v).value())
@@ -42,8 +42,7 @@ concept invocable_filter
 
 constexpr inline struct filter_t final {
   // NOTE Optional needs one arguments, expected needs two
-  constexpr auto operator()(auto &&...args) const noexcept
-      -> functor<filter_t, decltype(args)...>
+  constexpr auto operator()(auto &&...args) const noexcept -> functor<filter_t, decltype(args)...>
     requires(sizeof...(args) >= 1) && (sizeof...(args) < 3)
   {
     return {FWD(args)...};
@@ -53,8 +52,7 @@ constexpr inline struct filter_t final {
 } filter = {};
 
 struct filter_t::apply final {
-  static constexpr auto operator()(some_expected_non_void auto &&v, auto &&pred,
-                                   auto &&on_err) noexcept
+  static constexpr auto operator()(some_expected_non_void auto &&v, auto &&pred, auto &&on_err) noexcept
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_filter<decltype(pred), decltype(on_err), decltype(v)>
   {
@@ -63,14 +61,11 @@ struct filter_t::apply final {
         [&pred, &on_err](auto &&arg) noexcept -> type {
           const bool keep{std::invoke(FWD(pred), std::as_const(arg))};
           return (keep ? type{std::in_place, FWD(arg)}
-                       : type{std::unexpect,
-                              std::invoke(FWD(on_err),
-                                          FWD(arg))}); // GCOVR_EXCL_BR_LINE
+                       : type{std::unexpect, std::invoke(FWD(on_err), FWD(arg))}); // GCOVR_EXCL_BR_LINE
         });
   }
 
-  static constexpr auto operator()(some_expected_void auto &&v, auto &&pred,
-                                   auto &&on_err) noexcept
+  static constexpr auto operator()(some_expected_void auto &&v, auto &&pred, auto &&on_err) noexcept
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_filter<decltype(pred), decltype(on_err), decltype(v)>
   {
@@ -78,9 +73,8 @@ struct filter_t::apply final {
     return FWD(v).and_then( //
         [&pred, &on_err]() noexcept -> type {
           const bool keep{std::invoke(FWD(pred))};
-          return (keep ? type{std::in_place}
-                       : type{std::unexpect,
-                              std::invoke(FWD(on_err))}); // GCOVR_EXCL_BR_LINE
+          return (keep ? type{std::in_place}                             //
+                       : type{std::unexpect, std::invoke(FWD(on_err))}); // GCOVR_EXCL_BR_LINE
         });
   }
 

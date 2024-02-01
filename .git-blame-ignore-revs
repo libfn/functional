@@ -1,0 +1,5 @@
+# This feature requires Git >= 2.24 ; to use it by default in git blame:
+# git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# Update format to 120 columns PR #24
+76d220e6f702935decdb347faa40364d83e69be1

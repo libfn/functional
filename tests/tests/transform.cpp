@@ -104,21 +104,18 @@ TEST_CASE("transform", "[transform][expected][expected_value]")
     {
       using T = decltype(operand_t{std::in_place, 12} | transform(fnValue));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{std::in_place, 12} | transform(fnValue)).value()
-              == 13);
+      REQUIRE((operand_t{std::in_place, 12} | transform(fnValue)).value() == 13);
 
       WHEN("change type")
       {
         using T = decltype(operand_t{std::in_place, 12} | transform(fnXabs));
         static_assert(std::is_same_v<T, std::expected<Xint, Error>>);
-        REQUIRE((operand_t{std::in_place, 12} | transform(fnXabs)).value().value
-                == 4);
+        REQUIRE((operand_t{std::in_place, 12} | transform(fnXabs)).value().value == 4);
       }
     }
     WHEN("operand is error")
     {
-      using T
-          = decltype(operand_t{std::unexpect, "Not good"} | transform(wrong));
+      using T = decltype(operand_t{std::unexpect, "Not good"} | transform(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((operand_t{std::unexpect, "Not good"} //
                | transform(wrong))
@@ -198,14 +195,12 @@ TEST_CASE("transform", "[transform][expected][expected_void]")
       {
         using T = decltype(operand_t{std::in_place} | transform(fnXabs));
         static_assert(std::is_same_v<T, std::expected<Xint, Error>>);
-        REQUIRE((operand_t{std::in_place} | transform(fnXabs)).value().value
-                == 42);
+        REQUIRE((operand_t{std::in_place} | transform(fnXabs)).value().value == 42);
       }
     }
     WHEN("operand is error")
     {
-      using T
-          = decltype(operand_t{std::unexpect, "Not good"} | transform(wrong));
+      using T = decltype(operand_t{std::unexpect, "Not good"} | transform(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((operand_t{std::unexpect, "Not good"} //
                | transform(wrong))
@@ -327,11 +322,9 @@ TEST_CASE("constexpr transform expected", "[transform][constexpr][expected]")
     };
     constexpr auto r1 = T{0} | fn::transform(fn);
     static_assert(r1.value() == 1);
-    constexpr auto r2
-        = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
+    constexpr auto r2 = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
     static_assert(r2.value() == 2);
-    constexpr auto r3
-        = T{std::unexpect, Error::SomethingElse} | fn::transform(fn);
+    constexpr auto r3 = T{std::unexpect, Error::SomethingElse} | fn::transform(fn);
     static_assert(r3.error() == Error::SomethingElse);
   }
 
@@ -343,15 +336,13 @@ TEST_CASE("constexpr transform expected", "[transform][constexpr][expected]")
       return false;
     };
     constexpr auto r1 = T{1} | fn::transform(fn);
-    static_assert(
-        std::is_same_v<decltype(r1), std::expected<bool, Error> const>);
+    static_assert(std::is_same_v<decltype(r1), std::expected<bool, Error> const>);
     static_assert(r1.value() == true);
     constexpr auto r2 = T{0} | fn::transform(fn);
     static_assert(r2.value() == false);
     constexpr auto r3 = T{2} | fn::transform(fn);
     static_assert(r3.value() == false);
-    constexpr auto r4
-        = T{std::unexpect, Error::SomethingElse} | fn::transform(fn);
+    constexpr auto r4 = T{std::unexpect, Error::SomethingElse} | fn::transform(fn);
     static_assert(r4.error() == Error::SomethingElse);
   }
 
@@ -371,8 +362,7 @@ TEST_CASE("constexpr transform optional", "[transform][constexpr][optional]")
     };
     constexpr auto r1 = T{0} | fn::transform(fn);
     static_assert(r1.value() == 1);
-    constexpr auto r2
-        = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
+    constexpr auto r2 = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
     static_assert(r2.value() == 2);
     constexpr auto r4 = T{} | fn::transform(fn);
     static_assert(not r4.has_value());

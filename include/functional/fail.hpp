@@ -17,7 +17,7 @@
 
 namespace fn {
 template <typename Fn, typename V>
-concept invocable_fail
+concept invocable_fail //
     = (some_expected_non_void<V> && requires(Fn &&fn, V &&v) {
         {
           std::invoke(FWD(fn), FWD(v).value())
@@ -33,8 +33,7 @@ concept invocable_fail
       });
 
 constexpr inline struct fail_t final {
-  constexpr auto operator()(auto &&fn) const noexcept
-      -> functor<fail_t, decltype(fn)>
+  constexpr auto operator()(auto &&fn) const noexcept -> functor<fail_t, decltype(fn)> //
   {
     return {FWD(fn)};
   }
@@ -43,20 +42,18 @@ constexpr inline struct fail_t final {
 } fail = {};
 
 struct fail_t::apply final {
-  static constexpr auto operator()(some_expected auto &&v, auto &&fn) noexcept
+  static constexpr auto operator()(some_expected auto &&v, auto &&fn) noexcept //
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_fail<decltype(fn), decltype(v)>
   {
     using type = std::remove_cvref_t<decltype(v)>;
     return FWD(v).and_then( //
         [&fn](auto &&...arg) noexcept -> type {
-          return std::unexpected<typename type::error_type>{
-              std::invoke(FWD(fn), FWD(arg)...)};
+          return std::unexpected<typename type::error_type>{std::invoke(FWD(fn), FWD(arg)...)};
         });
   }
 
-  static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept
-      -> same_monadic_type_as<decltype(v)> auto
+  static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept -> same_monadic_type_as<decltype(v)> auto
     requires invocable_fail<decltype(fn), decltype(v)>
   {
     using type = std::remove_cvref_t<decltype(v)>;
