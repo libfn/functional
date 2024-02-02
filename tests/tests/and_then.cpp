@@ -3,9 +3,10 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
+#include "static_check.hpp"
+
 #include "functional/and_then.hpp"
 #include "functional/functor.hpp"
-#include "static_check.hpp"
 
 #include <catch2/catch_all.hpp>
 
