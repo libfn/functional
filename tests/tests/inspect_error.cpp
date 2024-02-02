@@ -217,9 +217,7 @@ struct Xerror final : Error {};
 struct Value final {};
 
 template <typename T> constexpr auto fn_int = [](int) -> T { throw 0; };
-
 template <typename T> constexpr auto fn_Error = [](Error) -> T { throw 0; };
-
 template <typename T> constexpr auto fn_generic = [](auto &&...) -> T { throw 0; };
 
 constexpr auto fn_int_lvalue = [](int &) {};
