@@ -35,10 +35,10 @@ TEST_CASE("inspect_error expected", "[inspect_error][expected]")
   using namespace fn;
 
   using operand_t = std::expected<int, Error>;
+  using is = static_check::bind_right<inspect_error_t>;
+
   std::string error = {};
   auto fnError = [&error](auto v) -> void { error = v; };
-
-  using is = static_check::bind_right<inspect_error_t>;
 
   // lvalue operand
   // --------------
@@ -135,10 +135,10 @@ TEST_CASE("inspect_error optional", "[inspect_error][optional]")
   using namespace fn;
 
   using operand_t = std::optional<int>;
+  using is = static_check::bind_right<inspect_error_t>;
+
   int error = 0;
   auto fnError = [&error]() -> void { error += 1; };
-
-  using is = static_check::bind_right<inspect_error_t>;
 
   static_assert(monadic_invocable<inspect_error_t, operand_t, decltype(fnError)>);
   static_assert(is::invocable<operand_t>([](auto...) -> void { throw 0; })); // allow generic call

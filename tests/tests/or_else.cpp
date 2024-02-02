@@ -44,11 +44,11 @@ TEST_CASE("or_else", "[or_else][expected][expected_value]")
   using namespace fn;
 
   using operand_t = std::expected<int, Error>;
+  using is = static_check::bind_right<or_else_t>;
+
   constexpr auto fnError = [](Error e) -> operand_t { return {e.what.size()}; };
   constexpr auto fnXerror
       = [](Error e) -> std::expected<int, Xerror> { return std::unexpected<Xerror>{"Was: " + e.what}; };
-
-  using is = static_check::bind_right<or_else_t>;
 
   // lvalue operand
   // --------------
@@ -166,6 +166,8 @@ TEST_CASE("or_else", "[or_else][expected][expected_void]")
   using namespace fn;
 
   using operand_t = std::expected<void, Error>;
+  using is = static_check::bind_right<or_else_t>;
+
   int count = 0;
   auto fnError = [&count](Error) -> operand_t {
     count += 1;
@@ -173,8 +175,6 @@ TEST_CASE("or_else", "[or_else][expected][expected_void]")
   };
   constexpr auto fnXerror
       = [](Error e) -> std::expected<void, Xerror> { return std::unexpected<Xerror>{"Was: " + e.what}; };
-
-  using is = static_check::bind_right<or_else_t>;
 
   // lvalue operand
   // --------------
@@ -289,9 +289,9 @@ TEST_CASE("or_else", "[or_else][optional]")
   using namespace fn;
 
   using operand_t = std::optional<int>;
-  constexpr auto fnError = []() -> operand_t { return {42}; };
-
   using is = static_check::bind_right<or_else_t>;
+
+  constexpr auto fnError = []() -> operand_t { return {42}; };
 
   static_assert(monadic_invocable<or_else_t, operand_t, decltype(fnError)>);
   static_assert(is::invocable<operand_t>([](auto...) -> operand_t { throw 0; })); // allow generic call

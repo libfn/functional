@@ -31,9 +31,9 @@ TEST_CASE("recover", "[recover][expected][expected_value]")
   using namespace fn;
 
   using operand_t = std::expected<int, Error>;
-  constexpr auto fnError = [](Error e) -> int { return e.what.size(); };
-
   using is = static_check::bind_right<recover_t>;
+
+  constexpr auto fnError = [](Error e) -> int { return e.what.size(); };
 
   // lvalue operand
   // --------------
@@ -101,10 +101,10 @@ TEST_CASE("recover", "[recover][expected][expected_void]")
   using namespace fn;
 
   using operand_t = std::expected<void, Error>;
+  using is = static_check::bind_right<recover_t>;
+
   int count = 0;
   auto fnError = [&count](Error) -> void { count += 1; };
-
-  using is = static_check::bind_right<recover_t>;
 
   // lvalue operand
   // --------------
@@ -171,9 +171,9 @@ TEST_CASE("recover", "[recover][optional]")
   using namespace fn;
 
   using operand_t = std::optional<int>;
-  constexpr auto fnError = []() -> int { return 42; };
-
   using is = static_check::bind_right<recover_t>;
+
+  constexpr auto fnError = []() -> int { return 42; };
 
   // lvalue operand
   // --------------

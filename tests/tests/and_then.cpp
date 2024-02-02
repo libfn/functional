@@ -396,9 +396,9 @@ TEST_CASE("and_then", "[and_then][expected][expected_value]")
   using namespace fn;
 
   using operand_t = std::expected<int, Error>;
-  constexpr auto fnValue = [](int i) -> operand_t { return {i + 1}; };
-
   using is = static_check::bind_right<and_then_t>;
+
+  constexpr auto fnValue = [](int i) -> operand_t { return {i + 1}; };
 
   // lvalue operand
   // --------------
@@ -502,13 +502,13 @@ TEST_CASE("and_then", "[and_then][expected][expected_void]")
   using namespace fn;
 
   using operand_t = std::expected<void, Error>;
+  using is = static_check::bind_right<and_then_t>;
+
   int count = 0;
   auto fnValue = [&count]() -> operand_t {
     count += 1;
     return {};
   };
-
-  using is = static_check::bind_right<and_then_t>;
 
   static_assert(monadic_invocable<and_then_t, operand_t, decltype(fnValue)>);
   static_assert(is::invocable<operand_t>([](auto...) -> operand_t { return {}; }));        // allow generic call
@@ -598,9 +598,9 @@ TEST_CASE("and_then", "[and_then][optional]")
   using namespace fn;
 
   using operand_t = std::optional<int>;
-  constexpr auto fnValue = [](int i) -> operand_t { return {i + 1}; };
-
   using is = static_check::bind_right<and_then_t>;
+
+  constexpr auto fnValue = [](int i) -> operand_t { return {i + 1}; };
 
   // lvalue operand
   // --------------
