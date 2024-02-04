@@ -787,34 +787,26 @@ template <typename T> constexpr auto fn_int_const_rvalue = [](int const &&) -> T
 
 } // namespace
 
+// clang-format off
 static_assert(invocable_and_then<decltype(fn_int<std::expected<Value, Error>>), std::expected<int, Error>>);
 static_assert(invocable_and_then<decltype(fn_int<std::expected<void, Error>>), std::expected<int, Error>>);
-static_assert(not invocable_and_then<decltype(fn_int<std::expected<int, Xerror>>),
-                                     std::expected<int, Error>>); // different error_type
-static_assert(not invocable_and_then<decltype(fn_int<std::expected<int, Error>>),
-                                     std::expected<Value, Error>>); // wrong parameter type
+static_assert(not invocable_and_then<decltype(fn_int<std::expected<int, Xerror>>), std::expected<int, Error>>);           // different error_type
+static_assert(not invocable_and_then<decltype(fn_int<std::expected<int, Error>>), std::expected<Value, Error>>);          // wrong parameter type
 static_assert(invocable_and_then<decltype(fn_generic<std::expected<int, Error>>), std::expected<Value, Error>>);
-static_assert(not invocable_and_then<decltype(fn_generic<std::expected<int, Xerror>>),
-                                     std::expected<Value, Error>>); // different error_type
+static_assert(not invocable_and_then<decltype(fn_generic<std::expected<int, Xerror>>), std::expected<Value, Error>>);     // different error_type
 static_assert(invocable_and_then<decltype(fn_generic<std::expected<int, Error>>), std::expected<void, Error>>);
 static_assert(invocable_and_then<decltype(fn_generic<std::expected<void, Error>>), std::expected<void, Error>>);
 static_assert(invocable_and_then<decltype(fn_generic<std::expected<Value, Error>>), std::expected<void, Error>>);
-static_assert(not invocable_and_then<decltype(fn_generic<std::expected<int, Xerror>>),
-                                     std::expected<void, Error>>); // different error_type
-static_assert(not invocable_and_then<decltype(fn_generic<std::expected<void, Xerror>>),
-                                     std::expected<void, Error>>); // different error_type
-static_assert(not invocable_and_then<decltype(fn_generic<std::expected<int, Error>>),
-                                     std::optional<Value>>); // mixed optional and expected
-static_assert(not invocable_and_then<decltype(fn_generic<std::expected<int, Xerror>>),
-                                     std::optional<int>>); // mixed optional and expected
-static_assert(not invocable_and_then<decltype(fn_generic<std::optional<int>>),
-                                     std::expected<Value, Error>>); // mixed optional and expected
+static_assert(not invocable_and_then<decltype(fn_generic<std::expected<int, Xerror>>), std::expected<void, Error>>);      // different error_type
+static_assert(not invocable_and_then<decltype(fn_generic<std::expected<void, Xerror>>), std::expected<void, Error>>);     // different error_type
+static_assert(not invocable_and_then<decltype(fn_generic<std::expected<int, Error>>), std::optional<Value>>);             // mixed optional and expected
+static_assert(not invocable_and_then<decltype(fn_generic<std::expected<int, Xerror>>), std::optional<int>>);              // mixed optional and expected
+static_assert(not invocable_and_then<decltype(fn_generic<std::optional<int>>), std::expected<Value, Error>>);             // mixed optional and expected
 static_assert(invocable_and_then<decltype(fn_generic<std::optional<int>>), std::optional<Value>>);
 static_assert(invocable_and_then<decltype(fn_generic<std::optional<Value>>), std::optional<int>>);
-static_assert(not invocable_and_then<decltype(fn_int_lvalue<std::expected<Value, Error>>),
-                                     std::expected<int, Error>>); // cannot bind temporary to lvalue
+static_assert(not invocable_and_then<decltype(fn_int_lvalue<std::expected<Value, Error>>), std::expected<int, Error>>);   // cannot bind temporary to lvalue
 static_assert(invocable_and_then<decltype(fn_int_lvalue<std::expected<Value, Error>>), std::expected<int, Error> &>);
 static_assert(invocable_and_then<decltype(fn_int_rvalue<std::expected<Value, Error>>), std::expected<int, Error>>);
-static_assert(not invocable_and_then<decltype(fn_int_rvalue<std::expected<Value, Error>>),
-                                     std::expected<int, Error> &>); // cannot bind lvalue to rvalue-ref
+static_assert(not invocable_and_then<decltype(fn_int_rvalue<std::expected<Value, Error>>), std::expected<int, Error> &>); // cannot bind lvalue to rvalue-ref
+// clang-format on
 } // namespace fn
