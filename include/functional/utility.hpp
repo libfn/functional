@@ -27,7 +27,7 @@ template <typename... Ts> struct closure : detail::closure_base<std::index_seque
 template <typename... Ts> struct overload final : Ts... {
   using Ts::operator()...;
 };
-template <typename... Ts> overload(Ts const &...) -> overload<std::remove_const_t<Ts>...>;
+template <typename... Ts> overload(Ts const &...) -> overload<Ts...>;
 } // namespace fn
 
 #endif // INCLUDE_FUNCTIONAL_UTILITY
