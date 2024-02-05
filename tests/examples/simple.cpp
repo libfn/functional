@@ -1,10 +1,11 @@
-// Copyright (c) 2024 Bronek Kozicki
+// Copyright (c) 2024 Bronek Kozicki, Alex Kremer
 //
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
 #include "functional/and_then.hpp"
 #include "functional/fail.hpp"
+#include "functional/filter.hpp"
 #include "functional/fwd.hpp"
 #include "functional/inspect.hpp"
 #include "functional/inspect_error.hpp"
@@ -52,8 +53,8 @@ template <typename Fn> struct ImmovableFn final {
 };
 template <typename Fn> ImmovableFn(Fn &&) -> ImmovableFn<Fn>;
 
-TEST_CASE("Demo expected", "[expected][and_then][transform_error][transform]"
-                           "[inspect][inspect_error][recover][fail][immovable]")
+TEST_CASE("Demo expected",
+          "[expected][and_then][transform_error][transform][inspect][inspect_error][recover][fail][filter][immovable]")
 {
   constexpr auto fn1 = [](char const *str, double &peek) {
     using namespace fn;
@@ -100,9 +101,23 @@ TEST_CASE("Demo expected", "[expected][and_then][transform_error][transform]"
                   | fn::fail([](int) noexcept -> Error { return {"Dummy"}; });
   CHECK(not e1.has_value());
   CHECK(e1.error().what == "Dummy");
+
+  constexpr auto fn2 = [](int v) noexcept -> std::expected<int, Error> {
+    using namespace fn;
+    return std::expected<int, Error>{v}                            //
+           | filter([](int v) noexcept -> bool { return v >= 0; }, //
+                    [](int) noexcept -> Error { return {"Negative"}; });
+  };
+
+  CHECK(fn2(0).value() == 0);
+  CHECK(fn2(42).value() == 42);
+
+  auto const e2 = fn2(-12);
+  CHECK(not e2.has_value());
+  CHECK(e2.error().what == "Negative");
 }
 
-TEST_CASE("Demo optional", "[optional][and_then][or_else][inspect][transform][fail][recover]")
+TEST_CASE("Demo optional", "[optional][and_then][or_else][inspect][transform][fail][filter][recover]")
 {
   constexpr auto fn1 = [](char const *str, int &peek) {
     using namespace fn;
@@ -144,4 +159,14 @@ TEST_CASE("Demo optional", "[optional][and_then][or_else][inspect][transform][fa
                   | fn::fail([](int) noexcept {}) | fn::recover([]() { return -1; });
   CHECK(o1.has_value());
   CHECK(o1.value() == -1);
+
+  constexpr auto fn2 = [](int v) noexcept -> std::optional<int> {
+    using namespace fn;
+    return std::optional<int>{v} //
+           | filter([](int v) noexcept -> bool { return v >= 0; });
+  };
+
+  CHECK(fn2(0).value() == 0);
+  CHECK(fn2(42).value() == 42);
+  CHECK(not fn2(-12).has_value());
 }
