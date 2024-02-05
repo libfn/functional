@@ -24,6 +24,10 @@ template <typename T> constexpr auto apply_const(auto &&v) noexcept -> decltype(
 
 template <typename... Ts> struct closure : detail::closure_base<std::index_sequence_for<Ts...>, Ts...> {};
 
+template <typename... Ts> struct overload final : Ts... {
+  using Ts::operator()...;
+};
+template <typename... Ts> overload(Ts const &...) -> overload<std::remove_const_t<Ts>...>;
 } // namespace fn
 
 #endif // INCLUDE_FUNCTIONAL_UTILITY

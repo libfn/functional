@@ -194,3 +194,69 @@ TEST_CASE("constexpr closure", "[closure][constexpr]")
   static_assert(r2 == 3 + 14);
   SUCCEED();
 }
+
+TEST_CASE("overload", "[overload]")
+{
+  // example use
+  static_assert([](auto &&v) constexpr -> bool {
+    return requires {
+      v();
+      v(1);
+    };
+  }(fn::overload{[](auto...) {}})); // generic
+  static_assert([](auto &&v) constexpr -> bool {
+    return requires {
+      v();
+      v(1);
+    };
+  }(fn::overload{[]() {}, [](auto) {}})); // generic with fixed arity
+  static_assert([](auto &&v) constexpr -> bool {
+    return requires {
+      v();
+      v(1);
+    };
+  }(fn::overload{[]() {}, [](int) {}})); // fixed type
+  static_assert([](auto &&v) constexpr -> bool {
+    return requires {
+      v();
+      v(1);
+    };
+  }(fn::overload{[]() {}, [](bool) {}})); // built-in conversion
+  static_assert([](auto &&v) constexpr -> bool {
+    return requires {
+      v();
+      v(1);
+    };
+  }(fn::overload{[]() -> void {}, [](int i) -> std::string { return std::to_string(i); }})); // different return types
+
+  static_assert(not [](auto &&v) constexpr->bool {
+    return requires {
+      v();
+      v(1);
+    };
+  }(fn::overload{[]() {}})); // missing int overload
+  static_assert(not [](auto &&v) constexpr->bool {
+    return requires {
+      v();
+      v(1);
+    };
+  }(fn::overload{[](int) {}})); // missing void overload
+
+  struct A {
+    constexpr auto operator()(int i) const noexcept -> int { return i + 1; }
+  };
+
+  // check template deduction guides
+  static_assert(std::same_as<decltype(fn::overload{std::declval<A>()}), fn::overload<A>>);
+  static_assert(std::same_as<decltype(fn::overload{std::declval<A &>()}), fn::overload<A>>);
+  static_assert(std::same_as<decltype(fn::overload{std::declval<A &&>()}), fn::overload<A>>);
+  static_assert(std::same_as<decltype(fn::overload{std::declval<A const>()}), fn::overload<A>>);
+  static_assert(std::same_as<decltype(fn::overload{std::declval<A const &>()}), fn::overload<A>>);
+  static_assert(std::same_as<decltype(fn::overload{std::declval<A const &&>()}), fn::overload<A>>);
+
+  A a1 = {};
+  CHECK(fn::overload{a1}(1) == 2);
+  constexpr A a2 = {};
+  static_assert(fn::overload{a2}(2) == 3);
+  static_assert(fn::overload{A{}}(3) == 4);
+}
