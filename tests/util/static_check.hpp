@@ -6,7 +6,7 @@
 #ifndef TESTS_UTIL_STATIC_CHECK
 #define TESTS_UTIL_STATIC_CHECK
 
-#include "functional/detail/concepts.hpp"
+#include "functional/concepts.hpp"
 #include "functional/functor.hpp"
 
 namespace util {
