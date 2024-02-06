@@ -9,8 +9,6 @@
 
 #include <catch2/catch_all.hpp>
 
-#include <expected>
-#include <optional>
 #include <string>
 #include <utility>
 
@@ -33,7 +31,7 @@ TEST_CASE("filter", "[filter][expected][expected_value]")
   constexpr auto onError = [](int v) { return Error{"Got " + std::to_string(v)}; };
   constexpr auto wrong = [](int) -> Error { throw 0; };
 
-  using operand_t = std::expected<int, Error>;
+  using operand_t = fn::expected<int, Error>;
   using p_is = static_check<filter_t, operand_t>::bind_right<decltype(onError)>;
   using e_is = static_check<filter_t, operand_t>::bind_left<decltype(truePred)>;
 
@@ -143,7 +141,7 @@ TEST_CASE("filter member function", "[filter][expected][expected_value][member_f
   constexpr auto onError = &Value::error;
   constexpr auto wrong = [](Value) -> Error { throw 0; };
 
-  using operand_t = std::expected<Value, Error>;
+  using operand_t = fn::expected<Value, Error>;
   using p_is = static_check<filter_t, operand_t>::bind_right<decltype(onError)>;
   using e_is = static_check<filter_t, operand_t>::bind_left<decltype(predicate)>;
 
@@ -246,7 +244,7 @@ TEST_CASE("filter", "[filter][expected][expected_void]")
   constexpr auto onError = [] { return Error{"Got error"}; };
   constexpr auto wrong = []() -> Error { throw 0; };
 
-  using operand_t = std::expected<void, Error>;
+  using operand_t = fn::expected<void, Error>;
   using p_is = static_check<filter_t, operand_t>::bind_right<decltype(onError)>;
   using e_is = static_check<filter_t, operand_t>::bind_left<decltype(truePred)>;
 
@@ -329,7 +327,7 @@ TEST_CASE("filter", "[filter][optional]")
   constexpr auto truePred = [](int) { return true; };
   constexpr auto falsePred = [](int) { return false; };
 
-  using operand_t = std::optional<int>;
+  using operand_t = fn::optional<int>;
   using is = static_check<filter_t, operand_t>::bind;
 
   static_assert(is::invocable_with_any(truePred));
@@ -405,7 +403,7 @@ TEST_CASE("filter member function", "[filter][optional]")
 
   constexpr auto predicate = &Value::ok;
 
-  using operand_t = std::optional<Value>;
+  using operand_t = fn::optional<Value>;
   using is = static_check<filter_t, operand_t>::bind;
 
   static_assert(is::invocable_with_any(predicate));
@@ -477,7 +475,7 @@ TEST_CASE("filter member function", "[filter][optional]")
 TEST_CASE("constexpr filter expected", "[filter][constexpr][expected]")
 {
   enum class Error { ThresholdExceeded, SomethingElse };
-  using T = std::expected<int, Error>;
+  using T = fn::expected<int, Error>;
 
   constexpr auto fn = [](int i) constexpr noexcept -> bool { return i < 3; };
   constexpr auto error = [](int) -> Error { return Error::ThresholdExceeded; };
@@ -491,7 +489,7 @@ TEST_CASE("constexpr filter expected", "[filter][constexpr][expected]")
 
 TEST_CASE("constexpr filter optional", "[filter][constexpr][optional]")
 {
-  using T = std::optional<int>;
+  using T = fn::optional<int>;
 
   constexpr auto fn = [](int i) constexpr noexcept -> bool { return i < 3; };
   constexpr auto r1 = T{0} | fn::filter(fn);

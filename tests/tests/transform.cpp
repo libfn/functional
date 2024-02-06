@@ -10,8 +10,6 @@
 
 #include <catch2/catch_all.hpp>
 
-#include <expected>
-#include <optional>
 #include <string>
 #include <utility>
 
@@ -31,7 +29,7 @@ TEST_CASE("transform", "[transform][expected][expected_value]")
 {
   using namespace fn;
 
-  using operand_t = std::expected<int, Error>;
+  using operand_t = fn::expected<int, Error>;
   using is = static_check<transform_t, operand_t>::bind;
 
   constexpr auto fnValue = [](int i) -> int { return i + 1; };
@@ -65,7 +63,7 @@ TEST_CASE("transform", "[transform][expected][expected_value]")
       WHEN("change type")
       {
         using T = decltype(a | transform(fnXabs));
-        static_assert(std::is_same_v<T, std::expected<Xint, Error>>);
+        static_assert(std::is_same_v<T, fn::expected<Xint, Error>>);
         REQUIRE((a | transform(fnXabs)).value().value == 4);
       }
     }
@@ -93,7 +91,7 @@ TEST_CASE("transform", "[transform][expected][expected_value]")
       WHEN("change type")
       {
         using T = decltype(operand_t{std::in_place, 12} | transform(fnXabs));
-        static_assert(std::is_same_v<T, std::expected<Xint, Error>>);
+        static_assert(std::is_same_v<T, fn::expected<Xint, Error>>);
         REQUIRE((operand_t{std::in_place, 12} | transform(fnXabs)).value().value == 4);
       }
     }
@@ -114,7 +112,7 @@ TEST_CASE("transform", "[transform][expected][expected_void]")
 {
   using namespace fn;
 
-  using operand_t = std::expected<void, Error>;
+  using operand_t = fn::expected<void, Error>;
   using is = static_check<transform_t, operand_t>::bind;
 
   int count = 0;
@@ -141,7 +139,7 @@ TEST_CASE("transform", "[transform][expected][expected_void]")
       WHEN("change type")
       {
         using T = decltype(a | transform(fnXabs));
-        static_assert(std::is_same_v<T, std::expected<Xint, Error>>);
+        static_assert(std::is_same_v<T, fn::expected<Xint, Error>>);
         REQUIRE((a | transform(fnXabs)).value().value == 42);
       }
     }
@@ -170,7 +168,7 @@ TEST_CASE("transform", "[transform][expected][expected_void]")
       WHEN("change type")
       {
         using T = decltype(operand_t{std::in_place} | transform(fnXabs));
-        static_assert(std::is_same_v<T, std::expected<Xint, Error>>);
+        static_assert(std::is_same_v<T, fn::expected<Xint, Error>>);
         REQUIRE((operand_t{std::in_place} | transform(fnXabs)).value().value == 42);
       }
     }
@@ -191,7 +189,7 @@ TEST_CASE("transform", "[transform][optional]")
 {
   using namespace fn;
 
-  using operand_t = std::optional<int>;
+  using operand_t = fn::optional<int>;
   using is = static_check<transform_t, operand_t>::bind;
 
   constexpr auto fnValue = [](int i) -> int { return i + 1; };
@@ -225,7 +223,7 @@ TEST_CASE("transform", "[transform][optional]")
       WHEN("change type")
       {
         using T = decltype(a | transform(fnXabs));
-        static_assert(std::is_same_v<T, std::optional<Xint>>);
+        static_assert(std::is_same_v<T, fn::optional<Xint>>);
         REQUIRE((a | transform(fnXabs)).value().value == 4);
       }
     }
@@ -249,7 +247,7 @@ TEST_CASE("transform", "[transform][optional]")
       WHEN("change type")
       {
         using T = decltype(operand_t{12} | transform(fnXabs));
-        static_assert(std::is_same_v<T, std::optional<Xint>>);
+        static_assert(std::is_same_v<T, fn::optional<Xint>>);
         REQUIRE((operand_t{12} | transform(fnXabs)).value().value == 4);
       }
     }
@@ -267,7 +265,7 @@ TEST_CASE("transform", "[transform][optional]")
 TEST_CASE("constexpr transform expected", "[transform][constexpr][expected]")
 {
   enum class Error { ThresholdExceeded, SomethingElse };
-  using T = std::expected<int, Error>;
+  using T = fn::expected<int, Error>;
 
   WHEN("same value type")
   {
@@ -292,7 +290,7 @@ TEST_CASE("constexpr transform expected", "[transform][constexpr][expected]")
       return false;
     };
     constexpr auto r1 = T{1} | fn::transform(fn);
-    static_assert(std::is_same_v<decltype(r1), std::expected<bool, Error> const>);
+    static_assert(std::is_same_v<decltype(r1), fn::expected<bool, Error> const>);
     static_assert(r1.value() == true);
     constexpr auto r2 = T{0} | fn::transform(fn);
     static_assert(r2.value() == false);
@@ -307,7 +305,7 @@ TEST_CASE("constexpr transform expected", "[transform][constexpr][expected]")
 
 TEST_CASE("constexpr transform optional", "[transform][constexpr][optional]")
 {
-  using T = std::optional<int>;
+  using T = fn::optional<int>;
 
   WHEN("same value type")
   {
@@ -332,7 +330,7 @@ TEST_CASE("constexpr transform optional", "[transform][constexpr][optional]")
       return false;
     };
     constexpr auto r1 = T{1} | fn::transform(fn1);
-    static_assert(std::is_same_v<decltype(r1), std::optional<bool> const>);
+    static_assert(std::is_same_v<decltype(r1), fn::optional<bool> const>);
     static_assert(r1.value() == true);
     constexpr auto r2 = T{0} | fn::transform(fn1);
     static_assert(r2.value() == false);

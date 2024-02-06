@@ -12,7 +12,6 @@
 #include "functional/utility.hpp"
 
 #include <concepts>
-#include <expected>
 #include <utility>
 
 namespace fn {

@@ -10,8 +10,6 @@
 
 #include <catch2/catch_all.hpp>
 
-#include <expected>
-#include <optional>
 #include <string>
 #include <utility>
 
@@ -33,7 +31,7 @@ TEST_CASE("transform_error", "[transform_error][expected]")
 {
   using namespace fn;
 
-  using operand_t = std::expected<int, Error>;
+  using operand_t = fn::expected<int, Error>;
   using is = static_check<transform_error_t, operand_t>::bind;
 
   constexpr auto fnError = [](Error v) -> Error { return {"Got: " + v.what}; };
@@ -78,7 +76,7 @@ TEST_CASE("transform_error", "[transform_error][expected]")
       WHEN("change type")
       {
         using T = decltype(a | transform_error(fnXerror));
-        static_assert(std::is_same_v<T, std::expected<int, Xerror>>);
+        static_assert(std::is_same_v<T, fn::expected<int, Xerror>>);
         REQUIRE((a | transform_error(fnXerror)).error().value == 8);
       }
     }
@@ -105,7 +103,7 @@ TEST_CASE("transform_error", "[transform_error][expected]")
       WHEN("change type")
       {
         using T = decltype(operand_t{std::unexpect, "Not good"} | transform_error(fnXerror));
-        static_assert(std::is_same_v<T, std::expected<int, Xerror>>);
+        static_assert(std::is_same_v<T, fn::expected<int, Xerror>>);
         REQUIRE((operand_t{std::unexpect, "Not good"} | transform_error(fnXerror)).error().value == 8);
       }
     }
@@ -116,7 +114,7 @@ TEST_CASE("transform_error", "[transform_error][optional]")
 {
   using namespace fn;
 
-  using operand_t = std::optional<int>;
+  using operand_t = fn::optional<int>;
   constexpr auto fnError = [](auto...) {};
 
   // That's all testing needed. Cannot use tranform_error with optional, since
@@ -127,7 +125,7 @@ TEST_CASE("transform_error", "[transform_error][optional]")
 TEST_CASE("constexpr transform_error expected", "[transform_error][constexpr][expected]")
 {
   enum class Error { ThresholdExceeded, SomethingElse, Unknown };
-  using T = std::expected<int, Error>;
+  using T = fn::expected<int, Error>;
 
   WHEN("same error type")
   {
@@ -154,7 +152,7 @@ TEST_CASE("constexpr transform_error expected", "[transform_error][constexpr][ex
     };
     constexpr auto fn = [](Error) constexpr noexcept -> UnrecoverableError { return {}; };
     constexpr auto r1 = T{0} | fn::transform_error(fn);
-    static_assert(std::is_same_v<decltype(r1), std::expected<int, UnrecoverableError> const>);
+    static_assert(std::is_same_v<decltype(r1), fn::expected<int, UnrecoverableError> const>);
     static_assert(r1.value() == 0);
     constexpr auto r2 = T{std::unexpect, Error::ThresholdExceeded} | fn::transform_error(fn);
     static_assert(r2.error() == UnrecoverableError{});

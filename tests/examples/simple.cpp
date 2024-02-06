@@ -59,7 +59,7 @@ TEST_CASE("Demo expected",
   constexpr auto fn1 = [](char const *str, double &peek) {
     using namespace fn;
 
-    constexpr auto parse = [](char const *str) noexcept -> std::expected<int, Error> {
+    constexpr auto parse = [](char const *str) noexcept -> fn::expected<int, Error> {
       int tmp = {};
       char const *end = str + std::strlen(str);
       if (std::from_chars(str, end, tmp).ptr == end) {
@@ -70,7 +70,7 @@ TEST_CASE("Demo expected",
 
     // Immovable operations must be captured as lvalues, and functor will store
     // reference to them rather than make a copy
-    constexpr auto fn1 = [j = ImmovableValue{-1}](int i) noexcept -> std::expected<double, Error> {
+    constexpr auto fn1 = [j = ImmovableValue{-1}](int i) noexcept -> fn::expected<double, Error> {
       if (i < j.value) {
         return std::unexpected<Error>{"Too small"};
       }
@@ -97,14 +97,14 @@ TEST_CASE("Demo expected",
   CHECK(fn1("-3", d) == -13);
   CHECK(d == 0);
 
-  auto const e1 = std::expected<int, Error>{0} //
+  auto const e1 = fn::expected<int, Error>{0} //
                   | fn::fail([](int) noexcept -> Error { return {"Dummy"}; });
   CHECK(not e1.has_value());
   CHECK(e1.error().what == "Dummy");
 
-  constexpr auto fn2 = [](int v) noexcept -> std::expected<int, Error> {
+  constexpr auto fn2 = [](int v) noexcept -> fn::expected<int, Error> {
     using namespace fn;
-    return std::expected<int, Error>{v}                            //
+    return fn::expected<int, Error>{v}                             //
            | filter([](int v) noexcept -> bool { return v >= 0; }, //
                     [](int) noexcept -> Error { return {"Negative"}; });
   };
@@ -122,7 +122,7 @@ TEST_CASE("Demo optional", "[optional][and_then][or_else][inspect][transform][fa
   constexpr auto fn1 = [](char const *str, int &peek) {
     using namespace fn;
 
-    constexpr auto parse = [](char const *str) noexcept -> std::optional<int> {
+    constexpr auto parse = [](char const *str) noexcept -> fn::optional<int> {
       int tmp = {};
       char const *end = str + std::strlen(str);
       if (std::from_chars(str, end, tmp).ptr == end) {
@@ -132,7 +132,7 @@ TEST_CASE("Demo optional", "[optional][and_then][or_else][inspect][transform][fa
     };
 
     return (parse(str) //
-            | and_then([](int i) noexcept -> std::optional<int> {
+            | and_then([](int i) noexcept -> fn::optional<int> {
                 if (i > 0) {
                   return {i};
                 }
@@ -140,7 +140,7 @@ TEST_CASE("Demo optional", "[optional][and_then][or_else][inspect][transform][fa
               })
             | inspect([&peek](int d) noexcept -> void { peek = d; })
             | inspect_error([&peek]() noexcept -> void { peek = 0; })
-            | or_else([]() noexcept -> std::optional<int> { return -13; })
+            | or_else([]() noexcept -> fn::optional<int> { return -13; })
             | transform([](int i) noexcept -> double { return i + 0.5; })
             //
             )
@@ -155,14 +155,14 @@ TEST_CASE("Demo optional", "[optional][and_then][or_else][inspect][transform][fa
   CHECK(fn1("-2", i) == -12.5);
   CHECK(i == 0);
 
-  auto const o1 = std::optional<int>{0} //
+  auto const o1 = fn::optional<int>{0} //
                   | fn::fail([](int) noexcept {}) | fn::recover([]() { return -1; });
   CHECK(o1.has_value());
   CHECK(o1.value() == -1);
 
-  constexpr auto fn2 = [](int v) noexcept -> std::optional<int> {
+  constexpr auto fn2 = [](int v) noexcept -> fn::optional<int> {
     using namespace fn;
-    return std::optional<int>{v} //
+    return fn::optional<int>{v} //
            | filter([](int v) noexcept -> bool { return v >= 0; });
   };
 
