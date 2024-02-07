@@ -7,7 +7,6 @@
 #define INCLUDE_FUNCTIONAL_FUNCTOR
 
 #include "functional/concepts.hpp"
-#include "functional/detail/closure.hpp"
 #include "functional/utility.hpp"
 
 #include <concepts>
@@ -23,7 +22,7 @@ template <typename Functor, typename... Args> struct functor final {
   using functor_type = Functor;
   using functor_apply = typename functor_type::apply;
   static constexpr unsigned size = sizeof...(Args);
-  using data_t = closure<as_value_t<Args>...>;
+  using data_t = pack<as_value_t<Args>...>;
   data_t data;
 
   static_assert(sizeof...(Args) > 0); // NOTE Consider relaxing
@@ -34,7 +33,7 @@ template <typename Functor, typename... Args> struct functor final {
     requires std::same_as<std::remove_cvref_t<decltype(self)>, functor>
              && monadic_invocable<functor_type, decltype(v), Args...>
   {
-    return data_t::invoke(FWD(self).data, functor_apply{}, FWD(v));
+    return FWD(self).data.invoke(functor_apply{}, FWD(v));
   }
 };
 

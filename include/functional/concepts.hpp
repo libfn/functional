@@ -7,10 +7,12 @@
 #define INCLUDE_FUNCTIONAL_CONCEPTS
 
 #include "functional/detail/concepts.hpp"
+#include "functional/utility.hpp"
 
 #include <concepts>
 #include <expected>
 #include <functional>
+#include <optional>
 #include <type_traits>
 
 namespace fn {
