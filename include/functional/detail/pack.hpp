@@ -32,6 +32,14 @@ template <std::size_t... Is, typename... Ts> struct pack_base<std::index_sequenc
     return std::invoke(FWD(fn), FWD(args)...,
                        static_cast<apply_const_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)...);
   }
+
+  template <typename T, typename Self>
+  static constexpr auto _append(Self &&self, auto &&...args) noexcept
+      -> pack_base<std::index_sequence<Is..., size()>, Ts..., T>
+    requires std::is_constructible_v<T, decltype(args)...>
+  {
+    return {static_cast<apply_const_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., T{FWD(args)...}};
+  }
 };
 
 } // namespace fn::detail

@@ -71,13 +71,16 @@ static_assert(std::is_same_v<decltype(apply_const<float const &&>(std::declval<i
 // clang-format on
 } // namespace fn
 
+namespace {
+struct A final {
+  int v = 0;
+};
+} // namespace
+
 TEST_CASE("pack", "[pack]")
 {
   using fn::pack;
 
-  struct A final {
-    int v = 0;
-  };
   using T = pack<int, int const, int &, int const &>;
   int val1 = 15;
   int const val2 = 92;
@@ -128,6 +131,79 @@ TEST_CASE("pack", "[pack]")
   static_assert(std::is_same_v<decltype(v.invoke(fn3, std::move(a))), A>);
 
   static_assert(pack<>{}.size() == 0);
+}
+
+TEST_CASE("append value categories", "[pack][append]")
+{
+  using fn::pack;
+
+  struct B {
+    constexpr explicit B(int i) : v(i) {}
+    constexpr B(int i, int j) : v(i * j) {}
+
+    int v = 0;
+  };
+
+  struct C final : B {
+    constexpr C() : B(30) {}
+  };
+
+  using T = pack<int, std::string_view, A>;
+  T s{12, "bar", 42};
+
+  static_assert(T::size() == 3);
+  constexpr auto check = [](int i, std::string_view s, A a, B const &b) noexcept -> bool {
+    return i == 12 && s == std::string("bar") && a.v == 42 && b.v == 30;
+  };
+
+  WHEN("explicit type selection")
+  {
+    static_assert(std::same_as<decltype(s.append(fn::type<B>(), 5, 6)), T::append_type<B>>);
+    static_assert(std::same_as<T::append_type<B>, pack<int, std::string_view, A, B>>);
+    static_assert(decltype(s.append(fn::type<B>(), 5, 6))::size() == 4);
+
+    constexpr C c1{};
+    static_assert(std::same_as<decltype(s.append(fn::type<B const &>(), c1)), T::append_type<B const &>>);
+    static_assert(std::same_as<T::append_type<B const &>, pack<int, std::string_view, A, B const &>>);
+
+    C c2{};
+    static_assert(std::same_as<decltype(s.append(fn::type<B &>(), c2)), T::append_type<B &>>);
+    static_assert(std::same_as<T::append_type<B &>, pack<int, std::string_view, A, B &>>);
+
+    WHEN("constructor takes parameters")
+    {
+      CHECK(s.append(fn::type<B>(), 5, 6).invoke(check));
+      CHECK(std::as_const(s).append(fn::type<B>(), 5, 6).invoke(check));
+      CHECK(T{12, "bar", 42}.append(fn::type<B>(), 5, 6).invoke(check));
+      CHECK(std::move(std::as_const(s)).append(fn::type<B>(), 5, 6).invoke(check));
+    }
+
+    WHEN("default constructor")
+    {
+      CHECK(s.append(fn::type<C>()).invoke(check));
+      CHECK(std::as_const(s).append(fn::type<C>()).invoke(check));
+      CHECK(T{12, "bar", 42}.append(fn::type<C>()).invoke(check));
+      CHECK(std::move(std::as_const(s)).append(fn::type<C>()).invoke(check));
+    }
+  }
+
+  WHEN("deduced type")
+  {
+    static_assert(std::same_as<decltype(s.append(B{5, 6})), T::append_type<B>>);
+
+    constexpr C c1{};
+    static_assert(std::same_as<decltype(s.append(c1)), T::append_type<C const &>>);
+    static_assert(std::same_as<T::append_type<C const &>, pack<int, std::string_view, A, C const &>>);
+
+    C c2{};
+    static_assert(std::same_as<decltype(s.append(c2)), T::append_type<C &>>);
+    static_assert(std::same_as<T::append_type<C &>, pack<int, std::string_view, A, C &>>);
+
+    CHECK(s.append(B{30}).invoke(check));
+    CHECK(std::as_const(s).append(B{30}).invoke(check));
+    CHECK(T{12, "bar", 42}.append(B{30}).invoke(check));
+    CHECK(std::move(std::as_const(s)).append(B{30}).invoke(check));
+  }
 }
 
 TEST_CASE("pack with immovable data", "[pack][immovable]")
