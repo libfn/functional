@@ -1,10 +1,12 @@
-// Copyright (c) 2024 Bronek Kozicki
+// Copyright (c) 2024 Bronek Kozicki, Alex Kremer
 //
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#include "functional/inspect_error.hpp"
+#include "static_check.hpp"
+
 #include "functional/functor.hpp"
+#include "functional/inspect_error.hpp"
 
 #include <catch2/catch_all.hpp>
 
@@ -14,13 +16,14 @@
 #include <string_view>
 #include <utility>
 
+using namespace util;
+
 namespace {
 struct Error final {
   std::string what;
   static int count;
 
   operator std::string_view() const { return what; }
-
   auto finalize() const & -> void { count += what.size(); }
 };
 
@@ -30,46 +33,24 @@ int Error::count = 0;
 TEST_CASE("inspect_error expected", "[inspect_error][expected]")
 {
   using namespace fn;
-
   using operand_t = std::expected<int, Error>;
+  using is = static_check<inspect_error_t, operand_t>::bind;
+
   std::string error = {};
   auto fnError = [&error](auto v) -> void { error = v; };
-
-  static_assert(monadic_invocable<inspect_error_t, operand_t, decltype(fnError)>);
-  static_assert([](auto &&fn) constexpr -> bool {
-    return monadic_invocable<inspect_error_t, operand_t, decltype(fn)>;
-  }([](auto...) -> void { throw 0; })); // allow generic call
-  static_assert([](auto &&fn) constexpr -> bool {
-    return monadic_invocable<inspect_error_t, operand_t, decltype(fn)>;
-  }([](std::string_view) -> void {})); // allow conversions
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return monadic_invocable<inspect_error_t, operand_t, decltype(fn)>;
-  }([](std::string_view) -> int { return 0; })); // wrong return type
-  static_assert([](auto &&fn) constexpr -> bool {
-    return monadic_invocable<inspect_error_t, operand_t &&, decltype(fn)>;
-  }([](Error) -> void {})); // allow copy from rvalue
-  static_assert([](auto &&fn) constexpr -> bool {
-    return monadic_invocable<inspect_error_t, operand_t &&, decltype(fn)>;
-  }([](Error const &) -> void {})); // allow binding to const lvalue
-
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return monadic_invocable<inspect_error_t, operand_t &&, decltype(fn)>;
-  }([](Error &&) -> void {})); // disallow move
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return monadic_invocable<inspect_error_t, operand_t, decltype(fn)>;
-  }([](Error &) -> void {})); // disallow removing const
-
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return monadic_invocable<inspect_error_t, operand_t, decltype(fn)>;
-  }([](std::in_place_t) -> void {})); // wrong type
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return monadic_invocable<inspect_error_t, operand_t, decltype(fn)>;
-  }([]() -> void {})); // wrong arity
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return monadic_invocable<inspect_error_t, operand_t, decltype(fn)>;
-  }([](auto, auto) -> operand_t { throw 0; })); // wrong arity
-
   constexpr auto wrong = [](auto) -> void { throw 0; };
+
+  static_assert(is::invocable_with_any(fnError));
+  static_assert(is::invocable_with_any([](auto...) -> void { throw 0; }));             // allow generic call
+  static_assert(is::invocable_with_any([](Error) -> void { throw 0; }));               // allow copy
+  static_assert(is::invocable_with_any([](std::string_view) -> void { throw 0; }));    // allow conversion
+  static_assert(is::invocable_with_any([](Error const &) -> void { throw 0; }));       // binds to const ref
+  static_assert(is::not_invocable_with_any([](Error &) -> void { throw 0; }));         // cannot bind lvalue
+  static_assert(is::not_invocable_with_any([](Error &&) -> void { throw 0; }));        // cannot move
+  static_assert(is::not_invocable_with_any([](std::string_view) -> int { throw 0; })); // bad return type
+  static_assert(is::not_invocable_with_any([](std::in_place_t) -> void { throw 0; })); // bad type
+  static_assert(is::not_invocable_with_any([]() -> void { throw 0; }));                // bad arity
+  static_assert(is::not_invocable_with_any([](Error, int) -> void { throw 0; }));      // bad arity
 
   WHEN("operand is lvalue")
   {
@@ -146,19 +127,16 @@ TEST_CASE("inspect_error optional", "[inspect_error][optional]")
   using namespace fn;
 
   using operand_t = std::optional<int>;
+  using is = static_check<inspect_error_t, operand_t>::bind;
+
   int error = 0;
   auto fnError = [&error]() -> void { error += 1; };
-
-  static_assert(monadic_invocable<inspect_error_t, operand_t, decltype(fnError)>);
-  static_assert([](auto &&fn) constexpr -> bool {
-    return monadic_invocable<inspect_error_t, operand_t, decltype(fn)>;
-  }([](auto...) -> void { throw 0; })); // allow generic call
-
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return monadic_invocable<inspect_error_t, operand_t, decltype(fn)>;
-  }([](auto) -> void {})); // wrong arity
-
   constexpr auto wrong = [](auto...) -> void { throw 0; };
+
+  static_assert(is::invocable_with_any(fnError));
+  static_assert(is::invocable_with_any([](auto...) -> void { throw 0; }));        // allow generic call
+  static_assert(is::not_invocable_with_any([](auto) -> void { throw 0; }));       // bad arity
+  static_assert(is::not_invocable_with_any([](auto, auto) -> void { throw 0; })); // bad arity
 
   WHEN("operand is lvalue")
   {
@@ -231,9 +209,7 @@ struct Xerror final : Error {};
 struct Value final {};
 
 template <typename T> constexpr auto fn_int = [](int) -> T { throw 0; };
-
 template <typename T> constexpr auto fn_Error = [](Error) -> T { throw 0; };
-
 template <typename T> constexpr auto fn_generic = [](auto &&...) -> T { throw 0; };
 
 constexpr auto fn_int_lvalue = [](int &) {};
@@ -242,16 +218,15 @@ constexpr auto fn_int_rvalue = [](int &&) {};
 constexpr auto fn_int_const_rvalue = [](int const &&) {};
 } // namespace
 
-// clang-format off
 static_assert(invocable_inspect_error<decltype(fn_Error<void>), std::expected<int, Error>>);
 static_assert(invocable_inspect_error<decltype(fn_generic<void>), std::expected<void, Error>>);
 static_assert(invocable_inspect_error<decltype(fn_int<void>), std::expected<void, int>>);
-static_assert(not invocable_inspect_error<decltype(fn_int<int>), std::expected<void, int>>); // wrong return type
+static_assert(not invocable_inspect_error<decltype(fn_int<int>), std::expected<void, int>>);    // wrong return type
 static_assert(not invocable_inspect_error<decltype(fn_int<void>), std::expected<void, Error>>); // wrong parameter type
-static_assert(invocable_inspect_error<decltype(fn_Error<void>), std::expected<void, Xerror>>); // parameter type conversion
+static_assert(
+    invocable_inspect_error<decltype(fn_Error<void>), std::expected<void, Xerror>>); // parameter type conversion
 static_assert(invocable_inspect_error<decltype(fn_generic<void>), std::expected<Value, Error>>);
 static_assert(not invocable_inspect_error<decltype(fn_int<void>), std::expected<Value, Error>>); // wrong parameter type
-
 static_assert(invocable_inspect_error<decltype(fn_generic<void>), std::optional<int>>);
 static_assert(not invocable_inspect_error<decltype(fn_generic<int>), std::optional<Value>>); // wrong return type
 
@@ -265,10 +240,10 @@ static_assert(invocable_inspect_error<decltype(fn_int_const_lvalue), std::expect
 
 // cannot bind const to non-const lvalue-ref
 static_assert(not invocable_inspect_error<decltype(fn_int_lvalue), std::expected<void, int>>);
+
 // cannot bind lvalue to const rvalue-ref
 static_assert(not invocable_inspect_error<decltype(fn_int_const_rvalue), std::expected<void, int>>);
+
 // cannot bind lvalue to rvalue-ref
 static_assert(not invocable_inspect_error<decltype(fn_int_rvalue), std::expected<void, int>>);
-
-// clang-format on
 } // namespace fn

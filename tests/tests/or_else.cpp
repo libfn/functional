@@ -1,10 +1,12 @@
-// Copyright (c) 2024 Bronek Kozicki
+// Copyright (c) 2024 Bronek Kozicki, Alex Kremer
 //
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#include "functional/or_else.hpp"
+#include "static_check.hpp"
+
 #include "functional/functor.hpp"
+#include "functional/or_else.hpp"
 
 #include <catch2/catch_all.hpp>
 
@@ -15,13 +17,14 @@
 #include <string_view>
 #include <utility>
 
+using namespace util;
+
 namespace {
 struct Error final {
   std::string what;
   static int count;
 
   operator std::string_view() const { return what; }
-
   template <typename T> auto fn() noexcept -> T { return {what.size()}; }
   template <typename T> auto finalize() noexcept -> T
   {
@@ -41,50 +44,33 @@ TEST_CASE("or_else", "[or_else][expected][expected_value]")
   using namespace fn;
 
   using operand_t = std::expected<int, Error>;
+  using operand_other_t = std::expected<void, Error>;
+  using is = static_check<or_else_t, operand_t>::bind;
+
   constexpr auto fnError = [](Error e) -> operand_t { return {e.what.size()}; };
   constexpr auto fnXerror
       = [](Error e) -> std::expected<int, Xerror> { return std::unexpected<Xerror>{"Was: " + e.what}; };
-
-  static_assert(monadic_invocable<or_else_t, operand_t, decltype(fnError)>);
-  static_assert(monadic_invocable<or_else_t, operand_t,
-                                  decltype(fnXerror)>); // allow error type transformation
-  static_assert([](auto &&fn) constexpr -> bool {
-    return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
-  }([](auto...) -> operand_t { throw 0; })); // allow generic call
-  static_assert([](auto &&fn) constexpr -> bool {
-    return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
-  }([](std::string_view) -> operand_t { throw 0; })); // allow conversion
-  static_assert([](auto &&fn) constexpr -> bool {
-    return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
-  }([](Error &&) -> operand_t { throw 0; })); // alow move from rvalue
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return monadic_invocable<or_else_t, operand_t const, decltype(fn)>;
-  }([](Error &&) -> operand_t { throw 0; })); // disallow removing const
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return monadic_invocable<or_else_t, operand_t &, decltype(fn)>;
-  }([](Error &&) -> operand_t { throw 0; })); // disallow move from lvalue
-  static_assert([](auto &&fn) constexpr -> bool {
-    return monadic_invocable<or_else_t, operand_t &, decltype(fn)>;
-  }([](Error &) -> operand_t { throw 0; })); // allow lvalue binding
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return monadic_invocable<or_else_t, operand_t const &, decltype(fn)>;
-  }([](Error &) -> operand_t { throw 0; })); // disallow removing const
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
-  }([](Error &) -> operand_t { throw 0; })); // disallow lvalue binding to rvalue
-
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
-  }([](int) {})); // wrong type
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
-  }([]() {})); // wrong arity
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
-  }([](int, int) {})); // wrong arity
-
   constexpr auto wrong = [](Error) -> operand_t { throw 0; };
   constexpr auto fnFail = [](Error v) -> operand_t { return std::unexpected<Error>("Got: " + v.what); };
+
+  static_assert(is::invocable_with_any(fnError));
+  static_assert(is::invocable_with_any(fnXerror));
+  static_assert(is::invocable_with_any([](auto...) -> operand_t { throw 0; }));                // allow generic call
+  static_assert(is::invocable_with_any([](Error) -> operand_t { throw 0; }));                  // allow copy
+  static_assert(is::invocable_with_any([](std::string_view) -> operand_t { throw 0; }));       // allow conversion
+  static_assert(is::invocable_with_any([](Error const &) -> operand_t { throw 0; }));          // binds to const ref
+  static_assert(is::invocable<lvalue>([](Error &) -> operand_t { throw 0; }));                 // binds to lvalue
+  static_assert(is::invocable<rvalue, prvalue>([](Error &&) -> operand_t { throw 0; }));       // can move
+  static_assert(is::invocable<rvalue, crvalue>([](Error const &&) -> operand_t { throw 0; })); // binds to const rvalue
+  static_assert(is::not_invocable_with_any([](Error) -> operand_other_t { throw 0; }));        // disallow conversion
+  static_assert(
+      is::not_invocable<clvalue, crvalue, cvalue>([](Error &) -> operand_t { throw 0; })); // cannot remove const
+  static_assert(is::not_invocable<rvalue>([](Error &) -> operand_t { throw 0; }));         // disallow bind
+  static_assert(
+      is::not_invocable<lvalue, clvalue, crvalue, cvalue>([](Error &&) -> operand_t { throw 0; })); // cannot move
+  static_assert(is::not_invocable_with_any([](std::string) -> operand_t { throw 0; }));             // bad type
+  static_assert(is::not_invocable_with_any([]() -> operand_t { throw 0; }));                        // bad arity
+  static_assert(is::not_invocable_with_any([](Error, int) -> operand_t { throw 0; }));              // bad arity
 
   WHEN("operand is lvalue")
   {
@@ -175,6 +161,9 @@ TEST_CASE("or_else", "[or_else][expected][expected_void]")
   using namespace fn;
 
   using operand_t = std::expected<void, Error>;
+  using operand_other_t = std::expected<int, Error>;
+  using is = static_check<or_else_t, operand_t>::bind;
+
   int count = 0;
   auto fnError = [&count](Error) -> operand_t {
     count += 1;
@@ -182,46 +171,27 @@ TEST_CASE("or_else", "[or_else][expected][expected_void]")
   };
   constexpr auto fnXerror
       = [](Error e) -> std::expected<void, Xerror> { return std::unexpected<Xerror>{"Was: " + e.what}; };
-
-  static_assert(monadic_invocable<or_else_t, operand_t, decltype(fnError)>);
-  static_assert(monadic_invocable<or_else_t, operand_t, decltype(fnXerror)>);
-  static_assert([](auto &&fn) constexpr -> bool {
-    return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
-  }([](auto...) -> operand_t { return {}; })); // allow generic call
-  static_assert([](auto &&fn) constexpr -> bool {
-    return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
-  }([](std::string_view) -> operand_t { return {}; })); // allow conversion
-  static_assert([](auto &&fn) constexpr -> bool {
-    return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
-  }([](Error &&) -> operand_t { return {}; })); // alow move from rvalue
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return monadic_invocable<or_else_t, operand_t const, decltype(fn)>;
-  }([](Error &&) -> operand_t { return {}; })); // disallow removing const
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return monadic_invocable<or_else_t, operand_t &, decltype(fn)>;
-  }([](Error &&) -> operand_t { return {}; })); // disallow move from lvalue
-  static_assert([](auto &&fn) constexpr -> bool {
-    return monadic_invocable<or_else_t, operand_t &, decltype(fn)>;
-  }([](Error &) -> operand_t { return {}; })); // allow lvalue binding
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return monadic_invocable<or_else_t, operand_t const &, decltype(fn)>;
-  }([](Error &) -> operand_t { return {}; })); // disallow removing const
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
-  }([](Error &) -> operand_t { return {}; })); // disallow lvalue binding to rvalue
-
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
-  }([](int) {})); // wrong type
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
-  }([]() {})); // wrong arity
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
-  }([](int, int) {})); // wrong arity
-
   constexpr auto wrong = [](Error) -> operand_t { throw 0; };
   constexpr auto fnFail = [](Error v) -> operand_t { return std::unexpected<Error>("Got: " + v.what); };
+
+  static_assert(is::invocable_with_any(fnError));
+  static_assert(is::invocable_with_any(fnXerror));
+  static_assert(is::invocable_with_any([](auto...) -> operand_t { throw 0; }));                // allow generic call
+  static_assert(is::invocable_with_any([](Error) -> operand_t { throw 0; }));                  // allow copy
+  static_assert(is::invocable_with_any([](std::string_view) -> operand_t { throw 0; }));       // allow conversion
+  static_assert(is::invocable_with_any([](Error const &) -> operand_t { throw 0; }));          // binds to const ref
+  static_assert(is::invocable<lvalue>([](Error &) -> operand_t { throw 0; }));                 // binds to lvalue
+  static_assert(is::invocable<rvalue, prvalue>([](Error &&) -> operand_t { throw 0; }));       // can move
+  static_assert(is::invocable<rvalue, crvalue>([](Error const &&) -> operand_t { throw 0; })); // binds to const rvalue
+  static_assert(is::not_invocable_with_any([](Error) -> operand_other_t { throw 0; }));        // disallow conversion
+  static_assert(
+      is::not_invocable<clvalue, crvalue, cvalue>([](Error &) -> operand_t { throw 0; })); // cannot remove const
+  static_assert(is::not_invocable<rvalue>([](Error &) -> operand_t { throw 0; }));         // disallow bind
+  static_assert(
+      is::not_invocable<lvalue, clvalue, crvalue, cvalue>([](Error &&) -> operand_t { throw 0; })); // cannot move
+  static_assert(is::not_invocable_with_any([](std::string) -> operand_t { throw 0; }));             // bad type
+  static_assert(is::not_invocable_with_any([]() -> operand_t { throw 0; }));                        // bad arity
+  static_assert(is::not_invocable_with_any([](Error, int) -> operand_t { throw 0; }));              // bad arity
 
   WHEN("operand is lvalue")
   {
@@ -309,18 +279,23 @@ TEST_CASE("or_else", "[or_else][optional]")
   using namespace fn;
 
   using operand_t = std::optional<int>;
+  using operand_other_t = std::optional<double>;
+  using is = static_check<or_else_t, operand_t>::bind;
+
   constexpr auto fnError = []() -> operand_t { return {42}; };
-
-  static_assert(monadic_invocable<or_else_t, operand_t, decltype(fnError)>);
-  static_assert([](auto &&fn) constexpr -> bool {
-    return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
-  }([](auto...) -> operand_t { throw 0; })); // allow generic call
-  static_assert(not [](auto &&fn) constexpr->bool {
-    return monadic_invocable<or_else_t, operand_t, decltype(fn)>;
-  }([](auto) {})); // wrong arity
-
   constexpr auto wrong = []() -> operand_t { throw 0; };
   constexpr auto fnFail = []() -> operand_t { return {}; };
+
+  static_assert(is::invocable_with_any(fnError));
+  static_assert(is::invocable_with_any([](auto...) -> operand_t { throw 0; }));         // allow generic call
+  static_assert(is::not_invocable_with_any([](Error) -> operand_other_t { throw 0; })); // disallow conversion
+  static_assert(
+      is::not_invocable<clvalue, crvalue, cvalue>([](Error &) -> operand_t { throw 0; })); // cannot remove const
+  static_assert(is::not_invocable<rvalue>([](Error &) -> operand_t { throw 0; }));         // disallow bind
+  static_assert(
+      is::not_invocable<lvalue, clvalue, crvalue, cvalue>([](Error &&) -> operand_t { throw 0; })); // cannot move
+  static_assert(is::not_invocable_with_any([](int) -> operand_t { throw 0; }));                     // bad arity
+  static_assert(is::not_invocable_with_any([](int, int) -> operand_t { throw 0; }));                // bad arity
 
   WHEN("operand is lvalue")
   {
@@ -440,22 +415,22 @@ template <typename T> constexpr auto fn_int_rvalue = [](int &&) -> T { throw 0; 
 // clang-format off
 static_assert(invocable_or_else<decltype(fn_Error<std::expected<Value, Error>>), std::expected<Value, Error>>);
 static_assert(invocable_or_else<decltype(fn_generic<std::expected<int, int>>), std::expected<int, int>>);
-static_assert(invocable_or_else<decltype(fn_Error<std::expected<Value, Xerror>>), std::expected<Value, Error>>); // error type conversion
-static_assert(invocable_or_else<decltype(fn_Error<std::expected<Value, Error>>), std::expected<Value, Xerror>>); // error type conversion
-static_assert(invocable_or_else<decltype(fn_Error<std::expected<Value, int>>), std::expected<Value, Xerror>>); // error type conversion
-static_assert(not invocable_or_else<decltype(fn_Error<std::expected<Value, int>>), std::expected<Value, int>>); // wrong error_type
+static_assert(invocable_or_else<decltype(fn_Error<std::expected<Value, Xerror>>), std::expected<Value, Error>>);   // error type conversion
+static_assert(invocable_or_else<decltype(fn_Error<std::expected<Value, Error>>), std::expected<Value, Xerror>>);   // error type conversion
+static_assert(invocable_or_else<decltype(fn_Error<std::expected<Value, int>>), std::expected<Value, Xerror>>);     // error type conversion
+static_assert(not invocable_or_else<decltype(fn_Error<std::expected<Value, int>>), std::expected<Value, int>>);    // wrong error_type
 static_assert(invocable_or_else<decltype(fn_Error<std::expected<Value, Error>>), std::expected<Value, Error>>);
 static_assert(not invocable_or_else<decltype(fn_Error<std::expected<Value, Error>>), std::expected<void, Error>>); // cannot change value_type
 static_assert(not invocable_or_else<decltype(fn_Error<std::expected<void, Error>>), std::expected<Value, Error>>); // cannot change value_type
-static_assert(not invocable_or_else<decltype(fn_generic<std::expected<Value, int>>), std::expected<int, int>>); // cannot change value_type
+static_assert(not invocable_or_else<decltype(fn_generic<std::expected<Value, int>>), std::expected<int, int>>);    // cannot change value_type
 
-static_assert(not invocable_or_else<decltype(fn_generic<std::expected<Value, Error>>), std::optional<Value>>); // mixed optional and expected
-static_assert(not invocable_or_else<decltype(fn_generic<std::optional<Value>>), std::expected<Value, Error>>); // mixed optional and expected
+static_assert(not invocable_or_else<decltype(fn_generic<std::expected<Value, Error>>), std::optional<Value>>);     // mixed optional and expected
+static_assert(not invocable_or_else<decltype(fn_generic<std::optional<Value>>), std::expected<Value, Error>>);     // mixed optional and expected
 static_assert(invocable_or_else<decltype(fn_generic<std::optional<Value>>), std::optional<Value>>);
-static_assert(not invocable_or_else<decltype(fn_generic<std::optional<int>>), std::optional<Value>>); // cannot change value_type
-static_assert(not invocable_or_else<decltype(fn_generic<std::optional<Value>>), std::optional<int>>); // cannot change value_type
+static_assert(not invocable_or_else<decltype(fn_generic<std::optional<int>>), std::optional<Value>>);              // cannot change value_type
+static_assert(not invocable_or_else<decltype(fn_generic<std::optional<Value>>), std::optional<int>>);              // cannot change value_type
 
-static_assert(not invocable_or_else<decltype(fn_int_lvalue<std::expected<int, int>>), std::expected<int, int>>); // cannot bind temporary to lvalue
+static_assert(not invocable_or_else<decltype(fn_int_lvalue<std::expected<int, int>>), std::expected<int, int>>);   // cannot bind temporary to lvalue
 static_assert(invocable_or_else<decltype(fn_int_lvalue<std::expected<int, int>>), std::expected<int, int> &>);
 static_assert(invocable_or_else<decltype(fn_int_rvalue<std::expected<int, int>>), std::expected<int, int>>);
 static_assert(not invocable_or_else<decltype(fn_int_rvalue<std::expected<int, int>>), std::expected<int, int> &>); // cannot bind lvalue to rvalue-ref

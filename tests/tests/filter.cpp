@@ -3,8 +3,9 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#include "functional/filter.hpp"
 #include "static_check.hpp"
+
+#include "functional/filter.hpp"
 
 #include <catch2/catch_all.hpp>
 
@@ -27,63 +28,40 @@ TEST_CASE("filter", "[filter][expected][expected_value]")
 {
   using namespace fn;
 
-  using operand_t = std::expected<int, Error>;
   constexpr auto truePred = [](int) { return true; };
   constexpr auto falsePred = [](int) { return false; };
   constexpr auto onError = [](int v) { return Error{"Got " + std::to_string(v)}; };
-
-  using check_p = static_check::bind_right<filter_t, decltype(onError)>;
-  using check_e = static_check::bind_left<filter_t, decltype(truePred)>;
-
-  // lvalue operand
-  // --------------
-  static_assert(monadic_invocable<filter_t, operand_t, decltype(truePred), decltype(onError)>);
-
-  static_assert(monadic_invocable<filter_t, operand_t, decltype(falsePred), decltype(onError)>);
-
-  static_assert(check_p::invocable<operand_t>([](auto...) -> bool { throw 0; }));
-  static_assert(check_e::invocable<operand_t>([](auto...) -> Error { throw 0; }));
-  static_assert(check_p::invocable<operand_t>([](unsigned) -> bool { throw 0; }));
-  static_assert(check_e::invocable<operand_t>([](unsigned) -> Error { throw 0; }));
-  static_assert(not check_p::invocable<operand_t>(
-      [](int &&) -> bool { throw 0; })); // cannot bind (implicitly) const into non-const rvalue-ref
-  static_assert(check_e::invocable<operand_t>([](int &&) -> Error { throw 0; }));
-  static_assert(not check_p::invocable<operand_t const>([](int &&) -> bool { throw 0; }));  // cannot move from const
-  static_assert(not check_e::invocable<operand_t const>([](int &&) -> Error { throw 0; })); // cannot move from const
-  static_assert(not check_p::invocable<operand_t &>([](int &&) -> bool { throw 0; }));      // cannot move from lvalue
-  static_assert(not check_e::invocable<operand_t &>([](int &&) -> Error { throw 0; }));     // cannot move from lvalue
-  static_assert(check_p::invocable<operand_t>([](int const &) -> bool { throw 0; }));
-  static_assert(check_p::invocable<operand_t const>([](int const &) -> bool { throw 0; }));
-  static_assert(check_p::invocable<operand_t &>([](int const &) -> bool { throw 0; }));
-  static_assert(check_p::invocable<operand_t const &>([](int const &) -> bool { throw 0; }));
-  static_assert(check_e::invocable<operand_t &>([](int const &) -> Error { throw 0; }));
-  static_assert(not check_p::invocable<operand_t &>(
-      [](int &) -> bool { throw 0; })); // cannot bind (implicitly) const into non-const lvalue
-  static_assert(check_e::invocable<operand_t &>([](int &) -> Error { throw 0; }));
-  static_assert(not check_p::invocable<operand_t const &>(
-      [](int &) -> bool { throw 0; })); // cannot bind const into non-const lvalue
-  static_assert(not check_e::invocable<operand_t const &>(
-      [](int &) -> Error { throw 0; })); // cannot bind const into non-const lvalue
-  static_assert(
-      not check_p::invocable<operand_t>([](int &) -> bool { throw 0; })); // cannot bind rvalue into non-const lvalue
-  static_assert(
-      not check_e::invocable<operand_t>([](int &) -> Error { throw 0; })); // cannot bind rvalue into non-const lvalue
-  static_assert(not check_p::invocable<operand_t>([](std::string) -> bool { throw 0; }));  // bad type
-  static_assert(not check_e::invocable<operand_t>([](std::string) -> Error { throw 0; })); // bad type
-  static_assert(not check_p::invocable<operand_t>([]() -> bool { throw 0; }));             // bad arity
-  static_assert(not check_e::invocable<operand_t>([]() -> Error { throw 0; }));            // bad arity
-  static_assert(not check_p::invocable<operand_t>([](int, int) -> bool { throw 0; }));     // bad arity
-  static_assert(not check_e::invocable<operand_t>([](int, int) -> Error { throw 0; }));    // bad arity
-  static_assert(check_e::invocable<operand_t>([](int const &&) -> Error { throw 0; }));
-
-  // rvalue operand
-  // --------------
-  static_assert(check_p::invocable<operand_t &&>([](int const &) -> bool { throw 0; }));
-  static_assert(check_e::invocable<operand_t &&>([](int const &&) -> Error { throw 0; }));
-  static_assert(check_p::invocable<operand_t const &&>([](int const &) -> bool { throw 0; }));
-  static_assert(check_e::invocable<operand_t const &&>([](int const &&) -> Error { throw 0; }));
-
   constexpr auto wrong = [](int) -> Error { throw 0; };
+
+  using operand_t = std::expected<int, Error>;
+  using p_is = static_check<filter_t, operand_t>::bind_right<decltype(onError)>;
+  using e_is = static_check<filter_t, operand_t>::bind_left<decltype(truePred)>;
+
+  static_assert(p_is::invocable_with_any(truePred));
+  static_assert(p_is::invocable_with_any([](auto...) -> bool { throw 0; }));         // allow generic call
+  static_assert(p_is::invocable_with_any([](int) -> bool { throw 0; }));             // allow copy
+  static_assert(p_is::invocable_with_any([](unsigned) -> bool { throw 0; }));        // allow conversion
+  static_assert(p_is::invocable_with_any([](int const &) -> bool { throw 0; }));     // binds to const ref
+  static_assert(p_is::not_invocable_with_any([](int &) -> bool { throw 0; }));       // cannot bind lvalue
+  static_assert(p_is::not_invocable_with_any([](int &&) -> bool { throw 0; }));      // cannot move
+  static_assert(p_is::not_invocable_with_any([](std::string) -> bool { throw 0; })); // bad type
+  static_assert(p_is::not_invocable_with_any([]() -> bool { throw 0; }));            // bad arity
+  static_assert(p_is::not_invocable_with_any([](int, int) -> bool { throw 0; }));    // bad arity
+
+  static_assert(e_is::invocable_with_any(onError));
+  static_assert(e_is::invocable_with_any([](auto...) -> Error { throw 0; }));              // allow generic call
+  static_assert(e_is::invocable_with_any([](int) -> Error { throw 0; }));                  // allow copy
+  static_assert(e_is::invocable_with_any([](unsigned) -> Error { throw 0; }));             // allow conversion
+  static_assert(e_is::invocable_with_any([](int const &) -> Error { throw 0; }));          // binds to const ref
+  static_assert(e_is::invocable<lvalue>([](int &) -> Error { throw 0; }));                 // binds to lvalue
+  static_assert(e_is::invocable<rvalue, prvalue>([](int &&) -> Error { throw 0; }));       // can move
+  static_assert(e_is::invocable<rvalue, crvalue>([](int const &&) -> Error { throw 0; })); // binds to const rvalue
+  static_assert(e_is::not_invocable<clvalue, crvalue, cvalue>([](int &) -> Error { throw 0; })); // cannot remove const
+  static_assert(e_is::not_invocable<rvalue>([](int &) -> Error { throw 0; }));                   // disallow bind
+  static_assert(e_is::not_invocable<lvalue, clvalue, crvalue, cvalue>([](int &&) -> Error { throw 0; })); // cannot move
+  static_assert(e_is::not_invocable_with_any([](std::string) -> Error { throw 0; }));                     // bad type
+  static_assert(e_is::not_invocable_with_any([]() -> Error { throw 0; }));                                // bad arity
+  static_assert(e_is::not_invocable_with_any([](int, int) -> Error { throw 0; }));                        // bad arity
 
   WHEN("operand is lvalue")
   {
@@ -161,60 +139,37 @@ TEST_CASE("filter member function", "[filter][expected][expected_value][member_f
 {
   using namespace fn;
 
-  using operand_t = std::expected<Value, Error>;
   constexpr auto predicate = &Value::ok;
   constexpr auto onError = &Value::error;
-
-  using check_p = static_check::bind_right<filter_t, decltype(onError)>;
-  using check_e = static_check::bind_left<filter_t, decltype(predicate)>;
-
-  // lvalue operand
-  // --------------
-  static_assert(monadic_invocable<filter_t, operand_t, decltype(predicate), decltype(onError)>);
-
-  static_assert(check_p::invocable<operand_t>([](auto...) -> bool { throw 0; }));
-  static_assert(check_e::invocable<operand_t>([](auto...) -> Error { throw 0; }));
-  static_assert(check_p::invocable<operand_t>([](Value) -> bool { throw 0; }));
-  static_assert(check_e::invocable<operand_t>([](Value) -> Error { throw 0; }));
-  static_assert(not check_p::invocable<operand_t>(
-      [](Value &&) -> bool { throw 0; })); // cannot bind (implicitly) const into non-const rvalue-ref
-  static_assert(check_e::invocable<operand_t>([](Value &&) -> Error { throw 0; }));
-  static_assert(not check_p::invocable<operand_t const>([](Value &&) -> bool { throw 0; }));  // cannot move from const
-  static_assert(not check_e::invocable<operand_t const>([](Value &&) -> Error { throw 0; })); // cannot move from const
-  static_assert(not check_p::invocable<operand_t &>([](Value &&) -> bool { throw 0; }));      // cannot move from lvalue
-  static_assert(not check_e::invocable<operand_t &>([](Value &&) -> Error { throw 0; }));     // cannot move from lvalue
-  static_assert(check_p::invocable<operand_t>([](Value const &) -> bool { throw 0; }));
-  static_assert(check_p::invocable<operand_t const>([](Value const &) -> bool { throw 0; }));
-  static_assert(check_p::invocable<operand_t &>([](Value const &) -> bool { throw 0; }));
-  static_assert(check_p::invocable<operand_t const &>([](Value const &) -> bool { throw 0; }));
-  static_assert(check_e::invocable<operand_t &>([](Value const &) -> Error { throw 0; }));
-  static_assert(not check_p::invocable<operand_t &>(
-      [](Value &) -> bool { throw 0; })); // cannot bind (implicitly) const into non-const lvalue
-  static_assert(check_e::invocable<operand_t &>([](Value &) -> Error { throw 0; }));
-  static_assert(not check_p::invocable<operand_t const &>(
-      [](Value &) -> bool { throw 0; })); // cannot bind const into non-const lvalue
-  static_assert(not check_e::invocable<operand_t const &>(
-      [](Value &) -> Error { throw 0; })); // cannot bind const into non-const lvalue
-  static_assert(
-      not check_p::invocable<operand_t>([](Value &) -> bool { throw 0; })); // cannot bind rvalue into non-const lvalue
-  static_assert(
-      not check_e::invocable<operand_t>([](Value &) -> Error { throw 0; })); // cannot bind rvalue into non-const lvalue
-  static_assert(not check_p::invocable<operand_t>([](std::string) -> bool { throw 0; }));  // bad type
-  static_assert(not check_e::invocable<operand_t>([](std::string) -> Error { throw 0; })); // bad type
-  static_assert(not check_p::invocable<operand_t>([]() -> bool { throw 0; }));             // bad arity
-  static_assert(not check_e::invocable<operand_t>([]() -> Error { throw 0; }));            // bad arity
-  static_assert(not check_p::invocable<operand_t>([](Value, int) -> bool { throw 0; }));   // bad arity
-  static_assert(not check_e::invocable<operand_t>([](Value, int) -> Error { throw 0; }));  // bad arity
-  static_assert(check_e::invocable<operand_t>([](Value const &&) -> Error { throw 0; }));
-
-  // rvalue operand
-  // --------------
-  static_assert(check_p::invocable<operand_t &&>([](Value const &) -> bool { throw 0; }));
-  static_assert(check_e::invocable<operand_t &&>([](Value const &&) -> Error { throw 0; }));
-  static_assert(check_p::invocable<operand_t const &&>([](Value const &) -> bool { throw 0; }));
-  static_assert(check_e::invocable<operand_t const &&>([](Value const &&) -> Error { throw 0; }));
-
   constexpr auto wrong = [](Value) -> Error { throw 0; };
+
+  using operand_t = std::expected<Value, Error>;
+  using p_is = static_check<filter_t, operand_t>::bind_right<decltype(onError)>;
+  using e_is = static_check<filter_t, operand_t>::bind_left<decltype(predicate)>;
+
+  static_assert(p_is::invocable_with_any(predicate));
+  static_assert(p_is::invocable_with_any([](auto...) -> bool { throw 0; }));         // allow generic call
+  static_assert(p_is::invocable_with_any([](Value) -> bool { throw 0; }));           // allow copy
+  static_assert(p_is::invocable_with_any([](Value const &) -> bool { throw 0; }));   // binds to const ref
+  static_assert(p_is::not_invocable_with_any([](Value &) -> bool { throw 0; }));     // cannot bind lvalue
+  static_assert(p_is::not_invocable_with_any([](Value &&) -> bool { throw 0; }));    // cannot move
+  static_assert(p_is::not_invocable_with_any([](std::string) -> bool { throw 0; })); // bad type
+  static_assert(p_is::not_invocable_with_any([]() -> bool { throw 0; }));            // bad arity
+  static_assert(p_is::not_invocable_with_any([](Value, int) -> bool { throw 0; }));  // bad arity
+
+  static_assert(e_is::invocable_with_any(onError));
+  static_assert(e_is::invocable_with_any([](auto...) -> Error { throw 0; }));                // allow generic call
+  static_assert(e_is::invocable_with_any([](Value) -> Error { throw 0; }));                  // allow copy
+  static_assert(e_is::invocable_with_any([](Value const &) -> Error { throw 0; }));          // binds to const ref
+  static_assert(e_is::invocable<lvalue>([](Value &) -> Error { throw 0; }));                 // binds to lvalue
+  static_assert(e_is::invocable<rvalue, prvalue>([](Value &&) -> Error { throw 0; }));       // can move
+  static_assert(e_is::invocable<rvalue, crvalue>([](Value const &&) -> Error { throw 0; })); // binds to const rvalue
+  static_assert(e_is::not_invocable<clvalue, crvalue, cvalue>([](Value &) -> Error { throw 0; })); // no remove const
+  static_assert(e_is::not_invocable<rvalue>([](Value &) -> operand_t { throw 0; }));               // disallow bind
+  static_assert(e_is::not_invocable<lvalue, clvalue, crvalue, cvalue>([](Value &&) -> Error { throw 0; })); // no move
+  static_assert(e_is::not_invocable_with_any([](std::string) -> Error { throw 0; }));                       // bad type
+  static_assert(e_is::not_invocable_with_any([]() -> Error { throw 0; }));                                  // bad arity
+  static_assert(e_is::not_invocable_with_any([](Value, int) -> Error { throw 0; }));                        // bad arity
 
   WHEN("operand is lvalue")
   {
@@ -286,37 +241,24 @@ TEST_CASE("filter", "[filter][expected][expected_void]")
 {
   using namespace fn;
 
-  using operand_t = std::expected<void, Error>;
-  auto truePred = [] { return true; };
-  auto falsePred = [] { return false; };
-  auto onError = [] { return Error{"Got error"}; };
-
-  using check_p = static_check::bind_right<filter_t, decltype(onError)>;
-  using check_e = static_check::bind_left<filter_t, decltype(truePred)>;
-
-  // lvalue operand
-  // --------------
-  static_assert(monadic_invocable<filter_t, operand_t, decltype(truePred), decltype(onError)>);
-
-  static_assert(monadic_invocable<filter_t, operand_t, decltype(falsePred), decltype(onError)>);
-
-  static_assert(check_p::invocable<operand_t>([](auto...) -> bool { throw 0; }));   // allow generic call
-  static_assert(check_e::invocable<operand_t>([](auto...) -> Error { throw 0; }));  // allow generic call
-  static_assert(not check_p::invocable<operand_t>([](auto) -> bool { throw 0; }));  // wrong arity
-  static_assert(not check_e::invocable<operand_t>([](auto) -> Error { throw 0; })); // wrong arity
-
-  // rvalue operand
-  // --------------
-  static_assert(monadic_invocable<filter_t, operand_t &&, decltype(truePred), decltype(onError)>);
-
-  static_assert(monadic_invocable<filter_t, operand_t &&, decltype(falsePred), decltype(onError)>);
-
-  static_assert(check_p::invocable<operand_t &&>([](auto...) -> bool { throw 0; }));   // allow generic call
-  static_assert(check_e::invocable<operand_t &&>([](auto...) -> Error { throw 0; }));  // allow generic call
-  static_assert(not check_p::invocable<operand_t &&>([](auto) -> bool { throw 0; }));  // wrong arity
-  static_assert(not check_e::invocable<operand_t &&>([](auto) -> Error { throw 0; })); // wrong arity
-
+  constexpr auto truePred = [] { return true; };
+  constexpr auto falsePred = [] { return false; };
+  constexpr auto onError = [] { return Error{"Got error"}; };
   constexpr auto wrong = []() -> Error { throw 0; };
+
+  using operand_t = std::expected<void, Error>;
+  using p_is = static_check<filter_t, operand_t>::bind_right<decltype(onError)>;
+  using e_is = static_check<filter_t, operand_t>::bind_left<decltype(truePred)>;
+
+  static_assert(p_is::invocable_with_any(truePred));
+  static_assert(p_is::invocable_with_any([](auto...) -> bool { throw 0; }));      // allow generic call
+  static_assert(p_is::not_invocable_with_any([](int) -> bool { throw 0; }));      // bad arity
+  static_assert(p_is::not_invocable_with_any([](int, int) -> bool { throw 0; })); // bad arity
+
+  static_assert(e_is::invocable_with_any(onError));
+  static_assert(e_is::invocable_with_any([](auto...) -> Error { throw 0; }));      // allow generic call
+  static_assert(e_is::not_invocable_with_any([](int) -> Error { throw 0; }));      // bad arity
+  static_assert(e_is::not_invocable_with_any([](int, int) -> Error { throw 0; })); // bad arity
 
   WHEN("operand is lvalue")
   {
@@ -384,26 +326,22 @@ TEST_CASE("filter", "[filter][optional]")
 {
   using namespace fn;
 
+  constexpr auto truePred = [](int) { return true; };
+  constexpr auto falsePred = [](int) { return false; };
+
   using operand_t = std::optional<int>;
-  auto truePred = [](int) { return true; };
-  auto falsePred = [](int) { return false; };
+  using is = static_check<filter_t, operand_t>::bind;
 
-  using check = static_check::bind_left<filter_t>;
-
-  // lvalue operand
-  // --------------
-  static_assert(monadic_invocable<filter_t, operand_t, decltype(truePred)>);
-  static_assert(check::invocable<operand_t>([](auto...) -> bool { throw 0; }));     // allow generic call
-  static_assert(check::invocable<operand_t>([](int const &) -> bool { throw 0; })); // allow binding to const lvalue
-  static_assert(not check::invocable<operand_t>([](int &) -> bool { throw 0; }));   // disallow binding to lvalue
-
-  // rvalue operand
-  // --------------
-  static_assert(monadic_invocable<filter_t, operand_t &&, decltype(truePred)>);
-  static_assert(check::invocable<operand_t &&>([](auto...) -> bool { throw 0; }));     // allow generic call
-  static_assert(check::invocable<operand_t &&>([](auto...) -> bool { throw 0; }));     // allow generic call
-  static_assert(not check::invocable<operand_t &&>([](int &) -> bool { throw 0; }));   // disallow binding to lvalue
-  static_assert(check::invocable<operand_t &&>([](int const &) -> bool { throw 0; })); // allow binding to const lvalue
+  static_assert(is::invocable_with_any(truePred));
+  static_assert(is::invocable_with_any([](auto...) -> bool { throw 0; }));         // allow generic call
+  static_assert(is::invocable_with_any([](int) -> bool { throw 0; }));             // allow copy
+  static_assert(is::invocable_with_any([](unsigned) -> bool { throw 0; }));        // allow conversion
+  static_assert(is::invocable_with_any([](int const &) -> bool { throw 0; }));     // binds to const lvalue
+  static_assert(is::not_invocable_with_any([](int &) -> bool { throw 0; }));       // cannot bind lvalue
+  static_assert(is::not_invocable_with_any([](int &&) -> bool { throw 0; }));      // cannot move
+  static_assert(is::not_invocable_with_any([](std::string) -> bool { throw 0; })); // bad type
+  static_assert(is::not_invocable_with_any([]() -> bool { throw 0; }));            // bad arity
+  static_assert(is::not_invocable_with_any([](int, int) -> bool { throw 0; }));    // bad arity
 
   WHEN("operand is lvalue")
   {
@@ -465,26 +403,20 @@ TEST_CASE("filter member function", "[filter][optional]")
 {
   using namespace fn;
 
-  using operand_t = std::optional<Value>;
   constexpr auto predicate = &Value::ok;
 
-  using check = static_check::bind_left<filter_t>;
+  using operand_t = std::optional<Value>;
+  using is = static_check<filter_t, operand_t>::bind;
 
-  // lvalue operand
-  // --------------
-  static_assert(monadic_invocable<filter_t, operand_t, decltype(predicate)>);
-
-  static_assert(check::invocable<operand_t>([](auto...) -> bool { throw 0; }));       // allow generic call
-  static_assert(check::invocable<operand_t>([](Value const &) -> bool { throw 0; })); // allow binding to const lvalue
-  static_assert(not check::invocable<operand_t>([](Value &) -> bool { throw 0; }));   // disallow binding to lvalue
-
-  // rvalue operand
-  // --------------
-  static_assert(monadic_invocable<filter_t, operand_t &&, decltype(predicate)>);
-  static_assert(check::invocable<operand_t &&>([](auto...) -> bool { throw 0; }));     // allow generic call
-  static_assert(not check::invocable<operand_t &&>([](Value &) -> bool { throw 0; })); // disallow binding to lvalue
-  static_assert(
-      check::invocable<operand_t &&>([](Value const &) -> bool { throw 0; })); // allow binding to const lvalue
+  static_assert(is::invocable_with_any(predicate));
+  static_assert(is::invocable_with_any([](auto...) -> bool { throw 0; }));         // allow generic call
+  static_assert(is::invocable_with_any([](Value) -> bool { throw 0; }));           // allow copy
+  static_assert(is::invocable_with_any([](Value const &) -> bool { throw 0; }));   // binds to const lvalue
+  static_assert(is::not_invocable_with_any([](Value &) -> bool { throw 0; }));     // cannot bind lvalue
+  static_assert(is::not_invocable_with_any([](Value &&) -> bool { throw 0; }));    // cannot move
+  static_assert(is::not_invocable_with_any([](std::string) -> bool { throw 0; })); // bad type
+  static_assert(is::not_invocable_with_any([]() -> bool { throw 0; }));            // bad arity
+  static_assert(is::not_invocable_with_any([](Value, int) -> bool { throw 0; }));  // bad arity
 
   WHEN("operand is lvalue")
   {
