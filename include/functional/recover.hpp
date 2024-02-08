@@ -48,7 +48,9 @@ struct recover_t::apply final {
     requires invocable_recover<decltype(fn), decltype(v)>
   {
     using type = std::remove_cvref_t<decltype(v)>;
-    return FWD(v).or_else([&fn](auto &&arg) noexcept -> type { return type{std::in_place, FWD(fn)(FWD(arg))}; });
+    return FWD(v).or_else([&fn](auto &&arg) noexcept -> type {
+      return type{std::in_place, std::invoke(FWD(fn), FWD(arg))};
+    });
   }
 
   static constexpr auto operator()(some_expected_void auto &&v, auto &&fn) noexcept
@@ -57,7 +59,7 @@ struct recover_t::apply final {
   {
     using type = std::remove_cvref_t<decltype(v)>;
     return FWD(v).or_else([&fn](auto &&arg) noexcept -> type {
-      FWD(fn)(FWD(arg)); // side-effects only
+      std::invoke(FWD(fn), FWD(arg)); // side-effects only
       return type{std::in_place};
     });
   }
@@ -66,7 +68,10 @@ struct recover_t::apply final {
     requires invocable_recover<decltype(fn), decltype(v)>
   {
     using type = std::remove_cvref_t<decltype(v)>;
-    return FWD(v).or_else([&fn]() noexcept -> type { return type{std::in_place, FWD(fn)()}; });
+    if (v.has_value()) {
+      return type{FWD(v)};
+    }
+    return type{std::in_place, std::invoke(FWD(fn))};
   }
 };
 

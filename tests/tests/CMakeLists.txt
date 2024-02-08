@@ -10,11 +10,13 @@ set(TESTS_SOURCE_FILES
     detail/fwd_macro.cpp
     and_then.cpp
     concepts.cpp
+    expected.cpp
     fail.cpp
     filter.cpp
     functor.cpp
     inspect_error.cpp
     inspect.cpp
+    optional.cpp
     or_else.cpp
     recover.cpp
     transform_error.cpp

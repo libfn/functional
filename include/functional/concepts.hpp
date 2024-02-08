@@ -6,27 +6,14 @@
 #ifndef INCLUDE_FUNCTIONAL_CONCEPTS
 #define INCLUDE_FUNCTIONAL_CONCEPTS
 
-#include "functional/detail/concepts.hpp"
-#include "functional/utility.hpp"
+#include "functional/expected.hpp"
+#include "functional/optional.hpp"
 
 #include <concepts>
-#include <expected>
 #include <functional>
-#include <optional>
 #include <type_traits>
 
 namespace fn {
-template <typename T>
-concept some_expected = detail::_is_some_expected<T &>;
-
-template <typename T>
-concept some_expected_void = some_expected<T> && std::same_as<void, typename std::remove_cvref_t<T>::value_type>;
-
-template <typename T>
-concept some_expected_non_void = some_expected<T> && !std::same_as<void, typename std::remove_cvref_t<T>::value_type>;
-
-template <typename T>
-concept some_optional = detail::_is_some_optional<T &>;
 
 template <typename T>
 concept some_monadic_type = some_expected<T> || some_optional<T>;
@@ -56,12 +43,12 @@ concept convertible_to_unexpected
     = requires { static_cast<std::unexpected<std::remove_cvref_t<T>>>(std::declval<T>()); };
 
 template <class T, typename E>
-concept convertible_to_expected = (not std::same_as<T, void> && requires {
-                                    static_cast<std::expected<std::remove_cvref_t<T>, E>>(std::declval<T>());
-                                  }) || (std::same_as<T, void>);
+concept convertible_to_expected
+    = (not std::same_as<T, void> && requires { static_cast<expected<std::remove_cvref_t<T>, E>>(std::declval<T>()); })
+      || (std::same_as<T, void>);
 
 template <class T>
-concept convertible_to_optional = requires { static_cast<std::optional<std::remove_cvref_t<T>>>(std::declval<T>()); };
+concept convertible_to_optional = requires { static_cast<optional<std::remove_cvref_t<T>>>(std::declval<T>()); };
 
 template <class T>
 concept convertible_to_bool = requires { static_cast<bool>(std::declval<T>()); };

@@ -1,7 +1,6 @@
 #ifndef INCLUDE_FUNCTIONAL_DETAIL_TRAITS
 #define INCLUDE_FUNCTIONAL_DETAIL_TRAITS
 
-#include <optional>
 #include <type_traits>
 
 namespace fn::detail {
