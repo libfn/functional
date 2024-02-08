@@ -7,7 +7,6 @@
 #define INCLUDE_FUNCTIONAL_INSPECT
 
 #include "functional/concepts.hpp"
-#include "functional/detail/concepts.hpp"
 #include "functional/functor.hpp"
 #include "functional/fwd.hpp"
 #include "functional/utility.hpp"

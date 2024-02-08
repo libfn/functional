@@ -7,7 +7,6 @@
 #define INCLUDE_FUNCTIONAL_RECOVER
 
 #include "functional/concepts.hpp"
-#include "functional/detail/concepts.hpp"
 #include "functional/detail/traits.hpp"
 #include "functional/functor.hpp"
 #include "functional/fwd.hpp"

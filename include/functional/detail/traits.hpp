@@ -32,8 +32,10 @@ template <typename T, typename V> extern V const _apply_const<T const &, V>;
 template <typename T, typename V> extern V const &_apply_const<T const &, V &>;
 template <typename T, typename V> extern V const &&_apply_const<T const &, V &&>;
 
-template <typename T, typename V> using apply_const_t = decltype(detail::_apply_const<T &, V>);
-
 } // namespace fn::detail
+
+namespace fn {
+template <typename T, typename V> using apply_const_t = decltype(detail::_apply_const<T &, V>);
+}
 
 #endif // INCLUDE_FUNCTIONAL_DETAIL_TRAITS
