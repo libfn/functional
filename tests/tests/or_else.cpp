@@ -43,7 +43,7 @@ TEST_CASE("or_else", "[or_else][expected][expected_value]")
 
   using operand_t = fn::expected<int, Error>;
   using operand_other_t = fn::expected<void, Error>;
-  using is = static_check<or_else_t, operand_t>::bind;
+  using is = monadic_static_check<or_else_t, operand_t>::bind;
 
   constexpr auto fnError = [](Error e) -> operand_t { return {e.what.size()}; };
   constexpr auto fnXerror
@@ -160,7 +160,7 @@ TEST_CASE("or_else", "[or_else][expected][expected_void]")
 
   using operand_t = fn::expected<void, Error>;
   using operand_other_t = fn::expected<int, Error>;
-  using is = static_check<or_else_t, operand_t>::bind;
+  using is = monadic_static_check<or_else_t, operand_t>::bind;
 
   int count = 0;
   auto fnError = [&count](Error) -> operand_t {
@@ -278,7 +278,7 @@ TEST_CASE("or_else", "[or_else][optional]")
 
   using operand_t = fn::optional<int>;
   using operand_other_t = fn::optional<double>;
-  using is = static_check<or_else_t, operand_t>::bind;
+  using is = monadic_static_check<or_else_t, operand_t>::bind;
 
   constexpr auto fnError = []() -> operand_t { return {42}; };
   constexpr auto wrong = []() -> operand_t { throw 0; };

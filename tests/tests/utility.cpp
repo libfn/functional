@@ -1,14 +1,17 @@
-// Copyright (c) 2024 Bronek Kozicki
+// Copyright (c) 2024 Bronek Kozicki, Alex Kremer
 //
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
 #include "functional/utility.hpp"
+#include "static_check.hpp"
 
 #include <catch2/catch_all.hpp>
 
 #include <concepts>
 #include <type_traits>
+
+using namespace util;
 
 namespace fn {
 // clang-format off
@@ -81,52 +84,31 @@ TEST_CASE("pack", "[pack]")
   T v{3, 14, val1, val2};
   CHECK(v.size() == 4);
 
-  static_assert(
-      [&](auto &&fn) constexpr { return requires { v.invoke(fn, A{}); }; }([](auto &&...) {})); // generic call
-  static_assert(
-      [&](auto &&fn) constexpr { return requires { v.invoke(fn, A{}); }; }([](A, auto &&...) {})); // also generic call
-  static_assert([&](auto &&fn) constexpr {
-    return requires { v.invoke(fn, A{}); };
-  }([](A, int, int, int, int) {})); // pass everything by value
-  static_assert([&](auto &&fn) constexpr {
-    return requires { v.invoke(fn, A{}); };
-  }([](A const &, int const &, int const &, int const &, int const &) {})); // pass everything by const reference
-  static_assert([&](auto &&fn) constexpr {
-    return requires { v.invoke(fn, A{}); };
-  }([](A, int, int, int &, int const &) {})); // bind lvalues
-  static_assert([&](auto &&fn) constexpr {
-    return requires { v.invoke(fn, A{}); };
-  }([](A &&, int &&, int const &&, int &, int const &) {})); // bind rvalues and lvalues
-  static_assert([&](auto &&fn) constexpr {
-    return requires { v.invoke(fn, A{}); };
-  }([](A const, int const, int const, int const &, int const &) {})); // pass values or lvalues promoted to const
+  using is = static_check::bind<decltype([](auto &&fn) constexpr {
+    return requires { std::declval<T>().invoke(fn, A{}); };
+  })>;
 
-  static_assert(not [&](auto &&fn) constexpr {
-    return requires { v.invoke(fn, A{}); };
-  }([](A &, auto &&...) {})); // cannot bind rvalue to lvalue reference
-  static_assert(not [&](auto &&fn) constexpr {
-    return requires { v.invoke(fn, A{}); };
-  }([](A, int &, auto &&...) {})); // cannot bind rvalue to lvalue reference
-  static_assert(not [&](auto &&fn) constexpr {
-    return requires { v.invoke(fn, A{}); };
-  }([](A, int, int, int &&, int) {})); // cannot bind lvalue to rvalue reference
-  static_assert(not [&](auto &&fn) constexpr {
-    return requires { v.invoke(fn, A{}); };
-  }([](A, int, int, int, int &&) {})); // cannot bind const lvalue to rvalue reference
-  static_assert(not [&](auto &&fn) constexpr {
-    return requires { v.invoke(fn, A{}); };
-  }([](A, int, int, int, int const &&) {})); // cannot bind const lvalue to const rvalue reference
-  static_assert(not [&](auto &&fn) constexpr {
-    return requires { v.invoke(fn, A{}); };
-  }([](A &&, int, int &&, int, int) {})); // cannot bind const rvalue to non-const rvalue reference
+  static_assert(is::invocable([](auto &&...) {}));            // generic call
+  static_assert(is::invocable([](A, auto &&...) {}));         // also generic call
+  static_assert(is::invocable([](A, int, int, int, int) {})); // pass everything by value
+  static_assert(is::invocable(
+      [](A const &, int const &, int const &, int const &, int const &) {})); // pass everything by const reference
+  static_assert(is::invocable([](A, int, int, int &, int const &) {}));       // bind lvalues
+  static_assert(is::invocable([](A &&, int &&, int const &&, int &, int const &) {})); // bind rvalues and lvalues
+  static_assert(is::invocable(
+      [](A const, int const, int const, int const &, int const &) {})); // pass values or lvalues promoted to const
+
+  static_assert(is::not_invocable([](A &, auto &&...) {}));          // cannot bind rvalue to lvalue reference
+  static_assert(is::not_invocable([](A, int &, auto &&...) {}));     // cannot bind rvalue to lvalue reference
+  static_assert(is::not_invocable([](A, int, int, int &&, int) {})); // cannot bind lvalue to rvalue reference
+  static_assert(is::not_invocable([](A, int, int, int, int &&) {})); // cannot bind const lvalue to rvalue reference
   static_assert(
-      not [&](auto &&fn) constexpr { return requires { v.invoke(fn, A{}); }; }([](int, auto &&...) {})); // bad type
-  static_assert(not [&](auto &&fn) constexpr {
-    return requires { v.invoke(fn, A{}); };
-  }([](auto, auto, auto, auto) {})); // bad arity
-  static_assert(not [&](auto &&fn) constexpr {
-    return requires { v.invoke(fn, A{}); };
-  }([](auto, auto, auto, auto, auto, auto) {})); // bad arity
+      is::not_invocable([](A, int, int, int, int const &&) {})); // cannot bind const lvalue to const rvalue reference
+  static_assert(
+      is::not_invocable([](A &&, int, int &&, int, int) {})); // cannot bind const rvalue to non-const rvalue reference
+  static_assert(is::not_invocable([](int, auto &&...) {}));   // bad type
+  static_assert(is::not_invocable([](auto, auto, auto, auto) {}));             // bad arity
+  static_assert(is::not_invocable([](auto, auto, auto, auto, auto, auto) {})); // bad arity
 
   CHECK(v.invoke([](auto... args) noexcept -> int { return (0 + ... + args); }) == 3 + 14 + 15 + 92);
   CHECK(v.invoke([](A, auto... args) noexcept -> int { return (0 + ... + args); }, A{}) == 3 + 14 + 15 + 92);
@@ -170,19 +152,15 @@ TEST_CASE("pack with immovable data", "[pack][immovable]")
   ImmovableType const val2{92};
   T v{ImmovableType{3}, ImmovableType{14}, val1, val2};
 
-  static_assert([&](auto &&fn) constexpr { return requires { v.invoke(fn); }; }([](auto &&...) {})); // generic call
-  static_assert([&](auto &&fn) constexpr {
-    return requires { v.invoke(fn); };
-  }([](ImmovableType const &, ImmovableType const &, ImmovableType const &, ImmovableType const &) {
-  })); // pass everything by const reference
-  static_assert([&](auto &&fn) constexpr {
-    return requires { v.invoke(fn); };
-  }([](ImmovableType &&, ImmovableType const &&, ImmovableType &, ImmovableType const &) {
-  })); // bind rvalues and lvalues
+  using is
+      = static_check::bind<decltype([](auto &&fn) constexpr { return requires { std::declval<T>().invoke(fn); }; })>;
 
-  static_assert(not [&](auto &&fn) constexpr {
-    return requires { v.invoke(fn); };
-  }([](ImmovableType, auto &&...) {})); // cannot pass immovable by value
+  static_assert(is::invocable([](auto &&...) {})); // generic call
+  static_assert(is::invocable([](ImmovableType const &, ImmovableType const &, ImmovableType const &,
+                                 ImmovableType const &) {})); // pass everything by const reference
+  static_assert(is::invocable([](ImmovableType &&, ImmovableType const &&, ImmovableType &, ImmovableType const &) {
+  }));                                                                // bind rvalues and lvalues
+  static_assert(is::not_invocable([](ImmovableType, auto &&...) {})); // cannot pass immovable by value
 
   CHECK(v.invoke([](auto &&...args) noexcept -> int { return (0 + ... + args.value); }) == 3 + 14 + 15 + 92);
 }
@@ -197,50 +175,23 @@ TEST_CASE("constexpr pack", "[pack][constexpr]")
 
 TEST_CASE("overload", "[overload]")
 {
-  // example use
-  static_assert([](auto &&v) constexpr -> bool {
+  using is = static_check::bind<decltype([](auto &&fn) constexpr {
     return requires {
-      v();
-      v(1);
+      fn();
+      fn(1);
     };
-  }(fn::overload{[](auto...) {}})); // generic
-  static_assert([](auto &&v) constexpr -> bool {
-    return requires {
-      v();
-      v(1);
-    };
-  }(fn::overload{[]() {}, [](auto) {}})); // generic with fixed arity
-  static_assert([](auto &&v) constexpr -> bool {
-    return requires {
-      v();
-      v(1);
-    };
-  }(fn::overload{[]() {}, [](int) {}})); // fixed type
-  static_assert([](auto &&v) constexpr -> bool {
-    return requires {
-      v();
-      v(1);
-    };
-  }(fn::overload{[]() {}, [](bool) {}})); // built-in conversion
-  static_assert([](auto &&v) constexpr -> bool {
-    return requires {
-      v();
-      v(1);
-    };
-  }(fn::overload{[]() -> void {}, [](int i) -> std::string { return std::to_string(i); }})); // different return types
+  })>;
 
-  static_assert(not [](auto &&v) constexpr->bool {
-    return requires {
-      v();
-      v(1);
-    };
-  }(fn::overload{[]() {}})); // missing int overload
-  static_assert(not [](auto &&v) constexpr->bool {
-    return requires {
-      v();
-      v(1);
-    };
-  }(fn::overload{[](int) {}})); // missing void overload
+  // example use
+  static_assert(is::invocable(fn::overload{[](auto...) {}}));       // generic
+  static_assert(is::invocable(fn::overload{[]() {}, [](auto) {}})); // generic with fixed arity
+  static_assert(is::invocable(fn::overload{[]() {}, [](int) {}}));  // fixed type
+  static_assert(is::invocable(fn::overload{[]() {}, [](bool) {}})); // built-in conversion
+  static_assert(is::invocable(
+      fn::overload{[]() -> void {}, [](int i) -> std::string { return std::to_string(i); }})); // different return types
+
+  static_assert(is::not_invocable(fn::overload{[]() {}}));    // missing int overload
+  static_assert(is::not_invocable(fn::overload{[](int) {}})); // missing void overload
 
   struct A {
     constexpr auto operator()(int i) const noexcept -> int { return i + 1; }

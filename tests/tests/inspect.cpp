@@ -38,7 +38,7 @@ TEST_CASE("inspect expected", "[inspect][expected][expected_value]")
   using namespace fn;
 
   using operand_t = fn::expected<int, Error>;
-  using is = static_check<inspect_t, operand_t>::bind;
+  using is = monadic_static_check<inspect_t, operand_t>::bind;
 
   int value = 0;
   auto fnValue = [&value](auto i) -> void { value = i; };
@@ -125,7 +125,7 @@ TEST_CASE("inspect void expected", "[inspect][expected][expected_void]")
   using namespace fn;
 
   using operand_t = fn::expected<void, Error>;
-  using is = static_check<inspect_t, operand_t>::bind;
+  using is = monadic_static_check<inspect_t, operand_t>::bind;
 
   int count = 0;
   auto fnValue = [&count]() -> void { count += 1; };
@@ -186,7 +186,7 @@ TEST_CASE("inspect optional", "[inspect][optional]")
 {
   using namespace fn;
   using operand_t = fn::optional<int>;
-  using is = static_check<inspect_t, operand_t>::bind;
+  using is = monadic_static_check<inspect_t, operand_t>::bind;
 
   int value = 0;
   auto fnValue = [&value](auto i) -> void { value = i; };

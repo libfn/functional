@@ -35,7 +35,23 @@ template <typename OperandType> struct prvalue {
   using type = OperandType;
 };
 
-template <typename OperationType, typename OperandType> struct static_check {
+struct static_check {
+  template <typename CheckType> struct bind {
+    [[nodiscard]] static constexpr auto invocable(auto &&...fns) noexcept -> bool
+      requires(std::is_invocable_r<bool, CheckType, decltype(fns)...>::value)
+    {
+      return CheckType()(FWD(fns)...);
+    }
+
+    [[nodiscard]] static constexpr auto not_invocable(auto &&...fns) noexcept -> bool
+      requires(std::is_invocable_r<bool, CheckType, decltype(fns)...>::value)
+    {
+      return not invocable(FWD(fns)...);
+    }
+  }; // namespace util
+};
+
+template <typename OperationType, typename OperandType> struct monadic_static_check {
   template <typename... HandlerTypes> struct bind_right {
     template <template <typename> typename... Categories>
     [[nodiscard]] static constexpr auto invocable(auto &&...fns) noexcept -> bool
