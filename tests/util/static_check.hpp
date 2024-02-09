@@ -48,65 +48,56 @@ struct static_check {
     {
       return not invocable(FWD(fns)...);
     }
-  }; // namespace util
+  };
 };
 
-template <typename OperationType, typename OperandType> struct monadic_static_check {
-  template <typename... HandlerTypes> struct bind_right {
-    template <template <typename> typename... Categories>
-    [[nodiscard]] static constexpr auto invocable(auto &&...fns) noexcept -> bool
-    {
-      return (fn::monadic_invocable< //
-                  OperationType, typename Categories<OperandType>::type, decltype(fns)..., HandlerTypes...>
-              && ...);
-    }
+template <typename OperandType, template <typename> typename CommandType> struct static_check_with_value_categories {
+  template <template <typename> typename... Categories>
+  [[nodiscard]] static constexpr auto invocable(auto &&...fns) noexcept -> bool
+  {
+    return (static_check::bind<CommandType<typename Categories<OperandType>::type>>::invocable(FWD(fns)...) && ...);
+  }
 
-    template <template <typename> typename... Categories>
-    [[nodiscard]] static constexpr auto not_invocable(auto &&...fns) noexcept -> bool
-    {
-      return (not fn::monadic_invocable< //
-                  OperationType, typename Categories<OperandType>::type, decltype(fns)..., HandlerTypes...>
-              && ...);
-    }
+  template <template <typename> typename... Categories>
+  [[nodiscard]] static constexpr auto not_invocable(auto &&...fns) noexcept -> bool
+  {
+    return (static_check::bind<CommandType<typename Categories<OperandType>::type>>::not_invocable(FWD(fns)...) && ...);
+  }
 
-    [[nodiscard]] static constexpr auto invocable_with_any(auto &&...fns) noexcept -> bool
-    {
-      return invocable<lvalue, cvalue, rvalue, clvalue, crvalue, prvalue>(FWD(fns)...);
-    }
+  [[nodiscard]] static constexpr auto invocable_with_any(auto &&...fns) noexcept -> bool
+  {
+    return invocable<lvalue, cvalue, rvalue, clvalue, crvalue, prvalue>(FWD(fns)...);
+  }
 
-    [[nodiscard]] static constexpr auto not_invocable_with_any(auto &&...fns) noexcept -> bool
-    {
-      return not_invocable<lvalue, cvalue, rvalue, clvalue, crvalue, prvalue>(FWD(fns)...);
-    }
+  [[nodiscard]] static constexpr auto not_invocable_with_any(auto &&...fns) noexcept -> bool
+  {
+    return not_invocable<lvalue, cvalue, rvalue, clvalue, crvalue, prvalue>(FWD(fns)...);
+  }
+};
+
+template <typename OperationType, typename OperandType> class monadic_static_check {
+  template <typename... HandlerTypes> struct binder {
+    template <typename T> struct right {
+      [[nodiscard]] static constexpr auto operator()(auto &&...fns) noexcept -> bool
+      {
+        return fn::monadic_invocable<OperationType, T, decltype(fns)..., HandlerTypes...>;
+      }
+    };
+
+    template <typename T> struct left {
+      [[nodiscard]] static constexpr auto operator()(auto &&...fns) noexcept -> bool
+      {
+        return fn::monadic_invocable<OperationType, T, HandlerTypes..., decltype(fns)...>;
+      }
+    };
   };
 
-  template <typename... HandlerTypes> struct bind_left {
-    template <template <typename> typename... Categories>
-    [[nodiscard]] static constexpr auto invocable(auto &&...fns) noexcept -> bool
-    {
-      return (fn::monadic_invocable< //
-                  OperationType, typename Categories<OperandType>::type, HandlerTypes..., decltype(fns)...>
-              && ...);
-    }
+public:
+  template <typename... HandlerTypes>
+  using bind_right = static_check_with_value_categories<OperandType, binder<HandlerTypes...>::template right>;
 
-    template <template <typename> typename... Categories>
-    [[nodiscard]] static constexpr auto not_invocable(auto &&...fns) noexcept -> bool
-    {
-      return (not fn::monadic_invocable< //
-                  OperationType, typename Categories<OperandType>::type, HandlerTypes..., decltype(fns)...>
-              && ...);
-    }
-
-    [[nodiscard]] static constexpr auto invocable_with_any(auto &&...fns) noexcept -> bool
-    {
-      return invocable<lvalue, cvalue, rvalue, clvalue, crvalue, prvalue>(FWD(fns)...);
-    }
-
-    [[nodiscard]] static constexpr auto not_invocable_with_any(auto &&...fns) noexcept -> bool
-    {
-      return not_invocable<lvalue, cvalue, rvalue, clvalue, crvalue, prvalue>(FWD(fns)...);
-    }
-  };
+  template <typename... HandlerTypes>
+  using bind_left = static_check_with_value_categories<OperandType, binder<HandlerTypes...>::template left>;
 
   using bind = bind_left<>;
 
