@@ -33,9 +33,9 @@ concept invocable_inspect //
       });
 
 constexpr inline struct inspect_t final {
-  [[nodiscard]] constexpr auto operator()(auto &&...fn) const noexcept -> functor<inspect_t, decltype(fn)...>
+  [[nodiscard]] constexpr auto operator()(auto &&fn) const noexcept -> functor<inspect_t, decltype(fn)>
   {
-    return {FWD(fn)...};
+    return {FWD(fn)};
   }
 
   struct apply;
