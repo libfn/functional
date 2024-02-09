@@ -37,60 +37,84 @@ template <typename OperandType> struct prvalue {
 
 template <typename OperationType, typename OperandType> struct static_check {
   template <typename... HandlerTypes> struct bind_right {
-    template <template <typename> typename... Categories> static constexpr auto invocable(auto &&fn) noexcept -> bool
+    template <template <typename> typename... Categories>
+    [[nodiscard]] static constexpr auto invocable(auto &&...fns) noexcept -> bool
     {
       return (fn::monadic_invocable< //
-                  OperationType, typename Categories<OperandType>::type, decltype(fn), HandlerTypes...>
+                  OperationType, typename Categories<OperandType>::type, decltype(fns)..., HandlerTypes...>
               && ...);
     }
 
     template <template <typename> typename... Categories>
-    static constexpr auto not_invocable(auto &&fn) noexcept -> bool
+    [[nodiscard]] static constexpr auto not_invocable(auto &&...fns) noexcept -> bool
     {
       return (not fn::monadic_invocable< //
-                  OperationType, typename Categories<OperandType>::type, decltype(fn), HandlerTypes...>
+                  OperationType, typename Categories<OperandType>::type, decltype(fns)..., HandlerTypes...>
               && ...);
     }
 
-    static constexpr auto invocable_with_any(auto &&fn) noexcept -> bool
+    [[nodiscard]] static constexpr auto invocable_with_any(auto &&...fns) noexcept -> bool
     {
-      return invocable<lvalue, cvalue, rvalue, clvalue, crvalue, prvalue>(FWD(fn));
+      return invocable<lvalue, cvalue, rvalue, clvalue, crvalue, prvalue>(FWD(fns)...);
     }
 
-    static constexpr auto not_invocable_with_any(auto &&fn) noexcept -> bool
+    [[nodiscard]] static constexpr auto not_invocable_with_any(auto &&...fns) noexcept -> bool
     {
-      return not_invocable<lvalue, cvalue, rvalue, clvalue, crvalue, prvalue>(FWD(fn));
+      return not_invocable<lvalue, cvalue, rvalue, clvalue, crvalue, prvalue>(FWD(fns)...);
     }
   };
 
   template <typename... HandlerTypes> struct bind_left {
-    template <template <typename> typename... Categories> static constexpr auto invocable(auto &&fn) noexcept -> bool
+    template <template <typename> typename... Categories>
+    [[nodiscard]] static constexpr auto invocable(auto &&...fns) noexcept -> bool
     {
       return (fn::monadic_invocable< //
-                  OperationType, typename Categories<OperandType>::type, HandlerTypes..., decltype(fn)>
+                  OperationType, typename Categories<OperandType>::type, HandlerTypes..., decltype(fns)...>
               && ...);
     }
 
     template <template <typename> typename... Categories>
-    static constexpr auto not_invocable(auto &&fn) noexcept -> bool
+    [[nodiscard]] static constexpr auto not_invocable(auto &&...fns) noexcept -> bool
     {
       return (not fn::monadic_invocable< //
-                  OperationType, typename Categories<OperandType>::type, HandlerTypes..., decltype(fn)>
+                  OperationType, typename Categories<OperandType>::type, HandlerTypes..., decltype(fns)...>
               && ...);
     }
 
-    static constexpr auto invocable_with_any(auto &&fn) noexcept -> bool
+    [[nodiscard]] static constexpr auto invocable_with_any(auto &&...fns) noexcept -> bool
     {
-      return invocable<lvalue, cvalue, rvalue, clvalue, crvalue, prvalue>(FWD(fn));
+      return invocable<lvalue, cvalue, rvalue, clvalue, crvalue, prvalue>(FWD(fns)...);
     }
 
-    static constexpr auto not_invocable_with_any(auto &&fn) noexcept -> bool
+    [[nodiscard]] static constexpr auto not_invocable_with_any(auto &&...fns) noexcept -> bool
     {
-      return not_invocable<lvalue, cvalue, rvalue, clvalue, crvalue, prvalue>(FWD(fn));
+      return not_invocable<lvalue, cvalue, rvalue, clvalue, crvalue, prvalue>(FWD(fns)...);
     }
   };
 
   using bind = bind_left<>;
+
+  [[nodiscard]] static constexpr auto invocable_with_any(auto &&...fns) noexcept -> bool
+  {
+    return bind::invocable_with_any(FWD(fns)...);
+  }
+
+  [[nodiscard]] static constexpr auto not_invocable_with_any(auto &&...fns) noexcept -> bool
+  {
+    return bind::not_invocable_with_any(FWD(fns)...);
+  }
+
+  template <template <typename> typename... Categories>
+  [[nodiscard]] static constexpr auto invocable(auto &&...fns) noexcept -> bool
+  {
+    return bind::template invocable<Categories...>(FWD(fns)...);
+  }
+
+  template <template <typename> typename... Categories>
+  [[nodiscard]] static constexpr auto not_invocable(auto &&...fns) noexcept -> bool
+  {
+    return bind::template not_invocable<Categories...>(FWD(fns)...);
+  }
 };
 
 } // namespace util

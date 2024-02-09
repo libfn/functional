@@ -45,101 +45,33 @@ template <typename R> struct Xfn final {
   auto operator()(Xint const &&v) const noexcept -> R { return {v.value + 4}; }
 };
 
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error>, decltype(Xint::efn)>);
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> const, decltype(Xint::efn)>);
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> &, decltype(Xint::efn)>);
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> const &, decltype(Xint::efn)>);
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> &&, decltype(Xint::efn)>);
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> const &&, decltype(Xint::efn)>);
+namespace check_expected {
+using operand_t = fn::expected<Xint, Error>;
+using is = static_check<fn::and_then_t, operand_t>::bind;
 
-static_assert(not fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error>,
-                                        decltype(&Xint::efn1)>); // cannot bind rvalue
-static_assert(not fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> const,
-                                        decltype(&Xint::efn1)>); // cannot bind const rvalue
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> &, decltype(&Xint::efn1)>);
-static_assert(not fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> const &,
-                                        decltype(&Xint::efn1)>); // cannot bind const
-static_assert(not fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> &&,
-                                        decltype(&Xint::efn1)>); // cannot bind rvalue
-static_assert(not fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> const &&,
-                                        decltype(&Xint::efn1)>); // cannot bind const rvalue
-static_assert(not fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> const &,
-                                        decltype(&Xint::efn1)>); // cannot bind as non-const
+static_assert(is::invocable_with_any(Xint::efn));
+static_assert(is::invocable<lvalue>(&Xint::efn1));
+static_assert(is::not_invocable<prvalue, cvalue, clvalue, rvalue, crvalue>(&Xint::efn1));
+static_assert(is::invocable_with_any(&Xint::efn2));
+static_assert(is::invocable<prvalue, rvalue>(&Xint::efn3));
+static_assert(is::not_invocable<cvalue, lvalue, clvalue, crvalue>(&Xint::efn3));
+static_assert(is::invocable<prvalue, cvalue, rvalue, crvalue>(&Xint::efn4));
+static_assert(is::not_invocable<lvalue, clvalue>(&Xint::efn4));
+} // namespace check_expected
 
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error>, decltype(&Xint::efn2)>);
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> const, decltype(&Xint::efn2)>);
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> &, decltype(&Xint::efn2)>);
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> const &, decltype(&Xint::efn2)>);
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> &&, decltype(&Xint::efn2)>);
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> const &&, decltype(&Xint::efn2)>);
+namespace check_optional {
+using operand_t = fn::optional<Xint>;
+using is = static_check<fn::and_then_t, operand_t>::bind;
 
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error>, decltype(&Xint::efn3)>);
-static_assert(not fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> const,
-                                        decltype(&Xint::efn3)>); // cannot bind const
-static_assert(not fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> &,
-                                        decltype(&Xint::efn3)>); // cannot bind lvalue
-static_assert(not fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> const &,
-                                        decltype(&Xint::efn3)>); // cannot bind const lvalue
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> &&, decltype(&Xint::efn3)>);
-static_assert(not fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> const &&,
-                                        decltype(&Xint::efn3)>); // cannot bind const
-
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error>, decltype(&Xint::efn4)>);
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> const, decltype(&Xint::efn4)>);
-static_assert(not fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> &,
-                                        decltype(&Xint::efn4)>); // cannot bind lvalue
-static_assert(not fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> const &,
-                                        decltype(&Xint::efn4)>); // cannot bind const lvalue
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> &&, decltype(&Xint::efn4)>);
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::expected<Xint, Error> const &&, decltype(&Xint::efn4)>);
-
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::optional<Xint>, decltype(Xint::ofn)>);
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> const, decltype(Xint::ofn)>);
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> &, decltype(Xint::ofn)>);
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> const &, decltype(Xint::ofn)>);
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> &&, decltype(Xint::ofn)>);
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> const &&, decltype(Xint::ofn)>);
-
-static_assert(not fn::monadic_invocable<fn::and_then_t, fn::optional<Xint>,
-                                        decltype(&Xint::ofn1)>); // cannot bind rvalue
-static_assert(not fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> const,
-                                        decltype(&Xint::ofn1)>); // cannot bind const rvalue
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> &, decltype(&Xint::ofn1)>);
-static_assert(not fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> const &,
-                                        decltype(&Xint::ofn1)>); // cannot bind const
-static_assert(not fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> &&,
-                                        decltype(&Xint::ofn1)>); // cannot bind rvalue
-static_assert(not fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> const &&,
-                                        decltype(&Xint::ofn1)>); // cannot bind const rvalue
-static_assert(not fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> const &,
-                                        decltype(&Xint::ofn1)>); // cannot bind as non-const
-
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::optional<Xint>, decltype(&Xint::ofn2)>);
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> const, decltype(&Xint::ofn2)>);
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> &, decltype(&Xint::ofn2)>);
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> const &, decltype(&Xint::ofn2)>);
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> &&, decltype(&Xint::ofn2)>);
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> const &&, decltype(&Xint::ofn2)>);
-
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::optional<Xint>, decltype(&Xint::ofn3)>);
-static_assert(not fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> const,
-                                        decltype(&Xint::ofn3)>); // cannot bind const
-static_assert(not fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> &,
-                                        decltype(&Xint::ofn3)>); // cannot bind lvalue
-static_assert(not fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> const &,
-                                        decltype(&Xint::ofn3)>); // cannot bind const lvalue
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> &&, decltype(&Xint::ofn3)>);
-static_assert(not fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> const &&,
-                                        decltype(&Xint::ofn3)>); // cannot bind const
-
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::optional<Xint>, decltype(&Xint::ofn4)>);
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> const, decltype(&Xint::ofn4)>);
-static_assert(not fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> &,
-                                        decltype(&Xint::ofn4)>); // cannot bind lvalue
-static_assert(not fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> const &,
-                                        decltype(&Xint::ofn4)>); // cannot bind const lvalue
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> &&, decltype(&Xint::ofn4)>);
-static_assert(fn::monadic_invocable<fn::and_then_t, fn::optional<Xint> const &&, decltype(&Xint::ofn4)>);
+static_assert(is::invocable_with_any(Xint::ofn));
+static_assert(is::invocable<lvalue>(&Xint::ofn1));
+static_assert(is::not_invocable<prvalue, cvalue, clvalue, rvalue, crvalue>(&Xint::ofn1));
+static_assert(is::invocable_with_any(&Xint::ofn2));
+static_assert(is::invocable<prvalue, rvalue>(&Xint::ofn3));
+static_assert(is::not_invocable<cvalue, lvalue, clvalue, crvalue>(&Xint::ofn3));
+static_assert(is::invocable<prvalue, cvalue, rvalue, crvalue>(&Xint::ofn4));
+static_assert(is::not_invocable<lvalue, clvalue>(&Xint::ofn4));
+} // namespace check_optional
 } // namespace
 
 TEST_CASE("and_then_member", "[and_then][member_functions]")
@@ -153,7 +85,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
 
     WHEN("static fn")
     {
-      static_assert(fn::monadic_invocable<and_then_t, decltype(v), decltype(Xint::efn)>);
+      static_assert(static_check<fn::and_then_t, decltype(v)>::invocable_with_any(Xint::efn));
 
       auto const r = std::invoke(and_then_t::apply{}, v, Xint::efn);
       CHECK(r.value() == 2);
@@ -162,11 +94,11 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
       CHECK(q.value() == 2);
     }
 
-    static_assert(not fn::monadic_invocable<fn::and_then_t, decltype(v) &, decltype(&Xint::efn1)>);
+    static_assert(static_check<fn::and_then_t, decltype(v)>::not_invocable<lvalue>(&Xint::efn1));
 
     WHEN("const lvalue-ref")
     {
-      static_assert(fn::monadic_invocable<fn::and_then_t, decltype(v), decltype(&Xint::efn2)>);
+      static_assert(static_check<fn::and_then_t, decltype(v)>::invocable_with_any(&Xint::efn2));
 
       auto const r = std::invoke(and_then_t::apply{}, v, &Xint::efn2);
       CHECK(r.value() == 4);
@@ -178,11 +110,11 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
       CHECK(s.value() == 4);
     }
 
-    static_assert(not fn::monadic_invocable<fn::and_then_t, decltype(v) &&, decltype(&Xint::efn3)>);
+    static_assert(static_check<fn::and_then_t, decltype(v)>::not_invocable<rvalue>(&Xint::efn3));
 
     WHEN("const rvalue-ref")
     {
-      static_assert(fn::monadic_invocable<fn::and_then_t, decltype(v), decltype(&Xint::efn4)>);
+      static_assert(static_check<fn::and_then_t, decltype(v)>::invocable<prvalue, crvalue, cvalue>(&Xint::efn4));
 
       auto const r = std::invoke(and_then_t::apply{}, std::move(v), &Xint::efn4);
       CHECK(r.value() == 6);
@@ -202,7 +134,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
 
     WHEN("static fn")
     {
-      static_assert(fn::monadic_invocable<fn::and_then_t, decltype(v), decltype(Xint::efn)>);
+      static_assert(static_check<fn::and_then_t, decltype(v)>::invocable_with_any(Xint::efn));
 
       auto const r = std::invoke(and_then_t::apply{}, v, Xint::efn);
       CHECK(r.value() == 2);
@@ -213,7 +145,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
 
     WHEN("lvalue-ref")
     {
-      static_assert(fn::monadic_invocable<fn::and_then_t, decltype(v) &, decltype(&Xint::efn1)>);
+      static_assert(static_check<fn::and_then_t, decltype(v)>::invocable<lvalue>(&Xint::efn1));
 
       auto const r = std::invoke(and_then_t::apply{}, v, &Xint::efn1);
       CHECK(r.value() == 3);
@@ -227,7 +159,8 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
 
     WHEN("const lvalue-ref")
     {
-      static_assert(fn::monadic_invocable<fn::and_then_t, decltype(v), decltype(&Xint::efn2)>);
+      static_assert(static_check<fn::and_then_t, decltype(v)>::invocable_with_any(&Xint::efn2));
+
       // rvalue-ref
       auto const r = std::invoke(and_then_t::apply{}, v, &Xint::efn2);
       CHECK(r.value() == 4);
@@ -241,7 +174,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
 
     WHEN("rvalue-ref")
     {
-      static_assert(fn::monadic_invocable<fn::and_then_t, decltype(v), decltype(&Xint::efn3)>);
+      static_assert(static_check<fn::and_then_t, decltype(v)>::invocable<prvalue, rvalue>(&Xint::efn3));
 
       auto const r = std::invoke(and_then_t::apply{}, std::move(v), &Xint::efn3);
       CHECK(r.value() == 5);
@@ -255,7 +188,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
 
     WHEN("const rvalue-ref")
     {
-      static_assert(fn::monadic_invocable<fn::and_then_t, decltype(v), decltype(&Xint::efn4)>);
+      static_assert(static_check<fn::and_then_t, decltype(v)>::invocable<prvalue, crvalue, cvalue>(&Xint::efn4));
 
       auto const r = std::invoke(and_then_t::apply{}, std::move(v), &Xint::efn4);
       CHECK(r.value() == 6);
@@ -275,7 +208,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
 
     WHEN("static fn")
     {
-      static_assert(fn::monadic_invocable<and_then_t, decltype(v), decltype(Xint::ofn)>);
+      static_assert(static_check<fn::and_then_t, decltype(v)>::invocable_with_any(&Xint::ofn));
 
       auto const r = std::invoke(and_then_t::apply{}, v, Xint::ofn);
       CHECK(r.value() == 2);
@@ -284,11 +217,11 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
       CHECK(q.value() == 2);
     }
 
-    static_assert(not fn::monadic_invocable<fn::and_then_t, decltype(v) &, decltype(&Xint::ofn1)>);
+    static_assert(static_check<fn::and_then_t, decltype(v)>::not_invocable<lvalue>(&Xint::ofn1));
 
     WHEN("const lvalue-ref")
     {
-      static_assert(fn::monadic_invocable<fn::and_then_t, decltype(v), decltype(&Xint::ofn2)>);
+      static_assert(static_check<fn::and_then_t, decltype(v)>::invocable_with_any(&Xint::ofn2));
 
       auto const r = std::invoke(and_then_t::apply{}, v, &Xint::ofn2);
       CHECK(r.value() == 4);
@@ -300,11 +233,11 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
       CHECK(s.value() == 4);
     }
 
-    static_assert(not fn::monadic_invocable<fn::and_then_t, decltype(v) &&, decltype(&Xint::ofn3)>);
+    static_assert(static_check<fn::and_then_t, decltype(v)>::not_invocable<rvalue>(&Xint::ofn3));
 
     WHEN("const rvalue-ref")
     {
-      static_assert(fn::monadic_invocable<fn::and_then_t, decltype(v), decltype(&Xint::ofn4)>);
+      static_assert(static_check<fn::and_then_t, decltype(v)>::invocable<prvalue, crvalue, cvalue>(&Xint::ofn4));
 
       auto const r = std::invoke(and_then_t::apply{}, std::move(v), &Xint::ofn4);
       CHECK(r.value() == 6);
@@ -324,7 +257,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
 
     WHEN("static fn")
     {
-      static_assert(fn::monadic_invocable<fn::and_then_t, decltype(v), decltype(Xint::ofn)>);
+      static_assert(static_check<fn::and_then_t, decltype(v)>::invocable_with_any(Xint::ofn));
 
       auto const r = std::invoke(and_then_t::apply{}, v, Xint::ofn);
       CHECK(r.value() == 2);
@@ -335,7 +268,8 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
 
     WHEN("lvalue-ref")
     {
-      static_assert(fn::monadic_invocable<fn::and_then_t, decltype(v) &, decltype(&Xint::ofn1)>);
+      static_assert(static_check<fn::and_then_t, decltype(v)>::invocable<lvalue>(&Xint::ofn1));
+
       auto const r = std::invoke(and_then_t::apply{}, v, &Xint::ofn1);
       CHECK(r.value() == 3);
 
@@ -348,7 +282,8 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
 
     WHEN("const lvalue-ref")
     {
-      static_assert(fn::monadic_invocable<fn::and_then_t, decltype(v), decltype(&Xint::ofn2)>);
+      static_assert(static_check<fn::and_then_t, decltype(v)>::invocable_with_any(&Xint::ofn2));
+
       // rvalue-ref
       auto const r = std::invoke(and_then_t::apply{}, v, &Xint::ofn2);
       CHECK(r.value() == 4);
@@ -362,7 +297,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
 
     WHEN("rvalue-ref")
     {
-      static_assert(fn::monadic_invocable<fn::and_then_t, decltype(v), decltype(&Xint::ofn3)>);
+      static_assert(static_check<fn::and_then_t, decltype(v)>::invocable<prvalue, rvalue>(&Xint::ofn3));
 
       auto const r = std::invoke(and_then_t::apply{}, std::move(v), &Xint::ofn3);
       CHECK(r.value() == 5);
@@ -376,7 +311,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
 
     WHEN("const rvalue-ref")
     {
-      static_assert(fn::monadic_invocable<fn::and_then_t, decltype(v), decltype(&Xint::ofn4)>);
+      static_assert(static_check<fn::and_then_t, decltype(v)>::invocable<prvalue, crvalue, cvalue>(&Xint::ofn4));
 
       auto const r = std::invoke(and_then_t::apply{}, std::move(v), &Xint::ofn4);
       CHECK(r.value() == 6);
