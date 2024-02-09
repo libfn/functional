@@ -328,7 +328,7 @@ TEST_CASE("filter", "[filter][optional]")
   constexpr auto falsePred = [](int) { return false; };
 
   using operand_t = fn::optional<int>;
-  using is = monadic_static_check<filter_t, operand_t>::bind;
+  using is = monadic_static_check<filter_t, operand_t>;
 
   static_assert(is::invocable_with_any(truePred));
   static_assert(is::invocable_with_any([](auto...) -> bool { throw 0; }));         // allow generic call
@@ -404,7 +404,7 @@ TEST_CASE("filter member function", "[filter][optional]")
   constexpr auto predicate = &Value::ok;
 
   using operand_t = fn::optional<Value>;
-  using is = monadic_static_check<filter_t, operand_t>::bind;
+  using is = monadic_static_check<filter_t, operand_t>;
 
   static_assert(is::invocable_with_any(predicate));
   static_assert(is::invocable_with_any([](auto...) -> bool { throw 0; }));         // allow generic call

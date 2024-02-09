@@ -38,7 +38,7 @@ TEST_CASE("fail", "[fail][expected][expected_value]")
   using namespace fn;
 
   using operand_t = fn::expected<int, Error>;
-  using is = monadic_static_check<fail_t, operand_t>::bind;
+  using is = monadic_static_check<fail_t, operand_t>;
 
   constexpr auto fnValue = [](int i) -> Error { return {"Got " + std::to_string(i)}; };
   constexpr auto wrong = [](int) -> Error { throw 0; };
@@ -129,7 +129,7 @@ TEST_CASE("fail", "[fail][expected][expected_void]")
   using namespace fn;
 
   using operand_t = fn::expected<void, Error>;
-  using is = monadic_static_check<fail_t, operand_t>::bind;
+  using is = monadic_static_check<fail_t, operand_t>;
 
   int count = 0;
   auto fnValue = [&count]() -> Error { return {"Got " + std::to_string(++count)}; };
@@ -197,7 +197,7 @@ TEST_CASE("fail", "[fail][optional]")
   using namespace fn;
 
   using operand_t = fn::optional<int>;
-  using is = monadic_static_check<fail_t, operand_t>::bind;
+  using is = monadic_static_check<fail_t, operand_t>;
 
   auto count = 0;
   auto fnValue = [&count](auto) { count += 1; };

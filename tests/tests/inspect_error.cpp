@@ -33,7 +33,7 @@ TEST_CASE("inspect_error expected", "[inspect_error][expected]")
   using namespace fn;
 
   using operand_t = fn::expected<int, Error>;
-  using is = monadic_static_check<inspect_error_t, operand_t>::bind;
+  using is = monadic_static_check<inspect_error_t, operand_t>;
 
   std::string error = {};
   auto fnError = [&error](auto v) -> void { error = v; };
@@ -126,7 +126,7 @@ TEST_CASE("inspect_error optional", "[inspect_error][optional]")
   using namespace fn;
 
   using operand_t = fn::optional<int>;
-  using is = monadic_static_check<inspect_error_t, operand_t>::bind;
+  using is = monadic_static_check<inspect_error_t, operand_t>;
 
   int error = 0;
   auto fnError = [&error]() -> void { error += 1; };

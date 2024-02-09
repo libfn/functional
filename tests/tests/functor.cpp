@@ -30,7 +30,7 @@ constexpr auto fn2 = []() constexpr -> int { return 1; };
 
 namespace check_expected {
 using operand_t = fn::expected<int, bool>;
-using is = monadic_static_check<dummy_t, operand_t>::bind;
+using is = monadic_static_check<dummy_t, operand_t>;
 
 static_assert(is::invocable_with_any(fn1));
 static_assert(is::not_invocable_with_any(fn2)); // arity mismatch
@@ -38,7 +38,7 @@ static_assert(is::not_invocable_with_any(fn2)); // arity mismatch
 
 namespace check_optional {
 using operand_t = fn::optional<int>;
-using is = monadic_static_check<dummy_t, operand_t>::bind;
+using is = monadic_static_check<dummy_t, operand_t>;
 
 static_assert(is::invocable_with_any(fn1));
 static_assert(is::not_invocable_with_any(fn2)); // arity mismatch

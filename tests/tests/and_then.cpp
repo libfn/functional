@@ -47,7 +47,7 @@ template <typename R> struct Xfn final {
 
 namespace check_expected {
 using operand_t = fn::expected<Xint, Error>;
-using is = monadic_static_check<fn::and_then_t, operand_t>::bind;
+using is = monadic_static_check<fn::and_then_t, operand_t>;
 
 static_assert(is::invocable_with_any(Xint::efn));
 static_assert(is::invocable<lvalue>(&Xint::efn1));
@@ -61,7 +61,7 @@ static_assert(is::not_invocable<lvalue, clvalue>(&Xint::efn4));
 
 namespace check_optional {
 using operand_t = fn::optional<Xint>;
-using is = monadic_static_check<fn::and_then_t, operand_t>::bind;
+using is = monadic_static_check<fn::and_then_t, operand_t>;
 
 static_assert(is::invocable_with_any(Xint::ofn));
 static_assert(is::invocable<lvalue>(&Xint::ofn1));
@@ -336,7 +336,7 @@ TEST_CASE("and_then", "[and_then][expected][expected_value]")
   using operand_t = fn::expected<int, Error>;
   using operand_other_t = fn::expected<void, Error>;
   using operand_other_err_t = fn::expected<int, OtherError>;
-  using is = monadic_static_check<and_then_t, operand_t>::bind;
+  using is = monadic_static_check<and_then_t, operand_t>;
 
   constexpr auto fnValue = [](int i) -> operand_t { return {i + 1}; };
   constexpr auto wrong = [](int) -> operand_t { throw 0; };
@@ -440,7 +440,7 @@ TEST_CASE("and_then", "[and_then][expected][expected_void]")
   using operand_t = fn::expected<void, Error>;
   using operand_other_t = fn::expected<int, Error>;
   using operand_other_err_t = fn::expected<void, OtherError>;
-  using is = monadic_static_check<and_then_t, operand_t>::bind;
+  using is = monadic_static_check<and_then_t, operand_t>;
 
   int count = 0;
   auto fnValue = [&count]() -> operand_t {
@@ -538,7 +538,7 @@ TEST_CASE("and_then", "[and_then][optional]")
 
   using operand_t = fn::optional<int>;
   using operand_other_t = fn::optional<double>;
-  using is = monadic_static_check<and_then_t, operand_t>::bind;
+  using is = monadic_static_check<and_then_t, operand_t>;
 
   constexpr auto fnValue = [](int i) -> operand_t { return {i + 1}; };
   constexpr auto wrong = [](int) -> operand_t { throw 0; };
