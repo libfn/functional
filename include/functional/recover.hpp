@@ -70,7 +70,7 @@ struct recover_t::apply final {
   {
     using type = std::remove_cvref_t<decltype(v)>;
     if (v.has_value()) {
-      return type{FWD(v)};
+      return type{std::in_place, FWD(v).value()};
     }
     return type{std::in_place, std::invoke(FWD(fn))};
   }
