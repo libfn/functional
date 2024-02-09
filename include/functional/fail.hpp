@@ -33,7 +33,7 @@ concept invocable_fail //
       });
 
 constexpr inline struct fail_t final {
-  constexpr auto operator()(auto &&fn) const noexcept -> functor<fail_t, decltype(fn)> //
+  [[nodiscard]] constexpr auto operator()(auto &&fn) const noexcept -> functor<fail_t, decltype(fn)> //
   {
     return {FWD(fn)};
   }
@@ -42,18 +42,19 @@ constexpr inline struct fail_t final {
 } fail = {};
 
 struct fail_t::apply final {
-  static constexpr auto operator()(some_expected auto &&v, auto &&fn) noexcept //
+  [[nodiscard]] static constexpr auto operator()(some_expected auto &&v, auto &&fn) noexcept //
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_fail<decltype(fn), decltype(v)>
   {
     using type = std::remove_cvref_t<decltype(v)>;
     return FWD(v).and_then( //
         [&fn](auto &&...arg) noexcept -> type {
-          return std::unexpected<typename type::error_type>{std::invoke(FWD(fn), FWD(arg)...)};
+          return type{std::unexpect, std::invoke(FWD(fn), FWD(arg)...)};
         });
   }
 
-  static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept -> same_monadic_type_as<decltype(v)> auto
+  [[nodiscard]] static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept
+      -> same_monadic_type_as<decltype(v)> auto
     requires invocable_fail<decltype(fn), decltype(v)>
   {
     using type = std::remove_cvref_t<decltype(v)>;

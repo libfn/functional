@@ -41,7 +41,7 @@ concept invocable_filter //
 
 constexpr inline struct filter_t final {
   // NOTE Optional needs one arguments, expected needs two
-  constexpr auto operator()(auto &&...args) const noexcept -> functor<filter_t, decltype(args)...>
+  [[nodiscard]] constexpr auto operator()(auto &&...args) const noexcept -> functor<filter_t, decltype(args)...>
     requires(sizeof...(args) >= 1) && (sizeof...(args) < 3)
   {
     return {FWD(args)...};
@@ -51,7 +51,7 @@ constexpr inline struct filter_t final {
 } filter = {};
 
 struct filter_t::apply final {
-  static constexpr auto operator()(some_expected_non_void auto &&v, auto &&pred, auto &&on_err) noexcept
+  [[nodiscard]] static constexpr auto operator()(some_expected_non_void auto &&v, auto &&pred, auto &&on_err) noexcept
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_filter<decltype(pred), decltype(on_err), decltype(v)>
   {
@@ -64,7 +64,7 @@ struct filter_t::apply final {
         });
   }
 
-  static constexpr auto operator()(some_expected_void auto &&v, auto &&pred, auto &&on_err) noexcept
+  [[nodiscard]] static constexpr auto operator()(some_expected_void auto &&v, auto &&pred, auto &&on_err) noexcept
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_filter<decltype(pred), decltype(on_err), decltype(v)>
   {
@@ -77,7 +77,7 @@ struct filter_t::apply final {
         });
   }
 
-  static constexpr auto operator()(some_optional auto &&v, auto &&pred) noexcept
+  [[nodiscard]] static constexpr auto operator()(some_optional auto &&v, auto &&pred) noexcept
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_filter<decltype(pred), void, decltype(v)>
   {
