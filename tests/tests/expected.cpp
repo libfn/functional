@@ -14,6 +14,339 @@ namespace {
 enum Error { Unknown, FileNotFound };
 }
 
+TEST_CASE("pack support", "[expected][pack][and_then][transform][operator_and]")
+{
+  WHEN("and_then")
+  {
+    WHEN("value")
+    {
+      fn::expected<fn::pack<int, std::string_view>, Error> s{
+          fn::pack<int>{12}.append(fn::type<std::string_view>(), "bar")};
+
+      CHECK(s.and_then( //
+                 fn::overload([](int &i, auto &&...) -> fn::expected<bool, Error> { return i == 12; },
+                              [](int const &, auto &&...) -> fn::expected<bool, Error> { throw 0; },
+                              [](int &&i, auto &&...) -> fn::expected<bool, Error> { throw 0; },
+                              [](int const &&, auto &&...) -> fn::expected<bool, Error> { return 0; })) //
+                .value());
+      CHECK(std::as_const(s)
+                .and_then( //
+                    fn::overload([](int &, auto &&...) -> fn::expected<bool, Error> { throw 0; },
+                                 [](int const &i, auto &&...) -> fn::expected<bool, Error> { return i == 12; },
+                                 [](int &&, auto &&...) -> fn::expected<bool, Error> { throw 0; },
+                                 [](int const &&, auto &&...) -> fn::expected<bool, Error> { throw 0; })) //
+                .value());
+      CHECK(fn::expected<fn::pack<int, std::string_view>, Error>{
+          fn::pack<int>{12}.append(fn::type<std::string_view>(), "bar")}
+                .and_then( //
+                    fn::overload([](int &, auto &&...) -> fn::expected<bool, Error> { throw 0; },
+                                 [](int const &, auto &&...) -> fn::expected<bool, Error> { throw 0; },
+                                 [](int &&i, auto &&...) -> fn::expected<bool, Error> { return i == 12; },
+                                 [](int const &&, auto &&...) -> fn::expected<bool, Error> { throw 0; })) //
+                .value());
+      CHECK(std::move(std::as_const(s))
+                .and_then( //
+                    fn::overload([](int &, auto &&...) -> fn::expected<bool, Error> { throw 0; },
+                                 [](int const &, auto &&...) -> fn::expected<bool, Error> { throw 0; },
+                                 [](int &&, auto &&...) -> fn::expected<bool, Error> { throw 0; },
+                                 [](int const &&i, auto &&...) -> fn::expected<bool, Error> { return i == 12; })) //
+                .value());
+    }
+
+    WHEN("error")
+    {
+      fn::expected<fn::pack<int, std::string_view>, Error> s{std::unexpect, FileNotFound};
+      CHECK(s.and_then( //
+                 [](auto...) -> fn::expected<bool, Error> { throw 0; })
+                .error()
+            == FileNotFound);
+      CHECK(std::as_const(s)
+                .and_then( //
+                    [](auto...) -> fn::expected<bool, Error> { throw 0; })
+                .error()
+            == FileNotFound);
+      CHECK(fn::expected<fn::pack<int, std::string_view>, Error>{std::unexpect, FileNotFound}
+                .and_then( //
+                    [](auto...) -> fn::expected<bool, Error> { throw 0; })
+                .error()
+            == FileNotFound);
+      CHECK(std::move(std::as_const(s))
+                .and_then( //
+                    [](auto...) -> fn::expected<bool, Error> { throw 0; })
+                .error()
+            == FileNotFound);
+    }
+  }
+
+  WHEN("transform")
+  {
+    WHEN("value")
+    {
+      fn::expected<fn::pack<int, std::string_view>, Error> s{
+          fn::pack<int>{12}.append(fn::type<std::string_view>(), "bar")};
+
+      CHECK(s.transform( //
+                 fn::overload([](int &i, auto &&...) -> bool { return i == 12; },
+                              [](int const &, auto &&...) -> bool { throw 0; },
+                              [](int &&, auto &&...) -> bool { throw 0; },
+                              [](int const &&, auto &&...) -> bool { throw 0; })) //
+                .value());
+      CHECK(std::as_const(s)
+                .transform( //
+                    fn::overload([](int &, auto &&...) -> bool { throw 0; },
+                                 [](int const &i, auto &&...) -> bool { return i == 12; },
+                                 [](int &&, auto &&...) -> bool { throw 0; },
+                                 [](int const &&, auto &&...) -> bool { throw 0; })) //
+                .value());
+      CHECK(fn::expected<fn::pack<int, std::string_view>, Error>{
+          fn::pack<int>{12}.append(fn::type<std::string_view>(), "bar")}
+                .transform( //
+                    fn::overload([](int &, auto &&...) -> bool { throw 0; },
+                                 [](int const &, auto &&...) -> bool { throw 0; },
+                                 [](int &&i, auto &&...) -> bool { return i == 12; },
+                                 [](int const &&, auto &&...) -> bool { throw 0; })) //
+                .value());
+      CHECK(std::move(std::as_const(s))
+                .transform( //
+                    fn::overload([](int &, auto &&...) -> bool { throw 0; },
+                                 [](int const &, auto &&...) -> bool { throw 0; },
+                                 [](int &&, auto &&...) -> bool { throw 0; },
+                                 [](int const &&i, auto &&...) -> bool { return i == 12; })) //
+                .value());
+    }
+
+    WHEN("void result")
+    {
+      fn::expected<fn::pack<int, std::string_view>, Error> s{
+          fn::pack<int>{12}.append(fn::type<std::string_view>(), "bar")};
+
+      CHECK(s.transform( //
+                 fn::overload([](int &, auto &&...) -> void {}, [](int const &, auto &&...) -> void { throw 0; },
+                              [](int &&, auto &&...) -> void { throw 0; },
+                              [](int const &&, auto &&...) -> void { throw 0; })) //
+                .has_value());
+      CHECK(std::as_const(s)
+                .transform( //
+                    fn::overload([](int &, auto &&...) -> void { throw 0; }, [](int const &, auto &&...) -> void {},
+                                 [](int &&, auto &&...) -> void { throw 0; },
+                                 [](int const &&, auto &&...) -> void { throw 0; })) //
+                .has_value());
+      CHECK(fn::expected<fn::pack<int, std::string_view>, Error>{
+          fn::pack<int>{12}.append(fn::type<std::string_view>(), "bar")}
+                .transform( //
+                    fn::overload([](int &, auto &&...) -> void { throw 0; },
+                                 [](int const &, auto &&...) -> void { throw 0; }, [](int &&, auto &&...) -> void {},
+                                 [](int const &&, auto &&...) -> void { throw 0; })) //
+                .has_value());
+      CHECK(std::move(std::as_const(s))
+                .transform( //
+                    fn::overload(
+                        [](int &, auto &&...) -> void { throw 0; }, [](int const &, auto &&...) -> void { throw 0; },
+                        [](int &&, auto &&...) -> void { throw 0; }, [](int const &&, auto &&...) -> void {})) //
+                .has_value());
+    }
+
+    WHEN("error")
+    {
+      fn::expected<fn::pack<int, std::string_view>, Error> s{std::unexpect, FileNotFound};
+      CHECK(s.transform([](auto...) -> bool { throw 0; }).error() == FileNotFound);
+      CHECK(std::as_const(s).transform([](auto...) -> bool { throw 0; }).error() == FileNotFound);
+      CHECK(fn::expected<fn::pack<int, std::string_view>, Error>{std::unexpect, FileNotFound}
+                .transform([](auto...) -> bool { throw 0; })
+                .error()
+            == FileNotFound);
+      CHECK(std::move(std::as_const(s)).transform([](auto...) -> bool { throw 0; }).error() == FileNotFound);
+    }
+  }
+
+  WHEN("operator &")
+  {
+    WHEN("value & void yield value")
+    {
+      static_assert(
+          std::same_as<decltype(std::declval<fn::expected<int, Error>>() & std::declval<fn::expected<void, Error>>()),
+                       fn::expected<int, Error>>);
+
+      CHECK((fn::expected<int, Error>{42} //
+             & fn::expected<void, Error>{})
+                .value()
+            == 42);
+      CHECK((fn::expected<int, Error>{std::unexpect, FileNotFound} //
+             & fn::expected<void, Error>{})
+                .error()
+            == FileNotFound);
+      CHECK((fn::expected<int, Error>{42} //
+             & fn::expected<void, Error>{std::unexpect, Unknown})
+                .error()
+            == Unknown);
+      CHECK((fn::expected<int, Error>{std::unexpect, FileNotFound} //
+             & fn::expected<void, Error>{std::unexpect, Unknown})
+                .error()
+            == FileNotFound);
+    }
+
+    WHEN("void & value yield value")
+    {
+      static_assert(
+          std::same_as<decltype(std::declval<fn::expected<void, Error>>() & std::declval<fn::expected<int, Error>>()),
+                       fn::expected<int, Error>>);
+
+      CHECK((fn::expected<void, Error>{} //
+             & fn::expected<int, Error>{12})
+                .value()
+            == 12);
+      CHECK((fn::expected<void, Error>{std::unexpect, FileNotFound} //
+             & fn::expected<int, Error>{12})
+                .error()
+            == FileNotFound);
+      CHECK((fn::expected<void, Error>{} //
+             & fn::expected<int, Error>{std::unexpect, Unknown})
+                .error()
+            == Unknown);
+      CHECK((fn::expected<void, Error>{std::unexpect, FileNotFound} //
+             & fn::expected<int, Error>{std::unexpect, Unknown})
+                .error()
+            == FileNotFound);
+    }
+
+    WHEN("void & void yield void")
+    {
+      static_assert(
+          std::same_as<decltype(std::declval<fn::expected<void, Error>>() & std::declval<fn::expected<void, Error>>()),
+                       fn::expected<void, Error>>);
+
+      CHECK((fn::expected<void, Error>{} //
+             & fn::expected<void, Error>{})
+                .has_value());
+      CHECK((fn::expected<void, Error>{std::unexpect, FileNotFound} //
+             & fn::expected<void, Error>{})
+                .error()
+            == FileNotFound);
+      CHECK((fn::expected<void, Error>{} //
+             & fn::expected<void, Error>{std::unexpect, Unknown})
+                .error()
+            == Unknown);
+      CHECK((fn::expected<void, Error>{std::unexpect, FileNotFound} //
+             & fn::expected<void, Error>{std::unexpect, Unknown})
+                .error()
+            == FileNotFound);
+    }
+
+    WHEN("value & value yield pack")
+    {
+      static_assert(
+          std::same_as<decltype(std::declval<fn::expected<int, Error>>() & std::declval<fn::expected<double, Error>>()),
+                       fn::expected<fn::pack<int, double>, Error>>);
+
+      CHECK((fn::expected<double, Error>{0.5} //
+             & fn::expected<int, Error>{12})
+                .transform([](double d, int i) constexpr -> bool { return d == 0.5 && i == 12; })
+                .value());
+      CHECK((fn::expected<double, Error>{std::unexpect, FileNotFound} //
+             & fn::expected<int, Error>{12})
+                .error()
+            == FileNotFound);
+      CHECK((fn::expected<double, Error>{} //
+             & fn::expected<int, Error>{std::unexpect, Unknown})
+                .error()
+            == Unknown);
+      CHECK((fn::expected<double, Error>{std::unexpect, FileNotFound} //
+             & fn::expected<int, Error>{std::unexpect, Unknown})
+                .error()
+            == FileNotFound);
+    }
+
+    WHEN("pack & value yield pack")
+    {
+      static_assert(std::same_as<decltype(std::declval<fn::expected<fn::pack<double, bool>, Error>>()
+                                          & std::declval<fn::expected<int, Error>>()),
+                                 fn::expected<fn::pack<double, bool, int>, Error>>);
+
+      CHECK((fn::expected<fn::pack<double, bool>, Error>{std::in_place, fn::pack<double, bool>{0.5, true}} //
+             & fn::expected<int, Error>{12})
+                .transform([](double d, bool b, int i) constexpr -> bool { return d == 0.5 && b && i == 12; })
+                .value());
+      CHECK((fn::expected<fn::pack<double, bool>, Error>{std::unexpect, FileNotFound} //
+             & fn::expected<int, Error>{12})
+                .error()
+            == FileNotFound);
+      CHECK((fn::expected<fn::pack<double, bool>, Error>{std::in_place, fn::pack<double, bool>{0.5, true}} //
+             & fn::expected<int, Error>{std::unexpect, Unknown})
+                .error()
+            == Unknown);
+      CHECK((fn::expected<fn::pack<double, bool>, Error>{std::unexpect, FileNotFound} //
+             & fn::expected<int, Error>{std::unexpect, Unknown})
+                .error()
+            == FileNotFound);
+    }
+
+    WHEN("pack & void yield pack")
+    {
+      static_assert(std::same_as<decltype(std::declval<fn::expected<fn::pack<double, bool>, Error>>()
+                                          & std::declval<fn::expected<void, Error>>()),
+                                 fn::expected<fn::pack<double, bool>, Error>>);
+
+      CHECK((fn::expected<fn::pack<double, bool>, Error>{std::in_place, fn::pack<double, bool>{0.5, true}} //
+             & fn::expected<void, Error>{})
+                .transform([](double d, bool b) constexpr -> bool { return d == 0.5 && b; })
+                .value());
+      CHECK((fn::expected<fn::pack<double, bool>, Error>{std::unexpect, FileNotFound} //
+             & fn::expected<void, Error>{})
+                .error()
+            == FileNotFound);
+      CHECK((fn::expected<fn::pack<double, bool>, Error>{std::in_place, fn::pack<double, bool>{0.5, true}} //
+             & fn::expected<void, Error>{std::unexpect, Unknown})
+                .error()
+            == Unknown);
+      CHECK((fn::expected<fn::pack<double, bool>, Error>{std::unexpect, FileNotFound} //
+             & fn::expected<void, Error>{std::unexpect, Unknown})
+                .error()
+            == FileNotFound);
+    }
+
+    WHEN("void & pack yield pack")
+    {
+      static_assert(std::same_as<decltype(std::declval<fn::expected<void, Error>>()
+                                          & std::declval<fn::expected<fn::pack<double, bool>, Error>>()),
+                                 fn::expected<fn::pack<double, bool>, Error>>);
+
+      CHECK((fn::expected<void, Error>{} //
+             & fn::expected<fn::pack<double, bool>, Error>{std::in_place, fn::pack<double, bool>{0.5, true}})
+                .transform([](double d, bool b) constexpr -> bool { return d == 0.5 && b; })
+                .value());
+      CHECK((fn::expected<void, Error>{std::unexpect, FileNotFound} //
+             & fn::expected<fn::pack<double, bool>, Error>{std::in_place, fn::pack<double, bool>{0.5, true}})
+                .error()
+            == FileNotFound);
+      CHECK((fn::expected<void, Error>{} //
+             & fn::expected<fn::pack<double, bool>, Error>{std::unexpect, Unknown})
+                .error()
+            == Unknown);
+      CHECK((fn::expected<void, Error>{std::unexpect, FileNotFound} //
+             & fn::expected<fn::pack<double, bool>, Error>{std::unexpect, Unknown})
+                .error()
+            == FileNotFound);
+    }
+
+    WHEN("value & pack is unsupported")
+    {
+      static_assert(
+          [](auto &&lh,                                                          //
+             auto &&rh) constexpr -> bool { return not requires { lh & rh; }; }( //
+                                      fn::expected<int, Error>{12},
+                                      fn::expected<fn::pack<double, bool>, Error>{fn::pack<double, bool>{0.5, true}}));
+    }
+    WHEN("pack & pack is unsupported")
+    {
+      static_assert(
+          [](auto &&lh,
+             auto &&rh) constexpr -> bool { return not requires { lh & rh; }; }( //
+                                      fn::expected<fn::pack<double, bool>, Error>{fn::pack<double, bool>{0.5, true}},
+                                      fn::expected<fn::pack<double, bool>, Error>{fn::pack<double, bool>{0.5, true}}));
+    }
+  }
+}
+
 TEST_CASE("expected polyfills and_then", "[expected][polyfill][and_then]")
 {
   WHEN("value")
