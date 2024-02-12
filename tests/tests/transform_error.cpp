@@ -32,7 +32,7 @@ TEST_CASE("transform_error", "[transform_error][expected]")
   using namespace fn;
 
   using operand_t = fn::expected<int, Error>;
-  using is = static_check<transform_error_t, operand_t>::bind;
+  using is = monadic_static_check<transform_error_t, operand_t>;
 
   constexpr auto fnError = [](Error v) -> Error { return {"Got: " + v.what}; };
   constexpr auto wrong = [](Error) -> Error { throw 0; };

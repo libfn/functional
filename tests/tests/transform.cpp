@@ -30,7 +30,7 @@ TEST_CASE("transform", "[transform][expected][expected_value]")
   using namespace fn;
 
   using operand_t = fn::expected<int, Error>;
-  using is = static_check<transform_t, operand_t>::bind;
+  using is = monadic_static_check<transform_t, operand_t>;
 
   constexpr auto fnValue = [](int i) -> int { return i + 1; };
   constexpr auto wrong = [](int) -> int { throw 0; };
@@ -113,7 +113,7 @@ TEST_CASE("transform", "[transform][expected][expected_void]")
   using namespace fn;
 
   using operand_t = fn::expected<void, Error>;
-  using is = static_check<transform_t, operand_t>::bind;
+  using is = monadic_static_check<transform_t, operand_t>;
 
   int count = 0;
   auto fnValue = [&count]() -> void { count += 1; };
@@ -190,7 +190,7 @@ TEST_CASE("transform", "[transform][optional]")
   using namespace fn;
 
   using operand_t = fn::optional<int>;
-  using is = static_check<transform_t, operand_t>::bind;
+  using is = monadic_static_check<transform_t, operand_t>;
 
   constexpr auto fnValue = [](int i) -> int { return i + 1; };
   constexpr auto wrong = [](int) -> int { throw 0; };

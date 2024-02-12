@@ -29,7 +29,7 @@ TEST_CASE("recover", "[recover][expected][expected_value]")
   using namespace fn;
 
   using operand_t = fn::expected<int, Error>;
-  using is = static_check<recover_t, operand_t>::bind;
+  using is = monadic_static_check<recover_t, operand_t>;
 
   constexpr auto fnError = [](Error e) -> int { return e.what.size(); };
   constexpr auto wrong = [](Error) -> int { throw 0; };
@@ -95,7 +95,7 @@ TEST_CASE("recover", "[recover][expected][expected_void]")
   using namespace fn;
 
   using operand_t = fn::expected<void, Error>;
-  using is = static_check<recover_t, operand_t>::bind;
+  using is = monadic_static_check<recover_t, operand_t>;
 
   int count = 0;
   auto fnError = [&count](Error) -> void { count += 1; };
@@ -160,7 +160,7 @@ TEST_CASE("recover", "[recover][optional]")
   using namespace fn;
 
   using operand_t = fn::optional<int>;
-  using is = static_check<recover_t, operand_t>::bind;
+  using is = monadic_static_check<recover_t, operand_t>;
 
   constexpr auto fnError = []() -> int { return 42; };
   constexpr auto wrong = []() -> int { throw 0; };

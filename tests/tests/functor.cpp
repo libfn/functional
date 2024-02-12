@@ -1,12 +1,16 @@
-// Copyright (c) 2024 Bronek Kozicki
+// Copyright (c) 2024 Bronek Kozicki, Alex Kremer
 //
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
+
+#include "static_check.hpp"
 
 #include "functional/functor.hpp"
 #include "functional/utility.hpp"
 
 #include <catch2/catch_all.hpp>
+
+using namespace util;
 
 namespace {
 constexpr inline struct dummy_t final {
@@ -21,28 +25,25 @@ constexpr inline struct dummy_t final {
   };
 } dummy = {};
 
-} // namespace
-
 constexpr auto fn1 = [](int i) constexpr -> int { return i + 1; };
-
-namespace fn {
-static_assert(monadic_invocable<dummy_t, expected<int, bool>, decltype(fn1)>);
-static_assert(monadic_invocable<dummy_t, optional<int>, decltype(fn1)>);
-static_assert(monadic_invocable<dummy_t, expected<int, bool> &, decltype(fn1)>);
-static_assert(monadic_invocable<dummy_t, optional<int> &, decltype(fn1)>);
-static_assert(monadic_invocable<dummy_t, expected<int, bool> const &, decltype(fn1)>);
-static_assert(monadic_invocable<dummy_t, optional<int> const &, decltype(fn1)>);
-static_assert(monadic_invocable<dummy_t, expected<int, bool> &&, decltype(fn1)>);
-static_assert(monadic_invocable<dummy_t, optional<int> &&, decltype(fn1)>);
-static_assert(monadic_invocable<dummy_t, expected<int, bool> const &&, decltype(fn1)>);
-static_assert(monadic_invocable<dummy_t, optional<int> const &&, decltype(fn1)>);
-
 constexpr auto fn2 = []() constexpr -> int { return 1; };
-static_assert(not monadic_invocable<dummy_t, expected<int, bool>,
-                                    decltype(fn2)>); // arity mismatch
-static_assert(not monadic_invocable<dummy_t, optional<int>,
-                                    decltype(fn2)>); // arity mismatch
-} // namespace fn
+
+namespace check_expected {
+using operand_t = fn::expected<int, bool>;
+using is = monadic_static_check<dummy_t, operand_t>;
+
+static_assert(is::invocable_with_any(fn1));
+static_assert(is::not_invocable_with_any(fn2)); // arity mismatch
+} // namespace check_expected
+
+namespace check_optional {
+using operand_t = fn::optional<int>;
+using is = monadic_static_check<dummy_t, operand_t>;
+
+static_assert(is::invocable_with_any(fn1));
+static_assert(is::not_invocable_with_any(fn2)); // arity mismatch
+} // namespace check_optional
+} // namespace
 
 TEST_CASE("user-defined monadic operation", "[functor]")
 {
