@@ -60,7 +60,6 @@ jobs:
         COMPILER=$( grep "CMAKE_CXX_COMPILER:FILEPATH" CMakeCache.txt | sed "s|CMAKE_CXX_COMPILER:FILEPATH=/|/|" )
         printf "C++ compiler: %s\nC++ compiler version: %s\n" "$COMPILER" "$( $COMPILER --version | head -1 )"
 
-    # In Debug mode on gcc compiler, this step also runs tests and prepares coverage report
     - name: Build all
       run: |
         cd .build
