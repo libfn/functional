@@ -34,7 +34,7 @@ concept invocable_recover //
       });
 
 constexpr inline struct recover_t final {
-  constexpr auto operator()(auto &&fn) const noexcept -> functor<recover_t, decltype(fn)> //
+  [[nodiscard]] constexpr auto operator()(auto &&fn) const noexcept -> functor<recover_t, decltype(fn)> //
   {
     return {FWD(fn)};
   }
@@ -43,7 +43,7 @@ constexpr inline struct recover_t final {
 } recover = {};
 
 struct recover_t::apply final {
-  static constexpr auto operator()(some_expected_non_void auto &&v, auto &&fn) noexcept
+  [[nodiscard]] static constexpr auto operator()(some_expected_non_void auto &&v, auto &&fn) noexcept
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_recover<decltype(fn), decltype(v)>
   {
@@ -53,7 +53,7 @@ struct recover_t::apply final {
     });
   }
 
-  static constexpr auto operator()(some_expected_void auto &&v, auto &&fn) noexcept
+  [[nodiscard]] static constexpr auto operator()(some_expected_void auto &&v, auto &&fn) noexcept
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_recover<decltype(fn), decltype(v)>
   {
@@ -64,12 +64,13 @@ struct recover_t::apply final {
     });
   }
 
-  static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept -> same_monadic_type_as<decltype(v)> auto
+  [[nodiscard]] static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept
+      -> same_monadic_type_as<decltype(v)> auto
     requires invocable_recover<decltype(fn), decltype(v)>
   {
     using type = std::remove_cvref_t<decltype(v)>;
     if (v.has_value()) {
-      return type{FWD(v)};
+      return type{std::in_place, FWD(v).value()};
     }
     return type{std::in_place, std::invoke(FWD(fn))};
   }

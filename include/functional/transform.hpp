@@ -33,7 +33,7 @@ concept invocable_transform //
       });
 
 static constexpr struct transform_t final {
-  constexpr auto operator()(auto &&fn) const noexcept -> functor<transform_t, decltype(fn)> //
+  [[nodiscard]] constexpr auto operator()(auto &&fn) const noexcept -> functor<transform_t, decltype(fn)> //
   {
     return {FWD(fn)};
   }
@@ -42,7 +42,8 @@ static constexpr struct transform_t final {
 } transform = {};
 
 struct transform_t::apply final {
-  static constexpr auto operator()(some_monadic_type auto &&v, auto &&fn) noexcept -> same_kind<decltype(v)> auto
+  [[nodiscard]] static constexpr auto operator()(some_monadic_type auto &&v, auto &&fn) noexcept
+      -> same_kind<decltype(v)> auto
     requires invocable_transform<decltype(fn), decltype(v)>
   {
     return FWD(v).transform(FWD(fn));
