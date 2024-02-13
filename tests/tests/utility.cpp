@@ -29,45 +29,45 @@ static_assert(std::is_same_v<as_value_t<std::nullopt_t const &>,  std::nullopt_t
 static_assert(std::is_same_v<as_value_t<std::nullopt_t &&>,       std::nullopt_t>);
 static_assert(std::is_same_v<as_value_t<std::nullopt_t const &&>, std::nullopt_t const>);
 
-static_assert(std::is_same_v<apply_const_t<float,          int>,    int>);
-static_assert(std::is_same_v<apply_const_t<float const,    int>,    int const>);
-static_assert(std::is_same_v<apply_const_t<float,          int &>,  int &>);
-static_assert(std::is_same_v<apply_const_t<float const,    int &>,  int const &>);
-static_assert(std::is_same_v<apply_const_t<float,          int &&>, int &&>);
-static_assert(std::is_same_v<apply_const_t<float const,    int &&>, int const &&>);
+static_assert(std::is_same_v<apply_const_lvalue_t<float,          int>,    int>);
+static_assert(std::is_same_v<apply_const_lvalue_t<float const,    int>,    int const>);
+static_assert(std::is_same_v<apply_const_lvalue_t<float,          int &>,  int &>);
+static_assert(std::is_same_v<apply_const_lvalue_t<float const,    int &>,  int const &>);
+static_assert(std::is_same_v<apply_const_lvalue_t<float,          int &&>, int &&>);
+static_assert(std::is_same_v<apply_const_lvalue_t<float const,    int &&>, int const &&>);
 
-static_assert(std::is_same_v<apply_const_t<float &,        int>,    int>);
-static_assert(std::is_same_v<apply_const_t<float const &,  int>,    int const>);
-static_assert(std::is_same_v<apply_const_t<float &,        int &>,  int &>);
-static_assert(std::is_same_v<apply_const_t<float const &,  int &>,  int const &>);
-static_assert(std::is_same_v<apply_const_t<float &,        int &&>, int &&>);
-static_assert(std::is_same_v<apply_const_t<float const &,  int &&>, int const &&>);
+static_assert(std::is_same_v<apply_const_lvalue_t<float &,        int>,    int&>);
+static_assert(std::is_same_v<apply_const_lvalue_t<float const &,  int>,    int const&>);
+static_assert(std::is_same_v<apply_const_lvalue_t<float &,        int &>,  int &>);
+static_assert(std::is_same_v<apply_const_lvalue_t<float const &,  int &>,  int const &>);
+static_assert(std::is_same_v<apply_const_lvalue_t<float &,        int &&>, int &>);
+static_assert(std::is_same_v<apply_const_lvalue_t<float const &,  int &&>, int const &>);
 
-static_assert(std::is_same_v<apply_const_t<float &&,       int>,    int>);
-static_assert(std::is_same_v<apply_const_t<float const &&, int>,    int const>);
-static_assert(std::is_same_v<apply_const_t<float &&,       int &>,  int &>);
-static_assert(std::is_same_v<apply_const_t<float const &&, int &>,  int const &>);
-static_assert(std::is_same_v<apply_const_t<float &&,       int &&>, int &&>);
-static_assert(std::is_same_v<apply_const_t<float const &&, int &&>, int const &&>);
+static_assert(std::is_same_v<apply_const_lvalue_t<float &&,       int>,    int>);
+static_assert(std::is_same_v<apply_const_lvalue_t<float const &&, int>,    int const>);
+static_assert(std::is_same_v<apply_const_lvalue_t<float &&,       int &>,  int &>);
+static_assert(std::is_same_v<apply_const_lvalue_t<float const &&, int &>,  int const &>);
+static_assert(std::is_same_v<apply_const_lvalue_t<float &&,       int &&>, int &&>);
+static_assert(std::is_same_v<apply_const_lvalue_t<float const &&, int &&>, int const &&>);
 
-static_assert(std::is_same_v<decltype(apply_const<float>         (std::declval<int>())),    int &&>);
-static_assert(std::is_same_v<decltype(apply_const<float const>   (std::declval<int>())),    int const &&>);
-static_assert(std::is_same_v<decltype(apply_const<float>         (std::declval<int &>())),  int &>);
-static_assert(std::is_same_v<decltype(apply_const<float const>   (std::declval<int &>())),  int const &>);
-static_assert(std::is_same_v<decltype(apply_const<float>         (std::declval<int &&>())), int &&>);
-static_assert(std::is_same_v<decltype(apply_const<float const>   (std::declval<int &&>())), int const &&>);
-static_assert(std::is_same_v<decltype(apply_const<float &>       (std::declval<int>())),    int &&>);
-static_assert(std::is_same_v<decltype(apply_const<float const &> (std::declval<int>())),    int const &&>);
-static_assert(std::is_same_v<decltype(apply_const<float &>       (std::declval<int &>())),  int &>);
-static_assert(std::is_same_v<decltype(apply_const<float const &> (std::declval<int &>())),  int const &>);
-static_assert(std::is_same_v<decltype(apply_const<float &>       (std::declval<int &&>())), int &&>);
-static_assert(std::is_same_v<decltype(apply_const<float const &> (std::declval<int &&>())), int const &&>);
-static_assert(std::is_same_v<decltype(apply_const<float &&>      (std::declval<int>())),    int &&>);
-static_assert(std::is_same_v<decltype(apply_const<float const &&>(std::declval<int>())),    int const &&>);
-static_assert(std::is_same_v<decltype(apply_const<float &&>      (std::declval<int &>())),  int &>);
-static_assert(std::is_same_v<decltype(apply_const<float const &&>(std::declval<int &>())),  int const &>);
-static_assert(std::is_same_v<decltype(apply_const<float &&>      (std::declval<int &&>())), int &&>);
-static_assert(std::is_same_v<decltype(apply_const<float const &&>(std::declval<int &&>())), int const &&>);
+static_assert(std::is_same_v<decltype(apply_const_lvalue<float>         (std::declval<int>())),    int &&>);
+static_assert(std::is_same_v<decltype(apply_const_lvalue<float const>   (std::declval<int>())),    int const &&>);
+static_assert(std::is_same_v<decltype(apply_const_lvalue<float>         (std::declval<int &>())),  int &>);
+static_assert(std::is_same_v<decltype(apply_const_lvalue<float const>   (std::declval<int &>())),  int const &>);
+static_assert(std::is_same_v<decltype(apply_const_lvalue<float>         (std::declval<int &&>())), int &&>);
+static_assert(std::is_same_v<decltype(apply_const_lvalue<float const>   (std::declval<int &&>())), int const &&>);
+static_assert(std::is_same_v<decltype(apply_const_lvalue<float &>       (std::declval<int>())),    int &>);
+static_assert(std::is_same_v<decltype(apply_const_lvalue<float const &> (std::declval<int>())),    int const &>);
+static_assert(std::is_same_v<decltype(apply_const_lvalue<float &>       (std::declval<int &>())),  int &>);
+static_assert(std::is_same_v<decltype(apply_const_lvalue<float const &> (std::declval<int &>())),  int const &>);
+static_assert(std::is_same_v<decltype(apply_const_lvalue<float &>       (std::declval<int &&>())), int &>);
+static_assert(std::is_same_v<decltype(apply_const_lvalue<float const &> (std::declval<int &&>())), int const &>);
+static_assert(std::is_same_v<decltype(apply_const_lvalue<float &&>      (std::declval<int>())),    int &&>);
+static_assert(std::is_same_v<decltype(apply_const_lvalue<float const &&>(std::declval<int>())),    int const &&>);
+static_assert(std::is_same_v<decltype(apply_const_lvalue<float &&>      (std::declval<int &>())),  int &>);
+static_assert(std::is_same_v<decltype(apply_const_lvalue<float const &&>(std::declval<int &>())),  int const &>);
+static_assert(std::is_same_v<decltype(apply_const_lvalue<float &&>      (std::declval<int &&>())), int &&>);
+static_assert(std::is_same_v<decltype(apply_const_lvalue<float const &&>(std::declval<int &&>())), int const &&>);
 // clang-format on
 } // namespace fn
 

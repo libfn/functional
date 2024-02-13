@@ -27,10 +27,10 @@ template <std::size_t... Is, typename... Ts> struct pack_base<std::index_sequenc
 
   template <typename Self, typename Fn, typename... Args>
   static constexpr auto _invoke(Self &&self, Fn &&fn, Args &&...args) noexcept
-      -> std::invoke_result_t<decltype(fn), decltype(args)..., apply_const_t<Self, Ts &&>...>
+      -> std::invoke_result_t<decltype(fn), decltype(args)..., apply_const_lvalue_t<Self, Ts &&>...>
   {
     return std::invoke(FWD(fn), FWD(args)...,
-                       static_cast<apply_const_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)...);
+                       static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)...);
   }
 
   template <typename T, typename Self>
@@ -38,7 +38,7 @@ template <std::size_t... Is, typename... Ts> struct pack_base<std::index_sequenc
       -> pack_base<std::index_sequence<Is..., size()>, Ts..., T>
     requires std::is_constructible_v<T, decltype(args)...>
   {
-    return {static_cast<apply_const_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., T{FWD(args)...}};
+    return {static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., T{FWD(args)...}};
   }
 };
 
