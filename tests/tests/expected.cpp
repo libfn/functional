@@ -14,7 +14,7 @@ namespace {
 enum Error { Unknown, FileNotFound };
 }
 
-TEST_CASE("pack support", "[expected][pack][and_then][transform][operator_and]")
+TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operator_and]")
 {
   WHEN("and_then")
   {
