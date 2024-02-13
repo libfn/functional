@@ -131,6 +131,13 @@ TEST_CASE("pack", "[pack]")
   static_assert(std::is_same_v<decltype(v.invoke(fn3, std::move(a))), A>);
 
   static_assert(pack<>{}.size() == 0);
+
+  static_assert(std::same_as<decltype(fn::pack{}), fn::pack<>>);
+  static_assert(std::same_as<decltype(fn::pack{12}), fn::pack<int>>);
+  static_assert(std::same_as<decltype(fn::pack{a}), fn::pack<A &>>);
+  static_assert(std::same_as<decltype(fn::pack{12, a}), fn::pack<int, A &>>);
+  static_assert(std::same_as<decltype(fn::pack{12, std::as_const(a)}), fn::pack<int, A const &>>);
+  static_assert(std::same_as<decltype(fn::pack{12, std::move(a)}), fn::pack<int, A>>);
 }
 
 TEST_CASE("append value categories", "[pack][append]")

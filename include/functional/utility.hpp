@@ -119,6 +119,8 @@ template <typename... Ts> struct pack : detail::pack_base<std::index_sequence_fo
   }
 };
 
+template <typename... Args> pack(Args &&...args) -> pack<Args...>;
+
 namespace detail {
 template <typename... Ts> constexpr bool _is_some_pack = false;
 template <typename... Ts> constexpr bool _is_some_pack<::fn::pack<Ts...> &> = true;
