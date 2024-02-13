@@ -129,7 +129,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       CHECK(not(fn::optional<double>{std::nullopt} //
                 & fn::optional<int>{12})
                    .has_value());
-      CHECK(not(fn::optional<double>{} //
+      CHECK(not(fn::optional<double>{0.5} //
                 & fn::optional<int>{std::nullopt})
                    .has_value());
       CHECK(not(fn::optional<double>{std::nullopt} //

@@ -33,7 +33,7 @@ struct Value final {
 int Value::count = 0;
 } // namespace
 
-TEST_CASE("inspect expected", "[inspect][expected][expected_value]")
+TEST_CASE("inspect expected", "[inspect][expected][expected_value][pack]")
 {
   using namespace fn;
 
@@ -86,6 +86,35 @@ TEST_CASE("inspect expected", "[inspect][expected][expected_value]")
       auto const before = Value::count;
       REQUIRE((a | inspect(&Value::fn)).value().value == 12);
       CHECK(Value::count == before + 12);
+    }
+  }
+
+  WHEN("operand is pack")
+  {
+    WHEN("operand is value")
+    {
+      using operand_t = fn::expected<fn::pack<int, double>, Error>;
+      operand_t a{std::in_place, fn::pack{84, 0.5}};
+      int value = 0;
+      auto fnPack = [&value](int i, double d) { value = i * d; };
+      using T = decltype(a | inspect(fnPack));
+      static_assert(std::is_same_v<T, operand_t &>);
+      REQUIRE((a | inspect(fnPack)).has_value());
+      CHECK(value == 42);
+    }
+
+    WHEN("operand is error")
+    {
+      using operand_t = fn::expected<fn::pack<int, double>, Error>;
+      operand_t a{std::unexpect, "Not good"};
+      constexpr auto wrong = [](auto...) { throw 0; };
+      using T = decltype(a | inspect(wrong));
+      static_assert(std::is_same_v<T, operand_t &>);
+      REQUIRE((a //
+               | inspect(wrong))
+                  .error()
+                  .what
+              == "Not good");
     }
   }
 
@@ -182,7 +211,7 @@ TEST_CASE("inspect void expected", "[inspect][expected][expected_void]")
   }
 }
 
-TEST_CASE("inspect optional", "[inspect][optional]")
+TEST_CASE("inspect optional", "[inspect][optional][pack]")
 {
   using namespace fn;
   using operand_t = fn::optional<int>;
@@ -230,6 +259,31 @@ TEST_CASE("inspect optional", "[inspect][optional]")
       auto const before = Value::count;
       REQUIRE((a | inspect(&Value::fn)).value().value == 12);
       CHECK(Value::count == before + 12);
+    }
+  }
+
+  WHEN("operand is pack")
+  {
+    WHEN("operand is value")
+    {
+      using operand_t = fn::optional<fn::pack<int, double>>;
+      operand_t a{std::in_place, fn::pack{84, 0.5}};
+      int value = 0;
+      auto fnPack = [&value](int i, double d) { value = i * d; };
+      using T = decltype(a | inspect(fnPack));
+      static_assert(std::is_same_v<T, operand_t &>);
+      REQUIRE((a | inspect(fnPack)).has_value());
+      CHECK(value == 42);
+    }
+
+    WHEN("operand is error")
+    {
+      using operand_t = fn::optional<fn::pack<int, double>>;
+      operand_t a{std::nullopt};
+      constexpr auto wrong = [](auto...) { throw 0; };
+      using T = decltype(a | inspect(wrong));
+      static_assert(std::is_same_v<T, operand_t &>);
+      REQUIRE(not(a | inspect(wrong)).has_value());
     }
   }
 

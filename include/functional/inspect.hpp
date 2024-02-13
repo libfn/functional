@@ -18,7 +18,11 @@
 namespace fn {
 template <typename Fn, typename V>
 concept invocable_inspect //
-    = (some_expected_non_void<V> && requires(Fn &&fn, V &&v) {
+    = (some_expected_pack<V> && requires(Fn &&fn, V &&v) {
+        {
+          std::as_const(v).value().invoke(FWD(fn))
+        } -> std::same_as<void>;
+      }) || (some_expected_non_pack<V> && requires(Fn &&fn, V &&v) {
         {
           std::invoke(FWD(fn), std::as_const(v).value())
         } -> std::same_as<void>;
@@ -26,7 +30,11 @@ concept invocable_inspect //
         {
           std::invoke(FWD(fn))
         } -> std::same_as<void>;
-      }) || (some_optional<V> && requires(Fn &&fn, V &&v) {
+      }) || (some_optional_pack<V> && requires(Fn &&fn, V &&v) {
+        {
+          std::as_const(v).value().invoke(FWD(fn))
+        } -> std::same_as<void>;
+      }) || (some_optional_non_pack<V> && requires(Fn &&fn, V &&v) {
         {
           std::invoke(FWD(fn), std::as_const(v).value())
         } -> std::same_as<void>;
@@ -51,7 +59,16 @@ struct inspect_t::apply final {
     return FWD(v);
   }
 
-  [[nodiscard]] static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept -> decltype(v)
+  [[nodiscard]] static constexpr auto operator()(some_optional_pack auto &&v, auto &&fn) noexcept -> decltype(v)
+    requires invocable_inspect<decltype(fn), decltype(v)>
+  {
+    if (v.has_value()) {
+      std::as_const(v).value().invoke(FWD(fn)); // side-effects only
+    }
+    return FWD(v);
+  }
+
+  [[nodiscard]] static constexpr auto operator()(some_optional_non_pack auto &&v, auto &&fn) noexcept -> decltype(v)
     requires invocable_inspect<decltype(fn), decltype(v)>
   {
     if (v.has_value()) {

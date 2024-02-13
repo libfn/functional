@@ -329,7 +329,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
   }
 }
 
-TEST_CASE("and_then", "[and_then][expected][expected_value]")
+TEST_CASE("and_then", "[and_then][expected][expected_value][pack]")
 {
   using namespace fn;
 
@@ -385,6 +385,7 @@ TEST_CASE("and_then", "[and_then][expected][expected_value]")
         REQUIRE((a | and_then(fnXabs)).value().value == 4);
       }
     }
+
     WHEN("operand is error")
     {
       operand_t a{std::unexpect, "Not good"};
@@ -395,6 +396,35 @@ TEST_CASE("and_then", "[and_then][expected][expected_value]")
                   .error()
                   .what
               == "Not good");
+    }
+
+    WHEN("operand is pack")
+    {
+      using operand_t = fn::expected<fn::pack<int, double>, Error>;
+      operand_t a{std::in_place, fn::pack{84, 0.5}};
+      constexpr auto fnPack = [](int i, double d) constexpr -> fn::expected<int, Error> { return {i * d}; };
+      using T = decltype(a | and_then(fnPack));
+      static_assert(std::is_same_v<T, fn::expected<int, Error>>);
+
+      WHEN("operand is value")
+      {
+        REQUIRE((a | and_then(fnPack)).value() == 42);
+        WHEN("fail")
+        {
+          constexpr auto fnFail = [](int i, double d) constexpr -> fn::expected<int, Error> {
+            return std::unexpected<Error>("Got " + std::to_string(i) + " and " + std::to_string(d));
+          };
+          using T = decltype(a | and_then(fnFail));
+          static_assert(std::is_same_v<T, fn::expected<int, Error>>);
+          REQUIRE((a | and_then(fnFail)).error().what == "Got 84 and 0.500000");
+        }
+      }
+
+      WHEN("operand is error")
+      {
+        constexpr auto wrong = [](auto...) -> operand_t { throw 0; };
+        REQUIRE((operand_t{std::unexpect, Error{"Not good"}} | and_then(wrong)).error().what == "Not good");
+      }
     }
   }
 
@@ -532,7 +562,7 @@ TEST_CASE("and_then", "[and_then][expected][expected_void]")
   }
 }
 
-TEST_CASE("and_then", "[and_then][optional]")
+TEST_CASE("and_then", "[and_then][optional][pack]")
 {
   using namespace fn;
 
@@ -592,6 +622,34 @@ TEST_CASE("and_then", "[and_then][optional]")
       using T = decltype(a | and_then(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE(not(a | and_then(wrong)).has_value());
+    }
+  }
+
+  WHEN("operand is pack")
+  {
+    using operand_t = fn::optional<fn::pack<int, double>>;
+    operand_t a{std::in_place, fn::pack{84, 0.5}};
+    constexpr auto fnPack = [](int i, double d) constexpr -> fn::optional<int> { return {i * d}; };
+    using T = decltype(a | and_then(fnPack));
+    static_assert(std::is_same_v<T, fn::optional<int>>);
+
+    WHEN("operand is value")
+    {
+      REQUIRE((a | and_then(fnPack)).value() == 42);
+
+      WHEN("fail")
+      {
+        constexpr auto fnFail = [](int, double) constexpr -> fn::optional<int> { return {std::nullopt}; };
+        using T = decltype(a | and_then(fnFail));
+        static_assert(std::is_same_v<T, fn::optional<int>>);
+        REQUIRE(not(a | and_then(fnFail)).has_value());
+      }
+    }
+
+    WHEN("operand is error")
+    {
+      constexpr auto wrong = [](auto...) -> operand_t { throw 0; };
+      REQUIRE(not(operand_t{std::nullopt} | and_then(wrong)).has_value());
     }
   }
 

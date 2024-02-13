@@ -9,6 +9,7 @@
 #include "functional/concepts.hpp"
 #include "functional/functor.hpp"
 #include "functional/fwd.hpp"
+#include "functional/optional.hpp"
 #include "functional/utility.hpp"
 
 #include <concepts>
@@ -18,7 +19,11 @@
 namespace fn {
 template <typename Fn, typename V>
 concept invocable_transform //
-    = (some_expected_non_void<V> && requires(Fn &&fn, V &&v) {
+    = (some_expected_pack<V> && requires(Fn &&fn, V &&v) {
+        {
+          FWD(v).value().invoke(FWD(fn))
+        } -> convertible_to_expected<typename std::remove_cvref_t<decltype(v)>::error_type>;
+      }) || (some_expected_non_pack<V> && requires(Fn &&fn, V &&v) {
         {
           std::invoke(FWD(fn), FWD(v).value())
         } -> convertible_to_expected<typename std::remove_cvref_t<decltype(v)>::error_type>;
@@ -26,7 +31,11 @@ concept invocable_transform //
         {
           std::invoke(FWD(fn))
         } -> convertible_to_expected<typename std::remove_cvref_t<decltype(v)>::error_type>;
-      }) || (some_optional<V> && requires(Fn &&fn, V &&v) {
+      }) || (some_optional_pack<V> && requires(Fn &&fn, V &&v) {
+        {
+          FWD(v).value().invoke(FWD(fn))
+        } -> convertible_to_optional;
+      }) || (some_optional_non_pack<V> && requires(Fn &&fn, V &&v) {
         {
           std::invoke(FWD(fn), FWD(v).value())
         } -> convertible_to_optional;
