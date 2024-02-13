@@ -190,6 +190,34 @@ TEST_CASE("filter member function", "[filter][expected][expected_value][member_f
         REQUIRE((a | filter(predicate, &Value::error_)).error().what == "Got 42");
       }
     }
+
+    WHEN("operand is pack")
+    {
+      using operand_t = fn::expected<fn::pack<int, double>, Error>;
+      constexpr operand_t a{std::in_place, fn::pack{84, 0.5}};
+      constexpr auto predPack = [](int i, double) constexpr noexcept -> bool { return i > 0; };
+      constexpr auto errPack = [](int, double) constexpr noexcept -> Error { return {"Error"}; };
+      using T = decltype(a | filter(predPack, errPack));
+      static_assert(std::is_same_v<T, operand_t>);
+
+      WHEN("operand is value")
+      {
+        REQUIRE((a | filter(predPack, errPack)).has_value());
+        WHEN("fail")
+        {
+          constexpr auto fnFail = [](int, double) constexpr -> bool { return false; };
+          using T = decltype(a | filter(fnFail, errPack));
+          static_assert(std::is_same_v<T, operand_t>);
+          REQUIRE((a | filter(fnFail, errPack)).error().what == "Error");
+        }
+      }
+
+      WHEN("operand is error")
+      {
+        REQUIRE((operand_t{std::unexpect, Error{"Not good"}} | filter(predPack, errPack)).error().what == "Not good");
+      }
+    }
+
     WHEN("operand is error")
     {
       operand_t a{std::unexpect, "Not good"};
@@ -367,6 +395,29 @@ TEST_CASE("filter", "[filter][optional]")
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE(not(a | filter(truePred)).has_value());
     }
+  }
+
+  WHEN("operand is pack")
+  {
+    using operand_t = fn::optional<fn::pack<int, double>>;
+    constexpr operand_t a{std::in_place, fn::pack{84, 0.5}};
+    constexpr auto predPack = [](int i, double) constexpr noexcept -> bool { return i > 0; };
+    using T = decltype(a | filter(predPack));
+    static_assert(std::is_same_v<T, operand_t>);
+
+    WHEN("operand is value")
+    {
+      REQUIRE((a | filter(predPack)).has_value());
+      WHEN("fail")
+      {
+        constexpr auto fnFail = [](int, double) constexpr -> bool { return false; };
+        using T = decltype(a | filter(fnFail));
+        static_assert(std::is_same_v<T, operand_t>);
+        REQUIRE(not(a | filter(fnFail)).has_value());
+      }
+    }
+
+    WHEN("operand is nullopt") { REQUIRE(not(operand_t{std::nullopt} | filter(predPack)).has_value()); }
   }
 
   WHEN("operand is rvalue")

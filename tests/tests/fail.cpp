@@ -33,7 +33,7 @@ struct Derived : Error {};
 
 } // namespace
 
-TEST_CASE("fail", "[fail][expected][expected_value]")
+TEST_CASE("fail", "[fail][expected][expected_value][pack]")
 {
   using namespace fn;
 
@@ -93,6 +93,27 @@ TEST_CASE("fail", "[fail][expected][expected_value]")
       using T = decltype(a | fail(&Value::fn));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a | fail(&Value::fn)).error().what == "Was 12");
+    }
+  }
+
+  WHEN("operand is pack")
+  {
+    using operand_t = fn::expected<fn::pack<int, double>, Error>;
+    WHEN("operand is value")
+    {
+      operand_t a{std::in_place, fn::pack{84, 0.5}};
+      constexpr auto fnPack = [](int i, double d) constexpr -> Error {
+        return {"Got " + std::to_string(i) + " and " + std::to_string(d)};
+      };
+      using T = decltype(a | fail(fnPack));
+      static_assert(std::is_same_v<T, operand_t>);
+      REQUIRE((a | fail(fnPack)).error().what == "Got 84 and 0.500000");
+    }
+
+    WHEN("operand is error")
+    {
+      constexpr auto wrong = [](auto...) -> Error { throw 0; };
+      REQUIRE((operand_t{std::unexpect, Error{"Not good"}} | fail(wrong)).error().what == "Not good");
     }
   }
 
@@ -192,7 +213,7 @@ TEST_CASE("fail", "[fail][expected][expected_void]")
   }
 }
 
-TEST_CASE("fail", "[fail][optional]")
+TEST_CASE("fail", "[fail][optional][pack]")
 {
   using namespace fn;
 
@@ -246,6 +267,28 @@ TEST_CASE("fail", "[fail][optional]")
       auto const before = Value::count;
       REQUIRE(not(a | fail(&Value::finalize)).has_value());
       CHECK(Value::count == before + 12);
+    }
+  }
+
+  WHEN("operand is pack")
+  {
+    using operand_t = fn::optional<fn::pack<int, double>>;
+    WHEN("operand is value")
+    {
+      operand_t a{std::in_place, fn::pack{84, 0.5}};
+      std::string what;
+      auto fnPack
+          = [&what](int i, double d) -> void { what = "Got " + std::to_string(i) + " and " + std::to_string(d); };
+      using T = decltype(a | fail(fnPack));
+      static_assert(std::is_same_v<T, operand_t>);
+      REQUIRE(not(a | fail(fnPack)).has_value());
+      CHECK(what == "Got 84 and 0.500000");
+    }
+
+    WHEN("operand is error")
+    {
+      constexpr auto wrong = [](auto...) -> void { throw 0; };
+      REQUIRE(not(operand_t{std::nullopt} | fail(wrong)).has_value());
     }
   }
 
