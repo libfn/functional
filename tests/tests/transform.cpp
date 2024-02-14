@@ -25,7 +25,7 @@ struct Xint final {
 };
 } // namespace
 
-TEST_CASE("transform", "[transform][expected][expected_value]")
+TEST_CASE("transform", "[transform][expected][expected_value][pack]")
 {
   using namespace fn;
 
@@ -77,6 +77,22 @@ TEST_CASE("transform", "[transform][expected][expected_value]")
                   .error()
                   .what
               == "Not good");
+    }
+  }
+
+  WHEN("operand is pack")
+  {
+    using operand_t = fn::expected<fn::pack<int, double>, Error>;
+    operand_t a{std::in_place, fn::pack{84, 0.5}};
+    constexpr auto fnPack = [](int i, double d) constexpr -> int { return i * d; };
+    using T = decltype(a | transform(fnPack));
+    static_assert(std::is_same_v<T, fn::expected<int, Error>>);
+    WHEN("operand is value") { REQUIRE((a | transform(fnPack)).value() == 42); }
+
+    WHEN("operand is error")
+    {
+      constexpr auto wrong = [](auto...) -> int { throw 0; };
+      REQUIRE((operand_t{std::unexpect, Error{"Not good"}} | transform(wrong)).error().what == "Not good");
     }
   }
 
@@ -185,7 +201,7 @@ TEST_CASE("transform", "[transform][expected][expected_void]")
   }
 }
 
-TEST_CASE("transform", "[transform][optional]")
+TEST_CASE("transform", "[transform][optional][pack]")
 {
   using namespace fn;
 
@@ -233,6 +249,23 @@ TEST_CASE("transform", "[transform][optional]")
       using T = decltype(a | transform(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE(not(a | transform(wrong)).has_value());
+    }
+  }
+
+  WHEN("operand is pack")
+  {
+    using operand_t = fn::optional<fn::pack<int, double>>;
+    operand_t a{std::in_place, fn::pack{84, 0.5}};
+    constexpr auto fnPack = [](int i, double d) constexpr -> int { return i * d; };
+    using T = decltype(a | transform(fnPack));
+    static_assert(std::is_same_v<T, fn::optional<int>>);
+
+    WHEN("operand is value") { REQUIRE((a | transform(fnPack)).value() == 42); }
+
+    WHEN("operand is error")
+    {
+      constexpr auto wrong = [](auto...) -> int { throw 0; };
+      REQUIRE(not(operand_t{std::nullopt} | transform(wrong)).has_value());
     }
   }
 

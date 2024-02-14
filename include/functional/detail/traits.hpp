@@ -31,10 +31,16 @@ template <typename T, typename V> extern V const _apply_const<T const &, V>;
 template <typename T, typename V> extern V const &_apply_const<T const &, V &>;
 template <typename T, typename V> extern V const &&_apply_const<T const &, V &&>;
 
+// Add lvalue reference to second type, if first type is lvalue reference
+template <typename T, typename V> extern V _apply_lvalue;
+template <typename T, typename V> extern V &_apply_lvalue<T &, V>;
+template <typename T, typename V> extern V &_apply_lvalue<T &, V &&>;
+
 } // namespace fn::detail
 
 namespace fn {
-template <typename T, typename V> using apply_const_t = decltype(detail::_apply_const<T &, V>);
+template <typename T, typename V>
+using apply_const_lvalue_t = decltype(detail::_apply_const<T &, decltype(detail::_apply_lvalue<T, V>)>);
 }
 
 #endif // INCLUDE_FUNCTIONAL_DETAIL_TRAITS

@@ -17,7 +17,11 @@
 namespace fn {
 template <typename Fn, typename V>
 concept invocable_and_then //
-    = (some_expected_non_void<V> && requires(Fn &&fn, V &&v) {
+    = (some_expected_pack<V> && requires(Fn &&fn, V &&v) {
+        {
+          FWD(v).value().invoke(FWD(fn))
+        } -> same_kind<V>;
+      }) || (some_expected_non_pack<V> && requires(Fn &&fn, V &&v) {
         {
           std::invoke(FWD(fn), FWD(v).value())
         } -> same_kind<V>;
@@ -25,7 +29,11 @@ concept invocable_and_then //
         {
           std::invoke(FWD(fn))
         } -> same_kind<V>;
-      }) || (some_optional<V> && requires(Fn &&fn, V &&v) {
+      }) || (some_optional_pack<V> && requires(Fn &&fn, V &&v) {
+        {
+          FWD(v).value().invoke(FWD(fn))
+        } -> same_kind<V>;
+      }) || (some_optional_non_pack<V> && requires(Fn &&fn, V &&v) {
         {
           std::invoke(FWD(fn), FWD(v).value())
         } -> same_kind<V>;

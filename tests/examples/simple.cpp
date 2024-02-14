@@ -53,8 +53,9 @@ template <typename Fn> struct ImmovableFn final {
 };
 template <typename Fn> ImmovableFn(Fn &&) -> ImmovableFn<Fn>;
 
-TEST_CASE("Demo expected",
-          "[expected][and_then][transform_error][transform][inspect][inspect_error][recover][fail][filter][immovable]")
+TEST_CASE(
+    "Demo expected",
+    "[expected][pack][and_then][transform_error][transform][inspect][inspect_error][recover][fail][filter][immovable]")
 {
   constexpr auto fn1 = [](char const *str, double &peek) {
     using namespace fn;
@@ -115,9 +116,49 @@ TEST_CASE("Demo expected",
   auto const e2 = fn2(-12);
   CHECK(not e2.has_value());
   CHECK(e2.error().what == "Negative");
+
+  constexpr auto fn3 = [](auto first, auto second) noexcept {
+    using namespace fn;
+
+    constexpr auto parse = [](char const *str) noexcept -> fn::expected<int, Error> {
+      int tmp = {};
+      char const *end = str + std::strlen(str);
+      if (std::from_chars(str, end, tmp).ptr == end) {
+        return {tmp};
+      }
+      return std::unexpected<Error>{"Failed to parse " + std::string(str)};
+    };
+
+    constexpr auto parse_twelve = [](std::string str) noexcept -> fn::expected<double, Error> {
+      if (str != "12")
+        return std::unexpected<Error>{"Not 12"};
+      return {12.};
+    };
+
+    return (parse(first) & parse_twelve(second)) //
+           | filter([](int a, double b) noexcept -> bool { return a > b; },
+                    [](int, double) noexcept -> Error { return {"First can't be smaller than second"}; })
+           | transform([](int a, double b) noexcept -> double { return a * b; });
+  };
+
+  auto const p1 = fn3("42", "wrong");
+  CHECK(not p1.has_value());
+  CHECK(p1.error().what == "Not 12");
+
+  auto const p2 = fn3("10", "12");
+  CHECK(not p2.has_value());
+  CHECK(p2.error().what == "First can't be smaller than second");
+
+  auto const p3 = fn3("wrong", "12");
+  CHECK(not p3.has_value());
+  CHECK(p3.error().what == "Failed to parse wrong");
+
+  auto const p4 = fn3("42", "12");
+  CHECK(p4.has_value());
+  CHECK(p4.value() == 42 * 12);
 }
 
-TEST_CASE("Demo optional", "[optional][and_then][or_else][inspect][transform][fail][filter][recover]")
+TEST_CASE("Demo optional", "[optional][pack][and_then][or_else][inspect][transform][fail][filter][recover]")
 {
   constexpr auto fn1 = [](char const *str, int &peek) {
     using namespace fn;
@@ -169,4 +210,40 @@ TEST_CASE("Demo optional", "[optional][and_then][or_else][inspect][transform][fa
   CHECK(fn2(0).value() == 0);
   CHECK(fn2(42).value() == 42);
   CHECK(not fn2(-12).has_value());
+
+  constexpr auto fn3 = [](auto first, auto second) noexcept {
+    using namespace fn;
+
+    constexpr auto parse = [](char const *str) noexcept -> fn::optional<int> {
+      int tmp = {};
+      char const *end = str + std::strlen(str);
+      if (std::from_chars(str, end, tmp).ptr == end) {
+        return {tmp};
+      }
+      return {};
+    };
+
+    constexpr auto parse_twelve = [](std::string str) noexcept -> fn::optional<double> {
+      if (str != "12")
+        return {};
+      return {12.};
+    };
+
+    return (parse(first) & parse_twelve(second)) //
+           | filter([](int a, double b) noexcept -> bool { return a > b; })
+           | transform([](int a, double b) noexcept -> double { return a * b; });
+  };
+
+  auto const p1 = fn3("42", "wrong");
+  CHECK(not p1.has_value());
+
+  auto const p2 = fn3("10", "12"); // filter `a > b` fails
+  CHECK(not p2.has_value());
+
+  auto const p3 = fn3("wrong", "12");
+  CHECK(not p3.has_value());
+
+  auto const p4 = fn3("42", "12");
+  CHECK(p4.has_value());
+  CHECK(p4.value() == 42 * 12);
 }
