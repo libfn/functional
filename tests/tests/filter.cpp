@@ -70,21 +70,26 @@ TEST_CASE("filter", "[filter][expected][expected_value]")
         operand_t a{std::in_place, 42};
         using T = decltype(a | filter(truePred, onError));
         static_assert(std::is_same_v<T, operand_t>);
+
         REQUIRE((a | filter(truePred, onError)).value() == 42);
       }
+
       WHEN("predicate returns false")
       {
         operand_t a{std::in_place, 42};
         using T = decltype(a | filter(falsePred, onError));
         static_assert(std::is_same_v<T, operand_t>);
+
         REQUIRE((a | filter(falsePred, onError)).error().what == "Got 42");
       }
     }
+
     WHEN("operand is error")
     {
       operand_t a{std::unexpect, "Not good"};
       using T = decltype(a | filter(truePred, wrong));
       static_assert(std::is_same_v<T, operand_t>);
+
       REQUIRE((a //
                | filter(truePred, wrong))
                   .error()
@@ -101,19 +106,24 @@ TEST_CASE("filter", "[filter][expected][expected_value]")
       {
         using T = decltype(operand_t{std::in_place, 42} | filter(truePred, onError));
         static_assert(std::is_same_v<T, operand_t>);
+
         REQUIRE((operand_t{std::in_place, 42} | filter(truePred, onError)).value() == 42);
       }
+
       WHEN("predicate returns false")
       {
         using T = decltype(operand_t{std::in_place, 42} | filter(falsePred, onError));
         static_assert(std::is_same_v<T, operand_t>);
+
         REQUIRE((operand_t{std::in_place, 42} | filter(falsePred, onError)).error().what == "Got 42");
       }
     }
+
     WHEN("operand is error")
     {
       using T = decltype(operand_t{std::unexpect, "Not good"} | filter(truePred, wrong));
       static_assert(std::is_same_v<T, operand_t>);
+
       REQUIRE((operand_t{std::unexpect, "Not good"} //
                | filter(truePred, wrong))
                   .error()
@@ -133,7 +143,7 @@ struct Value final {
 };
 } // namespace
 
-TEST_CASE("filter member function", "[filter][expected][expected_value][member_functions]")
+TEST_CASE("filter member function", "[filter][expected][expected_value][member_functions][pack]")
 {
   using namespace fn;
 
@@ -178,14 +188,17 @@ TEST_CASE("filter member function", "[filter][expected][expected_value][member_f
         operand_t a{std::in_place, 1};
         using T = decltype(a | filter(predicate, onError));
         static_assert(std::is_same_v<T, operand_t>);
+
         REQUIRE((a | filter(predicate, onError)).value().v == 1);
         REQUIRE((a | filter(predicate, &Value::error_)).value().v == 1);
       }
+
       WHEN("predicate returns false")
       {
         operand_t a{std::in_place, 42};
         using T = decltype(a | filter(predicate, onError));
         static_assert(std::is_same_v<T, operand_t>);
+
         REQUIRE((a | filter(predicate, onError)).error().what == "Got 42");
         REQUIRE((a | filter(predicate, &Value::error_)).error().what == "Got 42");
       }
@@ -203,11 +216,13 @@ TEST_CASE("filter member function", "[filter][expected][expected_value][member_f
       WHEN("operand is value")
       {
         REQUIRE((a | filter(predPack, errPack)).has_value());
+
         WHEN("fail")
         {
           constexpr auto fnFail = [](int, double) constexpr -> bool { return false; };
           using T = decltype(a | filter(fnFail, errPack));
           static_assert(std::is_same_v<T, operand_t>);
+
           REQUIRE((a | filter(fnFail, errPack)).error().what == "Error");
         }
       }
@@ -223,6 +238,7 @@ TEST_CASE("filter member function", "[filter][expected][expected_value][member_f
       operand_t a{std::unexpect, "Not good"};
       using T = decltype(a | filter(predicate, wrong));
       static_assert(std::is_same_v<T, operand_t>);
+
       REQUIRE((a //
                | filter(predicate, wrong))
                   .error()
@@ -239,21 +255,26 @@ TEST_CASE("filter member function", "[filter][expected][expected_value][member_f
       {
         using T = decltype(operand_t{std::in_place, 1} | filter(predicate, onError));
         static_assert(std::is_same_v<T, operand_t>);
+
         REQUIRE((operand_t{std::in_place, 1} | filter(predicate, onError)).value().v == 1);
         REQUIRE((operand_t{std::in_place, 1} | filter(predicate, &Value::error_)).value().v == 1);
       }
+
       WHEN("predicate returns false")
       {
         using T = decltype(operand_t{std::in_place, 42} | filter(predicate, onError));
         static_assert(std::is_same_v<T, operand_t>);
+
         REQUIRE((operand_t{std::in_place, 42} | filter(predicate, onError)).error().what == "Got 42");
         REQUIRE((operand_t{std::in_place, 42} | filter(predicate, &Value::error_)).error().what == "Got 42");
       }
     }
+
     WHEN("operand is error")
     {
       using T = decltype(operand_t{std::unexpect, "Not good"} | filter(predicate, wrong));
       static_assert(std::is_same_v<T, operand_t>);
+
       REQUIRE((operand_t{std::unexpect, "Not good"} //
                | filter(predicate, wrong))
                   .error()
@@ -295,21 +316,26 @@ TEST_CASE("filter", "[filter][expected][expected_void]")
         operand_t a{std::in_place};
         using T = decltype(a | filter(truePred, onError));
         static_assert(std::is_same_v<T, operand_t>);
+
         REQUIRE((a | filter(truePred, onError)).has_value());
       }
+
       WHEN("predicate returns false")
       {
         operand_t a{std::in_place};
         using T = decltype(a | filter(falsePred, onError));
         static_assert(std::is_same_v<T, operand_t>);
+
         REQUIRE((a | filter(falsePred, onError)).error().what == "Got error");
       }
     }
+
     WHEN("operand is error")
     {
       operand_t a{std::unexpect, "Not good"};
       using T = decltype(a | filter(truePred, wrong));
       static_assert(std::is_same_v<T, operand_t>);
+
       REQUIRE((a //
                | filter(truePred, wrong))
                   .error()
@@ -326,19 +352,24 @@ TEST_CASE("filter", "[filter][expected][expected_void]")
       {
         using T = decltype(operand_t{std::in_place} | filter(truePred, onError));
         static_assert(std::is_same_v<T, operand_t>);
+
         REQUIRE((operand_t{std::in_place} | filter(truePred, onError)).has_value());
       }
+
       WHEN("predicate returns false")
       {
         using T = decltype(operand_t{std::in_place} | filter(falsePred, onError));
         static_assert(std::is_same_v<T, operand_t>);
+
         REQUIRE((operand_t{std::in_place} | filter(falsePred, onError)).error().what == "Got error");
       }
     }
+
     WHEN("operand is error")
     {
       using T = decltype(operand_t{std::unexpect, "Not good"} | filter(truePred, wrong));
       static_assert(std::is_same_v<T, operand_t>);
+
       REQUIRE((operand_t{std::unexpect, "Not good"} //
                | filter(truePred, wrong))
                   .error()
@@ -378,21 +409,26 @@ TEST_CASE("filter", "[filter][optional]")
         operand_t a{42};
         using T = decltype(a | filter(truePred));
         static_assert(std::is_same_v<T, operand_t>);
+
         REQUIRE((a | filter(truePred)).has_value());
       }
+
       WHEN("predicate returns false")
       {
         operand_t a{42};
         using T = decltype(a | filter(falsePred));
         static_assert(std::is_same_v<T, operand_t>);
+
         REQUIRE(not(a | filter(falsePred)).has_value());
       }
     }
+
     WHEN("operand is nullopt")
     {
       operand_t a{std::nullopt};
       using T = decltype(a | filter(truePred));
       static_assert(std::is_same_v<T, operand_t>);
+
       REQUIRE(not(a | filter(truePred)).has_value());
     }
   }
@@ -408,11 +444,13 @@ TEST_CASE("filter", "[filter][optional]")
     WHEN("operand is value")
     {
       REQUIRE((a | filter(predPack)).has_value());
+
       WHEN("fail")
       {
         constexpr auto fnFail = [](int, double) constexpr -> bool { return false; };
         using T = decltype(a | filter(fnFail));
         static_assert(std::is_same_v<T, operand_t>);
+
         REQUIRE(not(a | filter(fnFail)).has_value());
       }
     }
@@ -428,19 +466,24 @@ TEST_CASE("filter", "[filter][optional]")
       {
         using T = decltype(operand_t{42} | filter(truePred));
         static_assert(std::is_same_v<T, operand_t>);
+
         REQUIRE((operand_t{42} | filter(truePred)).has_value());
       }
+
       WHEN("predicate returns false")
       {
         using T = decltype(operand_t{42} | filter(falsePred));
         static_assert(std::is_same_v<T, operand_t>);
+
         REQUIRE(not(operand_t{42} | filter(falsePred)).has_value());
       }
     }
+
     WHEN("operand is nullopt")
     {
       using T = decltype(operand_t{std::nullopt} | filter(truePred));
       static_assert(std::is_same_v<T, operand_t>);
+
       REQUIRE(not(operand_t{std::nullopt} //
                   | filter(truePred))
                      .has_value());
@@ -476,6 +519,7 @@ TEST_CASE("filter member function", "[filter][optional]")
         operand_t a{1};
         using T = decltype(a | filter(predicate));
         static_assert(std::is_same_v<T, operand_t>);
+
         REQUIRE((a | filter(predicate)).value().v == 1);
       }
       WHEN("predicate returns false")
@@ -483,6 +527,7 @@ TEST_CASE("filter member function", "[filter][optional]")
         operand_t a{42};
         using T = decltype(a | filter(predicate));
         static_assert(std::is_same_v<T, operand_t>);
+
         REQUIRE(not(a | filter(predicate)).has_value());
       }
     }
@@ -491,6 +536,7 @@ TEST_CASE("filter member function", "[filter][optional]")
       operand_t a{std::nullopt};
       using T = decltype(a | filter(predicate));
       static_assert(std::is_same_v<T, operand_t>);
+
       REQUIRE(not(a | filter(predicate)).has_value());
     }
   }
@@ -503,19 +549,24 @@ TEST_CASE("filter member function", "[filter][optional]")
       {
         using T = decltype(operand_t{1} | filter(predicate));
         static_assert(std::is_same_v<T, operand_t>);
+
         REQUIRE((operand_t{1} | filter(predicate)).value().v == 1);
       }
+
       WHEN("predicate returns false")
       {
         using T = decltype(operand_t{42} | filter(predicate));
         static_assert(std::is_same_v<T, operand_t>);
+
         REQUIRE(not(operand_t{42} | filter(predicate)).has_value());
       }
     }
+
     WHEN("operand is nullopt")
     {
       using T = decltype(operand_t{std::nullopt} | filter(predicate));
       static_assert(std::is_same_v<T, operand_t>);
+
       REQUIRE(not(operand_t{std::nullopt} //
                   | filter(predicate))
                      .has_value());
