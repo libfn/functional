@@ -21,12 +21,12 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
     WHEN("value")
     {
       fn::expected<fn::pack<int, std::string_view>, Error> s{
-          fn::pack<int>{12}.append(fn::type<std::string_view>(), "bar")};
+          fn::pack<int>{12}.append(std::in_place_type<std::string_view>, "bar")};
 
       CHECK(s.and_then( //
                  fn::overload([](int &i, auto &&...) -> fn::expected<bool, Error> { return i == 12; },
                               [](int const &, auto &&...) -> fn::expected<bool, Error> { throw 0; },
-                              [](int &&i, auto &&...) -> fn::expected<bool, Error> { throw 0; },
+                              [](int &&, auto &&...) -> fn::expected<bool, Error> { throw 0; },
                               [](int const &&, auto &&...) -> fn::expected<bool, Error> { return 0; })) //
                 .value());
       CHECK(std::as_const(s)
@@ -37,7 +37,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
                                  [](int const &&, auto &&...) -> fn::expected<bool, Error> { throw 0; })) //
                 .value());
       CHECK(fn::expected<fn::pack<int, std::string_view>, Error>{
-          fn::pack<int>{12}.append(fn::type<std::string_view>(), "bar")}
+          fn::pack<int>{12}.append(std::in_place_type<std::string_view>, "bar")}
                 .and_then( //
                     fn::overload([](int &, auto &&...) -> fn::expected<bool, Error> { throw 0; },
                                  [](int const &, auto &&...) -> fn::expected<bool, Error> { throw 0; },
@@ -83,7 +83,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
     WHEN("value")
     {
       fn::expected<fn::pack<int, std::string_view>, Error> s{
-          fn::pack<int>{12}.append(fn::type<std::string_view>(), "bar")};
+          fn::pack<int>{12}.append(std::in_place_type<std::string_view>, "bar")};
 
       CHECK(s.transform( //
                  fn::overload([](int &i, auto &&...) -> bool { return i == 12; },
@@ -99,7 +99,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
                                  [](int const &&, auto &&...) -> bool { throw 0; })) //
                 .value());
       CHECK(fn::expected<fn::pack<int, std::string_view>, Error>{
-          fn::pack<int>{12}.append(fn::type<std::string_view>(), "bar")}
+          fn::pack<int>{12}.append(std::in_place_type<std::string_view>, "bar")}
                 .transform( //
                     fn::overload([](int &, auto &&...) -> bool { throw 0; },
                                  [](int const &, auto &&...) -> bool { throw 0; },
@@ -118,7 +118,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
     WHEN("void result")
     {
       fn::expected<fn::pack<int, std::string_view>, Error> s{
-          fn::pack<int>{12}.append(fn::type<std::string_view>(), "bar")};
+          fn::pack<int>{12}.append(std::in_place_type<std::string_view>, "bar")};
 
       CHECK(s.transform( //
                  fn::overload([](int &, auto &&...) -> void {}, [](int const &, auto &&...) -> void { throw 0; },
@@ -132,7 +132,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
                                  [](int const &&, auto &&...) -> void { throw 0; })) //
                 .has_value());
       CHECK(fn::expected<fn::pack<int, std::string_view>, Error>{
-          fn::pack<int>{12}.append(fn::type<std::string_view>(), "bar")}
+          fn::pack<int>{12}.append(std::in_place_type<std::string_view>, "bar")}
                 .transform( //
                     fn::overload([](int &, auto &&...) -> void { throw 0; },
                                  [](int const &, auto &&...) -> void { throw 0; }, [](int &&, auto &&...) -> void {},

@@ -23,15 +23,13 @@ template <typename T> [[nodiscard]] constexpr auto apply_const_lvalue(auto &&v) 
   return static_cast<apply_const_lvalue_t<T, decltype(v)>>(v);
 }
 
-template <typename T> constexpr auto type() noexcept -> std::type_identity<T> { return {}; }
-
 template <typename... Ts> struct pack : detail::pack_base<std::index_sequence_for<Ts...>, Ts...> {
   using _base = detail::pack_base<std::index_sequence_for<Ts...>, Ts...>;
 
   template <typename Arg> using append_type = pack<Ts..., Arg>;
 
   template <typename T>
-  [[nodiscard]] constexpr auto append(std::type_identity<T>, auto &&...args) & noexcept -> append_type<T>
+  [[nodiscard]] constexpr auto append(std::in_place_type_t<T>, auto &&...args) & noexcept -> append_type<T>
     requires std::is_constructible_v<T, decltype(args)...>
              && requires { static_cast<append_type<T>>(_base::template _append<T>(*this, FWD(args)...)); }
   {
@@ -39,7 +37,7 @@ template <typename... Ts> struct pack : detail::pack_base<std::index_sequence_fo
   }
 
   template <typename T>
-  [[nodiscard]] constexpr auto append(std::type_identity<T>, auto &&...args) const & noexcept -> append_type<T>
+  [[nodiscard]] constexpr auto append(std::in_place_type_t<T>, auto &&...args) const & noexcept -> append_type<T>
     requires std::is_constructible_v<T, decltype(args)...>
              && requires { static_cast<append_type<T>>(_base::template _append<T>(*this, FWD(args)...)); }
   {
@@ -47,7 +45,7 @@ template <typename... Ts> struct pack : detail::pack_base<std::index_sequence_fo
   }
 
   template <typename T>
-  [[nodiscard]] constexpr auto append(std::type_identity<T>, auto &&...args) && noexcept -> append_type<T>
+  [[nodiscard]] constexpr auto append(std::in_place_type_t<T>, auto &&...args) && noexcept -> append_type<T>
     requires std::is_constructible_v<T, decltype(args)...>
              && requires { static_cast<append_type<T>>(_base::template _append<T>(std::move(*this), FWD(args)...)); }
   {
@@ -55,7 +53,7 @@ template <typename... Ts> struct pack : detail::pack_base<std::index_sequence_fo
   }
 
   template <typename T>
-  [[nodiscard]] constexpr auto append(std::type_identity<T>, auto &&...args) const && noexcept -> append_type<T>
+  [[nodiscard]] constexpr auto append(std::in_place_type_t<T>, auto &&...args) const && noexcept -> append_type<T>
     requires std::is_constructible_v<T, decltype(args)...>
              && requires { static_cast<append_type<T>>(_base::template _append<T>(std::move(*this), FWD(args)...)); }
   {

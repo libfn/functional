@@ -671,7 +671,7 @@ constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
   using error_type = std::remove_cvref_t<Rh>::error_type;
   using type = expected<value_type, error_type>;
   if (lh.has_value() && rh.has_value())
-    return type{std::in_place, pack<lh_type>{FWD(lh).value()}.append(std::type_identity<rh_type>{}, FWD(rh).value())};
+    return type{std::in_place, pack<lh_type>{FWD(lh).value()}.append(std::in_place_type_t<rh_type>{}, FWD(rh).value())};
   else if (not lh.has_value())
     return type{std::unexpect, FWD(lh).error()};
   else
@@ -690,7 +690,7 @@ constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
   using error_type = std::remove_cvref_t<Rh>::error_type;
   using type = expected<value_type, error_type>;
   if (lh.has_value() && rh.has_value())
-    return type{std::in_place, FWD(lh).value().append(std::type_identity<rh_type>{}, FWD(rh).value())};
+    return type{std::in_place, FWD(lh).value().append(std::in_place_type_t<rh_type>{}, FWD(rh).value())};
   else if (not lh.has_value())
     return type{std::unexpect, FWD(lh).error()};
   else
