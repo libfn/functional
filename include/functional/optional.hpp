@@ -300,7 +300,7 @@ constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
   using value_type = pack<lh_type, rh_type>;
   using type = optional<value_type>;
   if (lh.has_value() && rh.has_value())
-    return type{std::in_place, pack<lh_type>{FWD(lh).value()}.append(std::type_identity<rh_type>{}, FWD(rh).value())};
+    return type{std::in_place, pack<lh_type>{FWD(lh).value()}.append(std::in_place_type_t<rh_type>{}, FWD(rh).value())};
   else if (not lh.has_value())
     return type{std::nullopt};
   else
@@ -317,7 +317,7 @@ constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
   using value_type = typename lh_type::template append_type<rh_type>;
   using type = optional<value_type>;
   if (lh.has_value() && rh.has_value())
-    return type{std::in_place, FWD(lh).value().append(std::type_identity<rh_type>{}, FWD(rh).value())};
+    return type{std::in_place, FWD(lh).value().append(std::in_place_type_t<rh_type>{}, FWD(rh).value())};
   else if (not lh.has_value())
     return type{std::nullopt};
   else

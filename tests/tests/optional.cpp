@@ -16,12 +16,13 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
   {
     WHEN("value")
     {
-      fn::optional<fn::pack<int, std::string_view>> s{fn::pack<int>{12}.append(fn::type<std::string_view>(), "bar")};
+      fn::optional<fn::pack<int, std::string_view>> s{
+          fn::pack<int>{12}.append(std::in_place_type<std::string_view>, "bar")};
 
       CHECK(s.and_then( //
                  fn::overload([](int &i, auto &&...) -> fn::optional<bool> { return i == 12; },
                               [](int const &, auto &&...) -> fn::optional<bool> { throw 0; },
-                              [](int &&i, auto &&...) -> fn::optional<bool> { throw 0; },
+                              [](int &&, auto &&...) -> fn::optional<bool> { throw 0; },
                               [](int const &&, auto &&...) -> fn::optional<bool> { return 0; })) //
                 .value());
       CHECK(std::as_const(s)
@@ -31,7 +32,8 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                                  [](int &&, auto &&...) -> fn::optional<bool> { throw 0; },
                                  [](int const &&, auto &&...) -> fn::optional<bool> { throw 0; })) //
                 .value());
-      CHECK(fn::optional<fn::pack<int, std::string_view>>{fn::pack<int>{12}.append(fn::type<std::string_view>(), "bar")}
+      CHECK(fn::optional<fn::pack<int, std::string_view>>{
+          fn::pack<int>{12}.append(std::in_place_type<std::string_view>, "bar")}
                 .and_then( //
                     fn::overload([](int &, auto &&...) -> fn::optional<bool> { throw 0; },
                                  [](int const &, auto &&...) -> fn::optional<bool> { throw 0; },
@@ -72,7 +74,8 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
   {
     WHEN("value")
     {
-      fn::optional<fn::pack<int, std::string_view>> s{fn::pack<int>{12}.append(fn::type<std::string_view>(), "bar")};
+      fn::optional<fn::pack<int, std::string_view>> s{
+          fn::pack<int>{12}.append(std::in_place_type<std::string_view>, "bar")};
 
       CHECK(s.transform( //
                  fn::overload([](int &i, auto &&...) -> bool { return i == 12; },
@@ -87,7 +90,8 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                                  [](int &&, auto &&...) -> bool { throw 0; },
                                  [](int const &&, auto &&...) -> bool { throw 0; })) //
                 .value());
-      CHECK(fn::optional<fn::pack<int, std::string_view>>{fn::pack<int>{12}.append(fn::type<std::string_view>(), "bar")}
+      CHECK(fn::optional<fn::pack<int, std::string_view>>{
+          fn::pack<int>{12}.append(std::in_place_type<std::string_view>, "bar")}
                 .transform( //
                     fn::overload([](int &, auto &&...) -> bool { throw 0; },
                                  [](int const &, auto &&...) -> bool { throw 0; },

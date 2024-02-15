@@ -165,32 +165,32 @@ TEST_CASE("append value categories", "[pack][append]")
 
   WHEN("explicit type selection")
   {
-    static_assert(std::same_as<decltype(s.append(fn::type<B>(), 5, 6)), T::append_type<B>>);
+    static_assert(std::same_as<decltype(s.append(std::in_place_type<B>, 5, 6)), T::append_type<B>>);
     static_assert(std::same_as<T::append_type<B>, pack<int, std::string_view, A, B>>);
-    static_assert(decltype(s.append(fn::type<B>(), 5, 6))::size() == 4);
+    static_assert(decltype(s.append(std::in_place_type<B>, 5, 6))::size() == 4);
 
     constexpr C c1{};
-    static_assert(std::same_as<decltype(s.append(fn::type<B const &>(), c1)), T::append_type<B const &>>);
+    static_assert(std::same_as<decltype(s.append(std::in_place_type<B const &>, c1)), T::append_type<B const &>>);
     static_assert(std::same_as<T::append_type<B const &>, pack<int, std::string_view, A, B const &>>);
 
     C c2{};
-    static_assert(std::same_as<decltype(s.append(fn::type<B &>(), c2)), T::append_type<B &>>);
+    static_assert(std::same_as<decltype(s.append(std::in_place_type<B &>, c2)), T::append_type<B &>>);
     static_assert(std::same_as<T::append_type<B &>, pack<int, std::string_view, A, B &>>);
 
     WHEN("constructor takes parameters")
     {
-      CHECK(s.append(fn::type<B>(), 5, 6).invoke(check));
-      CHECK(std::as_const(s).append(fn::type<B>(), 5, 6).invoke(check));
-      CHECK(T{12, "bar", 42}.append(fn::type<B>(), 5, 6).invoke(check));
-      CHECK(std::move(std::as_const(s)).append(fn::type<B>(), 5, 6).invoke(check));
+      CHECK(s.append(std::in_place_type<B>, 5, 6).invoke(check));
+      CHECK(std::as_const(s).append(std::in_place_type<B>, 5, 6).invoke(check));
+      CHECK(T{12, "bar", 42}.append(std::in_place_type<B>, 5, 6).invoke(check));
+      CHECK(std::move(std::as_const(s)).append(std::in_place_type<B>, 5, 6).invoke(check));
     }
 
     WHEN("default constructor")
     {
-      CHECK(s.append(fn::type<C>()).invoke(check));
-      CHECK(std::as_const(s).append(fn::type<C>()).invoke(check));
-      CHECK(T{12, "bar", 42}.append(fn::type<C>()).invoke(check));
-      CHECK(std::move(std::as_const(s)).append(fn::type<C>()).invoke(check));
+      CHECK(s.append(std::in_place_type<C>).invoke(check));
+      CHECK(std::as_const(s).append(std::in_place_type<C>).invoke(check));
+      CHECK(T{12, "bar", 42}.append(std::in_place_type<C>).invoke(check));
+      CHECK(std::move(std::as_const(s)).append(std::in_place_type<C>).invoke(check));
     }
   }
 
