@@ -8,6 +8,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Pls keep the filenames sorted
 set(TESTS_SOURCE_FILES
     detail/fwd_macro.cpp
+    detail/meta.cpp
+    detail/sum_storage.cpp
     and_then.cpp
     concepts.cpp
     expected.cpp
