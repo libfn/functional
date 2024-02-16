@@ -23,7 +23,7 @@ template <std::size_t I, typename T> struct _element {
 template <typename, typename... Ts> struct pack_base;
 
 template <std::size_t... Is, typename... Ts> struct pack_base<std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
-  static constexpr std::size_t size() noexcept { return (0 + ... + ((Is ^ Is) + 1)); }
+  static constexpr std::size_t size = sizeof...(Is);
 
   template <typename Self, typename Fn, typename... Args>
   static constexpr auto _invoke(Self &&self, Fn &&fn, Args &&...args) noexcept
@@ -35,7 +35,7 @@ template <std::size_t... Is, typename... Ts> struct pack_base<std::index_sequenc
 
   template <typename T, typename Self>
   static constexpr auto _append(Self &&self, auto &&...args) noexcept
-      -> pack_base<std::index_sequence<Is..., size()>, Ts..., T>
+      -> pack_base<std::index_sequence<Is..., size>, Ts..., T>
     requires std::is_constructible_v<T, decltype(args)...>
   {
     return {static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., T{FWD(args)...}};
