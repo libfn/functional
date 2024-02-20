@@ -11,6 +11,7 @@ set(TESTS_SOURCE_FILES
     detail/meta.cpp
     detail/sum_storage.cpp
     and_then.cpp
+    choice.cpp
     concepts.cpp
     expected.cpp
     fail.cpp

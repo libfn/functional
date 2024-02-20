@@ -13,6 +13,7 @@ set(INCLUDE_SOURCE_FILES
     functional/detail/sum_storage.hpp
     functional/detail/traits.hpp
     functional/and_then.hpp
+    functional/choice.hpp
     functional/concepts.hpp
     functional/expected.hpp
     functional/fail.hpp
