@@ -50,9 +50,15 @@ concept invocable_filter //
         } -> convertible_to_bool;
       });
 
+/**
+ * @brief Filter the value of the monadic type using a predicate and an error handler
+ */
 constexpr inline struct filter_t final {
-  // NOTE Optional needs one arguments, expected needs two
+  /**
+   * @brief Creates a functor that filters the value of the monadic type using a predicate and an error handler
+  */
   [[nodiscard]] constexpr auto operator()(auto &&...args) const noexcept -> functor<filter_t, decltype(args)...>
+    // NOTE Optional needs one arguments, expected needs two
     requires(sizeof...(args) >= 1) && (sizeof...(args) < 3)
   {
     return {FWD(args)...};
@@ -61,6 +67,9 @@ constexpr inline struct filter_t final {
   struct apply;
 } filter = {};
 
+/**
+ * @brief The apply mechanism of the filter functor
+*/
 struct filter_t::apply final {
   [[nodiscard]] static constexpr auto operator()(some_expected_pack auto &&v, auto &&pred, auto &&on_err) noexcept
       -> same_monadic_type_as<decltype(v)> auto
