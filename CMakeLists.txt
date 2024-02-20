@@ -5,9 +5,15 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 include(Ccache)
 
 option(COVERARE "Enable coverage report." OFF)
+option(DOCS     "Generate documentation." OFF)
+
 if(COVERAGE)
   include(CodeCoverage)
   include(Coverage)
+endif()
+
+if (DOCS)
+  include(Doxygen)
 endif()
 
 set(CMAKE_CXX_EXTENSIONS OFF)
