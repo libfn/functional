@@ -1,14 +1,14 @@
-name: Generate docs
+name: Generate and upload docs
 on:
   workflow_dispatch:
   workflow_call:
 
 jobs:
-  generate_doxygen:
-    name: Doxygen XML
+  generate_docs:
+    name: Generate and upload docs
     runs-on: ubuntu-20.04
     container:
-      image: godexsoft/functional-ci:latest
+      image: godexsoft/functional-ci:0.0.1
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,7 +24,7 @@ jobs:
           cmake -DDOCS=True ..
           cmake --build . export_docs
 
-      - name: Deploy docs
+      - name: Upload docs
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
