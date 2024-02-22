@@ -73,5 +73,3 @@ jobs:
 
   docs:
     uses: ./.github/workflows/docs.yml
-    secrets:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
