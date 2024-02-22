@@ -59,10 +59,10 @@ concept invocable_filter //
 
 /**
  * @brief Filter the value of the monadic type using a predicate and an error handler
- * 
+ *
  * When used on `fn::expected`, this operation takes both a predicate and an error handler.
- * However, when used on `fn::optional`, this operation only takes a predicate. 
- * 
+ * However, when used on `fn::optional`, this operation only takes a predicate.
+ *
  * Use through the `fn::filter` nielbloid.
  */
 constexpr inline struct filter_t final {
@@ -72,12 +72,12 @@ constexpr inline struct filter_t final {
    * @param on_err The error handler, takes the value by const reference and returns the error type
    * @return A functor that will filter the value of the monadic type
    */
-  [[nodiscard]] constexpr auto operator()(auto &&pred, auto&&on_err) const noexcept 
-    -> functor<filter_t, decltype(pred), decltype(on_err)>
+  [[nodiscard]] constexpr auto operator()(auto &&pred, auto &&on_err) const noexcept
+      -> functor<filter_t, decltype(pred), decltype(on_err)>
   {
     return {FWD(pred), FWD(on_err)};
   }
-  
+
   /**
    * @brief Filter the value of the `fn::optional` using a predicate and an error handler
    * @param pred The predicate to filter the value, takes the value by const reference and returns bool
