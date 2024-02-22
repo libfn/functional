@@ -22,7 +22,7 @@ jobs:
           mkdir .build
           cd .build
           cmake -DDOCS=True ..
-          cmake --build . export_docs
+          cmake --build . --target export_docs
 
       - name: Upload docs
         uses: peaceiris/actions-gh-pages@v3
