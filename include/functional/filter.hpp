@@ -17,6 +17,13 @@
 #include <utility>
 
 namespace fn {
+/**
+ * @brief Checks if the monadic type can be used with the filter operation
+ *
+ * @tparam Pred The predicate to filter the value
+ * @tparam Err The error handler
+ * @tparam V The monadic type
+ */
 template <typename Pred, typename Err, typename V>
 concept invocable_filter //
     = (some_expected_pack<V> && requires(Pred &&pred, Err &&on_err, V &&v) {
@@ -52,24 +59,38 @@ concept invocable_filter //
 
 /**
  * @brief Filter the value of the monadic type using a predicate and an error handler
+ * 
+ * When used on `fn::expected`, this operation takes both a predicate and an error handler.
+ * However, when used on `fn::optional`, this operation only takes a predicate. 
+ * 
+ * Use through the `fn::filter` nielbloid.
  */
 constexpr inline struct filter_t final {
   /**
-   * @brief Creates a functor that filters the value of the monadic type using a predicate and an error handler
-  */
-  [[nodiscard]] constexpr auto operator()(auto &&...args) const noexcept -> functor<filter_t, decltype(args)...>
-    // NOTE Optional needs one arguments, expected needs two
-    requires(sizeof...(args) >= 1) && (sizeof...(args) < 3)
+   * @brief Filter the value of the monadic type using a predicate and an error handler
+   * @param pred The predicate to filter the value, takes the value by const reference and returns bool
+   * @param on_err The error handler, takes the value by const reference and returns the error type
+   * @return A functor that will filter the value of the monadic type
+   */
+  [[nodiscard]] constexpr auto operator()(auto &&pred, auto&&on_err) const noexcept 
+    -> functor<filter_t, decltype(pred), decltype(on_err)>
   {
-    return {FWD(args)...};
+    return {FWD(pred), FWD(on_err)};
+  }
+  
+  /**
+   * @brief Filter the value of the `fn::optional` using a predicate and an error handler
+   * @param pred The predicate to filter the value, takes the value by const reference and returns bool
+   * @return A functor that will filter the value of the monadic type
+   */
+  [[nodiscard]] constexpr auto operator()(auto &&pred) const noexcept -> functor<filter_t, decltype(pred)>
+  {
+    return {FWD(pred)};
   }
 
   struct apply;
 } filter = {};
 
-/**
- * @brief The apply mechanism of the filter functor
-*/
 struct filter_t::apply final {
   [[nodiscard]] static constexpr auto operator()(some_expected_pack auto &&v, auto &&pred, auto &&on_err) noexcept
       -> same_monadic_type_as<decltype(v)> auto
