@@ -13,7 +13,7 @@ if(COVERAGE)
 endif()
 
 if (DOCS)
-  include(Doxygen)
+  include(Docs)
 endif()
 
 set(CMAKE_CXX_EXTENSIONS OFF)
