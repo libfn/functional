@@ -1,0 +1,34 @@
+name: Generate docs
+on:
+  workflow_dispatch:
+  workflow_call:
+    secrets:
+      GITHUB_TOKEN:
+        required: true
+
+jobs:
+  generate_doxygen:
+    name: Doxygen XML
+    runs-on: ubuntu-20.04
+    container:
+      image: godexsoft/functional-ci:latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Export docs
+        continue-on-error: false
+        shell: bash
+        id: run_cmake
+        run: |
+          mkdir .build
+          cd .build
+          cmake -DDOCS=True ..
+          cmake --build . export_docs
+
+      - name: Deploy docs
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./.build/docs_export

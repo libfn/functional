@@ -70,3 +70,8 @@ jobs:
       run: |
         cd .build
         ctest --output-on-failure
+
+  docs:
+    uses: ./.github/workflows/docs.yml
+    secrets:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
