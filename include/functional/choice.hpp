@@ -42,11 +42,9 @@ struct choice<Ts...> final {
   _type _v;
 
   template <typename Fn, typename Self>
-  static constexpr bool invocable //
-      = is_normal && (... && std::is_invocable_v<Fn, apply_const_lvalue_t<Self, Ts &&>>);
+  static constexpr bool invocable = is_normal && detail::typelist_invocable<Fn, Self>;
   template <typename Fn, typename Self>
-  static constexpr bool invocable_typed
-      = is_normal && (... && std::is_invocable_v<Fn, std::in_place_type_t<Ts>, apply_const_lvalue_t<Self, Ts &&>>);
+  static constexpr bool type_invocable = is_normal && detail::typelist_type_invocable<Fn, Self>;
 
   template <typename Fn, typename Self> struct invoke_result;
   template <typename Fn, typename Self>
@@ -58,7 +56,7 @@ struct choice<Ts...> final {
     using type = _R0;
   };
   template <typename Fn, typename Self>
-    requires invocable_typed<Fn, Self>
+    requires type_invocable<Fn, Self>
   struct invoke_result<Fn, Self> final {
     using _T0 = detail::select_nth_t<0, Ts...>;
     using _R0 = std::invoke_result_t<Fn, std::in_place_type_t<_T0>, apply_const_lvalue_t<Self, _T0 &&>>;
@@ -156,28 +154,28 @@ struct choice<Ts...> final {
 
   template <typename Fn>
   [[nodiscard]] constexpr auto invoke(Fn &&fn) & noexcept
-    requires(invocable<Fn &&, _type &>) || (invocable_typed<Fn &&, _type &>)
+    requires(invocable<Fn &&, _type &>) || (type_invocable<Fn &&, _type &>)
   {
     return this->_v.invoke(FWD(fn));
   }
 
   template <typename Fn>
   [[nodiscard]] constexpr auto invoke(Fn &&fn) const & noexcept
-    requires(invocable<Fn &&, _type const &>) || (invocable_typed<Fn &&, _type const &>)
+    requires(invocable<Fn &&, _type const &>) || (type_invocable<Fn &&, _type const &>)
   {
     return this->_v.invoke(FWD(fn));
   }
 
   template <typename Fn>
   [[nodiscard]] constexpr auto invoke(Fn &&fn) && noexcept
-    requires(invocable<Fn &&, _type &&>) || (invocable_typed<Fn &&, _type &&>)
+    requires(invocable<Fn &&, _type &&>) || (type_invocable<Fn &&, _type &&>)
   {
     return std::move(*this)._v.invoke(FWD(fn));
   }
 
   template <typename Fn>
   [[nodiscard]] constexpr auto invoke(Fn &&fn) const && noexcept
-    requires(invocable<Fn &&, _type const &&>) || (invocable_typed<Fn &&, _type const &&>)
+    requires(invocable<Fn &&, _type const &&>) || (type_invocable<Fn &&, _type const &&>)
   {
     return std::move(*this)._v.invoke(FWD(fn));
   }
