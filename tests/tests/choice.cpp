@@ -55,7 +55,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     static_assert(not type::invocable<decltype(fn::overload{[](int &) {}, [](TestType &) {}}),
                                       type const &>); // cannot bind const to non-const reference
 
-    static_assert(choice<NonCopyable>::invocable<decltype([](auto &) {}), NonCopyable &>);
+    static_assert(choice<NonCopyable>::invocable<decltype([](auto &) {}), choice<NonCopyable> &>);
     static_assert(
         not choice<NonCopyable>::invocable<decltype([](auto) {}), NonCopyable &>); // copy-constructor not available
 
@@ -100,42 +100,42 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
                   std::integral_constant<int, 3>>);
   }
 
-  WHEN("invocable_typed")
+  WHEN("type_invocable")
   {
     using type = choice<TestType, int>;
     static_assert(type::is_normal);
-    static_assert(type::invocable_typed<decltype([](auto, auto) {}), type &>);
-    static_assert(type::invocable_typed<decltype([](some_in_place_type auto, auto) {}), type &>);
-    static_assert(type::invocable_typed<decltype([](some_in_place_type auto, auto &) {}), type &>);
-    static_assert(type::invocable_typed<decltype(fn::overload{[](some_in_place_type auto, int &) {},
-                                                              [](some_in_place_type auto, TestType &) {}}),
-                                        type &>);
-    static_assert(type::invocable_typed<decltype(fn::overload{[](some_in_place_type auto, int) {},
-                                                              [](some_in_place_type auto, TestType) {}}),
-                                        type const &>);
+    static_assert(type::type_invocable<decltype([](auto, auto) {}), type &>);
+    static_assert(type::type_invocable<decltype([](some_in_place_type auto, auto) {}), type &>);
+    static_assert(type::type_invocable<decltype([](some_in_place_type auto, auto &) {}), type &>);
+    static_assert(type::type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &) {},
+                                                             [](some_in_place_type auto, TestType &) {}}),
+                                       type &>);
+    static_assert(type::type_invocable<decltype(fn::overload{[](some_in_place_type auto, int) {},
+                                                             [](some_in_place_type auto, TestType) {}}),
+                                       type const &>);
     static_assert(
-        not type::invocable_typed<decltype([](some_in_place_type auto, TestType &) {}), type &>); // missing int
+        not type::type_invocable<decltype([](some_in_place_type auto, TestType &) {}), type &>); // missing int
     static_assert(
-        not type::invocable_typed<decltype([](some_in_place_type auto, int &) {}), type &>); // missing TestType
-    static_assert(not type::invocable_typed<decltype(fn::overload{[](some_in_place_type auto, int &&) {},
-                                                                  [](some_in_place_type auto, TestType &&) {}}),
-                                            type &>); // cannot bind lvalue to rvalue-reference
-    static_assert(not type::invocable_typed<decltype([](some_in_place_type auto, auto &) {}),
-                                            type &&>);                       // cannot bind rvalue to lvalue-reference
-    static_assert(not type::invocable_typed<decltype([](auto) {}), type &>); // bad arity
-    static_assert(not type::invocable_typed<decltype(fn::overload{[](some_in_place_type auto, int &) {},
-                                                                  [](some_in_place_type auto, TestType &) {}}),
-                                            type const &>); // cannot bind const to non-const reference
+        not type::type_invocable<decltype([](some_in_place_type auto, int &) {}), type &>); // missing TestType
+    static_assert(not type::type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &&) {},
+                                                                 [](some_in_place_type auto, TestType &&) {}}),
+                                           type &>); // cannot bind lvalue to rvalue-reference
+    static_assert(not type::type_invocable<decltype([](some_in_place_type auto, auto &) {}),
+                                           type &&>);                       // cannot bind rvalue to lvalue-reference
+    static_assert(not type::type_invocable<decltype([](auto) {}), type &>); // bad arity
+    static_assert(not type::type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &) {},
+                                                                 [](some_in_place_type auto, TestType &) {}}),
+                                           type const &>); // cannot bind const to non-const reference
 
     static_assert(
-        choice<NonCopyable>::invocable_typed<decltype([](some_in_place_type auto, auto &) {}), NonCopyable &>);
-    static_assert(not choice<NonCopyable>::invocable_typed<decltype([](some_in_place_type auto, auto) {}),
-                                                           NonCopyable &>); // copy-constructor not available
+        choice<NonCopyable>::type_invocable<decltype([](some_in_place_type auto, auto &) {}), choice<NonCopyable> &>);
+    static_assert(not choice<NonCopyable>::type_invocable<decltype([](some_in_place_type auto, auto) {}),
+                                                          NonCopyable &>); // copy-constructor not available
 
     static_assert(
-        choice<NonCopyable>::invocable_typed<decltype([](some_in_place_type auto, auto &) {}), NonCopyable &>);
-    static_assert(not choice<NonCopyable>::invocable_typed<decltype([](some_in_place_type auto, auto) {}),
-                                                           NonCopyable &>); // copy-constructor not available
+        choice<NonCopyable>::type_invocable<decltype([](some_in_place_type auto, auto &) {}), choice<NonCopyable> &>);
+    static_assert(not choice<NonCopyable>::type_invocable<decltype([](some_in_place_type auto, auto) {}),
+                                                          NonCopyable &>); // copy-constructor not available
 
     static_assert(
         std::is_same_v<type::invoke_result<decltype([](auto, auto) -> int { return 0; }), type &>::type, int>);

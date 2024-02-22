@@ -339,7 +339,7 @@ TEST_CASE("sum", "[sum]")
     static_assert(not type::invocable<decltype(fn::overload{[](int &) {}, [](TestType &) {}}),
                                       type const &>); // cannot bind const to non-const reference
 
-    static_assert(sum<NonCopyable>::invocable<decltype([](auto &) {}), NonCopyable &>);
+    static_assert(sum<NonCopyable>::invocable<decltype([](auto &) {}), sum<NonCopyable> &>);
     static_assert(
         not sum<NonCopyable>::invocable<decltype([](auto) {}), NonCopyable &>); // copy-constructor not available
 
@@ -384,36 +384,37 @@ TEST_CASE("sum", "[sum]")
                   std::integral_constant<int, 3>>);
   }
 
-  WHEN("invocable_typed")
+  WHEN("type_invocable")
   {
     using type = sum<TestType, int>;
     static_assert(type::is_normal);
-    static_assert(type::invocable_typed<decltype([](auto, auto) {}), type &>);
-    static_assert(type::invocable_typed<decltype([](some_in_place_type auto, auto) {}), type &>);
-    static_assert(type::invocable_typed<decltype([](some_in_place_type auto, auto &) {}), type &>);
-    static_assert(type::invocable_typed<decltype(fn::overload{[](some_in_place_type auto, int &) {},
-                                                              [](some_in_place_type auto, TestType &) {}}),
-                                        type &>);
-    static_assert(type::invocable_typed<decltype(fn::overload{[](some_in_place_type auto, int) {},
-                                                              [](some_in_place_type auto, TestType) {}}),
-                                        type const &>);
+    static_assert(type::type_invocable<decltype([](auto, auto) {}), type &>);
+    static_assert(type::type_invocable<decltype([](some_in_place_type auto, auto) {}), type &>);
+    static_assert(type::type_invocable<decltype([](some_in_place_type auto, auto &) {}), type &>);
+    static_assert(type::type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &) {},
+                                                             [](some_in_place_type auto, TestType &) {}}),
+                                       type &>);
+    static_assert(type::type_invocable<decltype(fn::overload{[](some_in_place_type auto, int) {},
+                                                             [](some_in_place_type auto, TestType) {}}),
+                                       type const &>);
     static_assert(
-        not type::invocable_typed<decltype([](some_in_place_type auto, TestType &) {}), type &>); // missing int
+        not type::type_invocable<decltype([](some_in_place_type auto, TestType &) {}), type &>); // missing int
     static_assert(
-        not type::invocable_typed<decltype([](some_in_place_type auto, int &) {}), type &>); // missing TestType
-    static_assert(not type::invocable_typed<decltype(fn::overload{[](some_in_place_type auto, int &&) {},
-                                                                  [](some_in_place_type auto, TestType &&) {}}),
-                                            type &>); // cannot bind lvalue to rvalue-reference
-    static_assert(not type::invocable_typed<decltype([](some_in_place_type auto, auto &) {}),
-                                            type &&>);                       // cannot bind rvalue to lvalue-reference
-    static_assert(not type::invocable_typed<decltype([](auto) {}), type &>); // bad arity
-    static_assert(not type::invocable_typed<decltype(fn::overload{[](some_in_place_type auto, int &) {},
-                                                                  [](some_in_place_type auto, TestType &) {}}),
-                                            type const &>); // cannot bind const to non-const reference
+        not type::type_invocable<decltype([](some_in_place_type auto, int &) {}), type &>); // missing TestType
+    static_assert(not type::type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &&) {},
+                                                                 [](some_in_place_type auto, TestType &&) {}}),
+                                           type &>); // cannot bind lvalue to rvalue-reference
+    static_assert(not type::type_invocable<decltype([](some_in_place_type auto, auto &) {}),
+                                           type &&>);                       // cannot bind rvalue to lvalue-reference
+    static_assert(not type::type_invocable<decltype([](auto) {}), type &>); // bad arity
+    static_assert(not type::type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &) {},
+                                                                 [](some_in_place_type auto, TestType &) {}}),
+                                           type const &>); // cannot bind const to non-const reference
 
-    static_assert(sum<NonCopyable>::invocable_typed<decltype([](some_in_place_type auto, auto &) {}), NonCopyable &>);
-    static_assert(not sum<NonCopyable>::invocable_typed<decltype([](some_in_place_type auto, auto) {}),
-                                                        NonCopyable &>); // copy-constructor not available
+    static_assert(
+        sum<NonCopyable>::type_invocable<decltype([](some_in_place_type auto, auto &) {}), sum<NonCopyable> &>);
+    static_assert(not sum<NonCopyable>::type_invocable<decltype([](some_in_place_type auto, auto) {}),
+                                                       NonCopyable &>); // copy-constructor not available
 
     static_assert(
         std::is_same_v<type::invoke_result<decltype([](auto, auto) -> int { return 0; }), type &>::type, int>);
@@ -480,18 +481,15 @@ TEST_CASE("sum", "[sum]")
   WHEN("single parameter constructor")
   {
     constexpr sum<int> a = 12;
-    CHECK(a.index == 0);
     static_assert(a == 12);
 
     constexpr sum<bool> b{false};
-    CHECK(b.index == 0);
     static_assert(b == false);
 
     WHEN("CTAD")
     {
       sum a{42};
       static_assert(std::is_same_v<decltype(a), sum<int>>);
-      CHECK(a.index == 0);
       CHECK(a == 42);
 
       constexpr sum b{false};
@@ -503,7 +501,6 @@ TEST_CASE("sum", "[sum]")
   WHEN("forwarding constructors (immovable)")
   {
     sum<NonCopyable> a{std::in_place_type<NonCopyable>, 42};
-    CHECK(a.index == 0);
     CHECK(a.invoke([](auto &i) -> bool { return i.i == 42; }));
 
     WHEN("CTAD")
@@ -525,7 +522,6 @@ TEST_CASE("sum", "[sum]")
       static_assert(not decltype(a)::has_type<int>);
       CHECK(a.has_value(std::in_place_type<std::array<int, 3>>));
       CHECK(a.template has_value<std::array<int, 3>>());
-      CHECK(a.index == 0);
       CHECK(a.invoke([](auto &i) -> bool {
         return std::same_as<std::array<int, 3> &, decltype(i)> && i.size() == 3 && i[0] == 1 && i[1] == 2 && i[2] == 3;
       }));
@@ -534,7 +530,6 @@ TEST_CASE("sum", "[sum]")
     WHEN("constexpr")
     {
       constexpr sum<std::array<int, 3>> a{std::in_place_type<std::array<int, 3>>, 1, 2, 3};
-      static_assert(a.index == 0);
       static_assert(decltype(a)::has_type<std::array<int, 3>>);
       static_assert(not decltype(a)::has_type<int>);
       static_assert(a.has_value(std::in_place_type<std::array<int, 3>>));
@@ -635,7 +630,7 @@ TEST_CASE("sum", "[sum]")
     }
   }
 
-  WHEN("constructor make_from")
+  WHEN("constructor make")
   {
     using type = sum<bool, int>;
     static_assert(type::has_type<int>);
@@ -646,8 +641,8 @@ TEST_CASE("sum", "[sum]")
     WHEN("from smaller sum<bool>")
     {
       constexpr auto init = sum<bool>{std::in_place_type<bool>, true};
-      static_assert([](auto &a) constexpr -> bool { return requires { type::make_from(a); }; }(init));
-      auto a = type::make_from(init);
+      static_assert([](auto &a) constexpr -> bool { return requires { type::make(a); }; }(init));
+      auto a = type::make(init);
       static_assert(std::same_as<type, decltype(a)>);
       CHECK(a.has_value(std::in_place_type<bool>));
       CHECK(a.template has_value<bool>());
@@ -655,7 +650,7 @@ TEST_CASE("sum", "[sum]")
 
       WHEN("constexpr")
       {
-        constexpr auto a = type::make_from(init);
+        constexpr auto a = type::make(init);
         static_assert(std::same_as<type const, decltype(a)>);
         static_assert(a.has_value(std::in_place_type<bool>));
         static_assert(a.template has_value<bool>());
@@ -666,8 +661,8 @@ TEST_CASE("sum", "[sum]")
     WHEN("from smaller sum<int>")
     {
       constexpr auto init = sum<int>{std::in_place_type<int>, 42};
-      static_assert([](auto &a) constexpr -> bool { return requires { type::make_from(a); }; }(init));
-      auto a = type::make_from(init);
+      static_assert([](auto &a) constexpr -> bool { return requires { type::make(a); }; }(init));
+      auto a = type::make(init);
       static_assert(std::same_as<type, decltype(a)>);
       CHECK(a.has_value(std::in_place_type<int>));
       CHECK(a.template has_value<int>());
@@ -675,7 +670,7 @@ TEST_CASE("sum", "[sum]")
 
       WHEN("constexpr")
       {
-        constexpr auto a = type::make_from(init);
+        constexpr auto a = type::make(init);
         static_assert(std::same_as<type const, decltype(a)>);
         static_assert(a.has_value(std::in_place_type<int>));
         static_assert(a.template has_value<int>());
@@ -686,8 +681,8 @@ TEST_CASE("sum", "[sum]")
     WHEN("same sum")
     {
       constexpr auto init = type{std::in_place_type<int>, 42};
-      static_assert([](auto &a) constexpr -> bool { return requires { type::make_from(a); }; }(init));
-      auto a = type::make_from(init);
+      static_assert([](auto &a) constexpr -> bool { return requires { type::make(a); }; }(init));
+      auto a = type::make(init);
       static_assert(std::same_as<type, decltype(a)>);
       CHECK(a.has_value(std::in_place_type<int>));
       CHECK(a.template has_value<int>());
@@ -695,7 +690,7 @@ TEST_CASE("sum", "[sum]")
 
       WHEN("constexpr")
       {
-        constexpr auto a = type::make_from(init);
+        constexpr auto a = type::make(init);
         static_assert(std::same_as<type const, decltype(a)>);
         static_assert(a.has_value(std::in_place_type<int>));
         static_assert(a.template has_value<int>());
@@ -707,7 +702,7 @@ TEST_CASE("sum", "[sum]")
     {
       constexpr auto init = sum<bool, double, int>{std::in_place_type<int>, 42};
       static_assert([](auto &a) constexpr -> bool {
-        return not requires { type::make_from(a); };
+        return not requires { type::make(a); };
       }(init)); // type is not a superset of init
     }
   }
