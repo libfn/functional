@@ -3,8 +3,8 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#ifndef INCLUDE_FUNCTIONAL_DETAIL_SUM_STORAGE
-#define INCLUDE_FUNCTIONAL_DETAIL_SUM_STORAGE
+#ifndef INCLUDE_FUNCTIONAL_DETAIL_VARIADIC_UNION
+#define INCLUDE_FUNCTIONAL_DETAIL_VARIADIC_UNION
 
 #include "functional/detail/fwd_macro.hpp"
 #include "functional/detail/meta.hpp"
@@ -138,7 +138,7 @@ union variadic_union<T0, T1, T2, T3, Ts...> final {
 };
 
 template <typename T, typename U>
-[[nodiscard]] constexpr auto *get_variadic_union(some_variadic_union auto &&v) noexcept
+[[nodiscard]] constexpr auto *ptr_variadic_union(some_variadic_union auto &&v) noexcept
   requires std::same_as<std::remove_cvref_t<decltype(v)>, U>
            && (U::template has_type<T>) && std::same_as<T, typename U::t0>
 {
@@ -146,7 +146,7 @@ template <typename T, typename U>
 }
 
 template <typename T, typename U>
-[[nodiscard]] constexpr auto *get_variadic_union(some_variadic_union auto &&v) noexcept
+[[nodiscard]] constexpr auto *ptr_variadic_union(some_variadic_union auto &&v) noexcept
   requires std::same_as<std::remove_cvref_t<decltype(v)>, U>
            && (U::template has_type<T>) && std::same_as<T, typename U::t1>
 {
@@ -154,7 +154,7 @@ template <typename T, typename U>
 }
 
 template <typename T, typename U>
-[[nodiscard]] constexpr auto *get_variadic_union(some_variadic_union auto &&v) noexcept
+[[nodiscard]] constexpr auto *ptr_variadic_union(some_variadic_union auto &&v) noexcept
   requires std::same_as<std::remove_cvref_t<decltype(v)>, U>
            && (U::template has_type<T>) && std::same_as<T, typename U::t2>
 {
@@ -162,7 +162,7 @@ template <typename T, typename U>
 }
 
 template <typename T, typename U>
-[[nodiscard]] constexpr auto *get_variadic_union(some_variadic_union auto &&v) noexcept
+[[nodiscard]] constexpr auto *ptr_variadic_union(some_variadic_union auto &&v) noexcept
   requires std::same_as<std::remove_cvref_t<decltype(v)>, U>
            && (U::template has_type<T>) && std::same_as<T, typename U::t3>
 {
@@ -170,11 +170,11 @@ template <typename T, typename U>
 }
 
 template <typename T, typename U>
-[[nodiscard]] constexpr auto *get_variadic_union(some_variadic_union auto &&v) noexcept
+[[nodiscard]] constexpr auto *ptr_variadic_union(some_variadic_union auto &&v) noexcept
   requires std::same_as<std::remove_cvref_t<decltype(v)>, U>
            && (U::template has_type<T>) && (U::more_t::template has_type<T>)
 {
-  return get_variadic_union<T, typename U::more_t>(v.more);
+  return ptr_variadic_union<T, typename U::more_t>(v.more);
 }
 
 template <typename T, typename U>
@@ -214,7 +214,7 @@ template <typename T, typename U>
 }
 
 template <typename U, typename Fn>
-[[nodiscard]] constexpr auto apply_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
+[[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
   requires std::same_as<std::remove_cvref_t<decltype(v)>, U> && typelist_invocable<Fn, decltype(v)> && (U::size == 1)
 {
   if (index == 0) // GCOVR_EXCL_BR_LINE
@@ -223,7 +223,7 @@ template <typename U, typename Fn>
 }
 
 template <typename U, typename Fn>
-[[nodiscard]] constexpr auto apply_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
+[[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
   requires std::same_as<std::remove_cvref_t<decltype(v)>, U> && typelist_type_invocable<Fn, decltype(v)>
            && (U::size == 1)
 {
@@ -233,7 +233,7 @@ template <typename U, typename Fn>
 }
 
 template <typename U, typename Fn>
-[[nodiscard]] constexpr auto apply_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
+[[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
   requires std::same_as<std::remove_cvref_t<decltype(v)>, U> && typelist_invocable<Fn, decltype(v)> && (U::size == 2)
 {
   if (index == 0)
@@ -244,7 +244,7 @@ template <typename U, typename Fn>
 }
 
 template <typename U, typename Fn>
-[[nodiscard]] constexpr auto apply_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
+[[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
   requires std::same_as<std::remove_cvref_t<decltype(v)>, U> && typelist_type_invocable<Fn, decltype(v)>
            && (U::size == 2)
 {
@@ -256,7 +256,7 @@ template <typename U, typename Fn>
 }
 
 template <typename U, typename Fn>
-[[nodiscard]] constexpr auto apply_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
+[[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
   requires std::same_as<std::remove_cvref_t<decltype(v)>, U> && typelist_invocable<Fn, decltype(v)> && (U::size == 3)
 {
   if (index == 0)
@@ -269,7 +269,7 @@ template <typename U, typename Fn>
 }
 
 template <typename U, typename Fn>
-[[nodiscard]] constexpr auto apply_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
+[[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
   requires std::same_as<std::remove_cvref_t<decltype(v)>, U> && typelist_type_invocable<Fn, decltype(v)>
            && (U::size == 3)
 {
@@ -283,7 +283,7 @@ template <typename U, typename Fn>
 }
 
 template <typename U, typename Fn>
-[[nodiscard]] constexpr auto apply_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
+[[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
   requires std::same_as<std::remove_cvref_t<decltype(v)>, U> && typelist_invocable<Fn, decltype(v)> && (U::size == 4)
 {
   if (index == 0)
@@ -298,7 +298,7 @@ template <typename U, typename Fn>
 }
 
 template <typename U, typename Fn>
-[[nodiscard]] constexpr auto apply_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
+[[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
   requires std::same_as<std::remove_cvref_t<decltype(v)>, U> && typelist_type_invocable<Fn, decltype(v)>
            && (U::size == 4)
 {
@@ -314,7 +314,7 @@ template <typename U, typename Fn>
 }
 
 template <typename U, typename Fn>
-[[nodiscard]] constexpr auto apply_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
+[[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
   requires std::same_as<std::remove_cvref_t<decltype(v)>, U> && typelist_invocable<Fn, decltype(v)> && (U::size > 4)
 {
   if (index == 0)
@@ -326,11 +326,11 @@ template <typename U, typename Fn>
   else if (index == 3)
     return std::invoke(FWD(fn), FWD(v).v3);
   else
-    return apply_variadic_union<typename U::more_t>(FWD(v).more, index - 4, FWD(fn));
+    return invoke_variadic_union<typename U::more_t>(FWD(v).more, index - 4, FWD(fn));
 }
 
 template <typename U, typename Fn>
-[[nodiscard]] constexpr auto apply_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
+[[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
   requires std::same_as<std::remove_cvref_t<decltype(v)>, U> && typelist_type_invocable<Fn, decltype(v)>
            && (U::size > 4)
 {
@@ -343,140 +343,9 @@ template <typename U, typename Fn>
   else if (index == 3)
     return std::invoke(FWD(fn), std::in_place_type<typename U::t3>, FWD(v).v3);
   else
-    return apply_variadic_union<typename U::more_t>(FWD(v).more, index - 4, FWD(fn));
+    return invoke_variadic_union<typename U::more_t>(FWD(v).more, index - 4, FWD(fn));
 }
-
-template <typename... Ts> struct sum_storage;
-template <> struct sum_storage<>; // Intentionally incomplete
-
-template <typename... Ts> constexpr bool _is_sum_storage = false;
-template <typename... Ts> constexpr bool _is_sum_storage<sum_storage<Ts...> &> = true;
-template <typename... Ts> constexpr bool _is_sum_storage<sum_storage<Ts...> const &> = true;
-
-template <typename T>
-concept some_sum_storage = _is_sum_storage<T &>;
-
-template <typename T> constexpr bool _is_in_place_type = false;
-template <typename T> constexpr bool _is_in_place_type<::std::in_place_type_t<T> &> = true;
-template <typename T> constexpr bool _is_in_place_type<::std::in_place_type_t<T> const &> = true;
-
-template <typename T>
-concept some_in_place_type = _is_in_place_type<T &>;
-
-// NOTE Define several specializations to keep compilation times low, then recursive variadic one
-template <typename... Ts>
-  requires(sizeof...(Ts) > 0)
-struct sum_storage<Ts...> final {
-  static_assert(not(... || std::is_same_v<void, Ts>));
-  static_assert(not(... || std::is_reference_v<Ts>));
-  static_assert(not(... || some_in_place_type<Ts>));
-  static_assert(not(... || some_sum_storage<Ts>));
-  static_assert(std::is_same_v<typename normalized<Ts...>::template apply<sum_storage>, sum_storage>);
-
-  using data_t = variadic_union<Ts...>;
-  data_t data;
-  std::size_t const index;
-
-  static constexpr std::size_t size = data_t::size;
-  template <std::size_t I> using type = select_nth_t<I, Ts...>;
-  template <typename T> static constexpr bool has_type = data_t::template has_type<T>;
-
-  template <typename Fn, typename Self> static constexpr bool invocable = typelist_invocable<Fn, Self>;
-  template <typename Fn, typename Self> static constexpr bool type_invocable = typelist_type_invocable<Fn, Self>;
-
-  template <typename T>
-  constexpr sum_storage(std::in_place_type_t<T>, auto &&...args)
-    requires has_type<T>
-      : data(make_variadic_union<T, data_t>(FWD(args)...)), index(type_index<T, Ts...>)
-  {
-  }
-
-  constexpr sum_storage(sum_storage const &other) noexcept
-    requires(... && std::is_copy_constructible_v<Ts>)
-      : data(apply_variadic_union<data_t>(                                   //
-          other.data, other.index,                                           //
-          []<typename T>(std::in_place_type_t<T>, auto const &v) -> data_t { //
-            return make_variadic_union<T, data_t>(v);
-          })),
-        index(other.index)
-  {
-  }
-
-  constexpr sum_storage(sum_storage &&other) noexcept
-    requires(... && std::is_move_constructible_v<Ts>)
-      : data(apply_variadic_union<data_t>(                              //
-          std::move(other).data, other.index,                           //
-          []<typename T>(std::in_place_type_t<T>, auto &&v) -> data_t { //
-            return make_variadic_union<T, data_t>(std::move(v));
-          })),
-        index(other.index)
-  {
-  }
-
-  constexpr ~sum_storage() noexcept
-  {
-    apply_variadic_union<data_t>(this->data, index, [this]<typename T>(std::in_place_type_t<T>, auto &&) {
-      std::destroy_at(get_variadic_union<T, data_t>(this->data));
-    });
-  }
-
-  template <typename T>
-    requires has_type<T>
-  [[nodiscard]] constexpr bool has_value() const noexcept
-  {
-    return invoke([]<typename U>(std::in_place_type_t<U>, auto &&) constexpr -> bool { return std::same_as<T, U>; });
-  }
-
-  template <typename T>
-    requires has_type<T>
-  [[nodiscard]] constexpr bool has_value(std::in_place_type_t<T>) const noexcept
-  {
-    return invoke([]<typename U>(std::in_place_type_t<U>, auto &&) constexpr -> bool { return std::same_as<T, U>; });
-  }
-
-  template <typename T>
-    requires has_type<T>
-  [[nodiscard]] constexpr T *get_ptr(std::in_place_type_t<T>) noexcept
-  {
-    return get_variadic_union<T, data_t>(data);
-  }
-
-  template <typename T>
-    requires has_type<T>
-  [[nodiscard]] constexpr T const *get_ptr(std::in_place_type_t<T>) const noexcept
-  {
-    return get_variadic_union<T, data_t>(data);
-  }
-
-  template <typename Fn>
-  [[nodiscard]] constexpr auto invoke(Fn &&fn) & noexcept
-    requires invocable<Fn, sum_storage &> || type_invocable<Fn, sum_storage &>
-  {
-    return apply_variadic_union<data_t>(this->data, index, FWD(fn));
-  }
-
-  template <typename Fn>
-  [[nodiscard]] constexpr auto invoke(Fn &&fn) const & noexcept
-    requires invocable<Fn, sum_storage const &> || type_invocable<Fn, sum_storage const &>
-  {
-    return apply_variadic_union<data_t>(this->data, index, FWD(fn));
-  }
-
-  template <typename Fn>
-  [[nodiscard]] constexpr auto invoke(Fn &&fn) && noexcept
-    requires invocable<Fn, sum_storage &&> || type_invocable<Fn, sum_storage &&>
-  {
-    return apply_variadic_union<data_t>(std::move(*this).data, index, FWD(fn));
-  }
-
-  template <typename Fn>
-  [[nodiscard]] constexpr auto invoke(Fn &&fn) const && noexcept
-    requires invocable<Fn, sum_storage const &&> || type_invocable<Fn, sum_storage const &&>
-  {
-    return apply_variadic_union<data_t>(std::move(*this).data, index, FWD(fn));
-  }
-};
 
 } // namespace fn::detail
 
-#endif // INCLUDE_FUNCTIONAL_DETAIL_SUM_STORAGE
+#endif // INCLUDE_FUNCTIONAL_DETAIL_VARIADIC_UNION

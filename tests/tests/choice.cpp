@@ -39,7 +39,6 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
   WHEN("invocable")
   {
     using type = choice<TestType, int>;
-    static_assert(type::is_normal);
     static_assert(type::invocable<decltype([](auto) {}), type &>);
     static_assert(type::invocable<decltype([](auto &) {}), type &>);
     static_assert(type::invocable<decltype([](auto const &) {}), type &>);
@@ -103,7 +102,6 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
   WHEN("type_invocable")
   {
     using type = choice<TestType, int>;
-    static_assert(type::is_normal);
     static_assert(type::type_invocable<decltype([](auto, auto) {}), type &>);
     static_assert(type::type_invocable<decltype([](some_in_place_type auto, auto) {}), type &>);
     static_assert(type::type_invocable<decltype([](some_in_place_type auto, auto &) {}), type &>);
@@ -271,30 +269,13 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     }
   }
 
-  WHEN("constructor is_normal clause")
-  {
-    using type = choice<int, bool>;
-    static_assert(not type::is_normal);
-    static_assert([](auto a) constexpr -> bool {
-      return not requires { type{std::in_place_type<std::remove_cvref_t<decltype(a)>>, a}; };
-    }(1)); // constructor not available
-    static_assert([](auto a) constexpr -> bool {
-      return requires { type::make(std::in_place_type<std::remove_cvref_t<decltype(a)>>, a); };
-    }(1)); // make is available
-    using normal_type = choice<bool, int>;
-    static_assert(normal_type::is_normal);
-    static_assert(std::same_as<normal_type, decltype(type::make(std::in_place_type<int>, 0))>);
-    static_assert(normal_type::has_type<int>);
-    static_assert(normal_type::has_type<bool>);
-  }
-
   WHEN("has_type type mismatch")
   {
     using type = choice<bool, int>;
     static_assert(type::has_type<int>);
     static_assert(type::has_type<bool>);
     static_assert(not type::has_type<double>);
-    auto a = type::make(std::in_place_type<int>, 42);
+    type a{std::in_place_type<int>, 42};
     CHECK(a.has_value(std::in_place_type<int>));
     CHECK(not a.has_value(std::in_place_type<bool>));
     static_assert([](auto const &a) constexpr -> bool { //
@@ -314,11 +295,11 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     CHECK(a != 41);
     CHECK(a != false);
 
-    CHECK(a == type::make(std::in_place_type<int>, 42));
-    CHECK(a != type::make(std::in_place_type<int>, 41));
-    CHECK(a != type::make(std::in_place_type<bool>, true));
-    CHECK(not(a == type::make(std::in_place_type<int>, 41)));
-    CHECK(not(a == type::make(std::in_place_type<bool>, true)));
+    CHECK(a == type{std::in_place_type<int>, 42});
+    CHECK(a != type{std::in_place_type<int>, 41});
+    CHECK(a != type{std::in_place_type<bool>, true});
+    CHECK(not(a == type{std::in_place_type<int>, 41}));
+    CHECK(not(a == type{std::in_place_type<bool>, true}));
 
     WHEN("constexpr")
     {
@@ -330,11 +311,11 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       static_assert(not(a == 41));
       static_assert(not(a == false));
       static_assert(not(a == true));
-      static_assert(a == type::make(std::in_place_type<int>, 42));
-      static_assert(a != type::make(std::in_place_type<int>, 41));
-      static_assert(a != type::make(std::in_place_type<bool>, true));
-      static_assert(not(a == type::make(std::in_place_type<int>, 41)));
-      static_assert(not(a == type::make(std::in_place_type<bool>, true)));
+      static_assert(a == type{std::in_place_type<int>, 42});
+      static_assert(a != type{std::in_place_type<int>, 41});
+      static_assert(a != type{std::in_place_type<bool>, true});
+      static_assert(not(a == type{std::in_place_type<int>, 41}));
+      static_assert(not(a == type{std::in_place_type<bool>, true}));
 
       static_assert([](auto const &a) constexpr -> bool { //
         return not requires { a == 0.5; };
@@ -348,83 +329,6 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       static_assert([](auto const &a) constexpr -> bool { //
         return not requires { a != choice(std::in_place_type<int>, 1); };
       }(a)); // type mismatch choice<int>
-    }
-  }
-
-  WHEN("constructor make_from")
-  {
-    using type = choice<bool, int>;
-    static_assert(type::has_type<int>);
-    static_assert(type::has_type<bool>);
-    static_assert(not type::has_type<double>);
-    static_assert(type::is_normal);
-
-    WHEN("from smaller choice<bool>")
-    {
-      constexpr auto init = choice<bool>{std::in_place_type<bool>, true};
-      static_assert([](auto &a) constexpr -> bool { return requires { type::make_from(a); }; }(init));
-      auto a = type::make_from(init);
-      static_assert(std::same_as<type, decltype(a)>);
-      CHECK(a.has_value(std::in_place_type<bool>));
-      CHECK(a.template has_value<bool>());
-      CHECK(a.invoke([](auto &i) -> bool { return i != 0; }));
-
-      WHEN("constexpr")
-      {
-        constexpr auto a = type::make_from(init);
-        static_assert(std::same_as<type const, decltype(a)>);
-        static_assert(a.has_value(std::in_place_type<bool>));
-        static_assert(a.template has_value<bool>());
-        static_assert(a.invoke([](auto &i) -> bool { return i != 0; }));
-      }
-    }
-
-    WHEN("from smaller choice<int>")
-    {
-      constexpr auto init = choice<int>{std::in_place_type<int>, 42};
-      static_assert([](auto &a) constexpr -> bool { return requires { type::make_from(a); }; }(init));
-      auto a = type::make_from(init);
-      static_assert(std::same_as<type, decltype(a)>);
-      CHECK(a.has_value(std::in_place_type<int>));
-      CHECK(a.template has_value<int>());
-      CHECK(a.invoke([](auto &i) -> bool { return i != 0; }));
-
-      WHEN("constexpr")
-      {
-        constexpr auto a = type::make_from(init);
-        static_assert(std::same_as<type const, decltype(a)>);
-        static_assert(a.has_value(std::in_place_type<int>));
-        static_assert(a.template has_value<int>());
-        static_assert(a.invoke([](auto &i) -> bool { return i != 0; }));
-      }
-    }
-
-    WHEN("same choice")
-    {
-      constexpr auto init = type{std::in_place_type<int>, 42};
-      static_assert([](auto &a) constexpr -> bool { return requires { type::make_from(a); }; }(init));
-      auto a = type::make_from(init);
-      static_assert(std::same_as<type, decltype(a)>);
-      CHECK(a.has_value(std::in_place_type<int>));
-      CHECK(a.template has_value<int>());
-      CHECK(a.invoke([](auto &i) -> bool { return i != 0; }));
-
-      WHEN("constexpr")
-      {
-        constexpr auto a = type::make_from(init);
-        static_assert(std::same_as<type const, decltype(a)>);
-        static_assert(a.has_value(std::in_place_type<int>));
-        static_assert(a.template has_value<int>());
-        static_assert(a.invoke([](auto &i) -> bool { return i != 0; }));
-      }
-    }
-
-    WHEN("choice type mismatch")
-    {
-      constexpr auto init = choice<bool, double, int>{std::in_place_type<int>, 42};
-      static_assert([](auto &a) constexpr -> bool {
-        return not requires { type::make_from(a); };
-      }(init)); // type is not a superset of init
     }
   }
 

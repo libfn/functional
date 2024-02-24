@@ -8,6 +8,7 @@
 
 #include "functional/detail/fwd_macro.hpp"
 #include "functional/detail/meta.hpp"
+#include "functional/sum.hpp"
 #include "functional/utility.hpp"
 
 #include <utility>
@@ -34,17 +35,16 @@ struct choice<Ts...> final {
   static constexpr bool _is_valid_subtype //
       = (not std::same_as<void, T>)&&(not some_sum<T>)&&(not std::is_reference_v<T>)&&(not some_in_place_type<T>);
   static_assert((... && _is_valid_subtype<Ts>));
+  static_assert(detail::is_normal_v<Ts...>);
 
   using _type = typename detail::normalized<Ts...>::template apply<sum>;
-  static constexpr bool is_normal = detail::is_normal_v<Ts...>;
   static constexpr std::size_t size = _type::size;
   template <typename T> static constexpr bool has_type = (... || std::same_as<Ts, T>);
   _type _v;
 
+  template <typename Fn, typename Self> static constexpr bool invocable = detail::typelist_invocable<Fn, Self>;
   template <typename Fn, typename Self>
-  static constexpr bool invocable = is_normal && detail::typelist_invocable<Fn, Self>;
-  template <typename Fn, typename Self>
-  static constexpr bool type_invocable = is_normal && detail::typelist_type_invocable<Fn, Self>;
+  static constexpr bool type_invocable = detail::typelist_type_invocable<Fn, Self>;
 
   template <typename Fn, typename Self> struct invoke_result;
   template <typename Fn, typename Self>
@@ -68,21 +68,6 @@ struct choice<Ts...> final {
 
   template <typename Fn, typename Self> using invoke_result_t = typename invoke_result<Fn, Self>::type;
 
-  [[nodiscard]] static constexpr auto make(some_in_place_type auto d, auto &&...args) noexcept
-  {
-    using type = detail::normalized<Ts...>::template apply<choice>;
-    return type(d, FWD(args)...);
-  }
-
-  [[nodiscard]] static constexpr auto make_from(some_choice auto &&arg) noexcept
-    requires(detail::is_superset_of<choice<Ts...>, std::remove_cvref_t<decltype(arg)>>)
-  {
-    using type = detail::normalized<Ts...>::template apply<choice>;
-    return FWD(arg).invoke([]<typename U>(std::in_place_type_t<U> d, auto &&v) noexcept -> type {
-      return type{d, FWD(v)};
-    });
-  }
-
   template <typename T>
   constexpr choice(T &&v)
     requires(size == 1) && (not std::same_as<std::remove_cvref_t<T>, choice<Ts...>>) && (not some_sum<T>)
@@ -103,7 +88,7 @@ struct choice<Ts...> final {
 
   template <typename T>
   constexpr choice(std::in_place_type_t<T> d, auto &&...args) noexcept
-    requires is_normal && (... || std::is_same_v<T, Ts>)
+    requires(... || std::is_same_v<T, Ts>)
       : _v(d, FWD(args)...)
   {
   }
@@ -215,11 +200,9 @@ struct choice<Ts...> final {
       -> detail::normalized<Ts..., decltype(this->invoke(FWD(fn)))>::template apply<choice>
   {
     using type = decltype(this->invoke(FWD(fn)));
-    static_assert(not std::is_same_v<void, type>);
-    static_assert(not std::is_reference_v<type>);
-    static_assert(not some_choice<type>);
-    static_assert(not some_in_place_type<type>);
-    return choice<Ts..., type>::make(std::in_place_type<type>, this->invoke(FWD(fn)));
+    static_assert(_is_valid_subtype<type>);
+    using result_t = detail::normalized<Ts..., type>::template apply<choice>;
+    return result_t{std::in_place_type<type>, this->invoke(FWD(fn))};
   }
 
   template <typename Fn>
@@ -227,11 +210,9 @@ struct choice<Ts...> final {
       -> detail::normalized<Ts..., decltype(this->invoke(FWD(fn)))>::template apply<choice>
   {
     using type = decltype(this->invoke(FWD(fn)));
-    static_assert(not std::is_same_v<void, type>);
-    static_assert(not std::is_reference_v<type>);
-    static_assert(not some_choice<type>);
-    static_assert(not some_in_place_type<type>);
-    return choice<Ts..., type>::make(std::in_place_type<type>, this->invoke(FWD(fn)));
+    static_assert(_is_valid_subtype<type>);
+    using result_t = detail::normalized<Ts..., type>::template apply<choice>;
+    return result_t{std::in_place_type<type>, this->invoke(FWD(fn))};
   }
 
   template <typename Fn>
@@ -239,11 +220,9 @@ struct choice<Ts...> final {
       -> detail::normalized<Ts..., decltype(std::move(*this).invoke(FWD(fn)))>::template apply<choice>
   {
     using type = decltype(std::move(*this).invoke(FWD(fn)));
-    static_assert(not std::is_same_v<void, type>);
-    static_assert(not std::is_reference_v<type>);
-    static_assert(not some_choice<type>);
-    static_assert(not some_in_place_type<type>);
-    return choice<Ts..., type>::make(std::in_place_type<type>, std::move(*this).invoke(FWD(fn)));
+    static_assert(_is_valid_subtype<type>);
+    using result_t = detail::normalized<Ts..., type>::template apply<choice>;
+    return result_t{std::in_place_type<type>, std::move(*this).invoke(FWD(fn))};
   }
 
   template <typename Fn>
@@ -251,11 +230,9 @@ struct choice<Ts...> final {
       -> detail::normalized<Ts..., decltype(std::move(*this).invoke(FWD(fn)))>::template apply<choice>
   {
     using type = decltype(std::move(*this).invoke(FWD(fn)));
-    static_assert(not std::is_same_v<void, type>);
-    static_assert(not std::is_reference_v<type>);
-    static_assert(not some_choice<type>);
-    static_assert(not some_in_place_type<type>);
-    return choice<Ts..., type>::make(std::in_place_type<type>, std::move(*this).invoke(FWD(fn)));
+    static_assert(_is_valid_subtype<type>);
+    using result_t = detail::normalized<Ts..., type>::template apply<choice>;
+    return result_t{std::in_place_type<type>, std::move(*this).invoke(FWD(fn))};
   }
 };
 
