@@ -3,7 +3,7 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#include "functional/detail/sum_storage.hpp"
+#include "functional/sum.hpp"
 #include "functional/utility.hpp"
 
 #include <catch2/catch_all.hpp>
@@ -25,136 +25,7 @@ struct NonCopyable final {
   NonCopyable(NonCopyable const &) = delete;
   NonCopyable &operator=(NonCopyable const &) = delete;
 };
-} // namespace
 
-TEST_CASE("variadic_union", "[variadic_union][apply_variadic_union][get_variadic_union][make_variadic_union]")
-{
-  using fn::detail::apply_variadic_union;
-  using fn::detail::get_variadic_union;
-  using fn::detail::make_variadic_union;
-  using fn::detail::variadic_union;
-
-  using T2 = variadic_union<NonCopyable, NonCopyable const>;
-  constexpr T2 a2 = make_variadic_union<NonCopyable, T2>(12);
-  static_assert(get_variadic_union<NonCopyable, T2>(a2)->v == 12);
-  constexpr T2 a3 = make_variadic_union<NonCopyable const, T2>(36);
-  static_assert(get_variadic_union<NonCopyable const, T2>(a3)->v == 36);
-
-  using T6 = variadic_union<int, bool, double, float, NonCopyable>;
-  constexpr T6 a4 = make_variadic_union<NonCopyable, T6>(42);
-  static_assert(get_variadic_union<NonCopyable, T6>(a4)->v == 42);
-
-  using U1 = variadic_union<bool>;
-  constexpr U1 b1 = make_variadic_union<bool, U1>(true);
-  static_assert(decltype(b1)::has_type<bool>);
-  static_assert(not decltype(b1)::has_type<int>);
-  static_assert([](auto &&b) -> bool { return not requires { get_variadic_union<int, U1>(b); }; }(b1));
-  static_assert(std::same_as<decltype(get_variadic_union<bool, U1>(b1)), bool const *>);
-  static_assert(std::same_as<decltype(get_variadic_union<bool, U1>(U1{.v0 = false})), bool *>);
-  static_assert(*get_variadic_union<bool, U1>(b1));
-  static_assert(apply_variadic_union<U1>(b1, 0, [](auto i) -> std::size_t { return sizeof(i); }) == 1);
-  static_assert(apply_variadic_union<U1>(b1, 0, []<typename T>(std::in_place_type_t<T>, auto i) -> bool {
-    if constexpr (std::same_as<T, bool>)
-      return i;
-    return false;
-  }));
-
-  using U2 = variadic_union<bool, int>;
-  constexpr U2 b2 = make_variadic_union<int, U2>(42);
-  static_assert(decltype(b2)::has_type<bool>);
-  static_assert(decltype(b2)::has_type<int>);
-  static_assert(not decltype(b2)::has_type<double>);
-  static_assert([](auto &&b) -> bool { return not requires { get_variadic_union<double, U2>(b); }; }(b2));
-  static_assert(std::same_as<decltype(get_variadic_union<bool, U2>(b2)), bool const *>);
-  static_assert(std::same_as<decltype(get_variadic_union<int, U2>(b2)), int const *>);
-  static_assert(std::same_as<decltype(get_variadic_union<bool, U2>(U2{.v0 = false})), bool *>);
-  static_assert(std::same_as<decltype(get_variadic_union<int, U2>(U2{.v1 = 12})), int *>);
-  static_assert(*get_variadic_union<int, U2>(b2) == 42);
-  static_assert(apply_variadic_union<U2>(b2, 1, [](auto i) -> std::size_t { return sizeof(i); }) == 4);
-  static_assert(apply_variadic_union<U2>(b2, 1,
-                                         []<typename T>(std::in_place_type_t<T>, auto i) -> int {
-                                           if constexpr (std::same_as<T, int>)
-                                             return i / 2;
-                                           return 0;
-                                         })
-                == 21);
-
-  using U3 = variadic_union<bool, int, double>;
-  constexpr U3 b3 = make_variadic_union<double, U3>(0.5);
-  static_assert(decltype(b3)::has_type<bool>);
-  static_assert(decltype(b3)::has_type<int>);
-  static_assert(decltype(b3)::has_type<double>);
-  static_assert(not decltype(b3)::has_type<float>);
-  static_assert([](auto &&b) -> bool { return not requires { get_variadic_union<float, U3>(b); }; }(b3));
-  static_assert(std::same_as<decltype(get_variadic_union<bool, U3>(b3)), bool const *>);
-  static_assert(std::same_as<decltype(get_variadic_union<int, U3>(b3)), int const *>);
-  static_assert(std::same_as<decltype(get_variadic_union<double, U3>(b3)), double const *>);
-  static_assert(std::same_as<decltype(get_variadic_union<bool, U3>(U3{.v0 = false})), bool *>);
-  static_assert(std::same_as<decltype(get_variadic_union<int, U3>(U3{.v1 = 12})), int *>);
-  static_assert(*get_variadic_union<double, U3>(b3) == 0.5);
-  static_assert(apply_variadic_union<U3>(b3, 2, [](auto i) -> std::size_t { return sizeof(i); }) == 8);
-  static_assert(apply_variadic_union<U3>(b3, 2,
-                                         []<typename T>(std::in_place_type_t<T>, auto i) -> int {
-                                           if constexpr (std::same_as<T, double>)
-                                             return i * 4;
-                                           return 0;
-                                         })
-                == 2);
-
-  using U4 = variadic_union<bool, int, double, float>;
-  constexpr U4 b4 = make_variadic_union<float, U4>(1.5f);
-  static_assert(decltype(b4)::has_type<bool>);
-  static_assert(decltype(b4)::has_type<int>);
-  static_assert(decltype(b4)::has_type<double>);
-  static_assert(decltype(b4)::has_type<float>);
-  static_assert(not decltype(b4)::has_type<std::string_view>);
-  static_assert([](auto &&b) -> bool { return not requires { get_variadic_union<std::string_view, U4>(b); }; }(b4));
-  static_assert(std::same_as<decltype(get_variadic_union<bool, U4>(b4)), bool const *>);
-  static_assert(std::same_as<decltype(get_variadic_union<int, U4>(b4)), int const *>);
-  static_assert(std::same_as<decltype(get_variadic_union<double, U4>(b4)), double const *>);
-  static_assert(std::same_as<decltype(get_variadic_union<float, U4>(b4)), float const *>);
-  static_assert(std::same_as<decltype(get_variadic_union<bool, U4>(U4{.v0 = false})), bool *>);
-  static_assert(std::same_as<decltype(get_variadic_union<int, U4>(U4{.v1 = 12})), int *>);
-  static_assert(*get_variadic_union<float, U4>(b4) == 1.5f);
-  static_assert(apply_variadic_union<U4>(b4, 3, [](auto i) -> std::size_t { return sizeof(i); }) == 4);
-  static_assert(apply_variadic_union<U4>(b4, 3,
-                                         []<typename T>(std::in_place_type_t<T>, auto i) -> int {
-                                           if constexpr (std::same_as<T, float>)
-                                             return i * 4;
-                                           return 0;
-                                         })
-                == 6);
-
-  using U5 = variadic_union<bool, int, double, float, std::string_view>;
-  constexpr U5 b5 = make_variadic_union<std::string_view, U5>("hello");
-  static_assert(decltype(b5)::has_type<bool>);
-  static_assert(decltype(b5)::has_type<int>);
-  static_assert(decltype(b5)::has_type<double>);
-  static_assert(decltype(b5)::has_type<float>);
-  static_assert(decltype(b5)::has_type<std::string_view>);
-  static_assert(not decltype(b5)::has_type<std::string>);
-  static_assert([](auto &&b) -> bool { return not requires { get_variadic_union<std::string, U5>(b); }; }(b5));
-  static_assert(std::same_as<decltype(get_variadic_union<bool, U5>(b5)), bool const *>);
-  static_assert(std::same_as<decltype(get_variadic_union<int, U5>(b5)), int const *>);
-  static_assert(std::same_as<decltype(get_variadic_union<double, U5>(b5)), double const *>);
-  static_assert(std::same_as<decltype(get_variadic_union<float, U5>(b5)), float const *>);
-  static_assert(std::same_as<decltype(get_variadic_union<std::string_view, U5>(b5)), std::string_view const *>);
-  static_assert(std::same_as<decltype(get_variadic_union<bool, U5>(U5{.v0 = false})), bool *>);
-  static_assert(std::same_as<decltype(get_variadic_union<int, U5>(U5{.v1 = 12})), int *>);
-  static_assert(*get_variadic_union<std::string_view, U5>(b5) == std::string_view{"hello"});
-  static_assert(apply_variadic_union<U5>(b5, 4, [](auto i) -> std::size_t { return sizeof(i); }) == 16);
-  static_assert(apply_variadic_union<U5>(b5, 4,
-                                         []<typename T>(std::in_place_type_t<T>, auto i) -> int {
-                                           if constexpr (std::same_as<T, std::string_view>)
-                                             return i.size();
-                                           return 0;
-                                         })
-                == 5);
-
-  SUCCEED();
-}
-
-namespace {
 struct MoveOnly final {
   int v;
 
@@ -180,15 +51,15 @@ struct CopyOnly final {
 };
 } // namespace
 
-TEST_CASE("sum_storage move and copy", "[sum_storage][has_value][get_ptr]")
+TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
 {
-  using fn::detail::sum_storage;
+  using fn::sum;
 
   WHEN("move and copy")
   {
     WHEN("one type only")
     {
-      using T = sum_storage<std::string>;
+      using T = sum<std::string>;
       T a{std::in_place_type<std::string>, "baz"};
       CHECK(a.invoke([](auto &&i) { return i; }) == "baz");
 
@@ -215,7 +86,7 @@ TEST_CASE("sum_storage move and copy", "[sum_storage][has_value][get_ptr]")
 
     WHEN("mixed with other types")
     {
-      using T = sum_storage<std::string, std::string_view>;
+      using T = sum<std::string, std::string_view>;
       T a{std::in_place_type<std::string>, "baz"};
       CHECK(a.invoke([](auto &&i) { return std::string(i); }) == "baz");
 
@@ -245,7 +116,7 @@ TEST_CASE("sum_storage move and copy", "[sum_storage][has_value][get_ptr]")
   {
     WHEN("one type only")
     {
-      using T = sum_storage<CopyOnly>;
+      using T = sum<CopyOnly>;
       T a{std::in_place_type<CopyOnly>, 12};
       CHECK(a.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
 
@@ -269,7 +140,7 @@ TEST_CASE("sum_storage move and copy", "[sum_storage][has_value][get_ptr]")
 
     WHEN("mixed with other types")
     {
-      using T = sum_storage<CopyOnly, double, int>;
+      using T = sum<CopyOnly, double, int>;
       T a{std::in_place_type<CopyOnly>, 12};
       CHECK(a.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
 
@@ -296,7 +167,7 @@ TEST_CASE("sum_storage move and copy", "[sum_storage][has_value][get_ptr]")
   {
     WHEN("one type only")
     {
-      using T = sum_storage<MoveOnly>;
+      using T = sum<MoveOnly>;
       T a{std::in_place_type<MoveOnly>, 12};
       CHECK(a.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
 
@@ -320,7 +191,7 @@ TEST_CASE("sum_storage move and copy", "[sum_storage][has_value][get_ptr]")
 
     WHEN("mixed with other types")
     {
-      using T = sum_storage<MoveOnly, double, int>;
+      using T = sum<MoveOnly, double, int>;
       T a{std::in_place_type<MoveOnly>, 12};
       CHECK(a.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
 
@@ -347,7 +218,7 @@ TEST_CASE("sum_storage move and copy", "[sum_storage][has_value][get_ptr]")
   {
     WHEN("one type only")
     {
-      using T = sum_storage<NonCopyable>;
+      using T = sum<NonCopyable>;
       T a{std::in_place_type<NonCopyable>, 12};
       CHECK(a.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
 
@@ -367,7 +238,7 @@ TEST_CASE("sum_storage move and copy", "[sum_storage][has_value][get_ptr]")
 
     WHEN("mixed with other types")
     {
-      using T = sum_storage<NonCopyable, double, int>;
+      using T = sum<NonCopyable, double, int>;
       T a{std::in_place_type<NonCopyable>, 12};
       CHECK(a.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
 
@@ -387,17 +258,17 @@ TEST_CASE("sum_storage move and copy", "[sum_storage][has_value][get_ptr]")
   }
 }
 
-TEST_CASE("sum_storage", "[sum_storage][has_value][get_ptr]")
+TEST_CASE("sum", "[sum][has_value][get_ptr]")
 {
   // NOTE We have 5 different specializations, need to test each
+  using namespace fn;
 
-  using namespace fn::detail;
   constexpr auto fn1 = [](auto) {};
   constexpr auto fn2 = [](auto...) {};
   constexpr auto fn3 = [](int &) {};
   constexpr auto fn4 = [](std::in_place_type_t<int>, int &) {};
 
-  constexpr sum_storage<std::array<int, 3>> a{std::in_place_type<std::array<int, 3>>, 3, 14, 15};
+  constexpr sum<std::array<int, 3>> a{std::in_place_type<std::array<int, 3>>, 3, 14, 15};
   static_assert(a.index == 0);
   static_assert(decltype(a)::has_type<std::array<int, 3>>);
   static_assert(not decltype(a)::has_type<int>);
@@ -410,7 +281,7 @@ TEST_CASE("sum_storage", "[sum_storage][has_value][get_ptr]")
 
   WHEN("size 1")
   {
-    using T = sum_storage<int>;
+    using T = sum<int>;
     T a{std::in_place_type<int>, 42};
     static_assert(T::size == 1);
     static_assert(std::is_same_v<T::template type<0>, int>);
@@ -442,13 +313,13 @@ TEST_CASE("sum_storage", "[sum_storage][has_value][get_ptr]")
     static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(std::in_place_type<int>)), int const *>);
     CHECK(std::as_const(a).get_ptr(std::in_place_type<int>) == &a.data.v0);
 
-    constexpr auto a1 = sum_storage<int>{std::in_place_type<int>, 12};
+    constexpr auto a1 = sum<int>{std::in_place_type<int>, 12};
     static_assert(*a1.get_ptr(std::in_place_type<int>) == 12);
   }
 
   WHEN("size 2")
   {
-    using T = sum_storage<double, int>;
+    using T = sum<double, int>;
     static_assert(T::size == 2);
     static_assert(std::is_same_v<T::template type<0>, double>);
     static_assert(std::is_same_v<T::template type<1>, int>);
@@ -474,8 +345,10 @@ TEST_CASE("sum_storage", "[sum_storage][has_value][get_ptr]")
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), double *>);
       CHECK(a.get_ptr(element) == &a.data.v0);
+      CHECK(a.get_ptr(std::in_place_type<int>) == nullptr);
       static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), double const *>);
       CHECK(std::as_const(a).get_ptr(element) == &a.data.v0);
+      CHECK(std::as_const(a).get_ptr(std::in_place_type<int>) == nullptr);
     }
 
     WHEN("element v1 set")
@@ -496,13 +369,15 @@ TEST_CASE("sum_storage", "[sum_storage][has_value][get_ptr]")
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), int *>);
       CHECK(a.get_ptr(element) == &a.data.v1);
+      CHECK(a.get_ptr(std::in_place_type<double>) == nullptr);
       static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), int const *>);
       CHECK(std::as_const(a).get_ptr(element) == &a.data.v1);
+      CHECK(std::as_const(a).get_ptr(std::in_place_type<double>) == nullptr);
     }
   }
   WHEN("size 3")
   {
-    using T = sum_storage<double, int, std::string_view>;
+    using T = sum<double, int, std::string_view>;
     static_assert(T::size == 3);
     static_assert(std::is_same_v<T::template type<0>, double>);
     static_assert(std::is_same_v<T::template type<1>, int>);
@@ -532,8 +407,10 @@ TEST_CASE("sum_storage", "[sum_storage][has_value][get_ptr]")
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), double *>);
       CHECK(a.get_ptr(element) == &a.data.v0);
+      CHECK(a.get_ptr(std::in_place_type<int>) == nullptr);
       static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), double const *>);
       CHECK(std::as_const(a).get_ptr(element) == &a.data.v0);
+      CHECK(std::as_const(a).get_ptr(std::in_place_type<int>) == nullptr);
     }
 
     WHEN("element v1 set")
@@ -556,8 +433,10 @@ TEST_CASE("sum_storage", "[sum_storage][has_value][get_ptr]")
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), int *>);
       CHECK(a.get_ptr(element) == &a.data.v1);
+      CHECK(a.get_ptr(std::in_place_type<double>) == nullptr);
       static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), int const *>);
       CHECK(std::as_const(a).get_ptr(element) == &a.data.v1);
+      CHECK(std::as_const(a).get_ptr(std::in_place_type<double>) == nullptr);
     }
 
     WHEN("element v2 set")
@@ -580,14 +459,16 @@ TEST_CASE("sum_storage", "[sum_storage][has_value][get_ptr]")
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), std::string_view *>);
       CHECK(a.get_ptr(element) == &a.data.v2);
+      CHECK(a.get_ptr(std::in_place_type<double>) == nullptr);
       static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), std::string_view const *>);
       CHECK(std::as_const(a).get_ptr(element) == &a.data.v2);
+      CHECK(std::as_const(a).get_ptr(std::in_place_type<double>) == nullptr);
     }
   }
 
   WHEN("size 4")
   {
-    using T = sum_storage<double, int, std::string, std::string_view>;
+    using T = sum<double, int, std::string, std::string_view>;
     static_assert(T::size == 4);
     static_assert(std::is_same_v<T::template type<0>, double>);
     static_assert(std::is_same_v<T::template type<1>, int>);
@@ -621,8 +502,10 @@ TEST_CASE("sum_storage", "[sum_storage][has_value][get_ptr]")
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), double *>);
       CHECK(a.get_ptr(element) == &a.data.v0);
+      CHECK(a.get_ptr(std::in_place_type<int>) == nullptr);
       static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), double const *>);
       CHECK(std::as_const(a).get_ptr(element) == &a.data.v0);
+      CHECK(std::as_const(a).get_ptr(std::in_place_type<int>) == nullptr);
     }
 
     WHEN("element v1 set")
@@ -647,8 +530,10 @@ TEST_CASE("sum_storage", "[sum_storage][has_value][get_ptr]")
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), int *>);
       CHECK(a.get_ptr(element) == &a.data.v1);
+      CHECK(a.get_ptr(std::in_place_type<double>) == nullptr);
       static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), int const *>);
       CHECK(std::as_const(a).get_ptr(element) == &a.data.v1);
+      CHECK(std::as_const(a).get_ptr(std::in_place_type<double>) == nullptr);
     }
 
     WHEN("element v2 set")
@@ -673,8 +558,10 @@ TEST_CASE("sum_storage", "[sum_storage][has_value][get_ptr]")
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), std::string *>);
       CHECK(a.get_ptr(element) == &a.data.v2);
+      CHECK(a.get_ptr(std::in_place_type<double>) == nullptr);
       static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), std::string const *>);
       CHECK(std::as_const(a).get_ptr(element) == &a.data.v2);
+      CHECK(std::as_const(a).get_ptr(std::in_place_type<double>) == nullptr);
     }
 
     WHEN("element v3 set")
@@ -699,14 +586,16 @@ TEST_CASE("sum_storage", "[sum_storage][has_value][get_ptr]")
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), std::string_view *>);
       CHECK(a.get_ptr(element) == &a.data.v3);
+      CHECK(a.get_ptr(std::in_place_type<double>) == nullptr);
       static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), std::string_view const *>);
       CHECK(std::as_const(a).get_ptr(element) == &a.data.v3);
+      CHECK(std::as_const(a).get_ptr(std::in_place_type<double>) == nullptr);
     }
   }
 
   WHEN("size 5")
   {
-    using T = sum_storage<double, int, std::string, std::string_view, std::vector<int>>;
+    using T = sum<double, int, std::string, std::string_view, std::vector<int>>;
     static_assert(T::size == 5);
     static_assert(std::is_same_v<T::template type<0>, double>);
     static_assert(std::is_same_v<T::template type<1>, int>);
@@ -744,8 +633,10 @@ TEST_CASE("sum_storage", "[sum_storage][has_value][get_ptr]")
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), double *>);
       CHECK(a.get_ptr(element) == &a.data.v0);
+      CHECK(a.get_ptr(std::in_place_type<int>) == nullptr);
       static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), double const *>);
       CHECK(std::as_const(a).get_ptr(element) == &a.data.v0);
+      CHECK(std::as_const(a).get_ptr(std::in_place_type<int>) == nullptr);
     }
 
     WHEN("element v1 set")
@@ -772,8 +663,10 @@ TEST_CASE("sum_storage", "[sum_storage][has_value][get_ptr]")
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), int *>);
       CHECK(a.get_ptr(element) == &a.data.v1);
+      CHECK(a.get_ptr(std::in_place_type<double>) == nullptr);
       static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), int const *>);
       CHECK(std::as_const(a).get_ptr(element) == &a.data.v1);
+      CHECK(std::as_const(a).get_ptr(std::in_place_type<double>) == nullptr);
     }
 
     WHEN("element v2 set")
@@ -800,8 +693,10 @@ TEST_CASE("sum_storage", "[sum_storage][has_value][get_ptr]")
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), std::string *>);
       CHECK(a.get_ptr(element) == &a.data.v2);
+      CHECK(a.get_ptr(std::in_place_type<double>) == nullptr);
       static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), std::string const *>);
       CHECK(std::as_const(a).get_ptr(element) == &a.data.v2);
+      CHECK(std::as_const(a).get_ptr(std::in_place_type<double>) == nullptr);
     }
 
     WHEN("element v3 set")
@@ -828,8 +723,10 @@ TEST_CASE("sum_storage", "[sum_storage][has_value][get_ptr]")
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), std::string_view *>);
       CHECK(a.get_ptr(element) == &a.data.v3);
+      CHECK(a.get_ptr(std::in_place_type<double>) == nullptr);
       static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), std::string_view const *>);
       CHECK(std::as_const(a).get_ptr(element) == &a.data.v3);
+      CHECK(std::as_const(a).get_ptr(std::in_place_type<double>) == nullptr);
     }
 
     WHEN("more elements set")
@@ -857,24 +754,26 @@ TEST_CASE("sum_storage", "[sum_storage][has_value][get_ptr]")
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), std::vector<int> *>);
       CHECK(a.get_ptr(element) == &a.data.more.v0);
+      CHECK(a.get_ptr(std::in_place_type<double>) == nullptr);
       static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), std::vector<int> const *>);
       CHECK(std::as_const(a).get_ptr(element) == &a.data.more.v0);
+      CHECK(std::as_const(a).get_ptr(std::in_place_type<double>) == nullptr);
     }
   }
 }
 
-TEST_CASE("sum_storage functions", "[sum_storage][invoke]")
+TEST_CASE("sum functions", "[sum][invoke]")
 {
   // NOTE We have 5 different specializations, need to test each. This test is
   // ridiculously long to exercise the value-category preserving FWD(v) in apply_variadic_union
 
-  using namespace fn::detail;
+  using namespace fn;
   constexpr auto fn1 = [](auto i) noexcept -> std::size_t { return sizeof(i); };
   constexpr auto fn2 = [](auto, auto i) noexcept -> std::size_t { return sizeof(i); };
 
   WHEN("size 1")
   {
-    sum_storage<int> a{std::in_place_type<int>, 42};
+    sum<int> a{std::in_place_type<int>, 42};
     static_assert(decltype(a)::size == 1);
     CHECK(a.data.v0 == 42);
 
@@ -891,8 +790,8 @@ TEST_CASE("sum_storage functions", "[sum_storage][invoke]")
               [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
               [](int const &i) -> bool { return i == 42; }, [](int &&) -> bool { throw 0; },
               [](int const &&) -> bool { throw 0; })));
-      CHECK(sum_storage<int>{std::in_place_type<int>, 42}.invoke( //
-          fn::overload(                                           //
+      CHECK(sum<int>{std::in_place_type<int>, 42}.invoke( //
+          fn::overload(                                   //
               [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
               [](int &&i) -> bool { return i == 42; }, [](int const &&) -> bool { throw 0; })));
       CHECK(std::move(std::as_const(a))
@@ -918,8 +817,8 @@ TEST_CASE("sum_storage functions", "[sum_storage][invoke]")
               [](std::in_place_type_t<int>, int const &i) -> bool { return i == 42; },
               [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
               [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; })));
-      CHECK(sum_storage<int>{std::in_place_type<int>, 42}.invoke( //
-          fn::overload(                                           //
+      CHECK(sum<int>{std::in_place_type<int>, 42}.invoke( //
+          fn::overload(                                   //
               [](auto, auto) -> bool { throw 1; }, [](std::in_place_type_t<int>, int &) -> bool { throw 0; },
               [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
               [](std::in_place_type_t<int>, int &&i) -> bool { return i == 42; },
@@ -936,7 +835,7 @@ TEST_CASE("sum_storage functions", "[sum_storage][invoke]")
 
   WHEN("size 2")
   {
-    using type = sum_storage<double, int>;
+    using type = sum<double, int>;
     static_assert(type::size == 2);
 
     WHEN("element v0 set")
@@ -1019,8 +918,8 @@ TEST_CASE("sum_storage functions", "[sum_storage][invoke]")
                 [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
                 [](int const &i) -> bool { return i == 42; }, [](int &&) -> bool { throw 0; },
                 [](int const &&) -> bool { throw 0; })));
-        CHECK(sum_storage<int>{std::in_place_type<int>, 42}.invoke( //
-            fn::overload(                                           //
+        CHECK(sum<int>{std::in_place_type<int>, 42}.invoke( //
+            fn::overload(                                   //
                 [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
                 [](int &&i) -> bool { return i == 42; }, [](int const &&) -> bool { throw 0; })));
         CHECK(std::move(std::as_const(a))
@@ -1046,8 +945,8 @@ TEST_CASE("sum_storage functions", "[sum_storage][invoke]")
                 [](std::in_place_type_t<int>, int const &i) -> bool { return i == 42; },
                 [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
                 [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; })));
-        CHECK(sum_storage<int>{std::in_place_type<int>, 42}.invoke( //
-            fn::overload(                                           //
+        CHECK(sum<int>{std::in_place_type<int>, 42}.invoke( //
+            fn::overload(                                   //
                 [](auto, auto) -> bool { throw 1; }, [](std::in_place_type_t<int>, int &) -> bool { throw 0; },
                 [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
                 [](std::in_place_type_t<int>, int &&i) -> bool { return i == 42; },
@@ -1066,7 +965,7 @@ TEST_CASE("sum_storage functions", "[sum_storage][invoke]")
 
   WHEN("size 3")
   {
-    using type = sum_storage<double, int, std::string_view>;
+    using type = sum<double, int, std::string_view>;
     static_assert(type::size == 3);
 
     WHEN("element v0 set")
@@ -1149,8 +1048,8 @@ TEST_CASE("sum_storage functions", "[sum_storage][invoke]")
                 [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
                 [](int const &i) -> bool { return i == 42; }, [](int &&) -> bool { throw 0; },
                 [](int const &&) -> bool { throw 0; })));
-        CHECK(sum_storage<int>{std::in_place_type<int>, 42}.invoke( //
-            fn::overload(                                           //
+        CHECK(sum<int>{std::in_place_type<int>, 42}.invoke( //
+            fn::overload(                                   //
                 [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
                 [](int &&i) -> bool { return i == 42; }, [](int const &&) -> bool { throw 0; })));
         CHECK(std::move(std::as_const(a))
@@ -1176,8 +1075,8 @@ TEST_CASE("sum_storage functions", "[sum_storage][invoke]")
                 [](std::in_place_type_t<int>, int const &i) -> bool { return i == 42; },
                 [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
                 [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; })));
-        CHECK(sum_storage<int>{std::in_place_type<int>, 42}.invoke( //
-            fn::overload(                                           //
+        CHECK(sum<int>{std::in_place_type<int>, 42}.invoke( //
+            fn::overload(                                   //
                 [](auto, auto) -> bool { throw 1; }, [](std::in_place_type_t<int>, int &) -> bool { throw 0; },
                 [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
                 [](std::in_place_type_t<int>, int &&i) -> bool { return i == 42; },
@@ -1264,7 +1163,7 @@ TEST_CASE("sum_storage functions", "[sum_storage][invoke]")
 
   WHEN("size 4")
   {
-    using type = sum_storage<double, int, std::string, std::string_view>;
+    using type = sum<double, int, std::string, std::string_view>;
     static_assert(type::size == 4);
 
     WHEN("element v0 set")
@@ -1347,8 +1246,8 @@ TEST_CASE("sum_storage functions", "[sum_storage][invoke]")
                 [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
                 [](int const &i) -> bool { return i == 42; }, [](int &&) -> bool { throw 0; },
                 [](int const &&) -> bool { throw 0; })));
-        CHECK(sum_storage<int>{std::in_place_type<int>, 42}.invoke( //
-            fn::overload(                                           //
+        CHECK(sum<int>{std::in_place_type<int>, 42}.invoke( //
+            fn::overload(                                   //
                 [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
                 [](int &&i) -> bool { return i == 42; }, [](int const &&) -> bool { throw 0; })));
         CHECK(std::move(std::as_const(a))
@@ -1374,8 +1273,8 @@ TEST_CASE("sum_storage functions", "[sum_storage][invoke]")
                 [](std::in_place_type_t<int>, int const &i) -> bool { return i == 42; },
                 [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
                 [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; })));
-        CHECK(sum_storage<int>{std::in_place_type<int>, 42}.invoke( //
-            fn::overload(                                           //
+        CHECK(sum<int>{std::in_place_type<int>, 42}.invoke( //
+            fn::overload(                                   //
                 [](auto, auto) -> bool { throw 1; }, [](std::in_place_type_t<int>, int &) -> bool { throw 0; },
                 [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
                 [](std::in_place_type_t<int>, int &&i) -> bool { return i == 42; },
@@ -1527,7 +1426,7 @@ TEST_CASE("sum_storage functions", "[sum_storage][invoke]")
 
   WHEN("size 5")
   {
-    using type = sum_storage<double, int, std::string, std::string_view, std::vector<int>>;
+    using type = sum<double, int, std::string, std::string_view, std::vector<int>>;
     static_assert(type::size == 5);
 
     WHEN("element v0 set")
@@ -1610,8 +1509,8 @@ TEST_CASE("sum_storage functions", "[sum_storage][invoke]")
                 [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
                 [](int const &i) -> bool { return i == 42; }, [](int &&) -> bool { throw 0; },
                 [](int const &&) -> bool { throw 0; })));
-        CHECK(sum_storage<int>{std::in_place_type<int>, 42}.invoke( //
-            fn::overload(                                           //
+        CHECK(sum<int>{std::in_place_type<int>, 42}.invoke( //
+            fn::overload(                                   //
                 [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
                 [](int &&i) -> bool { return i == 42; }, [](int const &&) -> bool { throw 0; })));
         CHECK(std::move(std::as_const(a))
@@ -1637,8 +1536,8 @@ TEST_CASE("sum_storage functions", "[sum_storage][invoke]")
                 [](std::in_place_type_t<int>, int const &i) -> bool { return i == 42; },
                 [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
                 [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; })));
-        CHECK(sum_storage<int>{std::in_place_type<int>, 42}.invoke( //
-            fn::overload(                                           //
+        CHECK(sum<int>{std::in_place_type<int>, 42}.invoke( //
+            fn::overload(                                   //
                 [](auto, auto) -> bool { throw 1; }, [](std::in_place_type_t<int>, int &) -> bool { throw 0; },
                 [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
                 [](std::in_place_type_t<int>, int &&i) -> bool { return i == 42; },
@@ -1853,6 +1752,463 @@ TEST_CASE("sum_storage functions", "[sum_storage][invoke]")
                           [&](std::in_place_type_t<std::vector<int>>, std::vector<int> const &&i) -> bool {
                             return i == foo;
                           })));
+      }
+    }
+  }
+}
+
+namespace {
+struct TestType final {
+  static int count;
+  TestType() noexcept { ++count; }
+  ~TestType() noexcept { --count; }
+};
+
+int TestType::count = 0;
+} // namespace
+
+TEST_CASE("sum", "[sum]")
+{
+  using fn::some_in_place_type;
+  using fn::sum;
+
+  WHEN("invocable")
+  {
+    using type = sum<TestType, int>;
+    static_assert(type::invocable<decltype([](auto) {}), type &>);
+    static_assert(type::invocable<decltype([](auto &) {}), type &>);
+    static_assert(type::invocable<decltype([](auto const &) {}), type &>);
+    static_assert(type::invocable<decltype(fn::overload{[](int &) {}, [](TestType &) {}}), type &>);
+    static_assert(type::invocable<decltype(fn::overload{[](int) {}, [](TestType) {}}), type const &>);
+
+    static_assert(not type::invocable<decltype([](TestType &) {}), type &>); // missing int
+    static_assert(not type::invocable<decltype([](int &) {}), type &>);      // missing TestType
+    static_assert(not type::invocable<decltype(fn::overload{[](int &&) {}, [](TestType &&) {}}),
+                                      type &>);                                // cannot bind lvalue to rvalue-reference
+    static_assert(not type::invocable<decltype([](auto &) {}), type &&>);      // cannot bind rvalue to lvalue-reference
+    static_assert(not type::invocable<decltype([](auto, auto &) {}), type &>); // bad arity
+    static_assert(not type::invocable<decltype(fn::overload{[](int &) {}, [](TestType &) {}}),
+                                      type const &>); // cannot bind const to non-const reference
+
+    static_assert(sum<NonCopyable>::invocable<decltype([](auto &) {}), sum<NonCopyable> &>);
+    static_assert(
+        not sum<NonCopyable>::invocable<decltype([](auto) {}), NonCopyable &>); // copy-constructor not available
+
+    static_assert(std::is_same_v<type::invoke_result<decltype([](auto) -> int { return 0; }), type &>::type, int>);
+    static_assert(std::is_same_v<type::invoke_result_t<decltype([](auto) -> int { return 0; }), type &>, int>);
+
+    static_assert(std::is_same_v<        //
+                  type::invoke_result_t< //
+                      decltype(          //
+                          fn::overload{[](auto &) -> std::integral_constant<int, 0> { return {}; },
+                                       [](auto const &) -> std::integral_constant<int, 1> { return {}; },
+                                       [](auto &&) -> std::integral_constant<int, 2> { return {}; },
+                                       [](auto const &&) -> std::integral_constant<int, 3> { return {}; }}),
+                      type &>,
+                  std::integral_constant<int, 0>>);
+    static_assert(std::is_same_v<        //
+                  type::invoke_result_t< //
+                      decltype(          //
+                          fn::overload{[](auto &) -> std::integral_constant<int, 0> { return {}; },
+                                       [](auto const &) -> std::integral_constant<int, 1> { return {}; },
+                                       [](auto &&) -> std::integral_constant<int, 2> { return {}; },
+                                       [](auto const &&) -> std::integral_constant<int, 3> { return {}; }}),
+                      type const &>,
+                  std::integral_constant<int, 1>>);
+    static_assert(std::is_same_v<        //
+                  type::invoke_result_t< //
+                      decltype(          //
+                          fn::overload{[](auto &) -> std::integral_constant<int, 0> { return {}; },
+                                       [](auto const &) -> std::integral_constant<int, 1> { return {}; },
+                                       [](auto &&) -> std::integral_constant<int, 2> { return {}; },
+                                       [](auto const &&) -> std::integral_constant<int, 3> { return {}; }}),
+                      type &&>,
+                  std::integral_constant<int, 2>>);
+    static_assert(std::is_same_v<        //
+                  type::invoke_result_t< //
+                      decltype(          //
+                          fn::overload{[](auto &) -> std::integral_constant<int, 0> { return {}; },
+                                       [](auto const &) -> std::integral_constant<int, 1> { return {}; },
+                                       [](auto &&) -> std::integral_constant<int, 2> { return {}; },
+                                       [](auto const &&) -> std::integral_constant<int, 3> { return {}; }}),
+                      type const &&>,
+                  std::integral_constant<int, 3>>);
+  }
+
+  WHEN("type_invocable")
+  {
+    using type = sum<TestType, int>;
+    static_assert(type::type_invocable<decltype([](auto, auto) {}), type &>);
+    static_assert(type::type_invocable<decltype([](some_in_place_type auto, auto) {}), type &>);
+    static_assert(type::type_invocable<decltype([](some_in_place_type auto, auto &) {}), type &>);
+    static_assert(type::type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &) {},
+                                                             [](some_in_place_type auto, TestType &) {}}),
+                                       type &>);
+    static_assert(type::type_invocable<decltype(fn::overload{[](some_in_place_type auto, int) {},
+                                                             [](some_in_place_type auto, TestType) {}}),
+                                       type const &>);
+    static_assert(
+        not type::type_invocable<decltype([](some_in_place_type auto, TestType &) {}), type &>); // missing int
+    static_assert(
+        not type::type_invocable<decltype([](some_in_place_type auto, int &) {}), type &>); // missing TestType
+    static_assert(not type::type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &&) {},
+                                                                 [](some_in_place_type auto, TestType &&) {}}),
+                                           type &>); // cannot bind lvalue to rvalue-reference
+    static_assert(not type::type_invocable<decltype([](some_in_place_type auto, auto &) {}),
+                                           type &&>);                       // cannot bind rvalue to lvalue-reference
+    static_assert(not type::type_invocable<decltype([](auto) {}), type &>); // bad arity
+    static_assert(not type::type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &) {},
+                                                                 [](some_in_place_type auto, TestType &) {}}),
+                                           type const &>); // cannot bind const to non-const reference
+
+    static_assert(
+        sum<NonCopyable>::type_invocable<decltype([](some_in_place_type auto, auto &) {}), sum<NonCopyable> &>);
+    static_assert(not sum<NonCopyable>::type_invocable<decltype([](some_in_place_type auto, auto) {}),
+                                                       NonCopyable &>); // copy-constructor not available
+
+    static_assert(
+        std::is_same_v<type::invoke_result<decltype([](auto, auto) -> int { return 0; }), type &>::type, int>);
+    static_assert(std::is_same_v<type::invoke_result_t<decltype([](auto, auto) -> int { return 0; }), type &>, int>);
+    static_assert(
+        std::is_same_v<            //
+            type::invoke_result_t< //
+                decltype(          //
+                    fn::overload{
+                        [](some_in_place_type auto, auto &) -> std::integral_constant<int, 0> { return {}; },
+                        [](some_in_place_type auto, auto const &) -> std::integral_constant<int, 1> { return {}; },
+                        [](some_in_place_type auto, auto &&) -> std::integral_constant<int, 2> { return {}; },
+                        [](some_in_place_type auto, auto const &&) -> std::integral_constant<int, 3> { return {}; }}),
+                type &>,
+            std::integral_constant<int, 0>>);
+    static_assert(
+        std::is_same_v<            //
+            type::invoke_result_t< //
+                decltype(          //
+                    fn::overload{
+                        [](some_in_place_type auto, auto &) -> std::integral_constant<int, 0> { return {}; },
+                        [](some_in_place_type auto, auto const &) -> std::integral_constant<int, 1> { return {}; },
+                        [](some_in_place_type auto, auto &&) -> std::integral_constant<int, 2> { return {}; },
+                        [](some_in_place_type auto, auto const &&) -> std::integral_constant<int, 3> { return {}; }}),
+                type const &>,
+            std::integral_constant<int, 1>>);
+    static_assert(
+        std::is_same_v<            //
+            type::invoke_result_t< //
+                decltype(          //
+                    fn::overload{
+                        [](some_in_place_type auto, auto &) -> std::integral_constant<int, 0> { return {}; },
+                        [](some_in_place_type auto, auto const &) -> std::integral_constant<int, 1> { return {}; },
+                        [](some_in_place_type auto, auto &&) -> std::integral_constant<int, 2> { return {}; },
+                        [](some_in_place_type auto, auto const &&) -> std::integral_constant<int, 3> { return {}; }}),
+                type &&>,
+            std::integral_constant<int, 2>>);
+    static_assert(
+        std::is_same_v<            //
+            type::invoke_result_t< //
+                decltype(          //
+                    fn::overload{
+                        [](some_in_place_type auto, auto &) -> std::integral_constant<int, 0> { return {}; },
+                        [](some_in_place_type auto, auto const &) -> std::integral_constant<int, 1> { return {}; },
+                        [](some_in_place_type auto, auto &&) -> std::integral_constant<int, 2> { return {}; },
+                        [](some_in_place_type auto, auto const &&) -> std::integral_constant<int, 3> { return {}; }}),
+                type const &&>,
+            std::integral_constant<int, 3>>);
+  }
+
+  WHEN("check destructor call")
+  {
+    {
+      sum<TestType> s{std::in_place_type<TestType>};
+      static_assert(decltype(s)::has_type<TestType>);
+      static_assert(not decltype(s)::has_type<int>);
+      CHECK(s.has_value(std::in_place_type<TestType>));
+      CHECK(s.template has_value<TestType>());
+      CHECK(TestType::count == 1);
+    }
+    CHECK(TestType::count == 0);
+  }
+
+  WHEN("single parameter constructor")
+  {
+    constexpr sum<int> a = 12;
+    static_assert(a == 12);
+
+    constexpr sum<bool> b{false};
+    static_assert(b == false);
+
+    WHEN("CTAD")
+    {
+      sum a{42};
+      static_assert(std::is_same_v<decltype(a), sum<int>>);
+      CHECK(a == 42);
+
+      constexpr sum b{false};
+      static_assert(std::is_same_v<decltype(b), sum<bool> const>);
+      static_assert(b == false);
+    }
+  }
+
+  WHEN("forwarding constructors (immovable)")
+  {
+    sum<NonCopyable> a{std::in_place_type<NonCopyable>, 42};
+    CHECK(a.invoke([](auto &i) -> bool { return i.v == 42; }));
+
+    WHEN("CTAD")
+    {
+      constexpr auto a = sum{std::in_place_type<NonCopyable>, 42};
+      static_assert(std::is_same_v<decltype(a), sum<NonCopyable> const>);
+
+      auto b = sum{std::in_place_type<NonCopyable const>, 42};
+      static_assert(std::is_same_v<decltype(b), sum<NonCopyable const>>);
+    }
+  }
+
+  WHEN("forwarding constructors (aggregate)")
+  {
+    WHEN("regular")
+    {
+      sum<std::array<int, 3>> a{std::in_place_type<std::array<int, 3>>, 1, 2, 3};
+      static_assert(decltype(a)::has_type<std::array<int, 3>>);
+      static_assert(not decltype(a)::has_type<int>);
+      CHECK(a.has_value(std::in_place_type<std::array<int, 3>>));
+      CHECK(a.template has_value<std::array<int, 3>>());
+      CHECK(a.invoke([](auto &i) -> bool {
+        return std::same_as<std::array<int, 3> &, decltype(i)> && i.size() == 3 && i[0] == 1 && i[1] == 2 && i[2] == 3;
+      }));
+    }
+
+    WHEN("constexpr")
+    {
+      constexpr sum<std::array<int, 3>> a{std::in_place_type<std::array<int, 3>>, 1, 2, 3};
+      static_assert(decltype(a)::has_type<std::array<int, 3>>);
+      static_assert(not decltype(a)::has_type<int>);
+      static_assert(a.has_value(std::in_place_type<std::array<int, 3>>));
+      static_assert(a.template has_value<std::array<int, 3>>());
+      static_assert(a.invoke([](auto &i) -> bool {
+        return std::same_as<std::array<int, 3> const &, decltype(i)> && i.size() == 3 && i[0] == 1 && i[1] == 2
+               && i[2] == 3;
+      }));
+    }
+
+    WHEN("CTAD")
+    {
+      constexpr auto a = sum{std::in_place_type<std::array<int, 3> const>, 1, 2, 3};
+      static_assert(std::is_same_v<decltype(a), sum<std::array<int, 3> const> const>);
+
+      auto b = sum{std::in_place_type<std::array<int, 3>>, 1, 2, 3};
+      static_assert(std::is_same_v<decltype(b), sum<std::array<int, 3>>>);
+    }
+  }
+
+  WHEN("has_type type mismatch")
+  {
+    using type = sum<bool, int>;
+    static_assert(type::has_type<int>);
+    static_assert(type::has_type<bool>);
+    static_assert(not type::has_type<double>);
+    auto a = type(std::in_place_type<int>, 42);
+    CHECK(a.has_value(std::in_place_type<int>));
+    CHECK(not a.has_value(std::in_place_type<bool>));
+    static_assert([](auto const &a) constexpr -> bool { //
+      return not requires { a.has_value(std::in_place_type<double>); };
+    }(a));                                              // double is not a type member
+    static_assert([](auto const &a) constexpr -> bool { //
+      return not requires { a.template has_value<double>(); };
+    }(a)); // double is not a type member
+  }
+
+  WHEN("equality comparison")
+  {
+    using type = sum<bool, int>;
+
+    type const a{std::in_place_type<int>, 42};
+    CHECK(a == 42);
+    CHECK(a != 41);
+    CHECK(a != false);
+
+    CHECK(a == type(std::in_place_type<int>, 42));
+    CHECK(a != type(std::in_place_type<int>, 41));
+    CHECK(a != type(std::in_place_type<bool>, true));
+    CHECK(not(a == type(std::in_place_type<int>, 41)));
+    CHECK(not(a == type(std::in_place_type<bool>, true)));
+
+    WHEN("constexpr")
+    {
+      constexpr type a{std::in_place_type<int>, 42};
+      static_assert(a == 42);
+      static_assert(a != 41);
+      static_assert(a != false);
+      static_assert(a != true);
+      static_assert(not(a == 41));
+      static_assert(not(a == false));
+      static_assert(not(a == true));
+      static_assert(a == type(std::in_place_type<int>, 42));
+      static_assert(a != type(std::in_place_type<int>, 41));
+      static_assert(a != type(std::in_place_type<bool>, true));
+      static_assert(not(a == type(std::in_place_type<int>, 41)));
+      static_assert(not(a == type(std::in_place_type<bool>, true)));
+
+      static_assert([](auto const &a) constexpr -> bool { //
+        return not requires { a == 0.5; };
+      }(a));                                              // double is not a type member
+      static_assert([](auto const &a) constexpr -> bool { //
+        return not requires { a != 0.5; };
+      }(a));                                              // double is not a type member
+      static_assert([](auto const &a) constexpr -> bool { //
+        return not requires { a == sum(std::in_place_type<int>, 1); };
+      }(a));                                              // type mismatch sum<int>
+      static_assert([](auto const &a) constexpr -> bool { //
+        return not requires { a != sum(std::in_place_type<int>, 1); };
+      }(a)); // type mismatch sum<int>
+    }
+  }
+
+  WHEN("constructor make")
+  {
+    using type = sum<bool, int>;
+    static_assert(type::has_type<int>);
+    static_assert(type::has_type<bool>);
+    static_assert(not type::has_type<double>);
+
+    WHEN("from smaller sum<bool>")
+    {
+      constexpr auto init = sum<bool>{std::in_place_type<bool>, true};
+      static_assert([](auto &a) constexpr -> bool { return requires { type(a); }; }(init));
+      type a{init};
+      static_assert(std::same_as<type, decltype(a)>);
+      CHECK(a.has_value(std::in_place_type<bool>));
+      CHECK(a.template has_value<bool>());
+      CHECK(a.invoke([](auto &i) -> bool { return i != 0; }));
+
+      WHEN("constexpr")
+      {
+        constexpr type a{init};
+        static_assert(std::same_as<type const, decltype(a)>);
+        static_assert(a.has_value(std::in_place_type<bool>));
+        static_assert(a.template has_value<bool>());
+        static_assert(a.invoke([](auto &i) -> bool { return i != 0; }));
+      }
+    }
+
+    WHEN("from smaller sum<int>")
+    {
+      constexpr auto init = sum<int>{std::in_place_type<int>, 42};
+      static_assert([](auto &a) constexpr -> bool { return requires { type(a); }; }(init));
+      type a{init};
+      static_assert(std::same_as<type, decltype(a)>);
+      CHECK(a.has_value(std::in_place_type<int>));
+      CHECK(a.template has_value<int>());
+      CHECK(a.invoke([](auto &i) -> bool { return i != 0; }));
+
+      WHEN("constexpr")
+      {
+        constexpr type a{init};
+        static_assert(std::same_as<type const, decltype(a)>);
+        static_assert(a.has_value(std::in_place_type<int>));
+        static_assert(a.template has_value<int>());
+        static_assert(a.invoke([](auto &i) -> bool { return i != 0; }));
+      }
+    }
+
+    WHEN("same sum")
+    {
+      constexpr auto init = type{std::in_place_type<int>, 42};
+      static_assert([](auto &a) constexpr -> bool { return requires { type(a); }; }(init));
+      auto a = type(init);
+      static_assert(std::same_as<type, decltype(a)>);
+      CHECK(a.has_value(std::in_place_type<int>));
+      CHECK(a.template has_value<int>());
+      CHECK(a.invoke([](auto &i) -> bool { return i != 0; }));
+
+      WHEN("constexpr")
+      {
+        constexpr auto a = type(init);
+        static_assert(std::same_as<type const, decltype(a)>);
+        static_assert(a.has_value(std::in_place_type<int>));
+        static_assert(a.template has_value<int>());
+        static_assert(a.invoke([](auto &i) -> bool { return i != 0; }));
+      }
+    }
+
+    WHEN("sum type mismatch")
+    {
+      constexpr auto init = sum<bool, double, int>{std::in_place_type<int>, 42};
+      static_assert(
+          [](auto &a) constexpr -> bool { return not requires { type(a); }; }(init)); // type is not a superset of init
+    }
+  }
+
+  WHEN("invoke")
+  {
+    sum<int> a{std::in_place_type<int>, 42};
+    WHEN("value only")
+    {
+      CHECK(a.invoke(fn::overload([](auto) -> bool { throw 1; }, [](int &) -> bool { return true; },
+                                  [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
+                                  [](int const &&) -> bool { throw 0; })));
+      CHECK(std::as_const(a).invoke(fn::overload(
+          [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { return true; },
+          [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; })));
+      CHECK(sum<int>{std::in_place_type<int>, 42}.invoke(fn::overload(
+          [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
+          [](int &&) -> bool { return true; }, [](int const &&) -> bool { throw 0; })));
+      CHECK(std::move(std::as_const(a))
+                .invoke(fn::overload([](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
+                                     [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
+                                     [](int const &&) -> bool { return true; })));
+
+      WHEN("constexpr")
+      {
+        constexpr sum<int> a{std::in_place_type<int>, 42};
+        static_assert(a.invoke(fn::overload(
+            [](auto) -> std::false_type { return {}; }, //
+            [](int &) -> std::false_type { return {}; }, [](int const &) -> std::true_type { return {}; },
+            [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::false_type { return {}; })));
+        static_assert(std::move(a).invoke(fn::overload(
+            [](auto) -> std::false_type { return {}; }, //
+            [](int &) -> std::false_type { return {}; }, [](int const &) -> std::false_type { return {}; },
+            [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::true_type { return {}; })));
+      }
+    }
+
+    WHEN("tag and value")
+    {
+      CHECK(a.invoke(fn::overload([](auto, auto) -> bool { throw 1; },
+                                  [](std::in_place_type_t<int>, int &) -> bool { return true; },
+                                  [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
+                                  [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
+                                  [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; })));
+      CHECK(std::as_const(a).invoke(fn::overload([](auto, auto) -> bool { throw 1; },
+                                                 [](std::in_place_type_t<int>, int &) -> bool { throw 0; },
+                                                 [](std::in_place_type_t<int>, int const &) -> bool { return true; },
+                                                 [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
+                                                 [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; })));
+      CHECK(sum<int>{std::in_place_type<int>, 42}.invoke(
+          fn::overload([](auto, auto) -> bool { throw 1; }, [](std::in_place_type_t<int>, int &) -> bool { throw 0; },
+                       [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
+                       [](std::in_place_type_t<int>, int &&) -> bool { return true; },
+                       [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; })));
+      CHECK(std::move(std::as_const(a))
+                .invoke(fn::overload([](auto, auto) -> bool { throw 1; },
+                                     [](std::in_place_type_t<int>, int &) -> bool { throw 0; },
+                                     [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
+                                     [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
+                                     [](std::in_place_type_t<int>, int const &&) -> bool { return true; })));
+      WHEN("constexpr")
+      {
+        constexpr sum<int> a{std::in_place_type<int>, 42};
+        static_assert(
+            a.invoke(fn::overload([](auto, auto) -> std::false_type { return {}; }, //
+                                  [](std::in_place_type_t<int>, int &) -> std::false_type { return {}; },
+                                  [](std::in_place_type_t<int>, int const &) -> std::true_type { return {}; },
+                                  [](std::in_place_type_t<int>, int &&) -> std::false_type { return {}; },
+                                  [](std::in_place_type_t<int>, int const &&) -> std::false_type { return {}; })));
+        static_assert(std::move(a).invoke(
+            fn::overload([](auto, auto) -> std::false_type { return {}; }, //
+                         [](std::in_place_type_t<int>, int &) -> std::false_type { return {}; },
+                         [](std::in_place_type_t<int>, int const &) -> std::false_type { return {}; },
+                         [](std::in_place_type_t<int>, int &&) -> std::false_type { return {}; },
+                         [](std::in_place_type_t<int>, int const &&) -> std::true_type { return {}; })));
       }
     }
   }

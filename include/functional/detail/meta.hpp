@@ -177,8 +177,8 @@ template <typename... T> static constexpr bool is_superset_of = false;
 template <template <typename...> typename F, typename... Ts, typename... Tu>
 static constexpr bool is_superset_of<F<Ts...>, F<Tu...>> = (... && type_one_of<Tu, Ts...>);
 
+template <typename... Tx> struct _ts final {};
 template <typename... Ts> struct is_normal final {
-  template <typename... Tx> struct _ts final {};
   static constexpr auto value = std::is_same<typename normalized<Ts...>::template apply<_ts>, _ts<Ts...>>::value;
 };
 
