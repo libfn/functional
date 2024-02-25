@@ -18,7 +18,7 @@
 
 namespace fn {
 /**
- * @brief Checks if the monadic type can be used with the filter operation
+ * @brief Checks if the monadic type can be used with the `filter` operation
  *
  * @tparam Pred The predicate to filter the value
  * @tparam Err The error handler

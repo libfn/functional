@@ -20,7 +20,7 @@ A monadic type of the same kind.
 
 ---
 
-## Examples {style: "api", badge: "meh"}
+## Examples {style: "api"}
 
 ### fn::expected {style: "api"}
 

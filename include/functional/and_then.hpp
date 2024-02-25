@@ -15,6 +15,12 @@
 #include <utility>
 
 namespace fn {
+/**
+ * @brief Checks if the monadic type can be used with the `and_then` operation
+ *
+ * @tparam Fn The function to execute on the value
+ * @tparam V The monadic type
+ */
 template <typename Fn, typename V>
 concept invocable_and_then //
     = (some_expected_pack<V> && requires(Fn &&fn, V &&v) {
@@ -39,7 +45,17 @@ concept invocable_and_then //
         } -> same_kind<V>;
       });
 
+/**
+ * @brief Execute a function on the value of the monadic type if the value is present
+ *
+ * Use through the `fn::and_then` nielbloid.
+ */
 constexpr inline struct and_then_t final {
+  /**
+   * @brief Execute a function on the value of the monadic type if the value is present
+   * @param fn The function to execute on the value
+   * @return A functor that will execute the function on the value
+   */
   [[nodiscard]] constexpr auto operator()(auto &&fn) const noexcept -> functor<and_then_t, decltype(fn)> //
   {
     return {FWD(fn)};
