@@ -36,14 +36,14 @@ template <typename T0> union variadic_union<T0> final {
 
   template <typename T>
   static constexpr bool has_type //
-      = std::same_as<T, T0>;
+      = std::is_same_v<T, T0>;
   static constexpr std::size_t size = 1;
 
   constexpr ~variadic_union() {}
 };
 
 template <typename T0, typename T1> union variadic_union<T0, T1> final {
-  static_assert(not std::same_as<T0, T1>);
+  static_assert(not std::is_same_v<T0, T1>);
 
   using t0 = T0;
   using t1 = T1;
@@ -52,16 +52,16 @@ template <typename T0, typename T1> union variadic_union<T0, T1> final {
 
   template <typename T>
   static constexpr bool has_type //
-      = std::same_as<T, T0> || std::same_as<T, T1>;
+      = std::is_same_v<T, T0> || std::is_same_v<T, T1>;
   static constexpr std::size_t size = 2;
 
   constexpr ~variadic_union() {}
 };
 
 template <typename T0, typename T1, typename T2> union variadic_union<T0, T1, T2> final {
-  static_assert(not std::same_as<T0, T1>);
-  static_assert(not std::same_as<T0, T2>);
-  static_assert(not std::same_as<T1, T2>);
+  static_assert(not std::is_same_v<T0, T1>);
+  static_assert(not std::is_same_v<T0, T2>);
+  static_assert(not std::is_same_v<T1, T2>);
 
   using t0 = T0;
   using t1 = T1;
@@ -72,19 +72,19 @@ template <typename T0, typename T1, typename T2> union variadic_union<T0, T1, T2
 
   template <typename T>
   static constexpr bool has_type //
-      = std::same_as<T, T0> || std::same_as<T, T1> || std::same_as<T, T2>;
+      = std::is_same_v<T, T0> || std::is_same_v<T, T1> || std::is_same_v<T, T2>;
   static constexpr std::size_t size = 3;
 
   constexpr ~variadic_union() {}
 };
 
 template <typename T0, typename T1, typename T2, typename T3> union variadic_union<T0, T1, T2, T3> final {
-  static_assert(not std::same_as<T0, T1>);
-  static_assert(not std::same_as<T0, T2>);
-  static_assert(not std::same_as<T1, T2>);
-  static_assert(not std::same_as<T0, T3>);
-  static_assert(not std::same_as<T1, T3>);
-  static_assert(not std::same_as<T2, T3>);
+  static_assert(not std::is_same_v<T0, T1>);
+  static_assert(not std::is_same_v<T0, T2>);
+  static_assert(not std::is_same_v<T1, T2>);
+  static_assert(not std::is_same_v<T0, T3>);
+  static_assert(not std::is_same_v<T1, T3>);
+  static_assert(not std::is_same_v<T2, T3>);
 
   using t0 = T0;
   using t1 = T1;
@@ -97,7 +97,7 @@ template <typename T0, typename T1, typename T2, typename T3> union variadic_uni
 
   template <typename T>
   static constexpr bool has_type //
-      = std::same_as<T, T0> || std::same_as<T, T1> || std::same_as<T, T2> || std::same_as<T, T3>;
+      = std::is_same_v<T, T0> || std::is_same_v<T, T1> || std::is_same_v<T, T2> || std::is_same_v<T, T3>;
   static constexpr std::size_t size = 4;
 
   constexpr ~variadic_union() {}
@@ -106,16 +106,16 @@ template <typename T0, typename T1, typename T2, typename T3> union variadic_uni
 template <typename T0, typename T1, typename T2, typename T3, typename... Ts>
   requires(sizeof...(Ts) > 0)
 union variadic_union<T0, T1, T2, T3, Ts...> final {
-  static_assert(not std::same_as<T0, T1>);
-  static_assert(not std::same_as<T0, T2>);
-  static_assert(not std::same_as<T1, T2>);
-  static_assert(not std::same_as<T0, T3>);
-  static_assert(not std::same_as<T1, T3>);
-  static_assert(not std::same_as<T2, T3>);
-  static_assert(not(... || std::same_as<T0, Ts>));
-  static_assert(not(... || std::same_as<T1, Ts>));
-  static_assert(not(... || std::same_as<T2, Ts>));
-  static_assert(not(... || std::same_as<T3, Ts>));
+  static_assert(not std::is_same_v<T0, T1>);
+  static_assert(not std::is_same_v<T0, T2>);
+  static_assert(not std::is_same_v<T1, T2>);
+  static_assert(not std::is_same_v<T0, T3>);
+  static_assert(not std::is_same_v<T1, T3>);
+  static_assert(not std::is_same_v<T2, T3>);
+  static_assert(not(... || std::is_same_v<T0, Ts>));
+  static_assert(not(... || std::is_same_v<T1, Ts>));
+  static_assert(not(... || std::is_same_v<T2, Ts>));
+  static_assert(not(... || std::is_same_v<T3, Ts>));
 
   using t0 = T0;
   using t1 = T1;
@@ -130,7 +130,7 @@ union variadic_union<T0, T1, T2, T3, Ts...> final {
 
   template <typename T>
   static constexpr bool has_type //
-      = std::same_as<T, T0> || std::same_as<T, T1> || std::same_as<T, T2> || std::same_as<T, T3>
+      = std::is_same_v<T, T0> || std::is_same_v<T, T1> || std::is_same_v<T, T2> || std::is_same_v<T, T3>
         || variadic_union<Ts...>::template has_type<T>;
   static constexpr std::size_t size = 4 + more_t::size;
 
@@ -139,39 +139,39 @@ union variadic_union<T0, T1, T2, T3, Ts...> final {
 
 template <typename T, typename U>
 [[nodiscard]] constexpr auto *ptr_variadic_union(some_variadic_union auto &&v) noexcept
-  requires std::same_as<std::remove_cvref_t<decltype(v)>, U>
-           && (U::template has_type<T>) && std::same_as<T, typename U::t0>
+  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U>
+           && (U::template has_type<T>) && std::is_same_v<T, typename U::t0>
 {
   return &v.v0;
 }
 
 template <typename T, typename U>
 [[nodiscard]] constexpr auto *ptr_variadic_union(some_variadic_union auto &&v) noexcept
-  requires std::same_as<std::remove_cvref_t<decltype(v)>, U>
-           && (U::template has_type<T>) && std::same_as<T, typename U::t1>
+  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U>
+           && (U::template has_type<T>) && std::is_same_v<T, typename U::t1>
 {
   return &v.v1;
 }
 
 template <typename T, typename U>
 [[nodiscard]] constexpr auto *ptr_variadic_union(some_variadic_union auto &&v) noexcept
-  requires std::same_as<std::remove_cvref_t<decltype(v)>, U>
-           && (U::template has_type<T>) && std::same_as<T, typename U::t2>
+  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U>
+           && (U::template has_type<T>) && std::is_same_v<T, typename U::t2>
 {
   return &v.v2;
 }
 
 template <typename T, typename U>
 [[nodiscard]] constexpr auto *ptr_variadic_union(some_variadic_union auto &&v) noexcept
-  requires std::same_as<std::remove_cvref_t<decltype(v)>, U>
-           && (U::template has_type<T>) && std::same_as<T, typename U::t3>
+  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U>
+           && (U::template has_type<T>) && std::is_same_v<T, typename U::t3>
 {
   return &v.v3;
 }
 
 template <typename T, typename U>
 [[nodiscard]] constexpr auto *ptr_variadic_union(some_variadic_union auto &&v) noexcept
-  requires std::same_as<std::remove_cvref_t<decltype(v)>, U>
+  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U>
            && (U::template has_type<T>) && (U::more_t::template has_type<T>)
 {
   return ptr_variadic_union<T, typename U::more_t>(v.more);
@@ -179,28 +179,28 @@ template <typename T, typename U>
 
 template <typename T, typename U>
 [[nodiscard]] constexpr auto make_variadic_union(auto &&...args)
-  requires(U::template has_type<T>) && std::same_as<T, typename U::t0>
+  requires(U::template has_type<T>) && std::is_same_v<T, typename U::t0>
 {
   return U{.v0 = T{FWD(args)...}};
 }
 
 template <typename T, typename U>
 [[nodiscard]] constexpr auto make_variadic_union(auto &&...args)
-  requires(U::template has_type<T>) && std::same_as<T, typename U::t1>
+  requires(U::template has_type<T>) && std::is_same_v<T, typename U::t1>
 {
   return U{.v1 = T{FWD(args)...}};
 }
 
 template <typename T, typename U>
 [[nodiscard]] constexpr auto make_variadic_union(auto &&...args)
-  requires(U::template has_type<T>) && std::same_as<T, typename U::t2>
+  requires(U::template has_type<T>) && std::is_same_v<T, typename U::t2>
 {
   return U{.v2 = T{FWD(args)...}};
 }
 
 template <typename T, typename U>
 [[nodiscard]] constexpr auto make_variadic_union(auto &&...args)
-  requires(U::template has_type<T>) && std::same_as<T, typename U::t3>
+  requires(U::template has_type<T>) && std::is_same_v<T, typename U::t3>
 {
   return U{.v3 = T{FWD(args)...}};
 }
@@ -215,7 +215,7 @@ template <typename T, typename U>
 
 template <typename U, typename Fn>
 [[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
-  requires std::same_as<std::remove_cvref_t<decltype(v)>, U> && typelist_invocable<Fn, decltype(v)> && (U::size == 1)
+  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U> && typelist_invocable<Fn, decltype(v)> && (U::size == 1)
 {
   if (index == 0) // GCOVR_EXCL_BR_LINE
     return std::invoke(FWD(fn), FWD(v).v0);
@@ -224,7 +224,7 @@ template <typename U, typename Fn>
 
 template <typename U, typename Fn>
 [[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
-  requires std::same_as<std::remove_cvref_t<decltype(v)>, U> && typelist_type_invocable<Fn, decltype(v)>
+  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U> && typelist_type_invocable<Fn, decltype(v)>
            && (U::size == 1)
 {
   if (index == 0) // GCOVR_EXCL_BR_LINE
@@ -234,7 +234,7 @@ template <typename U, typename Fn>
 
 template <typename U, typename Fn>
 [[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
-  requires std::same_as<std::remove_cvref_t<decltype(v)>, U> && typelist_invocable<Fn, decltype(v)> && (U::size == 2)
+  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U> && typelist_invocable<Fn, decltype(v)> && (U::size == 2)
 {
   if (index == 0)
     return std::invoke(FWD(fn), FWD(v).v0);
@@ -245,7 +245,7 @@ template <typename U, typename Fn>
 
 template <typename U, typename Fn>
 [[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
-  requires std::same_as<std::remove_cvref_t<decltype(v)>, U> && typelist_type_invocable<Fn, decltype(v)>
+  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U> && typelist_type_invocable<Fn, decltype(v)>
            && (U::size == 2)
 {
   if (index == 0)
@@ -257,7 +257,7 @@ template <typename U, typename Fn>
 
 template <typename U, typename Fn>
 [[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
-  requires std::same_as<std::remove_cvref_t<decltype(v)>, U> && typelist_invocable<Fn, decltype(v)> && (U::size == 3)
+  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U> && typelist_invocable<Fn, decltype(v)> && (U::size == 3)
 {
   if (index == 0)
     return std::invoke(FWD(fn), FWD(v).v0);
@@ -270,7 +270,7 @@ template <typename U, typename Fn>
 
 template <typename U, typename Fn>
 [[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
-  requires std::same_as<std::remove_cvref_t<decltype(v)>, U> && typelist_type_invocable<Fn, decltype(v)>
+  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U> && typelist_type_invocable<Fn, decltype(v)>
            && (U::size == 3)
 {
   if (index == 0)
@@ -284,7 +284,7 @@ template <typename U, typename Fn>
 
 template <typename U, typename Fn>
 [[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
-  requires std::same_as<std::remove_cvref_t<decltype(v)>, U> && typelist_invocable<Fn, decltype(v)> && (U::size == 4)
+  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U> && typelist_invocable<Fn, decltype(v)> && (U::size == 4)
 {
   if (index == 0)
     return std::invoke(FWD(fn), FWD(v).v0);
@@ -299,7 +299,7 @@ template <typename U, typename Fn>
 
 template <typename U, typename Fn>
 [[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
-  requires std::same_as<std::remove_cvref_t<decltype(v)>, U> && typelist_type_invocable<Fn, decltype(v)>
+  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U> && typelist_type_invocable<Fn, decltype(v)>
            && (U::size == 4)
 {
   if (index == 0)
@@ -315,7 +315,7 @@ template <typename U, typename Fn>
 
 template <typename U, typename Fn>
 [[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
-  requires std::same_as<std::remove_cvref_t<decltype(v)>, U> && typelist_invocable<Fn, decltype(v)> && (U::size > 4)
+  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U> && typelist_invocable<Fn, decltype(v)> && (U::size > 4)
 {
   if (index == 0)
     return std::invoke(FWD(fn), FWD(v).v0);
@@ -331,7 +331,7 @@ template <typename U, typename Fn>
 
 template <typename U, typename Fn>
 [[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, std::size_t index, Fn &&fn)
-  requires std::same_as<std::remove_cvref_t<decltype(v)>, U> && typelist_type_invocable<Fn, decltype(v)>
+  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U> && typelist_type_invocable<Fn, decltype(v)>
            && (U::size > 4)
 {
   if (index == 0)

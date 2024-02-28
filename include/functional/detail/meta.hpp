@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <concepts>
-#include <cstdint>
+#include <string>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
@@ -21,10 +21,21 @@ namespace fn::detail {
 template <std::size_t, typename...> struct select_nth;
 template <std::size_t N> struct select_nth<N>; // Intentionally incomplete type
 
-template <std::size_t N, typename T1, typename... Ts> struct select_nth<N, T1, Ts...> {
-  static_assert(N < (1 + sizeof...(Ts)));
-  using type = std::tuple_element_t<N, std::tuple<T1, Ts...>>;
+#if __has_builtin(__type_pack_element)
+template <std::size_t N, typename... Ts>
+  requires(sizeof...(Ts) > 0)
+struct select_nth<N, Ts...> {
+  static_assert(N < (sizeof...(Ts)));
+  using type = __type_pack_element<N, Ts...>;
 };
+#else
+template <std::size_t N, typename... Ts>
+  requires(sizeof...(Ts) > 0)
+struct select_nth<N, Ts...> {
+  static_assert(N < (sizeof...(Ts)));
+  using type = std::tuple_element_t<N, std::tuple<Ts...>>;
+};
+#endif
 
 template <std::size_t N, typename... Ts> using select_nth_t = select_nth<N, Ts...>::type;
 
@@ -36,10 +47,10 @@ template <typename... Ts> struct _indexed_type_list : _indexed_type<Ts>... {
   constexpr _indexed_type_list(std::size_t i = 0) : _indexed_type<Ts>{i++}... {}
 };
 template <typename T, typename... Ts>
-  requires(... || std::same_as<Ts, T>)
+  requires(... || __is_same_as(Ts, T))
 constexpr inline std::size_t type_index = static_cast<_indexed_type<T> const &>(_indexed_type_list<Ts...>()).index;
 
-template <typename T, typename... Ts> constexpr inline bool type_one_of = (... || std::same_as<Ts, T>);
+template <typename T, typename... Ts> constexpr inline bool type_one_of = (... || __is_same_as(Ts, T));
 
 template <typename Fn, typename T> constexpr inline bool _typelist_invocable = false;
 template <typename Fn, template <typename...> typename Tpl, typename... Ts>
@@ -70,73 +81,61 @@ constexpr inline bool _typelist_type_invocable<Fn, Tpl<Ts...> const &&>
 template <typename Fn, typename T> constexpr inline bool typelist_type_invocable = _typelist_type_invocable<Fn, T &&>;
 
 template <auto TU_name, auto Input> struct _normalized_name final {
-  static constexpr std::size_t bound = 4096;
   static constexpr std::size_t TU_name_bound = 30;
-  struct _slice_t final {
-    std::array<char, bound> data = {};
-    std::size_t end = 0;
-  };
 
-  static constexpr auto apply() noexcept -> _slice_t
+  template <std::size_t N> static constexpr auto apply() noexcept
   {
     std::string_view const sv{Input.data(), Input.size()};
 #ifdef __clang__
     static constexpr std::string_view anon{"(anonymous namespace)"};
     static constexpr std::string_view prefix{"sortkey() [T = "};
-#else
-#ifdef __GNUC__
+#elifdef __GNUC__
     static constexpr std::string_view anon{"{anonymous}"};
     static constexpr std::string_view prefix{"sortkey() [with T = "};
 #endif
-#endif
-    _slice_t result = {};
-    constexpr auto append = [](_slice_t &to, std::string_view from) {
-      for (char c : from) {
-        if (to.end == bound) {
-          return;
-        }
-        to.data[to.end++] = c;
-      }
-    };
-
     std::size_t s = sv.find(prefix);
-    if (s == std::string_view::npos || sv[sv.size() - 2] != ']' || sv[sv.size() - 1] != '\0') {
-      std::unreachable();
-    }
-    if (TU_name.size() < 1 || TU_name[TU_name.size() - 1] != '\0') {
-      std::unreachable();
-    }
     std::string_view file{TU_name.size() <= TU_name_bound ? TU_name.data()
                                                           : TU_name.data() + (TU_name.size() - TU_name_bound - 1),
                           std::min(TU_name.size() - 1, TU_name_bound)};
 
+    std::string result;
     s += prefix.size();
     while (true) {
       std::size_t i = sv.find(anon, s);
       if (i != std::string_view::npos) {
-        append(result, sv.substr(s, i - s));
-        append(result, std::string_view("(anonymous namespace in "));
-        append(result, file);
-        append(result, std::string_view(")"));
+        result.append(sv.substr(s, i - s));
+        result.append(std::string_view("(anonymous namespace in "));
+        result.append(file);
+        result.append(std::string_view(")"));
       } else {
-        append(result, sv.substr(s, sv.size() - s - 2));
+        result.append(sv.substr(s, sv.size() - s - 2));
         break;
       }
       s = i + anon.size();
     };
 
-    return result;
+    if constexpr (N == 0)
+      return result.size();
+    else {
+      std::array<char, N> a;
+      for (std::size_t i = 0; i < result.size(); ++i) {
+        a[i] = result[i];
+      }
+      return a;
+    }
   }
 
-  static constexpr auto _slice = apply();
-  static constexpr std::string_view value{_slice.data.data(), _slice.end};
+  static constexpr auto _slice = apply<apply<0>()>();
+  static constexpr std::string_view value{_slice.data(), _slice.size()};
 };
 
+namespace sortkey {
 template <typename T> [[nodiscard]] static constexpr auto _make_sortkey()
 {
   return _normalized_name<std::to_array(__BASE_FILE__), std::to_array(__PRETTY_FUNCTION__)>::value;
 }
-template <typename T> constexpr inline std::string_view type_sortkey_v = _make_sortkey<T>();
+} // namespace sortkey
+template <typename T> constexpr inline std::string_view type_sortkey_v = sortkey::_make_sortkey<T>();
 
 // NOTE Normalized order of types - order based on type_sortkey_v
 template <typename... Ts> struct normalized final {
