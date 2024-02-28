@@ -36,152 +36,78 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
   using fn::choice;
   using fn::some_in_place_type;
 
+  WHEN("choice_for")
+  {
+    static_assert(std::same_as<fn::choice_for<int>, fn::choice<int>>);
+    static_assert(std::same_as<fn::choice_for<int, bool>, fn::choice<bool, int>>);
+    static_assert(std::same_as<fn::choice_for<bool, int>, fn::choice<bool, int>>);
+    static_assert(std::same_as<fn::choice_for<int, NonCopyable>, fn::choice<NonCopyable, int>>);
+    static_assert(std::same_as<fn::choice_for<NonCopyable, int>, fn::choice<NonCopyable, int>>);
+    static_assert(std::same_as<fn::choice_for<int, bool, NonCopyable>, fn::choice<NonCopyable, bool, int>>);
+  }
+
   WHEN("invocable")
   {
     using type = choice<TestType, int>;
-    static_assert(type::invocable<decltype([](auto) {}), type &>);
-    static_assert(type::invocable<decltype([](auto &) {}), type &>);
-    static_assert(type::invocable<decltype([](auto const &) {}), type &>);
-    static_assert(type::invocable<decltype(fn::overload{[](int &) {}, [](TestType &) {}}), type &>);
-    static_assert(type::invocable<decltype(fn::overload{[](int) {}, [](TestType) {}}), type const &>);
+    static_assert(fn::detail::typelist_invocable<decltype([](auto) {}), type &>);
+    static_assert(fn::detail::typelist_invocable<decltype([](auto &) {}), type &>);
+    static_assert(fn::detail::typelist_invocable<decltype([](auto const &) {}), type &>);
+    static_assert(fn::detail::typelist_invocable<decltype(fn::overload{[](int &) {}, [](TestType &) {}}), type &>);
+    static_assert(fn::detail::typelist_invocable<decltype(fn::overload{[](int) {}, [](TestType) {}}), type const &>);
 
-    static_assert(not type::invocable<decltype([](TestType &) {}), type &>); // missing int
-    static_assert(not type::invocable<decltype([](int &) {}), type &>);      // missing TestType
-    static_assert(not type::invocable<decltype(fn::overload{[](int &&) {}, [](TestType &&) {}}),
-                                      type &>);                                // cannot bind lvalue to rvalue-reference
-    static_assert(not type::invocable<decltype([](auto &) {}), type &&>);      // cannot bind rvalue to lvalue-reference
-    static_assert(not type::invocable<decltype([](auto, auto &) {}), type &>); // bad arity
-    static_assert(not type::invocable<decltype(fn::overload{[](int &) {}, [](TestType &) {}}),
-                                      type const &>); // cannot bind const to non-const reference
-
-    static_assert(choice<NonCopyable>::invocable<decltype([](auto &) {}), choice<NonCopyable> &>);
+    static_assert(not fn::detail::typelist_invocable<decltype([](TestType &) {}), type &>); // missing int
+    static_assert(not fn::detail::typelist_invocable<decltype([](int &) {}), type &>);      // missing TestType
+    static_assert(not fn::detail::typelist_invocable<decltype(fn::overload{[](int &&) {}, [](TestType &&) {}}),
+                                                     type &>); // cannot bind lvalue to rvalue-reference
     static_assert(
-        not choice<NonCopyable>::invocable<decltype([](auto) {}), NonCopyable &>); // copy-constructor not available
+        not fn::detail::typelist_invocable<decltype([](auto &) {}), type &&>); // cannot bind rvalue to lvalue-reference
+    static_assert(not fn::detail::typelist_invocable<decltype([](auto, auto &) {}), type &>); // bad arity
+    static_assert(not fn::detail::typelist_invocable<decltype(fn::overload{[](int &) {}, [](TestType &) {}}),
+                                                     type const &>); // cannot bind const to non-const reference
 
-    static_assert(std::is_same_v<type::invoke_result<decltype([](auto) -> int { return 0; }), type &>::type, int>);
-    static_assert(std::is_same_v<type::invoke_result_t<decltype([](auto) -> int { return 0; }), type &>, int>);
-
-    static_assert(std::is_same_v<        //
-                  type::invoke_result_t< //
-                      decltype(          //
-                          fn::overload{[](auto &) -> std::integral_constant<int, 0> { return {}; },
-                                       [](auto const &) -> std::integral_constant<int, 1> { return {}; },
-                                       [](auto &&) -> std::integral_constant<int, 2> { return {}; },
-                                       [](auto const &&) -> std::integral_constant<int, 3> { return {}; }}),
-                      type &>,
-                  std::integral_constant<int, 0>>);
-    static_assert(std::is_same_v<        //
-                  type::invoke_result_t< //
-                      decltype(          //
-                          fn::overload{[](auto &) -> std::integral_constant<int, 0> { return {}; },
-                                       [](auto const &) -> std::integral_constant<int, 1> { return {}; },
-                                       [](auto &&) -> std::integral_constant<int, 2> { return {}; },
-                                       [](auto const &&) -> std::integral_constant<int, 3> { return {}; }}),
-                      type const &>,
-                  std::integral_constant<int, 1>>);
-    static_assert(std::is_same_v<        //
-                  type::invoke_result_t< //
-                      decltype(          //
-                          fn::overload{[](auto &) -> std::integral_constant<int, 0> { return {}; },
-                                       [](auto const &) -> std::integral_constant<int, 1> { return {}; },
-                                       [](auto &&) -> std::integral_constant<int, 2> { return {}; },
-                                       [](auto const &&) -> std::integral_constant<int, 3> { return {}; }}),
-                      type &&>,
-                  std::integral_constant<int, 2>>);
-    static_assert(std::is_same_v<        //
-                  type::invoke_result_t< //
-                      decltype(          //
-                          fn::overload{[](auto &) -> std::integral_constant<int, 0> { return {}; },
-                                       [](auto const &) -> std::integral_constant<int, 1> { return {}; },
-                                       [](auto &&) -> std::integral_constant<int, 2> { return {}; },
-                                       [](auto const &&) -> std::integral_constant<int, 3> { return {}; }}),
-                      type const &&>,
-                  std::integral_constant<int, 3>>);
+    static_assert(fn::detail::typelist_invocable<decltype([](auto &) {}), choice<NonCopyable> &>);
+    static_assert(
+        not fn::detail::typelist_invocable<decltype([](auto) {}), NonCopyable &>); // copy-constructor not available
   }
 
   WHEN("type_invocable")
   {
     using type = choice<TestType, int>;
-    static_assert(type::type_invocable<decltype([](auto, auto) {}), type &>);
-    static_assert(type::type_invocable<decltype([](some_in_place_type auto, auto) {}), type &>);
-    static_assert(type::type_invocable<decltype([](some_in_place_type auto, auto &) {}), type &>);
-    static_assert(type::type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &) {},
-                                                             [](some_in_place_type auto, TestType &) {}}),
-                                       type &>);
-    static_assert(type::type_invocable<decltype(fn::overload{[](some_in_place_type auto, int) {},
-                                                             [](some_in_place_type auto, TestType) {}}),
-                                       type const &>);
+    static_assert(fn::detail::typelist_type_invocable<decltype([](auto, auto) {}), type &>);
+    static_assert(fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, auto) {}), type &>);
+    static_assert(fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, auto &) {}), type &>);
     static_assert(
-        not type::type_invocable<decltype([](some_in_place_type auto, TestType &) {}), type &>); // missing int
+        fn::detail::typelist_type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &) {},
+                                                                  [](some_in_place_type auto, TestType &) {}}),
+                                            type &>);
+    static_assert(fn::detail::typelist_type_invocable<decltype(fn::overload{[](some_in_place_type auto, int) {},
+                                                                            [](some_in_place_type auto, TestType) {}}),
+                                                      type const &>);
+    static_assert(not fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, TestType &) {}),
+                                                          type &>); // missing int
+    static_assert(not fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, int &) {}),
+                                                          type &>); // missing TestType
     static_assert(
-        not type::type_invocable<decltype([](some_in_place_type auto, int &) {}), type &>); // missing TestType
-    static_assert(not type::type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &&) {},
-                                                                 [](some_in_place_type auto, TestType &&) {}}),
-                                           type &>); // cannot bind lvalue to rvalue-reference
-    static_assert(not type::type_invocable<decltype([](some_in_place_type auto, auto &) {}),
-                                           type &&>);                       // cannot bind rvalue to lvalue-reference
-    static_assert(not type::type_invocable<decltype([](auto) {}), type &>); // bad arity
-    static_assert(not type::type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &) {},
-                                                                 [](some_in_place_type auto, TestType &) {}}),
-                                           type const &>); // cannot bind const to non-const reference
+        not fn::detail::typelist_type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &&) {},
+                                                                      [](some_in_place_type auto, TestType &&) {}}),
+                                                type &>); // cannot bind lvalue to rvalue-reference
+    static_assert(not fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, auto &) {}),
+                                                          type &&>); // cannot bind rvalue to lvalue-reference
+    static_assert(not fn::detail::typelist_type_invocable<decltype([](auto) {}), type &>); // bad arity
+    static_assert(
+        not fn::detail::typelist_type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &) {},
+                                                                      [](some_in_place_type auto, TestType &) {}}),
+                                                type const &>); // cannot bind const to non-const reference
 
     static_assert(
-        choice<NonCopyable>::type_invocable<decltype([](some_in_place_type auto, auto &) {}), choice<NonCopyable> &>);
-    static_assert(not choice<NonCopyable>::type_invocable<decltype([](some_in_place_type auto, auto) {}),
+        fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, auto &) {}), choice<NonCopyable> &>);
+    static_assert(not fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, auto) {}),
                                                           NonCopyable &>); // copy-constructor not available
 
     static_assert(
-        choice<NonCopyable>::type_invocable<decltype([](some_in_place_type auto, auto &) {}), choice<NonCopyable> &>);
-    static_assert(not choice<NonCopyable>::type_invocable<decltype([](some_in_place_type auto, auto) {}),
+        fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, auto &) {}), choice<NonCopyable> &>);
+    static_assert(not fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, auto) {}),
                                                           NonCopyable &>); // copy-constructor not available
-
-    static_assert(
-        std::is_same_v<type::invoke_result<decltype([](auto, auto) -> int { return 0; }), type &>::type, int>);
-    static_assert(std::is_same_v<type::invoke_result_t<decltype([](auto, auto) -> int { return 0; }), type &>, int>);
-    static_assert(
-        std::is_same_v<            //
-            type::invoke_result_t< //
-                decltype(          //
-                    fn::overload{
-                        [](some_in_place_type auto, auto &) -> std::integral_constant<int, 0> { return {}; },
-                        [](some_in_place_type auto, auto const &) -> std::integral_constant<int, 1> { return {}; },
-                        [](some_in_place_type auto, auto &&) -> std::integral_constant<int, 2> { return {}; },
-                        [](some_in_place_type auto, auto const &&) -> std::integral_constant<int, 3> { return {}; }}),
-                type &>,
-            std::integral_constant<int, 0>>);
-    static_assert(
-        std::is_same_v<            //
-            type::invoke_result_t< //
-                decltype(          //
-                    fn::overload{
-                        [](some_in_place_type auto, auto &) -> std::integral_constant<int, 0> { return {}; },
-                        [](some_in_place_type auto, auto const &) -> std::integral_constant<int, 1> { return {}; },
-                        [](some_in_place_type auto, auto &&) -> std::integral_constant<int, 2> { return {}; },
-                        [](some_in_place_type auto, auto const &&) -> std::integral_constant<int, 3> { return {}; }}),
-                type const &>,
-            std::integral_constant<int, 1>>);
-    static_assert(
-        std::is_same_v<            //
-            type::invoke_result_t< //
-                decltype(          //
-                    fn::overload{
-                        [](some_in_place_type auto, auto &) -> std::integral_constant<int, 0> { return {}; },
-                        [](some_in_place_type auto, auto const &) -> std::integral_constant<int, 1> { return {}; },
-                        [](some_in_place_type auto, auto &&) -> std::integral_constant<int, 2> { return {}; },
-                        [](some_in_place_type auto, auto const &&) -> std::integral_constant<int, 3> { return {}; }}),
-                type &&>,
-            std::integral_constant<int, 2>>);
-    static_assert(
-        std::is_same_v<            //
-            type::invoke_result_t< //
-                decltype(          //
-                    fn::overload{
-                        [](some_in_place_type auto, auto &) -> std::integral_constant<int, 0> { return {}; },
-                        [](some_in_place_type auto, auto const &) -> std::integral_constant<int, 1> { return {}; },
-                        [](some_in_place_type auto, auto &&) -> std::integral_constant<int, 2> { return {}; },
-                        [](some_in_place_type auto, auto const &&) -> std::integral_constant<int, 3> { return {}; }}),
-                type const &&>,
-            std::integral_constant<int, 3>>);
   }
 
   WHEN("check destructor call")
@@ -200,20 +126,20 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
   WHEN("single parameter constructor")
   {
     constexpr choice<int> a = 12;
-    static_assert(a == 12);
+    static_assert(a == choice{12});
 
     constexpr choice<bool> b{false};
-    static_assert(b == false);
+    static_assert(b == choice{false});
 
     WHEN("CTAD")
     {
       choice a{42};
       static_assert(std::is_same_v<decltype(a), choice<int>>);
-      CHECK(a == 42);
+      CHECK(a == choice<int>{42});
 
       constexpr choice b{false};
       static_assert(std::is_same_v<decltype(b), choice<bool> const>);
-      static_assert(b == false);
+      static_assert(b == choice<bool>{false});
     }
   }
 
@@ -291,9 +217,9 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     using type = choice<bool, int>;
 
     type const a{std::in_place_type<int>, 42};
-    CHECK(a == 42);
-    CHECK(a != 41);
-    CHECK(a != false);
+    CHECK(a == type{42});
+    CHECK(a != type{41});
+    CHECK(a != type{false});
 
     CHECK(a == type{std::in_place_type<int>, 42});
     CHECK(a != type{std::in_place_type<int>, 41});
@@ -422,7 +348,7 @@ TEST_CASE("choice and_then", "[choice][and_then]")
                          [](int const &) -> fn::choice<bool> { throw 0; },   //
                          [](int &&) -> fn::choice<bool> { throw 0; },        //
                          [](int const &&) -> fn::choice<bool> { throw 0; })) //
-        == true);
+        == fn::choice{true});
   CHECK(std::as_const(s).and_then(                                   //
             fn::overload([](bool) -> fn::choice<bool> { throw 1; },  //
                          [](int &) -> fn::choice<bool> { throw 0; }, //
@@ -431,7 +357,7 @@ TEST_CASE("choice and_then", "[choice][and_then]")
                          },
                          [](int &&) -> fn::choice<bool> { throw 0; },        //
                          [](int const &&) -> fn::choice<bool> { throw 0; })) //
-        == true);
+        == fn::choice{true});
   CHECK(type{init, 12}.and_then(                                           //
             fn::overload([](bool) -> fn::choice<bool> { throw 1; },        //
                          [](int &) -> fn::choice<bool> { throw 0; },       //
@@ -440,7 +366,7 @@ TEST_CASE("choice and_then", "[choice][and_then]")
                            return {i == 12};
                          },
                          [](int const &&) -> fn::choice<bool> { throw 0; }))
-        == true);
+        == fn::choice{true});
   CHECK(std::move(std::as_const(s))
             .and_then(                                                         //
                 fn::overload([](bool) -> fn::choice<bool> { throw 1; },        //
@@ -448,7 +374,7 @@ TEST_CASE("choice and_then", "[choice][and_then]")
                              [](int const &) -> fn::choice<bool> { throw 0; }, //
                              [](int &&) -> fn::choice<bool> { throw 0; },      //
                              [](int const &&i) -> fn::choice<bool> { return {i == 12}; }))
-        == true);
+        == fn::choice{true});
 
   constexpr type a{std::in_place_type<int>, 42};
   constexpr auto fn = fn::overload([](bool) -> fn::choice<bool> { throw 1; },  //
@@ -459,14 +385,14 @@ TEST_CASE("choice and_then", "[choice][and_then]")
                                    [](int &&) -> fn::choice<bool> { throw 0; }, //
                                    [](int const &&) -> fn::choice<bool> { throw 0; });
   static_assert(std::is_same_v<fn::choice<bool>, decltype(a.and_then(fn))>);
-  static_assert(a.and_then(fn) == true);
+  static_assert(a.and_then(fn) == fn::choice{true});
   static_assert(std::move(a).and_then(                                             //
                     fn::overload([](bool) -> fn::choice<bool> { throw 1; },        //
                                  [](int &) -> fn::choice<bool> { throw 0; },       //
                                  [](int const &) -> fn::choice<bool> { throw 0; }, //
                                  [](int &&) -> fn::choice<bool> { throw 0; },      //
                                  [](int const &&i) -> fn::choice<bool> { return {i == 42}; }))
-                == true);
+                == fn::choice{true});
 }
 
 TEST_CASE("choice transform", "[choice][transform]")
@@ -483,7 +409,7 @@ TEST_CASE("choice transform", "[choice][transform]")
                          [](int const &) -> double { throw 0; },   //
                          [](int &&) -> double { throw 0; },        //
                          [](int const &&) -> double { throw 0; })) //
-        == 1.5);
+        == fn::choice<bool, double, int>{1.5});
   CHECK(std::as_const(s).transform(                        //
             fn::overload([](bool) -> double { throw 1; },  //
                          [](int &) -> double { throw 0; }, //
@@ -492,7 +418,7 @@ TEST_CASE("choice transform", "[choice][transform]")
                          },
                          [](int &&) -> double { throw 0; },        //
                          [](int const &&) -> double { throw 0; })) //
-        == 1.5);
+        == fn::choice<bool, double, int>{1.5});
   CHECK(type{init, 12}.transform(                                //
             fn::overload([](bool) -> double { throw 1; },        //
                          [](int &) -> double { throw 0; },       //
@@ -501,7 +427,7 @@ TEST_CASE("choice transform", "[choice][transform]")
                            return i / 8.0;
                          },
                          [](int const &&) -> double { throw 0; }))
-        == 1.5);
+        == fn::choice<bool, double, int>{1.5});
   CHECK(std::move(std::as_const(s))
             .transform(                                              //
                 fn::overload([](bool) -> double { throw 1; },        //
@@ -509,7 +435,7 @@ TEST_CASE("choice transform", "[choice][transform]")
                              [](int const &) -> double { throw 0; }, //
                              [](int &&) -> double { throw 0; },      //
                              [](int const &&i) -> double { return i / 8.0; }))
-        == 1.5);
+        == fn::choice<bool, double, int>{1.5});
 
   constexpr type a{std::in_place_type<int>, 42};
   constexpr auto fn = fn::overload([](bool) -> double { throw 1; },  //
@@ -520,12 +446,12 @@ TEST_CASE("choice transform", "[choice][transform]")
                                    [](int &&) -> double { throw 0; }, //
                                    [](int const &&) -> double { throw 0; });
   static_assert(std::is_same_v<fn::choice<bool, double, int>, decltype(a.transform(fn))>);
-  static_assert(a.transform(fn) == 5.25);
+  static_assert(a.transform(fn) == fn::choice<bool, double, int>{5.25});
   static_assert(std::move(a).transform(                                  //
                     fn::overload([](bool) -> double { throw 1; },        //
                                  [](int &) -> double { throw 0; },       //
                                  [](int const &) -> double { throw 0; }, //
                                  [](int &&) -> double { throw 0; },      //
                                  [](int const &&i) -> double { return i / 8.0; }))
-                == 5.25);
+                == fn::choice<bool, double, int>{5.25});
 }

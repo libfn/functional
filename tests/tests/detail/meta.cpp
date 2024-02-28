@@ -88,5 +88,9 @@ TEST_CASE("normalized", "[normalized]")
   static_assert(not is_superset_of<normalized<>, normalized<bool, int>>);
   static_assert(not is_superset_of<normalized<>, normalized<bool>>);
 
+  static_assert(type_sortkey_v<int> == "int");
+  static_assert(type_sortkey_v<decltype(0)> == "int");
+  static_assert(type_sortkey_v<_ts<bool, int>> == "fn::detail::_ts<bool, int>");
+
   SUCCEED();
 }
