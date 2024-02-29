@@ -189,20 +189,21 @@ struct sum<Ts...> {
 
   template <typename Fn, typename Self>
   static constexpr auto _invoke_result_helper()
-    requires detail::typelist_invocable<Fn, Self> || detail::typelist_type_invocable<Fn, Self>
+    requires detail::typelist_invocable<Fn, Self>
   {
-    if constexpr (detail::typelist_invocable<Fn, Self>) {
-      using R0 = std::invoke_result_t<Fn, apply_const_lvalue_t<Self, select_nth<0>>>;
-      static_assert((... && std::is_same_v<R0, std::invoke_result_t<Fn, apply_const_lvalue_t<Self, Ts>>>));
-      return std::type_identity<R0>{};
-    } else if constexpr (detail::typelist_type_invocable<Fn, Self>) {
-      using R0
-          = std::invoke_result_t<Fn, std::in_place_type_t<select_nth<0>>, apply_const_lvalue_t<Self, select_nth<0>>>;
-      static_assert(
-          (...
-           && std::is_same_v<R0, std::invoke_result_t<Fn, std::in_place_type_t<Ts>, apply_const_lvalue_t<Self, Ts>>>));
-      return std::type_identity<R0>{};
-    }
+    using R0 = std::invoke_result_t<Fn, apply_const_lvalue_t<Self, select_nth<0>>>;
+    static_assert((... && std::is_same_v<R0, std::invoke_result_t<Fn, apply_const_lvalue_t<Self, Ts>>>));
+    return std::type_identity<R0>{};
+  }
+
+  template <typename Fn, typename Self>
+  static constexpr auto _invoke_result_helper()
+    requires detail::typelist_type_invocable<Fn, Self>
+  {
+    using R0 = std::invoke_result_t<Fn, std::in_place_type_t<select_nth<0>>, apply_const_lvalue_t<Self, select_nth<0>>>;
+    static_assert((
+        ... && std::is_same_v<R0, std::invoke_result_t<Fn, std::in_place_type_t<Ts>, apply_const_lvalue_t<Self, Ts>>>));
+    return std::type_identity<R0>{};
   }
 
   template <typename Fn, typename Self> using _invoke_result = decltype(_invoke_result_helper<Fn, Self>())::type;
