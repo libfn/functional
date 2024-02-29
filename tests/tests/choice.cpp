@@ -27,11 +27,11 @@ struct NonCopyable final {
   NonCopyable &operator=(NonCopyable const &) = delete;
 };
 
-} // namespace
+} // anonymous namespace
 
 TEST_CASE("choice non-monadic functionality", "[choice]")
 {
-  // NOTE This test looks very similar to test of sum in utility.cpp - for good reason.
+  // NOTE This test looks very similar to test in sum.cpp - for good reason.
 
   using fn::choice;
   using fn::some_in_place_type;
@@ -140,6 +140,36 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       constexpr choice b{false};
       static_assert(std::is_same_v<decltype(b), choice<bool> const>);
       static_assert(b == choice<bool>{false});
+
+      constexpr auto c = choice{std::array<int, 3>{3, 14, 15}};
+      static_assert(std::is_same_v<decltype(c), choice<std::array<int, 3>> const>);
+      static_assert(c.invoke([](auto &&a) -> bool { return a.size() == 3 && a[0] == 3 && a[1] == 14 && a[2] == 15; }));
+    }
+
+    WHEN("move from rvalue")
+    {
+      using T = fn::choice<bool, int>;
+      constexpr auto fn = [](auto i) constexpr noexcept -> T { return {std::move(i)}; };
+      constexpr auto a = fn(true);
+      static_assert(std::is_same_v<decltype(a), T const>);
+      static_assert(a.has_value<bool>());
+
+      constexpr auto b = fn(12);
+      static_assert(std::is_same_v<decltype(b), T const>);
+      static_assert(b.has_value<int>());
+    }
+
+    WHEN("copy from lvalue")
+    {
+      using T = fn::choice<bool, int>;
+      constexpr auto fn = [](auto i) constexpr noexcept -> T { return {i}; };
+      constexpr auto a = fn(true);
+      static_assert(std::is_same_v<decltype(a), T const>);
+      static_assert(a.has_value<bool>());
+
+      constexpr auto b = fn(12);
+      static_assert(std::is_same_v<decltype(b), T const>);
+      static_assert(b.has_value<int>());
     }
   }
 
@@ -152,6 +182,15 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     {
       constexpr auto a = choice{std::in_place_type<NonCopyable>, 42};
       static_assert(std::is_same_v<decltype(a), choice<NonCopyable> const>);
+
+      auto b = choice{std::in_place_type<NonCopyable>, 42};
+      static_assert(std::is_same_v<decltype(b), choice<NonCopyable>>);
+    }
+
+    WHEN("CTAD with const")
+    {
+      constexpr auto a = choice{std::in_place_type<NonCopyable const>, 42};
+      static_assert(std::is_same_v<decltype(a), choice<NonCopyable const> const>);
 
       auto b = choice{std::in_place_type<NonCopyable const>, 42};
       static_assert(std::is_same_v<decltype(b), choice<NonCopyable const>>);
@@ -187,11 +226,20 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
     WHEN("CTAD")
     {
-      constexpr auto a = choice{std::in_place_type<std::array<int, 3> const>, 1, 2, 3};
-      static_assert(std::is_same_v<decltype(a), choice<std::array<int, 3> const> const>);
+      constexpr auto a = choice{std::in_place_type<std::array<int, 3>>, 1, 2, 3};
+      static_assert(std::is_same_v<decltype(a), choice<std::array<int, 3>> const>);
 
       auto b = choice{std::in_place_type<std::array<int, 3>>, 1, 2, 3};
       static_assert(std::is_same_v<decltype(b), choice<std::array<int, 3>>>);
+    }
+
+    WHEN("CTAD with const")
+    {
+      constexpr auto a = choice{std::in_place_type<std::array<int, 3> const>, 1, 2, 3};
+      static_assert(std::is_same_v<decltype(a), choice<std::array<int, 3> const> const>);
+
+      auto b = choice{std::in_place_type<std::array<int, 3> const>, 1, 2, 3};
+      static_assert(std::is_same_v<decltype(b), choice<std::array<int, 3> const>>);
     }
   }
 

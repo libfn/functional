@@ -42,6 +42,9 @@ struct transform_error_t::apply final {
 
   // No support for optional since there's no error state to operate on
   static auto operator()(some_optional auto &&v, auto &&...args) noexcept = delete;
+
+  // No support for choice since there's no error to operate on
+  static auto operator()(some_choice auto &&v, auto &&...args) noexcept = delete;
 };
 
 } // namespace fn

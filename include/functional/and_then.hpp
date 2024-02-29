@@ -37,6 +37,10 @@ concept invocable_and_then //
         {
           std::invoke(FWD(fn), FWD(v).value())
         } -> same_kind<V>;
+      }) || (some_choice<V> && requires(Fn &&fn, V &&v) {
+        {
+          FWD(v).invoke(FWD(fn))
+        } -> same_kind<V>;
       });
 
 constexpr inline struct and_then_t final {

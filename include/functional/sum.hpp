@@ -55,15 +55,19 @@ struct sum<Ts...> {
 
   template <typename T>
   constexpr sum(T &&v)
-    requires has_type<T> && (std::is_constructible_v<T, decltype(v)>) && (std::is_convertible_v<decltype(v), T>)
-      : data(detail::make_variadic_union<T, data_t>(FWD(v))), index(detail::type_index<T, Ts...>)
+    requires has_type<std::remove_reference_t<T>> && (std::is_constructible_v<std::remove_reference_t<T>, decltype(v)>)
+                 && (std::is_convertible_v<decltype(v), std::remove_reference_t<T>>)
+      : data(detail::make_variadic_union<std::remove_reference_t<T>, data_t>(FWD(v))),
+        index(detail::type_index<std::remove_reference_t<T>, Ts...>)
   {
   }
 
   template <typename T>
   constexpr explicit sum(T &&v)
-    requires has_type<T> && (std::is_constructible_v<T, decltype(v)>) && (not std::is_convertible_v<decltype(v), T>)
-      : data(detail::make_variadic_union<T, data_t>(FWD(v))), index(detail::type_index<T, Ts...>)
+    requires has_type<std::remove_reference_t<T>> && (std::is_constructible_v<std::remove_reference_t<T>, decltype(v)>)
+                 && (not std::is_convertible_v<decltype(v), std::remove_reference_t<T>>)
+      : data(detail::make_variadic_union<std::remove_reference_t<T>, data_t>(FWD(v))),
+        index(detail::type_index<std::remove_reference_t<T>, Ts...>)
   {
   }
 

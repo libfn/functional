@@ -11,6 +11,7 @@
 #include "functional/sum.hpp"
 #include "functional/utility.hpp"
 
+#include <type_traits>
 #include <utility>
 
 namespace fn {
@@ -47,15 +48,17 @@ struct choice<Ts...> : sum<Ts...> {
 
   template <typename T>
   constexpr choice(T &&v)
-    requires has_type<T> && (std::is_constructible_v<T, decltype(v)>) && (std::is_convertible_v<decltype(v), T>)
-      : _impl(std::in_place_type<T>, FWD(v))
+    requires has_type<std::remove_reference_t<T>> && (std::is_constructible_v<std::remove_reference_t<T>, decltype(v)>)
+             && (std::is_convertible_v<decltype(v), std::remove_reference_t<T>>)
+      : _impl(std::in_place_type<std::remove_reference_t<T>>, FWD(v))
   {
   }
 
   template <typename T>
   constexpr explicit choice(T &&v)
-    requires has_type<T> && (std::is_constructible_v<T, decltype(v)>) && (not std::is_convertible_v<decltype(v), T>)
-      : _impl(std::in_place_type<T>, FWD(v))
+    requires has_type<std::remove_reference_t<T>> && (std::is_constructible_v<std::remove_reference_t<T>, decltype(v)>)
+             && (not std::is_convertible_v<decltype(v), std::remove_reference_t<T>>)
+      : _impl(std::in_place_type<std::remove_reference_t<T>>, FWD(v))
   {
   }
 

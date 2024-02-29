@@ -74,6 +74,9 @@ struct recover_t::apply final {
     }
     return type{std::in_place, std::invoke(FWD(fn))};
   }
+
+  // No support for choice since there's no error to recover from
+  static auto operator()(some_choice auto &&v, auto &&...args) noexcept = delete;
 };
 
 } // namespace fn

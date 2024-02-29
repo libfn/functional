@@ -43,6 +43,9 @@ struct or_else_t::apply final {
   {
     return FWD(v).or_else(FWD(fn));
   }
+
+  // No support for choice since there's no error to recover from
+  static auto operator()(some_choice auto &&v, auto &&...args) noexcept = delete;
 };
 
 } // namespace fn

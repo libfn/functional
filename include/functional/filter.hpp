@@ -124,6 +124,9 @@ struct filter_t::apply final {
                        : type{std::nullopt});
         });
   }
+
+  // No support for choice since there's no error to operate on
+  static auto operator()(some_choice auto &&v, auto &&...args) noexcept = delete;
 };
 
 } // namespace fn

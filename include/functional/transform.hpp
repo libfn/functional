@@ -39,6 +39,10 @@ concept invocable_transform //
         {
           std::invoke(FWD(fn), FWD(v).value())
         } -> convertible_to_optional;
+      }) || (some_choice<V> && requires(Fn &&fn, V &&v) {
+        {
+          FWD(v).invoke(FWD(fn))
+        } -> convertible_to_choice;
       });
 
 static constexpr struct transform_t final {
