@@ -54,6 +54,9 @@ struct inspect_error_t::apply final {
     }
     return FWD(v);
   }
+
+  // No support for choice since there's no error to operate on
+  static auto operator()(some_choice auto &&v, auto &&...args) noexcept = delete;
 };
 
 } // namespace fn
