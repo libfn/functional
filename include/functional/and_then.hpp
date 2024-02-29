@@ -39,7 +39,7 @@ concept invocable_and_then //
         } -> same_kind<V>;
       }) || (some_choice<V> && requires(Fn &&fn, V &&v) {
         {
-          FWD(v).invoke(FWD(fn))
+          FWD(v).and_then(FWD(fn))
         } -> same_kind<V>;
       });
 

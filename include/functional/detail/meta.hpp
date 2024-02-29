@@ -80,28 +80,29 @@ constexpr inline bool _typelist_type_invocable<Fn, Tpl<Ts...> const &&>
 
 template <typename Fn, typename T> constexpr inline bool typelist_type_invocable = _typelist_type_invocable<Fn, T &&>;
 
-template <auto TU_name, auto Input> struct _normalized_name final {
-  static constexpr std::size_t TU_name_bound = 30;
+#ifdef __clang__
+static constexpr std::string_view _normalized_name_anon{"(anonymous namespace)"};
+static constexpr std::string_view _normalized_name_prefix{"sortkey() [T = "};
+#elifdef __GNUC__
+static constexpr std::string_view _normalized_name_anon{"{anonymous}"};
+static constexpr std::string_view _normalized_name_prefix{"sortkey() [with T = "};
+#endif
+static constexpr std::size_t _normalized_name_TU_name_bound = 30;
 
+template <auto TU_name, auto Input> struct _normalized_name final {
   template <std::size_t N> static constexpr auto apply() noexcept
   {
     std::string_view const sv{Input.data(), Input.size()};
-#ifdef __clang__
-    static constexpr std::string_view anon{"(anonymous namespace)"};
-    static constexpr std::string_view prefix{"sortkey() [T = "};
-#elifdef __GNUC__
-    static constexpr std::string_view anon{"{anonymous}"};
-    static constexpr std::string_view prefix{"sortkey() [with T = "};
-#endif
-    std::size_t s = sv.find(prefix);
-    std::string_view file{TU_name.size() <= TU_name_bound ? TU_name.data()
-                                                          : TU_name.data() + (TU_name.size() - TU_name_bound - 1),
-                          std::min(TU_name.size() - 1, TU_name_bound)};
+    std::size_t s = sv.find(_normalized_name_prefix);
+    std::string_view file{TU_name.size() <= _normalized_name_TU_name_bound
+                              ? TU_name.data()
+                              : TU_name.data() + (TU_name.size() - _normalized_name_TU_name_bound - 1),
+                          std::min(TU_name.size() - 1, _normalized_name_TU_name_bound)};
 
     std::string result;
-    s += prefix.size();
+    s += _normalized_name_prefix.size();
     while (true) {
-      std::size_t i = sv.find(anon, s);
+      std::size_t i = sv.find(_normalized_name_anon, s);
       if (i != std::string_view::npos) {
         result.append(sv.substr(s, i - s));
         result.append(std::string_view("(anonymous namespace in "));
@@ -111,7 +112,7 @@ template <auto TU_name, auto Input> struct _normalized_name final {
         result.append(sv.substr(s, sv.size() - s - 2));
         break;
       }
-      s = i + anon.size();
+      s = i + _normalized_name_anon.size();
     };
 
     if constexpr (N == 0)

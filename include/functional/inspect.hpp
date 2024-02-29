@@ -40,7 +40,7 @@ concept invocable_inspect //
         } -> std::same_as<void>;
       }) || (some_choice<V> && requires(Fn &&fn, V &&v) {
         {
-          std::as_const(v).invoke(FWD(fn))
+          std::as_const(v).template invoke_to(FWD(fn))
         } -> std::same_as<void>;
       });
 
@@ -84,7 +84,7 @@ struct inspect_t::apply final {
   [[nodiscard]] static constexpr auto operator()(some_choice auto &&v, auto &&fn) noexcept -> decltype(v)
     requires invocable_inspect<decltype(fn), decltype(v)>
   {
-    std::as_const(v).invoke(FWD(fn)); // side-effects only
+    std::as_const(v).template invoke_to<void>(FWD(fn)); // side-effects only
     return FWD(v);
   }
 };

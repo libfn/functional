@@ -143,7 +143,8 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
       constexpr auto c = choice{std::array<int, 3>{3, 14, 15}};
       static_assert(std::is_same_v<decltype(c), choice<std::array<int, 3>> const>);
-      static_assert(c.invoke([](auto &&a) -> bool { return a.size() == 3 && a[0] == 3 && a[1] == 14 && a[2] == 15; }));
+      static_assert(
+          c.invoke_to([](auto &&a) -> bool { return a.size() == 3 && a[0] == 3 && a[1] == 14 && a[2] == 15; }));
     }
 
     WHEN("move from rvalue")
@@ -176,7 +177,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
   WHEN("forwarding constructors (immovable)")
   {
     choice<NonCopyable> a{std::in_place_type<NonCopyable>, 42};
-    CHECK(a.invoke([](auto &i) -> bool { return i.i == 42; }));
+    CHECK(a.invoke_to([](auto &i) -> bool { return i.i == 42; }));
 
     WHEN("CTAD")
     {
@@ -206,7 +207,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       static_assert(not decltype(a)::has_type<int>);
       CHECK(a.has_value(std::in_place_type<std::array<int, 3>>));
       CHECK(a.template has_value<std::array<int, 3>>());
-      CHECK(a.invoke([](auto &i) -> bool {
+      CHECK(a.invoke_to([](auto &i) -> bool {
         return std::same_as<std::array<int, 3> &, decltype(i)> && i.size() == 3 && i[0] == 1 && i[1] == 2 && i[2] == 3;
       }));
     }
@@ -218,7 +219,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       static_assert(not decltype(a)::has_type<int>);
       static_assert(a.has_value(std::in_place_type<std::array<int, 3>>));
       static_assert(a.template has_value<std::array<int, 3>>());
-      static_assert(a.invoke([](auto &i) -> bool {
+      static_assert(a.invoke_to([](auto &i) -> bool {
         return std::same_as<std::array<int, 3> const &, decltype(i)> && i.size() == 3 && i[0] == 1 && i[1] == 2
                && i[2] == 3;
       }));
@@ -306,33 +307,33 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     }
   }
 
-  WHEN("invoke")
+  WHEN("invoke_to")
   {
     choice<int> a{std::in_place_type<int>, 42};
     WHEN("value only")
     {
-      CHECK(a.invoke(fn::overload([](auto) -> bool { throw 1; }, [](int &) -> bool { return true; },
-                                  [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
-                                  [](int const &&) -> bool { throw 0; })));
-      CHECK(std::as_const(a).invoke(fn::overload(
+      CHECK(a.invoke_to(fn::overload([](auto) -> bool { throw 1; }, [](int &) -> bool { return true; },
+                                     [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
+                                     [](int const &&) -> bool { throw 0; })));
+      CHECK(std::as_const(a).invoke_to(fn::overload(
           [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { return true; },
           [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; })));
-      CHECK(choice<int>{std::in_place_type<int>, 42}.invoke(fn::overload(
+      CHECK(choice<int>{std::in_place_type<int>, 42}.invoke_to(fn::overload(
           [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
           [](int &&) -> bool { return true; }, [](int const &&) -> bool { throw 0; })));
       CHECK(std::move(std::as_const(a))
-                .invoke(fn::overload([](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
-                                     [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
-                                     [](int const &&) -> bool { return true; })));
+                .invoke_to(fn::overload([](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
+                                        [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
+                                        [](int const &&) -> bool { return true; })));
 
       WHEN("constexpr")
       {
         constexpr choice<int> a{std::in_place_type<int>, 42};
-        static_assert(a.invoke(fn::overload(
+        static_assert(a.invoke_to(fn::overload(
             [](auto) -> std::false_type { return {}; }, //
             [](int &) -> std::false_type { return {}; }, [](int const &) -> std::true_type { return {}; },
             [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::false_type { return {}; })));
-        static_assert(std::move(a).invoke(fn::overload(
+        static_assert(std::move(a).invoke_to(fn::overload(
             [](auto) -> std::false_type { return {}; }, //
             [](int &) -> std::false_type { return {}; }, [](int const &) -> std::false_type { return {}; },
             [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::true_type { return {}; })));
@@ -341,37 +342,37 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
     WHEN("tag and value")
     {
-      CHECK(a.invoke(fn::overload([](auto, auto) -> bool { throw 1; },
-                                  [](std::in_place_type_t<int>, int &) -> bool { return true; },
-                                  [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
-                                  [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
-                                  [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; })));
-      CHECK(std::as_const(a).invoke(fn::overload([](auto, auto) -> bool { throw 1; },
-                                                 [](std::in_place_type_t<int>, int &) -> bool { throw 0; },
-                                                 [](std::in_place_type_t<int>, int const &) -> bool { return true; },
-                                                 [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
-                                                 [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; })));
-      CHECK(choice<int>{std::in_place_type<int>, 42}.invoke(
+      CHECK(a.invoke_to(fn::overload([](auto, auto) -> bool { throw 1; },
+                                     [](std::in_place_type_t<int>, int &) -> bool { return true; },
+                                     [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
+                                     [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
+                                     [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; })));
+      CHECK(std::as_const(a).invoke_to(fn::overload([](auto, auto) -> bool { throw 1; },
+                                                    [](std::in_place_type_t<int>, int &) -> bool { throw 0; },
+                                                    [](std::in_place_type_t<int>, int const &) -> bool { return true; },
+                                                    [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
+                                                    [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; })));
+      CHECK(choice<int>{std::in_place_type<int>, 42}.invoke_to(
           fn::overload([](auto, auto) -> bool { throw 1; }, [](std::in_place_type_t<int>, int &) -> bool { throw 0; },
                        [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
                        [](std::in_place_type_t<int>, int &&) -> bool { return true; },
                        [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; })));
       CHECK(std::move(std::as_const(a))
-                .invoke(fn::overload([](auto, auto) -> bool { throw 1; },
-                                     [](std::in_place_type_t<int>, int &) -> bool { throw 0; },
-                                     [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
-                                     [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
-                                     [](std::in_place_type_t<int>, int const &&) -> bool { return true; })));
+                .invoke_to(fn::overload([](auto, auto) -> bool { throw 1; },
+                                        [](std::in_place_type_t<int>, int &) -> bool { throw 0; },
+                                        [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
+                                        [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
+                                        [](std::in_place_type_t<int>, int const &&) -> bool { return true; })));
       WHEN("constexpr")
       {
         constexpr choice<int> a{std::in_place_type<int>, 42};
         static_assert(
-            a.invoke(fn::overload([](auto, auto) -> std::false_type { return {}; }, //
-                                  [](std::in_place_type_t<int>, int &) -> std::false_type { return {}; },
-                                  [](std::in_place_type_t<int>, int const &) -> std::true_type { return {}; },
-                                  [](std::in_place_type_t<int>, int &&) -> std::false_type { return {}; },
-                                  [](std::in_place_type_t<int>, int const &&) -> std::false_type { return {}; })));
-        static_assert(std::move(a).invoke(
+            a.invoke_to(fn::overload([](auto, auto) -> std::false_type { return {}; }, //
+                                     [](std::in_place_type_t<int>, int &) -> std::false_type { return {}; },
+                                     [](std::in_place_type_t<int>, int const &) -> std::true_type { return {}; },
+                                     [](std::in_place_type_t<int>, int &&) -> std::false_type { return {}; },
+                                     [](std::in_place_type_t<int>, int const &&) -> std::false_type { return {}; })));
+        static_assert(std::move(a).invoke_to(
             fn::overload([](auto, auto) -> std::false_type { return {}; }, //
                          [](std::in_place_type_t<int>, int &) -> std::false_type { return {}; },
                          [](std::in_place_type_t<int>, int const &) -> std::false_type { return {}; },

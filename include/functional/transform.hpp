@@ -41,7 +41,7 @@ concept invocable_transform //
         } -> convertible_to_optional;
       }) || (some_choice<V> && requires(Fn &&fn, V &&v) {
         {
-          FWD(v).invoke(FWD(fn))
+          FWD(v).transform(FWD(fn))
         } -> convertible_to_choice;
       });
 
