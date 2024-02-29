@@ -6,8 +6,10 @@
 #ifndef INCLUDE_FUNCTIONAL_SUM
 #define INCLUDE_FUNCTIONAL_SUM
 
+#include "functional/detail/traits.hpp"
 #include "functional/detail/variadic_union.hpp"
 #include "functional/utility.hpp"
+#include <type_traits>
 #include <utility>
 
 namespace fn {
@@ -118,9 +120,9 @@ struct sum<Ts...> {
 
   constexpr sum(sum const &other) noexcept
     requires(... && std::is_copy_constructible_v<Ts>)
-      : data(detail::invoke_variadic_union<data_t>(                          //
-          other.data, other.index,                                           //
-          []<typename T>(std::in_place_type_t<T>, auto const &v) -> data_t { //
+      : data(detail::invoke_variadic_union<data_t, data_t>(        //
+          other.data, other.index,                                 //
+          []<typename T>(std::in_place_type_t<T>, auto const &v) { //
             return detail::make_variadic_union<T, data_t>(v);
           })),
         index(other.index)
@@ -129,9 +131,9 @@ struct sum<Ts...> {
 
   constexpr sum(sum &&other) noexcept
     requires(... && std::is_move_constructible_v<Ts>)
-      : data(detail::invoke_variadic_union<data_t>(                     //
-          std::move(other).data, other.index,                           //
-          []<typename T>(std::in_place_type_t<T>, auto &&v) -> data_t { //
+      : data(detail::invoke_variadic_union<data_t, data_t>(   //
+          std::move(other).data, other.index,                 //
+          []<typename T>(std::in_place_type_t<T>, auto &&v) { //
             return detail::make_variadic_union<T, data_t>(std::move(v));
           })),
         index(other.index)
@@ -140,9 +142,10 @@ struct sum<Ts...> {
 
   constexpr ~sum() noexcept
   {
-    detail::invoke_variadic_union<data_t>(this->data, index, [this]<typename T>(std::in_place_type_t<T>, auto &&) {
-      std::destroy_at(detail::ptr_variadic_union<T, data_t>(this->data));
-    });
+    detail::invoke_variadic_union<void, data_t>( //
+        this->data, index, [this]<typename T>(std::in_place_type_t<T>, auto &&) {
+          std::destroy_at(detail::ptr_variadic_union<T, data_t>(this->data));
+        });
   }
 
   template <typename T>
@@ -184,32 +187,56 @@ struct sum<Ts...> {
     return not(*this == other);
   }
 
+  template <typename Fn, typename Self>
+  static constexpr auto _invoke_result_helper()
+    requires detail::typelist_invocable<Fn, Self> || detail::typelist_type_invocable<Fn, Self>
+  {
+    if constexpr (detail::typelist_invocable<Fn, Self>) {
+      using R0 = std::invoke_result_t<Fn, apply_const_lvalue_t<Self, select_nth<0>>>;
+      static_assert((... && std::is_same_v<R0, std::invoke_result_t<Fn, apply_const_lvalue_t<Self, Ts>>>));
+      return std::type_identity<R0>{};
+    } else if constexpr (detail::typelist_type_invocable<Fn, Self>) {
+      using R0
+          = std::invoke_result_t<Fn, std::in_place_type_t<select_nth<0>>, apply_const_lvalue_t<Self, select_nth<0>>>;
+      static_assert(
+          (...
+           && std::is_same_v<R0, std::invoke_result_t<Fn, std::in_place_type_t<Ts>, apply_const_lvalue_t<Self, Ts>>>));
+      return std::type_identity<R0>{};
+    }
+  }
+
+  template <typename Fn, typename Self> using _invoke_result = decltype(_invoke_result_helper<Fn, Self>())::type;
+
   template <typename Fn>
   [[nodiscard]] constexpr auto invoke(Fn &&fn) & noexcept
     requires detail::typelist_invocable<Fn, sum &> || detail::typelist_type_invocable<Fn, sum &>
   {
-    return detail::invoke_variadic_union<data_t>(this->data, index, FWD(fn));
+    return detail::invoke_variadic_union<_invoke_result<decltype(fn), sum &>, data_t>( //
+        this->data, index, FWD(fn));
   }
 
   template <typename Fn>
   [[nodiscard]] constexpr auto invoke(Fn &&fn) const & noexcept
     requires detail::typelist_invocable<Fn, sum const &> || detail::typelist_type_invocable<Fn, sum const &>
   {
-    return detail::invoke_variadic_union<data_t>(this->data, index, FWD(fn));
+    return detail::invoke_variadic_union<_invoke_result<decltype(fn), sum const &>, data_t>( //
+        this->data, index, FWD(fn));
   }
 
   template <typename Fn>
   [[nodiscard]] constexpr auto invoke(Fn &&fn) && noexcept
     requires detail::typelist_invocable<Fn, sum &&> || detail::typelist_type_invocable<Fn, sum &&>
   {
-    return detail::invoke_variadic_union<data_t>(std::move(*this).data, index, FWD(fn));
+    return detail::invoke_variadic_union<_invoke_result<decltype(fn), sum &&>, data_t>( //
+        std::move(*this).data, index, FWD(fn));
   }
 
   template <typename Fn>
   [[nodiscard]] constexpr auto invoke(Fn &&fn) const && noexcept
     requires detail::typelist_invocable<Fn, sum const &&> || detail::typelist_type_invocable<Fn, sum const &&>
   {
-    return detail::invoke_variadic_union<data_t>(std::move(*this).data, index, FWD(fn));
+    return detail::invoke_variadic_union<_invoke_result<decltype(fn), sum const &&>, data_t>( //
+        std::move(*this).data, index, FWD(fn));
   }
 };
 

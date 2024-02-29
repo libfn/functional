@@ -39,8 +39,8 @@ TEST_CASE("sum basic functionality tests", "[sum]")
 {
   // NOTE This test looks very similar to test in choice.cpp - for good reason.
 
-  using fn::sum;
   using fn::some_in_place_type;
+  using fn::sum;
 
   WHEN("sum_for")
   {

@@ -52,8 +52,8 @@ TEST_CASE("variadic_union", "[variadic_union][invoke_variadic_union][ptr_variadi
   static_assert(std::same_as<decltype(ptr_variadic_union<bool, U1>(b1)), bool const *>);
   static_assert(std::same_as<decltype(ptr_variadic_union<bool, U1>(U1{.v0 = false})), bool *>);
   static_assert(*ptr_variadic_union<bool, U1>(b1));
-  static_assert(invoke_variadic_union<U1>(b1, 0, [](auto i) -> std::size_t { return sizeof(i); }) == 1);
-  static_assert(invoke_variadic_union<U1>(b1, 0, []<typename T>(std::in_place_type_t<T>, auto i) -> bool {
+  static_assert(invoke_variadic_union<std::size_t, U1>(b1, 0, [](auto i) -> std::size_t { return sizeof(i); }) == 1);
+  static_assert(invoke_variadic_union<bool, U1>(b1, 0, []<typename T>(std::in_place_type_t<T>, auto i) -> bool {
     if constexpr (std::same_as<T, bool>)
       return i;
     return false;
@@ -70,13 +70,13 @@ TEST_CASE("variadic_union", "[variadic_union][invoke_variadic_union][ptr_variadi
   static_assert(std::same_as<decltype(ptr_variadic_union<bool, U2>(U2{.v0 = false})), bool *>);
   static_assert(std::same_as<decltype(ptr_variadic_union<int, U2>(U2{.v1 = 12})), int *>);
   static_assert(*ptr_variadic_union<int, U2>(b2) == 42);
-  static_assert(invoke_variadic_union<U2>(b2, 1, [](auto i) -> std::size_t { return sizeof(i); }) == 4);
-  static_assert(invoke_variadic_union<U2>(b2, 1,
-                                          []<typename T>(std::in_place_type_t<T>, auto i) -> int {
-                                            if constexpr (std::same_as<T, int>)
-                                              return i / 2;
-                                            return 0;
-                                          })
+  static_assert(invoke_variadic_union<std::size_t, U2>(b2, 1, [](auto i) -> std::size_t { return sizeof(i); }) == 4);
+  static_assert(invoke_variadic_union<int, U2>(b2, 1,
+                                               []<typename T>(std::in_place_type_t<T>, auto i) -> int {
+                                                 if constexpr (std::same_as<T, int>)
+                                                   return i / 2;
+                                                 return 0;
+                                               })
                 == 21);
 
   using U3 = variadic_union<bool, int, double>;
@@ -92,13 +92,13 @@ TEST_CASE("variadic_union", "[variadic_union][invoke_variadic_union][ptr_variadi
   static_assert(std::same_as<decltype(ptr_variadic_union<bool, U3>(U3{.v0 = false})), bool *>);
   static_assert(std::same_as<decltype(ptr_variadic_union<int, U3>(U3{.v1 = 12})), int *>);
   static_assert(*ptr_variadic_union<double, U3>(b3) == 0.5);
-  static_assert(invoke_variadic_union<U3>(b3, 2, [](auto i) -> std::size_t { return sizeof(i); }) == 8);
-  static_assert(invoke_variadic_union<U3>(b3, 2,
-                                          []<typename T>(std::in_place_type_t<T>, auto i) -> int {
-                                            if constexpr (std::same_as<T, double>)
-                                              return i * 4;
-                                            return 0;
-                                          })
+  static_assert(invoke_variadic_union<std::size_t, U3>(b3, 2, [](auto i) -> std::size_t { return sizeof(i); }) == 8);
+  static_assert(invoke_variadic_union<int, U3>(b3, 2,
+                                               []<typename T>(std::in_place_type_t<T>, auto i) -> int {
+                                                 if constexpr (std::same_as<T, double>)
+                                                   return i * 4;
+                                                 return 0;
+                                               })
                 == 2);
 
   using U4 = variadic_union<bool, int, double, float>;
@@ -116,13 +116,13 @@ TEST_CASE("variadic_union", "[variadic_union][invoke_variadic_union][ptr_variadi
   static_assert(std::same_as<decltype(ptr_variadic_union<bool, U4>(U4{.v0 = false})), bool *>);
   static_assert(std::same_as<decltype(ptr_variadic_union<int, U4>(U4{.v1 = 12})), int *>);
   static_assert(*ptr_variadic_union<float, U4>(b4) == 1.5f);
-  static_assert(invoke_variadic_union<U4>(b4, 3, [](auto i) -> std::size_t { return sizeof(i); }) == 4);
-  static_assert(invoke_variadic_union<U4>(b4, 3,
-                                          []<typename T>(std::in_place_type_t<T>, auto i) -> int {
-                                            if constexpr (std::same_as<T, float>)
-                                              return i * 4;
-                                            return 0;
-                                          })
+  static_assert(invoke_variadic_union<std::size_t, U4>(b4, 3, [](auto i) -> std::size_t { return sizeof(i); }) == 4);
+  static_assert(invoke_variadic_union<int, U4>(b4, 3,
+                                               []<typename T>(std::in_place_type_t<T>, auto i) -> int {
+                                                 if constexpr (std::same_as<T, float>)
+                                                   return i * 4;
+                                                 return 0;
+                                               })
                 == 6);
 
   using U5 = variadic_union<bool, int, double, float, std::string_view>;
@@ -142,13 +142,13 @@ TEST_CASE("variadic_union", "[variadic_union][invoke_variadic_union][ptr_variadi
   static_assert(std::same_as<decltype(ptr_variadic_union<bool, U5>(U5{.v0 = false})), bool *>);
   static_assert(std::same_as<decltype(ptr_variadic_union<int, U5>(U5{.v1 = 12})), int *>);
   static_assert(*ptr_variadic_union<std::string_view, U5>(b5) == std::string_view{"hello"});
-  static_assert(invoke_variadic_union<U5>(b5, 4, [](auto i) -> std::size_t { return sizeof(i); }) == 16);
-  static_assert(invoke_variadic_union<U5>(b5, 4,
-                                          []<typename T>(std::in_place_type_t<T>, auto i) -> int {
-                                            if constexpr (std::same_as<T, std::string_view>)
-                                              return i.size();
-                                            return 0;
-                                          })
+  static_assert(invoke_variadic_union<std::size_t, U5>(b5, 4, [](auto i) -> std::size_t { return sizeof(i); }) == 16);
+  static_assert(invoke_variadic_union<int, U5>(b5, 4,
+                                               []<typename T>(std::in_place_type_t<T>, auto i) -> int {
+                                                 if constexpr (std::same_as<T, std::string_view>)
+                                                   return i.size();
+                                                 return 0;
+                                               })
                 == 5);
 
   SUCCEED();
