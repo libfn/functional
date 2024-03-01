@@ -22,7 +22,9 @@ set(TESTS_SOURCE_FILES
     optional.cpp
     or_else.cpp
     recover.cpp
-    sum.cpp
+    sum_1.cpp
+    sum_2.cpp
+    sum_3.cpp
     transform_error.cpp
     transform.cpp
     utility.cpp
