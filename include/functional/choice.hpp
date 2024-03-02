@@ -107,8 +107,12 @@ struct choice<Ts...> : sum<Ts...> {
     return not(*this == rh);
   }
 
+  // NOTE Not strictly needed, but put here for sake of documentation
+  using _impl::transform_to;
+
+  // NOTE Monadic operations, only `and_then` and `transform` are supported
   template <typename Fn>
-  [[nodiscard]] constexpr auto invoke(Fn &&fn) & noexcept
+  [[nodiscard]] constexpr auto transform(Fn &&fn) & noexcept
     requires detail::typelist_invocable<Fn, choice &> && (not detail::typelist_type_invocable<Fn, choice &>)
   {
     using type = detail::_invoke_result<detail::_collapsing_sum_tag, decltype(fn), choice &>::type;
@@ -116,7 +120,7 @@ struct choice<Ts...> : sum<Ts...> {
   }
 
   template <typename Fn>
-  [[nodiscard]] constexpr auto invoke(Fn &&fn) & noexcept
+  [[nodiscard]] constexpr auto transform(Fn &&fn) & noexcept
     requires detail::typelist_type_invocable<Fn, choice &>
   {
     using type = detail::_invoke_type_result<detail::_collapsing_sum_tag, decltype(fn), choice &>::type;
@@ -124,7 +128,7 @@ struct choice<Ts...> : sum<Ts...> {
   }
 
   template <typename Fn>
-  [[nodiscard]] constexpr auto invoke(Fn &&fn) const & noexcept
+  [[nodiscard]] constexpr auto transform(Fn &&fn) const & noexcept
     requires detail::typelist_invocable<Fn, choice const &> && (not detail::typelist_type_invocable<Fn, choice const &>)
   {
     using type = detail::_invoke_result<detail::_collapsing_sum_tag, decltype(fn), choice const &>::type;
@@ -132,7 +136,7 @@ struct choice<Ts...> : sum<Ts...> {
   }
 
   template <typename Fn>
-  [[nodiscard]] constexpr auto invoke(Fn &&fn) const & noexcept
+  [[nodiscard]] constexpr auto transform(Fn &&fn) const & noexcept
     requires detail::typelist_type_invocable<Fn, choice const &>
   {
     using type = detail::_invoke_type_result<detail::_collapsing_sum_tag, decltype(fn), choice const &>::type;
@@ -140,7 +144,7 @@ struct choice<Ts...> : sum<Ts...> {
   }
 
   template <typename Fn>
-  [[nodiscard]] constexpr auto invoke(Fn &&fn) && noexcept
+  [[nodiscard]] constexpr auto transform(Fn &&fn) && noexcept
     requires detail::typelist_invocable<Fn, choice &&> && (not detail::typelist_type_invocable<Fn, choice &&>)
   {
     using type = detail::_invoke_result<detail::_collapsing_sum_tag, decltype(fn), choice &&>::type;
@@ -148,7 +152,7 @@ struct choice<Ts...> : sum<Ts...> {
   }
 
   template <typename Fn>
-  [[nodiscard]] constexpr auto invoke(Fn &&fn) && noexcept
+  [[nodiscard]] constexpr auto transform(Fn &&fn) && noexcept
     requires detail::typelist_type_invocable<Fn, choice &&>
   {
     using type = detail::_invoke_type_result<detail::_collapsing_sum_tag, decltype(fn), choice &&>::type;
@@ -156,7 +160,7 @@ struct choice<Ts...> : sum<Ts...> {
   }
 
   template <typename Fn>
-  [[nodiscard]] constexpr auto invoke(Fn &&fn) const && noexcept
+  [[nodiscard]] constexpr auto transform(Fn &&fn) const && noexcept
     requires detail::typelist_invocable<Fn, choice const &&>
              && (not detail::typelist_type_invocable<Fn, choice const &&>)
   {
@@ -165,81 +169,37 @@ struct choice<Ts...> : sum<Ts...> {
   }
 
   template <typename Fn>
-  [[nodiscard]] constexpr auto invoke(Fn &&fn) const && noexcept
+  [[nodiscard]] constexpr auto transform(Fn &&fn) const && noexcept
     requires detail::typelist_type_invocable<Fn, choice const &&>
   {
     using type = detail::_invoke_type_result<detail::_collapsing_sum_tag, decltype(fn), choice const &&>::type;
     return detail::invoke_variadic_union<type, typename _impl::data_t>(std::move(_impl::data), _impl::index, FWD(fn));
   }
 
-  // NOTE Monadic operations, only `and_then` and `transform` are supported
-  template <typename Fn> constexpr auto and_then(Fn &&fn) & noexcept -> decltype(this->invoke_to(FWD(fn)))
+  template <typename Fn> constexpr auto and_then(Fn &&fn) & noexcept -> decltype(this->transform_to(FWD(fn)))
   {
-    using type = decltype(this->invoke_to(FWD(fn)));
-    static_assert(some_choice<type>);
-    return this->invoke_to(FWD(fn));
+    static_assert(some_choice<decltype(this->transform_to(FWD(fn)))>);
+    return this->transform_to(FWD(fn));
   }
 
-  template <typename Fn> constexpr auto and_then(Fn &&fn) const & noexcept -> decltype(this->invoke_to(FWD(fn)))
+  template <typename Fn> constexpr auto and_then(Fn &&fn) const & noexcept -> decltype(this->transform_to(FWD(fn)))
   {
-    using type = decltype(this->invoke_to(FWD(fn)));
-    static_assert(some_choice<type>);
-    return this->invoke_to(FWD(fn));
-  }
-
-  template <typename Fn> constexpr auto and_then(Fn &&fn) && noexcept -> decltype(std::move(*this).invoke_to(FWD(fn)))
-  {
-    using type = decltype(std::move(*this).invoke_to(FWD(fn)));
-    static_assert(some_choice<type>);
-    return std::move(*this).invoke_to(FWD(fn));
+    static_assert(some_choice<decltype(this->transform_to(FWD(fn)))>);
+    return this->transform_to(FWD(fn));
   }
 
   template <typename Fn>
-  constexpr auto and_then(Fn &&fn) const && noexcept -> decltype(std::move(*this).invoke_to(FWD(fn)))
+  constexpr auto and_then(Fn &&fn) && noexcept -> decltype(std::move(*this).transform_to(FWD(fn)))
   {
-    using type = decltype(std::move(*this).invoke_to(FWD(fn)));
-    static_assert(some_choice<type>);
-    return std::move(*this).invoke_to(FWD(fn));
+    static_assert(some_choice<decltype(std::move(*this).transform_to(FWD(fn)))>);
+    return std::move(*this).transform_to(FWD(fn));
   }
 
   template <typename Fn>
-  constexpr auto transform(Fn &&fn) & noexcept
-      -> detail::normalized<Ts..., decltype(this->invoke_to(FWD(fn)))>::template apply<choice>
+  constexpr auto and_then(Fn &&fn) const && noexcept -> decltype(std::move(*this).transform_to(FWD(fn)))
   {
-    using type = decltype(this->invoke_to(FWD(fn)));
-    static_assert(detail::_is_valid_choice_subtype<type>);
-    using result_t = detail::normalized<Ts..., type>::template apply<choice>;
-    return result_t{std::in_place_type<type>, this->invoke_to(FWD(fn))};
-  }
-
-  template <typename Fn>
-  constexpr auto transform(Fn &&fn) const & noexcept
-      -> detail::normalized<Ts..., decltype(this->invoke_to(FWD(fn)))>::template apply<choice>
-  {
-    using type = decltype(this->invoke_to(FWD(fn)));
-    static_assert(detail::_is_valid_choice_subtype<type>);
-    using result_t = detail::normalized<Ts..., type>::template apply<choice>;
-    return result_t{std::in_place_type<type>, this->invoke_to(FWD(fn))};
-  }
-
-  template <typename Fn>
-  constexpr auto transform(Fn &&fn) && noexcept
-      -> detail::normalized<Ts..., decltype(std::move(*this).invoke_to(FWD(fn)))>::template apply<choice>
-  {
-    using type = decltype(std::move(*this).invoke_to(FWD(fn)));
-    static_assert(detail::_is_valid_choice_subtype<type>);
-    using result_t = detail::normalized<Ts..., type>::template apply<choice>;
-    return result_t{std::in_place_type<type>, std::move(*this).invoke_to(FWD(fn))};
-  }
-
-  template <typename Fn>
-  constexpr auto transform(Fn &&fn) const && noexcept
-      -> detail::normalized<Ts..., decltype(std::move(*this).invoke_to(FWD(fn)))>::template apply<choice>
-  {
-    using type = decltype(std::move(*this).invoke_to(FWD(fn)));
-    static_assert(detail::_is_valid_choice_subtype<type>);
-    using result_t = detail::normalized<Ts..., type>::template apply<choice>;
-    return result_t{std::in_place_type<type>, std::move(*this).invoke_to(FWD(fn))};
+    static_assert(some_choice<decltype(std::move(*this).transform_to(FWD(fn)))>);
+    return std::move(*this).transform_to(FWD(fn));
   }
 };
 

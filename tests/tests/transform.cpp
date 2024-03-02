@@ -335,13 +335,13 @@ TEST_CASE("transform choice", "[transform][choice]")
     {
       operand_t a{12};
       using T = decltype(a | transform(fnValue));
-      static_assert(std::is_same_v<T, operand_t>);
+      static_assert(std::is_same_v<T, fn::choice<int>>);
       REQUIRE(*(a | transform(fnValue)).get_ptr<int>() == 13);
 
       WHEN("change type")
       {
         using T = decltype(a | transform(fnXabs));
-        static_assert(std::is_same_v<T, fn::choice<Xint, bool, double, int>>);
+        static_assert(std::is_same_v<T, fn::choice<Xint>>);
         REQUIRE((a | transform(fnXabs)).get_ptr<Xint>()->value == 4);
       }
     }
@@ -352,13 +352,13 @@ TEST_CASE("transform choice", "[transform][choice]")
     WHEN("operand is value")
     {
       using T = decltype(operand_t{12} | transform(fnValue));
-      static_assert(std::is_same_v<T, operand_t>);
+      static_assert(std::is_same_v<T, fn::choice<int>>);
       REQUIRE(*(operand_t{12} | transform(fnValue)).get_ptr<int>() == 13);
 
       WHEN("change type")
       {
         using T = decltype(operand_t{12} | transform(fnXabs));
-        static_assert(std::is_same_v<T, fn::choice<Xint, bool, double, int>>);
+        static_assert(std::is_same_v<T, fn::choice<Xint>>);
         REQUIRE((operand_t{12} | transform(fnXabs)).get_ptr<Xint>()->value == 4);
       }
     }
@@ -458,11 +458,11 @@ TEST_CASE("constexpr transform choice", "[transform][constexpr][choice]")
       return i;
     };
     constexpr auto r1 = T{0} | fn::transform(fn);
-    static_assert(r1.invoke_to([](int i) -> int { return i; }) == 1);
+    static_assert(r1.transform_to([](int i) -> int { return i; }) == 1);
     constexpr auto r2 = T{0.5} | fn::transform(fn);
-    static_assert(r2.invoke_to([](int i) -> int { return i; }) == 1);
+    static_assert(r2.transform_to([](int i) -> int { return i; }) == 1);
     constexpr auto r3 = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
-    static_assert(r2.invoke_to([](int i) -> int { return i; }) == 1);
+    static_assert(r2.transform_to([](int i) -> int { return i; }) == 1);
   }
 
   WHEN("different value type")
@@ -473,12 +473,12 @@ TEST_CASE("constexpr transform choice", "[transform][constexpr][choice]")
       return false;
     };
     constexpr auto r1 = T{1} | fn::transform(fn1);
-    static_assert(std::is_same_v<decltype(r1), fn::choice<bool, double, int> const>);
-    static_assert(r1.invoke_to([](bool i) -> bool { return i; }));
+    static_assert(std::is_same_v<decltype(r1), fn::choice<bool> const>);
+    static_assert(r1.transform_to([](bool i) -> bool { return i; }));
     constexpr auto r2 = T{0} | fn::transform(fn1);
-    static_assert(r2.invoke_to([](bool i) -> bool { return i; }) == false);
+    static_assert(r2.transform_to([](bool i) -> bool { return i; }) == false);
     constexpr auto r3 = T{2} | fn::transform(fn1);
-    static_assert(r3.invoke_to([](bool i) -> bool { return i; }) == false);
+    static_assert(r3.transform_to([](bool i) -> bool { return i; }) == false);
   }
 
   SUCCEED();
