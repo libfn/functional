@@ -25,7 +25,7 @@ jobs:
     - name: Prepare gcovr
       run: |
         python3 -m venv /venv
-        PATH=/venv/bin:${PATH} pip --no-cache-dir install 'gcovr<7'
+        PATH=/venv/bin:${PATH} pip --no-cache-dir install 'gcovr<8'
         echo "/venv/bin" >> $GITHUB_PATH
 
     - name: Verify compiler compatibility
