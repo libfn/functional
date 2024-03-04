@@ -266,44 +266,61 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     using type = choice<bool, int>;
 
     type const a{std::in_place_type<int>, 42};
+    static_assert(std::is_same_v<bool, decltype(a == choice{42})>);
     CHECK(a == type{42});
+    CHECK(type{42} == a);
     CHECK(a != type{41});
-    CHECK(a != type{false});
-
-    CHECK(a == type{std::in_place_type<int>, 42});
-    CHECK(a != type{std::in_place_type<int>, 41});
-    CHECK(a != type{std::in_place_type<bool>, true});
-    CHECK(not(a == type{std::in_place_type<int>, 41}));
-    CHECK(not(a == type{std::in_place_type<bool>, true}));
+    CHECK(type{41} != a);
+    CHECK(a != type{true});
+    CHECK(type{false} != a);
+    CHECK(a == choice{42});
+    CHECK(choice{42} == a);
+    CHECK(a != choice{41});
+    CHECK(choice{41} != a);
+    CHECK(a != choice{false});
+    CHECK(choice{true} != a);
+    CHECK(a == choice<double, int>{42});
+    CHECK(choice<double, int>{42} == a);
+    CHECK(a != choice<double, int>{41});
+    CHECK(choice<double, int>{41} != a);
+    CHECK(choice{0.5} != a);
+    CHECK(a != choice{0.5});
 
     WHEN("constexpr")
     {
       constexpr type a{std::in_place_type<int>, 42};
-      static_assert(a == 42);
-      static_assert(a != 41);
-      static_assert(a != false);
-      static_assert(a != true);
-      static_assert(not(a == 41));
-      static_assert(not(a == false));
-      static_assert(not(a == true));
-      static_assert(a == type{std::in_place_type<int>, 42});
-      static_assert(a != type{std::in_place_type<int>, 41});
-      static_assert(a != type{std::in_place_type<bool>, true});
-      static_assert(not(a == type{std::in_place_type<int>, 41}));
-      static_assert(not(a == type{std::in_place_type<bool>, true}));
+      static_assert(std::is_same_v<bool, decltype(a == choice{42})>);
+      static_assert(a == type{42});
+      static_assert(type{42} == a);
+      static_assert(a != type{41});
+      static_assert(type{41} != a);
+      static_assert(a != type{true});
+      static_assert(type{false} != a);
+      static_assert(a == choice{42});
+      static_assert(choice{42} == a);
+      static_assert(a != choice{41});
+      static_assert(choice{41} != a);
+      static_assert(a != choice{false});
+      static_assert(choice{true} != a);
+      static_assert(a == choice<double, int>{42});
+      static_assert(choice<double, int>{42} == a);
+      static_assert(a != choice<double, int>{41});
+      static_assert(choice<double, int>{41} != a);
+      static_assert(choice{0.5} != a);
+      static_assert(a != choice{0.5});
 
-      static_assert([](auto const &a) constexpr -> bool { //
-        return not requires { a == 0.5; };
-      }(a));                                              // double is not a type member
-      static_assert([](auto const &a) constexpr -> bool { //
-        return not requires { a != 0.5; };
-      }(a));                                              // double is not a type member
-      static_assert([](auto const &a) constexpr -> bool { //
-        return not requires { a == choice(std::in_place_type<int>, 1); };
-      }(a));                                              // type mismatch choice<int>
-      static_assert([](auto const &a) constexpr -> bool { //
-        return not requires { a != choice(std::in_place_type<int>, 1); };
-      }(a)); // type mismatch choice<int>
+      static_assert([](auto const &a) constexpr -> bool {
+        return not requires { a == 42; }; // no implicit conversion
+      }(a));
+      static_assert([](auto const &a) constexpr -> bool {
+        return not requires { a != 42; }; // no implicit conversion
+      }(a));
+      static_assert([](auto const &a) constexpr -> bool {
+        return not requires { a == 0.5; }; // no implicit conversion
+      }(a));
+      static_assert([](auto const &a) constexpr -> bool {
+        return not requires { a != 0.5; }; // no implicit conversion
+      }(a));
     }
   }
 

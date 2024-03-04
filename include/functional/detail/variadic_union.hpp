@@ -207,8 +207,7 @@ template <typename T, typename U>
 
 template <typename T, typename U>
 [[nodiscard]] constexpr U make_variadic_union(auto &&...args)
-  requires(U::template has_type<T>)
-          && (U::more_t::template has_type<T>) && std::is_constructible_v<T, decltype(args)...>
+  requires(U::template has_type<T>) && (U::more_t::template has_type<T>)
 {
   return U{.more = make_variadic_union<T, typename U::more_t>(FWD(args)...)};
 }

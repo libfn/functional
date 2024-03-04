@@ -39,7 +39,7 @@ template <typename... Ts>
   requires(sizeof...(Ts) > 0)
 struct choice<Ts...> : sum<Ts...> {
   static_assert((... && detail::_is_valid_choice_subtype<Ts>));
-  static_assert(detail::is_normal_v<Ts...>);
+  static_assert(std::same_as<typename detail::normalized<Ts...>::template apply<::fn::choice>, choice>);
   using _impl = sum<Ts...>;
 
   static constexpr std::size_t size = sizeof...(Ts);
@@ -48,17 +48,17 @@ struct choice<Ts...> : sum<Ts...> {
 
   template <typename T>
   constexpr choice(T &&v)
-    requires has_type<std::remove_reference_t<T>> && (std::is_constructible_v<std::remove_reference_t<T>, decltype(v)>)
-             && (std::is_convertible_v<decltype(v), std::remove_reference_t<T>>)
-      : _impl(std::in_place_type<std::remove_reference_t<T>>, FWD(v))
+    requires has_type<std::remove_cvref_t<T>> && (std::is_constructible_v<std::remove_cvref_t<T>, decltype(v)>)
+             && (std::is_convertible_v<decltype(v), std::remove_cvref_t<T>>)
+      : _impl(std::in_place_type<std::remove_cvref_t<T>>, FWD(v))
   {
   }
 
   template <typename T>
   constexpr explicit choice(T &&v)
-    requires has_type<std::remove_reference_t<T>> && (std::is_constructible_v<std::remove_reference_t<T>, decltype(v)>)
-             && (not std::is_convertible_v<decltype(v), std::remove_reference_t<T>>)
-      : _impl(std::in_place_type<std::remove_reference_t<T>>, FWD(v))
+    requires has_type<std::remove_cvref_t<T>> && (std::is_constructible_v<std::remove_cvref_t<T>, decltype(v)>)
+             && (not std::is_convertible_v<decltype(v), std::remove_cvref_t<T>>)
+      : _impl(std::in_place_type<std::remove_cvref_t<T>>, FWD(v))
   {
   }
 
@@ -94,18 +94,6 @@ struct choice<Ts...> : sum<Ts...> {
   constexpr choice(choice const &other) noexcept = default;
   constexpr choice(choice &&other) noexcept = default;
   constexpr ~choice() = default;
-
-  [[nodiscard]] constexpr bool operator==(choice const &rh) const noexcept
-    requires(... && std::equality_comparable<Ts>)
-  {
-    return _impl::operator==(rh);
-  }
-
-  [[nodiscard]] constexpr bool operator!=(choice const &rh) const noexcept
-    requires(... && std::equality_comparable<Ts>)
-  {
-    return not(*this == rh);
-  }
 
   // NOTE Not strictly needed, but put here for sake of documentation
   using _impl::transform_to;
@@ -206,6 +194,27 @@ struct choice<Ts...> : sum<Ts...> {
 // CTAD for single-element choice
 template <typename T> choice(std::in_place_type_t<T>, auto &&...) -> choice<T>;
 template <typename T> choice(T) -> choice<T>;
+
+template <typename... Ts, typename... Tx>
+[[nodiscard]] constexpr bool operator==(choice<Ts...> const &lh, choice<Tx...> const &rh) noexcept
+  requires(... && (std::equality_comparable<Ts> || not detail::type_one_of<Ts, Tx...>))
+          and (not std::is_same_v<choice<Ts...>, choice<Tx...>>)
+{
+  return lh.template transform_to<bool>([&rh]<typename T>(std::in_place_type_t<T> d, auto const &lh) noexcept {
+    if constexpr (std::remove_cvref_t<decltype(rh)>::template has_type<T>) {
+      return rh.has_value(d) && lh == *rh.get_ptr(d); // GCOVR_EXCL_BR_LINE
+    } else {
+      return false;
+    }
+  });
+}
+
+template <typename... Ts, typename... Tx>
+[[nodiscard]] constexpr bool operator!=(choice<Ts...> const &lh, choice<Tx...> const &rh) noexcept
+  requires(... && (std::equality_comparable<Ts> || not detail::type_one_of<Ts, Tx...>))
+{
+  return not(lh == rh);
+}
 
 template <typename... Ts> using choice_for = detail::normalized<Ts...>::template apply<choice>;
 

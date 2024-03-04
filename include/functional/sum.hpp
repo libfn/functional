@@ -124,7 +124,7 @@ template <typename... Ts>
   requires(sizeof...(Ts) > 0)
 struct sum<Ts...> {
   static_assert((... && detail::_is_valid_sum_subtype<Ts>));
-  static_assert(detail::is_normal_v<Ts...>);
+  static_assert(std::same_as<typename detail::normalized<Ts...>::template apply<::fn::sum>, sum>);
 
   using data_t = detail::variadic_union<Ts...>;
   data_t data;
@@ -136,19 +136,19 @@ struct sum<Ts...> {
 
   template <typename T>
   constexpr sum(T &&v)
-    requires has_type<std::remove_reference_t<T>> && (std::is_constructible_v<std::remove_reference_t<T>, decltype(v)>)
-                 && (std::is_convertible_v<decltype(v), std::remove_reference_t<T>>)
-      : data(detail::make_variadic_union<std::remove_reference_t<T>, data_t>(FWD(v))),
-        index(detail::type_index<std::remove_reference_t<T>, Ts...>)
+    requires has_type<std::remove_cvref_t<T>> && (std::is_constructible_v<std::remove_cvref_t<T>, decltype(v)>)
+                 && (std::is_convertible_v<decltype(v), std::remove_cvref_t<T>>)
+      : data(detail::make_variadic_union<std::remove_cvref_t<T>, data_t>(FWD(v))),
+        index(detail::type_index<std::remove_cvref_t<T>, Ts...>)
   {
   }
 
   template <typename T>
   constexpr explicit sum(T &&v)
-    requires has_type<std::remove_reference_t<T>> && (std::is_constructible_v<std::remove_reference_t<T>, decltype(v)>)
-                 && (not std::is_convertible_v<decltype(v), std::remove_reference_t<T>>)
-      : data(detail::make_variadic_union<std::remove_reference_t<T>, data_t>(FWD(v))),
-        index(detail::type_index<std::remove_reference_t<T>, Ts...>)
+    requires has_type<std::remove_cvref_t<T>> && (std::is_constructible_v<std::remove_cvref_t<T>, decltype(v)>)
+                 && (not std::is_convertible_v<decltype(v), std::remove_cvref_t<T>>)
+      : data(detail::make_variadic_union<std::remove_cvref_t<T>, data_t>(FWD(v))),
+        index(detail::type_index<std::remove_cvref_t<T>, Ts...>)
   {
   }
 
@@ -247,24 +247,6 @@ struct sum<Ts...> {
   [[nodiscard]] constexpr T const *get_ptr(std::in_place_type_t<T> = std::in_place_type<T>) const noexcept
   {
     return has_value(std::in_place_type<T>) ? detail::ptr_variadic_union<T, data_t>(data) : nullptr;
-  }
-
-  [[nodiscard]] constexpr bool operator==(sum const &other) const noexcept
-    requires(... && std::equality_comparable<Ts>)
-  {
-    return transform_to<bool>([&other]<typename T>(std::in_place_type_t<T>, auto const &lh) -> bool {
-      return other.template transform_to<bool>([&lh]<typename U>(std::in_place_type_t<U>, auto const &rh) -> bool { //
-        if constexpr (std::is_same_v<T, U>)
-          return lh == rh;
-        return false;
-      });
-    });
-  }
-
-  [[nodiscard]] constexpr bool operator!=(sum const &other) const noexcept
-    requires(... && std::equality_comparable<Ts>)
-  {
-    return not(*this == other);
   }
 
   template <typename Fn>
@@ -399,6 +381,26 @@ struct sum<Ts...> {
 // CTAD for single-element sum
 template <typename T> sum(std::in_place_type_t<T>, auto &&...) -> sum<T>;
 template <typename T> sum(T) -> sum<T>;
+
+template <typename... Ts, typename... Tx>
+[[nodiscard]] constexpr bool operator==(sum<Ts...> const &lh, sum<Tx...> const &rh) noexcept
+  requires(... && (std::equality_comparable<Ts> || not detail::type_one_of<Ts, Tx...>))
+{
+  return lh.template transform_to<bool>([&rh]<typename T>(std::in_place_type_t<T> d, auto const &lh) noexcept {
+    if constexpr (std::remove_cvref_t<decltype(rh)>::template has_type<T>) {
+      return rh.has_value(d) && lh == *rh.get_ptr(d); // GCOVR_EXCL_BR_LINE
+    } else {
+      return false;
+    }
+  });
+}
+
+template <typename... Ts, typename... Tx>
+[[nodiscard]] constexpr bool operator!=(sum<Ts...> const &lh, sum<Tx...> const &rh) noexcept
+  requires(... && (std::equality_comparable<Ts> || not detail::type_one_of<Ts, Tx...>))
+{
+  return not(lh == rh);
+}
 
 template <typename... Ts> using sum_for = detail::normalized<Ts...>::template apply<sum>;
 

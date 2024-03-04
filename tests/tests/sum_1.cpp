@@ -272,44 +272,61 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     using type = sum<bool, int>;
 
     type const a{std::in_place_type<int>, 42};
+    static_assert(std::is_same_v<bool, decltype(sum{42} == a)>);
     CHECK(a == type{42});
+    CHECK(type{42} == a);
     CHECK(a != type{41});
-    CHECK(a != type{false});
-
-    CHECK(a == type{std::in_place_type<int>, 42});
-    CHECK(a != type{std::in_place_type<int>, 41});
-    CHECK(a != type{std::in_place_type<bool>, true});
-    CHECK(not(a == type{std::in_place_type<int>, 41}));
-    CHECK(not(a == type{std::in_place_type<bool>, true}));
+    CHECK(type{41} != a);
+    CHECK(a != type{true});
+    CHECK(type{false} != a);
+    CHECK(a == sum{42});
+    CHECK(sum{42} == a);
+    CHECK(a != sum{41});
+    CHECK(sum{41} != a);
+    CHECK(a != sum{false});
+    CHECK(sum{true} != a);
+    CHECK(a == sum<double, int>{42});
+    CHECK(sum<double, int>{42} == a);
+    CHECK(a != sum<double, int>{41});
+    CHECK(sum<double, int>{41} != a);
+    CHECK(sum{0.5} != a);
+    CHECK(a != sum{0.5});
 
     WHEN("constexpr")
     {
       constexpr type a{std::in_place_type<int>, 42};
-      static_assert(a == 42);
-      static_assert(a != 41);
-      static_assert(a != false);
-      static_assert(a != true);
-      static_assert(not(a == 41));
-      static_assert(not(a == false));
-      static_assert(not(a == true));
-      static_assert(a == type{std::in_place_type<int>, 42});
-      static_assert(a != type{std::in_place_type<int>, 41});
-      static_assert(a != type{std::in_place_type<bool>, true});
-      static_assert(not(a == type{std::in_place_type<int>, 41}));
-      static_assert(not(a == type{std::in_place_type<bool>, true}));
+      static_assert(std::is_same_v<bool, decltype(a == sum{42})>);
+      static_assert(a == type{42});
+      static_assert(type{42} == a);
+      static_assert(a != type{41});
+      static_assert(type{41} != a);
+      static_assert(a != type{true});
+      static_assert(type{false} != a);
+      static_assert(a == sum{42});
+      static_assert(sum{42} == a);
+      static_assert(a != sum{41});
+      static_assert(sum{41} != a);
+      static_assert(a != sum{false});
+      static_assert(sum{true} != a);
+      static_assert(a == sum<double, int>{42});
+      static_assert(sum<double, int>{42} == a);
+      static_assert(a != sum<double, int>{41});
+      static_assert(sum<double, int>{41} != a);
+      static_assert(sum{0.5} != a);
+      static_assert(a != sum{0.5});
 
-      static_assert([](auto const &a) constexpr -> bool { //
-        return not requires { a == 0.5; };
-      }(a));                                              // double is not a type member
-      static_assert([](auto const &a) constexpr -> bool { //
-        return not requires { a != 0.5; };
-      }(a));                                              // double is not a type member
-      static_assert([](auto const &a) constexpr -> bool { //
-        return not requires { a == sum(std::in_place_type<int>, 1); };
-      }(a));                                              // type mismatch sum<int>
-      static_assert([](auto const &a) constexpr -> bool { //
-        return not requires { a != sum(std::in_place_type<int>, 1); };
-      }(a)); // type mismatch sum<int>
+      static_assert([](auto const &a) constexpr -> bool {
+        return not requires { a == 42; }; // no implicit conversion
+      }(a));
+      static_assert([](auto const &a) constexpr -> bool {
+        return not requires { a != 42; }; // no implicit conversion
+      }(a));
+      static_assert([](auto const &a) constexpr -> bool {
+        return not requires { a == 0.5; }; // no implicit conversion
+      }(a));
+      static_assert([](auto const &a) constexpr -> bool {
+        return not requires { a != 0.5; }; // no implicit conversion
+      }(a));
     }
   }
 
