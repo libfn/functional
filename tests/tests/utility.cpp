@@ -10,6 +10,7 @@
 
 #include <concepts>
 #include <type_traits>
+#include <utility>
 
 using namespace util;
 
@@ -85,7 +86,7 @@ TEST_CASE("pack", "[pack]")
   int val1 = 15;
   int const val2 = 92;
   T v{3, 14, val1, val2};
-  CHECK(v.size() == 4);
+  CHECK(v.size == 4);
 
   using is = static_check::bind<decltype([](auto &&fn) constexpr {
     return requires { std::declval<T>().invoke(fn, A{}); };
@@ -130,7 +131,7 @@ TEST_CASE("pack", "[pack]")
   constexpr auto fn3 = [](A &&dest, auto &&...) noexcept -> A { return dest; };
   static_assert(std::is_same_v<decltype(v.invoke(fn3, std::move(a))), A>);
 
-  static_assert(pack<>{}.size() == 0);
+  static_assert(pack<>::size == 0);
 
   static_assert(std::same_as<decltype(fn::pack{}), fn::pack<>>);
   static_assert(std::same_as<decltype(fn::pack{12}), fn::pack<int>>);
@@ -158,7 +159,7 @@ TEST_CASE("append value categories", "[pack][append]")
   using T = pack<int, std::string_view, A>;
   T s{12, "bar", 42};
 
-  static_assert(T::size() == 3);
+  static_assert(T::size == 3);
   constexpr auto check = [](int i, std::string_view s, A a, B const &b) noexcept -> bool {
     return i == 12 && s == std::string("bar") && a.v == 42 && b.v == 30;
   };
@@ -167,7 +168,7 @@ TEST_CASE("append value categories", "[pack][append]")
   {
     static_assert(std::same_as<decltype(s.append(std::in_place_type<B>, 5, 6)), T::append_type<B>>);
     static_assert(std::same_as<T::append_type<B>, pack<int, std::string_view, A, B>>);
-    static_assert(decltype(s.append(std::in_place_type<B>, 5, 6))::size() == 4);
+    static_assert(decltype(s.append(std::in_place_type<B>, 5, 6))::size == 4);
 
     constexpr C c1{};
     static_assert(std::same_as<decltype(s.append(std::in_place_type<B const &>, c1)), T::append_type<B const &>>);

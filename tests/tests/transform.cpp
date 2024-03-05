@@ -295,6 +295,76 @@ TEST_CASE("transform", "[transform][optional][pack]")
   }
 }
 
+TEST_CASE("transform choice", "[transform][choice]")
+{
+  using namespace fn;
+
+  using operand_t = fn::choice<bool, double, int>;
+  using operand_other_t = fn::choice<Xint>;
+  using is = monadic_static_check<transform_t, operand_t>;
+
+  constexpr auto fnValue = [](auto i) -> int { return i + 1; };
+  constexpr auto fnXabs = [](int i) -> Xint { return Xint{std::abs(8 - i)}; };
+
+  static_assert(is::invocable_with_any(fnValue));
+  static_assert(is::invocable_with_any([](int) -> operand_t { throw 0; }));                   // allow copy
+  static_assert(is::invocable_with_any([](unsigned) -> operand_t { throw 0; }));              // allow conversion
+  static_assert(is::invocable_with_any([](int) -> operand_other_t { throw 0; }));             // allow conversion
+  static_assert(is::invocable_with_any([](int const &) -> operand_t { throw 0; }));           // binds to const ref
+  static_assert(is::invocable<lvalue>([](auto &) -> operand_t { throw 0; }));                 // binds to lvalue
+  static_assert(is::invocable<rvalue, prvalue>([](auto &&) -> operand_t { throw 0; }));       // can move
+  static_assert(is::invocable<rvalue, crvalue>([](auto const &&) -> operand_t { throw 0; })); // binds to const rvalue
+
+  constexpr auto fnLvalue = fn::overload{[](bool &) -> operand_t { throw 0; },   //
+                                         [](double &) -> operand_t { throw 0; }, //
+                                         [](int &) -> operand_t { throw 0; }};
+  static_assert(is::not_invocable<clvalue, crvalue, cvalue>(fnLvalue)); // cannot remove const
+  static_assert(is::not_invocable<rvalue>(fnLvalue));                   // disallow bind
+
+  constexpr auto fnRvalue = fn::overload{[](bool &&) -> operand_t { throw 0; },   //
+                                         [](double &&) -> operand_t { throw 0; }, //
+                                         [](int &&) -> operand_t { throw 0; }};
+  static_assert(is::not_invocable<lvalue, clvalue, crvalue, cvalue>(fnRvalue));      // cannot move
+  static_assert(is::not_invocable_with_any([](int &) -> operand_t { throw 0; }));    // not enough types
+  static_assert(is::not_invocable_with_any([]() -> operand_t { throw 0; }));         // bad arity
+  static_assert(is::not_invocable_with_any([](int, int) -> operand_t { throw 0; })); // bad arity
+
+  WHEN("operand is lvalue")
+  {
+    WHEN("operand is value")
+    {
+      operand_t a{12};
+      using T = decltype(a | transform(fnValue));
+      static_assert(std::is_same_v<T, fn::choice<int>>);
+      REQUIRE(*(a | transform(fnValue)).get_ptr<int>() == 13);
+
+      WHEN("change type")
+      {
+        using T = decltype(a | transform(fnXabs));
+        static_assert(std::is_same_v<T, fn::choice<Xint>>);
+        REQUIRE((a | transform(fnXabs)).get_ptr<Xint>()->value == 4);
+      }
+    }
+  }
+
+  WHEN("operand is rvalue")
+  {
+    WHEN("operand is value")
+    {
+      using T = decltype(operand_t{12} | transform(fnValue));
+      static_assert(std::is_same_v<T, fn::choice<int>>);
+      REQUIRE(*(operand_t{12} | transform(fnValue)).get_ptr<int>() == 13);
+
+      WHEN("change type")
+      {
+        using T = decltype(operand_t{12} | transform(fnXabs));
+        static_assert(std::is_same_v<T, fn::choice<Xint>>);
+        REQUIRE((operand_t{12} | transform(fnXabs)).get_ptr<Xint>()->value == 4);
+      }
+    }
+  }
+}
+
 TEST_CASE("constexpr transform expected", "[transform][constexpr][expected]")
 {
   enum class Error { ThresholdExceeded, SomethingElse };
@@ -371,6 +441,44 @@ TEST_CASE("constexpr transform optional", "[transform][constexpr][optional]")
     static_assert(r3.value() == false);
     constexpr auto r4 = T{} | fn::transform(fn1);
     static_assert(not r4.has_value());
+  }
+
+  SUCCEED();
+}
+
+TEST_CASE("constexpr transform choice", "[transform][constexpr][choice]")
+{
+  using T = fn::choice<double, int>;
+
+  WHEN("same value type")
+  {
+    constexpr auto fn = [](int i) constexpr noexcept -> int {
+      if (i < 1)
+        return i + 1;
+      return i;
+    };
+    constexpr auto r1 = T{0} | fn::transform(fn);
+    static_assert(r1.transform_to([](int i) -> int { return i; }) == 1);
+    constexpr auto r2 = T{0.5} | fn::transform(fn);
+    static_assert(r2.transform_to([](int i) -> int { return i; }) == 1);
+    constexpr auto r3 = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
+    static_assert(r2.transform_to([](int i) -> int { return i; }) == 1);
+  }
+
+  WHEN("different value type")
+  {
+    constexpr auto fn1 = [](int i) constexpr noexcept -> bool {
+      if (i == 1)
+        return true;
+      return false;
+    };
+    constexpr auto r1 = T{1} | fn::transform(fn1);
+    static_assert(std::is_same_v<decltype(r1), fn::choice<bool> const>);
+    static_assert(r1.transform_to([](bool i) -> bool { return i; }));
+    constexpr auto r2 = T{0} | fn::transform(fn1);
+    static_assert(r2.transform_to([](bool i) -> bool { return i; }) == false);
+    constexpr auto r3 = T{2} | fn::transform(fn1);
+    static_assert(r3.transform_to([](bool i) -> bool { return i; }) == false);
   }
 
   SUCCEED();

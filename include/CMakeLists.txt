@@ -8,9 +8,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Pls keep the filenames sorted
 set(INCLUDE_SOURCE_FILES
     functional/detail/fwd_macro.hpp
+    functional/detail/meta.hpp
     functional/detail/pack.hpp
     functional/detail/traits.hpp
+    functional/detail/variadic_union.hpp
     functional/and_then.hpp
+    functional/choice.hpp
     functional/concepts.hpp
     functional/expected.hpp
     functional/fail.hpp
@@ -22,6 +25,7 @@ set(INCLUDE_SOURCE_FILES
     functional/optional.hpp
     functional/or_else.hpp
     functional/recover.hpp
+    functional/sum.hpp
     functional/transform_error.hpp
     functional/transform.hpp
     functional/utility.hpp

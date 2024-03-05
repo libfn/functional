@@ -8,7 +8,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Pls keep the filenames sorted
 set(TESTS_SOURCE_FILES
     detail/fwd_macro.cpp
+    detail/meta.cpp
+    detail/variadic_union.cpp
     and_then.cpp
+    choice.cpp
     concepts.cpp
     expected.cpp
     fail.cpp
@@ -19,6 +22,9 @@ set(TESTS_SOURCE_FILES
     optional.cpp
     or_else.cpp
     recover.cpp
+    sum_1.cpp
+    sum_2.cpp
+    sum_3.cpp
     transform_error.cpp
     transform.cpp
     utility.cpp
