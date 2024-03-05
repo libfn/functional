@@ -192,8 +192,8 @@ struct choice<Ts...> : sum<Ts...> {
 };
 
 // CTAD for single-element choice
-template <typename T> choice(std::in_place_type_t<T>, auto &&...) -> choice<T>;
-template <typename T> choice(T) -> choice<T>;
+template <typename T> explicit choice(std::in_place_type_t<T>, auto &&...) -> choice<T>;
+template <typename T> explicit choice(T) -> choice<T>;
 
 template <typename... Ts, typename... Tx>
 [[nodiscard]] constexpr bool operator==(choice<Ts...> const &lh, choice<Tx...> const &rh) noexcept

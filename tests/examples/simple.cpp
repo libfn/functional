@@ -300,8 +300,7 @@ TEST_CASE("Demo choice", "[choice][and_then][inspect][transform]")
   CHECK(parse("10.25") == fn::choice(10.25));
   CHECK(parse("2e9") == fn::choice(2e9));
   CHECK(parse("5e9") == fn::choice(5e9));
-  CHECK(parse("foo").transform(fn::overload([](std::nullopt_t) { return true; }, [](auto const &) { return false; }))
-        == fn::choice{true});
+  CHECK(parse("foo").has_value(std::in_place_type<std::nullopt_t>));
 
   std::ostringstream ss;
   auto fn = [parse, &ss](auto const &v) {
@@ -320,9 +319,11 @@ TEST_CASE("Demo choice", "[choice][and_then][inspect][transform]")
                  return {FWD(v)};
                },
                [](auto &i) { return FWD(i); }))
-           | fn::inspect(fn::overload{[&](std::nullptr_t const &) { ss << "nullptr"; }, [&](bool const &v) { ss << v; },
-                                      [&](int const &v) { ss << v; }, [&](double const &v) { ss << v; },
-                                      [&](std::string_view const &v) { ss << v; }});
+           | fn::inspect(fn::overload{[&](std::nullptr_t const &) { ss << "nullptr" << ','; }, //
+                                      [&](bool const &v) { ss << v << ','; },                  //
+                                      [&](int const &v) { ss << v << ','; },                   //
+                                      [&](double const &v) { ss << v << ','; },                //
+                                      [&](std::string_view const &v) { ss << v << ','; }});
   };
 
   auto const a = fn("true");
@@ -333,5 +334,5 @@ TEST_CASE("Demo choice", "[choice][and_then][inspect][transform]")
   CHECK(fn("5e9") == fn::choice(5e9));
   CHECK(fn("") == fn::choice(nullptr));
   CHECK(fn("foo") == fn::choice(nullptr));
-  CHECK(ss.str() == "112320000000005e+09nullptrnullptr");
+  CHECK(ss.str() == "1,123,2000000000,5e+09,nullptr,nullptr,");
 }

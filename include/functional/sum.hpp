@@ -379,8 +379,8 @@ struct sum<Ts...> {
 };
 
 // CTAD for single-element sum
-template <typename T> sum(std::in_place_type_t<T>, auto &&...) -> sum<T>;
-template <typename T> sum(T) -> sum<T>;
+template <typename T> explicit sum(std::in_place_type_t<T>, auto &&...) -> sum<T>;
+template <typename T> explicit sum(T) -> sum<T>;
 
 template <typename... Ts, typename... Tx>
 [[nodiscard]] constexpr bool operator==(sum<Ts...> const &lh, sum<Tx...> const &rh) noexcept
