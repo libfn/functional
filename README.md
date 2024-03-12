@@ -1,4 +1,4 @@
-[![codecov](https://codecov.io/gh/Bronek/functional/graph/badge.svg?token=3RHT38SEU0)](https://codecov.io/gh/Bronek/functional)
+[![codecov](https://codecov.io/gh/libfn/functional/graph/badge.svg?token=3RHT38SEU0)](https://codecov.io/gh/libfn/functional)
 
 # functional
 
