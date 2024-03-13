@@ -15,18 +15,6 @@
 
 namespace fn {
 
-template <typename... Ts> struct sum;
-template <> struct sum<>; // Intentionally incomplete
-
-namespace detail {
-template <typename... Ts> constexpr bool _is_sum = false;
-template <typename... Ts> constexpr bool _is_sum<sum<Ts...> &> = true;
-template <typename... Ts> constexpr bool _is_sum<sum<Ts...> const &> = true;
-} // namespace detail
-
-template <typename T>
-concept some_sum = detail::_is_sum<T &>;
-
 namespace detail {
 template <typename T> constexpr bool _is_in_place_type = false;
 template <typename T> constexpr bool _is_in_place_type<::std::in_place_type_t<T> &> = true;
@@ -119,6 +107,9 @@ template <typename Fn, typename Self> struct _invoke_type_result<_collapsing_sum
 };
 
 } // namespace detail
+
+template <typename... Ts> struct sum;
+template <> struct sum<>; // Intentionally incomplete
 
 template <typename... Ts>
   requires(sizeof...(Ts) > 0)

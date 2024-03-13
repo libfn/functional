@@ -24,6 +24,7 @@ set(INCLUDE_SOURCE_FILES
     functional/inspect.hpp
     functional/optional.hpp
     functional/or_else.hpp
+    functional/pack.hpp
     functional/recover.hpp
     functional/sum.hpp
     functional/transform_error.hpp

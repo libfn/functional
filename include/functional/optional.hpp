@@ -7,6 +7,7 @@
 #define INCLUDE_FUNCTIONAL_OPTIONAL
 
 #include "functional/detail/fwd_macro.hpp"
+#include "functional/pack.hpp"
 #include "functional/utility.hpp"
 
 #include <concepts>

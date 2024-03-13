@@ -7,6 +7,7 @@
 #define INCLUDE_FUNCTIONAL_FUNCTOR
 
 #include "functional/concepts.hpp"
+#include "functional/pack.hpp"
 #include "functional/utility.hpp"
 
 #include <concepts>

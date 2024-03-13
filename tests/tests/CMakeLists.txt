@@ -21,6 +21,7 @@ set(TESTS_SOURCE_FILES
     inspect.cpp
     optional.cpp
     or_else.cpp
+    pack.cpp
     recover.cpp
     sum_1.cpp
     sum_2.cpp
