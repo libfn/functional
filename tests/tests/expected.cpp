@@ -427,7 +427,7 @@ TEST_CASE("expected polyfills and_then", "[expected][polyfill][and_then]")
   }
 }
 
-TEST_CASE("expected polyfills or_else", "[expected][polyfill][or_else]")
+TEST_CASE("expected polyfills or_else", "[expected][polyfill][or_else][pack]")
 {
   WHEN("value")
   {
@@ -466,6 +466,38 @@ TEST_CASE("expected polyfills or_else", "[expected][polyfill][or_else]")
                                  [](Error const &) -> fn::expected<int, Error> { throw 0; },
                                  [](Error &&) -> fn::expected<int, Error> { throw 0; },
                                  [](Error const &&e) -> fn::expected<int, Error> { return e == FileNotFound; })) //
+                .value());
+    }
+
+    WHEN("pack error")
+    {
+      fn::expected<int, fn::pack<int, Error>> s{std::unexpect, fn::pack{12, FileNotFound}};
+      CHECK(s.or_else( //
+                 fn::overload([](int, Error &e) -> fn::expected<int, Error> { return e == FileNotFound; },
+                              [](int, Error const &) -> fn::expected<int, Error> { throw 0; },
+                              [](int, Error &&) -> fn::expected<int, Error> { throw 0; },
+                              [](int, Error const &&) -> fn::expected<int, Error> { throw 0; })) //
+                .value());
+      CHECK(std::as_const(s)
+                .or_else( //
+                    fn::overload([](int, Error &) -> fn::expected<int, Error> { throw 0; },
+                                 [](int, Error const &e) -> fn::expected<int, Error> { return e == FileNotFound; },
+                                 [](int, Error &&) -> fn::expected<int, Error> { throw 0; },
+                                 [](int, Error const &&) -> fn::expected<int, Error> { throw 0; })) //
+                .value());
+      CHECK(std::move(std::as_const(s))
+                .or_else( //
+                    fn::overload([](int, Error &) -> fn::expected<int, Error> { throw 0; },
+                                 [](int, Error const &) -> fn::expected<int, Error> { throw 0; },
+                                 [](int, Error &&) -> fn::expected<int, Error> { throw 0; },
+                                 [](int, Error const &&e) -> fn::expected<int, Error> { return e == FileNotFound; })) //
+                .value());
+      CHECK(std::move(s)
+                .or_else( //
+                    fn::overload([](int, Error &) -> fn::expected<int, Error> { throw 0; },
+                                 [](int, Error const &) -> fn::expected<int, Error> { throw 0; },
+                                 [](int, Error &&e) -> fn::expected<int, Error> { return e == FileNotFound; },
+                                 [](int, Error const &&) -> fn::expected<int, Error> { throw 0; })) //
                 .value());
     }
   }
@@ -507,6 +539,38 @@ TEST_CASE("expected polyfills or_else", "[expected][polyfill][or_else]")
                                  [](Error const &) -> fn::expected<void, Error> { throw 0; },
                                  [](Error &&) -> fn::expected<void, Error> { throw 0; },
                                  [](Error const &&) -> fn::expected<void, Error> { return {}; }))
+                .has_value());
+    }
+
+    WHEN("pack error")
+    {
+      fn::expected<void, fn::pack<int, Error>> s{std::unexpect, fn::pack{12, FileNotFound}};
+      CHECK(s.or_else( //
+                 fn::overload([](int, Error &) -> fn::expected<void, Error> { return {}; },
+                              [](int, Error const &) -> fn::expected<void, Error> { throw 0; },
+                              [](int, Error &&) -> fn::expected<void, Error> { throw 0; },
+                              [](int, Error const &&) -> fn::expected<void, Error> { throw 0; }))
+                .has_value());
+      CHECK(std::as_const(s)
+                .or_else( //
+                    fn::overload([](int, Error &) -> fn::expected<void, Error> { throw 0; },
+                                 [](int, Error const &) -> fn::expected<void, Error> { return {}; },
+                                 [](int, Error &&) -> fn::expected<void, Error> { throw 0; },
+                                 [](int, Error const &&) -> fn::expected<void, Error> { throw 0; }))
+                .has_value());
+      CHECK(std::move(std::as_const(s))
+                .or_else( //
+                    fn::overload([](int, Error &) -> fn::expected<void, Error> { throw 0; },
+                                 [](int, Error const &) -> fn::expected<void, Error> { throw 0; },
+                                 [](int, Error &&) -> fn::expected<void, Error> { throw 0; },
+                                 [](int, Error const &&) -> fn::expected<void, Error> { return {}; }))
+                .has_value());
+      CHECK(std::move(s)
+                .or_else( //
+                    fn::overload([](int, Error &) -> fn::expected<void, Error> { throw 0; },
+                                 [](int, Error const &) -> fn::expected<void, Error> { throw 0; },
+                                 [](int, Error &&) -> fn::expected<void, Error> { return {}; },
+                                 [](int, Error const &&) -> fn::expected<void, Error> { throw 0; }))
                 .has_value());
     }
   }
@@ -600,7 +664,7 @@ TEST_CASE("expected polyfills transform", "[expected][polyfill][transform]")
   }
 }
 
-TEST_CASE("expected polyfills transform_error", "[expected][polyfill][transform_error]")
+TEST_CASE("expected polyfills transform_error", "[expected][polyfill][transform_error][pack]")
 {
   WHEN("value")
   {
@@ -637,6 +701,35 @@ TEST_CASE("expected polyfills transform_error", "[expected][polyfill][transform_
                                  [](Error const &&e) -> bool { return e == FileNotFound; })) //
                 .error());
     }
+
+    WHEN("pack error")
+    {
+      fn::expected<int, fn::pack<int, Error>> s{std::unexpect, fn::pack{12, FileNotFound}};
+      CHECK(s.transform_error( //
+                 fn::overload([](int, Error &e) -> bool { return e == FileNotFound; },
+                              [](int, Error const &) -> bool { throw 0; }, [](int, Error &&) -> bool { throw 0; },
+                              [](int, Error const &&) -> bool { throw 0; })) //
+                .error());
+      CHECK(
+          std::as_const(s)
+              .transform_error( //
+                  fn::overload([](int, Error &) -> bool { throw 0; },
+                               [](int, Error const &e) -> bool { return e == FileNotFound; },
+                               [](int, Error &&) -> bool { throw 0; }, [](int, Error const &&) -> bool { throw 0; })) //
+              .error());
+      CHECK(std::move(std::as_const(s))
+                .transform_error( //
+                    fn::overload([](int, Error &) -> bool { throw 0; }, [](int, Error const &) -> bool { throw 0; },
+                                 [](int, Error &&) -> bool { throw 0; },
+                                 [](int, Error const &&e) -> bool { return e == FileNotFound; })) //
+                .error());
+      CHECK(std::move(s)
+                .transform_error( //
+                    fn::overload([](int, Error &) -> bool { throw 0; }, [](int, Error const &) -> bool { throw 0; },
+                                 [](int, Error &&e) -> bool { return e == FileNotFound; },
+                                 [](int, Error const &&) -> bool { throw 0; })) //
+                .error());
+    }
   }
 
   WHEN("void")
@@ -668,6 +761,32 @@ TEST_CASE("expected polyfills transform_error", "[expected][polyfill][transform_
                 .transform_error( //
                     fn::overload([](Error &) -> bool { throw 0; }, [](Error const &) -> bool { throw 0; },
                                  [](Error &&) -> bool { throw 0; }, [](Error const &&) -> bool { return true; }))
+                .error());
+    }
+
+    WHEN("pack error")
+    {
+      fn::expected<void, fn::pack<int, Error>> s{std::unexpect, fn::pack{12, FileNotFound}};
+      CHECK(s.transform_error( //
+                 fn::overload([](int, Error &) -> bool { return true; }, [](int, Error const &) -> bool { throw 0; },
+                              [](int, Error &&) -> bool { throw 0; }, [](int, Error const &&) -> bool { throw 0; }))
+                .error());
+      CHECK(std::as_const(s)
+                .transform_error( //
+                    fn::overload([](int, Error &) -> bool { throw 0; }, [](int, Error const &) -> bool { return true; },
+                                 [](int, Error &&) -> bool { throw 0; }, [](int, Error const &&) -> bool { throw 0; }))
+                .error());
+      CHECK(std::move(std::as_const(s))
+                .transform_error( //
+                    fn::overload([](int, Error &) -> bool { throw 0; }, [](int, Error const &) -> bool { throw 0; },
+                                 [](int, Error &&) -> bool { throw 0; },
+                                 [](int, Error const &&) -> bool { return true; }))
+                .error());
+      CHECK(std::move(s)
+                .transform_error( //
+                    fn::overload([](int, Error &) -> bool { throw 0; }, [](int, Error const &) -> bool { throw 0; },
+                                 [](int, Error &&) -> bool { return true; },
+                                 [](int, Error const &&) -> bool { throw 0; }))
                 .error());
     }
   }

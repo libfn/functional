@@ -16,11 +16,13 @@ set(TESTS_SOURCE_FILES
     expected.cpp
     fail.cpp
     filter.cpp
+    functional.cpp
     functor.cpp
     inspect_error.cpp
     inspect.cpp
     optional.cpp
     or_else.cpp
+    pack.cpp
     recover.cpp
     sum_1.cpp
     sum_2.cpp

@@ -79,7 +79,7 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
     {
       using T = sum<std::string>;
       T a{std::in_place_type<std::string>, "baz"};
-      CHECK(a.transform_to([](auto &&i) { return i; }) == "baz");
+      CHECK(a.invoke([](auto &&i) { return i; }) == "baz");
 
       static_assert([](auto &&a) { // OK copy
         return requires { static_cast<T>(FWD(a)); };
@@ -95,18 +95,18 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
       }(std::move(std::as_const(a))));
 
       T b{a};
-      CHECK(a.transform_to([](auto &&i) { return i; }) == "baz");
-      CHECK(b.transform_to([](auto &&i) { return i; }) == "baz");
+      CHECK(a.invoke([](auto &&i) { return i; }) == "baz");
+      CHECK(b.invoke([](auto &&i) { return i; }) == "baz");
 
       T c{std::move(a)};
-      CHECK(c.transform_to([](auto &&i) { return i; }) == "baz");
+      CHECK(c.invoke([](auto &&i) { return i; }) == "baz");
     }
 
     WHEN("mixed with other types")
     {
       using T = sum<std::string, std::string_view>;
       T a{std::in_place_type<std::string>, "baz"};
-      CHECK(a.transform_to([](auto &&i) { return std::string(i); }) == "baz");
+      CHECK(a.invoke([](auto &&i) { return std::string(i); }) == "baz");
 
       static_assert([](auto &&a) { // OK copy
         return requires { static_cast<T>(FWD(a)); };
@@ -122,11 +122,11 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
       }(std::move(std::as_const(a))));
 
       T b{a};
-      CHECK(a.transform_to([](auto &&i) { return std::string(i); }) == "baz");
-      CHECK(b.transform_to([](auto &&i) { return std::string(i); }) == "baz");
+      CHECK(a.invoke([](auto &&i) { return std::string(i); }) == "baz");
+      CHECK(b.invoke([](auto &&i) { return std::string(i); }) == "baz");
 
       T c{std::move(a)};
-      CHECK(c.transform_to([](auto &&i) { return std::string(i); }) == "baz");
+      CHECK(c.invoke([](auto &&i) { return std::string(i); }) == "baz");
     }
   }
 
@@ -136,7 +136,7 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
     {
       using T = sum<CopyOnly>;
       T a{std::in_place_type<CopyOnly>, 12};
-      CHECK(a.transform_to([](auto &&i) { return static_cast<int>(i); }) == 12);
+      CHECK(a.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
 
       static_assert([](auto &&a) { // OK copy
         return requires { static_cast<T>(FWD(a)); };
@@ -152,15 +152,15 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
       }(std::move(std::as_const(a))));
 
       T b{a};
-      CHECK(a.transform_to([](auto &&i) { return static_cast<int>(i); }) == 12);
-      CHECK(b.transform_to([](auto &&i) { return static_cast<int>(i); }) == 12);
+      CHECK(a.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
+      CHECK(b.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
     }
 
     WHEN("mixed with other types")
     {
       using T = sum<CopyOnly, double, int>;
       T a{std::in_place_type<CopyOnly>, 12};
-      CHECK(a.transform_to([](auto &&i) { return static_cast<int>(i); }) == 12);
+      CHECK(a.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
 
       static_assert([](auto &&a) { // OK copy
         return requires { static_cast<T>(FWD(a)); };
@@ -176,8 +176,8 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
       }(std::move(std::as_const(a))));
 
       T b{a};
-      CHECK(a.transform_to([](auto &&i) { return static_cast<int>(i); }) == 12);
-      CHECK(b.transform_to([](auto &&i) { return static_cast<int>(i); }) == 12);
+      CHECK(a.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
+      CHECK(b.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
     }
   }
 
@@ -187,7 +187,7 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
     {
       using T = sum<MoveOnly>;
       T a{std::in_place_type<MoveOnly>, 12};
-      CHECK(a.transform_to([](auto &&i) { return static_cast<int>(i); }) == 12);
+      CHECK(a.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
 
       static_assert([](auto &&a) { // cannot copy from lvalue
         return not requires { static_cast<T>(FWD(a)); };
@@ -203,15 +203,15 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
       }(std::move(std::as_const(a))));
 
       T b{std::move(a)};
-      CHECK(a.transform_to([](auto &&i) { return static_cast<int>(i); }) == -1);
-      CHECK(b.transform_to([](auto &&i) { return static_cast<int>(i); }) == 12);
+      CHECK(a.invoke([](auto &&i) { return static_cast<int>(i); }) == -1);
+      CHECK(b.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
     }
 
     WHEN("mixed with other types")
     {
       using T = sum<MoveOnly, double, int>;
       T a{std::in_place_type<MoveOnly>, 12};
-      CHECK(a.transform_to([](auto &&i) { return static_cast<int>(i); }) == 12);
+      CHECK(a.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
 
       static_assert([](auto &&a) { // cannot copy from lvalue
         return not requires { static_cast<T>(FWD(a)); };
@@ -227,8 +227,8 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
       }(std::move(std::as_const(a))));
 
       T b{std::move(a)};
-      CHECK(a.transform_to([](auto &&i) { return static_cast<int>(i); }) == -1);
-      CHECK(b.transform_to([](auto &&i) { return static_cast<int>(i); }) == 12);
+      CHECK(a.invoke([](auto &&i) { return static_cast<int>(i); }) == -1);
+      CHECK(b.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
     }
   }
 
@@ -238,7 +238,7 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
     {
       using T = sum<NonCopyable>;
       T a{std::in_place_type<NonCopyable>, 12};
-      CHECK(a.transform_to([](auto &&i) { return static_cast<int>(i); }) == 12);
+      CHECK(a.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
 
       static_assert([](auto &&a) { // cannot copy from lvalue
         return not requires { static_cast<T>(FWD(a)); };
@@ -258,7 +258,7 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
     {
       using T = sum<NonCopyable, double, int>;
       T a{std::in_place_type<NonCopyable>, 12};
-      CHECK(a.transform_to([](auto &&i) { return static_cast<int>(i); }) == 12);
+      CHECK(a.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
 
       static_assert([](auto &&a) { // cannot copy from lvalue
         return not requires { static_cast<T>(FWD(a)); };
@@ -292,7 +292,7 @@ TEST_CASE("sum", "[sum][has_value][get_ptr]")
   static_assert(not decltype(a)::template has_type<int>);
   static_assert(a.has_value(std::in_place_type<std::array<int, 3>>));
   static_assert(a.template has_value<std::array<int, 3>>());
-  static_assert(a.transform_to([](auto &i) -> bool {
+  static_assert(a.invoke([](auto &i) -> bool {
     return std::same_as<std::array<int, 3> const &, decltype(i)> && i.size() == 3 && i[0] == 3 && i[1] == 14
            && i[2] == 15;
   }));
@@ -309,22 +309,22 @@ TEST_CASE("sum", "[sum][has_value][get_ptr]")
     CHECK(a.template has_value<int>());
     CHECK(a.has_value(std::in_place_type<int>));
 
-    static_assert(fn::detail::typelist_invocable<decltype(fn1), decltype(a)>);
-    static_assert(fn::detail::typelist_invocable<decltype(fn2), decltype(a)>);
-    static_assert(not fn::detail::typelist_type_invocable<decltype(fn1), decltype(a)>);
-    static_assert(fn::detail::typelist_invocable<decltype(fn2), decltype(a)>);
-    static_assert(fn::detail::typelist_invocable<decltype(fn3), decltype(a) &>);
-    static_assert(fn::detail::typelist_type_invocable<decltype(fn4), decltype(a) &>);
-    static_assert(not fn::detail::typelist_invocable<decltype(fn3), decltype(a) const &>);
-    static_assert(not fn::detail::typelist_type_invocable<decltype(fn4), decltype(a) const &>);
-    static_assert(not fn::detail::typelist_invocable<decltype(fn3), decltype(a)>);
-    static_assert(not fn::detail::typelist_type_invocable<decltype(fn4), decltype(a)>);
-    static_assert(not fn::detail::typelist_invocable<decltype(fn3), decltype(a) const>);
-    static_assert(not fn::detail::typelist_type_invocable<decltype(fn4), decltype(a) const>);
-    static_assert(not fn::detail::typelist_invocable<decltype(fn3), decltype(a) &&>);
-    static_assert(not fn::detail::typelist_type_invocable<decltype(fn4), decltype(a) &&>);
-    static_assert(not fn::detail::typelist_invocable<decltype(fn3), decltype(a) const &&>);
-    static_assert(not fn::detail::typelist_type_invocable<decltype(fn4), decltype(a) const &&>);
+    static_assert(fn::typelist_invocable<decltype(fn1), decltype(a)>);
+    static_assert(fn::typelist_invocable<decltype(fn2), decltype(a)>);
+    static_assert(not fn::typelist_type_invocable<decltype(fn1), decltype(a)>);
+    static_assert(fn::typelist_invocable<decltype(fn2), decltype(a)>);
+    static_assert(fn::typelist_invocable<decltype(fn3), decltype(a) &>);
+    static_assert(fn::typelist_type_invocable<decltype(fn4), decltype(a) &>);
+    static_assert(not fn::typelist_invocable<decltype(fn3), decltype(a) const &>);
+    static_assert(not fn::typelist_type_invocable<decltype(fn4), decltype(a) const &>);
+    static_assert(not fn::typelist_invocable<decltype(fn3), decltype(a)>);
+    static_assert(not fn::typelist_type_invocable<decltype(fn4), decltype(a)>);
+    static_assert(not fn::typelist_invocable<decltype(fn3), decltype(a) const>);
+    static_assert(not fn::typelist_type_invocable<decltype(fn4), decltype(a) const>);
+    static_assert(not fn::typelist_invocable<decltype(fn3), decltype(a) &&>);
+    static_assert(not fn::typelist_type_invocable<decltype(fn4), decltype(a) &&>);
+    static_assert(not fn::typelist_invocable<decltype(fn3), decltype(a) const &&>);
+    static_assert(not fn::typelist_type_invocable<decltype(fn4), decltype(a) const &&>);
 
     static_assert(std::is_same_v<decltype(a.get_ptr(std::in_place_type<int>)), int *>);
     CHECK(a.get_ptr(std::in_place_type<int>) == &a.data.v0);
@@ -358,8 +358,8 @@ TEST_CASE("sum", "[sum][has_value][get_ptr]")
 
       constexpr auto fn5 = [](auto &) {};
       constexpr auto fn6 = [](some_in_place_type auto, auto...) {};
-      static_assert(fn::detail::typelist_invocable<decltype(fn5), decltype(a) &>);
-      static_assert(fn::detail::typelist_type_invocable<decltype(fn6), decltype(a) &>);
+      static_assert(fn::typelist_invocable<decltype(fn5), decltype(a) &>);
+      static_assert(fn::typelist_type_invocable<decltype(fn6), decltype(a) &>);
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), double *>);
       CHECK(a.get_ptr(element) == &a.data.v0);
@@ -380,10 +380,10 @@ TEST_CASE("sum", "[sum][has_value][get_ptr]")
       CHECK(a.template has_value<int>());
       CHECK(a.has_value(std::in_place_type<int>));
 
-      static_assert(fn::detail::typelist_invocable<decltype(fn1), decltype(a)>);
-      static_assert(fn::detail::typelist_invocable<decltype(fn2), decltype(a)>);
-      static_assert(not fn::detail::typelist_type_invocable<decltype(fn1), decltype(a)>);
-      static_assert(fn::detail::typelist_invocable<decltype(fn2), decltype(a)>);
+      static_assert(fn::typelist_invocable<decltype(fn1), decltype(a)>);
+      static_assert(fn::typelist_invocable<decltype(fn2), decltype(a)>);
+      static_assert(not fn::typelist_type_invocable<decltype(fn1), decltype(a)>);
+      static_assert(fn::typelist_invocable<decltype(fn2), decltype(a)>);
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), int *>);
       CHECK(a.get_ptr(element) == &a.data.v1);
@@ -420,8 +420,8 @@ TEST_CASE("sum", "[sum][has_value][get_ptr]")
 
       constexpr auto fn5 = [](auto &) {};
       constexpr auto fn6 = [](some_in_place_type auto, auto...) {};
-      static_assert(fn::detail::typelist_invocable<decltype(fn5), decltype(a) &>);
-      static_assert(fn::detail::typelist_type_invocable<decltype(fn6), decltype(a) &>);
+      static_assert(fn::typelist_invocable<decltype(fn5), decltype(a) &>);
+      static_assert(fn::typelist_type_invocable<decltype(fn6), decltype(a) &>);
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), double *>);
       CHECK(a.get_ptr(element) == &a.data.v0);
@@ -444,10 +444,10 @@ TEST_CASE("sum", "[sum][has_value][get_ptr]")
       CHECK(not a.template has_value<std::string_view>());
       CHECK(not a.has_value(std::in_place_type<std::string_view>));
 
-      static_assert(fn::detail::typelist_invocable<decltype(fn1), decltype(a)>);
-      static_assert(fn::detail::typelist_invocable<decltype(fn2), decltype(a)>);
-      static_assert(not fn::detail::typelist_type_invocable<decltype(fn1), decltype(a)>);
-      static_assert(fn::detail::typelist_invocable<decltype(fn2), decltype(a)>);
+      static_assert(fn::typelist_invocable<decltype(fn1), decltype(a)>);
+      static_assert(fn::typelist_invocable<decltype(fn2), decltype(a)>);
+      static_assert(not fn::typelist_type_invocable<decltype(fn1), decltype(a)>);
+      static_assert(fn::typelist_invocable<decltype(fn2), decltype(a)>);
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), int *>);
       CHECK(a.get_ptr(element) == &a.data.v1);
@@ -472,8 +472,8 @@ TEST_CASE("sum", "[sum][has_value][get_ptr]")
 
       constexpr auto fn5 = [](auto &) {};
       constexpr auto fn6 = [](some_in_place_type auto, auto...) {};
-      static_assert(fn::detail::typelist_invocable<decltype(fn5), decltype(a) &>);
-      static_assert(fn::detail::typelist_type_invocable<decltype(fn6), decltype(a) &>);
+      static_assert(fn::typelist_invocable<decltype(fn5), decltype(a) &>);
+      static_assert(fn::typelist_type_invocable<decltype(fn6), decltype(a) &>);
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), std::string_view *>);
       CHECK(a.get_ptr(element) == &a.data.v2);
@@ -515,8 +515,8 @@ TEST_CASE("sum", "[sum][has_value][get_ptr]")
 
       constexpr auto fn5 = [](auto &) {};
       constexpr auto fn6 = [](some_in_place_type auto, auto...) {};
-      static_assert(fn::detail::typelist_invocable<decltype(fn5), decltype(a) &>);
-      static_assert(fn::detail::typelist_type_invocable<decltype(fn6), decltype(a) &>);
+      static_assert(fn::typelist_invocable<decltype(fn5), decltype(a) &>);
+      static_assert(fn::typelist_type_invocable<decltype(fn6), decltype(a) &>);
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), double *>);
       CHECK(a.get_ptr(element) == &a.data.v0);
@@ -541,10 +541,10 @@ TEST_CASE("sum", "[sum][has_value][get_ptr]")
       CHECK(not a.template has_value<std::string_view>());
       CHECK(not a.has_value(std::in_place_type<std::string_view>));
 
-      static_assert(fn::detail::typelist_invocable<decltype(fn1), decltype(a)>);
-      static_assert(fn::detail::typelist_invocable<decltype(fn2), decltype(a)>);
-      static_assert(not fn::detail::typelist_type_invocable<decltype(fn1), decltype(a)>);
-      static_assert(fn::detail::typelist_invocable<decltype(fn2), decltype(a)>);
+      static_assert(fn::typelist_invocable<decltype(fn1), decltype(a)>);
+      static_assert(fn::typelist_invocable<decltype(fn2), decltype(a)>);
+      static_assert(not fn::typelist_type_invocable<decltype(fn1), decltype(a)>);
+      static_assert(fn::typelist_invocable<decltype(fn2), decltype(a)>);
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), int *>);
       CHECK(a.get_ptr(element) == &a.data.v1);
@@ -571,8 +571,8 @@ TEST_CASE("sum", "[sum][has_value][get_ptr]")
 
       constexpr auto fn5 = [](auto &) {};
       constexpr auto fn6 = [](some_in_place_type auto, auto...) {};
-      static_assert(fn::detail::typelist_invocable<decltype(fn5), decltype(a) &>);
-      static_assert(fn::detail::typelist_type_invocable<decltype(fn6), decltype(a) &>);
+      static_assert(fn::typelist_invocable<decltype(fn5), decltype(a) &>);
+      static_assert(fn::typelist_type_invocable<decltype(fn6), decltype(a) &>);
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), std::string *>);
       CHECK(a.get_ptr(element) == &a.data.v2);
@@ -599,8 +599,8 @@ TEST_CASE("sum", "[sum][has_value][get_ptr]")
 
       constexpr auto fn5 = [](auto &) {};
       constexpr auto fn6 = [](some_in_place_type auto, auto...) {};
-      static_assert(fn::detail::typelist_invocable<decltype(fn5), decltype(a) &>);
-      static_assert(fn::detail::typelist_type_invocable<decltype(fn6), decltype(a) &>);
+      static_assert(fn::typelist_invocable<decltype(fn5), decltype(a) &>);
+      static_assert(fn::typelist_type_invocable<decltype(fn6), decltype(a) &>);
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), std::string_view *>);
       CHECK(a.get_ptr(element) == &a.data.v3);
@@ -646,8 +646,8 @@ TEST_CASE("sum", "[sum][has_value][get_ptr]")
 
       constexpr auto fn5 = [](auto &) {};
       constexpr auto fn6 = [](some_in_place_type auto, auto...) {};
-      static_assert(fn::detail::typelist_invocable<decltype(fn5), decltype(a) &>);
-      static_assert(fn::detail::typelist_type_invocable<decltype(fn6), decltype(a) &>);
+      static_assert(fn::typelist_invocable<decltype(fn5), decltype(a) &>);
+      static_assert(fn::typelist_type_invocable<decltype(fn6), decltype(a) &>);
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), double *>);
       CHECK(a.get_ptr(element) == &a.data.v0);
@@ -674,10 +674,10 @@ TEST_CASE("sum", "[sum][has_value][get_ptr]")
       CHECK(not a.template has_value<std::vector<int>>());
       CHECK(not a.has_value(std::in_place_type<std::vector<int>>));
 
-      static_assert(fn::detail::typelist_invocable<decltype(fn1), decltype(a)>);
-      static_assert(fn::detail::typelist_invocable<decltype(fn2), decltype(a)>);
-      static_assert(not fn::detail::typelist_type_invocable<decltype(fn1), decltype(a)>);
-      static_assert(fn::detail::typelist_invocable<decltype(fn2), decltype(a)>);
+      static_assert(fn::typelist_invocable<decltype(fn1), decltype(a)>);
+      static_assert(fn::typelist_invocable<decltype(fn2), decltype(a)>);
+      static_assert(not fn::typelist_type_invocable<decltype(fn1), decltype(a)>);
+      static_assert(fn::typelist_invocable<decltype(fn2), decltype(a)>);
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), int *>);
       CHECK(a.get_ptr(element) == &a.data.v1);
@@ -706,8 +706,8 @@ TEST_CASE("sum", "[sum][has_value][get_ptr]")
 
       constexpr auto fn5 = [](auto &) {};
       constexpr auto fn6 = [](some_in_place_type auto, auto...) {};
-      static_assert(fn::detail::typelist_invocable<decltype(fn5), decltype(a) &>);
-      static_assert(fn::detail::typelist_type_invocable<decltype(fn6), decltype(a) &>);
+      static_assert(fn::typelist_invocable<decltype(fn5), decltype(a) &>);
+      static_assert(fn::typelist_type_invocable<decltype(fn6), decltype(a) &>);
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), std::string *>);
       CHECK(a.get_ptr(element) == &a.data.v2);
@@ -736,8 +736,8 @@ TEST_CASE("sum", "[sum][has_value][get_ptr]")
 
       constexpr auto fn5 = [](auto &) {};
       constexpr auto fn6 = [](some_in_place_type auto, auto...) {};
-      static_assert(fn::detail::typelist_invocable<decltype(fn5), decltype(a) &>);
-      static_assert(fn::detail::typelist_type_invocable<decltype(fn6), decltype(a) &>);
+      static_assert(fn::typelist_invocable<decltype(fn5), decltype(a) &>);
+      static_assert(fn::typelist_type_invocable<decltype(fn6), decltype(a) &>);
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), std::string_view *>);
       CHECK(a.get_ptr(element) == &a.data.v3);
@@ -767,8 +767,8 @@ TEST_CASE("sum", "[sum][has_value][get_ptr]")
 
       constexpr auto fn5 = [](auto &) {};
       constexpr auto fn6 = [](some_in_place_type auto, auto...) {};
-      static_assert(fn::detail::typelist_invocable<decltype(fn5), decltype(a) &>);
-      static_assert(fn::detail::typelist_type_invocable<decltype(fn6), decltype(a) &>);
+      static_assert(fn::typelist_invocable<decltype(fn5), decltype(a) &>);
+      static_assert(fn::typelist_type_invocable<decltype(fn6), decltype(a) &>);
 
       static_assert(std::is_same_v<decltype(a.get_ptr(element)), std::vector<int> *>);
       CHECK(a.get_ptr(element) == &a.data.more.v0);

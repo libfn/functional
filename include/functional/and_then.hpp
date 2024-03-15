@@ -6,9 +6,13 @@
 #ifndef INCLUDE_FUNCTIONAL_AND_THEN
 #define INCLUDE_FUNCTIONAL_AND_THEN
 
+#include "functional/choice.hpp"
 #include "functional/concepts.hpp"
+#include "functional/expected.hpp"
+#include "functional/functional.hpp"
 #include "functional/functor.hpp"
 #include "functional/fwd.hpp"
+#include "functional/optional.hpp"
 #include "functional/utility.hpp"
 
 #include <concepts>
@@ -17,29 +21,21 @@
 namespace fn {
 template <typename Fn, typename V>
 concept invocable_and_then //
-    = (some_expected_pack<V> && requires(Fn &&fn, V &&v) {
+    = (some_expected_non_void<V> && requires(Fn &&fn, V &&v) {
         {
-          FWD(v).value().invoke(FWD(fn))
-        } -> same_kind<V>;
-      }) || (some_expected_non_pack<V> && requires(Fn &&fn, V &&v) {
-        {
-          std::invoke(FWD(fn), FWD(v).value())
+          ::fn::invoke(FWD(fn), FWD(v).value())
         } -> same_kind<V>;
       }) || (some_expected_void<V> && requires(Fn &&fn) {
         {
-          std::invoke(FWD(fn))
+          ::fn::invoke(FWD(fn))
         } -> same_kind<V>;
-      }) || (some_optional_pack<V> && requires(Fn &&fn, V &&v) {
+      }) || (some_optional<V> && requires(Fn &&fn, V &&v) {
         {
-          FWD(v).value().invoke(FWD(fn))
-        } -> same_kind<V>;
-      }) || (some_optional_non_pack<V> && requires(Fn &&fn, V &&v) {
-        {
-          std::invoke(FWD(fn), FWD(v).value())
+          ::fn::invoke(FWD(fn), FWD(v).value())
         } -> same_kind<V>;
       }) || (some_choice<V> && requires(Fn &&fn, V &&v) {
         {
-          FWD(v).transform_to(FWD(fn))
+          ::fn::invoke(FWD(fn), FWD(v).value())
         } -> same_kind<V>;
       });
 

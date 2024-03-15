@@ -9,6 +9,8 @@
 #include "functional/concepts.hpp"
 #include "functional/functor.hpp"
 
+#include <type_traits>
+
 namespace util {
 
 template <typename OperandType> struct lvalue {
@@ -38,13 +40,13 @@ template <typename OperandType> struct prvalue {
 struct static_check {
   template <typename CheckType> struct bind {
     [[nodiscard]] static constexpr auto invocable(auto &&...fns) noexcept -> bool
-      requires(std::is_invocable_r<bool, CheckType, decltype(fns)...>::value)
+      requires(fn::is_invocable_r<bool, CheckType, decltype(fns)...>::value)
     {
       return CheckType()(FWD(fns)...);
     }
 
     [[nodiscard]] static constexpr auto not_invocable(auto &&...fns) noexcept -> bool
-      requires(std::is_invocable_r<bool, CheckType, decltype(fns)...>::value)
+      requires(fn::is_invocable_r<bool, CheckType, decltype(fns)...>::value)
     {
       return not invocable(FWD(fns)...);
     }

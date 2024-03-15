@@ -7,6 +7,7 @@
 #define INCLUDE_FUNCTIONAL_INSPECT_ERROR
 
 #include "functional/concepts.hpp"
+#include "functional/functional.hpp"
 #include "functional/functor.hpp"
 #include "functional/fwd.hpp"
 #include "functional/utility.hpp"
@@ -19,11 +20,11 @@ template <typename Fn, typename V>
 concept invocable_inspect_error //
     = (some_expected<V> && requires(Fn &&fn, V &&v) {
         {
-          std::invoke(FWD(fn), std::as_const(v).error())
+          ::fn::invoke(FWD(fn), std::as_const(v).error())
         } -> std::same_as<void>;
       }) || (some_optional<V> && requires(Fn &&fn) {
         {
-          std::invoke(FWD(fn))
+          ::fn::invoke(FWD(fn))
         } -> std::same_as<void>;
       });
 
@@ -41,7 +42,7 @@ struct inspect_error_t::apply final {
     requires invocable_inspect_error<decltype(fn), decltype(v)>
   {
     if (not v.has_value()) {
-      std::invoke(FWD(fn), std::as_const(v).error()); // side-effects only
+      ::fn::invoke(FWD(fn), std::as_const(v).error()); // side-effects only
     }
     return FWD(v);
   }
@@ -50,7 +51,7 @@ struct inspect_error_t::apply final {
     requires invocable_inspect_error<decltype(fn), decltype(v)>
   {
     if (not v.has_value()) {
-      std::invoke(FWD(fn)); // side-effects only
+      ::fn::invoke(FWD(fn)); // side-effects only
     }
     return FWD(v);
   }

@@ -87,7 +87,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
     {
       static_assert(monadic_static_check<fn::and_then_t, decltype(v)>::invocable_with_any(Xint::efn));
 
-      auto const r = std::invoke(and_then_t::apply{}, v, Xint::efn);
+      auto const r = fn::invoke(and_then_t::apply{}, v, Xint::efn);
       CHECK(r.value() == 2);
 
       auto const q = v | and_then(&Xint::efn);
@@ -100,7 +100,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
     {
       static_assert(monadic_static_check<fn::and_then_t, decltype(v)>::invocable_with_any(&Xint::efn2));
 
-      auto const r = std::invoke(and_then_t::apply{}, v, &Xint::efn2);
+      auto const r = fn::invoke(and_then_t::apply{}, v, &Xint::efn2);
       CHECK(r.value() == 4);
 
       auto const q = v | and_then(&Xint::efn2);
@@ -117,7 +117,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
       static_assert(
           monadic_static_check<fn::and_then_t, decltype(v)>::invocable<prvalue, crvalue, cvalue>(&Xint::efn4));
 
-      auto const r = std::invoke(and_then_t::apply{}, std::move(v), &Xint::efn4);
+      auto const r = fn::invoke(and_then_t::apply{}, std::move(v), &Xint::efn4);
       CHECK(r.value() == 6);
 
       auto const q = std::move(v) | and_then(&Xint::efn4);
@@ -137,7 +137,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
     {
       static_assert(monadic_static_check<fn::and_then_t, decltype(v)>::invocable_with_any(Xint::efn));
 
-      auto const r = std::invoke(and_then_t::apply{}, v, Xint::efn);
+      auto const r = fn::invoke(and_then_t::apply{}, v, Xint::efn);
       CHECK(r.value() == 2);
 
       auto const q = v | and_then(&Xint::efn);
@@ -148,7 +148,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
     {
       static_assert(monadic_static_check<fn::and_then_t, decltype(v)>::invocable<lvalue>(&Xint::efn1));
 
-      auto const r = std::invoke(and_then_t::apply{}, v, &Xint::efn1);
+      auto const r = fn::invoke(and_then_t::apply{}, v, &Xint::efn1);
       CHECK(r.value() == 3);
 
       auto const q = v | and_then(&Xint::efn1);
@@ -163,7 +163,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
       static_assert(monadic_static_check<fn::and_then_t, decltype(v)>::invocable_with_any(&Xint::efn2));
 
       // rvalue-ref
-      auto const r = std::invoke(and_then_t::apply{}, v, &Xint::efn2);
+      auto const r = fn::invoke(and_then_t::apply{}, v, &Xint::efn2);
       CHECK(r.value() == 4);
 
       auto const q = v | and_then(&Xint::efn2);
@@ -177,7 +177,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
     {
       static_assert(monadic_static_check<fn::and_then_t, decltype(v)>::invocable<prvalue, rvalue>(&Xint::efn3));
 
-      auto const r = std::invoke(and_then_t::apply{}, std::move(v), &Xint::efn3);
+      auto const r = fn::invoke(and_then_t::apply{}, std::move(v), &Xint::efn3);
       CHECK(r.value() == 5);
 
       auto const q = std::move(v) | and_then(&Xint::efn3);
@@ -192,7 +192,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
       static_assert(
           monadic_static_check<fn::and_then_t, decltype(v)>::invocable<prvalue, crvalue, cvalue>(&Xint::efn4));
 
-      auto const r = std::invoke(and_then_t::apply{}, std::move(v), &Xint::efn4);
+      auto const r = fn::invoke(and_then_t::apply{}, std::move(v), &Xint::efn4);
       CHECK(r.value() == 6);
 
       auto const q = std::move(v) | and_then(&Xint::efn4);
@@ -212,7 +212,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
     {
       static_assert(monadic_static_check<fn::and_then_t, decltype(v)>::invocable_with_any(&Xint::ofn));
 
-      auto const r = std::invoke(and_then_t::apply{}, v, Xint::ofn);
+      auto const r = fn::invoke(and_then_t::apply{}, v, Xint::ofn);
       CHECK(r.value() == 2);
 
       auto const q = v | and_then(&Xint::ofn);
@@ -225,7 +225,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
     {
       static_assert(monadic_static_check<fn::and_then_t, decltype(v)>::invocable_with_any(&Xint::ofn2));
 
-      auto const r = std::invoke(and_then_t::apply{}, v, &Xint::ofn2);
+      auto const r = fn::invoke(and_then_t::apply{}, v, &Xint::ofn2);
       CHECK(r.value() == 4);
 
       auto const q = v | and_then(&Xint::ofn2);
@@ -242,7 +242,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
       static_assert(
           monadic_static_check<fn::and_then_t, decltype(v)>::invocable<prvalue, crvalue, cvalue>(&Xint::ofn4));
 
-      auto const r = std::invoke(and_then_t::apply{}, std::move(v), &Xint::ofn4);
+      auto const r = fn::invoke(and_then_t::apply{}, std::move(v), &Xint::ofn4);
       CHECK(r.value() == 6);
 
       auto const q = std::move(v) | and_then(&Xint::ofn4);
@@ -262,7 +262,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
     {
       static_assert(monadic_static_check<fn::and_then_t, decltype(v)>::invocable_with_any(Xint::ofn));
 
-      auto const r = std::invoke(and_then_t::apply{}, v, Xint::ofn);
+      auto const r = fn::invoke(and_then_t::apply{}, v, Xint::ofn);
       CHECK(r.value() == 2);
 
       auto const q = v | and_then(&Xint::ofn);
@@ -273,7 +273,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
     {
       static_assert(monadic_static_check<fn::and_then_t, decltype(v)>::invocable<lvalue>(&Xint::ofn1));
 
-      auto const r = std::invoke(and_then_t::apply{}, v, &Xint::ofn1);
+      auto const r = fn::invoke(and_then_t::apply{}, v, &Xint::ofn1);
       CHECK(r.value() == 3);
 
       auto const q = v | and_then(&Xint::ofn1);
@@ -288,7 +288,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
       static_assert(monadic_static_check<fn::and_then_t, decltype(v)>::invocable_with_any(&Xint::ofn2));
 
       // rvalue-ref
-      auto const r = std::invoke(and_then_t::apply{}, v, &Xint::ofn2);
+      auto const r = fn::invoke(and_then_t::apply{}, v, &Xint::ofn2);
       CHECK(r.value() == 4);
 
       auto const q = v | and_then(&Xint::ofn2);
@@ -302,7 +302,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
     {
       static_assert(monadic_static_check<fn::and_then_t, decltype(v)>::invocable<prvalue, rvalue>(&Xint::ofn3));
 
-      auto const r = std::invoke(and_then_t::apply{}, std::move(v), &Xint::ofn3);
+      auto const r = fn::invoke(and_then_t::apply{}, std::move(v), &Xint::ofn3);
       CHECK(r.value() == 5);
 
       auto const q = std::move(v) | and_then(&Xint::ofn3);
@@ -317,7 +317,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
       static_assert(
           monadic_static_check<fn::and_then_t, decltype(v)>::invocable<prvalue, crvalue, cvalue>(&Xint::ofn4));
 
-      auto const r = std::invoke(and_then_t::apply{}, std::move(v), &Xint::ofn4);
+      auto const r = fn::invoke(and_then_t::apply{}, std::move(v), &Xint::ofn4);
       CHECK(r.value() == 6);
 
       auto const q = std::move(v) | and_then(&Xint::ofn4);

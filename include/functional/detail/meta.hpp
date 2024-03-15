@@ -52,34 +52,6 @@ constexpr inline std::size_t type_index = static_cast<_indexed_type<T> const &>(
 
 template <typename T, typename... Ts> constexpr inline bool type_one_of = (... || __is_same_as(Ts, T));
 
-template <typename Fn, typename T> constexpr inline bool _typelist_invocable = false;
-template <typename Fn, template <typename...> typename Tpl, typename... Ts>
-constexpr inline bool _typelist_invocable<Fn, Tpl<Ts...> &> = (... && std::invocable<Fn, Ts &>);
-template <typename Fn, template <typename...> typename Tpl, typename... Ts>
-constexpr inline bool _typelist_invocable<Fn, Tpl<Ts...> const &> = (... && std::invocable<Fn, Ts const &>);
-template <typename Fn, template <typename...> typename Tpl, typename... Ts>
-constexpr inline bool _typelist_invocable<Fn, Tpl<Ts...> &&> = (... && std::invocable<Fn, Ts &&>);
-template <typename Fn, template <typename...> typename Tpl, typename... Ts>
-constexpr inline bool _typelist_invocable<Fn, Tpl<Ts...> const &&> = (... && std::invocable<Fn, Ts const &&>);
-
-template <typename Fn, typename T> constexpr inline bool typelist_invocable = _typelist_invocable<Fn, T &&>;
-
-template <typename Fn, typename T> constexpr inline bool _typelist_type_invocable = false;
-template <typename Fn, template <typename...> typename Tpl, typename... Ts>
-constexpr inline bool _typelist_type_invocable<Fn, Tpl<Ts...> &>
-    = (... && std::invocable<Fn, std::in_place_type_t<Ts>, Ts &>);
-template <typename Fn, template <typename...> typename Tpl, typename... Ts>
-constexpr inline bool _typelist_type_invocable<Fn, Tpl<Ts...> const &>
-    = (... && std::invocable<Fn, std::in_place_type_t<Ts>, Ts const &>);
-template <typename Fn, template <typename...> typename Tpl, typename... Ts>
-constexpr inline bool _typelist_type_invocable<Fn, Tpl<Ts...> &&>
-    = (... && std::invocable<Fn, std::in_place_type_t<Ts>, Ts &&>);
-template <typename Fn, template <typename...> typename Tpl, typename... Ts>
-constexpr inline bool _typelist_type_invocable<Fn, Tpl<Ts...> const &&>
-    = (... && std::invocable<Fn, std::in_place_type_t<Ts>, Ts const &&>);
-
-template <typename Fn, typename T> constexpr inline bool typelist_type_invocable = _typelist_type_invocable<Fn, T &&>;
-
 #ifdef __clang__
 static constexpr std::string_view _normalized_name_anon{"(anonymous namespace)"};
 static constexpr std::string_view _normalized_name_prefix{"sortkey() [T = "};
