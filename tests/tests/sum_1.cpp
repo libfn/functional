@@ -143,8 +143,7 @@ TEST_CASE("sum basic functionality tests", "[sum]")
 
       constexpr auto c = sum{std::array<int, 3>{3, 14, 15}};
       static_assert(std::is_same_v<decltype(c), sum<std::array<int, 3>> const>);
-      static_assert(
-          c.transform_to([](auto &&a) -> bool { return a.size() == 3 && a[0] == 3 && a[1] == 14 && a[2] == 15; }));
+      static_assert(c.invoke([](auto &&a) -> bool { return a.size() == 3 && a[0] == 3 && a[1] == 14 && a[2] == 15; }));
     }
 
     WHEN("move from rvalue")
@@ -177,7 +176,7 @@ TEST_CASE("sum basic functionality tests", "[sum]")
   WHEN("forwarding constructors (immovable)")
   {
     sum<NonCopyable> a{std::in_place_type<NonCopyable>, 42};
-    CHECK(a.transform_to([](auto &i) -> bool { return i.v == 42; }));
+    CHECK(a.invoke([](auto &i) -> bool { return i.v == 42; }));
 
     WHEN("CTAD")
     {
@@ -207,7 +206,7 @@ TEST_CASE("sum basic functionality tests", "[sum]")
       static_assert(not decltype(a)::has_type<int>);
       CHECK(a.has_value(std::in_place_type<std::array<int, 3>>));
       CHECK(a.template has_value<std::array<int, 3>>());
-      CHECK(a.transform_to([](auto &i) -> bool {
+      CHECK(a.invoke([](auto &i) -> bool {
         return std::same_as<std::array<int, 3> &, decltype(i)> && i.size() == 3 && i[0] == 1 && i[1] == 2 && i[2] == 3;
       }));
     }
@@ -219,7 +218,7 @@ TEST_CASE("sum basic functionality tests", "[sum]")
       static_assert(not decltype(a)::has_type<int>);
       static_assert(a.has_value(std::in_place_type<std::array<int, 3>>));
       static_assert(a.template has_value<std::array<int, 3>>());
-      static_assert(a.transform_to([](auto &i) -> bool {
+      static_assert(a.invoke([](auto &i) -> bool {
         return std::same_as<std::array<int, 3> const &, decltype(i)> && i.size() == 3 && i[0] == 1 && i[1] == 2
                && i[2] == 3;
       }));
@@ -324,38 +323,36 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     }
   }
 
-  WHEN("transform_to")
+  WHEN("invoke_r")
   {
     sum<int> a{std::in_place_type<int>, 42};
     WHEN("value only")
     {
-      static_assert(std::is_same_v<bool, decltype(a.transform_to(fn::overload([](auto) -> bool { throw 1; },
-                                                                              [](int) -> bool { return true; })))>);
-      static_assert(std::is_same_v<int, decltype(a.transform_to<int>(fn::overload([](auto) -> bool { throw 1; }, //
-                                                                                  [](int) -> int { return true; })))>);
+      static_assert(std::is_same_v<bool, decltype(a.invoke(fn::overload([](auto) -> bool { throw 1; },
+                                                                        [](int) -> bool { return true; })))>);
 
-      CHECK(a.transform_to(fn::overload([](auto) -> bool { throw 1; }, [](int &) -> bool { return true; },
-                                        [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
-                                        [](int const &&) -> bool { throw 0; })));
-      CHECK(std::as_const(a).transform_to(fn::overload(
+      CHECK(a.invoke(fn::overload([](auto) -> bool { throw 1; }, [](int &) -> bool { return true; },
+                                  [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
+                                  [](int const &&) -> bool { throw 0; })));
+      CHECK(std::as_const(a).invoke(fn::overload(
           [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { return true; },
           [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; })));
-      CHECK(sum<int>{std::in_place_type<int>, 42}.transform_to(fn::overload(
+      CHECK(sum<int>{std::in_place_type<int>, 42}.invoke(fn::overload(
           [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
           [](int &&) -> bool { return true; }, [](int const &&) -> bool { throw 0; })));
       CHECK(std::move(std::as_const(a))
-                .transform_to(fn::overload([](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
-                                           [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
-                                           [](int const &&) -> bool { return true; })));
+                .invoke(fn::overload([](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
+                                     [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
+                                     [](int const &&) -> bool { return true; })));
 
       WHEN("constexpr")
       {
         constexpr sum<int> a{std::in_place_type<int>, 42};
-        static_assert(a.transform_to(fn::overload(
+        static_assert(a.invoke(fn::overload(
             [](auto) -> std::false_type { return {}; }, //
             [](int &) -> std::false_type { return {}; }, [](int const &) -> std::true_type { return {}; },
             [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::false_type { return {}; })));
-        static_assert(std::move(a).transform_to(fn::overload(
+        static_assert(std::move(a).invoke(fn::overload(
             [](auto) -> std::false_type { return {}; }, //
             [](int &) -> std::false_type { return {}; }, [](int const &) -> std::false_type { return {}; },
             [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::true_type { return {}; })));
@@ -364,44 +361,133 @@ TEST_CASE("sum basic functionality tests", "[sum]")
 
     WHEN("tag and value")
     {
-      static_assert(std::is_same_v<bool, decltype(a.transform_to(fn::overload(
-                                             [](some_in_place_type auto, auto...) -> bool { throw 1; },
-                                             [](some_in_place_type auto, int) -> bool { return true; })))>);
-      static_assert(std::is_same_v<int, decltype(a.transform_to<int>(
+      static_assert(
+          std::is_same_v<bool,
+                         decltype(a.invoke(fn::overload([](some_in_place_type auto, auto...) -> bool { throw 1; },
+                                                        [](some_in_place_type auto, int) -> bool { return true; })))>);
+      static_assert(std::is_same_v<int, decltype(a.template invoke_r<int>(
                                             fn::overload([](some_in_place_type auto, auto...) -> bool { throw 1; },
                                                          [](some_in_place_type auto, int) -> int { return true; })))>);
 
-      CHECK(a.transform_to(fn::overload([](auto, auto) -> bool { throw 1; },
-                                        [](std::in_place_type_t<int>, int &) -> bool { return true; },
-                                        [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
-                                        [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
-                                        [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; })));
-      CHECK(std::as_const(a).transform_to(
-          fn::overload([](auto, auto) -> bool { throw 1; }, [](std::in_place_type_t<int>, int &) -> bool { throw 0; },
-                       [](std::in_place_type_t<int>, int const &) -> bool { return true; },
-                       [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
-                       [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; })));
-      CHECK(sum<int>{std::in_place_type<int>, 42}.transform_to(
+      CHECK(a.invoke(fn::overload([](auto, auto) -> bool { throw 1; },
+                                  [](std::in_place_type_t<int>, int &) -> bool { return true; },
+                                  [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
+                                  [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
+                                  [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; })));
+      CHECK(std::as_const(a).invoke(fn::overload([](auto, auto) -> bool { throw 1; },
+                                                 [](std::in_place_type_t<int>, int &) -> bool { throw 0; },
+                                                 [](std::in_place_type_t<int>, int const &) -> bool { return true; },
+                                                 [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
+                                                 [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; })));
+      CHECK(sum<int>{std::in_place_type<int>, 42}.invoke(
           fn::overload([](auto, auto) -> bool { throw 1; }, [](std::in_place_type_t<int>, int &) -> bool { throw 0; },
                        [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
                        [](std::in_place_type_t<int>, int &&) -> bool { return true; },
                        [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; })));
       CHECK(std::move(std::as_const(a))
-                .transform_to(fn::overload([](auto, auto) -> bool { throw 1; },
-                                           [](std::in_place_type_t<int>, int &) -> bool { throw 0; },
-                                           [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
-                                           [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
-                                           [](std::in_place_type_t<int>, int const &&) -> bool { return true; })));
+                .invoke(fn::overload([](auto, auto) -> bool { throw 1; },
+                                     [](std::in_place_type_t<int>, int &) -> bool { throw 0; },
+                                     [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
+                                     [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
+                                     [](std::in_place_type_t<int>, int const &&) -> bool { return true; })));
       WHEN("constexpr")
       {
         constexpr sum<int> a{std::in_place_type<int>, 42};
-        static_assert(a.transform_to(
+        static_assert(
+            a.invoke(fn::overload([](auto, auto) -> std::false_type { return {}; }, //
+                                  [](std::in_place_type_t<int>, int &) -> std::false_type { return {}; },
+                                  [](std::in_place_type_t<int>, int const &) -> std::true_type { return {}; },
+                                  [](std::in_place_type_t<int>, int &&) -> std::false_type { return {}; },
+                                  [](std::in_place_type_t<int>, int const &&) -> std::false_type { return {}; })));
+        static_assert(std::move(a).invoke(
+            fn::overload([](auto, auto) -> std::false_type { return {}; }, //
+                         [](std::in_place_type_t<int>, int &) -> std::false_type { return {}; },
+                         [](std::in_place_type_t<int>, int const &) -> std::false_type { return {}; },
+                         [](std::in_place_type_t<int>, int &&) -> std::false_type { return {}; },
+                         [](std::in_place_type_t<int>, int const &&) -> std::true_type { return {}; })));
+      }
+    }
+  }
+
+  WHEN("invoke_r")
+  {
+    sum<int> a{std::in_place_type<int>, 42};
+    WHEN("value only")
+    {
+      static_assert(std::is_same_v<bool, decltype(a.template invoke_r<bool>(fn::overload(
+                                             [](auto) -> bool { throw 1; }, [](int) -> bool { return true; })))>);
+      static_assert(
+          std::is_same_v<int, decltype(a.template invoke_r<int>(fn::overload([](auto) -> bool { throw 1; }, //
+                                                                             [](int) -> int { return true; })))>);
+
+      CHECK(a.template invoke_r<bool>(fn::overload(
+          [](auto) -> bool { throw 1; }, [](int &) -> bool { return true; }, [](int const &) -> bool { throw 0; },
+          [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; })));
+      CHECK(std::as_const(a).template invoke_r<bool>(fn::overload(
+          [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { return true; },
+          [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; })));
+      CHECK(sum<int>{std::in_place_type<int>, 42}.template invoke_r<bool>(fn::overload(
+          [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
+          [](int &&) -> bool { return true; }, [](int const &&) -> bool { throw 0; })));
+      CHECK(std::move(std::as_const(a))
+                .template invoke_r<bool>(fn::overload(
+                    [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
+                    [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { return true; })));
+
+      WHEN("constexpr")
+      {
+        constexpr sum<int> a{std::in_place_type<int>, 42};
+        static_assert(a.template invoke_r<bool>(fn::overload(
+            [](auto) -> std::false_type { return {}; }, //
+            [](int &) -> std::false_type { return {}; }, [](int const &) -> std::true_type { return {}; },
+            [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::false_type { return {}; })));
+        static_assert(std::move(a).template invoke_r<bool>(fn::overload(
+            [](auto) -> std::false_type { return {}; }, //
+            [](int &) -> std::false_type { return {}; }, [](int const &) -> std::false_type { return {}; },
+            [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::true_type { return {}; })));
+      }
+    }
+
+    WHEN("tag and value")
+    {
+      static_assert(std::is_same_v<bool, decltype(a.template invoke_r<bool>(fn::overload(
+                                             [](some_in_place_type auto, auto...) -> bool { throw 1; },
+                                             [](some_in_place_type auto, int) -> bool { return true; })))>);
+      static_assert(std::is_same_v<int, decltype(a.template invoke_r<int>(
+                                            fn::overload([](some_in_place_type auto, auto...) -> bool { throw 1; },
+                                                         [](some_in_place_type auto, int) -> int { return true; })))>);
+
+      CHECK(a.template invoke_r<bool>(fn::overload([](auto, auto) -> bool { throw 1; },
+                                                   [](std::in_place_type_t<int>, int &) -> bool { return true; },
+                                                   [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
+                                                   [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
+                                                   [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; })));
+      CHECK(std::as_const(a).template invoke_r<bool>(
+          fn::overload([](auto, auto) -> bool { throw 1; }, [](std::in_place_type_t<int>, int &) -> bool { throw 0; },
+                       [](std::in_place_type_t<int>, int const &) -> bool { return true; },
+                       [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
+                       [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; })));
+      CHECK(sum<int>{std::in_place_type<int>, 42}.template invoke_r<bool>(
+          fn::overload([](auto, auto) -> bool { throw 1; }, [](std::in_place_type_t<int>, int &) -> bool { throw 0; },
+                       [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
+                       [](std::in_place_type_t<int>, int &&) -> bool { return true; },
+                       [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; })));
+      CHECK(std::move(std::as_const(a))
+                .template invoke_r<bool>(fn::overload(
+                    [](auto, auto) -> bool { throw 1; }, [](std::in_place_type_t<int>, int &) -> bool { throw 0; },
+                    [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
+                    [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
+                    [](std::in_place_type_t<int>, int const &&) -> bool { return true; })));
+      WHEN("constexpr")
+      {
+        constexpr sum<int> a{std::in_place_type<int>, 42};
+        static_assert(a.template invoke_r<bool>(
             fn::overload([](auto, auto) -> std::false_type { return {}; }, //
                          [](std::in_place_type_t<int>, int &) -> std::false_type { return {}; },
                          [](std::in_place_type_t<int>, int const &) -> std::true_type { return {}; },
                          [](std::in_place_type_t<int>, int &&) -> std::false_type { return {}; },
                          [](std::in_place_type_t<int>, int const &&) -> std::false_type { return {}; })));
-        static_assert(std::move(a).transform_to(
+        static_assert(std::move(a).template invoke_r<bool>(
             fn::overload([](auto, auto) -> std::false_type { return {}; }, //
                          [](std::in_place_type_t<int>, int &) -> std::false_type { return {}; },
                          [](std::in_place_type_t<int>, int const &) -> std::false_type { return {}; },

@@ -35,7 +35,7 @@ concept invocable_and_then //
         } -> same_kind<V>;
       }) || (some_choice<V> && requires(Fn &&fn, V &&v) {
         {
-          FWD(v).transform_to(FWD(fn))
+          ::fn::invoke(FWD(fn), FWD(v).value())
         } -> same_kind<V>;
       });
 

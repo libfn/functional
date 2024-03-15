@@ -12,6 +12,7 @@
 
 #include <functional>
 #include <type_traits>
+#include <utility>
 
 namespace fn::detail {
 
@@ -21,15 +22,21 @@ template <typename Fn, typename... Args>
   requires(sizeof...(Args) != 1)
           || ((not _some_pack<detail::select_nth_t<0, Args...>>) && (not _some_sum<detail::select_nth_t<0, Args...>>))
 struct _invoke_result<Fn, Args...> : ::std::invoke_result<Fn, Args...> {};
+
+template <typename Fn, typename Arg>
+constexpr auto _invoke_result_result(Fn &&, Arg &&)
+    -> std::type_identity<decltype(std::declval<Arg>().invoke(std::declval<Fn>()))>;
+template <typename Fn, typename Arg> constexpr auto _invoke_result_result(auto &&...) -> std::type_identity<void>;
+
 template <typename Fn, typename Arg>
   requires _some_pack<Arg>
 struct _invoke_result<Fn, Arg> {
-  using type = decltype(::std::declval<Arg>().invoke(::std::declval<Fn>()));
+  using type = decltype(_invoke_result_result<Fn, Arg>(std::declval<Fn>(), std::declval<Arg>()))::type;
 };
 template <typename Fn, typename Arg>
   requires _some_sum<Arg>
 struct _invoke_result<Fn, Arg> {
-  using type = decltype(::std::declval<Arg>().template transform_to<>(::std::declval<Fn>()));
+  using type = decltype(_invoke_result_result<Fn, Arg>(std::declval<Fn>(), std::declval<Arg>()))::type;
 };
 template <typename Fn, typename... Args> using _invoke_result_t = typename _invoke_result<Fn, Args...>::type;
 
@@ -39,15 +46,21 @@ template <typename Fn, typename... Args>
   requires(sizeof...(Args) != 1)
           || ((not _some_pack<detail::select_nth_t<0, Args...>>) && (not _some_sum<detail::select_nth_t<0, Args...>>))
 struct _is_invocable<Fn, Args...> : ::std::is_invocable<Fn, Args...> {};
+
+template <typename Fn, typename Arg>
+constexpr auto _is_invocable_result(Fn &&, Arg &&,
+                                    std::type_identity<decltype(std::declval<Arg>().invoke(std::declval<Fn>()))> = {})
+    -> std::true_type;
+template <typename Fn, typename Arg> constexpr auto _is_invocable_result(auto &&...) -> std::false_type;
 template <typename Fn, typename Arg>
   requires _some_pack<Arg>
 struct _is_invocable<Fn, Arg> {
-  static constexpr bool value = (requires(Fn fn, Arg arg) { arg.invoke(fn); });
+  static constexpr bool value = decltype(_is_invocable_result<Fn, Arg>(std::declval<Fn>(), std::declval<Arg>()))::value;
 };
 template <typename Fn, typename Arg>
   requires _some_sum<Arg>
 struct _is_invocable<Fn, Arg> {
-  static constexpr bool value = (requires(Fn fn, Arg arg) { arg.template transform_to<>(fn); });
+  static constexpr bool value = decltype(_is_invocable_result<Fn, Arg>(std::declval<Fn>(), std::declval<Arg>()))::value;
 };
 template <typename Fn, typename... Args> constexpr inline bool _is_invocable_v = _is_invocable<Fn, Args...>::value;
 
@@ -89,12 +102,14 @@ struct _is_nothrow_invocable<Fn, Args...> : ::std::is_nothrow_invocable<Fn, Args
 template <typename Fn, typename Arg>
   requires _some_pack<Arg>
 struct _is_nothrow_invocable<Fn, Arg> {
-  static constexpr bool value = _is_invocable<Fn, Arg>::value; // TODO https://github.com/libfn/functional/issues/45
+  // TODO https://github.com/libfn/functional/issues/45
+  static constexpr bool value = _is_invocable<Fn, Arg>::value;
 };
 template <typename Fn, typename Arg>
   requires _some_sum<Arg>
 struct _is_nothrow_invocable<Fn, Arg> {
-  static constexpr bool value = _is_invocable<Fn, Arg>::value; // TODO https://github.com/libfn/functional/issues/45
+  // TODO https://github.com/libfn/functional/issues/45
+  static constexpr bool value = _is_invocable<Fn, Arg>::value;
 };
 template <typename Fn, typename... Args>
 constexpr inline bool _is_nothrow_invocable_v = _is_nothrow_invocable<Fn, Args...>::value;
@@ -108,14 +123,14 @@ struct _is_nothrow_invocable_r<Ret, Fn, Args...> : ::std::is_nothrow_invocable_r
 template <typename Ret, typename Fn, typename Arg>
   requires _some_pack<Arg>
 struct _is_nothrow_invocable_r<Ret, Fn, Arg> {
-  static constexpr bool value
-      = _is_invocable_r<Ret, Fn, Arg>::value; // TODO https://github.com/libfn/functional/issues/45
+  // TODO https://github.com/libfn/functional/issues/45
+  static constexpr bool value = _is_invocable_r<Ret, Fn, Arg>::value;
 };
 template <typename Ret, typename Fn, typename Arg>
   requires _some_sum<Arg>
 struct _is_nothrow_invocable_r<Ret, Fn, Arg> {
-  static constexpr bool value
-      = _is_invocable_r<Ret, Fn, Arg>::value; // TODO https://github.com/libfn/functional/issues/45
+  // TODO https://github.com/libfn/functional/issues/45
+  static constexpr bool value = _is_invocable_r<Ret, Fn, Arg>::value;
 };
 template <typename Ret, typename Fn, typename... Args>
 constexpr inline bool _is_nothrow_invocable_r_v = _is_nothrow_invocable_r<Ret, Fn, Args...>::value;
@@ -139,7 +154,7 @@ template <typename Fn, typename Arg>
   requires _some_sum<Arg>
 constexpr inline _invoke_result_t<Fn, Arg> _invoke(Fn &&fn, Arg &&arg) noexcept(_is_nothrow_invocable_v<Fn, Arg>)
 {
-  return FWD(arg).template transform_to<>(FWD(fn));
+  return FWD(arg).invoke(FWD(fn));
 }
 
 // invoke_r
@@ -161,7 +176,7 @@ template <typename Ret, typename Fn, typename Arg>
   requires _some_sum<Arg> && _is_invocable_r_v<Ret, Fn, Arg>
 constexpr Ret _invoke_r(Fn &&fn, Arg &&arg) noexcept(_is_nothrow_invocable_r_v<Ret, Fn, Arg>)
 {
-  return FWD(arg).template transform_to<Ret>(FWD(fn));
+  return FWD(arg).template invoke_r<Ret>(FWD(fn));
 }
 
 template <typename Fn, typename T> constexpr inline bool _is_ts_invocable = false;
