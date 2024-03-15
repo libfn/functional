@@ -6,7 +6,6 @@
 #ifndef INCLUDE_FUNCTIONAL_CHOICE
 #define INCLUDE_FUNCTIONAL_CHOICE
 
-#include "functional/detail/fwd_macro.hpp"
 #include "functional/detail/meta.hpp"
 #include "functional/sum.hpp"
 #include "functional/utility.hpp"
@@ -16,18 +15,10 @@
 
 namespace fn {
 
-template <typename... Ts> struct choice;
+template <typename T>
+concept some_choice = detail::_some_choice<T>;
 
 template <> struct choice<>; // Intentionally incomplete
-
-namespace detail {
-template <typename... Ts> constexpr bool _is_some_choice = false;
-template <typename... Ts> constexpr bool _is_some_choice<::fn::choice<Ts...> &> = true;
-template <typename... Ts> constexpr bool _is_some_choice<::fn::choice<Ts...> const &> = true;
-} // namespace detail
-
-template <typename T>
-concept some_choice = detail::_is_some_choice<T &>;
 
 namespace detail {
 template <typename T>
@@ -70,14 +61,14 @@ struct choice<Ts...> : sum<Ts...> {
   }
 
   template <typename... Tx>
-  explicit constexpr choice(sum<Tx...> const &v) noexcept
+  constexpr choice(sum<Tx...> const &v) noexcept
     requires detail::is_superset_of<choice, choice<Tx...>> && (... && std::is_copy_constructible_v<Tx>)
       : _impl(std::in_place_type<sum<Tx...>>, FWD(v))
   {
   }
 
   template <typename... Tx>
-  explicit constexpr choice(sum<Tx...> &&v) noexcept
+  constexpr choice(sum<Tx...> &&v) noexcept
     requires detail::is_superset_of<choice, choice<Tx...>> && (... && std::is_move_constructible_v<Tx>)
       : _impl(std::in_place_type<sum<Tx...>>, FWD(v))
   {
@@ -101,15 +92,15 @@ struct choice<Ts...> : sum<Ts...> {
   // NOTE Monadic operations, only `and_then` and `transform` are supported
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) & noexcept
-    requires detail::typelist_invocable<Fn, choice &> && (not detail::typelist_type_invocable<Fn, choice &>)
+    requires typelist_invocable<Fn, choice &> && (not typelist_type_invocable<Fn, choice &>)
   {
-    using type = detail::_invoke_result<detail::_collapsing_sum_tag, decltype(fn), choice &>::type;
+    using type = detail::_select_invoke_result<detail::_collapsing_sum_tag, decltype(fn), choice &>::type;
     return detail::invoke_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn));
   }
 
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) & noexcept
-    requires detail::typelist_type_invocable<Fn, choice &>
+    requires typelist_type_invocable<Fn, choice &>
   {
     using type = detail::_invoke_type_result<detail::_collapsing_sum_tag, decltype(fn), choice &>::type;
     return detail::invoke_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn));
@@ -117,15 +108,15 @@ struct choice<Ts...> : sum<Ts...> {
 
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) const & noexcept
-    requires detail::typelist_invocable<Fn, choice const &> && (not detail::typelist_type_invocable<Fn, choice const &>)
+    requires typelist_invocable<Fn, choice const &> && (not typelist_type_invocable<Fn, choice const &>)
   {
-    using type = detail::_invoke_result<detail::_collapsing_sum_tag, decltype(fn), choice const &>::type;
+    using type = detail::_select_invoke_result<detail::_collapsing_sum_tag, decltype(fn), choice const &>::type;
     return detail::invoke_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn));
   }
 
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) const & noexcept
-    requires detail::typelist_type_invocable<Fn, choice const &>
+    requires typelist_type_invocable<Fn, choice const &>
   {
     using type = detail::_invoke_type_result<detail::_collapsing_sum_tag, decltype(fn), choice const &>::type;
     return detail::invoke_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn));
@@ -133,15 +124,15 @@ struct choice<Ts...> : sum<Ts...> {
 
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) && noexcept
-    requires detail::typelist_invocable<Fn, choice &&> && (not detail::typelist_type_invocable<Fn, choice &&>)
+    requires typelist_invocable<Fn, choice &&> && (not typelist_type_invocable<Fn, choice &&>)
   {
-    using type = detail::_invoke_result<detail::_collapsing_sum_tag, decltype(fn), choice &&>::type;
+    using type = detail::_select_invoke_result<detail::_collapsing_sum_tag, decltype(fn), choice &&>::type;
     return detail::invoke_variadic_union<type, typename _impl::data_t>(std::move(_impl::data), _impl::index, FWD(fn));
   }
 
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) && noexcept
-    requires detail::typelist_type_invocable<Fn, choice &&>
+    requires typelist_type_invocable<Fn, choice &&>
   {
     using type = detail::_invoke_type_result<detail::_collapsing_sum_tag, decltype(fn), choice &&>::type;
     return detail::invoke_variadic_union<type, typename _impl::data_t>(std::move(_impl::data), _impl::index, FWD(fn));
@@ -149,16 +140,15 @@ struct choice<Ts...> : sum<Ts...> {
 
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) const && noexcept
-    requires detail::typelist_invocable<Fn, choice const &&>
-             && (not detail::typelist_type_invocable<Fn, choice const &&>)
+    requires typelist_invocable<Fn, choice const &&> && (not typelist_type_invocable<Fn, choice const &&>)
   {
-    using type = detail::_invoke_result<detail::_collapsing_sum_tag, decltype(fn), choice const &&>::type;
+    using type = detail::_select_invoke_result<detail::_collapsing_sum_tag, decltype(fn), choice const &&>::type;
     return detail::invoke_variadic_union<type, typename _impl::data_t>(std::move(_impl::data), _impl::index, FWD(fn));
   }
 
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) const && noexcept
-    requires detail::typelist_type_invocable<Fn, choice const &&>
+    requires typelist_type_invocable<Fn, choice const &&>
   {
     using type = detail::_invoke_type_result<detail::_collapsing_sum_tag, decltype(fn), choice const &&>::type;
     return detail::invoke_variadic_union<type, typename _impl::data_t>(std::move(_impl::data), _impl::index, FWD(fn));

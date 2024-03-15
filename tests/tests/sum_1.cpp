@@ -55,65 +55,59 @@ TEST_CASE("sum basic functionality tests", "[sum]")
   WHEN("invocable")
   {
     using type = sum<TestType, int>;
-    static_assert(fn::detail::typelist_invocable<decltype([](auto) {}), type &>);
-    static_assert(fn::detail::typelist_invocable<decltype([](auto &) {}), type &>);
-    static_assert(fn::detail::typelist_invocable<decltype([](auto const &) {}), type &>);
-    static_assert(fn::detail::typelist_invocable<decltype(fn::overload{[](int &) {}, [](TestType &) {}}), type &>);
-    static_assert(fn::detail::typelist_invocable<decltype(fn::overload{[](int) {}, [](TestType) {}}), type const &>);
+    static_assert(fn::typelist_invocable<decltype([](auto) {}), type &>);
+    static_assert(fn::typelist_invocable<decltype([](auto &) {}), type &>);
+    static_assert(fn::typelist_invocable<decltype([](auto const &) {}), type &>);
+    static_assert(fn::typelist_invocable<decltype(fn::overload{[](int &) {}, [](TestType &) {}}), type &>);
+    static_assert(fn::typelist_invocable<decltype(fn::overload{[](int) {}, [](TestType) {}}), type const &>);
 
-    static_assert(not fn::detail::typelist_invocable<decltype([](TestType &) {}), type &>); // missing int
-    static_assert(not fn::detail::typelist_invocable<decltype([](int &) {}), type &>);      // missing TestType
-    static_assert(not fn::detail::typelist_invocable<decltype(fn::overload{[](int &&) {}, [](TestType &&) {}}),
-                                                     type &>); // cannot bind lvalue to rvalue-reference
-    static_assert(
-        not fn::detail::typelist_invocable<decltype([](auto &) {}), type &&>); // cannot bind rvalue to lvalue-reference
-    static_assert(not fn::detail::typelist_invocable<decltype([](auto, auto &) {}), type &>); // bad arity
-    static_assert(not fn::detail::typelist_invocable<decltype(fn::overload{[](int &) {}, [](TestType &) {}}),
-                                                     type const &>); // cannot bind const to non-const reference
+    static_assert(not fn::typelist_invocable<decltype([](TestType &) {}), type &>); // missing int
+    static_assert(not fn::typelist_invocable<decltype([](int &) {}), type &>);      // missing TestType
+    static_assert(not fn::typelist_invocable<decltype(fn::overload{[](int &&) {}, [](TestType &&) {}}),
+                                             type &>); // cannot bind lvalue to rvalue-reference
+    static_assert(not fn::typelist_invocable<decltype([](auto &) {}),
+                                             type &&>); // cannot bind rvalue to lvalue-reference
+    static_assert(not fn::typelist_invocable<decltype([](auto, auto &) {}), type &>); // bad arity
+    static_assert(not fn::typelist_invocable<decltype(fn::overload{[](int &) {}, [](TestType &) {}}),
+                                             type const &>); // cannot bind const to non-const reference
 
-    static_assert(fn::detail::typelist_invocable<decltype([](auto &) {}), sum<NonCopyable> &>);
-    static_assert(
-        not fn::detail::typelist_invocable<decltype([](auto) {}), NonCopyable &>); // copy-constructor not available
+    static_assert(fn::typelist_invocable<decltype([](auto &) {}), sum<NonCopyable> &>);
+    static_assert(not fn::typelist_invocable<decltype([](auto) {}), NonCopyable &>); // copy-constructor not available
   }
 
   WHEN("type_invocable")
   {
     using type = sum<TestType, int>;
-    static_assert(fn::detail::typelist_type_invocable<decltype([](auto, auto) {}), type &>);
-    static_assert(fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, auto) {}), type &>);
-    static_assert(fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, auto &) {}), type &>);
-    static_assert(
-        fn::detail::typelist_type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &) {},
-                                                                  [](some_in_place_type auto, TestType &) {}}),
-                                            type &>);
-    static_assert(fn::detail::typelist_type_invocable<decltype(fn::overload{[](some_in_place_type auto, int) {},
-                                                                            [](some_in_place_type auto, TestType) {}}),
-                                                      type const &>);
-    static_assert(not fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, TestType &) {}),
-                                                          type &>); // missing int
-    static_assert(not fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, int &) {}),
-                                                          type &>); // missing TestType
-    static_assert(
-        not fn::detail::typelist_type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &&) {},
-                                                                      [](some_in_place_type auto, TestType &&) {}}),
-                                                type &>); // cannot bind lvalue to rvalue-reference
-    static_assert(not fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, auto &) {}),
-                                                          type &&>); // cannot bind rvalue to lvalue-reference
-    static_assert(not fn::detail::typelist_type_invocable<decltype([](auto) {}), type &>); // bad arity
-    static_assert(
-        not fn::detail::typelist_type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &) {},
-                                                                      [](some_in_place_type auto, TestType &) {}}),
-                                                type const &>); // cannot bind const to non-const reference
+    static_assert(fn::typelist_type_invocable<decltype([](auto, auto) {}), type &>);
+    static_assert(fn::typelist_type_invocable<decltype([](some_in_place_type auto, auto) {}), type &>);
+    static_assert(fn::typelist_type_invocable<decltype([](some_in_place_type auto, auto &) {}), type &>);
+    static_assert(fn::typelist_type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &) {},
+                                                                    [](some_in_place_type auto, TestType &) {}}),
+                                              type &>);
+    static_assert(fn::typelist_type_invocable<decltype(fn::overload{[](some_in_place_type auto, int) {},
+                                                                    [](some_in_place_type auto, TestType) {}}),
+                                              type const &>);
+    static_assert(not fn::typelist_type_invocable<decltype([](some_in_place_type auto, TestType &) {}),
+                                                  type &>); // missing int
+    static_assert(not fn::typelist_type_invocable<decltype([](some_in_place_type auto, int &) {}),
+                                                  type &>); // missing TestType
+    static_assert(not fn::typelist_type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &&) {},
+                                                                        [](some_in_place_type auto, TestType &&) {}}),
+                                                  type &>); // cannot bind lvalue to rvalue-reference
+    static_assert(not fn::typelist_type_invocable<decltype([](some_in_place_type auto, auto &) {}),
+                                                  type &&>); // cannot bind rvalue to lvalue-reference
+    static_assert(not fn::typelist_type_invocable<decltype([](auto) {}), type &>); // bad arity
+    static_assert(not fn::typelist_type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &) {},
+                                                                        [](some_in_place_type auto, TestType &) {}}),
+                                                  type const &>); // cannot bind const to non-const reference
 
-    static_assert(
-        fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, auto &) {}), sum<NonCopyable> &>);
-    static_assert(not fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, auto) {}),
-                                                          NonCopyable &>); // copy-constructor not available
+    static_assert(fn::typelist_type_invocable<decltype([](some_in_place_type auto, auto &) {}), sum<NonCopyable> &>);
+    static_assert(not fn::typelist_type_invocable<decltype([](some_in_place_type auto, auto) {}),
+                                                  NonCopyable &>); // copy-constructor not available
 
-    static_assert(
-        fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, auto &) {}), sum<NonCopyable> &>);
-    static_assert(not fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, auto) {}),
-                                                          NonCopyable &>); // copy-constructor not available
+    static_assert(fn::typelist_type_invocable<decltype([](some_in_place_type auto, auto &) {}), sum<NonCopyable> &>);
+    static_assert(not fn::typelist_type_invocable<decltype([](some_in_place_type auto, auto) {}),
+                                                  NonCopyable &>); // copy-constructor not available
   }
 
   WHEN("check destructor call")
@@ -432,8 +426,8 @@ TEST_CASE("sum type collapsing", "[sum][transform][normalized]")
   using ::fn::some_in_place_type;
   using ::fn::sum;
   using ::fn::detail::_collapsing_sum_tag;
-  using ::fn::detail::_invoke_result;
   using ::fn::detail::_invoke_type_result;
+  using ::fn::detail::_select_invoke_result;
   using ::fn::detail::_typelist_collapsing_sum;
   using ::fn::detail::_typelist_type_collapsing_sum;
 
@@ -452,7 +446,8 @@ TEST_CASE("sum type collapsing", "[sum][transform][normalized]")
   WHEN("one element")
   {
     using type = sum<double>;
-    static_assert(std::same_as<typename _invoke_result<_collapsing_sum_tag, decltype(fn1), type &>::type, sum<double>>);
+    static_assert(
+        std::same_as<typename _select_invoke_result<_collapsing_sum_tag, decltype(fn1), type &>::type, sum<double>>);
     static_assert(
         std::same_as<typename _invoke_type_result<_collapsing_sum_tag, decltype(fn1), type &>::type, sum<double>>);
   }
@@ -460,8 +455,8 @@ TEST_CASE("sum type collapsing", "[sum][transform][normalized]")
   WHEN("two elements")
   {
     using type = sum<double, int>;
-    static_assert(
-        std::same_as<typename _invoke_result<_collapsing_sum_tag, decltype(fn1), type &>::type, sum<double, int>>);
+    static_assert(std::same_as<typename _select_invoke_result<_collapsing_sum_tag, decltype(fn1), type &>::type,
+                               sum<double, int>>);
     static_assert(
         std::same_as<typename _invoke_type_result<_collapsing_sum_tag, decltype(fn1), type &>::type, sum<double, int>>);
   }
@@ -469,7 +464,8 @@ TEST_CASE("sum type collapsing", "[sum][transform][normalized]")
   WHEN("one sum, one element only")
   {
     using type = sum<sum_bool>;
-    static_assert(std::same_as<typename _invoke_result<_collapsing_sum_tag, decltype(fn1), type &>::type, sum<bool>>);
+    static_assert(
+        std::same_as<typename _select_invoke_result<_collapsing_sum_tag, decltype(fn1), type &>::type, sum<bool>>);
     static_assert(
         std::same_as<typename _invoke_type_result<_collapsing_sum_tag, decltype(fn1), type &>::type, sum<bool>>);
   }
@@ -477,8 +473,8 @@ TEST_CASE("sum type collapsing", "[sum][transform][normalized]")
   WHEN("element and one sum with one element")
   {
     using type = sum<double, sum_bool>;
-    static_assert(
-        std::same_as<typename _invoke_result<_collapsing_sum_tag, decltype(fn1), type &>::type, sum<bool, double>>);
+    static_assert(std::same_as<typename _select_invoke_result<_collapsing_sum_tag, decltype(fn1), type &>::type,
+                               sum<bool, double>>);
     static_assert(std::same_as<typename _invoke_type_result<_collapsing_sum_tag, decltype(fn1), type &>::type,
                                sum<bool, double>>);
   }
@@ -487,7 +483,7 @@ TEST_CASE("sum type collapsing", "[sum][transform][normalized]")
   {
     using type = sum<sum_bool_int>;
     static_assert(
-        std::same_as<typename _invoke_result<_collapsing_sum_tag, decltype(fn1), type &>::type, sum<bool, int>>);
+        std::same_as<typename _select_invoke_result<_collapsing_sum_tag, decltype(fn1), type &>::type, sum<bool, int>>);
     static_assert(
         std::same_as<typename _invoke_type_result<_collapsing_sum_tag, decltype(fn1), type &>::type, sum<bool, int>>);
   }
@@ -496,7 +492,7 @@ TEST_CASE("sum type collapsing", "[sum][transform][normalized]")
   {
     using type = sum<sum_bool_int, sum_bool>;
     static_assert(
-        std::same_as<typename _invoke_result<_collapsing_sum_tag, decltype(fn1), type &>::type, sum<bool, int>>);
+        std::same_as<typename _select_invoke_result<_collapsing_sum_tag, decltype(fn1), type &>::type, sum<bool, int>>);
     static_assert(
         std::same_as<typename _invoke_type_result<_collapsing_sum_tag, decltype(fn1), type &>::type, sum<bool, int>>);
   }
@@ -504,7 +500,7 @@ TEST_CASE("sum type collapsing", "[sum][transform][normalized]")
   WHEN("two sums with two elements and two elements")
   {
     using type = sum<sum_bool_int, sum_double_int, double, int>;
-    static_assert(std::same_as<typename _invoke_result<_collapsing_sum_tag, decltype(fn1), type &>::type,
+    static_assert(std::same_as<typename _select_invoke_result<_collapsing_sum_tag, decltype(fn1), type &>::type,
                                sum<bool, double, int>>);
     static_assert(std::same_as<typename _invoke_type_result<_collapsing_sum_tag, decltype(fn1), type &>::type,
                                sum<bool, double, int>>);

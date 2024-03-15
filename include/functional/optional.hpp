@@ -6,7 +6,8 @@
 #ifndef INCLUDE_FUNCTIONAL_OPTIONAL
 #define INCLUDE_FUNCTIONAL_OPTIONAL
 
-#include "functional/detail/fwd_macro.hpp"
+#include "functional/detail/functional.hpp"
+#include "functional/fwd.hpp"
 #include "functional/pack.hpp"
 #include "functional/utility.hpp"
 
@@ -17,16 +18,8 @@
 
 namespace fn {
 
-template <typename T> struct optional;
-
-namespace detail {
-template <typename T> constexpr bool _is_some_optional = false;
-template <typename T> constexpr bool _is_some_optional<::fn::optional<T> &> = true;
-template <typename T> constexpr bool _is_some_optional<::fn::optional<T> const &> = true;
-} // namespace detail
-
 template <typename T>
-concept some_optional = detail::_is_some_optional<T &>;
+concept some_optional = detail::_some_optional<T>;
 
 template <typename T>
 concept some_optional_non_pack = //
@@ -43,151 +36,42 @@ template <typename T> struct optional final : std::optional<T> {
 
   using std::optional<T>::optional;
 
-  // and_then pack
-  template <typename Fn>
-  constexpr auto and_then(Fn &&fn) &
-    requires some_pack<value_type>
+  template <typename Fn> constexpr auto and_then(Fn &&fn) &
   {
-    using type = decltype(this->value().invoke(FWD(fn)));
+    using type = ::fn::detail::_invoke_result_t<Fn, value_type &>;
     static_assert(some_optional<type>);
     if (this->has_value())
-      return this->value().invoke(FWD(fn));
+      return ::fn::detail::_invoke(FWD(fn), this->value());
     else
       return type(std::nullopt);
   }
 
-  template <typename Fn>
-  constexpr auto and_then(Fn &&fn) const &
-    requires some_pack<value_type>
+  template <typename Fn> constexpr auto and_then(Fn &&fn) const &
   {
-    using type = decltype(this->value().invoke(FWD(fn)));
+    using type = ::fn::detail::_invoke_result_t<Fn, value_type const &>;
     static_assert(some_optional<type>);
     if (this->has_value())
-      return this->value().invoke(FWD(fn));
+      return ::fn::detail::_invoke(FWD(fn), this->value());
     else
       return type(std::nullopt);
   }
 
-  template <typename Fn>
-  constexpr auto and_then(Fn &&fn) &&
-    requires some_pack<value_type>
+  template <typename Fn> constexpr auto and_then(Fn &&fn) &&
   {
-    using type = decltype(std::move(*this).value().invoke(FWD(fn)));
+    using type = ::fn::detail::_invoke_result_t<Fn, value_type &&>;
     static_assert(some_optional<type>);
     if (this->has_value())
-      return std::move(*this).value().invoke(FWD(fn));
+      return ::fn::detail::_invoke(FWD(fn), std::move(this->value()));
     else
       return type(std::nullopt);
   }
 
-  template <typename Fn>
-  constexpr auto and_then(Fn &&fn) const &&
-    requires some_pack<value_type>
+  template <typename Fn> constexpr auto and_then(Fn &&fn) const &&
   {
-    using type = decltype(std::move(*this).value().invoke(FWD(fn)));
+    using type = ::fn::detail::_invoke_result_t<Fn, value_type const &&>;
     static_assert(some_optional<type>);
     if (this->has_value())
-      return std::move(*this).value().invoke(FWD(fn));
-    else
-      return type(std::nullopt);
-  }
-
-  // transform pack
-  template <typename Fn>
-  constexpr auto transform(Fn &&fn) &
-    requires some_pack<value_type>
-  {
-    using value_type = decltype(this->value().invoke(FWD(fn)));
-    using type = optional<value_type>;
-    if (this->has_value())
-      return type(std::in_place, this->value().invoke(FWD(fn)));
-    else
-      return type(std::nullopt);
-  }
-
-  template <typename Fn>
-  constexpr auto transform(Fn &&fn) const &
-    requires some_pack<value_type>
-  {
-    using value_type = decltype(this->value().invoke(FWD(fn)));
-    using type = optional<value_type>;
-    if (this->has_value())
-      return type(std::in_place, this->value().invoke(FWD(fn)));
-    else
-      return type(std::nullopt);
-  }
-
-  template <typename Fn>
-  constexpr auto transform(Fn &&fn) &&
-    requires some_pack<value_type>
-  {
-    using value_type = decltype(std::move(*this).value().invoke(FWD(fn)));
-    using type = optional<value_type>;
-    if (this->has_value())
-      return type(std::in_place, std::move(*this).value().invoke(FWD(fn)));
-    else
-      return type(std::nullopt);
-  }
-
-  template <typename Fn>
-  constexpr auto transform(Fn &&fn) const &&
-    requires some_pack<value_type>
-  {
-    using value_type = decltype(std::move(*this).value().invoke(FWD(fn)));
-    using type = optional<value_type>;
-    if (this->has_value())
-      return type(std::in_place, std::move(*this).value().invoke(FWD(fn)));
-    else
-      return type(std::nullopt);
-  }
-
-  // NOTE All the functions below are polyfills. They are needed because monadic
-  // operations must return fn::optional rather than std::optional
-
-  template <typename Fn>
-  constexpr auto and_then(Fn &&fn) &
-    requires(not some_pack<value_type>)
-  {
-    using type = std::invoke_result_t<Fn, value_type &>;
-    static_assert(some_optional<type>);
-    if (this->has_value())
-      return std::invoke(FWD(fn), this->value());
-    else
-      return type(std::nullopt);
-  }
-
-  template <typename Fn>
-  constexpr auto and_then(Fn &&fn) const &
-    requires(not some_pack<value_type>)
-  {
-    using type = std::invoke_result_t<Fn, value_type const &>;
-    static_assert(some_optional<type>);
-    if (this->has_value())
-      return std::invoke(FWD(fn), this->value());
-    else
-      return type(std::nullopt);
-  }
-
-  template <typename Fn>
-  constexpr auto and_then(Fn &&fn) &&
-    requires(not some_pack<value_type>)
-  {
-    using type = std::invoke_result_t<Fn, value_type &&>;
-    static_assert(some_optional<type>);
-    if (this->has_value())
-      return std::invoke(FWD(fn), std::move(this->value()));
-    else
-      return type(std::nullopt);
-  }
-
-  template <typename Fn>
-  constexpr auto and_then(Fn &&fn) const &&
-    requires(not some_pack<value_type>)
-  {
-    using type = std::invoke_result_t<Fn, value_type const &&>;
-    static_assert(some_optional<type>);
-    if (this->has_value())
-      return std::invoke(FWD(fn), std::move(this->value()));
+      return ::fn::detail::_invoke(FWD(fn), std::move(this->value()));
     else
       return type(std::nullopt);
   }
@@ -201,7 +85,7 @@ template <typename T> struct optional final : std::optional<T> {
     if (this->has_value())
       return type(std::in_place, this->value());
     else
-      return std::invoke(FWD(fn));
+      return ::fn::detail::_invoke(FWD(fn));
   }
 
   template <typename Fn>
@@ -213,7 +97,7 @@ template <typename T> struct optional final : std::optional<T> {
     if (this->has_value())
       return type(std::in_place, this->value());
     else
-      return std::invoke(FWD(fn));
+      return ::fn::detail::_invoke(FWD(fn));
   }
 
   template <typename Fn>
@@ -225,7 +109,7 @@ template <typename T> struct optional final : std::optional<T> {
     if (this->has_value())
       return type(std::in_place, std::move(this->value()));
     else
-      return std::invoke(FWD(fn));
+      return ::fn::detail::_invoke(FWD(fn));
   }
 
   template <typename Fn>
@@ -237,53 +121,45 @@ template <typename T> struct optional final : std::optional<T> {
     if (this->has_value())
       return type(std::in_place, std::move(this->value()));
     else
-      return std::invoke(FWD(fn));
+      return ::fn::detail::_invoke(FWD(fn));
   }
 
-  template <typename Fn>
-  constexpr auto transform(Fn &&fn) &
-    requires(not some_pack<value_type>)
+  template <typename Fn> constexpr auto transform(Fn &&fn) &
   {
-    using value_type = std::invoke_result_t<Fn, value_type &>;
+    using value_type = ::fn::detail::_invoke_result_t<Fn, value_type &>;
     using type = optional<value_type>;
     if (this->has_value())
-      return type(std::in_place, std::invoke(FWD(fn), this->value()));
+      return type(std::in_place, ::fn::detail::_invoke(FWD(fn), this->value()));
     else
       return type(std::nullopt);
   }
 
-  template <typename Fn>
-  constexpr auto transform(Fn &&fn) const &
-    requires(not some_pack<value_type>)
+  template <typename Fn> constexpr auto transform(Fn &&fn) const &
   {
-    using value_type = std::invoke_result_t<Fn, value_type const &>;
+    using value_type = ::fn::detail::_invoke_result_t<Fn, value_type const &>;
     using type = optional<value_type>;
     if (this->has_value())
-      return type(std::in_place, std::invoke(FWD(fn), this->value()));
+      return type(std::in_place, ::fn::detail::_invoke(FWD(fn), this->value()));
     else
       return type(std::nullopt);
   }
 
-  template <typename Fn>
-  constexpr auto transform(Fn &&fn) &&
-    requires(not some_pack<value_type>)
+  template <typename Fn> constexpr auto transform(Fn &&fn) &&
   {
-    using value_type = std::invoke_result_t<Fn, value_type &&>;
+    using value_type = ::fn::detail::_invoke_result_t<Fn, value_type &&>;
     using type = optional<value_type>;
     if (this->has_value())
-      return type(std::in_place, std::invoke(FWD(fn), std::move(this->value())));
+      return type(std::in_place, ::fn::detail::_invoke(FWD(fn), std::move(this->value())));
     else
       return type(std::nullopt);
   }
 
-  template <typename Fn>
-  constexpr auto transform(Fn &&fn) const &&
-    requires(not some_pack<value_type>)
+  template <typename Fn> constexpr auto transform(Fn &&fn) const &&
   {
-    using value_type = std::invoke_result_t<Fn, value_type const &&>;
+    using value_type = ::fn::detail::_invoke_result_t<Fn, value_type const &&>;
     using type = optional<value_type>;
     if (this->has_value())
-      return type(std::in_place, std::invoke(FWD(fn), std::move(this->value())));
+      return type(std::in_place, ::fn::detail::_invoke(FWD(fn), std::move(this->value())));
     else
       return type(std::nullopt);
   }

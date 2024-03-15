@@ -16,6 +16,7 @@ set(TESTS_SOURCE_FILES
     expected.cpp
     fail.cpp
     filter.cpp
+    functional.cpp
     functor.cpp
     inspect_error.cpp
     inspect.cpp

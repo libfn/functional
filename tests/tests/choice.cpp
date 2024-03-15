@@ -49,65 +49,59 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
   WHEN("invocable")
   {
     using type = choice<TestType, int>;
-    static_assert(fn::detail::typelist_invocable<decltype([](auto) {}), type &>);
-    static_assert(fn::detail::typelist_invocable<decltype([](auto &) {}), type &>);
-    static_assert(fn::detail::typelist_invocable<decltype([](auto const &) {}), type &>);
-    static_assert(fn::detail::typelist_invocable<decltype(fn::overload{[](int &) {}, [](TestType &) {}}), type &>);
-    static_assert(fn::detail::typelist_invocable<decltype(fn::overload{[](int) {}, [](TestType) {}}), type const &>);
+    static_assert(fn::typelist_invocable<decltype([](auto) {}), type &>);
+    static_assert(fn::typelist_invocable<decltype([](auto &) {}), type &>);
+    static_assert(fn::typelist_invocable<decltype([](auto const &) {}), type &>);
+    static_assert(fn::typelist_invocable<decltype(fn::overload{[](int &) {}, [](TestType &) {}}), type &>);
+    static_assert(fn::typelist_invocable<decltype(fn::overload{[](int) {}, [](TestType) {}}), type const &>);
 
-    static_assert(not fn::detail::typelist_invocable<decltype([](TestType &) {}), type &>); // missing int
-    static_assert(not fn::detail::typelist_invocable<decltype([](int &) {}), type &>);      // missing TestType
-    static_assert(not fn::detail::typelist_invocable<decltype(fn::overload{[](int &&) {}, [](TestType &&) {}}),
-                                                     type &>); // cannot bind lvalue to rvalue-reference
-    static_assert(
-        not fn::detail::typelist_invocable<decltype([](auto &) {}), type &&>); // cannot bind rvalue to lvalue-reference
-    static_assert(not fn::detail::typelist_invocable<decltype([](auto, auto &) {}), type &>); // bad arity
-    static_assert(not fn::detail::typelist_invocable<decltype(fn::overload{[](int &) {}, [](TestType &) {}}),
-                                                     type const &>); // cannot bind const to non-const reference
+    static_assert(not fn::typelist_invocable<decltype([](TestType &) {}), type &>); // missing int
+    static_assert(not fn::typelist_invocable<decltype([](int &) {}), type &>);      // missing TestType
+    static_assert(not fn::typelist_invocable<decltype(fn::overload{[](int &&) {}, [](TestType &&) {}}),
+                                             type &>); // cannot bind lvalue to rvalue-reference
+    static_assert(not fn::typelist_invocable<decltype([](auto &) {}),
+                                             type &&>); // cannot bind rvalue to lvalue-reference
+    static_assert(not fn::typelist_invocable<decltype([](auto, auto &) {}), type &>); // bad arity
+    static_assert(not fn::typelist_invocable<decltype(fn::overload{[](int &) {}, [](TestType &) {}}),
+                                             type const &>); // cannot bind const to non-const reference
 
-    static_assert(fn::detail::typelist_invocable<decltype([](auto &) {}), choice<NonCopyable> &>);
-    static_assert(
-        not fn::detail::typelist_invocable<decltype([](auto) {}), NonCopyable &>); // copy-constructor not available
+    static_assert(fn::typelist_invocable<decltype([](auto &) {}), choice<NonCopyable> &>);
+    static_assert(not fn::typelist_invocable<decltype([](auto) {}), NonCopyable &>); // copy-constructor not available
   }
 
   WHEN("type_invocable")
   {
     using type = choice<TestType, int>;
-    static_assert(fn::detail::typelist_type_invocable<decltype([](auto, auto) {}), type &>);
-    static_assert(fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, auto) {}), type &>);
-    static_assert(fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, auto &) {}), type &>);
-    static_assert(
-        fn::detail::typelist_type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &) {},
-                                                                  [](some_in_place_type auto, TestType &) {}}),
-                                            type &>);
-    static_assert(fn::detail::typelist_type_invocable<decltype(fn::overload{[](some_in_place_type auto, int) {},
-                                                                            [](some_in_place_type auto, TestType) {}}),
-                                                      type const &>);
-    static_assert(not fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, TestType &) {}),
-                                                          type &>); // missing int
-    static_assert(not fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, int &) {}),
-                                                          type &>); // missing TestType
-    static_assert(
-        not fn::detail::typelist_type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &&) {},
-                                                                      [](some_in_place_type auto, TestType &&) {}}),
-                                                type &>); // cannot bind lvalue to rvalue-reference
-    static_assert(not fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, auto &) {}),
-                                                          type &&>); // cannot bind rvalue to lvalue-reference
-    static_assert(not fn::detail::typelist_type_invocable<decltype([](auto) {}), type &>); // bad arity
-    static_assert(
-        not fn::detail::typelist_type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &) {},
-                                                                      [](some_in_place_type auto, TestType &) {}}),
-                                                type const &>); // cannot bind const to non-const reference
+    static_assert(fn::typelist_type_invocable<decltype([](auto, auto) {}), type &>);
+    static_assert(fn::typelist_type_invocable<decltype([](some_in_place_type auto, auto) {}), type &>);
+    static_assert(fn::typelist_type_invocable<decltype([](some_in_place_type auto, auto &) {}), type &>);
+    static_assert(fn::typelist_type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &) {},
+                                                                    [](some_in_place_type auto, TestType &) {}}),
+                                              type &>);
+    static_assert(fn::typelist_type_invocable<decltype(fn::overload{[](some_in_place_type auto, int) {},
+                                                                    [](some_in_place_type auto, TestType) {}}),
+                                              type const &>);
+    static_assert(not fn::typelist_type_invocable<decltype([](some_in_place_type auto, TestType &) {}),
+                                                  type &>); // missing int
+    static_assert(not fn::typelist_type_invocable<decltype([](some_in_place_type auto, int &) {}),
+                                                  type &>); // missing TestType
+    static_assert(not fn::typelist_type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &&) {},
+                                                                        [](some_in_place_type auto, TestType &&) {}}),
+                                                  type &>); // cannot bind lvalue to rvalue-reference
+    static_assert(not fn::typelist_type_invocable<decltype([](some_in_place_type auto, auto &) {}),
+                                                  type &&>); // cannot bind rvalue to lvalue-reference
+    static_assert(not fn::typelist_type_invocable<decltype([](auto) {}), type &>); // bad arity
+    static_assert(not fn::typelist_type_invocable<decltype(fn::overload{[](some_in_place_type auto, int &) {},
+                                                                        [](some_in_place_type auto, TestType &) {}}),
+                                                  type const &>); // cannot bind const to non-const reference
 
-    static_assert(
-        fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, auto &) {}), choice<NonCopyable> &>);
-    static_assert(not fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, auto) {}),
-                                                          NonCopyable &>); // copy-constructor not available
+    static_assert(fn::typelist_type_invocable<decltype([](some_in_place_type auto, auto &) {}), choice<NonCopyable> &>);
+    static_assert(not fn::typelist_type_invocable<decltype([](some_in_place_type auto, auto) {}),
+                                                  NonCopyable &>); // copy-constructor not available
 
-    static_assert(
-        fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, auto &) {}), choice<NonCopyable> &>);
-    static_assert(not fn::detail::typelist_type_invocable<decltype([](some_in_place_type auto, auto) {}),
-                                                          NonCopyable &>); // copy-constructor not available
+    static_assert(fn::typelist_type_invocable<decltype([](some_in_place_type auto, auto &) {}), choice<NonCopyable> &>);
+    static_assert(not fn::typelist_type_invocable<decltype([](some_in_place_type auto, auto) {}),
+                                                  NonCopyable &>); // copy-constructor not available
   }
 
   WHEN("check destructor call")

@@ -7,8 +7,8 @@
 #define INCLUDE_FUNCTIONAL_UTILITY
 
 #include "functional/detail/fwd_macro.hpp"
-#include "functional/detail/meta.hpp"
 #include "functional/detail/traits.hpp"
+#include "functional/fwd.hpp"
 
 #include <concepts>
 #include <functional>
@@ -25,28 +25,6 @@ template <typename T> [[nodiscard]] constexpr auto apply_const_lvalue(auto &&v) 
 {
   return static_cast<apply_const_lvalue_t<T, decltype(v)>>(v);
 }
-
-template <typename... Ts> struct pack;
-
-namespace detail {
-template <typename... Ts> constexpr bool _is_some_pack = false;
-template <typename... Ts> constexpr bool _is_some_pack<::fn::pack<Ts...> &> = true;
-template <typename... Ts> constexpr bool _is_some_pack<::fn::pack<Ts...> const &> = true;
-} // namespace detail
-
-template <typename T>
-concept some_pack = detail::_is_some_pack<T &>;
-
-template <typename... Ts> struct sum;
-
-namespace detail {
-template <typename... Ts> constexpr bool _is_sum = false;
-template <typename... Ts> constexpr bool _is_sum<sum<Ts...> &> = true;
-template <typename... Ts> constexpr bool _is_sum<sum<Ts...> const &> = true;
-} // namespace detail
-
-template <typename T>
-concept some_sum = detail::_is_sum<T &>;
 
 template <typename... Ts> struct overload final : Ts... {
   using Ts::operator()...;
