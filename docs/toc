@@ -1,0 +1,10 @@
+reference-manual
+    and_then
+    fail
+    filter
+    inspect_error
+    inspect
+    or_else
+    recover
+    transform_error
+    transform
