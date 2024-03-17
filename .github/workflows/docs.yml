@@ -41,7 +41,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./.build/docs/functional
+          path: ./.build/docs
           name: docs-develop
       
       - name: Deploy to GitHub Pages
