@@ -1,7 +1,17 @@
-name: Generate and upload docs
+name: docs
 on:
+  push:
+    branches: [main, feature/doxygen]
   workflow_dispatch:
-  workflow_call:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
 
 jobs:
   generate_docs:
