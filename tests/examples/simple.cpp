@@ -17,7 +17,11 @@
 
 #include <catch2/catch_all.hpp>
 
+#include <cstddef>
 #include <iostream>
+#include <optional>
+#include <sstream>
+#include <string_view>
 
 struct Error final {
   std::string what;
@@ -246,4 +250,89 @@ TEST_CASE("Demo optional", "[optional][pack][and_then][or_else][inspect][transfo
   auto const p4 = fn3("42", "12");
   CHECK(p4.has_value());
   CHECK(p4.value() == 42 * 12);
+}
+
+TEST_CASE("Demo choice", "[choice][and_then][inspect][transform]")
+{
+  constexpr auto parse = [](std::string_view str) noexcept
+      -> fn::choice_for<bool, double, std::int64_t, std::string_view, std::nullptr_t, std::nullopt_t> {
+    if (str.size() > 0) {
+      if (str.size() > 1 && str[0] == '\'' && str[str.size() - 1] == '\'')
+        return {str.substr(1, str.size() - 2)};
+      else if (str.size() > 1 && str[0] == '\"' && str[str.size() - 1] == '\"')
+        return {str.substr(1, str.size() - 2)};
+      else if (str == "true")
+        return {true};
+      else if (str == "false")
+        return {false};
+      else if (str == "null")
+        return {nullptr};
+      else {
+        if (str.find_first_not_of("01234567890") != std::string_view::npos) {
+          double tmp = {};
+          auto const end = str.data() + str.size();
+          if (std::from_chars(str.data(), end, tmp).ptr == end) {
+            return {tmp};
+          }
+        } else {
+          std::int64_t tmp = {};
+          auto const end = str.data() + str.size();
+          if (std::from_chars(str.data(), end, tmp).ptr == end) {
+            return {tmp};
+          }
+        }
+      }
+      return {std::nullopt};
+    }
+    return {nullptr};
+  };
+
+  static_assert(
+      std::is_same_v<decltype(parse("")),
+                     fn::choice<bool, double, std::int64_t, std::string_view, std::nullopt_t, std::nullptr_t>>);
+  CHECK(parse("'abc'") == fn::choice{std::string_view{"abc"}});
+  CHECK(parse(R"("def")") == fn::choice{std::string_view{"def"}});
+  CHECK(parse("null") == fn::choice(nullptr));
+  CHECK(parse("") == fn::choice(nullptr));
+  CHECK(parse("true") == fn::choice(true));
+  CHECK(parse("false") == fn::choice(false));
+  CHECK(parse("1025") == fn::choice(1025l));
+  CHECK(parse("10.25") == fn::choice(10.25));
+  CHECK(parse("2e9") == fn::choice(2e9));
+  CHECK(parse("5e9") == fn::choice(5e9));
+  CHECK(parse("foo").has_value(std::in_place_type<std::nullopt_t>));
+
+  std::ostringstream ss;
+  auto fn = [parse, &ss](auto const &v) {
+    return parse(v)
+           // Example use of transform to collapse several types ...
+           | fn::transform(fn::overload([](std::int64_t const &i) -> double { return static_cast<double>(i); },
+                                        [](double const &i) -> double { return static_cast<double>(i); },
+                                        [](std::nullopt_t const &) { return nullptr; }, //
+                                        [](auto &i) { return FWD(i); }))
+           // ... and add a new type
+           | fn::transform(fn::overload(
+               [](double v) -> fn::sum<double, int> {
+                 if (std::ceil(v) == v && v >= -2e9 && v <= 2e9) {
+                   return {static_cast<int>(v)};
+                 }
+                 return {FWD(v)};
+               },
+               [](auto &i) { return FWD(i); }))
+           | fn::inspect(fn::overload{[&](std::nullptr_t const &) { ss << "nullptr" << ','; }, //
+                                      [&](bool const &v) { ss << v << ','; },                  //
+                                      [&](int const &v) { ss << v << ','; },                   //
+                                      [&](double const &v) { ss << v << ','; },                //
+                                      [&](std::string_view const &v) { ss << v << ','; }});
+  };
+
+  auto const a = fn("true");
+  static_assert(std::is_same_v<decltype(a), fn::choice<bool, double, int, std::string_view, std::nullptr_t> const>);
+  CHECK(a == fn::choice{true});
+  CHECK(fn("123") == fn::choice(123));
+  CHECK(fn("2e9") == fn::choice(2000000000));
+  CHECK(fn("5e9") == fn::choice(5e9));
+  CHECK(fn("") == fn::choice(nullptr));
+  CHECK(fn("foo") == fn::choice(nullptr));
+  CHECK(ss.str() == "1,123,2000000000,5e+09,nullptr,nullptr,");
 }

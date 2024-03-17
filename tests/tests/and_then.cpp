@@ -87,7 +87,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
     {
       static_assert(monadic_static_check<fn::and_then_t, decltype(v)>::invocable_with_any(Xint::efn));
 
-      auto const r = std::invoke(and_then_t::apply{}, v, Xint::efn);
+      auto const r = fn::invoke(and_then_t::apply{}, v, Xint::efn);
       CHECK(r.value() == 2);
 
       auto const q = v | and_then(&Xint::efn);
@@ -100,7 +100,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
     {
       static_assert(monadic_static_check<fn::and_then_t, decltype(v)>::invocable_with_any(&Xint::efn2));
 
-      auto const r = std::invoke(and_then_t::apply{}, v, &Xint::efn2);
+      auto const r = fn::invoke(and_then_t::apply{}, v, &Xint::efn2);
       CHECK(r.value() == 4);
 
       auto const q = v | and_then(&Xint::efn2);
@@ -117,7 +117,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
       static_assert(
           monadic_static_check<fn::and_then_t, decltype(v)>::invocable<prvalue, crvalue, cvalue>(&Xint::efn4));
 
-      auto const r = std::invoke(and_then_t::apply{}, std::move(v), &Xint::efn4);
+      auto const r = fn::invoke(and_then_t::apply{}, std::move(v), &Xint::efn4);
       CHECK(r.value() == 6);
 
       auto const q = std::move(v) | and_then(&Xint::efn4);
@@ -137,7 +137,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
     {
       static_assert(monadic_static_check<fn::and_then_t, decltype(v)>::invocable_with_any(Xint::efn));
 
-      auto const r = std::invoke(and_then_t::apply{}, v, Xint::efn);
+      auto const r = fn::invoke(and_then_t::apply{}, v, Xint::efn);
       CHECK(r.value() == 2);
 
       auto const q = v | and_then(&Xint::efn);
@@ -148,7 +148,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
     {
       static_assert(monadic_static_check<fn::and_then_t, decltype(v)>::invocable<lvalue>(&Xint::efn1));
 
-      auto const r = std::invoke(and_then_t::apply{}, v, &Xint::efn1);
+      auto const r = fn::invoke(and_then_t::apply{}, v, &Xint::efn1);
       CHECK(r.value() == 3);
 
       auto const q = v | and_then(&Xint::efn1);
@@ -163,7 +163,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
       static_assert(monadic_static_check<fn::and_then_t, decltype(v)>::invocable_with_any(&Xint::efn2));
 
       // rvalue-ref
-      auto const r = std::invoke(and_then_t::apply{}, v, &Xint::efn2);
+      auto const r = fn::invoke(and_then_t::apply{}, v, &Xint::efn2);
       CHECK(r.value() == 4);
 
       auto const q = v | and_then(&Xint::efn2);
@@ -177,7 +177,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
     {
       static_assert(monadic_static_check<fn::and_then_t, decltype(v)>::invocable<prvalue, rvalue>(&Xint::efn3));
 
-      auto const r = std::invoke(and_then_t::apply{}, std::move(v), &Xint::efn3);
+      auto const r = fn::invoke(and_then_t::apply{}, std::move(v), &Xint::efn3);
       CHECK(r.value() == 5);
 
       auto const q = std::move(v) | and_then(&Xint::efn3);
@@ -192,7 +192,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
       static_assert(
           monadic_static_check<fn::and_then_t, decltype(v)>::invocable<prvalue, crvalue, cvalue>(&Xint::efn4));
 
-      auto const r = std::invoke(and_then_t::apply{}, std::move(v), &Xint::efn4);
+      auto const r = fn::invoke(and_then_t::apply{}, std::move(v), &Xint::efn4);
       CHECK(r.value() == 6);
 
       auto const q = std::move(v) | and_then(&Xint::efn4);
@@ -212,7 +212,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
     {
       static_assert(monadic_static_check<fn::and_then_t, decltype(v)>::invocable_with_any(&Xint::ofn));
 
-      auto const r = std::invoke(and_then_t::apply{}, v, Xint::ofn);
+      auto const r = fn::invoke(and_then_t::apply{}, v, Xint::ofn);
       CHECK(r.value() == 2);
 
       auto const q = v | and_then(&Xint::ofn);
@@ -225,7 +225,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
     {
       static_assert(monadic_static_check<fn::and_then_t, decltype(v)>::invocable_with_any(&Xint::ofn2));
 
-      auto const r = std::invoke(and_then_t::apply{}, v, &Xint::ofn2);
+      auto const r = fn::invoke(and_then_t::apply{}, v, &Xint::ofn2);
       CHECK(r.value() == 4);
 
       auto const q = v | and_then(&Xint::ofn2);
@@ -242,7 +242,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
       static_assert(
           monadic_static_check<fn::and_then_t, decltype(v)>::invocable<prvalue, crvalue, cvalue>(&Xint::ofn4));
 
-      auto const r = std::invoke(and_then_t::apply{}, std::move(v), &Xint::ofn4);
+      auto const r = fn::invoke(and_then_t::apply{}, std::move(v), &Xint::ofn4);
       CHECK(r.value() == 6);
 
       auto const q = std::move(v) | and_then(&Xint::ofn4);
@@ -262,7 +262,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
     {
       static_assert(monadic_static_check<fn::and_then_t, decltype(v)>::invocable_with_any(Xint::ofn));
 
-      auto const r = std::invoke(and_then_t::apply{}, v, Xint::ofn);
+      auto const r = fn::invoke(and_then_t::apply{}, v, Xint::ofn);
       CHECK(r.value() == 2);
 
       auto const q = v | and_then(&Xint::ofn);
@@ -273,7 +273,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
     {
       static_assert(monadic_static_check<fn::and_then_t, decltype(v)>::invocable<lvalue>(&Xint::ofn1));
 
-      auto const r = std::invoke(and_then_t::apply{}, v, &Xint::ofn1);
+      auto const r = fn::invoke(and_then_t::apply{}, v, &Xint::ofn1);
       CHECK(r.value() == 3);
 
       auto const q = v | and_then(&Xint::ofn1);
@@ -288,7 +288,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
       static_assert(monadic_static_check<fn::and_then_t, decltype(v)>::invocable_with_any(&Xint::ofn2));
 
       // rvalue-ref
-      auto const r = std::invoke(and_then_t::apply{}, v, &Xint::ofn2);
+      auto const r = fn::invoke(and_then_t::apply{}, v, &Xint::ofn2);
       CHECK(r.value() == 4);
 
       auto const q = v | and_then(&Xint::ofn2);
@@ -302,7 +302,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
     {
       static_assert(monadic_static_check<fn::and_then_t, decltype(v)>::invocable<prvalue, rvalue>(&Xint::ofn3));
 
-      auto const r = std::invoke(and_then_t::apply{}, std::move(v), &Xint::ofn3);
+      auto const r = fn::invoke(and_then_t::apply{}, std::move(v), &Xint::ofn3);
       CHECK(r.value() == 5);
 
       auto const q = std::move(v) | and_then(&Xint::ofn3);
@@ -317,7 +317,7 @@ TEST_CASE("and_then_member", "[and_then][member_functions]")
       static_assert(
           monadic_static_check<fn::and_then_t, decltype(v)>::invocable<prvalue, crvalue, cvalue>(&Xint::ofn4));
 
-      auto const r = std::invoke(and_then_t::apply{}, std::move(v), &Xint::ofn4);
+      auto const r = fn::invoke(and_then_t::apply{}, std::move(v), &Xint::ofn4);
       CHECK(r.value() == 6);
 
       auto const q = std::move(v) | and_then(&Xint::ofn4);
@@ -686,6 +686,76 @@ TEST_CASE("and_then", "[and_then][optional][pack]")
   }
 }
 
+TEST_CASE("and_then choice", "[and_then][choice]")
+{
+  using namespace fn;
+
+  using operand_t = fn::choice<bool, double, int>;
+  using operand_other_t = fn::choice<Xint>;
+  using is = monadic_static_check<and_then_t, operand_t>;
+
+  constexpr auto fnValue = [](auto i) -> operand_t { return {i + 1}; };
+  constexpr auto fnXabs = [](int i) -> operand_other_t { return {Xint{std::abs(8 - i)}}; };
+
+  static_assert(is::invocable_with_any(fnValue));
+  static_assert(is::invocable_with_any([](int) -> operand_t { throw 0; }));                   // allow copy
+  static_assert(is::invocable_with_any([](unsigned) -> operand_t { throw 0; }));              // allow conversion
+  static_assert(is::invocable_with_any([](int) -> operand_other_t { throw 0; }));             // allow conversion
+  static_assert(is::invocable_with_any([](int const &) -> operand_t { throw 0; }));           // binds to const ref
+  static_assert(is::invocable<lvalue>([](auto &) -> operand_t { throw 0; }));                 // binds to lvalue
+  static_assert(is::invocable<rvalue, prvalue>([](auto &&) -> operand_t { throw 0; }));       // can move
+  static_assert(is::invocable<rvalue, crvalue>([](auto const &&) -> operand_t { throw 0; })); // binds to const rvalue
+
+  constexpr auto fnLvalue = fn::overload{[](bool &) -> operand_t { throw 0; },   //
+                                         [](double &) -> operand_t { throw 0; }, //
+                                         [](int &) -> operand_t { throw 0; }};
+  static_assert(is::not_invocable<clvalue, crvalue, cvalue>(fnLvalue)); // cannot remove const
+  static_assert(is::not_invocable<rvalue>(fnLvalue));                   // disallow bind
+
+  constexpr auto fnRvalue = fn::overload{[](bool &&) -> operand_t { throw 0; },   //
+                                         [](double &&) -> operand_t { throw 0; }, //
+                                         [](int &&) -> operand_t { throw 0; }};
+  static_assert(is::not_invocable<lvalue, clvalue, crvalue, cvalue>(fnRvalue));      // cannot move
+  static_assert(is::not_invocable_with_any([](int &) -> operand_t { throw 0; }));    // not enough types
+  static_assert(is::not_invocable_with_any([]() -> operand_t { throw 0; }));         // bad arity
+  static_assert(is::not_invocable_with_any([](int, int) -> operand_t { throw 0; })); // bad arity
+
+  WHEN("operand is lvalue")
+  {
+    WHEN("operand is value")
+    {
+      operand_t a{12};
+      using T = decltype(a | and_then(fnValue));
+      static_assert(std::is_same_v<T, operand_t>);
+      REQUIRE(*(a | and_then(fnValue)).get_ptr<int>() == 13);
+
+      WHEN("change type")
+      {
+        using T = decltype(a | and_then(fnXabs));
+        static_assert(std::is_same_v<T, fn::choice<Xint>>);
+        REQUIRE((a | and_then(fnXabs)).get_ptr<Xint>()->value == 4);
+      }
+    }
+  }
+
+  WHEN("operand is rvalue")
+  {
+    WHEN("operand is value")
+    {
+      using T = decltype(operand_t{12} | and_then(fnValue));
+      static_assert(std::is_same_v<T, operand_t>);
+      REQUIRE(*(operand_t{12} | and_then(fnValue)).get_ptr<int>() == 13);
+
+      WHEN("change type")
+      {
+        using T = decltype(operand_t{12} | and_then(fnXabs));
+        static_assert(std::is_same_v<T, fn::choice<Xint>>);
+        REQUIRE((operand_t{12} | and_then(fnXabs)).get_ptr<Xint>()->value == 4);
+      }
+    }
+  }
+}
+
 TEST_CASE("constexpr and_then expected", "[and_then][constexpr][expected]")
 {
   enum class Error { ThresholdExceeded, SomethingElse };
@@ -760,6 +830,48 @@ TEST_CASE("constexpr and_then optional", "[and_then][constexpr][optional]")
     static_assert(r2.value() == false);
     constexpr auto r3 = T{2} | fn::and_then(fn);
     static_assert(not r3.has_value());
+  }
+
+  SUCCEED();
+}
+
+TEST_CASE("constexpr and_then choice", "[and_then][constexpr][choice]")
+{
+  using T = fn::choice<double, int>;
+
+  WHEN("same value type")
+  {
+    constexpr auto fn = [](int i) constexpr noexcept -> T {
+      if (i < 3)
+        return {i + 1};
+      return {0.0};
+    };
+    constexpr auto r1 = T{0} | fn::and_then(fn);
+    static_assert(r1.transform_to([](int i) -> int { return i; }) == 1);
+    constexpr auto r2 = T{0.5} | fn::and_then(fn);
+    static_assert(r2.transform_to([](int i) -> int { return i; }) == 1);
+    constexpr auto r3 = r1 | fn::and_then(fn) | fn::and_then(fn) | fn::and_then(fn);
+    static_assert(r3.transform_to([](double i) -> int { return i; }) == 0.0);
+  }
+
+  WHEN("different value type")
+  {
+    using T1 = fn::choice<bool, int>;
+    constexpr auto fn = [](int i) constexpr noexcept -> T1 {
+      if (i == 1)
+        return {true};
+      else if (i == 0)
+        return {false};
+      else
+        return {std::move(i)};
+    };
+    constexpr auto r1 = T{1} | fn::and_then(fn);
+    static_assert(std::is_same_v<decltype(r1), fn::choice<bool, int> const>);
+    static_assert(r1.transform_to([](bool i) -> bool { return i; }) == true);
+    constexpr auto r2 = T{0} | fn::and_then(fn);
+    static_assert(r2.transform_to([](bool i) -> bool { return i; }) == false);
+    constexpr auto r3 = T{2} | fn::and_then(fn);
+    static_assert(r3.transform_to([](int i) -> int { return i; }) == 2);
   }
 
   SUCCEED();

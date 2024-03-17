@@ -6,7 +6,10 @@
 #ifndef INCLUDE_FUNCTIONAL_TRANSFORM
 #define INCLUDE_FUNCTIONAL_TRANSFORM
 
+#include "functional/choice.hpp"
 #include "functional/concepts.hpp"
+#include "functional/expected.hpp"
+#include "functional/functional.hpp"
 #include "functional/functor.hpp"
 #include "functional/fwd.hpp"
 #include "functional/optional.hpp"
@@ -19,26 +22,22 @@
 namespace fn {
 template <typename Fn, typename V>
 concept invocable_transform //
-    = (some_expected_pack<V> && requires(Fn &&fn, V &&v) {
+    = (some_expected_non_void<V> && requires(Fn &&fn, V &&v) {
         {
-          FWD(v).value().invoke(FWD(fn))
-        } -> convertible_to_expected<typename std::remove_cvref_t<decltype(v)>::error_type>;
-      }) || (some_expected_non_pack<V> && requires(Fn &&fn, V &&v) {
-        {
-          std::invoke(FWD(fn), FWD(v).value())
+          ::fn::invoke(FWD(fn), FWD(v).value())
         } -> convertible_to_expected<typename std::remove_cvref_t<decltype(v)>::error_type>;
       }) || (some_expected_void<V> && requires(Fn &&fn, V &&v) {
         {
-          std::invoke(FWD(fn))
+          ::fn::invoke(FWD(fn))
         } -> convertible_to_expected<typename std::remove_cvref_t<decltype(v)>::error_type>;
-      }) || (some_optional_pack<V> && requires(Fn &&fn, V &&v) {
+      }) || (some_optional<V> && requires(Fn &&fn, V &&v) {
         {
-          FWD(v).value().invoke(FWD(fn))
+          ::fn::invoke(FWD(fn), FWD(v).value())
         } -> convertible_to_optional;
-      }) || (some_optional_non_pack<V> && requires(Fn &&fn, V &&v) {
+      }) || (some_choice<V> && requires(Fn &&fn, V &&v) {
         {
-          std::invoke(FWD(fn), FWD(v).value())
-        } -> convertible_to_optional;
+          FWD(v).transform(FWD(fn))
+        } -> convertible_to_choice;
       });
 
 static constexpr struct transform_t final {

@@ -7,6 +7,7 @@
 #define INCLUDE_FUNCTIONAL_OR_ELSE
 
 #include "functional/concepts.hpp"
+#include "functional/functional.hpp"
 #include "functional/functor.hpp"
 #include "functional/fwd.hpp"
 #include "functional/utility.hpp"
@@ -19,11 +20,11 @@ template <typename Fn, typename V>
 concept invocable_or_else //
     = (some_expected<V> && requires(Fn &&fn, V &&v) {
         {
-          std::invoke(FWD(fn), FWD(v).error())
+          ::fn::invoke(FWD(fn), FWD(v).error())
         } -> same_value_kind<V>;
       }) || (some_optional<V> && requires(Fn &&fn) {
         {
-          std::invoke(FWD(fn))
+          ::fn::invoke(FWD(fn))
         } -> same_value_kind<V>;
       });
 
@@ -43,6 +44,9 @@ struct or_else_t::apply final {
   {
     return FWD(v).or_else(FWD(fn));
   }
+
+  // No support for choice since there's no error to recover from
+  static auto operator()(some_choice auto &&v, auto &&...args) noexcept = delete;
 };
 
 } // namespace fn

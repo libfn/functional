@@ -6,7 +6,9 @@
 #ifndef INCLUDE_FUNCTIONAL_EXPECTED
 #define INCLUDE_FUNCTIONAL_EXPECTED
 
-#include "functional/detail/fwd_macro.hpp"
+#include "functional/functional.hpp"
+#include "functional/fwd.hpp"
+#include "functional/pack.hpp"
 #include "functional/utility.hpp"
 
 #include <concepts>
@@ -16,16 +18,8 @@
 
 namespace fn {
 
-template <typename T, typename Err> struct expected;
-
-namespace detail {
-template <typename T> constexpr bool _is_some_expected = false;
-template <typename T, typename Err> constexpr bool _is_some_expected<::fn::expected<T, Err> &> = true;
-template <typename T, typename Err> constexpr bool _is_some_expected<::fn::expected<T, Err> const &> = true;
-} // namespace detail
-
 template <typename T>
-concept some_expected = detail::_is_some_expected<T &>;
+concept some_expected = detail::_some_expected<T>;
 
 template <typename T>
 concept some_expected_non_void = //
@@ -55,176 +49,55 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
 
   using std::expected<T, Err>::expected;
 
-  // and_then pack
-  template <typename Fn>
-  constexpr auto and_then(Fn &&fn) &
-    requires std::is_constructible_v<Err, Err &> && some_pack<value_type>
-  {
-    using type = decltype(this->value().invoke(FWD(fn)));
-    static_assert(some_expected<type>);
-    static_assert(std::is_same_v<typename type::error_type, error_type>);
-    if (this->has_value())
-      return this->value().invoke(FWD(fn));
-    else
-      return type(std::unexpect, this->error());
-  }
-
-  template <typename Fn>
-  constexpr auto and_then(Fn &&fn) const &
-    requires std::is_constructible_v<Err, Err const &> && some_pack<value_type>
-  {
-    using type = decltype(this->value().invoke(FWD(fn)));
-    static_assert(some_expected<type>);
-    static_assert(std::is_same_v<typename type::error_type, error_type>);
-    if (this->has_value())
-      return this->value().invoke(FWD(fn));
-    else
-      return type(std::unexpect, this->error());
-  }
-
-  template <typename Fn>
-  constexpr auto and_then(Fn &&fn) &&
-    requires std::is_constructible_v<Err, Err &&> && some_pack<value_type>
-  {
-    using type = decltype(std::move(*this).value().invoke(FWD(fn)));
-    static_assert(some_expected<type>);
-    static_assert(std::is_same_v<typename type::error_type, error_type>);
-    if (this->has_value())
-      return std::move(*this).value().invoke(FWD(fn));
-    else
-      return type(std::unexpect, std::move(this->error()));
-  }
-
-  template <typename Fn>
-  constexpr auto and_then(Fn &&fn) const &&
-    requires std::is_constructible_v<Err, Err const &&> && some_pack<value_type>
-  {
-    using type = decltype(std::move(*this).value().invoke(FWD(fn)));
-    static_assert(some_expected<type>);
-    static_assert(std::is_same_v<typename type::error_type, error_type>);
-    if (this->has_value())
-      return std::move(*this).value().invoke(FWD(fn));
-    else
-      return type(std::unexpect, std::move(this->error()));
-  }
-
-  // transform pack
-  template <typename Fn>
-  constexpr auto transform(Fn &&fn) &
-    requires some_pack<value_type>
-  {
-    using value_type = decltype(this->value().invoke(FWD(fn)));
-    using type = expected<value_type, Err>;
-    if (this->has_value())
-      if constexpr (std::same_as<value_type, void>) {
-        this->value().invoke(FWD(fn));
-        return type();
-      } else
-        return type(std::in_place, this->value().invoke(FWD(fn)));
-    else
-      return type(std::unexpect, this->error());
-  }
-
-  template <typename Fn>
-  constexpr auto transform(Fn &&fn) const &
-    requires some_pack<value_type>
-  {
-    using value_type = decltype(this->value().invoke(FWD(fn)));
-    using type = expected<value_type, Err>;
-    if (this->has_value())
-      if constexpr (std::same_as<value_type, void>) {
-        this->value().invoke(FWD(fn));
-        return type();
-      } else
-        return type(std::in_place, this->value().invoke(FWD(fn)));
-    else
-      return type(std::unexpect, this->error());
-  }
-
-  template <typename Fn>
-  constexpr auto transform(Fn &&fn) &&
-    requires some_pack<value_type>
-  {
-    using value_type = decltype(std::move(*this).value().invoke(FWD(fn)));
-    using type = expected<value_type, Err>;
-    if (this->has_value())
-      if constexpr (std::same_as<value_type, void>) {
-        std::move(*this).value().invoke(FWD(fn));
-        return type();
-      } else
-        return type(std::in_place, std::move(*this).value().invoke(FWD(fn)));
-    else
-      return type(std::unexpect, std::move(this->error()));
-  }
-
-  template <typename Fn>
-  constexpr auto transform(Fn &&fn) const &&
-    requires some_pack<value_type>
-  {
-    using value_type = decltype(std::move(*this).value().invoke(FWD(fn)));
-    using type = expected<value_type, Err>;
-    if (this->has_value())
-      if constexpr (std::same_as<value_type, void>) {
-        std::move(*this).value().invoke(FWD(fn));
-        return type();
-      } else
-        return type(std::in_place, std::move(*this).value().invoke(FWD(fn)));
-    else
-      return type(std::unexpect, std::move(this->error()));
-  }
-
-  // NOTE All the functions below are polyfills. They are needed because monadic
-  // operations must return fn::expected rather than std::expected
-
   // and_then not void
   template <typename Fn>
   constexpr auto and_then(Fn &&fn) &
-    requires std::is_constructible_v<Err, Err &> && (not std::same_as<T, void>) && (not some_pack<value_type>)
+    requires std::is_constructible_v<Err, Err &> && (not std::same_as<T, void>)
   {
-    using type = std::invoke_result_t<Fn, value_type &>;
+    using type = ::fn::detail::_invoke_result_t<Fn, value_type &>;
     static_assert(some_expected<type>);
     static_assert(std::is_same_v<typename type::error_type, error_type>);
     if (this->has_value())
-      return std::invoke(FWD(fn), this->value());
+      return ::fn::detail::_invoke(FWD(fn), this->value());
     else
       return type(std::unexpect, this->error());
   }
 
   template <typename Fn>
   constexpr auto and_then(Fn &&fn) const &
-    requires std::is_constructible_v<Err, Err const &> && (not std::same_as<T, void>) && (not some_pack<value_type>)
+    requires std::is_constructible_v<Err, Err const &> && (not std::same_as<T, void>)
   {
-    using type = std::invoke_result_t<Fn, value_type const &>;
+    using type = ::fn::detail::_invoke_result_t<Fn, value_type const &>;
     static_assert(some_expected<type>);
     static_assert(std::is_same_v<typename type::error_type, error_type>);
     if (this->has_value())
-      return std::invoke(FWD(fn), this->value());
+      return ::fn::detail::_invoke(FWD(fn), this->value());
     else
       return type(std::unexpect, this->error());
   }
 
   template <typename Fn>
   constexpr auto and_then(Fn &&fn) &&
-    requires std::is_constructible_v<Err, Err> && (not std::same_as<T, void>) && (not some_pack<value_type>)
+    requires std::is_constructible_v<Err, Err> && (not std::same_as<T, void>)
   {
-    using type = std::invoke_result_t<Fn, value_type &&>;
+    using type = ::fn::detail::_invoke_result_t<Fn, value_type &&>;
     static_assert(some_expected<type>);
     static_assert(std::is_same_v<typename type::error_type, error_type>);
     if (this->has_value())
-      return std::invoke(FWD(fn), std::move(this->value()));
+      return ::fn::detail::_invoke(FWD(fn), std::move(this->value()));
     else
       return type(std::unexpect, std::move(this->error()));
   }
 
   template <typename Fn>
   constexpr auto and_then(Fn &&fn) const &&
-    requires std::is_constructible_v<Err, Err const> && (not std::same_as<T, void>) && (not some_pack<value_type>)
+    requires std::is_constructible_v<Err, Err const> && (not std::same_as<T, void>)
   {
-    using type = std::invoke_result_t<Fn, value_type const &&>;
+    using type = ::fn::detail::_invoke_result_t<Fn, value_type const &&>;
     static_assert(some_expected<type>);
     static_assert(std::is_same_v<typename type::error_type, error_type>);
     if (this->has_value())
-      return std::invoke(FWD(fn), std::move(this->value()));
+      return ::fn::detail::_invoke(FWD(fn), std::move(this->value()));
     else
       return type(std::unexpect, std::move(this->error()));
   }
@@ -234,11 +107,11 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
   constexpr auto and_then(Fn &&fn) &
     requires std::same_as<T, void>
   {
-    using type = std::invoke_result_t<Fn>;
+    using type = ::fn::detail::_invoke_result_t<Fn>;
     static_assert(some_expected<type>);
     static_assert(std::is_same_v<typename type::error_type, error_type>);
     if (this->has_value())
-      return std::invoke(FWD(fn));
+      return ::fn::detail::_invoke(FWD(fn));
     else
       return type(std::unexpect, this->error());
   }
@@ -247,11 +120,11 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
   constexpr auto and_then(Fn &&fn) const &
     requires std::same_as<T, void>
   {
-    using type = std::invoke_result_t<Fn>;
+    using type = ::fn::detail::_invoke_result_t<Fn>;
     static_assert(some_expected<type>);
     static_assert(std::is_same_v<typename type::error_type, error_type>);
     if (this->has_value())
-      return std::invoke(FWD(fn));
+      return ::fn::detail::_invoke(FWD(fn));
     else
       return type(std::unexpect, this->error());
   }
@@ -260,11 +133,11 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
   constexpr auto and_then(Fn &&fn) &&
     requires std::same_as<T, void>
   {
-    using type = std::invoke_result_t<Fn>;
+    using type = ::fn::detail::_invoke_result_t<Fn>;
     static_assert(some_expected<type>);
     static_assert(std::is_same_v<typename type::error_type, error_type>);
     if (this->has_value())
-      return std::invoke(FWD(fn));
+      return ::fn::detail::_invoke(FWD(fn));
     else
       return type(std::unexpect, std::move(this->error()));
   }
@@ -273,11 +146,11 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
   constexpr auto and_then(Fn &&fn) const &&
     requires std::same_as<T, void>
   {
-    using type = std::invoke_result_t<Fn>;
+    using type = ::fn::detail::_invoke_result_t<Fn>;
     static_assert(some_expected<type>);
     static_assert(std::is_same_v<typename type::error_type, error_type>);
     if (this->has_value())
-      return std::invoke(FWD(fn));
+      return ::fn::detail::_invoke(FWD(fn));
     else
       return type(std::unexpect, std::move(this->error()));
   }
@@ -287,52 +160,52 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
   constexpr auto or_else(Fn &&fn) &
     requires std::is_constructible_v<T, T &> && (not std::same_as<T, void>)
   {
-    using type = std::invoke_result_t<Fn, error_type &>;
+    using type = ::fn::detail::_invoke_result_t<Fn, error_type &>;
     static_assert(some_expected<type>);
     static_assert(std::is_same_v<typename type::value_type, value_type>);
     if (this->has_value())
       return type(std::in_place, this->value());
     else
-      return std::invoke(FWD(fn), this->error());
+      return ::fn::detail::_invoke(FWD(fn), this->error());
   }
 
   template <typename Fn>
   constexpr auto or_else(Fn &&fn) const &
     requires std::is_constructible_v<T, T const &> && (not std::same_as<T, void>)
   {
-    using type = std::invoke_result_t<Fn, error_type const &>;
+    using type = ::fn::detail::_invoke_result_t<Fn, error_type const &>;
     static_assert(some_expected<type>);
     static_assert(std::is_same_v<typename type::value_type, value_type>);
     if (this->has_value())
       return type(std::in_place, this->value());
     else
-      return std::invoke(FWD(fn), this->error());
+      return ::fn::detail::_invoke(FWD(fn), this->error());
   }
 
   template <typename Fn>
   constexpr auto or_else(Fn &&fn) &&
     requires std::is_constructible_v<T, T> && (not std::same_as<T, void>)
   {
-    using type = std::invoke_result_t<Fn, error_type &&>;
+    using type = ::fn::detail::_invoke_result_t<Fn, error_type &&>;
     static_assert(some_expected<type>);
     static_assert(std::is_same_v<typename type::value_type, value_type>);
     if (this->has_value())
       return type(std::in_place, std::move(this->value()));
     else
-      return std::invoke(FWD(fn), std::move(this->error()));
+      return ::fn::detail::_invoke(FWD(fn), std::move(this->error()));
   }
 
   template <typename Fn>
   constexpr auto or_else(Fn &&fn) const &&
     requires std::is_constructible_v<T, T const> && (not std::same_as<T, void>)
   {
-    using type = std::invoke_result_t<Fn, error_type const &&>;
+    using type = ::fn::detail::_invoke_result_t<Fn, error_type const &&>;
     static_assert(some_expected<type>);
     static_assert(std::is_same_v<typename type::value_type, value_type>);
     if (this->has_value())
       return type(std::in_place, std::move(this->value()));
     else
-      return std::invoke(FWD(fn), std::move(this->error()));
+      return ::fn::detail::_invoke(FWD(fn), std::move(this->error()));
   }
 
   // or_else void
@@ -340,114 +213,113 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
   constexpr auto or_else(Fn &&fn) &
     requires std::same_as<T, void>
   {
-    using type = std::invoke_result_t<Fn, error_type &>;
+    using type = ::fn::detail::_invoke_result_t<Fn, error_type &>;
     static_assert(some_expected<type>);
     static_assert(std::is_same_v<typename type::value_type, void>);
     if (this->has_value())
       return type();
     else
-      return std::invoke(FWD(fn), this->error());
+      return ::fn::detail::_invoke(FWD(fn), this->error());
   }
 
   template <typename Fn>
   constexpr auto or_else(Fn &&fn) const &
     requires std::same_as<T, void>
   {
-    using type = std::invoke_result_t<Fn, error_type const &>;
+    using type = ::fn::detail::_invoke_result_t<Fn, error_type const &>;
     static_assert(some_expected<type>);
     static_assert(std::is_same_v<typename type::value_type, void>);
     if (this->has_value())
       return type();
     else
-      return std::invoke(FWD(fn), this->error());
+      return ::fn::detail::_invoke(FWD(fn), this->error());
   }
 
   template <typename Fn>
   constexpr auto or_else(Fn &&fn) &&
     requires std::same_as<T, void>
   {
-    using type = std::invoke_result_t<Fn, error_type &&>;
+    using type = ::fn::detail::_invoke_result_t<Fn, error_type &&>;
     static_assert(some_expected<type>);
     static_assert(std::is_same_v<typename type::value_type, void>);
     if (this->has_value())
       return type();
     else
-      return std::invoke(FWD(fn), std::move(this->error()));
+      return ::fn::detail::_invoke(FWD(fn), std::move(this->error()));
   }
 
   template <typename Fn>
   constexpr auto or_else(Fn &&fn) const &&
     requires std::same_as<T, void>
   {
-    using type = std::invoke_result_t<Fn, error_type const &&>;
+    using type = ::fn::detail::_invoke_result_t<Fn, error_type const &&>;
     static_assert(some_expected<type>);
     static_assert(std::is_same_v<typename type::value_type, void>);
     if (this->has_value())
       return type();
     else
-      return std::invoke(FWD(fn), std::move(this->error()));
+      return ::fn::detail::_invoke(FWD(fn), std::move(this->error()));
   }
 
   // transform not void
   template <typename Fn>
           constexpr auto transform(Fn &&fn) & requires(not std::same_as<T, void>)
-      && (not some_pack<value_type>)
   {
-    using value_type = std::invoke_result_t<Fn, value_type &>;
+    using value_type = ::fn::detail::_invoke_result_t<Fn, value_type &>;
     using type = expected<value_type, Err>;
     if (this->has_value())
       if constexpr (std::same_as<value_type, void>) {
-        std::invoke(FWD(fn), this->value());
+        ::fn::detail::_invoke(FWD(fn), this->value());
         return type();
       } else
-        return type(std::in_place, std::invoke(FWD(fn), this->value()));
+        return type(std::in_place, ::fn::detail::_invoke(FWD(fn), this->value()));
     else
       return type(std::unexpect, this->error());
   }
 
   template <typename Fn>
   constexpr auto transform(Fn &&fn) const &
-    requires(not std::same_as<T, void>) && (not some_pack<value_type>)
+    requires(not std::same_as<T, void>)
   {
-    using value_type = std::invoke_result_t<Fn, value_type const &>;
+    using value_type = ::fn::detail::_invoke_result_t<Fn, value_type const &>;
     using type = expected<value_type, Err>;
     if (this->has_value())
       if constexpr (std::same_as<value_type, void>) {
-        std::invoke(FWD(fn), this->value());
+        ::fn::detail::_invoke(FWD(fn), this->value());
         return type();
       } else
-        return type(std::in_place, std::invoke(FWD(fn), this->value()));
+        return type(std::in_place, ::fn::detail::_invoke(FWD(fn), this->value()));
     else
       return type(std::unexpect, this->error());
   }
 
   template <typename Fn>
-      constexpr auto transform(Fn &&fn) && requires(not std::same_as<T, void>) && (not some_pack<value_type>)
+      constexpr auto transform(Fn &&fn) && requires(not std::same_as<T, void>)
   {
-    using value_type = std::invoke_result_t<Fn, value_type &&>;
+    using value_type = ::fn::detail::_invoke_result_t<Fn, value_type &&>;
     using type = expected<value_type, Err>;
     if (this->has_value())
       if constexpr (std::same_as<value_type, void>) {
-        std::invoke(FWD(fn), std::move(this->value()));
+        ::fn::detail::_invoke(FWD(fn), std::move(this->value()));
         return type();
       } else
-        return type(std::in_place, std::invoke(FWD(fn), std::move(this->value())));
+        return type(std::in_place, ::fn::detail::_invoke(FWD(fn), std::move(this->value())));
     else
       return type(std::unexpect, std::move(this->error()));
   }
 
   template <typename Fn>
   constexpr auto transform(Fn &&fn) const &&
-    requires(not std::same_as<T, void>) && (not some_pack<value_type>)
+    requires(not std::same_as<T, void>)
   {
-    using value_type = std::invoke_result_t<Fn, value_type const &&>;
+    using value_type = ::fn::detail::_invoke_result_t<Fn, value_type const &&>;
     using type = expected<value_type, Err>;
     if (this->has_value())
       if constexpr (std::same_as<value_type, void>) {
-        std::invoke(FWD(fn), std::move(this->value()));
+        ::fn::detail::_invoke(FWD(fn), std::move(this->value()));
         return type();
       } else
-        return type(std::in_place, std::invoke(FWD(fn), std::move(this->value())));
+        return type(std::in_place, ::fn::detail::_invoke(FWD(fn), std::move(this->value())));
     else
       return type(std::unexpect, std::move(this->error()));
   }
@@ -457,14 +329,14 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
   constexpr auto transform(Fn &&fn) &
     requires std::same_as<T, void>
   {
-    using value_type = std::invoke_result_t<Fn>;
+    using value_type = ::fn::detail::_invoke_result_t<Fn>;
     using type = expected<value_type, Err>;
     if (this->has_value())
       if constexpr (std::same_as<value_type, void>) {
-        std::invoke(FWD(fn));
+        ::fn::detail::_invoke(FWD(fn));
         return type();
       } else
-        return type(std::in_place, std::invoke(FWD(fn)));
+        return type(std::in_place, ::fn::detail::_invoke(FWD(fn)));
     else
       return type(std::unexpect, this->error());
   }
@@ -473,14 +345,14 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
   constexpr auto transform(Fn &&fn) const &
     requires std::same_as<T, void>
   {
-    using value_type = std::invoke_result_t<Fn>;
+    using value_type = ::fn::detail::_invoke_result_t<Fn>;
     using type = expected<value_type, Err>;
     if (this->has_value())
       if constexpr (std::same_as<value_type, void>) {
-        std::invoke(FWD(fn));
+        ::fn::detail::_invoke(FWD(fn));
         return type();
       } else
-        return type(std::in_place, std::invoke(FWD(fn)));
+        return type(std::in_place, ::fn::detail::_invoke(FWD(fn)));
     else
       return type(std::unexpect, this->error());
   }
@@ -489,14 +361,14 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
   constexpr auto transform(Fn &&fn) &&
     requires std::same_as<T, void>
   {
-    using value_type = std::invoke_result_t<Fn>;
+    using value_type = ::fn::detail::_invoke_result_t<Fn>;
     using type = expected<value_type, Err>;
     if (this->has_value())
       if constexpr (std::same_as<value_type, void>) {
-        std::invoke(FWD(fn));
+        ::fn::detail::_invoke(FWD(fn));
         return type();
       } else
-        return type(std::in_place, std::invoke(FWD(fn)));
+        return type(std::in_place, ::fn::detail::_invoke(FWD(fn)));
     else
       return type(std::unexpect, std::move(this->error()));
   }
@@ -505,14 +377,14 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
   constexpr auto transform(Fn &&fn) const &&
     requires std::same_as<T, void>
   {
-    using value_type = std::invoke_result_t<Fn &>;
+    using value_type = ::fn::detail::_invoke_result_t<Fn &>;
     using type = expected<value_type, Err>;
     if (this->has_value())
       if constexpr (std::same_as<value_type, void>) {
-        std::invoke(FWD(fn));
+        ::fn::detail::_invoke(FWD(fn));
         return type();
       } else
-        return type(std::in_place, std::invoke(FWD(fn)));
+        return type(std::in_place, ::fn::detail::_invoke(FWD(fn)));
     else
       return type(std::unexpect, std::move(this->error()));
   }
@@ -522,44 +394,44 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
     requires(not std::same_as<T, void>)
   constexpr auto transform_error(Fn &&fn) &
   {
-    using error_type = std::invoke_result_t<Fn, error_type &>;
+    using error_type = ::fn::detail::_invoke_result_t<Fn, error_type &>;
     using type = expected<T, error_type>;
     if (this->has_value())
       return type(std::in_place, this->value());
     else
-      return type(std::unexpect, std::invoke(FWD(fn), this->error()));
+      return type(std::unexpect, ::fn::detail::_invoke(FWD(fn), this->error()));
   }
 
   template <typename Fn>
     requires(not std::same_as<T, void>)
   constexpr auto transform_error(Fn &&fn) const &
   {
-    using error_type = std::invoke_result_t<Fn, error_type const &>;
+    using error_type = ::fn::detail::_invoke_result_t<Fn, error_type const &>;
     using type = expected<T, error_type>;
     if (this->has_value())
       return type(std::in_place, this->value());
     else
-      return type(std::unexpect, std::invoke(FWD(fn), this->error()));
+      return type(std::unexpect, ::fn::detail::_invoke(FWD(fn), this->error()));
   }
 
   template <typename Fn> constexpr auto transform_error(Fn &&fn) && requires (not std::same_as<T, void>)
   {
-    using error_type = std::invoke_result_t<Fn, error_type &&>;
+    using error_type = ::fn::detail::_invoke_result_t<Fn, error_type &&>;
     using type = expected<T, error_type>;
     if (this->has_value())
       return type(std::in_place, std::move(this->value()));
     else
-      return type(std::unexpect, std::invoke(FWD(fn), std::move(this->error())));
+      return type(std::unexpect, ::fn::detail::_invoke(FWD(fn), std::move(this->error())));
   }
 
   template <typename Fn> constexpr auto transform_error(Fn &&fn) const && requires (not std::same_as<T, void>)
   {
-    using error_type = std::invoke_result_t<Fn, error_type const &&>;
+    using error_type = ::fn::detail::_invoke_result_t<Fn, error_type const &&>;
     using type = expected<T, error_type>;
     if (this->has_value())
       return type(std::in_place, std::move(this->value()));
     else
-      return type(std::unexpect, std::invoke(FWD(fn), std::move(this->error())));
+      return type(std::unexpect, ::fn::detail::_invoke(FWD(fn), std::move(this->error())));
   }
 
   // transform_error void
@@ -567,48 +439,48 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
   constexpr auto transform_error(Fn &&fn) &
     requires std::same_as<T, void>
   {
-    using error_type = std::invoke_result_t<Fn, error_type &>;
+    using error_type = ::fn::detail::_invoke_result_t<Fn, error_type &>;
     using type = expected<T, error_type>;
     if (this->has_value())
       return type();
     else
-      return type(std::unexpect, std::invoke(FWD(fn), this->error()));
+      return type(std::unexpect, ::fn::detail::_invoke(FWD(fn), this->error()));
   }
 
   template <typename Fn>
   constexpr auto transform_error(Fn &&fn) const &
     requires std::same_as<T, void>
   {
-    using error_type = std::invoke_result_t<Fn, error_type const &>;
+    using error_type = ::fn::detail::_invoke_result_t<Fn, error_type const &>;
     using type = expected<T, error_type>;
     if (this->has_value())
       return type();
     else
-      return type(std::unexpect, std::invoke(FWD(fn), this->error()));
+      return type(std::unexpect, ::fn::detail::_invoke(FWD(fn), this->error()));
   }
 
   template <typename Fn>
   constexpr auto transform_error(Fn &&fn) &&
     requires std::same_as<T, void>
   {
-    using error_type = std::invoke_result_t<Fn, error_type &&>;
+    using error_type = ::fn::detail::_invoke_result_t<Fn, error_type &&>;
     using type = expected<T, error_type>;
     if (this->has_value())
       return type();
     else
-      return type(std::unexpect, std::invoke(FWD(fn), std::move(this->error())));
+      return type(std::unexpect, ::fn::detail::_invoke(FWD(fn), std::move(this->error())));
   }
 
   template <typename Fn>
   constexpr auto transform_error(Fn &&fn) const &&
     requires std::same_as<T, void>
   {
-    using error_type = std::invoke_result_t<Fn, error_type const &&>;
+    using error_type = ::fn::detail::_invoke_result_t<Fn, error_type const &&>;
     using type = expected<T, error_type>;
     if (this->has_value())
       return type();
     else
-      return type(std::unexpect, std::invoke(FWD(fn), std::move(this->error())));
+      return type(std::unexpect, ::fn::detail::_invoke(FWD(fn), std::move(this->error())));
   }
 };
 

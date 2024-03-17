@@ -7,6 +7,8 @@
 #define INCLUDE_FUNCTIONAL_FUNCTOR
 
 #include "functional/concepts.hpp"
+#include "functional/functional.hpp"
+#include "functional/pack.hpp"
 #include "functional/utility.hpp"
 
 #include <concepts>
@@ -16,7 +18,7 @@
 namespace fn {
 template <typename Functor, typename V, typename... Args>
 concept monadic_invocable //
-    = some_monadic_type<V> && std::invocable<typename Functor::apply, V, Args...>;
+    = some_monadic_type<V> && invocable<typename Functor::apply, V, Args...>;
 
 template <typename Functor, typename... Args> struct functor final {
   using functor_type = Functor;

@@ -7,6 +7,7 @@
 #define INCLUDE_FUNCTIONAL_TRANSFORM_ERROR
 
 #include "functional/concepts.hpp"
+#include "functional/functional.hpp"
 #include "functional/functor.hpp"
 #include "functional/fwd.hpp"
 #include "functional/utility.hpp"
@@ -19,7 +20,7 @@ template <typename Fn, typename V>
 concept invocable_transform_error //
     = (some_expected<V> && requires(Fn &&fn, V &&v) {
         {
-          std::invoke(FWD(fn), FWD(v).error())
+          ::fn::invoke(FWD(fn), FWD(v).error())
         } -> convertible_to_unexpected;
       });
 
@@ -42,6 +43,9 @@ struct transform_error_t::apply final {
 
   // No support for optional since there's no error state to operate on
   static auto operator()(some_optional auto &&v, auto &&...args) noexcept = delete;
+
+  // No support for choice since there's no error to operate on
+  static auto operator()(some_choice auto &&v, auto &&...args) noexcept = delete;
 };
 
 } // namespace fn
