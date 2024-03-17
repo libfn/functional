@@ -3,7 +3,6 @@ on:
   push:
     branches: [main, feature/doxygen]
   workflow_dispatch:
-  workflow_call:
 
 permissions:
   contents: read
