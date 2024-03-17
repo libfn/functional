@@ -23,9 +23,18 @@ jobs:
           cd .build
           cmake -DDOCS=True ..
           cmake --build . --target export_docs
+      
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
 
-      - name: Upload docs
-        uses: peaceiris/actions-gh-pages@v3
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./.build/docs
+          path: ./.build/docs
+          name: docs-develop
+      
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+        with:
+          artifact_name: docs-develop
