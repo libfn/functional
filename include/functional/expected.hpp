@@ -32,22 +32,6 @@ concept some_expected_void = //
     some_expected<T>         //
     && std::is_same_v<void, typename std::remove_cvref_t<T>::value_type>;
 
-namespace detail {
-template <typename Fn, typename T, typename... Ts> struct _transform_result;
-
-template <typename Fn, typename T, typename... Ts>
-  requires(not some_sum<T>)
-struct _transform_result<Fn, T, Ts...> {
-  using type = _invoke_result<Fn, T, Ts...>::type;
-};
-
-template <typename Fn, typename T>
-  requires some_sum<T>
-struct _transform_result<Fn, T> {
-  using type = decltype(std::declval<T>().transform(std::declval<Fn>()));
-};
-} // namespace detail
-
 template <typename T, typename Err> struct expected final : std::expected<T, Err> {
   using value_type = std::expected<T, Err>::value_type;
   using error_type = std::expected<T, Err>::error_type;

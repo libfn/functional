@@ -467,6 +467,22 @@ template <typename... Ts, typename... Tx>
 
 template <typename... Ts> using sum_for = detail::normalized<Ts...>::template apply<sum>;
 
+namespace detail {
+template <typename Fn, typename T, typename... Ts> struct _transform_result;
+
+template <typename Fn, typename T, typename... Ts>
+  requires(not some_sum<T>)
+struct _transform_result<Fn, T, Ts...> {
+  using type = _invoke_result<Fn, T, Ts...>::type;
+};
+
+template <typename Fn, typename T>
+  requires some_sum<T>
+struct _transform_result<Fn, T> {
+  using type = decltype(std::declval<T>().transform(std::declval<Fn>()));
+};
+} // namespace detail
+
 } // namespace fn
 
 #endif // INCLUDE_FUNCTIONAL_SUM
