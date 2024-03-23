@@ -42,9 +42,9 @@ template <typename Fn, typename Self, typename T> struct _typelist_select_invoke
 template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts>
 struct _typelist_select_invoke_result<Fn, Self, Tpl<Ts...>> {
   using T0 = select_nth_t<0, Ts...>;
-  using R0 = ::fn::detail::_invoke_result_t<Fn, apply_const_lvalue_t<Self, T0>>;
-  static_assert((...
-                 && std::is_same_v<R0, typename ::fn::detail::_invoke_result_t<Fn, apply_const_lvalue_t<Self, Ts>>>));
+  using R0 = ::fn::detail::_invoke_result<Fn, apply_const_lvalue_t<Self, T0>>::type;
+  static_assert(
+      (... && std::is_same_v<R0, typename ::fn::detail::_invoke_result<Fn, apply_const_lvalue_t<Self, Ts>>::type>));
   using type = R0;
 };
 
@@ -52,10 +52,10 @@ template <typename Fn, typename Self, typename T> struct _typelist_type_select_i
 template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts>
 struct _typelist_type_select_invoke_result<Fn, Self, Tpl<Ts...>> {
   using T0 = select_nth_t<0, Ts...>;
-  using R0 = ::fn::detail::_invoke_result_t<Fn, std::in_place_type_t<T0>, apply_const_lvalue_t<Self, T0>>;
+  using R0 = ::fn::detail::_invoke_result<Fn, std::in_place_type_t<T0>, apply_const_lvalue_t<Self, T0>>::type;
   static_assert((...
-                 && std::is_same_v<R0, typename ::fn::detail::_invoke_result_t<Fn, std::in_place_type_t<Ts>,
-                                                                               apply_const_lvalue_t<Self, Ts>>>));
+                 && std::is_same_v<R0, typename ::fn::detail::_invoke_result<Fn, std::in_place_type_t<Ts>,
+                                                                             apply_const_lvalue_t<Self, Ts>>::type>));
   using type = R0;
 };
 
@@ -82,16 +82,16 @@ template <typename Fn, typename Self, typename T> struct _typelist_collapsing_su
 template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts>
 struct _typelist_collapsing_sum<Fn, Self, Tpl<Ts...>> {
   using type = _collapsing_sum::normalized<
-      Tpl, _collapsing_sum::flattened<
-               std::remove_cvref_t<::fn::detail::_invoke_result_t<Fn, apply_const_lvalue_t<Self, Ts>>>...>>::type;
+      Tpl, _collapsing_sum::flattened<std::remove_cvref_t<
+               typename ::fn::detail::_invoke_result<Fn, apply_const_lvalue_t<Self, Ts>>::type>...>>::type;
 };
 
 template <typename Fn, typename Self, typename T> struct _typelist_type_collapsing_sum;
 template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts>
 struct _typelist_type_collapsing_sum<Fn, Self, Tpl<Ts...>> {
-  using type
-      = _collapsing_sum::normalized<Tpl, _collapsing_sum::flattened<std::remove_cvref_t<::fn::detail::_invoke_result_t<
-                                             Fn, std::in_place_type_t<Ts>, apply_const_lvalue_t<Self, Ts>>>...>>::type;
+  using type = _collapsing_sum::normalized<
+      Tpl, _collapsing_sum::flattened<std::remove_cvref_t<typename ::fn::detail::_invoke_result<
+               Fn, std::in_place_type_t<Ts>, apply_const_lvalue_t<Self, Ts>>::type>...>>::type;
 };
 
 template <typename T, typename Fn, typename Self> struct _select_invoke_result final {
@@ -466,22 +466,6 @@ template <typename... Ts, typename... Tx>
 }
 
 template <typename... Ts> using sum_for = detail::normalized<Ts...>::template apply<sum>;
-
-namespace detail {
-template <typename Fn, typename T, typename... Ts> struct _transform_result;
-
-template <typename Fn, typename T, typename... Ts>
-  requires(not some_sum<T>)
-struct _transform_result<Fn, T, Ts...> {
-  using type = _invoke_result<Fn, T, Ts...>::type;
-};
-
-template <typename Fn, typename T>
-  requires some_sum<T>
-struct _transform_result<Fn, T> {
-  using type = decltype(std::declval<T>().transform(std::declval<Fn>()));
-};
-} // namespace detail
 
 } // namespace fn
 
