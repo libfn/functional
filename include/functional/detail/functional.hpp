@@ -164,7 +164,7 @@ template <typename Ret, typename Fn, typename... Args>
           && _is_invocable_r_v<Ret, Fn, Args...>
 constexpr Ret _invoke_r(Fn &&fn, Args &&...args) noexcept(_is_nothrow_invocable_r_v<Ret, Fn, Args...>)
 {
-  return ::std::invoke_r<Ret>(fWD(fn), fWD(args)...);
+  return ::std::invoke_r<Ret>(FWD(fn), FWD(args)...);
 }
 template <typename Ret, typename Fn, typename Arg>
   requires _some_pack<Arg> && _is_invocable_r_v<Ret, Fn, Arg>
