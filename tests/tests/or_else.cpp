@@ -3,6 +3,7 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
+#include "functional/detail/meta.hpp"
 #include "static_check.hpp"
 
 #include "functional/functor.hpp"
@@ -381,6 +382,47 @@ TEST_CASE("constexpr or_else expected", "[or_else][constexpr][expected]")
     static_assert(r1.value() == true);
     constexpr auto r2 = T{std::unexpect, Error::ThresholdExceeded} | fn::or_else(fn);
     static_assert(r2.error() == UnrecoverableError{});
+  }
+
+  SUCCEED();
+}
+
+TEST_CASE("constexpr or_else expected with sum", "[or_else][constexpr][expected][sum]")
+{
+  enum class Error { ThresholdExceeded, SomethingElse, UnexpectedType };
+  using T = fn::expected<int, fn::sum<Error, int>>;
+
+  WHEN("same error type")
+  {
+    constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> T {
+                                       if (i < 3)
+                                         return {i + 1};
+                                       return std::unexpected<fn::sum<Error, int>>{Error::ThresholdExceeded};
+                                     },
+                                     [](Error v) constexpr noexcept -> T { return {static_cast<int>(v)}; }};
+    constexpr auto r1 = T{std::unexpect, 0} | fn::or_else(fn);
+    static_assert(r1.value() == 1);
+    constexpr auto r2 = T{std::unexpect, 3} | fn::or_else(fn);
+    static_assert(r2.error() == fn::sum{Error::ThresholdExceeded});
+  }
+
+  WHEN("different error type")
+  {
+    using T1 = fn::expected<int, Error>;
+    constexpr auto fn
+        = fn::overload{[](int i) constexpr noexcept -> T1 {
+                         if (i < 2)
+                           return {i + 1};
+                         return std::unexpected<Error>{Error::SomethingElse};
+                       },
+                       [](Error) constexpr noexcept -> T1 { return std::unexpected<Error>{Error::UnexpectedType}; }};
+    constexpr auto r1 = T{std::unexpect, 1} | fn::or_else(fn);
+    static_assert(std::is_same_v<decltype(r1), fn::expected<int, Error> const>);
+    static_assert(r1.value() == 2);
+    constexpr auto r2 = T{std::unexpect, 2} | fn::or_else(fn);
+    static_assert(r2.error() == Error::SomethingElse);
+    constexpr auto r3 = T{std::unexpect, Error::ThresholdExceeded} | fn::or_else(fn);
+    static_assert(r3.error() == Error::UnexpectedType);
   }
 
   SUCCEED();
