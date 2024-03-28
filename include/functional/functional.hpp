@@ -17,6 +17,10 @@ namespace fn {
 template <typename Fn, typename... Args> struct invoke_result : detail::_invoke_result<Fn, Args...> {};
 template <typename Fn, typename... Args> using invoke_result_t = typename invoke_result<Fn, Args...>::type;
 
+// transform_result and transform_result_t
+template <typename Fn, typename... Args> struct transform_result : detail::_transform_result<Fn, Args...> {};
+template <typename Fn, typename... Args> using transform_result_t = typename transform_result<Fn, Args...>::type;
+
 // is_invocable and is_invocable_v
 template <typename Fn, typename... Args> struct is_invocable : detail::_is_invocable<Fn, Args...> {};
 template <typename Fn, typename... Args> constexpr inline bool is_invocable_v = is_invocable<Fn, Args...>::value;

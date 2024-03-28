@@ -27,7 +27,7 @@ template <std::size_t... Is, typename... Ts> struct pack_impl<std::index_sequenc
 
   template <typename Self, typename Fn, typename... Args>
   static constexpr auto _invoke(Self &&self, Fn &&fn, Args &&...args) noexcept
-      -> _invoke_result_t<decltype(fn), decltype(args)..., apply_const_lvalue_t<Self, Ts &&>...>
+      -> _invoke_result<decltype(fn), decltype(args)..., apply_const_lvalue_t<Self, Ts &&>...>::type
   {
     return ::fn::detail::_invoke(FWD(fn), FWD(args)...,
                                  static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)...);

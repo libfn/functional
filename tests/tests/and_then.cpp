@@ -796,6 +796,49 @@ TEST_CASE("constexpr and_then expected", "[and_then][constexpr][expected]")
   SUCCEED();
 }
 
+TEST_CASE("constexpr and_then expected with sum", "[and_then][constexpr][expected][sum]")
+{
+  enum class Error { ThresholdExceeded, SomethingElse, UnexpectedType };
+  using T = fn::expected<fn::sum<Xint, int>, Error>;
+
+  WHEN("same value type")
+  {
+    constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> T {
+                                       if (i < 3)
+                                         return {i + 1};
+                                       return std::unexpected<Error>{Error::ThresholdExceeded};
+                                     },
+                                     [](Xint v) constexpr noexcept -> T { return v; }};
+    constexpr auto r1 = T{0} | fn::and_then(fn);
+    static_assert(r1.value() == fn::sum{1});
+    constexpr auto r2 = r1 | fn::and_then(fn) | fn::and_then(fn) | fn::and_then(fn);
+    static_assert(r2.error() == Error::ThresholdExceeded);
+  }
+
+  WHEN("different value type")
+  {
+    using T1 = fn::expected<bool, Error>;
+    constexpr auto fn
+        = fn::overload{[](int i) constexpr noexcept -> T1 {
+                         if (i == 1)
+                           return {true};
+                         if (i == 0)
+                           return {false};
+                         return std::unexpected<Error>{Error::SomethingElse};
+                       },
+                       [](Xint) constexpr noexcept -> T1 { return std::unexpected<Error>{Error::UnexpectedType}; }};
+    constexpr auto r1 = T{1} | fn::and_then(fn);
+    static_assert(std::is_same_v<decltype(r1), fn::expected<bool, Error> const>);
+    static_assert(r1.value() == true);
+    constexpr auto r2 = T{0} | fn::and_then(fn);
+    static_assert(r2.value() == false);
+    constexpr auto r3 = T{2} | fn::and_then(fn);
+    static_assert(r3.error() == Error::SomethingElse);
+  }
+
+  SUCCEED();
+}
+
 TEST_CASE("constexpr and_then optional", "[and_then][constexpr][optional]")
 {
   using T = fn::optional<int>;
@@ -823,6 +866,47 @@ TEST_CASE("constexpr and_then optional", "[and_then][constexpr][optional]")
         return {false};
       return {};
     };
+    constexpr auto r1 = T{1} | fn::and_then(fn);
+    static_assert(std::is_same_v<decltype(r1), fn::optional<bool> const>);
+    static_assert(r1.value() == true);
+    constexpr auto r2 = T{0} | fn::and_then(fn);
+    static_assert(r2.value() == false);
+    constexpr auto r3 = T{2} | fn::and_then(fn);
+    static_assert(not r3.has_value());
+  }
+
+  SUCCEED();
+}
+
+TEST_CASE("constexpr and_then optional with sum", "[and_then][constexpr][optional][sum]")
+{
+  using T = fn::optional<fn::sum<Xint, int>>;
+
+  WHEN("same value type")
+  {
+    constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> T {
+                                       if (i < 3)
+                                         return {i + 1};
+                                       return {};
+                                     },
+                                     [](Xint v) constexpr noexcept -> T { return v; }};
+    constexpr auto r1 = T{0} | fn::and_then(fn);
+    static_assert(r1.value() == fn::sum{1});
+    constexpr auto r2 = r1 | fn::and_then(fn) | fn::and_then(fn) | fn::and_then(fn);
+    static_assert(not r2.has_value());
+  }
+
+  WHEN("different value type")
+  {
+    using T1 = fn::optional<bool>;
+    constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> T1 {
+                                       if (i == 1)
+                                         return {true};
+                                       if (i == 0)
+                                         return {false};
+                                       return {};
+                                     },
+                                     [](Xint) constexpr noexcept -> T1 { return {}; }};
     constexpr auto r1 = T{1} | fn::and_then(fn);
     static_assert(std::is_same_v<decltype(r1), fn::optional<bool> const>);
     static_assert(r1.value() == true);
