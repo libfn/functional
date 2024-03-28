@@ -387,11 +387,7 @@ TEST_CASE("constexpr transform expected", "[transform][constexpr][expected]")
 
   WHEN("different value type")
   {
-    constexpr auto fn = [](int i) constexpr noexcept -> bool {
-      if (i == 1)
-        return true;
-      return false;
-    };
+    constexpr auto fn = [](int i) constexpr noexcept -> bool { return (i == 1); };
     constexpr auto r1 = T{1} | fn::transform(fn);
     static_assert(std::is_same_v<decltype(r1), fn::expected<bool, Error> const>);
     static_assert(r1.value() == true);
@@ -399,6 +395,47 @@ TEST_CASE("constexpr transform expected", "[transform][constexpr][expected]")
     static_assert(r2.value() == false);
     constexpr auto r3 = T{2} | fn::transform(fn);
     static_assert(r3.value() == false);
+    constexpr auto r4 = T{std::unexpect, Error::SomethingElse} | fn::transform(fn);
+    static_assert(r4.error() == Error::SomethingElse);
+  }
+
+  SUCCEED();
+}
+
+TEST_CASE("constexpr transform expected with sum", "[transform][constexpr][expected][sum]")
+{
+  enum class Error { ThresholdExceeded, SomethingElse };
+  using T = fn::expected<fn::sum<Xint, int>, Error>;
+
+  WHEN("same value type")
+  {
+    constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> fn::sum<Xint, int> {
+                                       if (i < 3)
+                                         return {i + 1};
+                                       return i;
+                                     },
+                                     [](Xint v) constexpr noexcept -> fn::sum<Xint, int> { return v.value; }};
+    constexpr auto r1 = T{0} | fn::transform(fn);
+    static_assert(r1.value() == fn::sum{1});
+    constexpr auto r2 = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
+    static_assert(r2.value() == fn::sum{3});
+    constexpr auto r3 = T{Xint{4}} | fn::transform(fn);
+    static_assert(r3.value() == fn::sum{4});
+    constexpr auto r4 = T{std::unexpect, Error::SomethingElse} | fn::transform(fn);
+    static_assert(r4.error() == Error::SomethingElse);
+  }
+
+  WHEN("different value type")
+  {
+    constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> bool { return i == 1; },
+                                     [](Xint v) constexpr noexcept -> int { return v.value; }};
+    constexpr auto r1 = T{1} | fn::transform(fn);
+    static_assert(std::is_same_v<decltype(r1), fn::expected<fn::sum<bool, int>, Error> const>);
+    static_assert(r1.value() == fn::sum{true});
+    constexpr auto r2 = T{0} | fn::transform(fn);
+    static_assert(r2.value() == fn::sum{false});
+    constexpr auto r3 = T{Xint{3}} | fn::transform(fn);
+    static_assert(r3.value() == fn::sum{3});
     constexpr auto r4 = T{std::unexpect, Error::SomethingElse} | fn::transform(fn);
     static_assert(r4.error() == Error::SomethingElse);
   }

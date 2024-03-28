@@ -236,10 +236,15 @@ template <typename Fn, typename T, typename... Ts>
 struct _transform_result<Fn, T, Ts...> {
   using type = _invoke_result<Fn, T, Ts...>::type;
 };
+
+template <typename Fn, typename Arg>
+constexpr auto _transform_result_result(Fn &&, Arg &&)
+    -> std::type_identity<decltype(std::declval<Arg>().transform(std::declval<Fn>()))>;
+template <typename Fn, typename Arg> constexpr auto _transform_result_result(auto &&...) -> std::type_identity<void>;
 template <typename Fn, typename T>
   requires _some_sum<T>
 struct _transform_result<Fn, T> {
-  using type = decltype(std::declval<T>().transform(std::declval<Fn>()));
+  using type = decltype(_transform_result_result<Fn, T>(std::declval<Fn>(), std::declval<T>()))::type;
 };
 
 } // namespace fn::detail
