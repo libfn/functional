@@ -32,20 +32,19 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                                  [](int &&, auto &&...) -> fn::optional<bool> { throw 0; },
                                  [](int const &&, auto &&...) -> fn::optional<bool> { throw 0; })) //
                 .value());
-      CHECK(fn::optional<fn::pack<int, std::string_view>>{
-          fn::pack<int>{12}.append(std::in_place_type<std::string_view>, "bar")}
-                .and_then( //
-                    fn::overload([](int &, auto &&...) -> fn::optional<bool> { throw 0; },
-                                 [](int const &, auto &&...) -> fn::optional<bool> { throw 0; },
-                                 [](int &&i, auto &&...) -> fn::optional<bool> { return i == 12; },
-                                 [](int const &&, auto &&...) -> fn::optional<bool> { throw 0; })) //
-                .value());
       CHECK(std::move(std::as_const(s))
                 .and_then( //
                     fn::overload([](int &, auto &&...) -> fn::optional<bool> { throw 0; },
                                  [](int const &, auto &&...) -> fn::optional<bool> { throw 0; },
                                  [](int &&, auto &&...) -> fn::optional<bool> { throw 0; },
                                  [](int const &&i, auto &&...) -> fn::optional<bool> { return i == 12; })) //
+                .value());
+      CHECK(std::move(s)
+                .and_then( //
+                    fn::overload([](int &, auto &&...) -> fn::optional<bool> { throw 0; },
+                                 [](int const &, auto &&...) -> fn::optional<bool> { throw 0; },
+                                 [](int &&i, auto &&...) -> fn::optional<bool> { return i == 12; },
+                                 [](int const &&, auto &&...) -> fn::optional<bool> { throw 0; })) //
                 .value());
     }
 
@@ -59,13 +58,16 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                     .and_then( //
                         [](auto...) -> fn::optional<bool> { throw 0; })
                     .has_value());
-      CHECK(not fn::optional<fn::pack<int, std::string_view>>{std::nullopt}
-                    .and_then( //
-                        [](auto...) -> fn::optional<bool> { throw 0; })
-                    .has_value());
       CHECK(not std::move(std::as_const(s))
                     .and_then( //
                         [](auto...) -> fn::optional<bool> { throw 0; })
+                    .has_value());
+      CHECK(not std::move(s)
+                    .and_then( //
+                        fn::overload([](int &, auto &&...) -> fn::optional<bool> { throw 0; },
+                                     [](int const &, auto &&...) -> fn::optional<bool> { throw 0; },
+                                     [](int &&i, auto &&...) -> fn::optional<bool> { return i == 12; },
+                                     [](int const &&, auto &&...) -> fn::optional<bool> { throw 0; })) //
                     .has_value());
     }
   }
@@ -90,20 +92,19 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                                  [](int &&, auto &&...) -> bool { throw 0; },
                                  [](int const &&, auto &&...) -> bool { throw 0; })) //
                 .value());
-      CHECK(fn::optional<fn::pack<int, std::string_view>>{
-          fn::pack<int>{12}.append(std::in_place_type<std::string_view>, "bar")}
-                .transform( //
-                    fn::overload([](int &, auto &&...) -> bool { throw 0; },
-                                 [](int const &, auto &&...) -> bool { throw 0; },
-                                 [](int &&i, auto &&...) -> bool { return i == 12; },
-                                 [](int const &&, auto &&...) -> bool { throw 0; })) //
-                .value());
       CHECK(std::move(std::as_const(s))
                 .transform( //
                     fn::overload([](int &, auto &&...) -> bool { throw 0; },
                                  [](int const &, auto &&...) -> bool { throw 0; },
                                  [](int &&, auto &&...) -> bool { throw 0; },
                                  [](int const &&i, auto &&...) -> bool { return i == 12; })) //
+                .value());
+      CHECK(std::move(s)
+                .transform( //
+                    fn::overload([](int &, auto &&...) -> bool { throw 0; },
+                                 [](int const &, auto &&...) -> bool { throw 0; },
+                                 [](int &&i, auto &&...) -> bool { return i == 12; },
+                                 [](int const &&, auto &&...) -> bool { throw 0; })) //
                 .value());
     }
 
@@ -112,10 +113,8 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       fn::optional<fn::pack<int, std::string_view>> s{std::nullopt};
       CHECK(not s.transform([](auto...) -> bool { throw 0; }).has_value());
       CHECK(not std::as_const(s).transform([](auto...) -> bool { throw 0; }).has_value());
-      CHECK(not fn::optional<fn::pack<int, std::string_view>>{std::nullopt}
-                    .transform([](auto...) -> bool { throw 0; })
-                    .has_value());
       CHECK(not std::move(std::as_const(s)).transform([](auto...) -> bool { throw 0; }).has_value());
+      CHECK(not std::move(s).transform([](auto...) -> bool { throw 0; }).has_value());
     }
   }
 
@@ -238,28 +237,6 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
                                [](std::in_place_type_t<Xint>, Xint const &&) -> fn::optional<bool> { throw 0; })) //
               .value());
 
-    CHECK(
-        fn::optional<fn::sum<Xint, int>>{12}
-            .and_then( //
-                fn::overload(
-                    [](int &) -> fn::optional<bool> { throw 0; }, [](int const &) -> fn::optional<bool> { throw 0; },
-                    [](int &&i) -> fn::optional<bool> { return i == 12; },
-                    [](int const &&) -> fn::optional<bool> { throw 0; }, [](Xint &) -> fn::optional<bool> { throw 0; },
-                    [](Xint const &) -> fn::optional<bool> { throw 0; }, [](Xint &&) -> fn::optional<bool> { throw 0; },
-                    [](Xint const &&) -> fn::optional<bool> { throw 0; })) //
-            .value());
-    CHECK(fn::optional<fn::sum<Xint, int>>{12}
-              .and_then( //
-                  fn::overload([](std::in_place_type_t<int>, int &) -> fn::optional<bool> { throw 0; },
-                               [](std::in_place_type_t<int>, int const &) -> fn::optional<bool> { throw 0; },
-                               [](std::in_place_type_t<int>, int &&i) -> fn::optional<bool> { return i == 12; },
-                               [](std::in_place_type_t<int>, int const &&) -> fn::optional<bool> { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint &) -> fn::optional<bool> { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint const &) -> fn::optional<bool> { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint &&) -> fn::optional<bool> { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint const &&) -> fn::optional<bool> { throw 0; })) //
-              .value());
-
     CHECK(std::move(std::as_const(s))
               .and_then( //
                   fn::overload([](int &) -> fn::optional<bool> { throw 0; },
@@ -282,6 +259,28 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
                                [](std::in_place_type_t<Xint>, Xint &&) -> fn::optional<bool> { throw 0; },
                                [](std::in_place_type_t<Xint>, Xint const &&) -> fn::optional<bool> { throw 0; })) //
               .value());
+
+    CHECK(
+        auto(s)
+            .and_then( //
+                fn::overload(
+                    [](int &) -> fn::optional<bool> { throw 0; }, [](int const &) -> fn::optional<bool> { throw 0; },
+                    [](int &&i) -> fn::optional<bool> { return i == 12; },
+                    [](int const &&) -> fn::optional<bool> { throw 0; }, [](Xint &) -> fn::optional<bool> { throw 0; },
+                    [](Xint const &) -> fn::optional<bool> { throw 0; }, [](Xint &&) -> fn::optional<bool> { throw 0; },
+                    [](Xint const &&) -> fn::optional<bool> { throw 0; })) //
+            .value());
+    CHECK(std::move(s)
+              .and_then( //
+                  fn::overload([](std::in_place_type_t<int>, int &) -> fn::optional<bool> { throw 0; },
+                               [](std::in_place_type_t<int>, int const &) -> fn::optional<bool> { throw 0; },
+                               [](std::in_place_type_t<int>, int &&i) -> fn::optional<bool> { return i == 12; },
+                               [](std::in_place_type_t<int>, int const &&) -> fn::optional<bool> { throw 0; },
+                               [](std::in_place_type_t<Xint>, Xint &) -> fn::optional<bool> { throw 0; },
+                               [](std::in_place_type_t<Xint>, Xint const &) -> fn::optional<bool> { throw 0; },
+                               [](std::in_place_type_t<Xint>, Xint &&) -> fn::optional<bool> { throw 0; },
+                               [](std::in_place_type_t<Xint>, Xint const &&) -> fn::optional<bool> { throw 0; })) //
+              .value());
   }
 
   WHEN("error")
@@ -294,11 +293,11 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
                   .and_then( //
                       [](auto) -> fn::optional<bool> { throw 0; })
                   .has_value());
-    CHECK(not fn::optional<fn::sum<Xint, int>>{}
+    CHECK(not std::move(std::as_const(s))
                   .and_then( //
                       [](auto) -> fn::optional<bool> { throw 0; })
                   .has_value());
-    CHECK(not std::move(std::as_const(s))
+    CHECK(not std::move(s)
                   .and_then( //
                       [](auto) -> fn::optional<bool> { throw 0; })
                   .has_value());
@@ -364,27 +363,6 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
               .value()
           == fn::sum{true});
 
-    CHECK(fn::optional<fn::sum<Xint, int>>{12}
-              .transform( //
-                  fn::overload([](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
-                               [](int &&i) -> bool { return i == 12; }, [](int const &&) -> bool { throw 0; },
-                               [](Xint &) -> bool { throw 0; }, [](Xint const &) -> bool { throw 0; },
-                               [](Xint &&) -> bool { throw 0; }, [](Xint const &&) -> bool { throw 0; })) //
-              .value()
-          == fn::sum{true});
-    CHECK(fn::optional<fn::sum<Xint, int>>{12}
-              .transform( //
-                  fn::overload([](std::in_place_type_t<int>, int &) -> bool { throw 0; },
-                               [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
-                               [](std::in_place_type_t<int>, int &&i) -> bool { return i == 12; },
-                               [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint &) -> bool { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint const &) -> bool { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint &&) -> bool { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint const &&) -> bool { throw 0; })) //
-              .value()
-          == fn::sum{true});
-
     CHECK(std::move(std::as_const(s))
               .transform( //
                   fn::overload([](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
@@ -399,6 +377,27 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
                                [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
                                [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
                                [](std::in_place_type_t<int>, int const &&i) -> bool { return i == 12; },
+                               [](std::in_place_type_t<Xint>, Xint &) -> bool { throw 0; },
+                               [](std::in_place_type_t<Xint>, Xint const &) -> bool { throw 0; },
+                               [](std::in_place_type_t<Xint>, Xint &&) -> bool { throw 0; },
+                               [](std::in_place_type_t<Xint>, Xint const &&) -> bool { throw 0; })) //
+              .value()
+          == fn::sum{true});
+
+    CHECK(auto(s)
+              .transform( //
+                  fn::overload([](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
+                               [](int &&i) -> bool { return i == 12; }, [](int const &&) -> bool { throw 0; },
+                               [](Xint &) -> bool { throw 0; }, [](Xint const &) -> bool { throw 0; },
+                               [](Xint &&) -> bool { throw 0; }, [](Xint const &&) -> bool { throw 0; })) //
+              .value()
+          == fn::sum{true});
+    CHECK(std::move(s)
+              .transform( //
+                  fn::overload([](std::in_place_type_t<int>, int &) -> bool { throw 0; },
+                               [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
+                               [](std::in_place_type_t<int>, int &&i) -> bool { return i == 12; },
+                               [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; },
                                [](std::in_place_type_t<Xint>, Xint &) -> bool { throw 0; },
                                [](std::in_place_type_t<Xint>, Xint const &) -> bool { throw 0; },
                                [](std::in_place_type_t<Xint>, Xint &&) -> bool { throw 0; },
@@ -458,19 +457,19 @@ TEST_CASE("optional polyfills and_then", "[optional][polyfill][and_then]")
                                [](int &&) -> fn::optional<bool> { throw 0; },
                                [](int const &&) -> fn::optional<bool> { throw 0; })) //
               .value());
-    CHECK(fn::optional<int>{12}
-              .and_then( //
-                  fn::overload([](int &) -> fn::optional<bool> { throw 0; },
-                               [](int const &) -> fn::optional<bool> { throw 0; },
-                               [](int &&i) -> fn::optional<bool> { return i == 12; },
-                               [](int const &&) -> fn::optional<bool> { throw 0; })) //
-              .value());
     CHECK(std::move(std::as_const(s))
               .and_then( //
                   fn::overload([](int &) -> fn::optional<bool> { throw 0; },
                                [](int const &) -> fn::optional<bool> { throw 0; },
                                [](int &&) -> fn::optional<bool> { throw 0; },
                                [](int const &&i) -> fn::optional<bool> { return i == 12; })) //
+              .value());
+    CHECK(std::move(s)
+              .and_then( //
+                  fn::overload([](int &) -> fn::optional<bool> { throw 0; },
+                               [](int const &) -> fn::optional<bool> { throw 0; },
+                               [](int &&i) -> fn::optional<bool> { return i == 12; },
+                               [](int const &&) -> fn::optional<bool> { throw 0; })) //
               .value());
 
     WHEN("error")
@@ -483,11 +482,11 @@ TEST_CASE("optional polyfills and_then", "[optional][polyfill][and_then]")
                     .and_then( //
                         [](auto) -> fn::optional<bool> { throw 0; })
                     .has_value());
-      CHECK(not fn::optional<int>{}
+      CHECK(not std::move(std::as_const(s))
                     .and_then( //
                         [](auto) -> fn::optional<bool> { throw 0; })
                     .has_value());
-      CHECK(not std::move(std::as_const(s))
+      CHECK(not std::move(s)
                     .and_then( //
                         [](auto) -> fn::optional<bool> { throw 0; })
                     .has_value());
@@ -502,16 +501,16 @@ TEST_CASE("optional polyfills or_else", "[optional][polyfill][or_else]")
     fn::optional<int> s{1};
     CHECK(s.or_else([]() -> fn::optional<int> { throw 0; }).value());
     CHECK(std::as_const(s).or_else([]() -> fn::optional<int> { throw 0; }).value());
-    CHECK(fn::optional<int>{1}.or_else([]() -> fn::optional<int> { throw 0; }).value());
     CHECK(std::move(std::as_const(s)).or_else([]() -> fn::optional<int> { throw 0; }).value());
+    CHECK(std::move(s).or_else([]() -> fn::optional<int> { throw 0; }).value());
 
     WHEN("error")
     {
       fn::optional<int> s{};
       CHECK(s.or_else([]() -> fn::optional<int> { return 12; }).value() == 12);
       CHECK(std::as_const(s).or_else([]() -> fn::optional<int> { return 12; }).value() == 12);
-      CHECK(fn::optional<int>{}.or_else([]() -> fn::optional<int> { return 12; }).value() == 12);
       CHECK(std::move(std::as_const(s)).or_else([]() -> fn::optional<int> { return 12; }).value() == 12);
+      CHECK(std::move(s).or_else([]() -> fn::optional<int> { return 12; }).value() == 12);
     }
   }
 }
@@ -530,15 +529,15 @@ TEST_CASE("optional polyfills transform", "[optional][polyfill][transform]")
                   fn::overload([](int &) -> bool { throw 0; }, [](int const &i) -> bool { return i == 12; },
                                [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; })) //
               .value());
-    CHECK(fn::optional<int>{12}
-              .transform( //
-                  fn::overload([](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
-                               [](int &&i) -> bool { return i == 12; }, [](int const &&) -> bool { throw 0; })) //
-              .value());
     CHECK(std::move(std::as_const(s))
               .transform( //
                   fn::overload([](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
                                [](int &&) -> bool { throw 0; }, [](int const &&i) -> bool { return i == 12; })) //
+              .value());
+    CHECK(std::move(s)
+              .transform( //
+                  fn::overload([](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
+                               [](int &&i) -> bool { return i == 12; }, [](int const &&) -> bool { throw 0; })) //
               .value());
 
     WHEN("error")
@@ -546,8 +545,8 @@ TEST_CASE("optional polyfills transform", "[optional][polyfill][transform]")
       fn::optional<int> s{};
       CHECK(not s.transform([](auto) -> bool { throw 0; }).has_value());
       CHECK(not std::as_const(s).transform([](auto) -> bool { throw 0; }).has_value());
-      CHECK(not fn::optional<int>{}.transform([](auto) -> bool { throw 0; }).has_value());
       CHECK(not std::move(std::as_const(s)).transform([](auto) -> bool { throw 0; }).has_value());
+      CHECK(not std::move(s).transform([](auto) -> bool { throw 0; }).has_value());
     }
   }
 }

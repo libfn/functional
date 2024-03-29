@@ -318,7 +318,7 @@ TEST_CASE("Demo choice", "[choice][and_then][inspect][transform]")
                  }
                  return {FWD(v)};
                },
-               [](auto &i) { return FWD(i); }))
+               [](auto &i) -> auto { return FWD(i); }))
            | fn::inspect(fn::overload{[&](std::nullptr_t const &) { ss << "nullptr" << ','; }, //
                                       [&](bool const &v) { ss << v << ','; },                  //
                                       [&](int const &v) { ss << v << ','; },                   //

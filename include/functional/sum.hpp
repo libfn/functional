@@ -94,23 +94,23 @@ struct _typelist_type_collapsing_sum<Fn, Self, Tpl<Ts...>> {
                Fn, std::in_place_type_t<Ts>, apply_const_lvalue_t<Self, Ts>>::type>...>>::type;
 };
 
-template <typename T, typename Fn, typename Self> struct _select_invoke_result final {
+template <typename T, typename Fn, typename Self> struct _sum_invoke_result final {
   using type = T;
 };
-template <typename Fn, typename Self> struct _select_invoke_result<_invoke_autodetect_tag, Fn, Self> final {
+template <typename Fn, typename Self> struct _sum_invoke_result<_invoke_autodetect_tag, Fn, Self> final {
   using type = _typelist_select_invoke_result<Fn, Self, std::remove_cvref_t<Self>>::type;
 };
-template <typename Fn, typename Self> struct _select_invoke_result<_collapsing_sum_tag, Fn, Self> final {
+template <typename Fn, typename Self> struct _sum_invoke_result<_collapsing_sum_tag, Fn, Self> final {
   using type = _typelist_collapsing_sum<Fn, Self, std::remove_cvref_t<Self>>::type;
 };
 
-template <typename T, typename Fn, typename Self> struct _invoke_type_result final {
+template <typename T, typename Fn, typename Self> struct _sum_invoke_type_result final {
   using type = T;
 };
-template <typename Fn, typename Self> struct _invoke_type_result<_invoke_autodetect_tag, Fn, Self> final {
+template <typename Fn, typename Self> struct _sum_invoke_type_result<_invoke_autodetect_tag, Fn, Self> final {
   using type = _typelist_type_select_invoke_result<Fn, Self, std::remove_cvref_t<Self>>::type;
 };
-template <typename Fn, typename Self> struct _invoke_type_result<_collapsing_sum_tag, Fn, Self> final {
+template <typename Fn, typename Self> struct _sum_invoke_type_result<_collapsing_sum_tag, Fn, Self> final {
   using type = _typelist_type_collapsing_sum<Fn, Self, std::remove_cvref_t<Self>>::type;
 };
 
@@ -249,74 +249,10 @@ struct sum<Ts...> {
   }
 
   template <typename Fn>
-  [[nodiscard]] constexpr auto transform(Fn &&fn) & noexcept
-    requires typelist_invocable<Fn, sum &> && (not typelist_type_invocable<Fn, sum &>)
-  {
-    using type = detail::_select_invoke_result<detail::_collapsing_sum_tag, decltype(fn), sum &>::type;
-    return detail::invoke_variadic_union<type, data_t>(this->data, index, FWD(fn));
-  }
-
-  template <typename Fn>
-  [[nodiscard]] constexpr auto transform(Fn &&fn) & noexcept
-    requires typelist_type_invocable<Fn, sum &>
-  {
-    using type = detail::_invoke_type_result<detail::_collapsing_sum_tag, decltype(fn), sum &>::type;
-    return detail::invoke_variadic_union<type, data_t>(this->data, index, FWD(fn));
-  }
-
-  template <typename Fn>
-  [[nodiscard]] constexpr auto transform(Fn &&fn) const & noexcept
-    requires typelist_invocable<Fn, sum const &> && (not typelist_type_invocable<Fn, sum const &>)
-  {
-    using type = detail::_select_invoke_result<detail::_collapsing_sum_tag, decltype(fn), sum const &>::type;
-    return detail::invoke_variadic_union<type, data_t>(this->data, index, FWD(fn));
-  }
-
-  template <typename Fn>
-  [[nodiscard]] constexpr auto transform(Fn &&fn) const & noexcept
-    requires typelist_type_invocable<Fn, sum const &>
-  {
-    using type = detail::_invoke_type_result<detail::_collapsing_sum_tag, decltype(fn), sum const &>::type;
-    return detail::invoke_variadic_union<type, data_t>(this->data, index, FWD(fn));
-  }
-
-  template <typename Fn>
-  [[nodiscard]] constexpr auto transform(Fn &&fn) && noexcept
-    requires typelist_invocable<Fn, sum &&> && (not typelist_type_invocable<Fn, sum &&>)
-  {
-    using type = detail::_select_invoke_result<detail::_collapsing_sum_tag, decltype(fn), sum &&>::type;
-    return detail::invoke_variadic_union<type, data_t>(std::move(*this).data, index, FWD(fn));
-  }
-
-  template <typename Fn>
-  [[nodiscard]] constexpr auto transform(Fn &&fn) && noexcept
-    requires typelist_type_invocable<Fn, sum &&>
-  {
-    using type = detail::_invoke_type_result<detail::_collapsing_sum_tag, decltype(fn), sum &&>::type;
-    return detail::invoke_variadic_union<type, data_t>(std::move(*this).data, index, FWD(fn));
-  }
-
-  template <typename Fn>
-  [[nodiscard]] constexpr auto transform(Fn &&fn) const && noexcept
-    requires typelist_invocable<Fn, sum const &&> && (not typelist_type_invocable<Fn, sum const &&>)
-  {
-    using type = detail::_select_invoke_result<detail::_collapsing_sum_tag, decltype(fn), sum const &&>::type;
-    return detail::invoke_variadic_union<type, data_t>(std::move(*this).data, index, FWD(fn));
-  }
-
-  template <typename Fn>
-  [[nodiscard]] constexpr auto transform(Fn &&fn) const && noexcept
-    requires typelist_type_invocable<Fn, sum const &&>
-  {
-    using type = detail::_invoke_type_result<detail::_collapsing_sum_tag, decltype(fn), sum const &&>::type;
-    return detail::invoke_variadic_union<type, data_t>(std::move(*this).data, index, FWD(fn));
-  }
-
-  template <typename Fn>
   [[nodiscard]] constexpr auto invoke(Fn &&fn) & noexcept
     requires typelist_invocable<Fn, sum &> && (not typelist_type_invocable<Fn, sum &>)
   {
-    using type = detail::_select_invoke_result<detail::_invoke_autodetect_tag, decltype(fn), sum &>::type;
+    using type = detail::_sum_invoke_result<detail::_invoke_autodetect_tag, decltype(fn), sum &>::type;
     return detail::invoke_variadic_union<type, data_t>(this->data, index, FWD(fn));
   }
 
@@ -324,7 +260,7 @@ struct sum<Ts...> {
   [[nodiscard]] constexpr auto invoke(Fn &&fn) & noexcept
     requires typelist_type_invocable<Fn, sum &>
   {
-    using type = detail::_invoke_type_result<detail::_invoke_autodetect_tag, decltype(fn), sum &>::type;
+    using type = detail::_sum_invoke_type_result<detail::_invoke_autodetect_tag, decltype(fn), sum &>::type;
     return detail::invoke_variadic_union<type, data_t>(this->data, index, FWD(fn));
   }
 
@@ -332,7 +268,7 @@ struct sum<Ts...> {
   [[nodiscard]] constexpr auto invoke(Fn &&fn) const & noexcept
     requires typelist_invocable<Fn, sum const &> && (not typelist_type_invocable<Fn, sum const &>)
   {
-    using type = detail::_select_invoke_result<detail::_invoke_autodetect_tag, decltype(fn), sum const &>::type;
+    using type = detail::_sum_invoke_result<detail::_invoke_autodetect_tag, decltype(fn), sum const &>::type;
     return detail::invoke_variadic_union<type, data_t>(this->data, index, FWD(fn));
   }
 
@@ -340,7 +276,7 @@ struct sum<Ts...> {
   [[nodiscard]] constexpr auto invoke(Fn &&fn) const & noexcept
     requires typelist_type_invocable<Fn, sum const &>
   {
-    using type = detail::_invoke_type_result<detail::_invoke_autodetect_tag, decltype(fn), sum const &>::type;
+    using type = detail::_sum_invoke_type_result<detail::_invoke_autodetect_tag, decltype(fn), sum const &>::type;
     return detail::invoke_variadic_union<type, data_t>(this->data, index, FWD(fn));
   }
 
@@ -348,7 +284,7 @@ struct sum<Ts...> {
   [[nodiscard]] constexpr auto invoke(Fn &&fn) && noexcept
     requires typelist_invocable<Fn, sum &&> && (not typelist_type_invocable<Fn, sum &&>)
   {
-    using type = detail::_select_invoke_result<detail::_invoke_autodetect_tag, decltype(fn), sum &&>::type;
+    using type = detail::_sum_invoke_result<detail::_invoke_autodetect_tag, decltype(fn), sum &&>::type;
     return detail::invoke_variadic_union<type, data_t>(std::move(*this).data, index, FWD(fn));
   }
 
@@ -356,7 +292,7 @@ struct sum<Ts...> {
   [[nodiscard]] constexpr auto invoke(Fn &&fn) && noexcept
     requires typelist_type_invocable<Fn, sum &&>
   {
-    using type = detail::_invoke_type_result<detail::_invoke_autodetect_tag, decltype(fn), sum &&>::type;
+    using type = detail::_sum_invoke_type_result<detail::_invoke_autodetect_tag, decltype(fn), sum &&>::type;
     return detail::invoke_variadic_union<type, data_t>(std::move(*this).data, index, FWD(fn));
   }
 
@@ -364,7 +300,7 @@ struct sum<Ts...> {
   [[nodiscard]] constexpr auto invoke(Fn &&fn) const && noexcept
     requires typelist_invocable<Fn, sum const &&> && (not typelist_type_invocable<Fn, sum const &&>)
   {
-    using type = detail::_select_invoke_result<detail::_invoke_autodetect_tag, decltype(fn), sum const &&>::type;
+    using type = detail::_sum_invoke_result<detail::_invoke_autodetect_tag, decltype(fn), sum const &&>::type;
     return detail::invoke_variadic_union<type, data_t>(std::move(*this).data, index, FWD(fn));
   }
 
@@ -372,71 +308,135 @@ struct sum<Ts...> {
   [[nodiscard]] constexpr auto invoke(Fn &&fn) const && noexcept
     requires typelist_type_invocable<Fn, sum const &&>
   {
-    using type = detail::_invoke_type_result<detail::_invoke_autodetect_tag, decltype(fn), sum const &&>::type;
+    using type = detail::_sum_invoke_type_result<detail::_invoke_autodetect_tag, decltype(fn), sum const &&>::type;
     return detail::invoke_variadic_union<type, data_t>(std::move(*this).data, index, FWD(fn));
   }
 
-  template <typename T, typename Fn>
+  template <typename Ret, typename Fn>
   [[nodiscard]] constexpr auto invoke_r(Fn &&fn) & noexcept
+    requires typelist_invocable_r<Ret, Fn, sum &> && (not typelist_type_invocable_r<Ret, Fn, sum &>)
+  {
+    using type = detail::_sum_invoke_result<Ret, decltype(fn), sum &>::type;
+    return detail::invoke_variadic_union<type, data_t>(this->data, index, FWD(fn));
+  }
+
+  template <typename Ret, typename Fn>
+  [[nodiscard]] constexpr auto invoke_r(Fn &&fn) & noexcept -> Ret
+    requires typelist_type_invocable_r<Ret, Fn, sum &>
+  {
+    using type = detail::_sum_invoke_type_result<Ret, decltype(fn), sum &>::type;
+    return detail::invoke_variadic_union<type, data_t>(this->data, index, FWD(fn));
+  }
+
+  template <typename Ret, typename Fn>
+  [[nodiscard]] constexpr auto invoke_r(Fn &&fn) const & noexcept -> Ret
+    requires typelist_invocable_r<Ret, Fn, sum const &> && (not typelist_type_invocable_r<Ret, Fn, sum const &>)
+  {
+    using type = detail::_sum_invoke_result<Ret, decltype(fn), sum const &>::type;
+    return detail::invoke_variadic_union<type, data_t>(this->data, index, FWD(fn));
+  }
+
+  template <typename Ret, typename Fn>
+  [[nodiscard]] constexpr auto invoke_r(Fn &&fn) const & noexcept -> Ret
+    requires typelist_type_invocable_r<Ret, Fn, sum const &>
+  {
+    using type = detail::_sum_invoke_type_result<Ret, decltype(fn), sum const &>::type;
+    return detail::invoke_variadic_union<type, data_t>(this->data, index, FWD(fn));
+  }
+
+  template <typename Ret, typename Fn>
+  [[nodiscard]] constexpr auto invoke_r(Fn &&fn) && noexcept -> Ret
+    requires typelist_invocable_r<Ret, Fn, sum &&> && (not typelist_type_invocable_r<Ret, Fn, sum &&>)
+  {
+    using type = detail::_sum_invoke_result<Ret, decltype(fn), sum &&>::type;
+    return detail::invoke_variadic_union<type, data_t>(std::move(*this).data, index, FWD(fn));
+  }
+
+  template <typename Ret, typename Fn>
+  [[nodiscard]] constexpr auto invoke_r(Fn &&fn) && noexcept -> Ret
+    requires typelist_type_invocable_r<Ret, Fn, sum &&>
+  {
+    using type = detail::_sum_invoke_type_result<Ret, decltype(fn), sum &&>::type;
+    return detail::invoke_variadic_union<type, data_t>(std::move(*this).data, index, FWD(fn));
+  }
+
+  template <typename Ret, typename Fn>
+  [[nodiscard]] constexpr auto invoke_r(Fn &&fn) const && noexcept -> Ret
+    requires typelist_invocable_r<Ret, Fn, sum const &&> && (not typelist_type_invocable_r<Ret, Fn, sum const &&>)
+  {
+    using type = detail::_sum_invoke_result<Ret, decltype(fn), sum const &&>::type;
+    return detail::invoke_variadic_union<type, data_t>(std::move(*this).data, index, FWD(fn));
+  }
+
+  template <typename Ret, typename Fn>
+  [[nodiscard]] constexpr auto invoke_r(Fn &&fn) const && noexcept -> Ret
+    requires typelist_type_invocable_r<Ret, Fn, sum const &&>
+  {
+    using type = detail::_sum_invoke_type_result<Ret, decltype(fn), sum const &&>::type;
+    return detail::invoke_variadic_union<type, data_t>(std::move(*this).data, index, FWD(fn));
+  }
+
+  template <typename Fn>
+  [[nodiscard]] constexpr auto transform(Fn &&fn) & noexcept
     requires typelist_invocable<Fn, sum &> && (not typelist_type_invocable<Fn, sum &>)
   {
-    using type = detail::_select_invoke_result<T, decltype(fn), sum &>::type;
+    using type = detail::_sum_invoke_result<detail::_collapsing_sum_tag, decltype(fn), sum &>::type;
     return detail::invoke_variadic_union<type, data_t>(this->data, index, FWD(fn));
   }
 
-  template <typename T, typename Fn>
-  [[nodiscard]] constexpr auto invoke_r(Fn &&fn) & noexcept
+  template <typename Fn>
+  [[nodiscard]] constexpr auto transform(Fn &&fn) & noexcept
     requires typelist_type_invocable<Fn, sum &>
   {
-    using type = detail::_invoke_type_result<T, decltype(fn), sum &>::type;
+    using type = detail::_sum_invoke_type_result<detail::_collapsing_sum_tag, decltype(fn), sum &>::type;
     return detail::invoke_variadic_union<type, data_t>(this->data, index, FWD(fn));
   }
 
-  template <typename T, typename Fn>
-  [[nodiscard]] constexpr auto invoke_r(Fn &&fn) const & noexcept
+  template <typename Fn>
+  [[nodiscard]] constexpr auto transform(Fn &&fn) const & noexcept
     requires typelist_invocable<Fn, sum const &> && (not typelist_type_invocable<Fn, sum const &>)
   {
-    using type = detail::_select_invoke_result<T, decltype(fn), sum const &>::type;
+    using type = detail::_sum_invoke_result<detail::_collapsing_sum_tag, decltype(fn), sum const &>::type;
     return detail::invoke_variadic_union<type, data_t>(this->data, index, FWD(fn));
   }
 
-  template <typename T, typename Fn>
-  [[nodiscard]] constexpr auto invoke_r(Fn &&fn) const & noexcept
+  template <typename Fn>
+  [[nodiscard]] constexpr auto transform(Fn &&fn) const & noexcept
     requires typelist_type_invocable<Fn, sum const &>
   {
-    using type = detail::_invoke_type_result<T, decltype(fn), sum const &>::type;
+    using type = detail::_sum_invoke_type_result<detail::_collapsing_sum_tag, decltype(fn), sum const &>::type;
     return detail::invoke_variadic_union<type, data_t>(this->data, index, FWD(fn));
   }
 
-  template <typename T, typename Fn>
-  [[nodiscard]] constexpr auto invoke_r(Fn &&fn) && noexcept
+  template <typename Fn>
+  [[nodiscard]] constexpr auto transform(Fn &&fn) && noexcept
     requires typelist_invocable<Fn, sum &&> && (not typelist_type_invocable<Fn, sum &&>)
   {
-    using type = detail::_select_invoke_result<T, decltype(fn), sum &&>::type;
+    using type = detail::_sum_invoke_result<detail::_collapsing_sum_tag, decltype(fn), sum &&>::type;
     return detail::invoke_variadic_union<type, data_t>(std::move(*this).data, index, FWD(fn));
   }
 
-  template <typename T, typename Fn>
-  [[nodiscard]] constexpr auto invoke_r(Fn &&fn) && noexcept
+  template <typename Fn>
+  [[nodiscard]] constexpr auto transform(Fn &&fn) && noexcept
     requires typelist_type_invocable<Fn, sum &&>
   {
-    using type = detail::_invoke_type_result<T, decltype(fn), sum &&>::type;
+    using type = detail::_sum_invoke_type_result<detail::_collapsing_sum_tag, decltype(fn), sum &&>::type;
     return detail::invoke_variadic_union<type, data_t>(std::move(*this).data, index, FWD(fn));
   }
 
-  template <typename T, typename Fn>
-  [[nodiscard]] constexpr auto invoke_r(Fn &&fn) const && noexcept
+  template <typename Fn>
+  [[nodiscard]] constexpr auto transform(Fn &&fn) const && noexcept
     requires typelist_invocable<Fn, sum const &&> && (not typelist_type_invocable<Fn, sum const &&>)
   {
-    using type = detail::_select_invoke_result<T, decltype(fn), sum const &&>::type;
+    using type = detail::_sum_invoke_result<detail::_collapsing_sum_tag, decltype(fn), sum const &&>::type;
     return detail::invoke_variadic_union<type, data_t>(std::move(*this).data, index, FWD(fn));
   }
 
-  template <typename T, typename Fn>
-  [[nodiscard]] constexpr auto invoke_r(Fn &&fn) const && noexcept
+  template <typename Fn>
+  [[nodiscard]] constexpr auto transform(Fn &&fn) const && noexcept
     requires typelist_type_invocable<Fn, sum const &&>
   {
-    using type = detail::_invoke_type_result<T, decltype(fn), sum const &&>::type;
+    using type = detail::_sum_invoke_type_result<detail::_collapsing_sum_tag, decltype(fn), sum const &&>::type;
     return detail::invoke_variadic_union<type, data_t>(std::move(*this).data, index, FWD(fn));
   }
 };

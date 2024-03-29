@@ -27,20 +27,6 @@ TEST_CASE("invoke_result pack", "[invoke_result][pack]")
   SUCCEED();
 }
 
-TEST_CASE("invoke_result sum", "[invoke_result][sum]")
-{
-  using fn::invoke_result;
-  using fn::invoke_result_t;
-  using fn::overload;
-  using fn::sum;
-
-  constexpr sum<double, int> p{3};
-  constexpr auto fn1 = overload{[](int i) -> int { return i * 100; }, [](double j) -> int { return (int)j; }};
-  static_assert(std::is_same_v<invoke_result<decltype(fn1), decltype(p)>::type, int>);
-  static_assert(std::is_same_v<invoke_result_t<decltype(fn1), decltype(p)>, int>);
-  SUCCEED();
-}
-
 TEST_CASE("is_invocable pack", "[is_invocable][pack]")
 {
   using fn::is_invocable;
@@ -146,4 +132,46 @@ TEST_CASE("invoke pack", "[invoke][pack]")
   CHECK(invoke(fn, std::move(p)) == 314);
 }
 
-TEST_CASE("invoke sum", "[invoke][sum]") {}
+TEST_CASE("invoke_r pack", "[invoke_r][pack]")
+{
+  using fn::invoke_r;
+  using fn::pack;
+
+  constexpr auto fn = [](int i, double j) -> int { return i * 100 + (int)j; };
+  pack<int, double> p{3, 14.15};
+
+  CHECK(invoke_r<double>(fn, p) == 314.0);
+  CHECK(invoke_r<double>(fn, std::as_const(p)) == 314.0);
+  CHECK(invoke_r<double>(fn, std::move(std::as_const(p))) == 314.0);
+  CHECK(invoke_r<double>(fn, std::move(p)) == 314.0);
+}
+
+TEST_CASE("invoke sum", "[invoke][sum]")
+{
+  using fn::invoke;
+  using fn::overload;
+  using fn::sum;
+
+  constexpr auto fn = overload{[](int i) -> int { return i * 10; }, [](double) -> int { throw 0; }};
+  sum<double, int> p{3};
+
+  CHECK(invoke(fn, p) == 30);
+  CHECK(invoke(fn, std::as_const(p)) == 30);
+  CHECK(invoke(fn, std::move(std::as_const(p))) == 30);
+  CHECK(invoke(fn, std::move(p)) == 30);
+}
+
+TEST_CASE("invoke_r sum", "[invoke_r][sum]")
+{
+  using fn::invoke_r;
+  using fn::overload;
+  using fn::sum;
+
+  constexpr auto fn = overload{[](int) -> bool { throw 0; }, [](double j) -> short { return j * 100; }};
+  sum<double, int> p{14.15};
+
+  CHECK(invoke_r<int>(fn, p) == 1415);
+  CHECK(invoke_r<int>(fn, std::as_const(p)) == 1415);
+  CHECK(invoke_r<int>(fn, std::move(std::as_const(p))) == 1415);
+  CHECK(invoke_r<int>(fn, std::move(p)) == 1415);
+}

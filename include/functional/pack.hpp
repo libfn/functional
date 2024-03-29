@@ -9,6 +9,7 @@
 #include "functional/detail/pack_impl.hpp"
 #include "functional/fwd.hpp"
 #include "functional/utility.hpp"
+#include <type_traits>
 
 namespace fn {
 
@@ -104,6 +105,38 @@ template <typename... Ts> struct pack : detail::pack_impl<std::index_sequence_fo
   template <typename Fn>
   [[nodiscard]] constexpr auto invoke(Fn &&fn, auto &&...args) const && noexcept -> decltype(auto)
     requires requires { _impl::_invoke(std::move(*this), FWD(fn), FWD(args)...); }
+  {
+    return _impl::_invoke(std::move(*this), FWD(fn), FWD(args)...);
+  }
+
+  template <typename Ret, typename Fn>
+  [[nodiscard]] constexpr auto invoke_r(Fn &&fn, auto &&...args) & noexcept -> Ret
+    requires requires { _impl::_invoke(*this, FWD(fn), FWD(args)...); }
+             && std::is_convertible_v<decltype(_impl::_invoke(*this, FWD(fn), FWD(args)...)), Ret>
+  {
+    return _impl::_invoke(*this, FWD(fn), FWD(args)...);
+  }
+
+  template <typename Ret, typename Fn>
+  [[nodiscard]] constexpr auto invoke_r(Fn &&fn, auto &&...args) const & noexcept -> Ret
+    requires requires { _impl::_invoke(*this, FWD(fn), FWD(args)...); }
+             && std::is_convertible_v<decltype(_impl::_invoke(*this, FWD(fn), FWD(args)...)), Ret>
+  {
+    return _impl::_invoke(*this, FWD(fn), FWD(args)...);
+  }
+
+  template <typename Ret, typename Fn>
+  [[nodiscard]] constexpr auto invoke_r(Fn &&fn, auto &&...args) && noexcept -> Ret
+    requires requires { _impl::_invoke(std::move(*this), FWD(fn), FWD(args)...); }
+             && std::is_convertible_v<decltype(_impl::_invoke(std::move(*this), FWD(fn), FWD(args)...)), Ret>
+  {
+    return _impl::_invoke(std::move(*this), FWD(fn), FWD(args)...);
+  }
+
+  template <typename Ret, typename Fn>
+  [[nodiscard]] constexpr auto invoke_r(Fn &&fn, auto &&...args) const && noexcept -> Ret
+    requires requires { _impl::_invoke(std::move(*this), FWD(fn), FWD(args)...); }
+             && std::is_convertible_v<decltype(_impl::_invoke(std::move(*this), FWD(fn), FWD(args)...)), Ret>
   {
     return _impl::_invoke(std::move(*this), FWD(fn), FWD(args)...);
   }

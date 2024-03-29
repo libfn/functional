@@ -931,11 +931,11 @@ TEST_CASE("constexpr and_then choice", "[and_then][constexpr][choice]")
       return {0.0};
     };
     constexpr auto r1 = T{0} | fn::and_then(fn);
-    static_assert(r1.transform_to([](int i) -> int { return i; }) == 1);
+    static_assert(r1.invoke([](int i) -> int { return i; }) == 1);
     constexpr auto r2 = T{0.5} | fn::and_then(fn);
-    static_assert(r2.transform_to([](int i) -> int { return i; }) == 1);
+    static_assert(r2.invoke([](int i) -> int { return i; }) == 1);
     constexpr auto r3 = r1 | fn::and_then(fn) | fn::and_then(fn) | fn::and_then(fn);
-    static_assert(r3.transform_to([](double i) -> int { return i; }) == 0.0);
+    static_assert(r3.invoke([](double i) -> int { return i; }) == 0.0);
   }
 
   WHEN("different value type")
@@ -951,11 +951,11 @@ TEST_CASE("constexpr and_then choice", "[and_then][constexpr][choice]")
     };
     constexpr auto r1 = T{1} | fn::and_then(fn);
     static_assert(std::is_same_v<decltype(r1), fn::choice<bool, int> const>);
-    static_assert(r1.transform_to([](bool i) -> bool { return i; }) == true);
+    static_assert(r1.invoke([](bool i) -> bool { return i; }) == true);
     constexpr auto r2 = T{0} | fn::and_then(fn);
-    static_assert(r2.transform_to([](bool i) -> bool { return i; }) == false);
+    static_assert(r2.invoke([](bool i) -> bool { return i; }) == false);
     constexpr auto r3 = T{2} | fn::and_then(fn);
-    static_assert(r3.transform_to([](int i) -> int { return i; }) == 2);
+    static_assert(r3.invoke([](int i) -> int { return i; }) == 2);
   }
 
   SUCCEED();

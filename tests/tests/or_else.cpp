@@ -3,6 +3,7 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
+#include "functional/detail/functional.hpp"
 #include "functional/detail/meta.hpp"
 #include "static_check.hpp"
 
