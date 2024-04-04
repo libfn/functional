@@ -343,7 +343,7 @@ TEST_CASE("constexpr fail expected with sum", "[fail][constexpr][expected][sum]"
 {
   enum class Error { ThresholdExceeded, SomethingElse, Reserved };
   using T = fn::expected<fn::sum<Value, int>, Error>;
-  constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> Error { return Error::ThresholdExceeded; },
+  constexpr auto fn = fn::overload{[](int) constexpr noexcept -> Error { return Error::ThresholdExceeded; },
                                    [](Value const &) { return Error::SomethingElse; }};
   constexpr auto r1 = T{0} | fn::fail(fn);
   static_assert(r1.error() == Error::ThresholdExceeded);
