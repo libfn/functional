@@ -429,6 +429,31 @@ TEST_CASE("constexpr or_else expected with sum", "[or_else][constexpr][expected]
   SUCCEED();
 }
 
+TEST_CASE("constexpr or_else graded monad", "[or_else][constexpr][expected][graded]")
+{
+  enum class Error : int { Unknown, InvalidValue };
+  using T = fn::expected<fn::sum<int>, Error>;
+
+  WHEN("same error type")
+  {
+    constexpr auto fn1 = [](Error i) -> fn::expected<int, int> {
+      if (i == Error::Unknown)
+        return {0};
+      return std::unexpected<int>{(int)i};
+    };
+
+    constexpr auto r1 = T{14} | fn::or_else(fn1);
+    static_assert(std::is_same_v<decltype(r1), fn::expected<fn::sum<int>, int> const>);
+    static_assert(r1.value() == fn::sum{14});
+    constexpr auto r2 = T{std::unexpect, Error::InvalidValue} | fn::or_else(fn1);
+    static_assert(r2.error() == 1);
+    constexpr auto r3 = T{std::unexpect, Error::Unknown} | fn::or_else(fn1);
+    static_assert(r3.value() == fn::sum{0});
+  }
+
+  SUCCEED();
+}
+
 TEST_CASE("constexpr or_else optional", "[or_else][constexpr][optional]")
 {
   using T = fn::optional<int>;

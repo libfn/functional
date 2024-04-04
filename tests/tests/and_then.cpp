@@ -839,6 +839,55 @@ TEST_CASE("constexpr and_then expected with sum", "[and_then][constexpr][expecte
   SUCCEED();
 }
 
+TEST_CASE("constexpr and_then graded monad", "[and_then][constexpr][expected][graded]")
+{
+  enum class Error { InvalidValue };
+  using T = fn::expected<int, fn::sum<Error>>;
+
+  WHEN("same error type")
+  {
+    constexpr auto fn1 = [](int i) -> fn::expected<int, int> {
+      if (i < 2)
+        return {i + 1};
+      return std::unexpected<int>{i};
+    };
+
+    constexpr auto r1 = T{0} | fn::and_then(fn1);
+    static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::sum<Error, int>> const>);
+    static_assert(r1.value() == 1);
+    constexpr auto r2 = r1 | fn::and_then(fn1);
+    static_assert(r2.value() == 2);
+    constexpr auto r3 = r2 | fn::and_then(fn1);
+    static_assert(r3.error() == fn::sum{2});
+    constexpr auto r4 = r3 | fn::and_then(fn1);
+    static_assert(r4.error() == fn::sum{2});
+  }
+
+  WHEN("accummulate errors")
+  {
+    constexpr auto fn2 = [](int i) -> fn::expected<bool, Error> {
+      if (i < 0 || i > 1)
+        return std::unexpected<Error>{Error::InvalidValue};
+      return {i == 1};
+    };
+
+    constexpr auto r2 = T{1} | fn::and_then(fn2);
+    static_assert(std::is_same_v<decltype(r2), fn::expected<bool, fn::sum<Error>> const>);
+    static_assert(r2.value());
+    constexpr auto r3 = T{2} | fn::and_then(fn2);
+    static_assert(r3.error() == fn::sum{Error::InvalidValue});
+
+    constexpr auto fn3 = [](int i) -> fn::expected<int, int> { return {i + 1}; };
+    constexpr auto r4 = r3 | fn::and_then(fn3);
+    static_assert(std::is_same_v<decltype(r4), fn::expected<int, fn::sum<Error, int>> const>);
+    static_assert(r4.error() == fn::sum{Error::InvalidValue});
+    constexpr auto r5 = T{2} | fn::and_then(fn3);
+    static_assert(r5.value() == 3);
+  }
+
+  SUCCEED();
+}
+
 TEST_CASE("constexpr and_then optional", "[and_then][constexpr][optional]")
 {
   using T = fn::optional<int>;

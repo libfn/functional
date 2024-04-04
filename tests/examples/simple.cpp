@@ -57,9 +57,8 @@ template <typename Fn> struct ImmovableFn final {
 };
 template <typename Fn> ImmovableFn(Fn &&) -> ImmovableFn<Fn>;
 
-TEST_CASE(
-    "Demo expected",
-    "[expected][pack][and_then][transform_error][transform][inspect][inspect_error][recover][fail][filter][immovable]")
+TEST_CASE("Demo expected", "[expected][pack][and_then][transform_error][transform][inspect][inspect_error]["
+                           "recover][fail][filter][immovable]")
 {
   constexpr auto fn1 = [](char const *str, double &peek) {
     using namespace fn;
