@@ -189,6 +189,21 @@ TEST_CASE("constexpr inspect_error expected", "[inspect_error][constexpr][expect
   SUCCEED();
 }
 
+TEST_CASE("constexpr inspect_error expected with sum", "[inspect_error][constexpr][expected][sum]")
+{
+  enum class Error { ThresholdExceeded, SomethingElse };
+  using T = fn::expected<int, fn::sum<Error, bool>>;
+  constexpr auto fn = fn::overload{[](Error) constexpr noexcept -> void {}, [](bool) constexpr noexcept -> void {}};
+  constexpr auto r1 = T{0} | fn::inspect_error(fn);
+  static_assert(r1.value() == 0);
+  constexpr auto r2 = T{std::unexpect, fn::sum{Error::SomethingElse}} | fn::inspect_error(fn);
+  static_assert(r2.error() == fn::sum{Error::SomethingElse});
+  constexpr auto r3 = T{std::unexpect, fn::sum{false}} | fn::inspect_error(fn);
+  static_assert(r3.error() == fn::sum{false});
+
+  SUCCEED();
+}
+
 TEST_CASE("constexpr inspect_error optional", "[inspect_error][constexpr][optional]")
 {
   using T = fn::optional<int>;
