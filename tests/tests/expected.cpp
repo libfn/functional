@@ -392,7 +392,7 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
   }
 }
 
-TEST_CASE("constexpr graded monad", "[constexpr][expected][graded]")
+TEST_CASE("graded monad constexpr and runtime", "[constexpr][and_then][or_else][expected][graded][sum]")
 {
   enum class Error : int { Unknown, InvalidValue };
   using T = fn::expected<int, fn::sum<Error>>;
@@ -416,6 +416,8 @@ TEST_CASE("constexpr graded monad", "[constexpr][expected][graded]")
       static_assert(r3.error() == fn::sum{2});
       constexpr auto r4 = r3.and_then(fn1);
       static_assert(r4.error() == fn::sum{2});
+
+      SUCCEED();
     }
 
     WHEN("accummulate errors")
@@ -442,6 +444,8 @@ TEST_CASE("constexpr graded monad", "[constexpr][expected][graded]")
       constexpr auto r5 = T{2}.and_then(fn3);
       static_assert(std::is_same_v<decltype(r5), fn::expected<int, fn::sum<Error, int>> const>);
       static_assert(r5.value() == 3);
+
+      SUCCEED();
     }
   }
 
@@ -506,6 +510,8 @@ TEST_CASE("constexpr graded monad", "[constexpr][expected][graded]")
     static_assert(r2.error() == 1);
     constexpr auto r3 = T{std::unexpect, Error::Unknown}.or_else(fn1);
     static_assert(r3.value() == fn::sum{0});
+
+    SUCCEED();
   }
 
   WHEN("or_else runtime")
@@ -526,8 +532,6 @@ TEST_CASE("constexpr graded monad", "[constexpr][expected][graded]")
     auto const r3 = T{std::unexpect, Error::Unknown}.or_else(fn1);
     CHECK(r3.value() == fn::sum{0});
   }
-
-  SUCCEED();
 }
 
 TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operator_and][graded][sum]")

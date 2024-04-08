@@ -21,6 +21,7 @@
 #include <iostream>
 #include <optional>
 #include <sstream>
+#include <string>
 #include <string_view>
 
 struct Error final {
@@ -251,9 +252,9 @@ TEST_CASE("Demo optional", "[optional][pack][and_then][or_else][inspect][transfo
   CHECK(p4.value() == 42 * 12);
 }
 
-TEST_CASE("Demo choice", "[choice][and_then][inspect][transform]")
+TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform][graded]")
 {
-  constexpr auto parse = [](std::string_view str) noexcept
+  static constexpr auto parse = [](std::string_view str) noexcept
       -> fn::choice_for<bool, double, std::int64_t, std::string_view, std::nullptr_t, std::nullopt_t> {
     if (str.size() > 0) {
       if (str.size() > 1 && str[0] == '\'' && str[str.size() - 1] == '\'')
@@ -302,7 +303,7 @@ TEST_CASE("Demo choice", "[choice][and_then][inspect][transform]")
   CHECK(parse("foo").has_value(std::in_place_type<std::nullopt_t>));
 
   std::ostringstream ss;
-  auto fn = [parse, &ss](auto const &v) {
+  auto fn = [&ss](auto const &v) {
     return parse(v)
            // Example use of transform to collapse several types ...
            | fn::transform(fn::overload([](std::int64_t const &i) -> double { return static_cast<double>(i); },
@@ -334,4 +335,69 @@ TEST_CASE("Demo choice", "[choice][and_then][inspect][transform]")
   CHECK(fn("") == fn::choice(nullptr));
   CHECK(fn("foo") == fn::choice(nullptr));
   CHECK(ss.str() == "1,123,2000000000,5e+09,nullptr,nullptr,");
+
+  struct Config final {
+    std::string hostname;
+    int port;
+    std::string filename;
+    double threshold;
+  };
+
+  enum InputError { UnexpectedType };
+  enum ConfigError { InvalidHostname, InvalidPort, InvalidFilename, InvalidThreshold };
+  enum NetworkError { ConnectError, ProtocolError, Unknown };
+
+  static constexpr auto fn1 = []<typename T>(std::in_place_type_t<T>, std::string_view v) {
+    return parse(v).invoke([](auto &&v) -> fn::expected<T, InputError> {
+      if constexpr (std::is_same_v<std::decay_t<decltype(v)>, T>) {
+        return {FWD(v)};
+      } else
+        return std::unexpected<InputError>{UnexpectedType};
+    });
+  };
+
+  static constexpr auto fn2 = [](std::string_view hostname, std::string_view port, std::string_view filename,
+                                 std::string_view threshold) {
+    return (fn1(std::in_place_type<std::string_view>, hostname).sum_error() // sum_error() to introduce graded monad
+            & fn1(std::in_place_type<long>, port)                           //
+            & fn1(std::in_place_type<std::string_view>, filename)           //
+            & fn1(std::in_place_type<double>, threshold)                    //
+            )
+           | fn::and_then([](std::string_view const &hostname, long port, std::string_view const &filename,
+                             double threshold) -> fn::expected<Config, ConfigError> {
+               if (hostname.size() < 3 || hostname.size() > 127
+                   || hostname.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789.") != std::string_view::npos
+                   || hostname.find("..") != std::string_view::npos)
+                 return std::unexpected<ConfigError>(InvalidHostname);
+               else if (port < 1 || port > 0xffff)
+                 return std::unexpected<ConfigError>(InvalidPort);
+               else if (filename.size() < 1 || filename.size() > 254)
+                 return std::unexpected<ConfigError>(InvalidFilename);
+               else if (threshold < 0 || threshold > 1)
+                 return std::unexpected<ConfigError>(InvalidThreshold);
+
+               return Config{.hostname = std::string{hostname},
+                             .port = static_cast<int>(port),
+                             .filename = std::string{filename},
+                             .threshold = threshold};
+             })
+           | fn::and_then([](Config const &config) -> fn::expected<int, NetworkError> {
+               if (config.port < 1024)
+                 return std::unexpected<NetworkError>(ConnectError);
+               return {0x50eda7a}; // dummy result
+             });
+  };
+
+  auto const b = fn2("123", "1024", "'file.txt'", "0.5"); // 123 is not valid hostname
+  static_assert(std::is_same_v<decltype(b), fn::expected<int, fn::sum<ConfigError, InputError, NetworkError>> const>);
+  CHECK(b.error() == fn::sum{UnexpectedType});
+  CHECK(fn2("'localhost'", "'foo'", "'file.txt'", "0.5").error() == fn::sum{UnexpectedType});
+  CHECK(fn2("'..'", "0", "''", "0").error() == fn::sum{UnexpectedType}); // 0 is not a double
+  CHECK(fn2("'..'", "1024", "'file.txt'", "0.5").error() == fn::sum{InvalidHostname});
+  CHECK(fn2("'..'", "0", "''", "0.5").error() == fn::sum{InvalidHostname}); // hostname is bound first
+  CHECK(fn2("'localhost'", "0", "'file.txt'", "0.5").error() == fn::sum{InvalidPort});
+  CHECK(fn2("'localhost'", "1024", "''", "0.5").error() == fn::sum{InvalidFilename});
+  CHECK(fn2("'localhost'", "1024", "'file.txt'", "-1.0").error() == fn::sum{InvalidThreshold});
+  CHECK(fn2("'localhost'", "1023", "'file.txt'", "0.5").error() == fn::sum{ConnectError});
+  CHECK(fn2("'localhost'", "1024", "'file.txt'", "0.5").value() == 0x50eda7a); // dummy result
 }

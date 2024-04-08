@@ -3,6 +3,7 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
+#include "functional/pack.hpp"
 #include "functional/sum.hpp"
 #include "functional/utility.hpp"
 
@@ -493,6 +494,34 @@ TEST_CASE("sum basic functionality tests", "[sum]")
                          [](std::in_place_type_t<int>, int &&) -> std::false_type { return {}; },
                          [](std::in_place_type_t<int>, int const &&) -> std::true_type { return {}; })));
       }
+    }
+  }
+
+  WHEN("sum of packs")
+  {
+    using fn::pack;
+    constexpr sum a{pack{"abc", 42, 12.5}};
+    static_assert(std::is_same_v<decltype(a), sum<pack<char const(&)[4], int, double>> const>);
+
+    WHEN("constexpr")
+    {
+      constexpr auto b
+          = a.invoke([]<std::size_t I>(char const(&)[I], int i, double d) { return I + i + static_cast<int>(d); });
+      static_assert(b == 4 + 42 + 12);
+
+      constexpr sum<pack<int, int, int, int>, pack<int, int, int>, pack<int, int>, pack<int>> c = pack{3, 14, 15};
+      static_assert(c.invoke([](std::integral auto... args) -> int { return (... + args); }) == 3 + 14 + 15);
+
+      SUCCEED();
+    }
+
+    WHEN("runtime")
+    {
+      auto const b = a.invoke([](char const *s, int i, double d) { return std::strlen(s) + i + static_cast<int>(d); });
+      CHECK(b == 3 + 42 + 12);
+
+      constexpr sum<pack<int, int, int, int>, pack<int, int, int>, pack<int, int>, pack<int>> c = pack{3, 14, 15, 92};
+      CHECK(c.invoke([](std::integral auto... args) -> int { return (... + args); }) == 3 + 14 + 15 + 92);
     }
   }
 }
