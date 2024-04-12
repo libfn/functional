@@ -1,0 +1,9 @@
+version: 3
+
+vendoredDependencies:
+  forceRescans: false
+  scanMethod: CLILicenseScan
+  licenseScanPathFilters:
+    exclude:
+      - ".git/**"
+      - "tests/**"
