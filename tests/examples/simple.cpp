@@ -255,7 +255,7 @@ TEST_CASE("Demo optional", "[optional][pack][and_then][or_else][inspect][transfo
 TEST_CASE("Demo choice", "[choice][and_then][inspect][transform]")
 {
   constexpr auto parse = [](std::string_view str) noexcept
-      -> fn::choice_for<bool, double, std::int64_t, std::string_view, std::nullptr_t, std::nullopt_t> {
+      -> fn::choice_for<bool, double, long, std::string_view, std::nullptr_t, std::nullopt_t> {
     if (str.size() > 0) {
       if (str.size() > 1 && str[0] == '\'' && str[str.size() - 1] == '\'')
         return {str.substr(1, str.size() - 2)};
@@ -275,7 +275,7 @@ TEST_CASE("Demo choice", "[choice][and_then][inspect][transform]")
             return {tmp};
           }
         } else {
-          std::int64_t tmp = {};
+          long tmp = {};
           auto const end = str.data() + str.size();
           if (std::from_chars(str.data(), end, tmp).ptr == end) {
             return {tmp};
@@ -289,7 +289,7 @@ TEST_CASE("Demo choice", "[choice][and_then][inspect][transform]")
 
   static_assert(
       std::is_same_v<decltype(parse("")),
-                     fn::choice<bool, double, std::int64_t, std::string_view, std::nullopt_t, std::nullptr_t>>);
+                     fn::choice<bool, double, long, std::string_view, std::nullopt_t, std::nullptr_t>>);
   CHECK(parse("'abc'") == fn::choice{std::string_view{"abc"}});
   CHECK(parse(R"("def")") == fn::choice{std::string_view{"def"}});
   CHECK(parse("null") == fn::choice(nullptr));
@@ -306,7 +306,7 @@ TEST_CASE("Demo choice", "[choice][and_then][inspect][transform]")
   auto fn = [parse, &ss](auto const &v) {
     return parse(v)
            // Example use of transform to collapse several types ...
-           | fn::transform(fn::overload([](std::int64_t const &i) -> double { return static_cast<double>(i); },
+           | fn::transform(fn::overload([](long const &i) -> double { return static_cast<double>(i); },
                                         [](double const &i) -> double { return static_cast<double>(i); },
                                         [](std::nullopt_t const &) { return nullptr; }, //
                                         [](auto &i) { return FWD(i); }))
