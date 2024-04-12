@@ -1,11 +1,31 @@
+codecov:
+  require_ci_to_pass: true
+
+comment:
+  behavior: default
+  layout: reach,diff,flags,tree,reach
+  show_carryforward_flags: false
+
 coverage:
+  range: "90..98"
+  precision: 1
+  round: nearest
   status:
     project:
       default:
-        target: 95%
-        threshold: 3%
-
+        target: 99%
+        threshold: 1%
     patch:
       default:
         target: auto
-        threshold: 6%
+        threshold: 1%
+    changes: false
+
+github_checks:
+  annotations: true
+
+slack_app: false
+
+ignore:
+  - "external/"
+  - "tests/"
