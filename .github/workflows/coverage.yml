@@ -67,7 +67,7 @@ jobs:
       run: |
         mkdir .build
         cd .build
-        cmake -DCOVERAGE=ON ..
+        cmake -DCOVERAGE=ON -DCODE_COVERAGE_FORMAT=lcov ..
         COMPILER=$( grep "CMAKE_CXX_COMPILER:FILEPATH" CMakeCache.txt | sed "s|CMAKE_CXX_COMPILER:FILEPATH=/|/|" )
         [[ "$( realpath $CXX )" == "$( realpath $COMPILER )" ]] || exit 13
         printf "C++ compiler: %s\nC++ compiler version: %s\ngcovr version: %s\n" "$COMPILER" "$( $COMPILER --version | head -1 )" "$( gcovr --version | head -1 )"
@@ -80,11 +80,15 @@ jobs:
 
     - name: Upload coverage report
       if: ${{ github.event_name == 'push' }}
-      uses: codecov/codecov-action@v4.3.0
+      uses: wandalen/wretry.action@v1.4.10
       with:
-        files: .build/coverage.xml
-        fail_ci_if_error: true
-        disable_search: true
-        verbose: true
-        plugin: noop
-        token: ${{ secrets.CODECOV_TOKEN }}
+        action: codecov/codecov-action@v4.3.0
+        with: |
+          files: .build/coverage.lcov
+          fail_ci_if_error: true
+          disable_search: true
+          verbose: true
+          plugin: noop
+          token: ${{ secrets.CODECOV_TOKEN }}
+        attempt_limit: 5
+        attempt_delay: 210000 # in milliseconds
