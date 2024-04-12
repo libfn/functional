@@ -13,11 +13,6 @@ coverage:
         target: auto
         threshold: 1%
 
-parsers:
-  cobertura:
-    partials_as_hits: false
-    handle_missing_conditions: false
-
 ignore:
   - "external/"
   - "tests/"
