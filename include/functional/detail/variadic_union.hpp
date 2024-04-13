@@ -217,9 +217,9 @@ template <typename R, typename U, typename Fn>
            && _typelist_invocable_r<R, Fn, decltype(v)> && (not _typelist_type_invocable_r<R, Fn, decltype(v)>) //
            && (U::size == 1) && (not std::is_same_v<void, R>)
 {
-  if (index == 0) // GCOVR_EXCL_BR_LINE
+  if (index == 0)
     return static_cast<R>(_invoke(FWD(fn), FWD(v).v0));
-  std::unreachable(); // GCOVR_EXCL_LINE
+  std::unreachable();
 }
 
 template <typename R, typename U, typename Fn>
@@ -228,9 +228,9 @@ template <typename R, typename U, typename Fn>
            && _typelist_type_invocable_r<R, Fn, decltype(v)>   //
            && (U::size == 1) && (not std::is_same_v<void, R>)
 {
-  if (index == 0) // GCOVR_EXCL_BR_LINE
+  if (index == 0)
     return static_cast<R>(_invoke(FWD(fn), std::in_place_type<typename U::t0>, FWD(v).v0));
-  std::unreachable(); // GCOVR_EXCL_LINE
+  std::unreachable();
 }
 
 template <typename R, typename U, typename Fn>
@@ -239,9 +239,9 @@ constexpr void invoke_variadic_union(some_variadic_union auto &&v, std::size_t i
            && _typelist_invocable<Fn, decltype(v)> && (not _typelist_type_invocable<Fn, decltype(v)>) //
            && (U::size == 1) && (std::is_same_v<void, R>)
 {
-  if (index == 0) // GCOVR_EXCL_BR_LINE
+  if (index == 0)
     return (void)_invoke(FWD(fn), FWD(v).v0);
-  std::unreachable(); // GCOVR_EXCL_LINE
+  std::unreachable();
 }
 
 template <typename R, typename U, typename Fn>
@@ -250,9 +250,9 @@ constexpr void invoke_variadic_union(some_variadic_union auto &&v, std::size_t i
            && _typelist_type_invocable<Fn, decltype(v)>        //
            && (U::size == 1) && (std::is_same_v<void, R>)
 {
-  if (index == 0) // GCOVR_EXCL_BR_LINE
+  if (index == 0)
     return (void)_invoke(FWD(fn), std::in_place_type<typename U::t0>, FWD(v).v0);
-  std::unreachable(); // GCOVR_EXCL_LINE
+  std::unreachable();
 }
 
 template <typename R, typename U, typename Fn>
@@ -263,9 +263,9 @@ template <typename R, typename U, typename Fn>
 {
   if (index == 0)
     return static_cast<R>(_invoke(FWD(fn), FWD(v).v0));
-  else if (index == 1) // GCOVR_EXCL_BR_LINE
+  else if (index == 1)
     return static_cast<R>(_invoke(FWD(fn), FWD(v).v1));
-  std::unreachable(); // GCOVR_EXCL_LINE
+  std::unreachable();
 }
 
 template <typename R, typename U, typename Fn>
@@ -276,9 +276,9 @@ template <typename R, typename U, typename Fn>
 {
   if (index == 0)
     return static_cast<R>(_invoke(FWD(fn), std::in_place_type<typename U::t0>, FWD(v).v0));
-  else if (index == 1) // GCOVR_EXCL_BR_LINE
+  else if (index == 1)
     return static_cast<R>(_invoke(FWD(fn), std::in_place_type<typename U::t1>, FWD(v).v1));
-  std::unreachable(); // GCOVR_EXCL_LINE
+  std::unreachable();
 }
 
 template <typename R, typename U, typename Fn>
@@ -289,9 +289,9 @@ constexpr void invoke_variadic_union(some_variadic_union auto &&v, std::size_t i
 {
   if (index == 0)
     return (void)_invoke(FWD(fn), FWD(v).v0);
-  else if (index == 1) // GCOVR_EXCL_BR_LINE
+  else if (index == 1)
     return (void)_invoke(FWD(fn), FWD(v).v1);
-  std::unreachable(); // GCOVR_EXCL_LINE
+  std::unreachable();
 }
 
 template <typename R, typename U, typename Fn>
@@ -302,9 +302,9 @@ constexpr void invoke_variadic_union(some_variadic_union auto &&v, std::size_t i
 {
   if (index == 0)
     return (void)_invoke(FWD(fn), std::in_place_type<typename U::t0>, FWD(v).v0);
-  else if (index == 1) // GCOVR_EXCL_BR_LINE
+  else if (index == 1)
     return (void)_invoke(FWD(fn), std::in_place_type<typename U::t1>, FWD(v).v1);
-  std::unreachable(); // GCOVR_EXCL_LINE
+  std::unreachable();
 }
 
 template <typename R, typename U, typename Fn>
@@ -317,9 +317,9 @@ template <typename R, typename U, typename Fn>
     return static_cast<R>(_invoke(FWD(fn), FWD(v).v0));
   else if (index == 1)
     return static_cast<R>(_invoke(FWD(fn), FWD(v).v1));
-  else if (index == 2) // GCOVR_EXCL_BR_LINE
+  else if (index == 2)
     return static_cast<R>(_invoke(FWD(fn), FWD(v).v2));
-  std::unreachable(); // GCOVR_EXCL_LINE
+  std::unreachable();
 }
 
 template <typename R, typename U, typename Fn>
@@ -332,9 +332,9 @@ template <typename R, typename U, typename Fn>
     return static_cast<R>(_invoke(FWD(fn), std::in_place_type<typename U::t0>, FWD(v).v0));
   else if (index == 1)
     return static_cast<R>(_invoke(FWD(fn), std::in_place_type<typename U::t1>, FWD(v).v1));
-  else if (index == 2) // GCOVR_EXCL_BR_LINE
+  else if (index == 2)
     return static_cast<R>(_invoke(FWD(fn), std::in_place_type<typename U::t2>, FWD(v).v2));
-  std::unreachable(); // GCOVR_EXCL_LINE
+  std::unreachable();
 }
 
 template <typename R, typename U, typename Fn>
@@ -347,9 +347,9 @@ constexpr void invoke_variadic_union(some_variadic_union auto &&v, std::size_t i
     return (void)_invoke(FWD(fn), FWD(v).v0);
   else if (index == 1)
     return (void)_invoke(FWD(fn), FWD(v).v1);
-  else if (index == 2) // GCOVR_EXCL_BR_LINE
+  else if (index == 2)
     return (void)_invoke(FWD(fn), FWD(v).v2);
-  std::unreachable(); // GCOVR_EXCL_LINE
+  std::unreachable();
 }
 
 template <typename R, typename U, typename Fn>
@@ -362,9 +362,9 @@ constexpr void invoke_variadic_union(some_variadic_union auto &&v, std::size_t i
     return (void)_invoke(FWD(fn), std::in_place_type<typename U::t0>, FWD(v).v0);
   else if (index == 1)
     return (void)_invoke(FWD(fn), std::in_place_type<typename U::t1>, FWD(v).v1);
-  else if (index == 2) // GCOVR_EXCL_BR_LINE
+  else if (index == 2)
     return (void)_invoke(FWD(fn), std::in_place_type<typename U::t2>, FWD(v).v2);
-  std::unreachable(); // GCOVR_EXCL_LINE
+  std::unreachable();
 }
 
 template <typename R, typename U, typename Fn>
@@ -379,9 +379,9 @@ template <typename R, typename U, typename Fn>
     return static_cast<R>(_invoke(FWD(fn), FWD(v).v1));
   else if (index == 2)
     return static_cast<R>(_invoke(FWD(fn), FWD(v).v2));
-  else if (index == 3) // GCOVR_EXCL_BR_LINE
+  else if (index == 3)
     return static_cast<R>(_invoke(FWD(fn), FWD(v).v3));
-  std::unreachable(); // GCOVR_EXCL_LINE
+  std::unreachable();
 }
 
 template <typename R, typename U, typename Fn>
@@ -396,9 +396,9 @@ template <typename R, typename U, typename Fn>
     return static_cast<R>(_invoke(FWD(fn), std::in_place_type<typename U::t1>, FWD(v).v1));
   else if (index == 2)
     return static_cast<R>(_invoke(FWD(fn), std::in_place_type<typename U::t2>, FWD(v).v2));
-  else if (index == 3) // GCOVR_EXCL_BR_LINE
+  else if (index == 3)
     return static_cast<R>(_invoke(FWD(fn), std::in_place_type<typename U::t3>, FWD(v).v3));
-  std::unreachable(); // GCOVR_EXCL_LINE
+  std::unreachable();
 }
 
 template <typename R, typename U, typename Fn>
@@ -413,9 +413,9 @@ constexpr void invoke_variadic_union(some_variadic_union auto &&v, std::size_t i
     return (void)_invoke(FWD(fn), FWD(v).v1);
   else if (index == 2)
     return (void)_invoke(FWD(fn), FWD(v).v2);
-  else if (index == 3) // GCOVR_EXCL_BR_LINE
+  else if (index == 3)
     return (void)_invoke(FWD(fn), FWD(v).v3);
-  std::unreachable(); // GCOVR_EXCL_LINE
+  std::unreachable();
 }
 
 template <typename R, typename U, typename Fn>
@@ -430,9 +430,9 @@ constexpr void invoke_variadic_union(some_variadic_union auto &&v, std::size_t i
     return (void)_invoke(FWD(fn), std::in_place_type<typename U::t1>, FWD(v).v1);
   else if (index == 2)
     return (void)_invoke(FWD(fn), std::in_place_type<typename U::t2>, FWD(v).v2);
-  else if (index == 3) // GCOVR_EXCL_BR_LINE
+  else if (index == 3)
     return (void)_invoke(FWD(fn), std::in_place_type<typename U::t3>, FWD(v).v3);
-  std::unreachable(); // GCOVR_EXCL_LINE
+  std::unreachable();
 }
 
 template <typename R, typename U, typename Fn>

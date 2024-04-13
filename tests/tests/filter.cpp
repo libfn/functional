@@ -379,6 +379,20 @@ TEST_CASE("filter", "[filter][expected][expected_void]")
   }
 }
 
+TEST_CASE("filter expected_void contrived", "[filter][expected][expected_void][contrived]")
+{
+  // Contrived test case to force select lines into test coverage, which normally gets optimized out even at -O0
+  using operand_t = fn::expected<void, Error>;
+
+  int op_count = 0;
+  auto op = [&op_count]() mutable -> bool { return (op_count++ < 1); };
+  int er_count = 0;
+  auto er = [&er_count]() mutable -> Error { return Error{std::string{"Error count "} + std::to_string(++er_count)}; };
+
+  CHECK((operand_t{} | fn::filter(op, er)).has_value());
+  CHECK((operand_t{} | fn::filter(op, er)).error().what == "Error count 1");
+}
+
 TEST_CASE("filter", "[filter][optional]")
 {
   using namespace fn;
