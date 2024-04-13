@@ -20,6 +20,7 @@ jobs:
     env:
       CC: /usr/local/bin/gcc
       CXX: /usr/local/bin/g++
+      GCOV: /usr/local/bin/gcov
 
     steps:
     - uses: actions/checkout@v4
@@ -32,13 +33,6 @@ jobs:
         apt-get update -y
         apt-get install -y --no-install-recommends cmake ninja-build python3-pip python3-venv
         apt-get clean -y
-
-    # We need gcovr for coverage reporting
-    - name: Prepare gcovr
-      run: |
-        python3 -m venv /venv
-        PATH=/venv/bin:${PATH} pip --no-cache-dir install 'gcovr>=7,<8'
-        echo "/venv/bin" >> $GITHUB_PATH
 
     - name: Verify compiler compatibility
       env:
@@ -60,33 +54,37 @@ jobs:
         $OUT
 
     - name: Prepare build
-      shell:  bash
+      shell: bash
       env:
         CMAKE_GENERATOR: Ninja
         CMAKE_BUILD_TYPE: Debug
+        COVERAGE_OPTS: "-g --coverage -fprofile-abs-path -fno-early-inlining"
       run: |
         mkdir .build
         cd .build
-        cmake -DCOVERAGE=ON -DCODE_COVERAGE_FORMAT=lcov ..
+        cmake -DCMAKE_C_FLAGS="$COVERAGE_OPTS" -DCMAKE_CXX_FLAGS="$COVERAGE_OPTS" ..
         COMPILER=$( grep "CMAKE_CXX_COMPILER:FILEPATH" CMakeCache.txt | sed "s|CMAKE_CXX_COMPILER:FILEPATH=/|/|" )
         [[ "$( realpath $CXX )" == "$( realpath $COMPILER )" ]] || exit 13
-        printf "C++ compiler: %s\nC++ compiler version: %s\ngcovr version: %s\n" "$COMPILER" "$( $COMPILER --version | head -1 )" "$( gcovr --version | head -1 )"
+        printf "C++ compiler: %s\n" "$COMPILER"
+        printf "C++ compiler version: %s\n" "$( $COMPILER --version | head -1 )"
+        printf "gcov version: %s\n" "$( $GCOV --version | head -1 )"
 
     - name: Run coverage target
+      shell: bash
       run: |
         cd .build
-        ln -s ../external/catch2/src src # gcov workaround
-        cmake --build . --target coverage
+        cmake --build .
+        tests/tests/tests -a # generate .gcda files
+        $GCOV -pa $( find tests/tests/ -type f -name '*.gcno' ) # generate .gcov file
 
-    - name: Upload coverage report
+    - name: Upload .gcov files
       if: ${{ github.event_name == 'push' }}
       uses: wandalen/wretry.action@v1.4.10
       with:
         action: codecov/codecov-action@v4.3.0
         with: |
-          files: .build/coverage.lcov
           fail_ci_if_error: true
-          disable_search: true
+          disable_search: false
           verbose: true
           plugin: noop
           token: ${{ secrets.CODECOV_TOKEN }}

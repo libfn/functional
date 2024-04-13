@@ -26,6 +26,14 @@ github_checks:
 
 slack_app: false
 
+parsers:
+  gcov:
+    branch_detection:
+      conditional: true
+      loop: true
+      method: false
+      macro: false
+
 ignore:
   - "external/"
   - "tests/"
