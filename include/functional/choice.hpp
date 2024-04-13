@@ -322,7 +322,7 @@ template <typename... Ts, typename... Tx>
 {
   return lh.template invoke_r<bool>([&rh]<typename T>(std::in_place_type_t<T> d, auto const &lh) noexcept {
     if constexpr (std::remove_cvref_t<decltype(rh)>::template has_type<T>) {
-      return rh.has_value(d) && lh == *rh.get_ptr(d); // GCOVR_EXCL_BR_LINE
+      return rh.has_value(d) && lh == *rh.get_ptr(d);
     } else {
       return false;
     }
