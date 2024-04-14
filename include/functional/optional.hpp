@@ -9,6 +9,7 @@
 #include "functional/detail/functional.hpp"
 #include "functional/fwd.hpp"
 #include "functional/pack.hpp"
+#include "functional/sum.hpp"
 #include "functional/utility.hpp"
 
 #include <concepts>
@@ -21,16 +22,6 @@ namespace fn {
 template <typename T>
 concept some_optional = detail::_some_optional<T>;
 
-template <typename T>
-concept some_optional_non_pack = //
-    some_optional<T>             //
-    && !some_pack<typename std::remove_cvref_t<T>::value_type>;
-
-template <typename T>
-concept some_optional_pack = //
-    some_optional<T>         //
-    && some_pack<typename std::remove_cvref_t<T>::value_type>;
-
 template <typename T> struct optional final : std::optional<T> {
   using value_type = std::optional<T>::value_type;
 
@@ -38,7 +29,7 @@ template <typename T> struct optional final : std::optional<T> {
 
   template <typename Fn> constexpr auto and_then(Fn &&fn) &
   {
-    using type = ::fn::detail::_invoke_result_t<Fn, value_type &>;
+    using type = ::fn::detail::_invoke_result<Fn, value_type &>::type;
     static_assert(some_optional<type>);
     if (this->has_value())
       return ::fn::detail::_invoke(FWD(fn), this->value());
@@ -48,7 +39,7 @@ template <typename T> struct optional final : std::optional<T> {
 
   template <typename Fn> constexpr auto and_then(Fn &&fn) const &
   {
-    using type = ::fn::detail::_invoke_result_t<Fn, value_type const &>;
+    using type = ::fn::detail::_invoke_result<Fn, value_type const &>::type;
     static_assert(some_optional<type>);
     if (this->has_value())
       return ::fn::detail::_invoke(FWD(fn), this->value());
@@ -58,20 +49,20 @@ template <typename T> struct optional final : std::optional<T> {
 
   template <typename Fn> constexpr auto and_then(Fn &&fn) &&
   {
-    using type = ::fn::detail::_invoke_result_t<Fn, value_type &&>;
+    using type = ::fn::detail::_invoke_result<Fn, value_type &&>::type;
     static_assert(some_optional<type>);
     if (this->has_value())
-      return ::fn::detail::_invoke(FWD(fn), std::move(this->value()));
+      return ::fn::detail::_invoke(FWD(fn), std::move(*this).value());
     else
       return type(std::nullopt);
   }
 
   template <typename Fn> constexpr auto and_then(Fn &&fn) const &&
   {
-    using type = ::fn::detail::_invoke_result_t<Fn, value_type const &&>;
+    using type = ::fn::detail::_invoke_result<Fn, value_type const &&>::type;
     static_assert(some_optional<type>);
     if (this->has_value())
-      return ::fn::detail::_invoke(FWD(fn), std::move(this->value()));
+      return ::fn::detail::_invoke(FWD(fn), std::move(*this).value());
     else
       return type(std::nullopt);
   }
@@ -107,7 +98,7 @@ template <typename T> struct optional final : std::optional<T> {
     using type = optional<T>;
     static_assert(some_optional<type>);
     if (this->has_value())
-      return type(std::in_place, std::move(this->value()));
+      return type(std::in_place, std::move(*this).value());
     else
       return ::fn::detail::_invoke(FWD(fn));
   }
@@ -119,47 +110,105 @@ template <typename T> struct optional final : std::optional<T> {
     using type = optional<T>;
     static_assert(some_optional<type>);
     if (this->has_value())
-      return type(std::in_place, std::move(this->value()));
+      return type(std::in_place, std::move(*this).value());
     else
       return ::fn::detail::_invoke(FWD(fn));
   }
 
-  template <typename Fn> constexpr auto transform(Fn &&fn) &
+  // transform not sum
+  template <typename Fn>
+  constexpr auto transform(Fn &&fn) &
+    requires(not some_sum<value_type>)
   {
-    using value_type = ::fn::detail::_invoke_result_t<Fn, value_type &>;
-    using type = optional<value_type>;
+    using new_value_type = ::fn::detail::_invoke_result<Fn, value_type &>::type;
+    using type = optional<new_value_type>;
     if (this->has_value())
       return type(std::in_place, ::fn::detail::_invoke(FWD(fn), this->value()));
     else
       return type(std::nullopt);
   }
 
-  template <typename Fn> constexpr auto transform(Fn &&fn) const &
+  template <typename Fn>
+  constexpr auto transform(Fn &&fn) const &
+    requires(not some_sum<value_type>)
   {
-    using value_type = ::fn::detail::_invoke_result_t<Fn, value_type const &>;
-    using type = optional<value_type>;
+    using new_value_type = ::fn::detail::_invoke_result<Fn, value_type const &>::type;
+    using type = optional<new_value_type>;
     if (this->has_value())
       return type(std::in_place, ::fn::detail::_invoke(FWD(fn), this->value()));
     else
       return type(std::nullopt);
   }
 
-  template <typename Fn> constexpr auto transform(Fn &&fn) &&
+  template <typename Fn>
+  constexpr auto transform(Fn &&fn) &&
+    requires(not some_sum<value_type>)
   {
-    using value_type = ::fn::detail::_invoke_result_t<Fn, value_type &&>;
-    using type = optional<value_type>;
+    using new_value_type = ::fn::detail::_invoke_result<Fn, value_type &&>::type;
+    using type = optional<new_value_type>;
     if (this->has_value())
-      return type(std::in_place, ::fn::detail::_invoke(FWD(fn), std::move(this->value())));
+      return type(std::in_place, ::fn::detail::_invoke(FWD(fn), std::move(*this).value()));
     else
       return type(std::nullopt);
   }
 
-  template <typename Fn> constexpr auto transform(Fn &&fn) const &&
+  template <typename Fn>
+  constexpr auto transform(Fn &&fn) const &&
+    requires(not some_sum<value_type>)
   {
-    using value_type = ::fn::detail::_invoke_result_t<Fn, value_type const &&>;
-    using type = optional<value_type>;
+    using new_value_type = ::fn::detail::_invoke_result<Fn, value_type const &&>::type;
+    using type = optional<new_value_type>;
     if (this->has_value())
-      return type(std::in_place, ::fn::detail::_invoke(FWD(fn), std::move(this->value())));
+      return type(std::in_place, ::fn::detail::_invoke(FWD(fn), std::move(*this).value()));
+    else
+      return type(std::nullopt);
+  }
+
+  // transform sum
+  template <typename Fn>
+  constexpr auto transform(Fn &&fn) &
+    requires some_sum<value_type>
+  {
+    using new_value_type = decltype(this->value().transform(FWD(fn)));
+    using type = optional<new_value_type>;
+    if (this->has_value())
+      return type(std::in_place, this->value().transform(FWD(fn)));
+    else
+      return type(std::nullopt);
+  }
+
+  template <typename Fn>
+  constexpr auto transform(Fn &&fn) const &
+    requires some_sum<value_type>
+  {
+    using new_value_type = decltype(this->value().transform(FWD(fn)));
+    using type = optional<new_value_type>;
+    if (this->has_value())
+      return type(std::in_place, this->value().transform(FWD(fn)));
+    else
+      return type(std::nullopt);
+  }
+
+  template <typename Fn>
+  constexpr auto transform(Fn &&fn) &&
+    requires some_sum<value_type>
+  {
+    using new_value_type = decltype(std::move(*this).value().transform(FWD(fn)));
+    using type = optional<new_value_type>;
+    if (this->has_value())
+      return type(std::in_place, std::move(*this).value().transform(FWD(fn)));
+    else
+      return type(std::nullopt);
+  }
+
+  template <typename Fn>
+  constexpr auto transform(Fn &&fn) const &&
+    requires some_sum<value_type>
+  {
+    using new_value_type = decltype(std::move(*this).value().transform(FWD(fn)));
+    using type = optional<new_value_type>;
+    if (this->has_value())
+      return type(std::in_place, std::move(*this).value().transform(FWD(fn)));
     else
       return type(std::nullopt);
   }

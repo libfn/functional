@@ -101,7 +101,8 @@ struct filter_t::apply final {
     using type = std::remove_cvref_t<decltype(v)>;
     if (std::as_const(v).has_value()) {
       bool const keep = ::fn::invoke(FWD(pred));
-      return (keep ? type{std::in_place} : type{std::unexpect, ::fn::invoke(FWD(on_err))});
+      return (keep ? type{std::in_place} //
+                   : type{std::unexpect, ::fn::invoke(FWD(on_err))});
     }
     return FWD(v);
   }
@@ -113,7 +114,8 @@ struct filter_t::apply final {
     using type = std::remove_cvref_t<decltype(v)>;
     if (std::as_const(v).has_value()) {
       bool const keep = ::fn::invoke(FWD(pred), std::as_const(v).value());
-      return (keep ? type{std::in_place, FWD(v).value()} : type{std::nullopt});
+      return (keep ? type{std::in_place, FWD(v).value()} //
+                   : type{std::nullopt});
     }
     return FWD(v);
   }

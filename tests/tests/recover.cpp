@@ -231,6 +231,29 @@ TEST_CASE("constexpr recover expected", "[recover][constexpr][expected]")
   SUCCEED();
 }
 
+TEST_CASE("constexpr recover expected with sum", "[recover][constexpr][expected][sum]")
+{
+  enum class Error { ThresholdExceeded, SomethingElse };
+  using T = fn::expected<int, fn::sum<Error, bool>>;
+
+  constexpr auto fn = fn::overload{[](Error e) constexpr noexcept -> int {
+                                     if (e == Error::SomethingElse)
+                                       return 0;
+                                     return 1;
+                                   },
+                                   [](bool e) constexpr noexcept -> int { return (int)e; }};
+  constexpr auto r1 = T{2} | fn::recover(fn);
+  static_assert(r1.value() == 2);
+  constexpr auto r2 = T{std::unexpect, fn::sum{Error::SomethingElse}} | fn::recover(fn);
+  static_assert(r2.value() == 0);
+  constexpr auto r3 = T{std::unexpect, fn::sum{true}} | fn::recover(fn);
+  static_assert(r3.value() == 1);
+  constexpr auto r4 = T{std::unexpect, fn::sum{Error::ThresholdExceeded}} | fn::recover(fn);
+  static_assert(r4.value() == 1);
+
+  SUCCEED();
+}
+
 TEST_CASE("constexpr recover optional", "[recover][constexpr][optional]")
 {
   using T = fn::optional<int>;
