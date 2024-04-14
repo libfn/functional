@@ -11,9 +11,9 @@ RUN dnf -y update ;\
 # Fail build if unexpected gcc version
 RUN gcc --version | grep -E "^gcc \(GCC\) 13"
 
-RUN wget https://repo.maven.apache.org/maven2/org/testingisdocumenting/znai/znai-dist/1.67/znai-dist-1.67-znai.zip ;\
-    unzip znai-dist-1.67-znai.zip -d znai_tmp; mv znai_tmp/dist /opt/znai ;\
-    rm -rf znai-dist-1.67-znai.zip znai_tmp
+RUN wget https://repo.maven.apache.org/maven2/org/testingisdocumenting/znai/znai-dist/1.68/znai-dist-1.68-znai.zip ;\
+    unzip znai-dist-1.68-znai.zip -d znai_tmp; mv znai_tmp/dist /opt/znai ;\
+    rm -rf znai-dist-1.68-znai.zip znai_tmp
 ENV PATH=/opt/znai:${PATH}
 
 ENV CC=/usr/bin/gcc
