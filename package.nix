@@ -1,7 +1,8 @@
 { lib
 , stdenv
 , cmake
-, catch2
+, catch2_3
+, ccache
 , enableTests ? true
 }:
 
@@ -14,15 +15,17 @@ stdenv.mkDerivation {
     "^include.*"
     "^tests.*"
     "CMakeLists.txt"
+    "^cmake.*"
   ];
 
   # Distinguishing between native build inputs (runnable on the host
   # at compile time) and normal build inputs (runnable on target
   # platform at run time) is important for cross compilation.
-  nativeBuildInputs = [ cmake ];
-  buildInputs = [ ];
-  checkInputs = [ catch2 ];
+  nativeBuildInputs = [ cmake ccache ];
+  buildInputs = [ catch2_3 ];
+  checkInputs = [ ];
 
   doCheck = enableTests;
-  cmakeFlags = lib.optional (!enableTests) "-DTESTING=off";
+  cmakeFlags = [ "-DDISABLE_CCACHE_DETECTION=On" ] 
+    ++ lib.optional (!enableTests) "-DTESTING=off";
 }

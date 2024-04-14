@@ -1,6 +1,7 @@
 .idea/
 .idea_modules/
 .build*/
+build*/
 .clangd
 .devcontainer/
 .vscode/

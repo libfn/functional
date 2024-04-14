@@ -12,10 +12,11 @@
       ];
       perSystem = { config, self', inputs', pkgs, system, ... }: {
         packages = {
-          default = pkgs.callPackage ./package.nix { };
+          default = pkgs.callPackage ./package.nix { stdenv = pkgs.gcc13Stdenv; };
           clang = pkgs.callPackage ./package.nix { stdenv = pkgs.clang17Stdenv; };
           gcc = pkgs.callPackage ./package.nix { stdenv = pkgs.gcc13Stdenv; };
-        } // pkgs.lib.optionalAttrs (system != "x86_64-linux") {
+        }
+        // pkgs.lib.optionalAttrs (system != "x86_64-linux") {
           crossIntel = pkgs.pkgsCross.gnu64.callPackage ./package.nix {
             enableTests = false;
           };
@@ -24,7 +25,6 @@
             enableTests = false;
           };
         };
-
         checks = config.packages // {
           clang = config.packages.default.override {
             stdenv = pkgs.clang17Stdenv;
