@@ -24,8 +24,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-      with:
-        submodules: 'true'
     - name: Install prerequisites
       env:
         DEBIAN_FRONTEND: noninteractive

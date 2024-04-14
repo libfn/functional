@@ -10,9 +10,6 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
-      with:
-        submodules: 'true'
-
     - uses: fossas/fossa-action@main
       with:
         api-key: ${{ secrets.FOSSA_API_KEY }}

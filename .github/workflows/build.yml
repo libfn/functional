@@ -24,10 +24,7 @@ jobs:
         dnf -y install git cmake ninja-build clang gcc gcc-c++ libstdc++-static
         dnf -y clean all
 
-    # To enable submodules, git must be installed before actions/checkout@v3
     - uses: actions/checkout@v4
-      with:
-        submodules: 'true'
 
     - name: Verify compiler compatibility
       env:
