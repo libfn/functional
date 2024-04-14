@@ -162,3 +162,37 @@ TEST_CASE("constexpr transform_error expected", "[transform_error][constexpr][ex
 
   SUCCEED();
 }
+
+TEST_CASE("constexpr transform_error expected with sum", "[transform_error][constexpr][expected][sum]")
+{
+  enum class Error { ThresholdExceeded, SomethingElse };
+  using T = fn::expected<int, fn::sum<Error, bool>>;
+
+  WHEN("same value type")
+  {
+    constexpr auto fn = fn::overload{[](bool i) constexpr noexcept -> fn::sum<Error, bool> { return not i; },
+                                     [](Error v) constexpr noexcept -> fn::sum<Error, bool> { return v; }};
+    constexpr auto r1 = T{std::unexpect, fn::sum{Error::SomethingElse}} | fn::transform_error(fn);
+    static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::sum<Error, bool>> const>);
+    static_assert(r1.error() == fn::sum{Error::SomethingElse});
+    constexpr auto r2 = T{std::unexpect, fn::sum{true}} | fn::transform_error(fn);
+    static_assert(r2.error() == fn::sum{false});
+    constexpr auto r3 = T{42} | fn::transform_error(fn);
+    static_assert(r3.value() == 42);
+  }
+
+  WHEN("different value type")
+  {
+    constexpr auto fn = fn::overload{[](bool i) constexpr noexcept -> bool { return not i; },
+                                     [](Error v) constexpr noexcept -> int { return static_cast<int>(v) + 1; }};
+    constexpr auto r1 = T{std::unexpect, fn::sum{Error::SomethingElse}} | fn::transform_error(fn);
+    static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::sum<bool, int>> const>);
+    static_assert(r1.error() == fn::sum{2});
+    constexpr auto r2 = T{std::unexpect, fn::sum{true}} | fn::transform_error(fn);
+    static_assert(r2.error() == fn::sum{false});
+    constexpr auto r3 = T{42} | fn::transform_error(fn);
+    static_assert(r3.value() == 42);
+  }
+
+  SUCCEED();
+}

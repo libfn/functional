@@ -63,13 +63,17 @@ TEST_CASE("pack", "[pack]")
     return dest;
   };
   CHECK(v.invoke(fn1, a).v == 3 + 14 + 15 + 92);
+  CHECK(v.invoke_r<A>(fn1, a).v == 3 + 14 + 15 + 92);
   static_assert(std::is_same_v<decltype(v.invoke(fn1, a)), A &>);
+  static_assert(std::is_same_v<decltype(v.invoke_r<A>(fn1, a)), A>);
 
   constexpr auto fn2 = [](A &&dest, auto &&...) noexcept -> A && { return std::move(dest); };
   static_assert(std::is_same_v<decltype(v.invoke(fn2, std::move(a))), A &&>);
+  static_assert(std::is_same_v<decltype(v.invoke_r<A>(fn2, std::move(a))), A>);
 
   constexpr auto fn3 = [](A &&dest, auto &&...) noexcept -> A { return dest; };
   static_assert(std::is_same_v<decltype(v.invoke(fn3, std::move(a))), A>);
+  static_assert(std::is_same_v<decltype(v.invoke_r<A>(fn3, std::move(a))), A>);
 
   static_assert(pack<>::size == 0);
 
@@ -122,16 +126,32 @@ TEST_CASE("append value categories", "[pack][append]")
     {
       CHECK(s.append(std::in_place_type<B>, 5, 6).invoke(check));
       CHECK(std::as_const(s).append(std::in_place_type<B>, 5, 6).invoke(check));
-      CHECK(T{12, "bar", 42}.append(std::in_place_type<B>, 5, 6).invoke(check));
       CHECK(std::move(std::as_const(s)).append(std::in_place_type<B>, 5, 6).invoke(check));
+      CHECK(std::move(s).append(std::in_place_type<B>, 5, 6).invoke(check));
+    }
+
+    WHEN("constructor takes parameters invoke_r")
+    {
+      CHECK(s.append(std::in_place_type<B>, 5, 6).invoke_r<bool>(check));
+      CHECK(std::as_const(s).append(std::in_place_type<B>, 5, 6).invoke_r<bool>(check));
+      CHECK(std::move(std::as_const(s)).append(std::in_place_type<B>, 5, 6).invoke_r<bool>(check));
+      CHECK(std::move(s).append(std::in_place_type<B>, 5, 6).invoke_r<bool>(check));
     }
 
     WHEN("default constructor")
     {
       CHECK(s.append(std::in_place_type<C>).invoke(check));
       CHECK(std::as_const(s).append(std::in_place_type<C>).invoke(check));
-      CHECK(T{12, "bar", 42}.append(std::in_place_type<C>).invoke(check));
       CHECK(std::move(std::as_const(s)).append(std::in_place_type<C>).invoke(check));
+      CHECK(std::move(s).append(std::in_place_type<C>).invoke(check));
+    }
+
+    WHEN("default constructor invoke_r")
+    {
+      CHECK(s.append(std::in_place_type<C>).invoke_r<int>(check) == 1);
+      CHECK(std::as_const(s).append(std::in_place_type<C>).invoke_r<int>(check) == 1);
+      CHECK(std::move(std::as_const(s)).append(std::in_place_type<C>).invoke_r<int>(check) == 1);
+      CHECK(std::move(s).append(std::in_place_type<C>).invoke_r<int>(check) == 1);
     }
   }
 
@@ -149,8 +169,8 @@ TEST_CASE("append value categories", "[pack][append]")
 
     CHECK(s.append(B{30}).invoke(check));
     CHECK(std::as_const(s).append(B{30}).invoke(check));
-    CHECK(T{12, "bar", 42}.append(B{30}).invoke(check));
     CHECK(std::move(std::as_const(s)).append(B{30}).invoke(check));
+    CHECK(std::move(s).append(B{30}).invoke(check));
   }
 }
 

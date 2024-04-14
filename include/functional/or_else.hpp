@@ -22,6 +22,11 @@ concept invocable_or_else //
         {
           ::fn::invoke(FWD(fn), FWD(v).error())
         } -> same_value_kind<V>;
+      }) || (some_expected<V> //
+         && some_sum<typename std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
+        {
+          ::fn::invoke(FWD(fn), FWD(v).error())
+        } -> some_expected;
       }) || (some_optional<V> && requires(Fn &&fn) {
         {
           ::fn::invoke(FWD(fn))
@@ -38,7 +43,7 @@ constexpr inline struct or_else_t final {
 } or_else = {};
 
 struct or_else_t::apply final {
-  [[nodiscard]] static constexpr auto operator()(some_monadic_type auto &&v, auto &&fn) noexcept
+  [[nodiscard]] static constexpr auto operator()(some_monadic_type auto &&v, auto &&fn) noexcept //
       -> same_value_kind<decltype(v)> auto
     requires invocable_or_else<decltype(fn), decltype(v)>
   {

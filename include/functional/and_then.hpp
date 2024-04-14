@@ -16,6 +16,7 @@
 #include "functional/utility.hpp"
 
 #include <concepts>
+#include <type_traits>
 #include <utility>
 
 namespace fn {
@@ -25,10 +26,20 @@ concept invocable_and_then //
         {
           ::fn::invoke(FWD(fn), FWD(v).value())
         } -> same_kind<V>;
+      }) || (some_expected_non_void<V> //
+         && some_sum<typename std::remove_cvref_t<V>::error_type> && requires(Fn &&fn, V &&v) {
+        {
+          ::fn::invoke(FWD(fn), FWD(v).value())
+        } -> some_expected;
       }) || (some_expected_void<V> && requires(Fn &&fn) {
         {
           ::fn::invoke(FWD(fn))
         } -> same_kind<V>;
+      }) || (some_expected_void<V> //
+         && some_sum<typename std::remove_cvref_t<V>::error_type> && requires(Fn &&fn, V &&v) {
+        {
+          ::fn::invoke(FWD(fn))
+        } -> some_expected;
       }) || (some_optional<V> && requires(Fn &&fn, V &&v) {
         {
           ::fn::invoke(FWD(fn), FWD(v).value())
@@ -49,7 +60,7 @@ constexpr inline struct and_then_t final {
 } and_then = {};
 
 struct and_then_t::apply final {
-  [[nodiscard]] static constexpr auto operator()(some_monadic_type auto &&v, auto &&fn) noexcept
+  [[nodiscard]] static constexpr auto operator()(some_monadic_type auto &&v, auto &&fn) noexcept //
       -> same_kind<decltype(v)> auto
     requires invocable_and_then<decltype(fn), decltype(v)>
   {
