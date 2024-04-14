@@ -1,6 +1,15 @@
 name: coverage
 
-on: [push, pull_request]
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - 'feature/*'
+      - 'bugfix/*'
+      - 'release/*'
 
 jobs:
   coverage:
@@ -8,11 +17,14 @@ jobs:
     container: gcc:13.2-bookworm
     strategy:
       fail-fast: false
+    env:
+      CC: /usr/local/bin/gcc
+      CXX: /usr/local/bin/g++
+
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: 'true'
-
     - name: Install prerequisites
       env:
         DEBIAN_FRONTEND: noninteractive
@@ -25,7 +37,7 @@ jobs:
     - name: Prepare gcovr
       run: |
         python3 -m venv /venv
-        PATH=/venv/bin:${PATH} pip --no-cache-dir install 'gcovr<8'
+        PATH=/venv/bin:${PATH} pip --no-cache-dir install 'gcovr>=7,<8'
         echo "/venv/bin" >> $GITHUB_PATH
 
     - name: Verify compiler compatibility
@@ -44,20 +56,21 @@ jobs:
         FILE=$(mktemp --tmpdir XXXXXX.cpp)
         printf "$SOURCE\n" > $FILE
         OUT=$(mktemp --tmpdir  XXXXXX)
-        g++ -std=c++23 -Wall $FILE -o $OUT
+        $CXX -std=c++23 -Wall $FILE -o $OUT
         $OUT
 
     - name: Prepare build
+      shell:  bash
       env:
         CMAKE_GENERATOR: Ninja
-        CC: /usr/local/bin/gcc
-        CXX: /usr/local/bin/g++
+        CMAKE_BUILD_TYPE: Debug
       run: |
         mkdir .build
         cd .build
-        cmake -DCOVERAGE=ON -DCMAKE_BUILD_TYPE=Debug ..
+        cmake -DCOVERAGE=ON ..
         COMPILER=$( grep "CMAKE_CXX_COMPILER:FILEPATH" CMakeCache.txt | sed "s|CMAKE_CXX_COMPILER:FILEPATH=/|/|" )
-        printf "C++ compiler: %s\nC++ compiler version: %s\n" "$COMPILER" "$( $COMPILER --version | head -1 )"
+        [[ "$( realpath $CXX )" == "$( realpath $COMPILER )" ]] || exit 13
+        printf "C++ compiler: %s\nC++ compiler version: %s\ngcovr version: %s\n" "$COMPILER" "$( $COMPILER --version | head -1 )" "$( gcovr --version | head -1 )"
 
     - name: Run coverage target
       run: |
@@ -67,13 +80,11 @@ jobs:
 
     - name: Upload coverage report
       if: ${{ github.event_name == 'push' }}
-      uses: wandalen/wretry.action@v1.3.0
+      uses: codecov/codecov-action@v4.3.0
       with:
-        action: codecov/codecov-action@v3
-        with: |
-          files: .build/coverage.xml
-          fail_ci_if_error: true
-          verbose: true
-          token: ${{ secrets.CODECOV_TOKEN }}
-        attempt_limit: 5
-        attempt_delay: 35000 # in milliseconds
+        files: .build/coverage.xml
+        fail_ci_if_error: true
+        disable_search: true
+        verbose: true
+        plugin: noop
+        token: ${{ secrets.CODECOV_TOKEN }}
