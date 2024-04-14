@@ -18,7 +18,7 @@ jobs:
     name: Generate and upload docs
     runs-on: ubuntu-20.04
     container:
-      image: godexsoft/functional-ci:0.0.1
+      image: godexsoft/functional-ci:0.0.2
     steps:
       - uses: actions/checkout@v3
         with:
