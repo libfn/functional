@@ -18,13 +18,13 @@ jobs:
         - clang
         - gcc
     steps:
+    - uses: actions/checkout@v4
+    
     - name: Install prerequisites
       run: |
         dnf -y update
-        dnf -y install git cmake ninja-build clang gcc gcc-c++ libstdc++-static
+        dnf -y install cmake ninja-build clang gcc gcc-c++ libstdc++-static
         dnf -y clean all
-
-    - uses: actions/checkout@v4
 
     - name: Verify compiler compatibility
       env:
