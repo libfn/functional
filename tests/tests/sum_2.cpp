@@ -64,6 +64,7 @@ TEST_CASE("sum functions", "[sum][invoke]")
   // NOTE We have 5 different specializations, need to test each. This test is
   // ridiculously long to exercise the value-category preserving FWD(v) in apply_variadic_union
 
+  static constexpr auto sizeof_string = sizeof(std::string);
   using namespace fn;
   constexpr auto fn1 = [](auto i) noexcept -> std::size_t { return sizeof(i); };
   constexpr auto fn2 = [](auto, auto i) noexcept -> std::size_t { return sizeof(i); };
@@ -593,7 +594,7 @@ TEST_CASE("sum functions", "[sum][invoke]")
       CHECK(a.data.v2 == "bar");
       WHEN("value only")
       {
-        CHECK(a.invoke(fn1) == 32);
+        CHECK(a.invoke(fn1) == sizeof_string);
         CHECK(a.invoke(   //
             fn::overload( //
                 [](auto) -> bool { throw 1; }, [](std::string &i) -> bool { return i == "bar"; },
@@ -618,7 +619,7 @@ TEST_CASE("sum functions", "[sum][invoke]")
       }
       WHEN("tag and value")
       {
-        CHECK(a.invoke(fn2) == 32);
+        CHECK(a.invoke(fn2) == sizeof_string);
         CHECK(a.invoke(   //
             fn::overload( //
                 [](auto, auto) -> bool { throw 1; },
@@ -856,7 +857,7 @@ TEST_CASE("sum functions", "[sum][invoke]")
       CHECK(a.data.v2 == "bar");
       WHEN("value only")
       {
-        CHECK(a.invoke(fn1) == 32);
+        CHECK(a.invoke(fn1) == sizeof_string);
         CHECK(a.invoke(   //
             fn::overload( //
                 [](auto) -> bool { throw 1; }, [](std::string &i) -> bool { return i == "bar"; },
@@ -881,7 +882,7 @@ TEST_CASE("sum functions", "[sum][invoke]")
       }
       WHEN("tag and value")
       {
-        CHECK(a.invoke(fn2) == 32);
+        CHECK(a.invoke(fn2) == sizeof_string);
         CHECK(a.invoke(   //
             fn::overload( //
                 [](auto, auto) -> bool { throw 1; },

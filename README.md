@@ -13,8 +13,9 @@ The purpose of this library is to exercise an approach to functional programming
 
 The approach is to take the existing types in the C++ standard library (when appropriate) and add both syntax and operations which are useful in writing functional style programs.
 
-This library requires a very modern implementation of C++ library which implements monadic operations in `optional` and `expected`, as defined in ISO/IEC 14882:2023. Currently, such a library is provided with [gcc 13][gcc-standard-support], which is the recommended compiler for this project. A suggested approach to access this version of the compiler (when it is not available in the operating system) is to use [containers][vscode-devcontainers] when working with this project.
+This library requires a very modern implementation of the C++ library which implements monadic operations in `optional` and `expected`, as defined in ISO/IEC 14882:2023. Currently, such implementations are provided with [gcc 13][gcc-standard-support] and [clang 18][clang-standard-support], which are the recommended compilers for this project. A suggested approach to access the most recent version of the compiler (when it is not available in the operating system) is to use [containers][vscode-devcontainers] when working with this project.
 
+[clang-standard-support]: https://clang.llvm.org/cxx_status.html
 [gcc-standard-support]: https://gcc.gnu.org/projects/cxx-status.html
 [vscode-devcontainers]: https://code.visualstudio.com/docs/devcontainers/containers
 
