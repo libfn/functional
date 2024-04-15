@@ -10,8 +10,6 @@ if(COVERAGE)
   include(Coverage)
 endif()
 
-include(Catch2)
-
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -30,5 +28,6 @@ endif()
 
 add_subdirectory(include)
 
+include(Catch2)
 enable_testing()
 add_subdirectory(tests)
