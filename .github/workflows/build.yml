@@ -18,13 +18,13 @@ jobs:
         - clang
         - gcc
     steps:
+    - uses: actions/checkout@v4
+
     - name: Install prerequisites
       run: |
         dnf -y update
         dnf -y install git cmake ninja-build clang gcc gcc-c++ libstdc++-static
         dnf -y clean all
-
-    - uses: actions/checkout@v4
 
     - name: Verify compiler compatibility
       env:
@@ -60,7 +60,6 @@ jobs:
     - name: Build all
       run: |
         cd .build
-        ln -s ../external/catch2/src src # gcov workaround
         cmake --build . --target all
 
     - name: Run tests

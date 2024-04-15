@@ -35,5 +35,4 @@ parsers:
       macro: false
 
 ignore:
-  - "external/"
   - "tests/"
