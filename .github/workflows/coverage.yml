@@ -14,7 +14,7 @@ on:
 jobs:
   coverage:
     runs-on: ubuntu-22.04
-    container: gcc:13.2-bookworm
+    container: gcc:13-bookworm
     strategy:
       fail-fast: false
     env:
@@ -31,7 +31,7 @@ jobs:
         DEBIAN_FRONTEND: noninteractive
       run: |
         apt-get update -y
-        apt-get install -y --no-install-recommends cmake ninja-build python3-pip python3-venv
+        apt-get install -y --no-install-recommends cmake ninja-build
         apt-get clean -y
 
     - name: Verify compiler compatibility
@@ -75,7 +75,7 @@ jobs:
         cd .build
         cmake --build .
         tests/tests/tests -a # generate .gcda files
-        $GCOV -pbc $( find tests/tests/ -type f -name '*.gcno' ) # generate .gcov file
+        $GCOV -pbc $( find tests/tests/ -type f -name '*.gcno' ) # generate .gcov files
 
     - name: Upload .gcov files
       if: ${{ github.event_name == 'push' }}

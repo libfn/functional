@@ -3,7 +3,7 @@ name: clang-format
 on: [push, pull_request]
 
 jobs:
-  check:
+  format-check:
     runs-on: ubuntu-22.04
     env:
       CLANG_VERSION: 17
@@ -16,10 +16,10 @@ jobs:
       run: |
         CODENAME=$( . /etc/os-release && echo $VERSION_CODENAME )
         wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/llvm.gpg
-        cat <<EOF | sudo tee /etc/apt/sources.list.d/llvm.list
-        deb [signed-by=/etc/apt/keyrings/llvm.gpg] https://apt.llvm.org/${CODENAME}/ llvm-toolchain-${CODENAME}-${CLANG_VERSION} main
-        deb-src [signed-by=/etc/apt/keyrings/llvm.gpg] https://apt.llvm.org/${CODENAME}/ llvm-toolchain-${CODENAME}-${CLANG_VERSION} main
-        EOF
+        printf "%s\n%s\n" \
+          "deb [signed-by=/etc/apt/keyrings/llvm.gpg] https://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME-${CLANG_VERSION} main" \
+          "deb-src [signed-by=/etc/apt/keyrings/llvm.gpg] https://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME-${CLANG_VERSION} main" \
+          | sudo tee /etc/apt/sources.list.d/llvm.list
         sudo apt-get update
         sudo apt-get install -t llvm-toolchain-${CODENAME}-${CLANG_VERSION} -y --no-install-recommends clang-format-${CLANG_VERSION}
         sudo apt-get clean

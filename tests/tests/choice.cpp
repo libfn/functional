@@ -633,6 +633,7 @@ TEST_CASE("choice transform", "[choice][transform]")
 
   WHEN("size 4")
   {
+    static constexpr auto sizeof_string = sizeof(std::string);
     using ::fn::choice;
     using ::fn::sum;
     constexpr auto fn1 = [](auto i) noexcept -> std::size_t { return sizeof(i); };
@@ -792,7 +793,7 @@ TEST_CASE("choice transform", "[choice][transform]")
       WHEN("value only")
       {
         // TODO Change single CHECK below to static_assert when supported by Clang
-        CHECK(type{std::in_place_type<std::string>, "bar"}.transform(fn1) == choice{32ul});
+        CHECK(type{std::in_place_type<std::string>, "bar"}.transform(fn1) == choice{sizeof_string});
         CHECK(a.transform(      //
                   fn::overload( //
                       [](auto) -> sum<bool, std::string> { throw 1; },
@@ -822,7 +823,7 @@ TEST_CASE("choice transform", "[choice][transform]")
       WHEN("tag and value")
       {
         // TODO Change single CHECK below to static_assert when supported by Clang
-        CHECK(type{std::in_place_type<std::string>, "bar"}.transform(fn2) == choice{32ul});
+        CHECK(type{std::in_place_type<std::string>, "bar"}.transform(fn2) == choice{sizeof_string});
         CHECK(a.transform(      //
                   fn::overload( //
                       [](auto, auto) -> sum<bool, std::string> { throw 1; },

@@ -17,6 +17,7 @@
 
 #include <catch2/catch_all.hpp>
 
+#include <charconv>
 #include <cstddef>
 #include <iostream>
 #include <optional>
@@ -270,8 +271,9 @@ TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform
       else {
         if (str.find_first_not_of("01234567890") != std::string_view::npos) {
           double tmp = {};
-          auto const end = str.data() + str.size();
-          if (std::from_chars(str.data(), end, tmp).ptr == end) {
+          // TODO switch to std::from_chars when supported by libc++
+          std::istringstream ss{std::string{str.data(), str.size()}};
+          if ((ss >> tmp)) {
             return {tmp};
           }
         } else {
@@ -288,7 +290,7 @@ TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform
   };
 
   static_assert(std::is_same_v<decltype(parse("")),
-                               fn::choice<bool, double, long, std::string_view, std::nullopt_t, std::nullptr_t>>);
+                               fn::choice_for<bool, double, long, std::string_view, std::nullopt_t, std::nullptr_t>>);
   CHECK(parse("'abc'") == fn::choice{std::string_view{"abc"}});
   CHECK(parse(R"("def")") == fn::choice{std::string_view{"def"}});
   CHECK(parse("null") == fn::choice(nullptr));
@@ -326,7 +328,7 @@ TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform
   };
 
   auto const a = fn("true");
-  static_assert(std::is_same_v<decltype(a), fn::choice<bool, double, int, std::string_view, std::nullptr_t> const>);
+  static_assert(std::is_same_v<decltype(a), fn::choice_for<bool, double, int, std::string_view, std::nullptr_t> const>);
   CHECK(a == fn::choice{true});
   CHECK(fn("123") == fn::choice(123));
   CHECK(fn("2e9") == fn::choice(2000000000));
