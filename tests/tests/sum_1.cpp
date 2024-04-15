@@ -633,6 +633,7 @@ TEST_CASE("sum type collapsing", "[sum][transform][normalized]")
 
 TEST_CASE("sum transform", "[sum][transform]")
 {
+  static constexpr auto sizeof_string = sizeof(std::string);
   using ::fn::sum;
   constexpr auto fn1 = [](auto i) noexcept -> std::size_t { return sizeof(i); };
   constexpr auto fn2 = [](auto, auto i) noexcept -> std::size_t { return sizeof(i); };
@@ -792,7 +793,7 @@ TEST_CASE("sum transform", "[sum][transform]")
       WHEN("value only")
       {
         // TODO Change single CHECK below to static_assert when supported by GCC
-        CHECK(type{std::in_place_type<std::string>, "bar"}.transform(fn1) == sum{32ul});
+        CHECK(type{std::in_place_type<std::string>, "bar"}.transform(fn1) == sum{sizeof_string});
         CHECK(a.transform(      //
                   fn::overload( //
                       [](auto) -> sum<bool, std::string> { throw 1; },
@@ -822,7 +823,7 @@ TEST_CASE("sum transform", "[sum][transform]")
       WHEN("tag and value")
       {
         // TODO Change single CHECK below to static_assert when supported by GCC
-        CHECK(type{std::in_place_type<std::string>, "bar"}.transform(fn2) == sum{32ul});
+        CHECK(type{std::in_place_type<std::string>, "bar"}.transform(fn2) == sum{sizeof_string});
         CHECK(a.transform(      //
                   fn::overload( //
                       [](auto, auto) -> sum<bool, std::string> { throw 1; },

@@ -15,45 +15,45 @@ namespace {
 struct A final {
   int v = 0;
 };
+
+template <typename V, typename Fn>
+concept pack_check = requires(V v, Fn fn) { FWD(v).invoke(FWD(fn), A{}); };
+
 } // namespace
 
 TEST_CASE("pack", "[pack]")
 {
   using fn::pack;
-  using util::static_check;
 
   using T = pack<int, int const, int &, int const &>;
   int val1 = 15;
   int const val2 = 92;
   T v{3, 14, val1, val2};
   CHECK(v.size == 4);
-
-  using is = static_check::bind<decltype([](auto &&fn) constexpr {
-    return requires { std::declval<T>().invoke(fn, A{}); };
-  })>;
-
-  static_assert(is::invocable([](auto &&...) {}));            // generic call
-  static_assert(is::invocable([](A, auto &&...) {}));         // also generic call
-  static_assert(is::invocable([](A, int, int, int, int) {})); // pass everything by value
-  static_assert(is::invocable(
-      [](A const &, int const &, int const &, int const &, int const &) {})); // pass everything by const reference
-  static_assert(is::invocable([](A, int, int, int &, int const &) {}));       // bind lvalues
-  static_assert(is::invocable([](A &&, int &&, int const &&, int &, int const &) {})); // bind rvalues and lvalues
-  static_assert(is::invocable(
-      [](A const, int const, int const, int const &, int const &) {})); // pass values or lvalues promoted to const
-
-  static_assert(is::not_invocable([](A &, auto &&...) {}));          // cannot bind rvalue to lvalue reference
-  static_assert(is::not_invocable([](A, int &, auto &&...) {}));     // cannot bind rvalue to lvalue reference
-  static_assert(is::not_invocable([](A, int, int, int &&, int) {})); // cannot bind lvalue to rvalue reference
-  static_assert(is::not_invocable([](A, int, int, int, int &&) {})); // cannot bind const lvalue to rvalue reference
+  static_assert(pack_check<T, decltype(([](auto &&...) {}))>);            // generic call
+  static_assert(pack_check<T, decltype(([](A, auto &&...) {}))>);         // also generic call
+  static_assert(pack_check<T, decltype(([](A, int, int, int, int) {}))>); // pass everything by value
+  static_assert(pack_check<T, decltype(([](A const &, int const &, int const &, int const &, int const &) {
+                           }))>); // pass everything by const reference
+  static_assert(pack_check<T, decltype(([](A, int, int, int &, int const &) {}))>); // bind lvalues
   static_assert(
-      is::not_invocable([](A, int, int, int, int const &&) {})); // cannot bind const lvalue to const rvalue reference
-  static_assert(
-      is::not_invocable([](A &&, int, int &&, int, int) {})); // cannot bind const rvalue to non-const rvalue reference
-  static_assert(is::not_invocable([](int, auto &&...) {}));   // bad type
-  static_assert(is::not_invocable([](auto, auto, auto, auto) {}));             // bad arity
-  static_assert(is::not_invocable([](auto, auto, auto, auto, auto, auto) {})); // bad arity
+      pack_check<T, decltype(([](A &&, int &&, int const &&, int &, int const &) {}))>); // bind rvalues and lvalues
+  static_assert(pack_check<T, decltype(([](A const, int const, int const, int const &, int const &) {
+                           }))>); // pass values or lvalues promoted to     const
 
+  static_assert(not pack_check<T, decltype(([](A &, auto &&...) {}))>);      // cannot bind rvalue to lvalue reference
+  static_assert(not pack_check<T, decltype(([](A, int &, auto &&...) {}))>); // cannot bind rvalue to lvalue reference
+  static_assert(
+      not pack_check<T, decltype(([](A, int, int, int &&, int) {}))>); // cannot bind lvalue to rvalue reference
+  static_assert(
+      not pack_check<T, decltype(([](A, int, int, int, int &&) {}))>); // cannot bind const lvalue to rvalue reference
+  static_assert(not pack_check<T, decltype(([](A, int, int, int, int const &&) {}))>); // cannot bind const lvalue to
+                                                                                       // const rvalue      reference
+  static_assert(not pack_check<T, decltype(([](A &&, int, int &&, int, int) {}))>);    // cannot bind const rvalue to
+                                                                                       // non-const rvalue  reference
+  static_assert(not pack_check<T, decltype(([](int, auto &&...) {}))>);                // bad type
+  static_assert(not pack_check<T, decltype(([](auto, auto, auto, auto) {}))>);         // bad arity
+  static_assert(not pack_check<T, decltype(([](auto, auto, auto, auto, auto, auto) {}))>); // bad arity
   CHECK(v.invoke([](auto... args) noexcept -> int { return (0 + ... + args); }) == 3 + 14 + 15 + 92);
   CHECK(v.invoke([](A, auto... args) noexcept -> int { return (0 + ... + args); }, A{}) == 3 + 14 + 15 + 92);
 

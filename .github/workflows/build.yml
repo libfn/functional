@@ -5,7 +5,7 @@ on: [push, pull_request]
 jobs:
   build:
     runs-on: ubuntu-22.04
-    container: fedora:39
+    container: gcc:13-bookworm
     strategy:
       fail-fast: false
       matrix:
@@ -21,10 +21,33 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Install prerequisites
+      env:
+        CLANG_VERSION: 18
       run: |
-        dnf -y update
-        dnf -y install git cmake ninja-build clang gcc gcc-c++ libstdc++-static
-        dnf -y clean all
+        CODENAME=$( . /etc/os-release && echo $VERSION_CODENAME )
+        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /etc/apt/keyrings/llvm.gpg
+        printf "%s\n%s\n" \
+          "deb [signed-by=/etc/apt/keyrings/llvm.gpg] https://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME-${CLANG_VERSION} main" \
+          "deb-src [signed-by=/etc/apt/keyrings/llvm.gpg] https://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME-${CLANG_VERSION} main" \
+          | tee /etc/apt/sources.list.d/llvm.list
+        apt-get update
+        apt-get install -y --no-install-recommends git cmake ninja-build
+        apt-get install -t llvm-toolchain-$CODENAME-${CLANG_VERSION} -y --no-install-recommends \
+          clang-${CLANG_VERSION} libc++-${CLANG_VERSION}-dev libc++abi-${CLANG_VERSION}-dev
+        apt-get clean
+        update-alternatives --install /usr/bin/clang clang /usr/bin/clang-${CLANG_VERSION} 100 \
+          --slave /usr/bin/clang++ clang++ /usr/bin/clang++-${CLANG_VERSION}
+        update-alternatives --auto clang
+        update-alternatives --install /usr/bin/gcc gcc /usr/local/bin/gcc 100 \
+          --slave /usr/bin/g++ g++ /usr/local/bin/g++ \
+          --slave /usr/bin/gcc-ar gcc-ar /usr/local/bin/gcc-ar \
+          --slave /usr/bin/gcc-nm gcc-nm /usr/local/bin/gcc-nm \
+          --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/local/bin/gcc-ranlib \
+          --slave /usr/bin/gcov gcov /usr/local/bin/gcov \
+          --slave /usr/bin/gcov-tool gcov-tool /usr/local/bin/gcov-dump \
+          --slave /usr/bin/gcov-dump gcov-dump /usr/local/bin/gcov-tool \
+          --slave /usr/bin/lto-dump lto-dump /usr/local/bin/lto-dump
+        update-alternatives --auto gcc
 
     - name: Verify compiler compatibility
       env:
