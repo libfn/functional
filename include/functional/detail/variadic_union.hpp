@@ -14,6 +14,38 @@
 
 namespace fn::detail {
 
+template <typename Fn, typename T> constexpr inline bool _is_tst_invocable = false;
+template <typename Fn, template <typename...> typename Tpl, typename... Ts>
+constexpr inline bool _is_tst_invocable<Fn, Tpl<Ts...> &>
+    = (... && _is_invocable<Fn, ::std::in_place_type_t<Ts>, Ts &>::value);
+template <typename Fn, template <typename...> typename Tpl, typename... Ts>
+constexpr inline bool _is_tst_invocable<Fn, Tpl<Ts...> const &>
+    = (... && _is_invocable<Fn, ::std::in_place_type_t<Ts>, Ts const &>::value);
+template <typename Fn, template <typename...> typename Tpl, typename... Ts>
+constexpr inline bool _is_tst_invocable<Fn, Tpl<Ts...> &&>
+    = (... && _is_invocable<Fn, ::std::in_place_type_t<Ts>, Ts &&>::value);
+template <typename Fn, template <typename...> typename Tpl, typename... Ts>
+constexpr inline bool _is_tst_invocable<Fn, Tpl<Ts...> const &&>
+    = (... && _is_invocable<Fn, ::std::in_place_type_t<Ts>, Ts const &&>::value);
+template <typename Fn, typename T>
+concept _typelist_type_invocable = _is_tst_invocable<Fn, T &&>;
+
+template <typename R, typename Fn, typename T> constexpr inline bool _is_rtst_invocable = false;
+template <typename R, typename Fn, template <typename...> typename Tpl, typename... Ts>
+constexpr inline bool _is_rtst_invocable<R, Fn, Tpl<Ts...> &>
+    = (... && _is_invocable_r<R, Fn, ::std::in_place_type_t<Ts>, Ts &>::value);
+template <typename R, typename Fn, template <typename...> typename Tpl, typename... Ts>
+constexpr inline bool _is_rtst_invocable<R, Fn, Tpl<Ts...> const &>
+    = (... && _is_invocable_r<R, Fn, ::std::in_place_type_t<Ts>, Ts const &>::value);
+template <typename R, typename Fn, template <typename...> typename Tpl, typename... Ts>
+constexpr inline bool _is_rtst_invocable<R, Fn, Tpl<Ts...> &&>
+    = (... && _is_invocable_r<R, Fn, ::std::in_place_type_t<Ts>, Ts &&>::value);
+template <typename R, typename Fn, template <typename...> typename Tpl, typename... Ts>
+constexpr inline bool _is_rtst_invocable<R, Fn, Tpl<Ts...> const &&>
+    = (... && _is_invocable_r<R, Fn, ::std::in_place_type_t<Ts>, Ts const &&>::value);
+template <typename R, typename Fn, typename T>
+concept _typelist_type_invocable_r = _is_rtst_invocable<R, Fn, T &&>;
+
 template <typename... Ts> union variadic_union;
 template <> union variadic_union<>; // Intentionally incomplete
 

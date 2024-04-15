@@ -1263,21 +1263,6 @@ TEST_CASE("expected sum support and_then", "[expected][sum][and_then]")
                             [](std::string_view const &&) -> fn::expected<bool, Error> { throw 0; }))
               .value());
 
-    CHECK(s.and_then( //
-               fn::overload([](std::in_place_type_t<int>, int &i) -> fn::expected<bool, Error> { return i == 12; },
-                            [](std::in_place_type_t<int>, int const &) -> fn::expected<bool, Error> { throw 0; },
-                            [](std::in_place_type_t<int>, int &&) -> fn::expected<bool, Error> { throw 0; },
-                            [](std::in_place_type_t<int>, int const &&) -> fn::expected<bool, Error> { throw 0; },
-                            [](std::in_place_type_t<std::string_view>,
-                               std::string_view &) -> fn::expected<bool, Error> { throw 0; },
-                            [](std::in_place_type_t<std::string_view>,
-                               std::string_view const &) -> fn::expected<bool, Error> { throw 0; },
-                            [](std::in_place_type_t<std::string_view>,
-                               std::string_view &&) -> fn::expected<bool, Error> { throw 0; },
-                            [](std::in_place_type_t<std::string_view>,
-                               std::string_view const &&) -> fn::expected<bool, Error> { throw 0; }))
-              .value());
-
     CHECK(std::as_const(s)
               .and_then( //
                   fn::overload([](int &) -> fn::expected<bool, Error> { throw 0; },
@@ -1288,25 +1273,6 @@ TEST_CASE("expected sum support and_then", "[expected][sum][and_then]")
                                [](std::string_view const &) -> fn::expected<bool, Error> { throw 0; },
                                [](std::string_view &&) -> fn::expected<bool, Error> { throw 0; },
                                [](std::string_view const &&) -> fn::expected<bool, Error> { throw 0; }))
-              .value());
-
-    CHECK(std::as_const(s)
-              .and_then( //
-                  fn::overload(
-                      [](std::in_place_type_t<int>, int &) -> fn::expected<bool, Error> { throw 0; },
-                      [](std::in_place_type_t<int>, int const &i) -> fn::expected<bool, Error> { return i == 12; },
-                      [](std::in_place_type_t<int>, int &&) -> fn::expected<bool, Error> { throw 0; },
-                      [](std::in_place_type_t<int>, int const &&) -> fn::expected<bool, Error> { throw 0; },
-                      [](std::in_place_type_t<std::string_view>, std::string_view &) -> fn::expected<bool, Error> {
-                        throw 0;
-                      },
-                      [](std::in_place_type_t<std::string_view>,
-                         std::string_view const &) -> fn::expected<bool, Error> { throw 0; },
-                      [](std::in_place_type_t<std::string_view>, std::string_view &&) -> fn::expected<bool, Error> {
-                        throw 0;
-                      },
-                      [](std::in_place_type_t<std::string_view>,
-                         std::string_view const &&) -> fn::expected<bool, Error> { throw 0; }))
               .value());
 
     CHECK(std::move(std::as_const(s))
@@ -1321,26 +1287,7 @@ TEST_CASE("expected sum support and_then", "[expected][sum][and_then]")
                                [](std::string_view const &&) -> fn::expected<bool, Error> { throw 0; }))
               .value());
 
-    CHECK(std::move(std::as_const(s))
-              .and_then( //
-                  fn::overload(
-                      [](std::in_place_type_t<int>, int &) -> fn::expected<bool, Error> { throw 0; },
-                      [](std::in_place_type_t<int>, int const &) -> fn::expected<bool, Error> { throw 0; },
-                      [](std::in_place_type_t<int>, int &&) -> fn::expected<bool, Error> { throw 0; },
-                      [](std::in_place_type_t<int>, int const &&i) -> fn::expected<bool, Error> { return i == 12; },
-                      [](std::in_place_type_t<std::string_view>, std::string_view &) -> fn::expected<bool, Error> {
-                        throw 0;
-                      },
-                      [](std::in_place_type_t<std::string_view>,
-                         std::string_view const &) -> fn::expected<bool, Error> { throw 0; },
-                      [](std::in_place_type_t<std::string_view>, std::string_view &&) -> fn::expected<bool, Error> {
-                        throw 0;
-                      },
-                      [](std::in_place_type_t<std::string_view>,
-                         std::string_view const &&) -> fn::expected<bool, Error> { throw 0; }))
-              .value());
-
-    CHECK(auto(s)
+    CHECK(std::move(s)
               .and_then( //
                   fn::overload([](int &) -> fn::expected<bool, Error> { throw 0; },
                                [](int const &) -> fn::expected<bool, Error> { throw 0; },
@@ -1350,22 +1297,6 @@ TEST_CASE("expected sum support and_then", "[expected][sum][and_then]")
                                [](std::string_view const &) -> fn::expected<bool, Error> { throw 0; },
                                [](std::string_view &&) -> fn::expected<bool, Error> { throw 0; },
                                [](std::string_view const &&) -> fn::expected<bool, Error> { throw 0; }))
-              .value());
-
-    CHECK(std::move(s)
-              .and_then( //
-                  fn::overload([](std::in_place_type_t<int>, int &) -> fn::expected<bool, Error> { throw 0; },
-                               [](std::in_place_type_t<int>, int const &) -> fn::expected<bool, Error> { throw 0; },
-                               [](std::in_place_type_t<int>, int &&i) -> fn::expected<bool, Error> { return i == 12; },
-                               [](std::in_place_type_t<int>, int const &&) -> fn::expected<bool, Error> { throw 0; },
-                               [](std::in_place_type_t<std::string_view>,
-                                  std::string_view &) -> fn::expected<bool, Error> { throw 0; },
-                               [](std::in_place_type_t<std::string_view>,
-                                  std::string_view const &) -> fn::expected<bool, Error> { throw 0; },
-                               [](std::in_place_type_t<std::string_view>,
-                                  std::string_view &&) -> fn::expected<bool, Error> { throw 0; },
-                               [](std::in_place_type_t<std::string_view>,
-                                  std::string_view const &&) -> fn::expected<bool, Error> { throw 0; }))
               .value());
   }
 
@@ -1427,22 +1358,6 @@ TEST_CASE("expected sum support or_else", "[expected][sum][or_else]")
               .value()
           == 12);
 
-    CHECK(s.or_else( //
-               fn::overload([](std::in_place_type_t<int>, int &i) -> fn::expected<double, Error> { return {i}; },
-                            [](std::in_place_type_t<int>, int const &) -> fn::expected<double, Error> { throw 0; },
-                            [](std::in_place_type_t<int>, int &&) -> fn::expected<double, Error> { throw 0; },
-                            [](std::in_place_type_t<int>, int const &&) -> fn::expected<double, Error> { throw 0; },
-                            [](std::in_place_type_t<std::string_view>,
-                               std::string_view &) -> fn::expected<double, Error> { throw 0; },
-                            [](std::in_place_type_t<std::string_view>,
-                               std::string_view const &) -> fn::expected<double, Error> { throw 0; },
-                            [](std::in_place_type_t<std::string_view>,
-                               std::string_view &&) -> fn::expected<double, Error> { throw 0; },
-                            [](std::in_place_type_t<std::string_view>,
-                               std::string_view const &&) -> fn::expected<double, Error> { throw 0; }))
-              .value()
-          == 12);
-
     CHECK(std::as_const(s)
               .or_else( //
                   fn::overload([](int &) -> fn::expected<double, Error> { throw 0; },
@@ -1455,24 +1370,6 @@ TEST_CASE("expected sum support or_else", "[expected][sum][or_else]")
                                [](std::string_view const &&) -> fn::expected<double, Error> { throw 0; }))
               .value()
           == 12);
-
-    CHECK(
-        std::as_const(s)
-            .or_else( //
-                fn::overload([](std::in_place_type_t<int>, int &) -> fn::expected<double, Error> { throw 0; },
-                             [](std::in_place_type_t<int>, int const &i) -> fn::expected<double, Error> { return {i}; },
-                             [](std::in_place_type_t<int>, int &&) -> fn::expected<double, Error> { throw 0; },
-                             [](std::in_place_type_t<int>, int const &&) -> fn::expected<double, Error> { throw 0; },
-                             [](std::in_place_type_t<std::string_view>,
-                                std::string_view &) -> fn::expected<double, Error> { throw 0; },
-                             [](std::in_place_type_t<std::string_view>,
-                                std::string_view const &) -> fn::expected<double, Error> { throw 0; },
-                             [](std::in_place_type_t<std::string_view>,
-                                std::string_view &&) -> fn::expected<double, Error> { throw 0; },
-                             [](std::in_place_type_t<std::string_view>,
-                                std::string_view const &&) -> fn::expected<double, Error> { throw 0; }))
-            .value()
-        == 12);
 
     CHECK(std::move(std::as_const(s))
               .or_else( //
@@ -1487,27 +1384,7 @@ TEST_CASE("expected sum support or_else", "[expected][sum][or_else]")
               .value()
           == 12);
 
-    CHECK(std::move(std::as_const(s))
-              .or_else( //
-                  fn::overload(
-                      [](std::in_place_type_t<int>, int &) -> fn::expected<double, Error> { throw 0; },
-                      [](std::in_place_type_t<int>, int const &) -> fn::expected<double, Error> { throw 0; },
-                      [](std::in_place_type_t<int>, int &&) -> fn::expected<double, Error> { throw 0; },
-                      [](std::in_place_type_t<int>, int const &&i) -> fn::expected<double, Error> { return {i}; },
-                      [](std::in_place_type_t<std::string_view>, std::string_view &) -> fn::expected<double, Error> {
-                        throw 0;
-                      },
-                      [](std::in_place_type_t<std::string_view>,
-                         std::string_view const &) -> fn::expected<double, Error> { throw 0; },
-                      [](std::in_place_type_t<std::string_view>, std::string_view &&) -> fn::expected<double, Error> {
-                        throw 0;
-                      },
-                      [](std::in_place_type_t<std::string_view>,
-                         std::string_view const &&) -> fn::expected<double, Error> { throw 0; }))
-              .value()
-          == 12);
-
-    CHECK(auto(s)
+    CHECK(std::move(s)
               .or_else( //
                   fn::overload([](int &) -> fn::expected<double, Error> { throw 0; },
                                [](int const &) -> fn::expected<double, Error> { throw 0; },
@@ -1517,23 +1394,6 @@ TEST_CASE("expected sum support or_else", "[expected][sum][or_else]")
                                [](std::string_view const &) -> fn::expected<double, Error> { throw 0; },
                                [](std::string_view &&) -> fn::expected<double, Error> { throw 0; },
                                [](std::string_view const &&) -> fn::expected<double, Error> { throw 0; }))
-              .value()
-          == 12);
-
-    CHECK(std::move(s)
-              .or_else( //
-                  fn::overload([](std::in_place_type_t<int>, int &) -> fn::expected<double, Error> { throw 0; },
-                               [](std::in_place_type_t<int>, int const &) -> fn::expected<double, Error> { throw 0; },
-                               [](std::in_place_type_t<int>, int &&i) -> fn::expected<double, Error> { return {i}; },
-                               [](std::in_place_type_t<int>, int const &&) -> fn::expected<double, Error> { throw 0; },
-                               [](std::in_place_type_t<std::string_view>,
-                                  std::string_view &) -> fn::expected<double, Error> { throw 0; },
-                               [](std::in_place_type_t<std::string_view>,
-                                  std::string_view const &) -> fn::expected<double, Error> { throw 0; },
-                               [](std::in_place_type_t<std::string_view>,
-                                  std::string_view &&) -> fn::expected<double, Error> { throw 0; },
-                               [](std::in_place_type_t<std::string_view>,
-                                  std::string_view const &&) -> fn::expected<double, Error> { throw 0; }))
               .value()
           == 12);
 
@@ -1593,23 +1453,6 @@ TEST_CASE("expected sum support or_else", "[expected][sum][or_else]")
               .error()
           == FileNotFound);
 
-    CHECK(s.or_else( //
-               fn::overload([](std::in_place_type_t<int>,
-                               int &) -> fn::expected<void, Error> { return std::unexpected<Error>{FileNotFound}; },
-                            [](std::in_place_type_t<int>, int const &) -> fn::expected<void, Error> { throw 0; },
-                            [](std::in_place_type_t<int>, int &&) -> fn::expected<void, Error> { throw 0; },
-                            [](std::in_place_type_t<int>, int const &&) -> fn::expected<void, Error> { throw 0; },
-                            [](std::in_place_type_t<std::string_view>,
-                               std::string_view &) -> fn::expected<void, Error> { throw 0; },
-                            [](std::in_place_type_t<std::string_view>,
-                               std::string_view const &) -> fn::expected<void, Error> { throw 0; },
-                            [](std::in_place_type_t<std::string_view>,
-                               std::string_view &&) -> fn::expected<void, Error> { throw 0; },
-                            [](std::in_place_type_t<std::string_view>,
-                               std::string_view const &&) -> fn::expected<void, Error> { throw 0; }))
-              .error()
-          == FileNotFound);
-
     CHECK(std::as_const(s)
               .or_else( //
                   fn::overload(
@@ -1621,25 +1464,6 @@ TEST_CASE("expected sum support or_else", "[expected][sum][or_else]")
                       [](std::string_view const &) -> fn::expected<void, Error> { throw 0; },
                       [](std::string_view &&) -> fn::expected<void, Error> { throw 0; },
                       [](std::string_view const &&) -> fn::expected<void, Error> { throw 0; }))
-              .error()
-          == FileNotFound);
-
-    CHECK(std::as_const(s)
-              .or_else( //
-                  fn::overload([](std::in_place_type_t<int>, int &) -> fn::expected<void, Error> { throw 0; },
-                               [](std::in_place_type_t<int>, int const &) -> fn::expected<void, Error> {
-                                 return std::unexpected<Error>{FileNotFound};
-                               },
-                               [](std::in_place_type_t<int>, int &&) -> fn::expected<void, Error> { throw 0; },
-                               [](std::in_place_type_t<int>, int const &&) -> fn::expected<void, Error> { throw 0; },
-                               [](std::in_place_type_t<std::string_view>,
-                                  std::string_view &) -> fn::expected<void, Error> { throw 0; },
-                               [](std::in_place_type_t<std::string_view>,
-                                  std::string_view const &) -> fn::expected<void, Error> { throw 0; },
-                               [](std::in_place_type_t<std::string_view>,
-                                  std::string_view &&) -> fn::expected<void, Error> { throw 0; },
-                               [](std::in_place_type_t<std::string_view>,
-                                  std::string_view const &&) -> fn::expected<void, Error> { throw 0; }))
               .error()
           == FileNotFound);
 
@@ -1657,26 +1481,7 @@ TEST_CASE("expected sum support or_else", "[expected][sum][or_else]")
               .error()
           == FileNotFound);
 
-    CHECK(std::move(std::as_const(s))
-              .or_else( //
-                  fn::overload([](std::in_place_type_t<int>, int &) -> fn::expected<void, Error> { throw 0; },
-                               [](std::in_place_type_t<int>, int const &) -> fn::expected<void, Error> { throw 0; },
-                               [](std::in_place_type_t<int>, int &&) -> fn::expected<void, Error> { throw 0; },
-                               [](std::in_place_type_t<int>, int const &&) -> fn::expected<void, Error> {
-                                 return std::unexpected<Error>{FileNotFound};
-                               },
-                               [](std::in_place_type_t<std::string_view>,
-                                  std::string_view &) -> fn::expected<void, Error> { throw 0; },
-                               [](std::in_place_type_t<std::string_view>,
-                                  std::string_view const &) -> fn::expected<void, Error> { throw 0; },
-                               [](std::in_place_type_t<std::string_view>,
-                                  std::string_view &&) -> fn::expected<void, Error> { throw 0; },
-                               [](std::in_place_type_t<std::string_view>,
-                                  std::string_view const &&) -> fn::expected<void, Error> { throw 0; }))
-              .error()
-          == FileNotFound);
-
-    CHECK(auto(s)
+    CHECK(std::move(s)
               .or_else( //
                   fn::overload([](int &) -> fn::expected<void, Error> { throw 0; },
                                [](int const &) -> fn::expected<void, Error> { throw 0; },
@@ -1686,25 +1491,6 @@ TEST_CASE("expected sum support or_else", "[expected][sum][or_else]")
                                [](std::string_view const &) -> fn::expected<void, Error> { throw 0; },
                                [](std::string_view &&) -> fn::expected<void, Error> { throw 0; },
                                [](std::string_view const &&) -> fn::expected<void, Error> { throw 0; }))
-              .error()
-          == FileNotFound);
-
-    CHECK(std::move(s)
-              .or_else( //
-                  fn::overload([](std::in_place_type_t<int>, int &) -> fn::expected<void, Error> { throw 0; },
-                               [](std::in_place_type_t<int>, int const &) -> fn::expected<void, Error> { throw 0; },
-                               [](std::in_place_type_t<int>, int &&) -> fn::expected<void, Error> {
-                                 return std::unexpected<Error>{FileNotFound};
-                               },
-                               [](std::in_place_type_t<int>, int const &&) -> fn::expected<void, Error> { throw 0; },
-                               [](std::in_place_type_t<std::string_view>,
-                                  std::string_view &) -> fn::expected<void, Error> { throw 0; },
-                               [](std::in_place_type_t<std::string_view>,
-                                  std::string_view const &) -> fn::expected<void, Error> { throw 0; },
-                               [](std::in_place_type_t<std::string_view>,
-                                  std::string_view &&) -> fn::expected<void, Error> { throw 0; },
-                               [](std::in_place_type_t<std::string_view>,
-                                  std::string_view const &&) -> fn::expected<void, Error> { throw 0; }))
               .error()
           == FileNotFound);
 
@@ -1761,18 +1547,6 @@ TEST_CASE("expected sum support transform", "[expected][sum][transform]")
               .value()
               .has_value<std::monostate>());
 
-    CHECK(s.transform( //
-               fn::overload([](std::in_place_type_t<int>, int &) -> std::monostate { return {}; },
-                            [](std::in_place_type_t<int>, int const &) -> std::monostate { throw 0; },
-                            [](std::in_place_type_t<int>, int &&) -> std::monostate { throw 0; },
-                            [](std::in_place_type_t<int>, int const &&) -> std::monostate { throw 0; },
-                            [](std::in_place_type_t<std::string_view>, std::string_view &) -> int { throw 0; },
-                            [](std::in_place_type_t<std::string_view>, std::string_view const &) -> int { throw 0; },
-                            [](std::in_place_type_t<std::string_view>, std::string_view &&) -> int { throw 0; },
-                            [](std::in_place_type_t<std::string_view>, std::string_view const &&) -> int { throw 0; }))
-              .value()
-              .has_value<std::monostate>());
-
     CHECK(std::as_const(s)
               .transform( //
                   fn::overload(
@@ -1782,20 +1556,6 @@ TEST_CASE("expected sum support transform", "[expected][sum][transform]")
                       [](std::string_view &&) -> int { throw 0; }, [](std::string_view const &&) -> int { throw 0; }))
               .value()
               .has_value<std::monostate>());
-
-    CHECK(
-        std::as_const(s)
-            .transform( //
-                fn::overload([](std::in_place_type_t<int>, int &) -> std::monostate { throw 0; },
-                             [](std::in_place_type_t<int>, int const &) -> std::monostate { return {}; },
-                             [](std::in_place_type_t<int>, int &&) -> std::monostate { throw 0; },
-                             [](std::in_place_type_t<int>, int const &&) -> std::monostate { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view &) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view const &) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view &&) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view const &&) -> int { throw 0; }))
-            .value()
-            .has_value<std::monostate>());
 
     CHECK(std::move(std::as_const(s))
               .transform( //
@@ -1807,21 +1567,7 @@ TEST_CASE("expected sum support transform", "[expected][sum][transform]")
               .value()
               .has_value<std::monostate>());
 
-    CHECK(
-        std::move(std::as_const(s))
-            .transform( //
-                fn::overload([](std::in_place_type_t<int>, int &) -> std::monostate { throw 0; },
-                             [](std::in_place_type_t<int>, int const &) -> std::monostate { throw 0; },
-                             [](std::in_place_type_t<int>, int &&) -> std::monostate { throw 0; },
-                             [](std::in_place_type_t<int>, int const &&) -> std::monostate { return {}; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view &) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view const &) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view &&) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view const &&) -> int { throw 0; }))
-            .value()
-            .has_value<std::monostate>());
-
-    CHECK(auto(s)
+    CHECK(std::move(s)
               .transform( //
                   fn::overload(
                       [](int &) -> std::monostate { throw 0; }, [](int const &) -> std::monostate { throw 0; },
@@ -1830,20 +1576,6 @@ TEST_CASE("expected sum support transform", "[expected][sum][transform]")
                       [](std::string_view &&) -> int { throw 0; }, [](std::string_view const &&) -> int { throw 0; }))
               .value()
               .has_value<std::monostate>());
-
-    CHECK(
-        std::move(s)
-            .transform( //
-                fn::overload([](std::in_place_type_t<int>, int &) -> std::monostate { throw 0; },
-                             [](std::in_place_type_t<int>, int const &) -> std::monostate { throw 0; },
-                             [](std::in_place_type_t<int>, int &&) -> std::monostate { return {}; },
-                             [](std::in_place_type_t<int>, int const &&) -> std::monostate { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view &) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view const &) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view &&) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view const &&) -> int { throw 0; }))
-            .value()
-            .has_value<std::monostate>());
   }
 
   WHEN("error")
@@ -1899,18 +1631,6 @@ TEST_CASE("expected sum support transform_error", "[expected][sum][transform_err
               .error()
           == fn::sum{true});
 
-    CHECK(s.transform_error( //
-               fn::overload([](std::in_place_type_t<int>, int &i) -> bool { return i == 12; },
-                            [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
-                            [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
-                            [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; },
-                            [](std::in_place_type_t<std::string_view>, std::string_view &) -> int { throw 0; },
-                            [](std::in_place_type_t<std::string_view>, std::string_view const &) -> int { throw 0; },
-                            [](std::in_place_type_t<std::string_view>, std::string_view &&) -> int { throw 0; },
-                            [](std::in_place_type_t<std::string_view>, std::string_view const &&) -> int { throw 0; }))
-              .error()
-          == fn::sum{true});
-
     CHECK(std::as_const(s)
               .transform_error( //
                   fn::overload(
@@ -1920,20 +1640,6 @@ TEST_CASE("expected sum support transform_error", "[expected][sum][transform_err
                       [](std::string_view &&) -> int { throw 0; }, [](std::string_view const &&) -> int { throw 0; }))
               .error()
           == fn::sum{true});
-
-    CHECK(
-        std::as_const(s)
-            .transform_error( //
-                fn::overload([](std::in_place_type_t<int>, int &) -> bool { throw 0; },
-                             [](std::in_place_type_t<int>, int const &i) -> bool { return i == 12; },
-                             [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
-                             [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view &) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view const &) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view &&) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view const &&) -> int { throw 0; }))
-            .error()
-        == fn::sum{true});
 
     CHECK(std::move(std::as_const(s))
               .transform_error( //
@@ -1945,21 +1651,7 @@ TEST_CASE("expected sum support transform_error", "[expected][sum][transform_err
               .error()
           == fn::sum{true});
 
-    CHECK(
-        std::move(std::as_const(s))
-            .transform_error( //
-                fn::overload([](std::in_place_type_t<int>, int &) -> bool { throw 0; },
-                             [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
-                             [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
-                             [](std::in_place_type_t<int>, int const &&i) -> bool { return i == 12; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view &) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view const &) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view &&) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view const &&) -> int { throw 0; }))
-            .error()
-        == fn::sum{true});
-
-    CHECK(auto(s)
+    CHECK(std::move(s)
               .transform_error( //
                   fn::overload(
                       [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
@@ -1968,20 +1660,6 @@ TEST_CASE("expected sum support transform_error", "[expected][sum][transform_err
                       [](std::string_view &&) -> int { throw 0; }, [](std::string_view const &&) -> int { throw 0; }))
               .error()
           == fn::sum{true});
-
-    CHECK(
-        std::move(s)
-            .transform_error( //
-                fn::overload([](std::in_place_type_t<int>, int &) -> bool { throw 0; },
-                             [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
-                             [](std::in_place_type_t<int>, int &&i) -> bool { return i == 12; },
-                             [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view &) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view const &) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view &&) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view const &&) -> int { throw 0; }))
-            .error()
-        == fn::sum{true});
 
     WHEN("value")
     {
@@ -2033,18 +1711,6 @@ TEST_CASE("expected sum support transform_error", "[expected][sum][transform_err
               .error()
           == fn::sum{12});
 
-    CHECK(s.transform_error( //
-               fn::overload([](std::in_place_type_t<int>, int &i) -> int { return i; },
-                            [](std::in_place_type_t<int>, int const &) -> int { throw 0; },
-                            [](std::in_place_type_t<int>, int &&) -> int { throw 0; },
-                            [](std::in_place_type_t<int>, int const &&) -> int { throw 0; },
-                            [](std::in_place_type_t<std::string_view>, std::string_view &) -> int { throw 0; },
-                            [](std::in_place_type_t<std::string_view>, std::string_view const &) -> int { throw 0; },
-                            [](std::in_place_type_t<std::string_view>, std::string_view &&) -> int { throw 0; },
-                            [](std::in_place_type_t<std::string_view>, std::string_view const &&) -> int { throw 0; }))
-              .error()
-          == fn::sum{12});
-
     CHECK(std::as_const(s)
               .transform_error( //
                   fn::overload(
@@ -2054,20 +1720,6 @@ TEST_CASE("expected sum support transform_error", "[expected][sum][transform_err
                       [](std::string_view &&) -> int { throw 0; }, [](std::string_view const &&) -> int { throw 0; }))
               .error()
           == fn::sum{12});
-
-    CHECK(
-        std::as_const(s)
-            .transform_error( //
-                fn::overload([](std::in_place_type_t<int>, int &) -> int { throw 0; },
-                             [](std::in_place_type_t<int>, int const &i) -> int { return i; },
-                             [](std::in_place_type_t<int>, int &&) -> int { throw 0; },
-                             [](std::in_place_type_t<int>, int const &&) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view &) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view const &) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view &&) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view const &&) -> int { throw 0; }))
-            .error()
-        == fn::sum{12});
 
     CHECK(std::move(std::as_const(s))
               .transform_error( //
@@ -2079,21 +1731,7 @@ TEST_CASE("expected sum support transform_error", "[expected][sum][transform_err
               .error()
           == fn::sum{12});
 
-    CHECK(
-        std::move(std::as_const(s))
-            .transform_error( //
-                fn::overload([](std::in_place_type_t<int>, int &) -> int { throw 0; },
-                             [](std::in_place_type_t<int>, int const &) -> int { throw 0; },
-                             [](std::in_place_type_t<int>, int &&) -> int { throw 0; },
-                             [](std::in_place_type_t<int>, int const &&i) -> int { return i; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view &) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view const &) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view &&) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view const &&) -> int { throw 0; }))
-            .error()
-        == fn::sum{12});
-
-    CHECK(auto(s)
+    CHECK(std::move(s)
               .transform_error( //
                   fn::overload(
                       [](int &) -> int { throw 0; }, [](int const &) -> int { throw 0; },
@@ -2103,19 +1741,6 @@ TEST_CASE("expected sum support transform_error", "[expected][sum][transform_err
               .error()
           == fn::sum{12});
 
-    CHECK(
-        std::move(s)
-            .transform_error( //
-                fn::overload([](std::in_place_type_t<int>, int &) -> int { throw 0; },
-                             [](std::in_place_type_t<int>, int const &) -> int { throw 0; },
-                             [](std::in_place_type_t<int>, int &&i) -> int { return i; },
-                             [](std::in_place_type_t<int>, int const &&) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view &) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view const &) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view &&) -> int { throw 0; },
-                             [](std::in_place_type_t<std::string_view>, std::string_view const &&) -> int { throw 0; }))
-            .error()
-        == fn::sum{12});
     WHEN("value")
     {
       fn::expected<void, fn::sum<int, std::string_view>> s{};

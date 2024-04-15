@@ -64,11 +64,6 @@ concept typelist_invocable = detail::_typelist_invocable<Fn, T>;
 template <typename Ret, typename Fn, typename T>
 concept typelist_invocable_r = detail::_typelist_invocable_r<Ret, Fn, T>;
 
-template <typename Fn, typename T>
-concept typelist_type_invocable = detail::_typelist_type_invocable<Fn, T>;
-template <typename Ret, typename Fn, typename T>
-concept typelist_type_invocable_r = detail::_typelist_type_invocable_r<Ret, Fn, T>;
-
 } // namespace fn
 
 #endif // INCLUDE_FUNCTIONAL_FUNCTIONAL
