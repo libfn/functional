@@ -28,5 +28,6 @@ endif()
 
 add_subdirectory(include)
 
+include(Catch2)
 enable_testing()
 add_subdirectory(tests)

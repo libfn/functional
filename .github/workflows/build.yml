@@ -18,6 +18,8 @@ jobs:
         - clang
         - gcc
     steps:
+    - uses: actions/checkout@v4
+
     - name: Install prerequisites
       env:
         CLANG_VERSION: 18
@@ -46,11 +48,6 @@ jobs:
           --slave /usr/bin/gcov-dump gcov-dump /usr/local/bin/gcov-tool \
           --slave /usr/bin/lto-dump lto-dump /usr/local/bin/lto-dump
         update-alternatives --auto gcc
-
-    # To enable submodules, git must be installed before actions/checkout@v3
-    - uses: actions/checkout@v4
-      with:
-        submodules: 'true'
 
     - name: Verify compiler compatibility
       env:
@@ -86,7 +83,6 @@ jobs:
     - name: Build all
       run: |
         cd .build
-        ln -s ../external/catch2/src src # gcov workaround
         cmake --build . --target all
 
     - name: Run tests
