@@ -4,7 +4,6 @@
 // or copy at https://opensource.org/licenses/ISC
 
 #include "functional/sum.hpp"
-#include "functional/utility.hpp"
 
 #include <catch2/catch_all.hpp>
 

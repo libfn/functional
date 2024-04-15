@@ -5,7 +5,6 @@
 
 #include "functional/detail/variadic_union.hpp"
 #include "functional/sum.hpp"
-#include "functional/utility.hpp"
 
 #include <catch2/catch_all.hpp>
 
@@ -14,7 +13,6 @@
 #include <string_view>
 #include <type_traits>
 #include <utility>
-#include <vector>
 
 namespace {
 

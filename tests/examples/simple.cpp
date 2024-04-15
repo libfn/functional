@@ -6,7 +6,6 @@
 #include "functional/and_then.hpp"
 #include "functional/fail.hpp"
 #include "functional/filter.hpp"
-#include "functional/fwd.hpp"
 #include "functional/inspect.hpp"
 #include "functional/inspect_error.hpp"
 #include "functional/or_else.hpp"
