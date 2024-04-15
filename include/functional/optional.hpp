@@ -7,13 +7,9 @@
 #define INCLUDE_FUNCTIONAL_OPTIONAL
 
 #include "functional/detail/functional.hpp"
-#include "functional/fwd.hpp"
 #include "functional/pack.hpp"
 #include "functional/sum.hpp"
-#include "functional/utility.hpp"
 
-#include <concepts>
-#include <functional>
 #include <optional>
 #include <type_traits>
 

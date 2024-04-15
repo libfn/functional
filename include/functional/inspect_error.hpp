@@ -6,11 +6,8 @@
 #ifndef INCLUDE_FUNCTIONAL_INSPECT_ERROR
 #define INCLUDE_FUNCTIONAL_INSPECT_ERROR
 
-#include "functional/concepts.hpp"
 #include "functional/functional.hpp"
 #include "functional/functor.hpp"
-#include "functional/fwd.hpp"
-#include "functional/utility.hpp"
 
 #include <concepts>
 #include <utility>

@@ -10,7 +10,6 @@
 #include "fwd_macro.hpp"
 #include "traits.hpp"
 
-#include <functional>
 #include <type_traits>
 #include <utility>
 

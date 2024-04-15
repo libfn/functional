@@ -6,16 +6,11 @@
 #ifndef INCLUDE_FUNCTIONAL_EXPECTED
 #define INCLUDE_FUNCTIONAL_EXPECTED
 
-#include "functional/detail/meta.hpp"
-#include "functional/functional.hpp"
-#include "functional/fwd.hpp"
 #include "functional/pack.hpp"
 #include "functional/sum.hpp"
-#include "functional/utility.hpp"
 
 #include <concepts>
 #include <expected>
-#include <functional>
 #include <type_traits>
 #include <utility>
 

@@ -6,15 +6,7 @@
 #ifndef INCLUDE_FUNCTIONAL_UTILITY
 #define INCLUDE_FUNCTIONAL_UTILITY
 
-#include "functional/detail/fwd_macro.hpp"
 #include "functional/detail/traits.hpp"
-#include "functional/fwd.hpp"
-
-#include <concepts>
-#include <functional>
-#include <type_traits>
-#include <utility>
-#include <variant>
 
 namespace fn {
 template <typename T> using as_value_t = decltype(detail::_as_value<T>);

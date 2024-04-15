@@ -8,7 +8,6 @@
 
 #include "functional/detail/meta.hpp"
 #include "functional/sum.hpp"
-#include "functional/utility.hpp"
 
 #include <type_traits>
 #include <utility>
