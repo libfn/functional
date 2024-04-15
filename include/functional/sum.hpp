@@ -11,8 +11,6 @@
 #include "functional/detail/traits.hpp"
 #include "functional/detail/variadic_union.hpp"
 #include "functional/functional.hpp"
-#include "functional/fwd.hpp"
-#include "functional/utility.hpp"
 
 #include <type_traits>
 #include <utility>

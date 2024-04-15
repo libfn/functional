@@ -13,7 +13,6 @@
 
 #include <concepts>
 #include <type_traits>
-#include <utility>
 
 namespace fn {
 template <typename Functor, typename V, typename... Args>

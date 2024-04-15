@@ -3,16 +3,12 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#include "functional/detail/functional.hpp"
-#include "functional/detail/meta.hpp"
 #include "static_check.hpp"
 
-#include "functional/functor.hpp"
 #include "functional/or_else.hpp"
 
 #include <catch2/catch_all.hpp>
 
-#include <compare>
 #include <string>
 #include <string_view>
 #include <utility>

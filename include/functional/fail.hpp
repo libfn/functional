@@ -6,15 +6,11 @@
 #ifndef INCLUDE_FUNCTIONAL_FAIL
 #define INCLUDE_FUNCTIONAL_FAIL
 
-#include "functional/concepts.hpp"
 #include "functional/functor.hpp"
-#include "functional/fwd.hpp"
 #include "functional/optional.hpp"
-#include "functional/utility.hpp"
 
 #include <concepts>
 #include <type_traits>
-#include <utility>
 
 namespace fn {
 template <typename Fn, typename V>

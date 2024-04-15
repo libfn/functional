@@ -8,11 +8,8 @@
 
 #include "functional/concepts.hpp"
 #include "functional/functor.hpp"
-#include "functional/fwd.hpp"
-#include "functional/utility.hpp"
 
 #include <concepts>
-#include <functional>
 #include <type_traits>
 #include <utility>
 

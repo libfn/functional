@@ -11,13 +11,9 @@
 #include "functional/expected.hpp"
 #include "functional/functional.hpp"
 #include "functional/functor.hpp"
-#include "functional/fwd.hpp"
 #include "functional/optional.hpp"
-#include "functional/utility.hpp"
 
-#include <concepts>
 #include <type_traits>
-#include <utility>
 
 namespace fn {
 template <typename Fn, typename V>

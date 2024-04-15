@@ -8,7 +8,6 @@
 
 #include <catch2/catch_all.hpp>
 
-#include <concepts>
 #include <string>
 #include <string_view>
 #include <type_traits>

@@ -6,7 +6,6 @@
 #include "static_check.hpp"
 
 #include "functional/functor.hpp"
-#include "functional/utility.hpp"
 
 #include <catch2/catch_all.hpp>
 

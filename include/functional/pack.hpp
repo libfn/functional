@@ -7,8 +7,7 @@
 #define INCLUDE_FUNCTIONAL_PACK
 
 #include "functional/detail/pack_impl.hpp"
-#include "functional/fwd.hpp"
-#include "functional/utility.hpp"
+
 #include <type_traits>
 
 namespace fn {

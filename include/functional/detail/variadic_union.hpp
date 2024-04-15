@@ -9,13 +9,8 @@
 #include "functional/detail/functional.hpp"
 #include "functional/detail/fwd_macro.hpp"
 
-#include <concepts>
-#include <cstdint>
-#include <functional>
-#include <memory>
 #include <type_traits>
 #include <utility>
-#include <variant>
 
 namespace fn::detail {
 

@@ -10,7 +10,6 @@
 
 #include <catch2/catch_all.hpp>
 
-#include <functional>
 #include <string>
 #include <utility>
 

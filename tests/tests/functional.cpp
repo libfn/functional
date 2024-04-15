@@ -10,7 +10,6 @@
 
 #include <catch2/catch_all.hpp>
 
-#include <concepts>
 #include <type_traits>
 #include <utility>
 

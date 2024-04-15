@@ -8,9 +8,6 @@
 
 #include "functional/detail/functional.hpp"
 
-#include <functional>
-#include <type_traits>
-
 namespace fn {
 
 // invoke_result and invoke_result_t

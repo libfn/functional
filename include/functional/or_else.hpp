@@ -9,11 +9,6 @@
 #include "functional/concepts.hpp"
 #include "functional/functional.hpp"
 #include "functional/functor.hpp"
-#include "functional/fwd.hpp"
-#include "functional/utility.hpp"
-
-#include <concepts>
-#include <utility>
 
 namespace fn {
 template <typename Fn, typename V>
