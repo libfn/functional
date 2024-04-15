@@ -33,6 +33,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
   using value_type = std::expected<T, Err>::value_type;
   using error_type = std::expected<T, Err>::error_type;
   using unexpected_type = std::unexpected<Err>;
+  static_assert(not std::is_same_v<value_type, ::fn::sum<>>);
 
   using std::expected<T, Err>::expected;
 
@@ -150,8 +151,12 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
             return new_type{std::in_place};
         else
           return new_type{std::unexpect, std::move(t).error()};
-      } else
-        return new_type(std::unexpect, this->error());
+      } else {
+        if constexpr (not std::is_same_v<error_type, sum<>>)
+          return new_type(std::unexpect, this->error());
+        else
+          std::unreachable();
+      }
     }
   }
 
@@ -179,8 +184,12 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
             return new_type{std::in_place};
         else
           return new_type{std::unexpect, std::move(t).error()};
-      } else
-        return new_type(std::unexpect, this->error());
+      } else {
+        if constexpr (not std::is_same_v<error_type, sum<>>)
+          return new_type(std::unexpect, this->error());
+        else
+          std::unreachable();
+      }
     }
   }
 
@@ -208,8 +217,12 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
             return new_type{std::in_place};
         else
           return new_type{std::unexpect, std::move(t).error()};
-      } else
-        return new_type(std::unexpect, std::move(*this).error());
+      } else {
+        if constexpr (not std::is_same_v<error_type, sum<>>)
+          return new_type(std::unexpect, std::move(*this).error());
+        else
+          std::unreachable();
+      }
     }
   }
 
@@ -237,8 +250,12 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
             return new_type{std::in_place};
         else
           return new_type{std::unexpect, std::move(t).error()};
-      } else
-        return new_type(std::unexpect, std::move(*this).error());
+      } else {
+        if constexpr (not std::is_same_v<error_type, sum<>>)
+          return new_type(std::unexpect, std::move(*this).error());
+        else
+          std::unreachable();
+      }
     }
   }
 
@@ -267,8 +284,12 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
             return new_type{std::in_place};
         else
           return new_type{std::unexpect, std::move(t).error()};
-      } else
-        return new_type(std::unexpect, this->error());
+      } else {
+        if constexpr (not std::is_same_v<error_type, sum<>>)
+          return new_type(std::unexpect, this->error());
+        else
+          std::unreachable();
+      }
     }
   }
 
@@ -296,8 +317,12 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
             return new_type{std::in_place};
         else
           return new_type{std::unexpect, std::move(t).error()};
-      } else
-        return new_type(std::unexpect, this->error());
+      } else {
+        if constexpr (not std::is_same_v<error_type, sum<>>)
+          return new_type(std::unexpect, this->error());
+        else
+          std::unreachable();
+      }
     }
   }
 
@@ -325,8 +350,12 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
             return new_type{std::in_place};
         else
           return new_type{std::unexpect, std::move(t).error()};
-      } else
-        return new_type(std::unexpect, std::move(*this).error());
+      } else {
+        if constexpr (not std::is_same_v<error_type, sum<>>)
+          return new_type(std::unexpect, std::move(*this).error());
+        else
+          std::unreachable();
+      }
     }
   }
 
@@ -354,8 +383,12 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
             return new_type{std::in_place};
         else
           return new_type{std::unexpect, std::move(t).error()};
-      } else
-        return new_type(std::unexpect, std::move(*this).error());
+      } else {
+        if constexpr (not std::is_same_v<error_type, sum<>>)
+          return new_type(std::unexpect, std::move(*this).error());
+        else
+          std::unreachable();
+      }
     }
   }
 
@@ -831,10 +864,17 @@ constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
   using type = expected<value_type, new_error_type>;
   if (lh.has_value() && rh.has_value())
     return type{std::in_place, FWD(lh).value()};
-  else if (not lh.has_value())
-    return type{std::unexpect, new_error_type{FWD(lh).error()}};
-  else
-    return type{std::unexpect, new_error_type{FWD(rh).error()}};
+  else if (not lh.has_value()) {
+    if constexpr (not std::is_same_v<typename std::remove_cvref_t<Lh>::error_type, sum<>>)
+      return type{std::unexpect, new_error_type{FWD(lh).error()}};
+    else
+      std::unreachable();
+  } else {
+    if constexpr (not std::is_same_v<typename std::remove_cvref_t<Rh>::error_type, sum<>>)
+      return type{std::unexpect, new_error_type{FWD(rh).error()}};
+    else
+      std::unreachable();
+  }
 }
 
 template <some_expected_void Lh, some_expected_non_void Rh>
@@ -865,10 +905,17 @@ constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
   using type = expected<value_type, new_error_type>;
   if (lh.has_value() && rh.has_value())
     return type{std::in_place, FWD(rh).value()};
-  else if (not lh.has_value())
-    return type{std::unexpect, new_error_type{FWD(lh).error()}};
-  else
-    return type{std::unexpect, new_error_type{FWD(rh).error()}};
+  else if (not lh.has_value()) {
+    if constexpr (not std::is_same_v<typename std::remove_cvref_t<Lh>::error_type, sum<>>)
+      return type{std::unexpect, new_error_type{FWD(lh).error()}};
+    else
+      std::unreachable();
+  } else {
+    if constexpr (not std::is_same_v<typename std::remove_cvref_t<Rh>::error_type, sum<>>)
+      return type{std::unexpect, new_error_type{FWD(rh).error()}};
+    else
+      std::unreachable();
+  }
 }
 
 template <some_expected_void Lh, some_expected_void Rh>
@@ -897,10 +944,17 @@ constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
   using type = expected<void, new_error_type>;
   if (lh.has_value() && rh.has_value())
     return type();
-  else if (not lh.has_value())
-    return type{std::unexpect, new_error_type{FWD(lh).error()}};
-  else
-    return type{std::unexpect, new_error_type{FWD(rh).error()}};
+  else if (not lh.has_value()) {
+    if constexpr (not std::is_same_v<typename std::remove_cvref_t<Lh>::error_type, sum<>>)
+      return type{std::unexpect, new_error_type{FWD(lh).error()}};
+    else
+      std::unreachable();
+  } else {
+    if constexpr (not std::is_same_v<typename std::remove_cvref_t<Rh>::error_type, sum<>>)
+      return type{std::unexpect, new_error_type{FWD(rh).error()}};
+    else
+      std::unreachable();
+  }
 }
 
 // Overloads when both sides are non-void, producing expected<pack<...>, ...>

@@ -80,6 +80,11 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
         std::same_as<fn::choice_for<fn::sum<bool>, fn::sum<bool, double, int>>, fn::choice<bool, double, int>>);
     static_assert(std::same_as<fn::choice_for<fn::sum<bool>, fn::sum<double, int>>, fn::choice<bool, double, int>>);
     static_assert(std::same_as<fn::choice_for<fn::sum<bool, int>, double>, fn::choice<bool, double, int>>);
+
+    static_assert(std::same_as<fn::choice_for<int, fn::sum<>>, fn::choice<int>>);
+    static_assert(std::same_as<fn::choice_for<fn::sum<>, int>, fn::choice<int>>);
+    static_assert(std::same_as<fn::choice_for<fn::sum<>, fn::sum<bool, int>>, fn::choice<bool, int>>);
+    static_assert(std::same_as<fn::choice_for<double, fn::sum<>, fn::sum<bool, int>>, fn::choice<bool, double, int>>);
   }
 
   WHEN("invocable")
