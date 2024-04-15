@@ -340,10 +340,6 @@ TEST_CASE("inspect choice", "[inspect][choice]")
     static_assert(is::not_invocable_with_any([]() -> void {}));                   // bad arity
     static_assert(is::not_invocable_with_any([](int, int) -> void {}));           // bad arity
     static_assert(is::not_invocable_with_any([](int) -> int { return 0; }));      // bad return type
-    constexpr auto fn1 = fn::overload(
-        [](std::in_place_type_t<int>, auto const &v) { static_assert(std::is_same_v<decltype(v), int const &>); },
-        [](std::in_place_type_t<bool>, auto const &v) { static_assert(std::is_same_v<decltype(v), bool const &>); });
-    static_assert(is::invocable_with_any(fn1));
     constexpr auto fn2 = [](auto const &v) {
       static_assert(std::is_same_v<decltype(v), int const &> || std::is_same_v<decltype(v), bool const &>);
     };
@@ -364,10 +360,6 @@ TEST_CASE("inspect choice", "[inspect][choice]")
   static_assert(is::not_invocable_with_any((fn::overload{[](int &&) {}, [](Value &&) {}})));     // cannot move
   static_assert(is::not_invocable_with_any(
       (fn::overload{[](int const &) -> int { return 0; }, [](Value const &) -> int { return 0; }}))); // bad return type
-  constexpr auto fn1 = fn::overload(
-      [](std::in_place_type_t<int>, auto const &v) { static_assert(std::is_same_v<decltype(v), int const &>); },
-      [](std::in_place_type_t<Value>, auto const &v) { static_assert(std::is_same_v<decltype(v), Value const &>); });
-  static_assert(is::invocable_with_any(fn1));
   constexpr auto fn2 = [](auto const &v) {
     static_assert(std::is_same_v<decltype(v), int const &> || std::is_same_v<decltype(v), Value const &>);
   };
@@ -404,9 +396,9 @@ TEST_CASE("constexpr inspect expected with sum", "[inspect][constexpr][expected]
   constexpr auto fn1 = [](int) constexpr noexcept -> void {};
   constexpr auto r11 = T{0} | fn::inspect(fn1);
   static_assert(r11.value() == fn::sum{0});
-  constexpr auto fn2 = fn::overload(
-      [](std::in_place_type_t<int>, auto const &v) { static_assert(std::is_same_v<decltype(v), int const &>); },
-      [](std::in_place_type_t<bool>, auto const &v) { static_assert(std::is_same_v<decltype(v), bool const &>); });
+  constexpr auto fn2 = [](auto const &v) {
+    static_assert(std::is_same_v<decltype(v), int const &> || std::is_same_v<decltype(v), bool const &>);
+  };
   constexpr auto r12 = T{0} | fn::inspect(fn2);
   static_assert(r12.value() == fn::sum{0});
   constexpr auto r2 = T{std::unexpect, Error::SomethingElse} | fn::inspect(fn1);
@@ -433,9 +425,9 @@ TEST_CASE("constexpr inspect optional with sum", "[inspect][constexpr][optional]
   constexpr auto fn1 = [](int) constexpr noexcept -> void {};
   constexpr auto r11 = T{0} | fn::inspect(fn1);
   static_assert(r11.value() == fn::sum{0});
-  constexpr auto fn2 = fn::overload(
-      [](std::in_place_type_t<int>, auto const &v) { static_assert(std::is_same_v<decltype(v), int const &>); },
-      [](std::in_place_type_t<bool>, auto const &v) { static_assert(std::is_same_v<decltype(v), bool const &>); });
+  constexpr auto fn2 = [](auto const &v) {
+    static_assert(std::is_same_v<decltype(v), int const &> || std::is_same_v<decltype(v), bool const &>);
+  };
   constexpr auto r12 = T{0} | fn::inspect(fn2);
   static_assert(r12.value() == fn::sum{0});
   constexpr auto r2 = T{} | fn::inspect(fn1);
