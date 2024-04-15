@@ -254,7 +254,8 @@ template <typename... Ts, typename... Tx>
   return not(lh == rh);
 }
 
-template <typename... Ts> using choice_for = detail::normalized<Ts...>::template apply<choice>;
+template <typename... Ts>
+using choice_for = detail::_collapsing_sum::normalized<::fn::choice, detail::_collapsing_sum::flattened<Ts...>>::type;
 
 } // namespace fn
 

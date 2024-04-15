@@ -353,7 +353,8 @@ template <typename... Ts, typename... Tx>
   return not(lh == rh);
 }
 
-template <typename... Ts> using sum_for = detail::normalized<Ts...>::template apply<sum>;
+template <typename... Ts>
+using sum_for = detail::_collapsing_sum::normalized<::fn::sum, detail::_collapsing_sum::flattened<Ts...>>::type;
 
 } // namespace fn
 
