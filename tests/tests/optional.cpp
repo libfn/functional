@@ -10,6 +10,124 @@
 
 #include <utility>
 
+namespace {
+struct Xint {
+  int v = {};
+
+  constexpr bool operator==(Xint const &) const noexcept = default;
+  constexpr explicit Xint(int i) : v(i) {}
+  constexpr ~Xint() = default;
+  constexpr Xint(Xint const &) = default;
+  constexpr Xint &operator=(Xint const &) = default;
+};
+} // namespace
+
+TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]")
+{
+  WHEN("sum_value from sum")
+  {
+    using T = fn::optional<fn::sum<int>>;
+    T s{12};
+    static_assert(std::is_same_v<decltype(s.sum_value()), T &>);
+    static_assert(std::is_same_v<decltype(std::as_const(s).sum_value()), T const &>);
+    static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_value()), T const &&>);
+    static_assert(std::is_same_v<decltype(std::move(s).sum_value()), T &&>);
+    WHEN("value")
+    {
+      CHECK(s.sum_value().value() == fn::sum{12});
+      CHECK(std::as_const(s).sum_value().value() == fn::sum{12});
+      CHECK(std::move(std::as_const(s)).sum_value().value() == fn::sum{12});
+      CHECK(std::move(s).sum_value().value() == fn::sum{12});
+    }
+    WHEN("error")
+    {
+      T s{std::nullopt};
+      CHECK(not s.sum_value().has_value());
+      CHECK(not std::as_const(s).sum_value().has_value());
+      CHECK(not std::move(std::as_const(s)).sum_value().has_value());
+      CHECK(not std::move(s).sum_value().has_value());
+    }
+  }
+
+  WHEN("sum_value from non-sum")
+  {
+    using T = fn::optional<int>;
+    T s{12};
+    static_assert(std::is_same_v<decltype(s.sum_value()), fn::optional<fn::sum<int>>>);
+    static_assert(std::is_same_v<decltype(std::as_const(s).sum_value()), fn::optional<fn::sum<int>>>);
+    static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_value()), fn::optional<fn::sum<int>>>);
+    static_assert(std::is_same_v<decltype(std::move(s).sum_value()), fn::optional<fn::sum<int>>>);
+    WHEN("value")
+    {
+      CHECK(s.sum_value().value() == fn::sum{12});
+      CHECK(std::as_const(s).sum_value().value() == fn::sum{12});
+      CHECK(std::move(std::as_const(s)).sum_value().value() == fn::sum{12});
+      CHECK(std::move(s).sum_value().value() == fn::sum{12});
+    }
+    WHEN("error")
+    {
+      T s{std::nullopt};
+      CHECK(not s.sum_value().has_value());
+      CHECK(not std::as_const(s).sum_value().has_value());
+      CHECK(not std::move(std::as_const(s)).sum_value().has_value());
+      CHECK(not std::move(s).sum_value().has_value());
+    }
+  }
+
+  WHEN("or_else")
+  {
+    fn::optional<fn::sum<int>> s{std::nullopt};
+
+    constexpr auto fn1 = []() -> fn::optional<Xint> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn1)), fn::optional<fn::sum<Xint, int>>>);
+    constexpr auto fn2 = []() -> fn::optional<int> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn2)), fn::optional<fn::sum<int>>>);
+    constexpr auto fn3 = []() -> fn::optional<fn::sum<int>> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn3)), fn::optional<fn::sum<int>>>);
+    constexpr auto fn4 = []() -> fn::optional<fn::sum<Xint>> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn4)), fn::optional<fn::sum<Xint, int>>>);
+    constexpr auto fn5 = []() -> fn::optional<fn::sum<Xint, int>> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn5)), fn::optional<fn::sum<Xint, int>>>);
+    constexpr auto fn6 = []() -> fn::optional<fn::sum<Xint, long>> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn6)), fn::optional<fn::sum<Xint, int, long>>>);
+    constexpr auto fn7 = []() -> fn::optional<fn::sum<Xint, int, long>> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn7)), fn::optional<fn::sum<Xint, int, long>>>);
+    constexpr auto fn8 = []() -> fn::optional<fn::sum<Xint, int, long>> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn8)), fn::optional<fn::sum<Xint, int, long>>>);
+
+    WHEN("error to value")
+    {
+      constexpr auto fn = []() -> fn::optional<Xint> { return {Xint{12}}; };
+      static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::optional<fn::sum<Xint, int>>>);
+      CHECK(s.or_else(fn).value() == fn::sum{Xint{12}});
+      CHECK(std::as_const(s).or_else(fn).value() == fn::sum{Xint{12}});
+      CHECK(std::move(std::as_const(s)).or_else(fn).value() == fn::sum{Xint{12}});
+      CHECK(std::move(s).or_else(fn).value() == fn::sum{Xint{12}});
+    }
+
+    WHEN("error to error")
+    {
+      constexpr auto fn = []() -> fn::optional<Xint> { return {std::nullopt}; };
+      static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::optional<fn::sum<Xint, int>>>);
+      CHECK(not s.or_else(fn).has_value());
+      CHECK(not std::as_const(s).or_else(fn).has_value());
+      CHECK(not std::move(std::as_const(s)).or_else(fn).has_value());
+      CHECK(not std::move(s).or_else(fn).has_value());
+    }
+
+    WHEN("value")
+    {
+      fn::optional<fn::sum<int>> s{fn::sum{12}};
+      constexpr auto fn = []() -> fn::optional<Xint> { throw 0; };
+      static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::optional<fn::sum<Xint, int>>>);
+      CHECK(s.or_else(fn).value() == fn::sum{12});
+      CHECK(std::as_const(s).or_else(fn).value() == fn::sum{12});
+      CHECK(std::move(std::as_const(s)).or_else(fn).value() == fn::sum{12});
+      CHECK(std::move(s).or_else(fn).value() == fn::sum{12});
+    }
+  }
+}
+
 TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operator_and]")
 {
   WHEN("and_then")
@@ -178,17 +296,6 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
     }
   }
 }
-
-namespace {
-struct Xint {
-  int v = {};
-
-  constexpr explicit Xint(int i) : v(i) {}
-  constexpr ~Xint() = default;
-  constexpr Xint(Xint const &) = default;
-  constexpr Xint &operator=(Xint const &) = default;
-};
-} // namespace
 
 TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
 {
