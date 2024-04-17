@@ -21,6 +21,82 @@ struct Xint {
 
 TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value][sum_error]")
 {
+  WHEN("unit")
+  {
+    constexpr fn::expected<void, fn::sum<>> unit{};
+    static_assert(unit.has_value());
+
+    WHEN("constexpr")
+    {
+      WHEN("and_then to value/sum<>")
+      {
+        constexpr auto fn = []() -> fn::expected<int, fn::sum<>> { return {7}; };
+        constexpr auto a = unit.and_then(fn);
+        static_assert(std::is_same_v<decltype(a), fn::expected<int, fn::sum<>> const>);
+        static_assert(a.value() == 7);
+      }
+
+      WHEN("and_then to value")
+      {
+        constexpr auto fn = []() -> fn::expected<int, Error> { return {12}; };
+        constexpr auto a = unit.and_then(fn);
+        static_assert(std::is_same_v<decltype(a), fn::expected<int, fn::sum<Error>> const>);
+        static_assert(a.value() == 12);
+      }
+
+      WHEN("and_then to error")
+      {
+        constexpr auto fn = []() -> fn::expected<int, Error> { return std::unexpected<Error>(FileNotFound); };
+        constexpr auto a = unit.and_then(fn);
+        static_assert(std::is_same_v<decltype(a), fn::expected<int, fn::sum<Error>> const>);
+        static_assert(a.error() == fn::sum{FileNotFound});
+      }
+
+      WHEN("transform to int")
+      {
+        constexpr auto fn = []() -> int { return 144'000; };
+        constexpr auto a = unit.transform(fn);
+        static_assert(std::is_same_v<decltype(a), fn::expected<int, fn::sum<>> const>);
+        static_assert(a.value() == 144'000);
+      }
+    }
+
+    WHEN("runtime")
+    {
+      WHEN("and_then to value/sum<>")
+      {
+        constexpr auto fn = []() -> fn::expected<int, fn::sum<>> { return {7}; };
+        auto a = unit.and_then(fn);
+        static_assert(std::is_same_v<decltype(a), fn::expected<int, fn::sum<>>>);
+        CHECK(a.value() == 7);
+      }
+
+      WHEN("and_then to value")
+      {
+        constexpr auto fn = []() -> fn::expected<int, Error> { return {12}; };
+        auto a = unit.and_then(fn);
+        static_assert(std::is_same_v<decltype(a), fn::expected<int, fn::sum<Error>>>);
+        CHECK(a.value() == 12);
+      }
+
+      WHEN("and_then to error")
+      {
+        constexpr auto fn = []() -> fn::expected<int, Error> { return std::unexpected<Error>(FileNotFound); };
+        auto a = unit.and_then(fn);
+        static_assert(std::is_same_v<decltype(a), fn::expected<int, fn::sum<Error>>>);
+        CHECK(a.error() == fn::sum{FileNotFound});
+      }
+
+      WHEN("transform to int")
+      {
+        constexpr auto fn = []() -> int { return 144'000; };
+        auto a = unit.transform(fn);
+        static_assert(std::is_same_v<decltype(a), fn::expected<int, fn::sum<>>>);
+        CHECK(a.value() == 144'000);
+      }
+    }
+  }
+
   WHEN("sum_error from sum")
   {
     using T = fn::expected<int, fn::sum<Error>>;

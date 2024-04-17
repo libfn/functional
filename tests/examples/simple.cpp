@@ -358,10 +358,11 @@ TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform
 
   static constexpr auto fn2 = [](std::string_view hostname, std::string_view port, std::string_view filename,
                                  std::string_view threshold) {
-    return (fn1(std::in_place_type<std::string_view>, hostname).sum_error() // sum_error() to introduce graded monad
-            & fn1(std::in_place_type<long>, port)                           //
-            & fn1(std::in_place_type<std::string_view>, filename)           //
-            & fn1(std::in_place_type<double>, threshold)                    //
+    return (fn::expected<void, fn::sum<>>()                       //
+            & fn1(std::in_place_type<std::string_view>, hostname) //
+            & fn1(std::in_place_type<long>, port)                 //
+            & fn1(std::in_place_type<std::string_view>, filename) //
+            & fn1(std::in_place_type<double>, threshold)          //
             )
            | fn::and_then([](std::string_view const &hostname, long port, std::string_view const &filename,
                              double threshold) -> fn::expected<Config, ConfigError> {

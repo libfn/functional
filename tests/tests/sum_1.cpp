@@ -41,14 +41,37 @@ TEST_CASE("sum basic functionality tests", "[sum]")
 
   using fn::sum;
 
+  WHEN("sum<> unit")
+  {
+    static_assert(sum<>::size == 0);
+    static_assert(sum<>::has_type<bool> == false);
+    static_assert(std::same_as<fn::sum_for<sum<>, sum<>>, sum<>>);
+  }
+
   WHEN("sum_for")
   {
     static_assert(std::same_as<fn::sum_for<int>, fn::sum<int>>);
+    static_assert(std::same_as<fn::sum_for<int, int>, fn::sum<int>>);
     static_assert(std::same_as<fn::sum_for<int, bool>, fn::sum<bool, int>>);
     static_assert(std::same_as<fn::sum_for<bool, int>, fn::sum<bool, int>>);
     static_assert(std::same_as<fn::sum_for<int, NonCopyable>, fn::sum<NonCopyable, int>>);
     static_assert(std::same_as<fn::sum_for<NonCopyable, int>, fn::sum<NonCopyable, int>>);
     static_assert(std::same_as<fn::sum_for<int, bool, NonCopyable>, fn::sum<NonCopyable, bool, int>>);
+
+    static_assert(std::same_as<fn::sum_for<int, fn::sum<int>>, fn::sum<int>>);
+    static_assert(std::same_as<fn::sum_for<int, fn::sum<bool>>, fn::sum<bool, int>>);
+    static_assert(std::same_as<fn::sum_for<int, fn::sum<bool, int>>, fn::sum<bool, int>>);
+    static_assert(std::same_as<fn::sum_for<int, fn::sum<bool, double>>, fn::sum<bool, double, int>>);
+
+    static_assert(std::same_as<fn::sum_for<fn::sum<bool>, fn::sum<int>>, fn::sum<bool, int>>);
+    static_assert(std::same_as<fn::sum_for<fn::sum<bool>, fn::sum<bool, double, int>>, fn::sum<bool, double, int>>);
+    static_assert(std::same_as<fn::sum_for<fn::sum<bool>, fn::sum<double, int>>, fn::sum<bool, double, int>>);
+    static_assert(std::same_as<fn::sum_for<fn::sum<bool, int>, double>, fn::sum<bool, double, int>>);
+
+    static_assert(std::same_as<fn::sum_for<int, fn::sum<>>, fn::sum<int>>);
+    static_assert(std::same_as<fn::sum_for<fn::sum<>, int>, fn::sum<int>>);
+    static_assert(std::same_as<fn::sum_for<fn::sum<>, fn::sum<bool, int>>, fn::sum<bool, int>>);
+    static_assert(std::same_as<fn::sum_for<double, fn::sum<>, fn::sum<bool, int>>, fn::sum<bool, double, int>>);
   }
 
   WHEN("invocable")

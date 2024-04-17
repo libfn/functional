@@ -63,11 +63,28 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
   WHEN("choice_for")
   {
     static_assert(std::same_as<fn::choice_for<int>, fn::choice<int>>);
+    static_assert(std::same_as<fn::choice_for<int, int>, fn::choice<int>>);
     static_assert(std::same_as<fn::choice_for<int, bool>, fn::choice<bool, int>>);
     static_assert(std::same_as<fn::choice_for<bool, int>, fn::choice<bool, int>>);
     static_assert(std::same_as<fn::choice_for<int, NonCopyable>, fn::choice<NonCopyable, int>>);
     static_assert(std::same_as<fn::choice_for<NonCopyable, int>, fn::choice<NonCopyable, int>>);
     static_assert(std::same_as<fn::choice_for<int, bool, NonCopyable>, fn::choice<NonCopyable, bool, int>>);
+
+    static_assert(std::same_as<fn::choice_for<int, fn::sum<int>>, fn::choice<int>>);
+    static_assert(std::same_as<fn::choice_for<int, fn::sum<bool>>, fn::choice<bool, int>>);
+    static_assert(std::same_as<fn::choice_for<int, fn::sum<bool, int>>, fn::choice<bool, int>>);
+    static_assert(std::same_as<fn::choice_for<int, fn::sum<bool, double>>, fn::choice<bool, double, int>>);
+
+    static_assert(std::same_as<fn::choice_for<fn::sum<bool>, fn::sum<int>>, fn::choice<bool, int>>);
+    static_assert(
+        std::same_as<fn::choice_for<fn::sum<bool>, fn::sum<bool, double, int>>, fn::choice<bool, double, int>>);
+    static_assert(std::same_as<fn::choice_for<fn::sum<bool>, fn::sum<double, int>>, fn::choice<bool, double, int>>);
+    static_assert(std::same_as<fn::choice_for<fn::sum<bool, int>, double>, fn::choice<bool, double, int>>);
+
+    static_assert(std::same_as<fn::choice_for<int, fn::sum<>>, fn::choice<int>>);
+    static_assert(std::same_as<fn::choice_for<fn::sum<>, int>, fn::choice<int>>);
+    static_assert(std::same_as<fn::choice_for<fn::sum<>, fn::sum<bool, int>>, fn::choice<bool, int>>);
+    static_assert(std::same_as<fn::choice_for<double, fn::sum<>, fn::sum<bool, int>>, fn::choice<bool, double, int>>);
   }
 
   WHEN("invocable")

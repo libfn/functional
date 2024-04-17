@@ -20,6 +20,7 @@ concept some_optional = detail::_some_optional<T>;
 
 template <typename T> struct optional final : std::optional<T> {
   using value_type = std::optional<T>::value_type;
+  static_assert(not std::is_same_v<value_type, ::fn::sum<>>);
 
   using std::optional<T>::optional;
 

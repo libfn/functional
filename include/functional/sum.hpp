@@ -90,7 +90,17 @@ template <typename Fn, typename Self> struct _sum_invoke_result<_collapsing_sum_
 } // namespace detail
 
 template <typename... Ts> struct sum;
-template <> struct sum<>; // Intentionally incomplete
+
+// A unit of sum<> monoid, cannot be created but offers useful static functions and can be put in an union
+template <> struct sum<> final {
+  constexpr sum() noexcept = delete; // NOTE, `= delete` here is the whole point
+  constexpr ~sum() noexcept = default;
+  constexpr sum(sum const &) noexcept = default;
+  constexpr sum(sum &&) noexcept = default;
+
+  static constexpr std::size_t size = 0;
+  template <typename T> static constexpr bool has_type = false;
+};
 
 template <typename... Ts>
   requires(sizeof...(Ts) > 0)
@@ -143,8 +153,8 @@ struct sum<Ts...> {
 
   template <typename... Tx>
   constexpr sum(sum<Tx...> const &arg) noexcept
-    requires detail::is_superset_of<sum, sum<Tx...>>
-                 && (not std::is_same_v<sum, sum<Tx...>>) && (... && std::is_copy_constructible_v<Tx>)
+    requires detail::is_superset_of<sum, sum<Tx...>> && (not std::is_same_v<sum, sum<Tx...>>)
+                 && (... && std::is_copy_constructible_v<Tx>) && (sizeof...(Tx) > 0)
       : data(FWD(arg).template _invoke<data_t>([]<typename T>(std::in_place_type_t<T>, auto &&v) {
           return detail::make_variadic_union<T, data_t>(FWD(v));
         })),
@@ -156,8 +166,8 @@ struct sum<Ts...> {
 
   template <typename... Tx>
   constexpr sum(sum<Tx...> &&arg) noexcept
-    requires detail::is_superset_of<sum, sum<Tx...>>
-                 && (not std::is_same_v<sum, sum<Tx...>>) && (... && std::is_move_constructible_v<Tx>)
+    requires detail::is_superset_of<sum, sum<Tx...>> && (not std::is_same_v<sum, sum<Tx...>>)
+                 && (... && std::is_move_constructible_v<Tx>) && (sizeof...(Tx) > 0)
       : data(FWD(arg).template _invoke<data_t>([]<typename T>(std::in_place_type_t<T>, auto &&v) {
           return detail::make_variadic_union<T, data_t>(FWD(v));
         })),
@@ -170,6 +180,7 @@ struct sum<Ts...> {
   template <typename... Tx>
   constexpr sum(std::in_place_type_t<sum<Tx...>>, some_sum auto &&arg) noexcept
     requires std::is_same_v<std::remove_cvref_t<decltype(arg)>, sum<Tx...>> && detail::is_superset_of<sum, sum<Tx...>>
+                 && (sizeof...(Tx) > 0)
       : data(FWD(arg).template _invoke<data_t>([]<typename T>(std::in_place_type_t<T>, auto &&v) {
           return detail::make_variadic_union<T, data_t>(FWD(v));
         })),
@@ -335,7 +346,8 @@ template <typename T> explicit sum(T) -> sum<std::remove_cvref_t<T>>;
 
 template <typename... Ts, typename... Tx>
 [[nodiscard]] constexpr bool operator==(sum<Ts...> const &lh, sum<Tx...> const &rh) noexcept
-  requires(... && (std::equality_comparable<Ts> || not detail::type_one_of<Ts, Tx...>))
+  requires(... && (std::equality_comparable<Ts> || not detail::type_one_of<Ts, Tx...>)) //
+          && ((sizeof...(Ts)) > 0) && ((sizeof...(Tx)) > 0)
 {
   return lh.template _invoke<bool>([&rh]<typename T>(std::in_place_type_t<T> d, auto const &lh) noexcept {
     if constexpr (std::remove_cvref_t<decltype(rh)>::template has_type<T>) {
@@ -353,7 +365,8 @@ template <typename... Ts, typename... Tx>
   return not(lh == rh);
 }
 
-template <typename... Ts> using sum_for = detail::normalized<Ts...>::template apply<sum>;
+template <typename... Ts>
+using sum_for = detail::_collapsing_sum::normalized<::fn::sum, detail::_collapsing_sum::flattened<Ts...>>::type;
 
 } // namespace fn
 
