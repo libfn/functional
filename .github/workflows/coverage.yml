@@ -74,7 +74,7 @@ jobs:
         cd .build
         cmake --build .
         tests/tests/tests -a # generate .gcda files
-        $GCOV -pbc $( find tests/tests/ -type f -name '*.gcno' ) # generate .gcov files
+        $GCOV -pbc -r -s $( realpath .. ) $( find tests/tests/ -type f -name '*.gcno' ) # generate .gcov files
 
     - name: Upload .gcov files
       if: ${{ github.event_name == 'push' }}
