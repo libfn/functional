@@ -4,6 +4,10 @@ vendoredDependencies:
   forceRescans: false
   scanMethod: CLILicenseScan
   licenseScanPathFilters:
+    only:
+      - "**/*.hpp"
+      - "**/*.cpp"
+      - "**/*.cmake"
+      - "**/LICENSE*"
     exclude:
       - ".git/**"
-      - "tests/**"

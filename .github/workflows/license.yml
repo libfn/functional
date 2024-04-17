@@ -11,6 +11,12 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: pull dependencies
+      run: |
+        mkdir .build
+        cd .build
+        cmake ..
+
     - uses: fossas/fossa-action@v1.3.3
       with:
         api-key: ${{ secrets.FOSSA_API_KEY }}
