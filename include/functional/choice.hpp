@@ -43,13 +43,13 @@ struct choice<Ts...> : sum<Ts...> {
 
   template <typename Ret> [[nodiscard]] constexpr auto _invoke(auto &&fn) const & noexcept
   {
-    return detail::invoke_variadic_union<Ret, typename _impl::data_t>(this->data, this->index, FWD(fn));
+    return detail::invoke_variadic_union<Ret, typename _impl::data_t>(this->data, this->index, std::in_place, FWD(fn));
   }
 
   template <typename Ret> [[nodiscard]] constexpr auto _invoke(auto &&fn) && noexcept
   {
     return detail::invoke_variadic_union<Ret, typename _impl::data_t>( //
-        std::move(*this).data, std::move(*this).index, FWD(fn));
+        std::move(*this).data, std::move(*this).index, std::in_place, FWD(fn));
   }
 
   template <typename T>

@@ -20,14 +20,8 @@ namespace fn {
 template <typename T>
 concept some_sum = detail::_some_sum<T>;
 
-namespace detail {
-template <typename T> constexpr bool _is_in_place_type = false;
-template <typename T> constexpr bool _is_in_place_type<::std::in_place_type_t<T> &> = true;
-template <typename T> constexpr bool _is_in_place_type<::std::in_place_type_t<T> const &> = true;
-} // namespace detail
-
 template <typename T>
-concept some_in_place_type = detail::_is_in_place_type<T &>;
+concept some_in_place_type = detail::_some_in_place_type<T>;
 
 namespace detail {
 template <typename T>
@@ -118,12 +112,13 @@ struct sum<Ts...> {
 
   template <typename Ret> [[nodiscard]] constexpr auto _invoke(auto &&fn) const & noexcept
   {
-    return detail::invoke_variadic_union<Ret, data_t>(this->data, this->index, FWD(fn));
+    return detail::invoke_variadic_union<Ret, data_t>(this->data, this->index, std::in_place, FWD(fn));
   }
 
   template <typename Ret> [[nodiscard]] constexpr auto _invoke(auto &&fn) && noexcept
   {
-    return detail::invoke_variadic_union<Ret, data_t>(std::move(*this).data, std::move(*this).index, FWD(fn));
+    return detail::invoke_variadic_union<Ret, data_t>(std::move(*this).data, std::move(*this).index, std::in_place,
+                                                      FWD(fn));
   }
 
   template <typename T>
@@ -193,7 +188,7 @@ struct sum<Ts...> {
   constexpr sum(sum const &other) noexcept
     requires(... && std::is_copy_constructible_v<Ts>)
       : data(detail::invoke_variadic_union<data_t, data_t>(        //
-          other.data, other.index,                                 //
+          other.data, other.index, std::in_place,                  //
           []<typename T>(std::in_place_type_t<T>, auto const &v) { //
             return detail::make_variadic_union<T, data_t>(v);
           })),
@@ -204,7 +199,7 @@ struct sum<Ts...> {
   constexpr sum(sum &&other) noexcept
     requires(... && std::is_move_constructible_v<Ts>)
       : data(detail::invoke_variadic_union<data_t, data_t>(   //
-          std::move(other).data, other.index,                 //
+          std::move(other).data, other.index, std::in_place,  //
           []<typename T>(std::in_place_type_t<T>, auto &&v) { //
             return detail::make_variadic_union<T, data_t>(std::move(v));
           })),
@@ -215,7 +210,7 @@ struct sum<Ts...> {
   constexpr ~sum() noexcept
   {
     detail::invoke_variadic_union<void, data_t>( //
-        this->data, index, [this]<typename T>(std::in_place_type_t<T>, auto &&) {
+        this->data, index, std::in_place, [this]<typename T>(std::in_place_type_t<T>, auto &&) {
           std::destroy_at(detail::ptr_variadic_union<T, data_t>(this->data));
         });
   }
@@ -225,7 +220,7 @@ struct sum<Ts...> {
   [[nodiscard]] constexpr bool has_value(std::in_place_type_t<T> = std::in_place_type<T>) const noexcept
   {
     return detail::invoke_variadic_union<bool, data_t>( //
-        this->data, index,
+        this->data, index, std::in_place,
         []<typename U>(std::in_place_type_t<U>, auto &&) constexpr -> bool { return std::is_same_v<T, U>; });
   }
 
