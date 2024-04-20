@@ -81,6 +81,35 @@ template <typename Fn, typename Self> struct _sum_invoke_result<_collapsing_sum_
   using type = _typelist_collapsing_sum<Fn, Self, std::remove_cvref_t<Self>>::type;
 };
 
+template <typename Fn, typename Self, typename T> struct _typelist_type_select_invoke_result;
+template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts>
+struct _typelist_type_select_invoke_result<Fn, Self, Tpl<Ts...>> {
+  using T0 = select_nth_t<0, Ts...>;
+  using R0 = ::fn::detail::_invoke_result<Fn, std::in_place_type_t<T0>, apply_const_lvalue_t<Self, T0>>::type;
+  static_assert((...
+                 && std::is_same_v<R0, typename ::fn::detail::_invoke_result<Fn, std::in_place_type_t<Ts>,
+                                                                             apply_const_lvalue_t<Self, Ts>>::type>));
+  using type = R0;
+};
+
+template <typename Fn, typename Self, typename T> struct _typelist_type_collapsing_sum;
+template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts>
+struct _typelist_type_collapsing_sum<Fn, Self, Tpl<Ts...>> {
+  using type = _collapsing_sum::normalized<
+      Tpl, _collapsing_sum::flattened<std::remove_cvref_t<typename ::fn::detail::_invoke_result<
+               Fn, std::in_place_type_t<Ts>, apply_const_lvalue_t<Self, Ts>>::type>...>>::type;
+};
+
+template <typename T, typename Fn, typename Self> struct _sum_invoke_type_result final {
+  using type = T;
+};
+template <typename Fn, typename Self> struct _sum_invoke_type_result<_invoke_autodetect_tag, Fn, Self> final {
+  using type = _typelist_type_select_invoke_result<Fn, Self, std::remove_cvref_t<Self>>::type;
+};
+template <typename Fn, typename Self> struct _sum_invoke_type_result<_collapsing_sum_tag, Fn, Self> final {
+  using type = _typelist_type_collapsing_sum<Fn, Self, std::remove_cvref_t<Self>>::type;
+};
+
 } // namespace detail
 
 template <typename... Ts> struct sum;
@@ -119,6 +148,18 @@ struct sum<Ts...> {
   {
     return detail::invoke_variadic_union<Ret, data_t>(std::move(*this).data, std::move(*this).index, std::in_place,
                                                       FWD(fn));
+  }
+
+  template <typename Fn> [[nodiscard]] constexpr auto _transform(Fn &&fn) const & noexcept
+  {
+    using type = detail::_sum_invoke_type_result<detail::_collapsing_sum_tag, decltype(fn), sum const &>::type;
+    return detail::invoke_variadic_union<type, data_t>(this->data, index, std::in_place, FWD(fn));
+  }
+
+  template <typename Fn> [[nodiscard]] constexpr auto _transform(Fn &&fn) && noexcept
+  {
+    using type = detail::_sum_invoke_type_result<detail::_collapsing_sum_tag, decltype(fn), sum &&>::type;
+    return detail::invoke_variadic_union<type, data_t>(std::move(*this).data, index, std::in_place, FWD(fn));
   }
 
   template <typename T>
