@@ -11,23 +11,34 @@ The purpose of this library is to exercise an approach to functional programming
 
 ## How
 
-The approach is to take the existing types in the C++ standard library (when appropriate) and add both syntax and operations which are useful in writing functional style programs.
+The approach is to take the existing `std` types in the C++ standard library (when appropriate) and extend them (via inheritance) with the facilities useful in writing functional style programs. Eventually, the proposed functionality will be (hopefully) folded into the existing `std` types and new `std` types will be added.
 
-This library requires a very modern implementation of the C++ library which implements monadic operations in `optional` and `expected`, as defined in ISO/IEC 14882:2023. Currently, such implementations are provided with [gcc 13][gcc-standard-support] and [clang 18][clang-standard-support], which are the recommended compilers for this project. A suggested approach to access the most recent version of the compiler (when it is not available in the operating system) is to use a [devcontainer] when working with this project.
+This library requires a very modern implementation of the C++ library which implements monadic operations in `std::optional` and `std::expected`, as defined in ISO/IEC 14882:2023. Currently, such implementations are provided with [gcc 13][gcc-standard-support] and [clang 18][clang-standard-support], which are the recommended compilers for this project. A suggested approach to access the most recent version of the compiler (when it is not available in the operating system) is to use a [devcontainer] when working with this project.
 
 [clang-standard-support]: https://clang.llvm.org/cxx_status.html
 [gcc-standard-support]: https://gcc.gnu.org/projects/cxx-status.html
 [devcontainer]: https://github.com/libfn/devcontainer
 
-## Coverage
+## Test Coverage
 
 In this project, 100% tests coverage does not actually mean much, because the most useful tests cases are around compile-time language elements, such as overload resolution, built-in conversions etc. Any meaningful tests must execute the same set of functions in many, subtly different ways, rather than simply execute each function and branch at least once.
 
+## Backwards compatibility
+
+The maintainers will aim to maintain compatibility with the proposed changes in the C++ standard library, **rather than with the existing uses** of the code in this repo. In practice, this means that all code in this repo should be considered "under intensive development and unstable" until the standardization of the proposed facilities.
+
+### Best make your private fork from this repo and use it as you see fit.
+
+The maintainers are unable to guarantee that no significant refactoring will ever take place. The opposite is to be expected, since the process of standardization of any additions to the C++ standard library typically involves a fair number of changes and improvements, some of them quite fundamental. This includes all kinds of interfaces and names in this library, which until the moment of standardization are only _proposed_.
+
 ## Acknowledgments
 
-Gašper Ažman for providing the inspiration in ["(Fun)ctional C++ and the M-word"][gasper-functional-presentation]
+* Gašper Ažman for providing the inspiration in ["(Fun)ctional C++ and the M-word"][gasper-functional-presentation]
+* Bartosz Milewski for taking the time to explain [parametrised and graded monads][parametrised-and-graded-monads]
 
 [gasper-functional-presentation]: https://youtu.be/Jhggz8rtHbk?si=T-3DXPcvgE_Y5cpH
+[parametrised-and-graded-monads]: https://arxiv.org/pdf/2001.10274.pdf
+[similar-work]: https://www.doc.ic.ac.uk/~dorchard/publ/haskell14-effects.pdf
 
 
 ## License
