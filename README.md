@@ -38,12 +38,14 @@ The maintainers are unable to guarantee that no significant refactoring will eve
 
 ## Acknowledgments
 
-* Gašper Ažman for providing the inspiration in ["(Fun)ctional C++ and the M-word"][gasper-functional-presentation]
-* Bartosz Milewski for taking the time to explain [parametrised and graded monads][parametrised-and-graded-monads]
+* Gašper Ažman, for providing the inspiration in ["(Fun)ctional C++ and the M-word"][gasper-functional-presentation]
+* Bartosz Milewski, for taking the time to explain [parametrised and graded monads][parametrised-and-graded-monads]
+* [Ripple][ripple], for allowing the main author the time to work on this library
 
 [gasper-functional-presentation]: https://youtu.be/Jhggz8rtHbk?si=T-3DXPcvgE_Y5cpH
 [parametrised-and-graded-monads]: https://arxiv.org/pdf/2001.10274.pdf
 [similar-work]: https://www.doc.ic.ac.uk/~dorchard/publ/haskell14-effects.pdf
+[ripple]: https://ripple.com/
 
 
 ## License
