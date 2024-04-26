@@ -12,6 +12,7 @@
 
 #include <optional>
 #include <type_traits>
+#include <utility>
 
 namespace fn {
 
@@ -318,47 +319,15 @@ template <typename T> struct optional final : std::optional<T> {
 template <class T> optional(T) -> optional<T>;
 
 template <some_optional Lh, some_optional Rh>
-  requires(not some_pack<typename std::remove_cvref_t<Lh>::value_type>)
-          && (not some_pack<typename std::remove_cvref_t<Rh>::value_type>)
-constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
+  requires(not some_pack<typename std::remove_cvref_t<Rh>::value_type>)
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
 {
-  using lh_type = std::remove_cvref_t<Lh>::value_type;
-  using rh_type = std::remove_cvref_t<Rh>::value_type;
-  using value_type = pack<lh_type, rh_type>;
-  using type = optional<value_type>;
-  if (lh.has_value() && rh.has_value())
-    return type{std::in_place, pack<lh_type>{FWD(lh).value()}.append(std::in_place_type_t<rh_type>{}, FWD(rh).value())};
-  else if (not lh.has_value())
-    return type{std::nullopt};
-  else
-    return type{std::nullopt};
+  static constexpr auto efn = [](auto const &) { return std::nullopt; };
+  return ::fn::detail::_join<fn::optional>(FWD(lh), FWD(rh), efn);
 }
 
 template <some_optional Lh, some_optional Rh>
-  requires some_pack<typename std::remove_cvref_t<Lh>::value_type>
-           && (not some_pack<typename std::remove_cvref_t<Rh>::value_type>)
-constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
-{
-  using lh_type = std::remove_cvref_t<Lh>::value_type;
-  using rh_type = std::remove_cvref_t<Rh>::value_type;
-  using value_type = typename lh_type::template append_type<rh_type>;
-  using type = optional<value_type>;
-  if (lh.has_value() && rh.has_value())
-    return type{std::in_place, FWD(lh).value().append(std::in_place_type_t<rh_type>{}, FWD(rh).value())};
-  else if (not lh.has_value())
-    return type{std::nullopt};
-  else
-    return type{std::nullopt};
-}
-
-template <some_optional Lh, some_optional Rh>
-  requires(not some_pack<typename std::remove_cvref_t<Lh>::value_type>)
-              && some_pack<typename std::remove_cvref_t<Rh>::value_type>
-constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept = delete;
-
-template <some_optional Lh, some_optional Rh>
-  requires some_pack<typename std::remove_cvref_t<Lh>::value_type>
-               && some_pack<typename std::remove_cvref_t<Rh>::value_type>
+  requires some_pack<typename std::remove_cvref_t<Rh>::value_type>
 constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept = delete;
 
 } // namespace fn

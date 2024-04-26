@@ -294,6 +294,119 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                                       fn::optional<fn::pack<double, bool>>{fn::pack<double, bool>{0.5, true}},
                                       fn::optional<fn::pack<double, bool>>{fn::pack<double, bool>{0.5, true}}));
     }
+
+    WHEN("sum on both sides")
+    {
+      using Lh = fn::optional<fn::sum<double, int>>;
+      using Rh = fn::optional<fn::sum<bool, int>>;
+      static_assert(
+          std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                       fn::optional<fn::sum< //
+                           fn::pack<double, bool>, fn::pack<double, int>, fn::pack<int, bool>, fn::pack<int, int>>>>);
+
+      CHECK((Lh{fn::sum{0.5}} & Rh{fn::sum{12}})
+                .transform([](auto i, auto j) constexpr -> bool {
+                  return 0.5 == static_cast<double>(i) && 12 == static_cast<int>(j);
+                })
+                .value()
+            == fn::sum{true});
+      CHECK(not(Lh{std::nullopt} & Rh{fn::sum{12}}).has_value());
+      CHECK(not(Lh{fn::sum{0.5}} & Rh{std::nullopt}).has_value());
+      CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
+
+      WHEN("sum of packs on left")
+      {
+        using Lh = fn::optional<fn::sum<fn::pack<double, bool>, fn::pack<double, int>>>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::optional<fn::sum< //
+                                       fn::pack<double, bool, bool>, fn::pack<double, bool, int>,
+                                       fn::pack<double, int, bool>, fn::pack<double, int, int>>>>);
+
+        CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{fn::sum{12}})
+                  .transform([](auto i, auto j, auto k) constexpr -> bool {
+                    return 0.5 == static_cast<double>(i) && 3 == static_cast<int>(j) && 12 == static_cast<int>(k);
+                  })
+                  .value()
+              == fn::sum{true});
+        CHECK(not(Lh{std::nullopt} & Rh{fn::sum{12}}).has_value());
+        CHECK(not(Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{std::nullopt}).has_value());
+        CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
+      }
+    }
+
+    WHEN("sum on left side only")
+    {
+      using Lh = fn::optional<fn::sum<double, int>>;
+      using Rh = fn::optional<int>;
+      static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                 fn::optional<fn::sum< //
+                                     fn::pack<double, int>, fn::pack<int, int>>>>);
+
+      CHECK((Lh{fn::sum{0.5}} & Rh{12})
+                .transform([](auto i, auto j) constexpr -> bool {
+                  return 0.5 == static_cast<double>(i) && 12 == static_cast<int>(j);
+                })
+                .value()
+            == fn::sum{true});
+      CHECK(not(Lh{std::nullopt} & Rh{12}).has_value());
+      CHECK(not(Lh{fn::sum{0.5}} & Rh{std::nullopt}).has_value());
+      CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
+
+      WHEN("sum of packs on left")
+      {
+        using Lh = fn::optional<fn::sum<fn::pack<double, bool>, fn::pack<double, int>>>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::optional<fn::sum< //
+                                       fn::pack<double, bool, int>, fn::pack<double, int, int>>>>);
+
+        CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{12})
+                  .transform([](auto i, auto j, auto k) constexpr -> bool {
+                    return 0.5 == static_cast<double>(i) && 3 == static_cast<int>(j) && 12 == static_cast<int>(k);
+                  })
+                  .value()
+              == fn::sum{true});
+        CHECK(not(Lh{std::nullopt} & Rh{12}).has_value());
+        CHECK(not(Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{std::nullopt}).has_value());
+        CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
+      }
+    }
+
+    WHEN("sum on right side only")
+    {
+      using Lh = fn::optional<double>;
+      using Rh = fn::optional<fn::sum<bool, int>>;
+      static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                 fn::optional<fn::sum< //
+                                     fn::pack<double, bool>, fn::pack<double, int>>>>);
+
+      CHECK((Lh{0.5} & Rh{fn::sum{12}})
+                .transform([](auto i, auto j) constexpr -> bool {
+                  return 0.5 == static_cast<double>(i) && 12 == static_cast<int>(j);
+                })
+                .value()
+            == fn::sum{true});
+      CHECK(not(Lh{std::nullopt} & Rh{fn::sum{12}}).has_value());
+      CHECK(not(Lh{0.5} & Rh{std::nullopt}).has_value());
+      CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
+
+      WHEN("pack on left")
+      {
+        using Lh = fn::optional<fn::pack<double, int>>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::optional<fn::sum< //
+                                       fn::pack<double, int, bool>, fn::pack<double, int, int>>>>);
+
+        CHECK((Lh{fn::pack{0.5, 3}} & Rh{fn::sum{12}})
+                  .transform([](auto i, auto j, auto k) constexpr -> bool {
+                    return 0.5 == static_cast<double>(i) && 3 == static_cast<int>(j) && 12 == static_cast<int>(k);
+                  })
+                  .value()
+              == fn::sum{true});
+        CHECK(not(Lh{std::nullopt} & Rh{fn::sum{12}}).has_value());
+        CHECK(not(Lh{fn::pack{0.5, 3}} & Rh{std::nullopt}).has_value());
+        CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
+      }
+    }
   }
 }
 

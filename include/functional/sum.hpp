@@ -20,14 +20,8 @@ namespace fn {
 template <typename T>
 concept some_sum = detail::_some_sum<T>;
 
-namespace detail {
-template <typename T> constexpr bool _is_in_place_type = false;
-template <typename T> constexpr bool _is_in_place_type<::std::in_place_type_t<T> &> = true;
-template <typename T> constexpr bool _is_in_place_type<::std::in_place_type_t<T> const &> = true;
-} // namespace detail
-
 template <typename T>
-concept some_in_place_type = detail::_is_in_place_type<T &>;
+concept some_in_place_type = detail::_some_in_place_type<T>;
 
 namespace detail {
 template <typename T>
@@ -87,6 +81,35 @@ template <typename Fn, typename Self> struct _sum_invoke_result<_collapsing_sum_
   using type = _typelist_collapsing_sum<Fn, Self, std::remove_cvref_t<Self>>::type;
 };
 
+template <typename Fn, typename Self, typename T> struct _typelist_type_select_invoke_result;
+template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts>
+struct _typelist_type_select_invoke_result<Fn, Self, Tpl<Ts...>> {
+  using T0 = select_nth_t<0, Ts...>;
+  using R0 = ::fn::detail::_invoke_result<Fn, std::in_place_type_t<T0>, apply_const_lvalue_t<Self, T0>>::type;
+  static_assert((...
+                 && std::is_same_v<R0, typename ::fn::detail::_invoke_result<Fn, std::in_place_type_t<Ts>,
+                                                                             apply_const_lvalue_t<Self, Ts>>::type>));
+  using type = R0;
+};
+
+template <typename Fn, typename Self, typename T> struct _typelist_type_collapsing_sum;
+template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts>
+struct _typelist_type_collapsing_sum<Fn, Self, Tpl<Ts...>> {
+  using type = _collapsing_sum::normalized<
+      Tpl, _collapsing_sum::flattened<std::remove_cvref_t<typename ::fn::detail::_invoke_result<
+               Fn, std::in_place_type_t<Ts>, apply_const_lvalue_t<Self, Ts>>::type>...>>::type;
+};
+
+template <typename T, typename Fn, typename Self> struct _sum_invoke_type_result final {
+  using type = T;
+};
+template <typename Fn, typename Self> struct _sum_invoke_type_result<_invoke_autodetect_tag, Fn, Self> final {
+  using type = _typelist_type_select_invoke_result<Fn, Self, std::remove_cvref_t<Self>>::type;
+};
+template <typename Fn, typename Self> struct _sum_invoke_type_result<_collapsing_sum_tag, Fn, Self> final {
+  using type = _typelist_type_collapsing_sum<Fn, Self, std::remove_cvref_t<Self>>::type;
+};
+
 } // namespace detail
 
 template <typename... Ts> struct sum;
@@ -118,12 +141,25 @@ struct sum<Ts...> {
 
   template <typename Ret> [[nodiscard]] constexpr auto _invoke(auto &&fn) const & noexcept
   {
-    return detail::invoke_variadic_union<Ret, data_t>(this->data, this->index, FWD(fn));
+    return detail::invoke_variadic_union<Ret, data_t>(this->data, this->index, std::in_place, FWD(fn));
   }
 
   template <typename Ret> [[nodiscard]] constexpr auto _invoke(auto &&fn) && noexcept
   {
-    return detail::invoke_variadic_union<Ret, data_t>(std::move(*this).data, std::move(*this).index, FWD(fn));
+    return detail::invoke_variadic_union<Ret, data_t>(std::move(*this).data, std::move(*this).index, std::in_place,
+                                                      FWD(fn));
+  }
+
+  template <typename Fn> [[nodiscard]] constexpr auto _transform(Fn &&fn) const & noexcept
+  {
+    using type = detail::_sum_invoke_type_result<detail::_collapsing_sum_tag, decltype(fn), sum const &>::type;
+    return detail::invoke_variadic_union<type, data_t>(this->data, index, std::in_place, FWD(fn));
+  }
+
+  template <typename Fn> [[nodiscard]] constexpr auto _transform(Fn &&fn) && noexcept
+  {
+    using type = detail::_sum_invoke_type_result<detail::_collapsing_sum_tag, decltype(fn), sum &&>::type;
+    return detail::invoke_variadic_union<type, data_t>(std::move(*this).data, index, std::in_place, FWD(fn));
   }
 
   template <typename T>
@@ -193,7 +229,7 @@ struct sum<Ts...> {
   constexpr sum(sum const &other) noexcept
     requires(... && std::is_copy_constructible_v<Ts>)
       : data(detail::invoke_variadic_union<data_t, data_t>(        //
-          other.data, other.index,                                 //
+          other.data, other.index, std::in_place,                  //
           []<typename T>(std::in_place_type_t<T>, auto const &v) { //
             return detail::make_variadic_union<T, data_t>(v);
           })),
@@ -204,7 +240,7 @@ struct sum<Ts...> {
   constexpr sum(sum &&other) noexcept
     requires(... && std::is_move_constructible_v<Ts>)
       : data(detail::invoke_variadic_union<data_t, data_t>(   //
-          std::move(other).data, other.index,                 //
+          std::move(other).data, other.index, std::in_place,  //
           []<typename T>(std::in_place_type_t<T>, auto &&v) { //
             return detail::make_variadic_union<T, data_t>(std::move(v));
           })),
@@ -215,7 +251,7 @@ struct sum<Ts...> {
   constexpr ~sum() noexcept
   {
     detail::invoke_variadic_union<void, data_t>( //
-        this->data, index, [this]<typename T>(std::in_place_type_t<T>, auto &&) {
+        this->data, index, std::in_place, [this]<typename T>(std::in_place_type_t<T>, auto &&) {
           std::destroy_at(detail::ptr_variadic_union<T, data_t>(this->data));
         });
   }
@@ -225,7 +261,7 @@ struct sum<Ts...> {
   [[nodiscard]] constexpr bool has_value(std::in_place_type_t<T> = std::in_place_type<T>) const noexcept
   {
     return detail::invoke_variadic_union<bool, data_t>( //
-        this->data, index,
+        this->data, index, std::in_place,
         []<typename U>(std::in_place_type_t<U>, auto &&) constexpr -> bool { return std::is_same_v<T, U>; });
   }
 

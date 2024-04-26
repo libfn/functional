@@ -23,6 +23,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <type_traits>
 
 struct Error final {
   std::string what;
@@ -336,69 +337,115 @@ TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform
   CHECK(fn("foo") == fn::choice(nullptr));
   CHECK(ss.str() == "1,123,2000000000,5e+09,nullptr,nullptr,");
 
-  struct Config final {
+  struct ConfigProd {
     std::string hostname;
     int port;
     std::string filename;
     double threshold;
   };
 
-  enum InputError { UnexpectedType };
-  enum ConfigError { InvalidHostname, InvalidPort, InvalidFilename, InvalidThreshold };
+  struct ConfigTest {
+    std::string hostname;
+    int port;
+    std::string filename;
+    double threshold;
+    std::string test_name;
+  };
+
+  enum InputError { InvalidType, InvalidConfiguration };
+  enum ConfigError { InvalidHostname, InvalidPort, InvalidFilename, InvalidThreshold, InvalidTest };
   enum NetworkError { ConnectError, ProtocolError, Unknown };
 
-  static constexpr auto fn1 = []<typename T>(std::in_place_type_t<T>, std::string_view v) {
+  static constexpr auto convert = []<typename T>(std::in_place_type_t<T>, std::string_view v) {
     return parse(v).invoke([](auto &&v) -> fn::expected<T, InputError> {
       if constexpr (std::is_same_v<std::decay_t<decltype(v)>, T>) {
         return {FWD(v)};
       } else
-        return std::unexpected<InputError>{UnexpectedType};
+        return std::unexpected<InputError>{InvalidType};
     });
   };
 
-  static constexpr auto fn2 = [](std::string_view hostname, std::string_view port, std::string_view filename,
-                                 std::string_view threshold) {
-    return (fn::expected<void, fn::sum<>>()                       //
-            & fn1(std::in_place_type<std::string_view>, hostname) //
-            & fn1(std::in_place_type<long>, port)                 //
-            & fn1(std::in_place_type<std::string_view>, filename) //
-            & fn1(std::in_place_type<double>, threshold)          //
-            )
-           | fn::and_then([](std::string_view const &hostname, long port, std::string_view const &filename,
-                             double threshold) -> fn::expected<Config, ConfigError> {
-               if (hostname.size() < 3 || hostname.size() > 127
-                   || hostname.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789.") != std::string_view::npos
-                   || hostname.find("..") != std::string_view::npos)
+  static constexpr auto fn2 = [](std::string_view configuration, std::string_view hostname, std::string_view port,
+                                 std::string_view filename, std::string_view threshold,
+                                 std::string_view test_name = "") {
+    return (fn::expected<void, fn::sum<>>() //
+            & ([](std::string_view configuration, std::string_view test_name) {
+                using type = fn::expected<
+                    fn::sum<fn::pack<std::type_identity<ConfigTest>, std::string_view>, std::type_identity<ConfigProd>>,
+                    InputError>;
+                if (configuration == "prod")
+                  return type{std::in_place, fn::sum{std::type_identity<ConfigProd>{}}};
+                else if (configuration == "test")
+                  return type{std::in_place, fn::sum{fn::pack{std::type_identity<ConfigTest>{}, std::move(test_name)}}};
+                else
+                  return type{std::unexpect, InvalidConfiguration};
+              })(configuration, test_name)                            //
+            & convert(std::in_place_type<std::string_view>, hostname) //
+            & convert(std::in_place_type<long>, port)                 //
+            & convert(std::in_place_type<std::string_view>, filename) //
+            & convert(std::in_place_type<double>, threshold))         //
+           | fn::transform(
+               fn::overload{[](std::type_identity<ConfigProd>, std::string_view const &host, long port,
+                               std::string_view const &fname, double tshold) {
+                              return ConfigProd{.hostname = std::string{host},
+                                                .port = static_cast<int>(port),
+                                                .filename = std::string{fname},
+                                                .threshold = tshold};
+                            },
+                            [](std::type_identity<ConfigTest>, std::string_view test_name, std::string_view const &host,
+                               long port, std::string_view const &fname, double tshold) {
+                              return ConfigTest{.hostname = std::string{host},
+                                                .port = static_cast<int>(port),
+                                                .filename = std::string{fname},
+                                                .threshold = tshold,
+                                                .test_name = std::string{test_name}};
+                            }})
+           | fn::and_then([](auto &&config) -> fn::expected<fn::sum<ConfigProd, ConfigTest>, ConfigError> {
+               if (config.hostname.size() < 3 || config.hostname.size() > 127
+                   || config.hostname.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789.")
+                          != std::string_view::npos
+                   || config.hostname.find("..") != std::string_view::npos)
                  return std::unexpected<ConfigError>(InvalidHostname);
-               else if (port < 1 || port > 0xffff)
+               else if (config.port < 1 || config.port > 0xffff)
                  return std::unexpected<ConfigError>(InvalidPort);
-               else if (filename.size() < 1 || filename.size() > 254)
+               else if (config.filename.size() < 1 || config.filename.size() > 254)
                  return std::unexpected<ConfigError>(InvalidFilename);
-               else if (threshold < 0 || threshold > 1)
+               else if (config.threshold < 0 || config.threshold > 1)
                  return std::unexpected<ConfigError>(InvalidThreshold);
 
-               return Config{.hostname = std::string{hostname},
-                             .port = static_cast<int>(port),
-                             .filename = std::string{filename},
-                             .threshold = threshold};
+               if constexpr (std::is_same_v<std::remove_cvref_t<decltype(config)>, ConfigTest>) {
+                 if (config.test_name != "foo")
+                   return std::unexpected<ConfigError>(InvalidTest);
+               }
+
+               return FWD(config);
              })
-           | fn::and_then([](Config const &config) -> fn::expected<int, NetworkError> {
+           | fn::and_then([](auto const &config) -> fn::expected<int, NetworkError> {
                if (config.port < 1024)
                  return std::unexpected<NetworkError>(ConnectError);
-               return {0x50eda7a}; // dummy result
+               if constexpr (std::is_same_v<decltype(config), ConfigProd const &>)
+                 return {0x50eda7a}; // dummy result
+               else
+                 return {0x31eda7a + config.test_name.size()}; // dummy result
              });
   };
 
-  auto const b = fn2("123", "1024", "'file.txt'", "0.5"); // 123 is not valid hostname
+  auto const b = fn2("prod", "123", "1024", "'file.txt'", "0.5"); // 123 is not valid hostname
   static_assert(std::is_same_v<decltype(b), fn::expected<int, fn::sum<ConfigError, InputError, NetworkError>> const>);
-  CHECK(b.error() == fn::sum{UnexpectedType});
-  CHECK(fn2("'localhost'", "'foo'", "'file.txt'", "0.5").error() == fn::sum{UnexpectedType});
-  CHECK(fn2("'..'", "0", "''", "0").error() == fn::sum{UnexpectedType}); // 0 is not a double
-  CHECK(fn2("'..'", "1024", "'file.txt'", "0.5").error() == fn::sum{InvalidHostname});
-  CHECK(fn2("'..'", "0", "''", "0.5").error() == fn::sum{InvalidHostname}); // hostname is bound first
-  CHECK(fn2("'localhost'", "0", "'file.txt'", "0.5").error() == fn::sum{InvalidPort});
-  CHECK(fn2("'localhost'", "1024", "''", "0.5").error() == fn::sum{InvalidFilename});
-  CHECK(fn2("'localhost'", "1024", "'file.txt'", "-1.0").error() == fn::sum{InvalidThreshold});
-  CHECK(fn2("'localhost'", "1023", "'file.txt'", "0.5").error() == fn::sum{ConnectError});
-  CHECK(fn2("'localhost'", "1024", "'file.txt'", "0.5").value() == 0x50eda7a); // dummy result
+  CHECK(b.error() == fn::sum{InvalidType});
+  CHECK(fn2("foobar", "'localhost'", "1024", "'file.txt'", "0.5").error() == fn::sum{InvalidConfiguration});
+  CHECK(fn2("test", "123", "1024", "'file.txt'", "-1.0").error() == fn::sum{InvalidType});
+  CHECK(fn2("test", "'localhost'", "0", "'file.txt'", "-1.0", "foo").error() == fn::sum{InvalidPort});
+  CHECK(fn2("prod", "'localhost'", "'foo'", "'file.txt'", "0.5").error() == fn::sum{InvalidType});
+  CHECK(fn2("prod", "'..'", "0", "''", "0").error() == fn::sum{InvalidType}); // 0 is not a double
+  CHECK(fn2("prod", "'..'", "1024", "'file.txt'", "0.5").error() == fn::sum{InvalidHostname});
+  CHECK(fn2("prod", "'..'", "0", "''", "0.5").error() == fn::sum{InvalidHostname}); // hostname is bound first
+  CHECK(fn2("prod", "'localhost'", "0", "'file.txt'", "0.5").error() == fn::sum{InvalidPort});
+  CHECK(fn2("prod", "'localhost'", "1024", "''", "0.5").error() == fn::sum{InvalidFilename});
+  CHECK(fn2("prod", "'localhost'", "1024", "'file.txt'", "-1.0").error() == fn::sum{InvalidThreshold});
+  CHECK(fn2("test", "'localhost'", "1024", "'file.txt'", "1.0").error() == fn::sum{InvalidTest});
+  CHECK(fn2("test", "'localhost'", "1024", "'file.txt'", "1.0", "bar").error() == fn::sum{InvalidTest});
+  CHECK(fn2("prod", "'localhost'", "1023", "'file.txt'", "0.5").error() == fn::sum{ConnectError});
+  CHECK(fn2("prod", "'localhost'", "1024", "'file.txt'", "0.5").value() == 0x50eda7a);              // dummy result
+  CHECK(fn2("test", "'localhost'", "1024", "'file.txt'", "0.5", "foo").value() == (0x31eda7a + 3)); // dummy result
 }
