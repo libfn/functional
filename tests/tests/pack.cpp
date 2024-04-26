@@ -5,6 +5,7 @@
 
 #include "static_check.hpp"
 
+#include "functional/functional.hpp"
 #include "functional/optional.hpp"
 #include "functional/pack.hpp"
 #include "functional/sum.hpp"
@@ -58,7 +59,16 @@ TEST_CASE("pack", "[pack]")
   static_assert(not pack_check<T, decltype(([](auto, auto, auto, auto) {}))>);         // bad arity
   static_assert(not pack_check<T, decltype(([](auto, auto, auto, auto, auto, auto) {}))>); // bad arity
   CHECK(v.invoke([](auto... args) noexcept -> int { return (0 + ... + args); }) == 3 + 14 + 15 + 92);
+  CHECK(fn::invoke([](auto... args) noexcept -> int { return (0 + ... + args); }, FWD(v)) == 3 + 14 + 15 + 92);
+  CHECK(v.invoke([](auto... args) noexcept -> int { return (0 + ... + args); }, 65, 35) == 3 + 14 + 15 + 92 + 65 + 35);
+  CHECK(fn::invoke([](auto... args) noexcept -> int { return (0 + ... + args); }, FWD(v), 65, 35)
+        == 3 + 14 + 15 + 92 + 65 + 35);
+  static_assert(fn::invoke([](auto... args) noexcept -> int { return (0 + ... + args); }, fn::pack{3, 14}, 15, 92)
+                == 3 + 14 + 15 + 92);
   CHECK(v.invoke([](A, auto... args) noexcept -> int { return (0 + ... + args); }, A{}) == 3 + 14 + 15 + 92);
+  CHECK(fn::invoke([](A, auto... args) noexcept -> int { return (0 + ... + args); }, FWD(v), A{}) == 3 + 14 + 15 + 92);
+  static_assert(fn::invoke([](A, auto... args) noexcept -> int { return (0 + ... + args); }, fn::pack{3, 14}, A{})
+                == 3 + 14);
 
   A a;
   constexpr auto fn1 = [](A &dest, auto... args) noexcept -> A & {
@@ -67,6 +77,20 @@ TEST_CASE("pack", "[pack]")
   };
   CHECK(v.invoke(fn1, a).v == 3 + 14 + 15 + 92);
   CHECK(v.invoke_r<A>(fn1, a).v == 3 + 14 + 15 + 92);
+  CHECK(v.invoke_r<long>([](auto... args) noexcept -> int { return (0 + ... + args); }, 65, 35)
+        == 3 + 14 + 15 + 92 + 65 + 35);
+  CHECK(fn::invoke_r<long>([](auto... args) noexcept -> int { return (0 + ... + args); }, FWD(v), 65, 35)
+        == 3 + 14 + 15 + 92 + 65 + 35);
+  static_assert(
+      fn::invoke_r<long>([](auto... args) noexcept -> int { return (0 + ... + args); }, fn::pack{3, 14}, 15, 92)
+      == 3 + 14 + 15 + 92);
+  CHECK(v.invoke_r<long>([](A, auto... args) noexcept -> int { return (0 + ... + args); }, A{}) == 3 + 14 + 15 + 92);
+  CHECK(fn::invoke_r<long>([](A, auto... args) noexcept -> int { return (0 + ... + args); }, FWD(v), A{})
+        == 3 + 14 + 15 + 92);
+  static_assert(
+      fn::invoke_r<long>([](A, auto... args) noexcept -> int { return (0 + ... + args); }, fn::pack{3, 14}, A{})
+      == 3 + 14);
+
   static_assert(std::is_same_v<decltype(v.invoke(fn1, a)), A &>);
   static_assert(std::is_same_v<decltype(v.invoke_r<A>(fn1, a)), A>);
 
