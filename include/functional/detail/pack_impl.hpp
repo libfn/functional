@@ -7,6 +7,7 @@
 #define INCLUDE_FUNCTIONAL_DETAIL_PACK_IMPL
 
 #include "functional.hpp"
+#include "fwd.hpp"
 #include "fwd_macro.hpp"
 #include "traits.hpp"
 
@@ -25,15 +26,16 @@ template <std::size_t... Is, typename... Ts> struct pack_impl<std::index_sequenc
   static constexpr std::size_t size = sizeof...(Is);
 
   template <typename Self, typename Fn, typename... Args>
+    requires(not(... || (_some_pack<Args> || _some_sum<Args>)))
   static constexpr auto _invoke(Self &&self, Fn &&fn, Args &&...args) noexcept
-      -> _invoke_result<decltype(fn), decltype(args)..., apply_const_lvalue_t<Self, Ts &&>...>::type
+      -> _invoke_result<decltype(fn), apply_const_lvalue_t<Self, Ts &&>..., decltype(args)...>::type
   {
-    return ::fn::detail::_invoke(FWD(fn), FWD(args)...,
-                                 static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)...);
+    return ::fn::detail::_invoke(
+        FWD(fn), static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., FWD(args)...);
   }
 
   template <typename T, typename Self>
-  static constexpr auto _append(Self &&self, auto &&...args) noexcept
+  static constexpr auto _append(Self &&self, auto &&...args) noexcept //
       -> pack_impl<std::index_sequence<Is..., size>, Ts..., T>
     requires std::is_constructible_v<T, decltype(args)...>
   {

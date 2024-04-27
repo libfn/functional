@@ -39,7 +39,7 @@ constexpr inline struct fail_t final {
 } fail = {};
 
 struct fail_t::apply final {
-  [[nodiscard]] static constexpr auto operator()(some_expected_non_void auto &&v, auto &&fn) noexcept //
+  [[nodiscard]] static constexpr auto operator()(auto &&fn, some_expected_non_void auto &&v) noexcept //
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_fail<decltype(fn), decltype(v)>
   {
@@ -50,7 +50,7 @@ struct fail_t::apply final {
     return type{std::unexpect, FWD(v).error()};
   }
 
-  [[nodiscard]] static constexpr auto operator()(some_expected_void auto &&v, auto &&fn) noexcept //
+  [[nodiscard]] static constexpr auto operator()(auto &&fn, some_expected_void auto &&v) noexcept //
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_fail<decltype(fn), decltype(v)>
   {
@@ -61,7 +61,7 @@ struct fail_t::apply final {
     return type{std::unexpect, FWD(v).error()};
   }
 
-  [[nodiscard]] static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept
+  [[nodiscard]] static constexpr auto operator()(auto &&fn, some_optional auto &&v) noexcept
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_fail<decltype(fn), decltype(v)>
   {
@@ -73,7 +73,7 @@ struct fail_t::apply final {
   }
 
   // No support for choice since there's no error to operate on
-  static auto operator()(some_choice auto &&v, auto &&...args) noexcept = delete;
+  static auto operator()(auto &&, some_choice auto &&) noexcept = delete;
 };
 
 } // namespace fn

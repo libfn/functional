@@ -17,7 +17,7 @@
 namespace fn {
 template <typename Functor, typename V, typename... Args>
 concept monadic_invocable //
-    = some_monadic_type<V> && invocable<typename Functor::apply, V, Args...>;
+    = some_monadic_type<V> && invocable<typename Functor::apply, Args..., V>;
 
 template <typename Functor, typename... Args> struct functor final {
   using functor_type = Functor;

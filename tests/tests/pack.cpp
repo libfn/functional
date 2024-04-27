@@ -3,6 +3,7 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
+#include "functional/detail/functional.hpp"
 #include "static_check.hpp"
 
 #include "functional/functional.hpp"
@@ -35,44 +36,43 @@ TEST_CASE("pack", "[pack]")
   T v{3, 14, val1, val2};
   CHECK(v.size == 4);
   static_assert(pack_check<T, decltype(([](auto &&...) {}))>);            // generic call
-  static_assert(pack_check<T, decltype(([](A, auto &&...) {}))>);         // also generic call
-  static_assert(pack_check<T, decltype(([](A, int, int, int, int) {}))>); // pass everything by value
-  static_assert(pack_check<T, decltype(([](A const &, int const &, int const &, int const &, int const &) {
+  static_assert(pack_check<T, decltype(([](int, int, int, int, A) {}))>); // pass everything by value
+  static_assert(pack_check<T, decltype(([](int const &, int const &, int const &, int const &, A const &) {
                            }))>); // pass everything by const reference
-  static_assert(pack_check<T, decltype(([](A, int, int, int &, int const &) {}))>); // bind lvalues
+  static_assert(pack_check<T, decltype(([](int, int, int &, int const &, A) {}))>); // bind lvalues
   static_assert(
-      pack_check<T, decltype(([](A &&, int &&, int const &&, int &, int const &) {}))>); // bind rvalues and lvalues
-  static_assert(pack_check<T, decltype(([](A const, int const, int const, int const &, int const &) {
+      pack_check<T, decltype(([](int &&, int const &&, int &, int const &, A &&) {}))>); // bind rvalues and lvalues
+  static_assert(pack_check<T, decltype(([](int const, int const, int const &, int const &, A const) {
                            }))>); // pass values or lvalues promoted to     const
 
-  static_assert(not pack_check<T, decltype(([](A &, auto &&...) {}))>);      // cannot bind rvalue to lvalue reference
-  static_assert(not pack_check<T, decltype(([](A, int &, auto &&...) {}))>); // cannot bind rvalue to lvalue reference
+  static_assert(not pack_check<T, decltype(([](int &, auto &&...) {}))>); // cannot bind rvalue to lvalue reference
   static_assert(
-      not pack_check<T, decltype(([](A, int, int, int &&, int) {}))>); // cannot bind lvalue to rvalue reference
+      not pack_check<T, decltype(([](int, int, int &&, int, A) {}))>); // cannot bind lvalue to rvalue reference
   static_assert(
-      not pack_check<T, decltype(([](A, int, int, int, int &&) {}))>); // cannot bind const lvalue to rvalue reference
-  static_assert(not pack_check<T, decltype(([](A, int, int, int, int const &&) {}))>); // cannot bind const lvalue to
+      not pack_check<T, decltype(([](int, int, int, int &&, A) {}))>); // cannot bind const lvalue to rvalue reference
+  static_assert(not pack_check<T, decltype(([](int, int, int, int const &&, A) {}))>); // cannot bind const lvalue to
                                                                                        // const rvalue      reference
-  static_assert(not pack_check<T, decltype(([](A &&, int, int &&, int, int) {}))>);    // cannot bind const rvalue to
+  static_assert(not pack_check<T, decltype(([](int, int &&, int, int, A &&) {}))>);    // cannot bind const rvalue to
                                                                                        // non-const rvalue  reference
-  static_assert(not pack_check<T, decltype(([](int, auto &&...) {}))>);                // bad type
+  static_assert(not pack_check<T, decltype(([](int, int, int, int, int) {}))>);        // bad type
   static_assert(not pack_check<T, decltype(([](auto, auto, auto, auto) {}))>);         // bad arity
   static_assert(not pack_check<T, decltype(([](auto, auto, auto, auto, auto, auto) {}))>); // bad arity
-  CHECK(v.invoke([](auto... args) noexcept -> int { return (0 + ... + args); }) == 3 + 14 + 15 + 92);
-  CHECK(fn::invoke([](auto... args) noexcept -> int { return (0 + ... + args); }, FWD(v)) == 3 + 14 + 15 + 92);
-  CHECK(v.invoke([](auto... args) noexcept -> int { return (0 + ... + args); }, 65, 35) == 3 + 14 + 15 + 92 + 65 + 35);
-  CHECK(fn::invoke([](auto... args) noexcept -> int { return (0 + ... + args); }, FWD(v), 65, 35)
-        == 3 + 14 + 15 + 92 + 65 + 35);
-  static_assert(fn::invoke([](auto... args) noexcept -> int { return (0 + ... + args); }, fn::pack{3, 14}, 15, 92)
-                == 3 + 14 + 15 + 92);
-  CHECK(v.invoke([](A, auto... args) noexcept -> int { return (0 + ... + args); }, A{}) == 3 + 14 + 15 + 92);
-  CHECK(fn::invoke([](A, auto... args) noexcept -> int { return (0 + ... + args); }, FWD(v), A{}) == 3 + 14 + 15 + 92);
-  static_assert(fn::invoke([](A, auto... args) noexcept -> int { return (0 + ... + args); }, fn::pack{3, 14}, A{})
-                == 3 + 14);
+
+  constexpr auto fn = [](auto... args) noexcept -> int { return (0 + ... + args); };
+  CHECK(v.invoke(fn) == 3 + 14 + 15 + 92);
+  CHECK(fn::invoke(fn, FWD(v)) == 3 + 14 + 15 + 92);
+  CHECK(v.invoke(fn, 65, 35) == 3 + 14 + 15 + 92 + 65 + 35);
+  CHECK(fn::invoke(fn, FWD(v), 65, 35) == 3 + 14 + 15 + 92 + 65 + 35);
+  static_assert(fn::invoke(fn, fn::pack{3, 14}, 15, 92) == 3 + 14 + 15 + 92);
+
+  constexpr auto fn0 = [](int i, int j, int k, int l, A) noexcept -> int { return (i + j + k + l); };
+  CHECK(v.invoke(fn0, A{}) == 3 + 14 + 15 + 92);
+  CHECK(fn::invoke(fn0, FWD(v), A{}) == 3 + 14 + 15 + 92);
+  static_assert(fn::invoke(fn0, fn::pack{3, 14, 15, 92}, A{}) == 3 + 14 + 15 + 92);
 
   A a;
-  constexpr auto fn1 = [](A &dest, auto... args) noexcept -> A & {
-    dest.v = (0 + ... + args);
+  constexpr auto fn1 = [](int i, int j, int k, int l, A &dest) noexcept -> A & {
+    dest.v = (i + j + k + l);
     return dest;
   };
   CHECK(v.invoke(fn1, a).v == 3 + 14 + 15 + 92);
@@ -84,21 +84,18 @@ TEST_CASE("pack", "[pack]")
   static_assert(
       fn::invoke_r<long>([](auto... args) noexcept -> int { return (0 + ... + args); }, fn::pack{3, 14}, 15, 92)
       == 3 + 14 + 15 + 92);
-  CHECK(v.invoke_r<long>([](A, auto... args) noexcept -> int { return (0 + ... + args); }, A{}) == 3 + 14 + 15 + 92);
-  CHECK(fn::invoke_r<long>([](A, auto... args) noexcept -> int { return (0 + ... + args); }, FWD(v), A{})
-        == 3 + 14 + 15 + 92);
-  static_assert(
-      fn::invoke_r<long>([](A, auto... args) noexcept -> int { return (0 + ... + args); }, fn::pack{3, 14}, A{})
-      == 3 + 14);
+  CHECK(v.invoke_r<long>(fn0, A{}) == 3 + 14 + 15 + 92);
+  CHECK(fn::invoke_r<long>(fn0, FWD(v), A{}) == 3 + 14 + 15 + 92);
+  static_assert(fn::invoke_r<long>(fn0, fn::pack{3, 14, 15, 92}, A{}) == 3 + 14 + 15 + 92);
 
   static_assert(std::is_same_v<decltype(v.invoke(fn1, a)), A &>);
   static_assert(std::is_same_v<decltype(v.invoke_r<A>(fn1, a)), A>);
 
-  constexpr auto fn2 = [](A &&dest, auto &&...) noexcept -> A && { return std::move(dest); };
+  constexpr auto fn2 = [](int, int, int, int, A &&dest) noexcept -> A && { return std::move(dest); };
   static_assert(std::is_same_v<decltype(v.invoke(fn2, std::move(a))), A &&>);
   static_assert(std::is_same_v<decltype(v.invoke_r<A>(fn2, std::move(a))), A>);
 
-  constexpr auto fn3 = [](A &&dest, auto &&...) noexcept -> A { return dest; };
+  constexpr auto fn3 = [](int, int, int, int, A &&dest) noexcept -> A { return dest; };
   static_assert(std::is_same_v<decltype(v.invoke(fn3, std::move(a))), A>);
   static_assert(std::is_same_v<decltype(v.invoke_r<A>(fn3, std::move(a))), A>);
 
