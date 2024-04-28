@@ -321,17 +321,11 @@ template <class T> optional(T) -> optional<T>;
 // Lifts for sum transformation functions
 [[nodiscard]] constexpr auto sum_value(some_optional auto &&src) -> decltype(auto) { return FWD(src).sum_value(); }
 
-template <some_optional Lh, some_optional Rh>
-  requires(not some_pack<typename std::remove_cvref_t<Rh>::value_type>)
-[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
+template <some_optional Lh, some_optional Rh> [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
 {
   static constexpr auto efn = [](auto const &) { return std::nullopt; };
   return ::fn::detail::_join<fn::optional>(FWD(lh), FWD(rh), efn);
 }
-
-template <some_optional Lh, some_optional Rh>
-  requires some_pack<typename std::remove_cvref_t<Rh>::value_type>
-constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept = delete;
 
 } // namespace fn
 

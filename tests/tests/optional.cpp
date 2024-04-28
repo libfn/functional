@@ -262,6 +262,27 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                    .has_value());
     }
 
+    WHEN("value & pack yield pack")
+    {
+      static_assert(std::same_as<decltype(std::declval<fn::optional<int>>()
+                                          & std::declval<fn::optional<fn::pack<double, bool>>>()),
+                                 fn::optional<fn::pack<int, double, bool>>>);
+
+      CHECK((fn::optional<double>{0.5} //
+             & fn::optional<fn::pack<bool, int>>{std::in_place, fn::pack{true, 12}})
+                .transform([](double d, bool b, int i) constexpr -> bool { return d == 0.5 && b && i == 12; })
+                .value());
+      CHECK(not(fn::optional<double>{std::nullopt} //
+                & fn::optional<fn::pack<bool, int>>{std::in_place, fn::pack{true, 12}})
+                   .has_value());
+      CHECK(not(fn::optional<double>{0.5} //
+                & fn::optional<fn::pack<bool, int>>{std::nullopt})
+                   .has_value());
+      CHECK(not(fn::optional<double>{std::nullopt} //
+                & fn::optional<fn::pack<bool, int>>{std::nullopt})
+                   .has_value());
+    }
+
     WHEN("pack & value yield pack")
     {
       static_assert(std::same_as<decltype(std::declval<fn::optional<fn::pack<double, bool>>>()
@@ -283,20 +304,26 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                    .has_value());
     }
 
-    WHEN("value & pack is unsupported")
+    WHEN("pack & pack yield pack")
     {
-      static_assert([](auto &&lh,                                                          //
-                       auto &&rh) constexpr -> bool { return not requires { lh & rh; }; }( //
-                                                fn::optional<int>{12}, fn::optional<fn::pack<double, bool>>{
-                                                                           fn::pack<double, bool>{0.5, true}}));
-    }
-    WHEN("pack & pack is unsupported")
-    {
-      static_assert(
-          [](auto &&lh,
-             auto &&rh) constexpr -> bool { return not requires { lh & rh; }; }( //
-                                      fn::optional<fn::pack<double, bool>>{fn::pack<double, bool>{0.5, true}},
-                                      fn::optional<fn::pack<double, bool>>{fn::pack<double, bool>{0.5, true}}));
+      static_assert(std::same_as<decltype(std::declval<fn::optional<fn::pack<double, bool>>>()
+                                          & std::declval<fn::optional<fn::pack<bool, int>>>()),
+                                 fn::optional<fn::pack<double, bool, bool, int>>>);
+
+      CHECK((fn::optional<fn::pack<double, bool>>{std::in_place, fn::pack<double, bool>{0.5, true}} //
+             & fn::optional<fn::pack<bool, int>>{std::in_place, fn::pack{true, 12}})
+                .transform(
+                    [](double d, bool b1, bool b2, int i) constexpr -> bool { return d == 0.5 && b1 && b2 && i == 12; })
+                .value());
+      CHECK(not(fn::optional<fn::pack<double, bool>>{std::nullopt} //
+                & fn::optional<fn::pack<bool, int>>{std::in_place, fn::pack{true, 12}})
+                   .has_value());
+      CHECK(not(fn::optional<fn::pack<double, bool>>{std::in_place, fn::pack<double, bool>{0.5, true}} //
+                & fn::optional<fn::pack<bool, int>>{std::nullopt})
+                   .has_value());
+      CHECK(not(fn::optional<fn::pack<double, bool>>{std::nullopt} //
+                & fn::optional<fn::pack<bool, int>>{std::nullopt})
+                   .has_value());
     }
 
     WHEN("sum on both sides")
