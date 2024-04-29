@@ -88,10 +88,10 @@ template <typename Fn, typename Self, typename T> struct _typelist_type_select_i
 template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts>
 struct _typelist_type_select_invoke_result<Fn, Self, Tpl<Ts...>> {
   using T0 = select_nth_t<0, Ts...>;
-  using R0 = ::fn::detail::_invoke_result<Fn, std::in_place_type_t<T0>, apply_const_lvalue_t<Self, T0>>::type;
-  static_assert((...
-                 && std::is_same_v<R0, typename ::fn::detail::_invoke_result<Fn, std::in_place_type_t<Ts>,
-                                                                             apply_const_lvalue_t<Self, Ts>>::type>));
+  using R0 = ::fn::detail::_invoke_type_result<T0, Fn, apply_const_lvalue_t<Self, T0>>::type;
+  static_assert((
+      ...
+      && std::is_same_v<R0, typename ::fn::detail::_invoke_type_result<Ts, Fn, apply_const_lvalue_t<Self, Ts>>::type>));
   using type = R0;
 };
 
@@ -99,8 +99,8 @@ template <typename Fn, typename Self, typename T> struct _typelist_type_collapsi
 template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts>
 struct _typelist_type_collapsing_sum<Fn, Self, Tpl<Ts...>> {
   using type = _collapsing_sum::normalized<
-      Tpl, _collapsing_sum::flattened<std::remove_cvref_t<typename ::fn::detail::_invoke_result<
-               Fn, std::in_place_type_t<Ts>, apply_const_lvalue_t<Self, Ts>>::type>...>>::type;
+      Tpl, _collapsing_sum::flattened<std::remove_cvref_t<
+               typename ::fn::detail::_invoke_type_result<Ts, Fn, apply_const_lvalue_t<Self, Ts>>::type>...>>::type;
 };
 
 template <typename T, typename Fn, typename Self> struct _sum_invoke_type_result final {

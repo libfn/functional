@@ -155,63 +155,15 @@ template <typename T, typename... Args>
 }
 
 namespace detail {
-namespace _join_fold {
-
-template <typename L, typename R> [[nodiscard]] constexpr auto _fold(auto &&l, auto &&r)
-{
-  if constexpr (some_pack<L>) {
-    return FWD(l).append(std::in_place_type_t<R>{}, FWD(r));
-  } else {
-    if constexpr (some_pack<R>) {
-      return ::fn::pack<L>{FWD(l)}.append(std::in_place_type_t<R>{}, FWD(r));
-    } else {
-      return ::fn::pack<L, R>{FWD(l), FWD(r)};
-    }
-  }
-}
-
-template <typename Lh, typename Rh>
-  requires some_sum<Lh> && some_sum<Rh>
-[[nodiscard]] constexpr auto fold(auto &&lv, auto &&rv)
-{
-  return FWD(lv)._transform([&rv]<typename L>(std::in_place_type_t<L>, auto &&l) {
-    return FWD(rv)._transform(
-        [&l]<typename R>(std::in_place_type_t<R>, auto &&r) { return _fold<L, R>(FWD(l), FWD(r)); });
-  });
-}
-
-template <typename Lh, typename Rh>
-  requires some_sum<Lh> && (not some_sum<Rh>)
-[[nodiscard]] constexpr auto fold(auto &&lv, auto &&rv)
-{
-  return FWD(lv)._transform(
-      [&rv]<typename L>(std::in_place_type_t<L>, auto &&l) { return _fold<L, Rh>(FWD(l), FWD(rv)); });
-}
-
-template <typename Lh, typename Rh>
-  requires(not some_sum<Lh>) && some_sum<Rh>
-[[nodiscard]] constexpr auto fold(auto &&lv, auto &&rv)
-{
-  return FWD(rv)._transform(
-      [&lv]<typename R>(std::in_place_type_t<R>, auto &&r) { return _fold<Lh, R>(FWD(lv), FWD(r)); });
-}
-
-template <typename Lh, typename Rh>
-  requires(not some_sum<Lh>) && (not some_sum<Rh>)
-[[nodiscard]] constexpr auto fold(auto &&lv, auto &&rv)
-{
-  return _fold<Lh, Rh>(FWD(lv), FWD(rv));
-}
-} // namespace _join_fold
 
 template <template <typename> typename Tpl> [[nodiscard]] constexpr auto _join(auto &&lh, auto &&rh, auto &&efn)
 {
   using Lh = std::remove_cvref_t<decltype(lh)>::value_type;
   using Rh = std::remove_cvref_t<decltype(rh)>::value_type;
-  using value_type = decltype(::fn::detail::_join_fold::fold<Lh, Rh>(FWD(lh).value(), FWD(rh).value()));
+  using value_type = decltype(::fn::detail::_fold_detail::fold<Lh, Rh>(FWD(lh).value(), FWD(rh).value()));
   using type = Tpl<value_type>;
   if (lh.has_value() && rh.has_value())
-    return type{std::in_place, ::fn::detail::_join_fold::fold<Lh, Rh>(FWD(lh).value(), FWD(rh).value())};
+    return type{std::in_place, ::fn::detail::_fold_detail::fold<Lh, Rh>(FWD(lh).value(), FWD(rh).value())};
   else if (not lh.has_value())
     return type{efn(FWD(lh))};
   else
@@ -226,7 +178,7 @@ template <template <typename> typename Tpl> [[nodiscard]] constexpr auto _join(a
 {
   using Lh = std::remove_cvref_t<decltype(lh)>;
   using Rh = std::remove_cvref_t<decltype(rh)>;
-  return ::fn::detail::_join_fold::fold<Lh, Rh>(FWD(lh), FWD(rh));
+  return ::fn::detail::_fold_detail::fold<Lh, Rh>(FWD(lh), FWD(rh));
 }
 
 } // namespace fn

@@ -6,10 +6,10 @@
 #ifndef INCLUDE_FUNCTIONAL_DETAIL_PACK_IMPL
 #define INCLUDE_FUNCTIONAL_DETAIL_PACK_IMPL
 
-#include "functional.hpp"
-#include "fwd.hpp"
-#include "fwd_macro.hpp"
-#include "traits.hpp"
+#include "functional/detail/functional.hpp"
+#include "functional/detail/fwd.hpp"
+#include "functional/detail/fwd_macro.hpp"
+#include "functional/detail/traits.hpp"
 
 #include <type_traits>
 #include <utility>
@@ -52,6 +52,7 @@ template <std::size_t... Is, typename... Ts> struct pack_impl<std::index_sequenc
     requires(not(... || (_some_pack<Args> || _some_sum<Args>)))
   static constexpr auto _invoke(Self &&self, Fn &&fn, Args &&...args) noexcept
       -> _invoke_result<decltype(fn), apply_const_lvalue_t<Self, Ts &&>..., decltype(args)...>::type
+    requires(_is_invocable<decltype(fn), apply_const_lvalue_t<Self, Ts &&>..., decltype(args)...>::value)
   {
     return ::fn::detail::_invoke(
         FWD(fn), static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., FWD(args)...);
