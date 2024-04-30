@@ -145,6 +145,15 @@ template <typename... Ts> struct pack : detail::pack_impl<std::index_sequence_fo
 
 template <typename... Args> pack(Args &&...args) -> pack<Args...>;
 
+// Lifts
+[[nodiscard]] constexpr auto as_pack() -> pack<> { return {}; }
+template <typename T, typename... Args>
+  requires(not some_in_place_type<T>)
+[[nodiscard]] constexpr auto as_pack(T &&src, Args &&...args) -> decltype(auto)
+{
+  return pack<T, Args...>{FWD(src), FWD(args)...};
+}
+
 namespace detail {
 namespace _join_fold {
 template <typename Lh, typename Rh>

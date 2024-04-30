@@ -380,6 +380,16 @@ struct sum<Ts...> {
 template <typename T> explicit sum(std::in_place_type_t<T>, auto &&...) -> sum<T>;
 template <typename T> explicit sum(T) -> sum<std::remove_cvref_t<T>>;
 
+// Lifts
+[[nodiscard]] constexpr auto as_sum(auto &&src) -> decltype(auto)
+{
+  return sum<std::remove_cvref_t<decltype(src)>>(FWD(src));
+}
+template <typename T> [[nodiscard]] constexpr auto as_sum(std::in_place_type_t<T>, auto &&...args) -> decltype(auto)
+{
+  return sum<T>(std::in_place_type<T>, FWD(args)...);
+}
+
 template <typename... Ts, typename... Tx>
 [[nodiscard]] constexpr bool operator==(sum<Ts...> const &lh, sum<Tx...> const &rh) noexcept
   requires(... && (std::equality_comparable<Ts> || not detail::type_one_of<Ts, Tx...>)) //
