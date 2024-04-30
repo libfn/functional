@@ -33,6 +33,7 @@ set(INCLUDE_SOURCE_FILES
     functional/transform_error.hpp
     functional/transform.hpp
     functional/utility.hpp
+    functional/value_or.hpp
 )
 
 add_library(${PROJECT_NAME} INTERFACE ${INCLUDE_SOURCE_FILES})
