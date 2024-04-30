@@ -6,6 +6,7 @@
 #ifndef INCLUDE_FUNCTIONAL_UTILITY
 #define INCLUDE_FUNCTIONAL_UTILITY
 
+#include "functional/detail/fwd_macro.hpp"
 #include "functional/detail/traits.hpp"
 
 namespace fn {
@@ -22,6 +23,22 @@ template <typename... Ts> struct overload final : Ts... {
   using Ts::operator()...;
 };
 template <typename... Ts> overload(Ts const &...) -> overload<Ts...>;
+
+// Preferred make lift function using {}
+template <typename T, typename... Args>
+[[nodiscard]] constexpr auto make(Args &&...args) -> T
+  requires requires(Args &&...args) { T{FWD(args)...}; }
+{
+  return T{FWD(args)...};
+}
+
+// Fallback to () construction if {} is not available
+template <typename T, typename... Args>
+[[nodiscard]] constexpr auto make(Args &&...args) -> T
+  requires requires(Args &&...args) { T(FWD(args)...); } && (not requires(Args &&...args) { T{FWD(args)...}; })
+{
+  return T(FWD(args)...);
+}
 
 } // namespace fn
 

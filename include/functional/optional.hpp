@@ -318,6 +318,9 @@ template <typename T> struct optional final : std::optional<T> {
 
 template <class T> optional(T) -> optional<T>;
 
+// Lifts for sum transformation functions
+[[nodiscard]] constexpr auto sum_value(some_optional auto &&src) -> decltype(auto) { return FWD(src).sum_value(); }
+
 template <some_optional Lh, some_optional Rh>
   requires(not some_pack<typename std::remove_cvref_t<Rh>::value_type>)
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept

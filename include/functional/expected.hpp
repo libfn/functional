@@ -834,6 +834,10 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
   }
 };
 
+// Lifts for sum transformation functions
+[[nodiscard]] constexpr auto sum_value(some_expected auto &&src) -> decltype(auto) { return FWD(src).sum_value(); }
+[[nodiscard]] constexpr auto sum_error(some_expected auto &&src) -> decltype(auto) { return FWD(src).sum_error(); }
+
 // When any of the sides is expected<void, ...>, we do not produce expected<pack<...>, ...>
 // Instead just elide void and carry non-void (or elide both voids if that's what we get)
 template <typename Lh, typename Rh>
