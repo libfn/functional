@@ -181,6 +181,28 @@ template <template <typename> typename Tpl> [[nodiscard]] constexpr auto _join(a
   return ::fn::detail::_fold_detail::fold<Lh, Rh>(FWD(lh), FWD(rh));
 }
 
+// Identity, which is basically lift for operator & above
+constexpr inline struct identity_t {
+  template <typename Arg> [[nodiscard]] constexpr static auto operator()(Arg &&arg) -> decltype(arg)
+  {
+    return FWD(arg);
+  }
+
+  template <typename Arg, typename... Args>
+    requires(not some_sum<Arg>) && (not some_pack<Arg>)
+  [[nodiscard]] constexpr static auto operator()(Arg &&arg, Args &&...args)
+  {
+    return (::fn::pack{FWD(arg)} & ... & FWD(args));
+  }
+
+  template <typename Arg, typename... Args>
+    requires some_sum<Arg> || some_pack<Arg>
+  [[nodiscard]] constexpr static auto operator()(Arg &&arg, Args &&...args)
+  {
+    return (FWD(arg) & ... & FWD(args));
+  }
+} identity;
+
 } // namespace fn
 
 #endif // INCLUDE_FUNCTIONAL_PACK
