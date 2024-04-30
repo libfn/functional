@@ -20,7 +20,7 @@ template <typename... Ts> struct pack : detail::pack_impl<std::index_sequence_fo
   using _impl = detail::pack_impl<std::index_sequence_for<Ts...>, Ts...>;
   static_assert((... && (not some_sum<Ts>)));
 
-  template <typename Arg> using append_type = pack<Ts..., Arg>;
+  template <typename T> using append_type = _impl::template append_type<T>;
 
   template <typename T>
   [[nodiscard]] constexpr auto append(std::in_place_type_t<T>, auto &&...args) & noexcept -> append_type<T>
@@ -155,78 +155,15 @@ template <typename T, typename... Args>
 }
 
 namespace detail {
-namespace _join_fold {
-template <typename Lh, typename Rh>
-  requires some_sum<Lh> && some_sum<Rh>
-[[nodiscard]] constexpr auto fold(auto &&lv, auto &&rv)
-{
-  return FWD(lv)._transform([&rv]<typename L>(std::in_place_type_t<L>, auto &&l) {
-    return FWD(rv)._transform([&l]<typename R>(std::in_place_type_t<R>, auto &&r) {
-      static_assert(not some_pack<R>, "Not implemented");
-      if constexpr (some_pack<L>) {
-        using value_type = typename L::template append_type<R>;
-        return value_type(FWD(l).append(std::in_place_type_t<R>{}, FWD(r)));
-      } else {
-        using value_type = ::fn::pack<L, R>;
-        return value_type{FWD(l), FWD(r)};
-      }
-    });
-  });
-}
-
-template <typename Lh, typename Rh>
-  requires some_sum<Lh> && (not some_sum<Rh>)
-[[nodiscard]] constexpr auto fold(auto &&lv, auto &&rv)
-{
-  return FWD(lv)._transform([&rv]<typename L>(std::in_place_type_t<L>, auto &&l) {
-    if constexpr (some_pack<L>) {
-      using value_type = typename L::template append_type<Rh>;
-      return value_type(FWD(l).append(std::in_place_type_t<Rh>{}, FWD(rv)));
-    } else {
-      using value_type = ::fn::pack<L, Rh>;
-      return value_type{FWD(l), FWD(rv)};
-    }
-  });
-}
-
-template <typename Lh, typename Rh>
-  requires(not some_sum<Lh>) && some_sum<Rh>
-[[nodiscard]] constexpr auto fold(auto &&lv, auto &&rv)
-{
-  return FWD(rv)._transform([&lv]<typename R>(std::in_place_type_t<R>, auto &&r) {
-    static_assert(not some_pack<R>, "Not implemented");
-    if constexpr (some_pack<Lh>) {
-      using value_type = typename Lh::template append_type<R>;
-      return value_type(FWD(lv).append(std::in_place_type_t<R>{}, FWD(r)));
-    } else {
-      using value_type = ::fn::pack<Lh, R>;
-      return value_type{FWD(lv), FWD(r)};
-    }
-  });
-}
-
-template <typename Lh, typename Rh>
-  requires(not some_sum<Lh>) && (not some_sum<Rh>)
-[[nodiscard]] constexpr auto fold(auto &&lv, auto &&rv)
-{
-  if constexpr (some_pack<Lh>) {
-    using value_type = typename Lh::template append_type<Rh>;
-    return value_type(FWD(lv).append(std::in_place_type_t<Rh>{}, FWD(rv)));
-  } else {
-    using value_type = ::fn::pack<Lh, Rh>;
-    return value_type{FWD(lv), FWD(rv)};
-  }
-}
-} // namespace _join_fold
 
 template <template <typename> typename Tpl> [[nodiscard]] constexpr auto _join(auto &&lh, auto &&rh, auto &&efn)
 {
   using Lh = std::remove_cvref_t<decltype(lh)>::value_type;
   using Rh = std::remove_cvref_t<decltype(rh)>::value_type;
-  using value_type = decltype(::fn::detail::_join_fold::fold<Lh, Rh>(FWD(lh).value(), FWD(rh).value()));
+  using value_type = decltype(::fn::detail::_fold_detail::fold<Lh, Rh>(FWD(lh).value(), FWD(rh).value()));
   using type = Tpl<value_type>;
   if (lh.has_value() && rh.has_value())
-    return type{std::in_place, ::fn::detail::_join_fold::fold<Lh, Rh>(FWD(lh).value(), FWD(rh).value())};
+    return type{std::in_place, ::fn::detail::_fold_detail::fold<Lh, Rh>(FWD(lh).value(), FWD(rh).value())};
   else if (not lh.has_value())
     return type{efn(FWD(lh))};
   else
@@ -234,6 +171,15 @@ template <template <typename> typename Tpl> [[nodiscard]] constexpr auto _join(a
 }
 
 } // namespace detail
+
+// Data concantenation operator - creates a pack or a sum of packs
+[[nodiscard]] constexpr auto operator&(auto &&lh, auto &&rh)
+  requires(some_sum<decltype(lh)> || some_pack<decltype(lh)>)
+{
+  using Lh = std::remove_cvref_t<decltype(lh)>;
+  using Rh = std::remove_cvref_t<decltype(rh)>;
+  return ::fn::detail::_fold_detail::fold<Lh, Rh>(FWD(lh), FWD(rh));
+}
 
 } // namespace fn
 

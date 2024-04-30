@@ -1005,10 +1005,6 @@ template <typename Lh, typename Rh>
   return ::fn::detail::_join<detail::template _expected_type<new_error_type>::template type>(FWD(lh), FWD(rh), efn);
 }
 
-template <some_expected_non_void Lh, some_expected_non_void Rh>
-  requires some_pack<typename std::remove_cvref_t<Rh>::value_type>
-constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept = delete;
-
 } // namespace fn
 
 #endif // INCLUDE_FUNCTIONAL_EXPECTED

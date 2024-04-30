@@ -59,10 +59,10 @@ concept invocable = is_invocable_v<Fn, Args...>;
 template <typename Fn, typename... Args>
 concept regular_invocable = invocable<Fn, Args...>;
 
-template <typename Fn, typename T>
-concept typelist_invocable = detail::_typelist_invocable<Fn, T>;
-template <typename Ret, typename Fn, typename T>
-concept typelist_invocable_r = detail::_typelist_invocable_r<Ret, Fn, T>;
+template <typename Fn, typename T, typename... Args>
+concept typelist_invocable = detail::_typelist_invocable<Fn, T, Args...>;
+template <typename Ret, typename Fn, typename T, typename... Args>
+concept typelist_invocable_r = detail::_typelist_invocable_r<Ret, Fn, T, Args...>;
 
 } // namespace fn
 

@@ -306,6 +306,7 @@ TEST_CASE("sum basic functionality tests", "[sum]")
   WHEN("invoke")
   {
     sum<int> a{std::in_place_type<int>, 42};
+
     WHEN("value only")
     {
       static_assert(std::is_same_v<bool, decltype(a.invoke(fn::overload([](auto) -> bool { throw 1; },
@@ -338,11 +339,68 @@ TEST_CASE("sum basic functionality tests", "[sum]")
             [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::true_type { return {}; })));
       }
     }
+
+    WHEN("extra arguments")
+    {
+      static_assert(std::is_same_v<bool, decltype(a.invoke([](int, int) -> bool { return true; }, 12))>);
+
+      CHECK(a.invoke(fn::overload(                                             //
+                         [](auto const &...) -> bool { throw 1; },             //
+                         [](int &, std::monostate) -> bool { return true; },   //
+                         [](int const &, std::monostate) -> bool { throw 0; }, //
+                         [](int &&, std::monostate) -> bool { throw 0; },      //
+                         [](int const &&, std::monostate) -> bool { throw 0; }),
+                     std::monostate{}));
+      CHECK(std::as_const(a).invoke(fn::overload(                                                 //
+                                        [](auto const &...) -> bool { throw 1; },                 //
+                                        [](int &, std::monostate) -> bool { throw 0; },           //
+                                        [](int const &, std::monostate) -> bool { return true; }, //
+                                        [](int &&, std::monostate) -> bool { throw 0; },          //
+                                        [](int const &&, std::monostate) -> bool { throw 0; }),
+                                    std::monostate{}));
+      CHECK(std::move(std::as_const(a))
+                .invoke(fn::overload(                                             //
+                            [](auto const &...) -> bool { throw 1; },             //
+                            [](int &, std::monostate) -> bool { throw 0; },       //
+                            [](int const &, std::monostate) -> bool { throw 0; }, //
+                            [](int &&, std::monostate) -> bool { throw 0; },      //
+                            [](int const &&, std::monostate) -> bool { return true; }),
+                        std::monostate{}));
+      CHECK(std::move(a).invoke(fn::overload(                                             //
+                                    [](auto const &...) -> bool { throw 1; },             //
+                                    [](int &, std::monostate) -> bool { throw 0; },       //
+                                    [](int const &, std::monostate) -> bool { throw 0; }, //
+                                    [](int &&, std::monostate) -> bool { return true; },  //
+                                    [](int const &&, std::monostate) -> bool { throw 0; }),
+                                std::monostate{}));
+
+      WHEN("constexpr")
+      {
+        constexpr sum<int> a{std::in_place_type<int>, 42};
+        static_assert(a.invoke(fn::overload([](auto...) -> bool { return false; }, //
+                                            [](int &, std::monostate) -> bool { return false; },
+                                            [](int const &, std::monostate) -> bool { return true; },
+                                            [](int &&, std::monostate) -> bool { return false; },
+                                            [](int const &&, std::monostate) -> bool { return false; }),
+                               std::monostate{}));
+        static_assert(std::move(a).invoke(fn::overload([](auto...) -> bool { return false; }, //
+                                                       [](int &, std::monostate) -> bool { return false; },
+                                                       [](int const &, std::monostate) -> bool { return false; },
+                                                       [](int &&, std::monostate) -> bool { return false; },
+                                                       [](int const &&, std::monostate) -> bool { return true; }),
+                                          std::monostate{}));
+        static_assert(fn::invoke([](int i, std::monostate) -> bool { return i == 42; }, a, std::monostate{}));
+
+        constexpr auto fn = [](auto &&...a) { return (0 + ... + static_cast<int>(a)); };
+        static_assert(sum<bool, int>{2}.invoke(fn, 3) == 5);
+      }
+    }
   }
 
   WHEN("invoke_r")
   {
     sum<int> a{std::in_place_type<int>, 42};
+
     WHEN("value only")
     {
       static_assert(std::is_same_v<bool, decltype(a.template invoke_r<bool>(fn::overload(
@@ -376,6 +434,68 @@ TEST_CASE("sum basic functionality tests", "[sum]")
             [](auto) -> std::false_type { return {}; }, //
             [](int &) -> std::false_type { return {}; }, [](int const &) -> std::false_type { return {}; },
             [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::true_type { return {}; })));
+        static_assert(
+            fn::invoke_r<bool>([](int, std::monostate) -> std::true_type { return {}; }, a, std::monostate{}));
+      }
+    }
+
+    WHEN("extra arguments")
+    {
+      static_assert(std::is_same_v<bool, decltype(a.template invoke_r<bool>(fn::overload(
+                                             [](auto) -> bool { throw 1; }, [](int) -> bool { return true; })))>);
+      static_assert(
+          std::is_same_v<int, decltype(a.template invoke_r<int>(fn::overload([](auto) -> bool { throw 1; }, //
+                                                                             [](int) -> int { return true; })))>);
+      CHECK(a.template invoke_r<bool>(fn::overload(                                             //
+                                          [](auto const &...) -> bool { throw 1; },             //
+                                          [](int &, std::monostate) -> bool { return true; },   //
+                                          [](int const &, std::monostate) -> bool { throw 0; }, //
+                                          [](int &&, std::monostate) -> bool { throw 0; },      //
+                                          [](int const &&, std::monostate) -> bool { throw 0; }),
+                                      std::monostate{}));
+      CHECK(std::as_const(a).template invoke_r<bool>(fn::overload(                                                 //
+                                                         [](auto const &...) -> bool { throw 1; },                 //
+                                                         [](int &, std::monostate) -> bool { throw 0; },           //
+                                                         [](int const &, std::monostate) -> bool { return true; }, //
+                                                         [](int &&, std::monostate) -> bool { throw 0; },          //
+                                                         [](int const &&, std::monostate) -> bool { throw 0; }),
+                                                     std::monostate{}));
+      CHECK(std::move(std::as_const(a))
+                .template invoke_r<bool>(fn::overload(                                             //
+                                             [](auto const &...) -> bool { throw 1; },             //
+                                             [](int &, std::monostate) -> bool { throw 0; },       //
+                                             [](int const &, std::monostate) -> bool { throw 0; }, //
+                                             [](int &&, std::monostate) -> bool { throw 0; },      //
+                                             [](int const &&, std::monostate) -> bool { return true; }),
+                                         std::monostate{}));
+      CHECK(std::move(a).template invoke_r<bool>(fn::overload(                                             //
+                                                     [](auto const &...) -> bool { throw 1; },             //
+                                                     [](int &, std::monostate) -> bool { throw 0; },       //
+                                                     [](int const &, std::monostate) -> bool { throw 0; }, //
+                                                     [](int &&, std::monostate) -> bool { return true; },  //
+                                                     [](int const &&, std::monostate) -> bool { throw 0; }),
+                                                 std::monostate{}));
+
+      WHEN("constexpr")
+      {
+        constexpr sum<int> a{std::in_place_type<int>, 42};
+        static_assert(
+            a.template invoke_r<bool>(fn::overload([](auto...) -> std::false_type { return {}; }, //
+                                                   [](int &, std::monostate) -> std::false_type { return {}; },
+                                                   [](int const &, std::monostate) -> std::true_type { return {}; },
+                                                   [](int &&, std::monostate) -> std::false_type { return {}; },
+                                                   [](int const &&, std::monostate) -> std::false_type { return {}; }),
+                                      std::monostate{}));
+        static_assert(std::move(a).template invoke_r<bool>(
+            fn::overload([](auto...) -> std::false_type { return {}; }, //
+                         [](int &, std::monostate) -> std::false_type { return {}; },
+                         [](int const &, std::monostate) -> std::false_type { return {}; },
+                         [](int &&, std::monostate) -> std::false_type { return {}; },
+                         [](int const &&, std::monostate) -> std::true_type { return {}; }),
+            std::monostate{}));
+
+        constexpr auto fn = [](auto &&...a) { return (0 + ... + static_cast<int>(a)); };
+        static_assert(sum<bool, int>{2}.template invoke_r<long>(fn, 3) == 5l);
       }
     }
   }
@@ -493,10 +613,10 @@ TEST_CASE("sum transform", "[sum][transform]")
   using ::fn::sum;
   constexpr auto fn1 = [](auto i) noexcept -> std::size_t { return sizeof(i); };
 
-  WHEN("size 4")
+  WHEN("size 5")
   {
-    using type = sum<double, int, std::string, std::string_view>;
-    static_assert(type::size == 4);
+    using type = sum<double, int, std::string, std::string_view, std::vector<int>>;
+    static_assert(type::size == 5);
 
     WHEN("element v0 set")
     {
@@ -636,6 +756,88 @@ TEST_CASE("sum transform", "[sum][transform]")
                     [](std::string_view &&i) -> sum<bool, int> { return {i == "baz"}; },
                     [](std::string_view const &&) -> sum<bool, int> { throw 0; }))
             == sum<bool, int, std::string_view>{true});
+    }
+
+    WHEN("more elements set")
+    {
+      std::vector<int> const foo = {3, 14, 15};
+      type a{std::in_place_type<std::vector<int>>, foo};
+      CHECK(a.data.more.v0 == foo);
+
+      CHECK(a.transform(      //
+                fn::overload( //
+                    [](auto) -> sum<int, std::vector<int>> { throw 1; },
+                    [&](std::vector<int> &i) -> sum<bool, int> { return {i == foo}; },
+                    [](std::vector<int> const &) -> sum<bool, int> { throw 0; },
+                    [](std::vector<int> &&) -> sum<bool, int> { throw 0; },
+                    [](std::vector<int> const &&) -> sum<bool, int> { throw 0; }))
+            == sum<bool, int, std::vector<int>>{true});
+      CHECK(std::as_const(a).transform( //
+                fn::overload(           //
+                    [](auto) -> sum<int, std::vector<int>> { throw 1; },
+                    [](std::vector<int> &) -> sum<bool, int> { throw 0; },
+                    [&](std::vector<int> const &i) -> sum<bool, int> { return {i == foo}; },
+                    [](std::vector<int> &&) -> sum<bool, int> { throw 0; },
+                    [](std::vector<int> const &&) -> sum<bool, int> { throw 0; }))
+            == sum<bool, int, std::vector<int>>{true});
+      CHECK(std::move(std::as_const(a))
+                .transform(       //
+                    fn::overload( //
+                        [](auto) -> sum<int, std::vector<int>> { throw 1; },
+                        [](std::vector<int> &) -> sum<bool, int> { throw 0; },
+                        [](std::vector<int> const &) -> sum<bool, int> { throw 0; },
+                        [](std::vector<int> &&) -> sum<bool, int> { throw 0; },
+                        [&](std::vector<int> const &&i) -> sum<bool, int> { return {i == foo}; }))
+            == sum<bool, int, std::vector<int>>{true});
+      CHECK(std::move(a).transform( //
+                fn::overload(       //
+                    [](auto) -> sum<int, std::vector<int>> { throw 1; },
+                    [](std::vector<int> &) -> sum<bool, int> { throw 0; },
+                    [](std::vector<int> const &) -> sum<bool, int> { throw 0; },
+                    [&](std::vector<int> &&i) -> sum<bool, int> { return {i == foo}; },
+                    [](std::vector<int> const &&) -> sum<bool, int> { throw 0; }))
+            == sum<bool, int, std::vector<int>>{true});
+
+      WHEN("extra argument set")
+      {
+        CHECK(a.transform(      //
+                  fn::overload( //
+                      [](auto...) -> sum<int, std::vector<int>> { throw 1; },
+                      [&](std::vector<int> &i, int j) -> sum<bool, int> { return {i == foo && j == 12}; },
+                      [](std::vector<int> const &, int) -> sum<bool, int> { throw 0; },
+                      [](std::vector<int> &&, int) -> sum<bool, int> { throw 0; },
+                      [](std::vector<int> const &&, int) -> sum<bool, int> { throw 0; }),
+                  12)
+              == sum<bool, int, std::vector<int>>{true});
+        CHECK(std::as_const(a).transform( //
+                  fn::overload(           //
+                      [](auto...) -> sum<int, std::vector<int>> { throw 1; },
+                      [](std::vector<int> &, int) -> sum<bool, int> { throw 0; },
+                      [&](std::vector<int> const &i, int j) -> sum<bool, int> { return {i == foo && j == 12}; },
+                      [](std::vector<int> &&, int) -> sum<bool, int> { throw 0; },
+                      [](std::vector<int> const &&, int) -> sum<bool, int> { throw 0; }),
+                  12)
+              == sum<bool, int, std::vector<int>>{true});
+        CHECK(std::move(std::as_const(a))
+                  .transform(       //
+                      fn::overload( //
+                          [](auto...) -> sum<int, std::vector<int>> { throw 1; },
+                          [](std::vector<int> &, int) -> sum<bool, int> { throw 0; },
+                          [](std::vector<int> const &, int) -> sum<bool, int> { throw 0; },
+                          [](std::vector<int> &&, int) -> sum<bool, int> { throw 0; },
+                          [&](std::vector<int> const &&i, int j) -> sum<bool, int> { return {i == foo && j == 12}; }),
+                      12)
+              == sum<bool, int, std::vector<int>>{true});
+        CHECK(std::move(a).transform( //
+                  fn::overload(       //
+                      [](auto...) -> sum<int, std::vector<int>> { throw 1; },
+                      [](std::vector<int> &, int) -> sum<bool, int> { throw 0; },
+                      [](std::vector<int> const &, int) -> sum<bool, int> { throw 0; },
+                      [&](std::vector<int> &&i, int j) -> sum<bool, int> { return {i == foo && j == 12}; },
+                      [](std::vector<int> const &&, int) -> sum<bool, int> { throw 0; }),
+                  12)
+              == sum<bool, int, std::vector<int>>{true});
+      }
     }
   }
 }
