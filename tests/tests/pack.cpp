@@ -655,4 +655,15 @@ TEST_CASE("operator &", "[pack][sum][operator_and]")
                                  fn::pack<Alef, Gimel, Vav>>);
     CHECK(r.invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14 + 15);
   }
+
+  constexpr auto r = fn::as_sum(12) & 3 & 2.5 & fn::pack{0.5, true}
+                     & fn::sum_for<bool, int, fn::pack<double, int>>(fn::pack{1.5, 12});
+  static_assert(std::is_same_v<                                     //
+                decltype(r),                                        //
+                fn::sum_for<                                        //
+                    fn::pack<int, int, double, double, bool, bool>, //
+                    fn::pack<int, int, double, double, bool, int>,  //
+                    fn::pack<int, int, double, double, bool, double, int>> const>);
+  static_assert(r.invoke([](auto &&...args) -> double { return (1 * ... * static_cast<double>(args)); })
+                == 12. * 3 * 2.5 * 0.5 * 1 * 1.5 * 12);
 }
