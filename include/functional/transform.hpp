@@ -47,7 +47,7 @@ concept invocable_transform //
         } -> convertible_to_choice;
       });
 
-static constexpr struct transform_t final {
+constexpr inline struct transform_t final {
   [[nodiscard]] constexpr auto operator()(auto &&fn) const noexcept -> functor<transform_t, decltype(fn)> //
   {
     return {FWD(fn)};
