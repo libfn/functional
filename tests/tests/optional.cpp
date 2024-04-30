@@ -47,6 +47,8 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
       CHECK(not std::move(std::as_const(s)).sum_value().has_value());
       CHECK(not std::move(s).sum_value().has_value());
     }
+
+    static_assert(std::is_same_v<decltype(fn::sum_value(s)), T &>);
   }
 
   WHEN("sum_value from non-sum")
@@ -72,6 +74,8 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
       CHECK(not std::move(std::as_const(s)).sum_value().has_value());
       CHECK(not std::move(s).sum_value().has_value());
     }
+
+    static_assert(std::is_same_v<decltype(fn::sum_value(s)), fn::optional<fn::sum<int>>>);
   }
 
   WHEN("or_else")

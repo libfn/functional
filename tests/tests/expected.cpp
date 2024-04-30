@@ -120,6 +120,8 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
       CHECK(std::move(std::as_const(s)).sum_error().error() == fn::sum{Unknown});
       CHECK(std::move(s).sum_error().error() == fn::sum{Unknown});
     }
+
+    static_assert(std::is_same_v<decltype(fn::sum_error(s)), T &>);
   }
 
   WHEN("sum_error from non-sum")
@@ -145,6 +147,8 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
       CHECK(std::move(std::as_const(s)).sum_error().error() == fn::sum{Unknown});
       CHECK(std::move(s).sum_error().error() == fn::sum{Unknown});
     }
+
+    static_assert(std::is_same_v<decltype(fn::sum_error(s)), fn::expected<int, fn::sum<Error>>>);
   }
 
   WHEN("sum_value from sum")
@@ -170,6 +174,8 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
       CHECK(std::move(std::as_const(s)).sum_value().error() == Unknown);
       CHECK(std::move(s).sum_value().error() == Unknown);
     }
+
+    static_assert(std::is_same_v<decltype(fn::sum_value(s)), T &>);
   }
 
   WHEN("sum_value from non-sum")
@@ -195,6 +201,8 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
       CHECK(std::move(std::as_const(s)).sum_value().error() == Unknown);
       CHECK(std::move(s).sum_value().error() == Unknown);
     }
+
+    static_assert(std::is_same_v<decltype(fn::sum_value(s)), fn::expected<fn::sum<int>, Error>>);
   }
 
   WHEN("and_then")

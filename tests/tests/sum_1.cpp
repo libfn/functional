@@ -48,6 +48,17 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     static_assert(std::same_as<fn::sum_for<sum<>, sum<>>, sum<>>);
   }
 
+  WHEN("as_sum")
+  {
+    constexpr auto a = fn::as_sum(12);
+    static_assert(std::same_as<decltype(a), fn::sum<int> const>);
+    static_assert(a == fn::sum{12});
+
+    constexpr auto b = fn::as_sum(std::in_place_type<long>, 12);
+    static_assert(std::same_as<decltype(b), fn::sum<long> const>);
+    static_assert(b == fn::sum{12l});
+  }
+
   WHEN("sum_for")
   {
     static_assert(std::same_as<fn::sum_for<int>, fn::sum<int>>);
