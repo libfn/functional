@@ -48,7 +48,7 @@ constexpr inline struct filter_t final {
 } filter = {};
 
 struct filter_t::apply final {
-  [[nodiscard]] static constexpr auto operator()(auto &&pred, auto &&on_err, some_expected_non_void auto &&v) noexcept
+  [[nodiscard]] static constexpr auto operator()(some_expected_non_void auto &&v, auto &&pred, auto &&on_err) noexcept
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_filter<decltype(pred), decltype(on_err), decltype(v)>
   {
@@ -61,7 +61,7 @@ struct filter_t::apply final {
     return FWD(v);
   }
 
-  [[nodiscard]] static constexpr auto operator()(auto &&pred, auto &&on_err, some_expected_void auto &&v) noexcept
+  [[nodiscard]] static constexpr auto operator()(some_expected_void auto &&v, auto &&pred, auto &&on_err) noexcept
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_filter<decltype(pred), decltype(on_err), decltype(v)>
   {
@@ -74,7 +74,7 @@ struct filter_t::apply final {
     return FWD(v);
   }
 
-  [[nodiscard]] static constexpr auto operator()(auto &&pred, some_optional auto &&v) noexcept
+  [[nodiscard]] static constexpr auto operator()(some_optional auto &&v, auto &&pred) noexcept
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_filter<decltype(pred), void, decltype(v)>
   {
@@ -88,7 +88,7 @@ struct filter_t::apply final {
   }
 
   // No support for choice since there's no error to operate on
-  static auto operator()(auto &&, some_choice auto &&v) noexcept = delete;
+  static auto operator()(some_choice auto &&v, auto &&...args) noexcept = delete;
 };
 
 } // namespace fn

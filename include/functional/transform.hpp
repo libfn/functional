@@ -57,7 +57,7 @@ static constexpr struct transform_t final {
 } transform = {};
 
 struct transform_t::apply final {
-  [[nodiscard]] static constexpr auto operator()(auto &&fn, some_monadic_type auto &&v) noexcept
+  [[nodiscard]] static constexpr auto operator()(some_monadic_type auto &&v, auto &&fn) noexcept
       -> same_kind<decltype(v)> auto
     requires invocable_transform<decltype(fn), decltype(v)>
   {

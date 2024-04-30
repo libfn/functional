@@ -50,6 +50,16 @@ template <std::size_t... Is, typename... Ts> struct pack_impl<std::index_sequenc
 
   template <typename Self, typename Fn, typename... Args>
     requires(not(... || (_some_pack<Args> || _some_sum<Args>)))
+  static constexpr auto _swap_invoke(Self &&self, Fn &&fn, Args &&...args) noexcept
+      -> ::std::invoke_result<decltype(fn), decltype(args)..., apply_const_lvalue_t<Self, Ts &&>...>::type
+    requires(::std::is_invocable<decltype(fn), decltype(args)..., apply_const_lvalue_t<Self, Ts &&>...>::value)
+  {
+    return ::std::invoke(FWD(fn), FWD(args)...,
+                         static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)...);
+  }
+
+  template <typename Self, typename Fn, typename... Args>
+    requires(not(... || (_some_pack<Args> || _some_sum<Args>)))
   static constexpr auto _invoke(Self &&self, Fn &&fn, Args &&...args) noexcept
       -> _invoke_result<decltype(fn), apply_const_lvalue_t<Self, Ts &&>..., decltype(args)...>::type
     requires(_is_invocable<decltype(fn), apply_const_lvalue_t<Self, Ts &&>..., decltype(args)...>::value)
