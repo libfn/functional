@@ -16,7 +16,7 @@ constexpr inline struct dummy_t final {
   auto operator()(auto &&fn) const noexcept -> fn::functor<dummy_t, decltype(fn)> { return {FWD(fn)}; }
 
   struct apply final {
-    static auto operator()(auto &&fn, fn::some_monadic_type auto &&v) noexcept -> decltype(auto)
+    static auto operator()(fn::some_monadic_type auto &&v, auto &&fn) noexcept -> decltype(auto)
       requires requires { fn(v.value()); }
     {
       return FWD(v).transform([&fn](auto &&v) noexcept { return FWD(fn)(FWD(v)); });

@@ -35,7 +35,7 @@ constexpr inline struct inspect_error_t final {
 } inspect_error = {};
 
 struct inspect_error_t::apply final {
-  [[nodiscard]] static constexpr auto operator()(auto &&fn, some_expected auto &&v) noexcept -> decltype(v)
+  [[nodiscard]] static constexpr auto operator()(some_expected auto &&v, auto &&fn) noexcept -> decltype(v)
     requires invocable_inspect_error<decltype(fn), decltype(v)>
   {
     if (not v.has_value()) {
@@ -44,7 +44,7 @@ struct inspect_error_t::apply final {
     return FWD(v);
   }
 
-  [[nodiscard]] static constexpr auto operator()(auto &&fn, some_optional auto &&v) noexcept -> decltype(v)
+  [[nodiscard]] static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept -> decltype(v)
     requires invocable_inspect_error<decltype(fn), decltype(v)>
   {
     if (not v.has_value()) {
@@ -54,7 +54,7 @@ struct inspect_error_t::apply final {
   }
 
   // No support for choice since there's no error to operate on
-  static auto operator()(auto &&, some_choice auto &&) noexcept = delete;
+  static auto operator()(some_choice auto &&v, auto &&...args) noexcept = delete;
 };
 
 } // namespace fn

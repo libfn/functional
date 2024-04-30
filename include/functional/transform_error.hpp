@@ -33,7 +33,7 @@ constexpr inline struct transform_error_t final {
 } transform_error = {};
 
 struct transform_error_t::apply final {
-  [[nodiscard]] static constexpr auto operator()(auto &&fn, some_expected auto &&v) noexcept
+  [[nodiscard]] static constexpr auto operator()(some_expected auto &&v, auto &&fn) noexcept
       -> same_value_kind<decltype(v)> auto
     requires invocable_transform_error<decltype(fn), decltype(v)>
   {
@@ -41,10 +41,10 @@ struct transform_error_t::apply final {
   }
 
   // No support for optional since there's no error state to operate on
-  static auto operator()(auto &&, some_optional auto &&) noexcept = delete;
+  static auto operator()(some_optional auto &&v, auto &&...args) noexcept = delete;
 
   // No support for choice since there's no error to operate on
-  static auto operator()(auto &&, some_choice auto &&) noexcept = delete;
+  static auto operator()(some_choice auto &&v, auto &&...args) noexcept = delete;
 };
 
 } // namespace fn
