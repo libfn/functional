@@ -6,15 +6,11 @@
 #ifndef INCLUDE_FUNCTIONAL_INSPECT
 #define INCLUDE_FUNCTIONAL_INSPECT
 
-#include "functional/concepts.hpp"
 #include "functional/expected.hpp"
 #include "functional/functional.hpp"
 #include "functional/functor.hpp"
-#include "functional/fwd.hpp"
-#include "functional/utility.hpp"
 
 #include <concepts>
-#include <type_traits>
 #include <utility>
 
 namespace fn {

@@ -10,6 +10,128 @@
 
 #include <utility>
 
+namespace {
+struct Xint {
+  int v = {};
+
+  constexpr bool operator==(Xint const &) const noexcept = default;
+  constexpr explicit Xint(int i) : v(i) {}
+  constexpr ~Xint() = default;
+  constexpr Xint(Xint const &) = default;
+  constexpr Xint &operator=(Xint const &) = default;
+};
+} // namespace
+
+TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]")
+{
+  WHEN("sum_value from sum")
+  {
+    using T = fn::optional<fn::sum<int>>;
+    T s{12};
+    static_assert(std::is_same_v<decltype(s.sum_value()), T &>);
+    static_assert(std::is_same_v<decltype(std::as_const(s).sum_value()), T const &>);
+    static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_value()), T const &&>);
+    static_assert(std::is_same_v<decltype(std::move(s).sum_value()), T &&>);
+    WHEN("value")
+    {
+      CHECK(s.sum_value().value() == fn::sum{12});
+      CHECK(std::as_const(s).sum_value().value() == fn::sum{12});
+      CHECK(std::move(std::as_const(s)).sum_value().value() == fn::sum{12});
+      CHECK(std::move(s).sum_value().value() == fn::sum{12});
+    }
+    WHEN("error")
+    {
+      T s{std::nullopt};
+      CHECK(not s.sum_value().has_value());
+      CHECK(not std::as_const(s).sum_value().has_value());
+      CHECK(not std::move(std::as_const(s)).sum_value().has_value());
+      CHECK(not std::move(s).sum_value().has_value());
+    }
+
+    static_assert(std::is_same_v<decltype(fn::sum_value(s)), T &>);
+  }
+
+  WHEN("sum_value from non-sum")
+  {
+    using T = fn::optional<int>;
+    T s{12};
+    static_assert(std::is_same_v<decltype(s.sum_value()), fn::optional<fn::sum<int>>>);
+    static_assert(std::is_same_v<decltype(std::as_const(s).sum_value()), fn::optional<fn::sum<int>>>);
+    static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_value()), fn::optional<fn::sum<int>>>);
+    static_assert(std::is_same_v<decltype(std::move(s).sum_value()), fn::optional<fn::sum<int>>>);
+    WHEN("value")
+    {
+      CHECK(s.sum_value().value() == fn::sum{12});
+      CHECK(std::as_const(s).sum_value().value() == fn::sum{12});
+      CHECK(std::move(std::as_const(s)).sum_value().value() == fn::sum{12});
+      CHECK(std::move(s).sum_value().value() == fn::sum{12});
+    }
+    WHEN("error")
+    {
+      T s{std::nullopt};
+      CHECK(not s.sum_value().has_value());
+      CHECK(not std::as_const(s).sum_value().has_value());
+      CHECK(not std::move(std::as_const(s)).sum_value().has_value());
+      CHECK(not std::move(s).sum_value().has_value());
+    }
+
+    static_assert(std::is_same_v<decltype(fn::sum_value(s)), fn::optional<fn::sum<int>>>);
+  }
+
+  WHEN("or_else")
+  {
+    fn::optional<fn::sum<int>> s{std::nullopt};
+
+    constexpr auto fn1 = []() -> fn::optional<Xint> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn1)), fn::optional<fn::sum<Xint, int>>>);
+    constexpr auto fn2 = []() -> fn::optional<int> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn2)), fn::optional<fn::sum<int>>>);
+    constexpr auto fn3 = []() -> fn::optional<fn::sum<int>> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn3)), fn::optional<fn::sum<int>>>);
+    constexpr auto fn4 = []() -> fn::optional<fn::sum<Xint>> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn4)), fn::optional<fn::sum<Xint, int>>>);
+    constexpr auto fn5 = []() -> fn::optional<fn::sum<Xint, int>> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn5)), fn::optional<fn::sum<Xint, int>>>);
+    constexpr auto fn6 = []() -> fn::optional<fn::sum<Xint, long>> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn6)), fn::optional<fn::sum<Xint, int, long>>>);
+    constexpr auto fn7 = []() -> fn::optional<fn::sum<Xint, int, long>> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn7)), fn::optional<fn::sum<Xint, int, long>>>);
+    constexpr auto fn8 = []() -> fn::optional<fn::sum<Xint, int, long>> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn8)), fn::optional<fn::sum<Xint, int, long>>>);
+
+    WHEN("error to value")
+    {
+      constexpr auto fn = []() -> fn::optional<Xint> { return {Xint{12}}; };
+      static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::optional<fn::sum<Xint, int>>>);
+      CHECK(s.or_else(fn).value() == fn::sum{Xint{12}});
+      CHECK(std::as_const(s).or_else(fn).value() == fn::sum{Xint{12}});
+      CHECK(std::move(std::as_const(s)).or_else(fn).value() == fn::sum{Xint{12}});
+      CHECK(std::move(s).or_else(fn).value() == fn::sum{Xint{12}});
+    }
+
+    WHEN("error to error")
+    {
+      constexpr auto fn = []() -> fn::optional<Xint> { return {std::nullopt}; };
+      static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::optional<fn::sum<Xint, int>>>);
+      CHECK(not s.or_else(fn).has_value());
+      CHECK(not std::as_const(s).or_else(fn).has_value());
+      CHECK(not std::move(std::as_const(s)).or_else(fn).has_value());
+      CHECK(not std::move(s).or_else(fn).has_value());
+    }
+
+    WHEN("value")
+    {
+      fn::optional<fn::sum<int>> s{fn::sum{12}};
+      constexpr auto fn = []() -> fn::optional<Xint> { throw 0; };
+      static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::optional<fn::sum<Xint, int>>>);
+      CHECK(s.or_else(fn).value() == fn::sum{12});
+      CHECK(std::as_const(s).or_else(fn).value() == fn::sum{12});
+      CHECK(std::move(std::as_const(s)).or_else(fn).value() == fn::sum{12});
+      CHECK(std::move(s).or_else(fn).value() == fn::sum{12});
+    }
+  }
+}
+
 TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operator_and]")
 {
   WHEN("and_then")
@@ -140,6 +262,27 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                    .has_value());
     }
 
+    WHEN("value & pack yield pack")
+    {
+      static_assert(std::same_as<decltype(std::declval<fn::optional<int>>()
+                                          & std::declval<fn::optional<fn::pack<double, bool>>>()),
+                                 fn::optional<fn::pack<int, double, bool>>>);
+
+      CHECK((fn::optional<double>{0.5} //
+             & fn::optional<fn::pack<bool, int>>{std::in_place, fn::pack{true, 12}})
+                .transform([](double d, bool b, int i) constexpr -> bool { return d == 0.5 && b && i == 12; })
+                .value());
+      CHECK(not(fn::optional<double>{std::nullopt} //
+                & fn::optional<fn::pack<bool, int>>{std::in_place, fn::pack{true, 12}})
+                   .has_value());
+      CHECK(not(fn::optional<double>{0.5} //
+                & fn::optional<fn::pack<bool, int>>{std::nullopt})
+                   .has_value());
+      CHECK(not(fn::optional<double>{std::nullopt} //
+                & fn::optional<fn::pack<bool, int>>{std::nullopt})
+                   .has_value());
+    }
+
     WHEN("pack & value yield pack")
     {
       static_assert(std::same_as<decltype(std::declval<fn::optional<fn::pack<double, bool>>>()
@@ -161,34 +304,142 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                    .has_value());
     }
 
-    WHEN("value & pack is unsupported")
+    WHEN("pack & pack yield pack")
     {
-      static_assert([](auto &&lh,                                                          //
-                       auto &&rh) constexpr -> bool { return not requires { lh & rh; }; }( //
-                                                fn::optional<int>{12}, fn::optional<fn::pack<double, bool>>{
-                                                                           fn::pack<double, bool>{0.5, true}}));
+      static_assert(std::same_as<decltype(std::declval<fn::optional<fn::pack<double, bool>>>()
+                                          & std::declval<fn::optional<fn::pack<bool, int>>>()),
+                                 fn::optional<fn::pack<double, bool, bool, int>>>);
+
+      CHECK((fn::optional<fn::pack<double, bool>>{std::in_place, fn::pack<double, bool>{0.5, true}} //
+             & fn::optional<fn::pack<bool, int>>{std::in_place, fn::pack{true, 12}})
+                .transform(
+                    [](double d, bool b1, bool b2, int i) constexpr -> bool { return d == 0.5 && b1 && b2 && i == 12; })
+                .value());
+      CHECK(not(fn::optional<fn::pack<double, bool>>{std::nullopt} //
+                & fn::optional<fn::pack<bool, int>>{std::in_place, fn::pack{true, 12}})
+                   .has_value());
+      CHECK(not(fn::optional<fn::pack<double, bool>>{std::in_place, fn::pack<double, bool>{0.5, true}} //
+                & fn::optional<fn::pack<bool, int>>{std::nullopt})
+                   .has_value());
+      CHECK(not(fn::optional<fn::pack<double, bool>>{std::nullopt} //
+                & fn::optional<fn::pack<bool, int>>{std::nullopt})
+                   .has_value());
     }
-    WHEN("pack & pack is unsupported")
+
+    WHEN("sum on both sides")
     {
+      using Lh = fn::optional<fn::sum<double, int>>;
+      using Rh = fn::optional<fn::sum<bool, int>>;
       static_assert(
-          [](auto &&lh,
-             auto &&rh) constexpr -> bool { return not requires { lh & rh; }; }( //
-                                      fn::optional<fn::pack<double, bool>>{fn::pack<double, bool>{0.5, true}},
-                                      fn::optional<fn::pack<double, bool>>{fn::pack<double, bool>{0.5, true}}));
+          std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                       fn::optional<fn::sum< //
+                           fn::pack<double, bool>, fn::pack<double, int>, fn::pack<int, bool>, fn::pack<int, int>>>>);
+
+      CHECK((Lh{fn::sum{0.5}} & Rh{fn::sum{12}})
+                .transform([](auto i, auto j) constexpr -> bool {
+                  return 0.5 == static_cast<double>(i) && 12 == static_cast<int>(j);
+                })
+                .value()
+            == fn::sum{true});
+      CHECK(not(Lh{std::nullopt} & Rh{fn::sum{12}}).has_value());
+      CHECK(not(Lh{fn::sum{0.5}} & Rh{std::nullopt}).has_value());
+      CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
+
+      WHEN("sum of packs on left")
+      {
+        using Lh = fn::optional<fn::sum<fn::pack<double, bool>, fn::pack<double, int>>>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::optional<fn::sum< //
+                                       fn::pack<double, bool, bool>, fn::pack<double, bool, int>,
+                                       fn::pack<double, int, bool>, fn::pack<double, int, int>>>>);
+
+        CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{fn::sum{12}})
+                  .transform([](auto i, auto j, auto k) constexpr -> bool {
+                    return 0.5 == static_cast<double>(i) && 3 == static_cast<int>(j) && 12 == static_cast<int>(k);
+                  })
+                  .value()
+              == fn::sum{true});
+        CHECK(not(Lh{std::nullopt} & Rh{fn::sum{12}}).has_value());
+        CHECK(not(Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{std::nullopt}).has_value());
+        CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
+      }
+    }
+
+    WHEN("sum on left side only")
+    {
+      using Lh = fn::optional<fn::sum<double, int>>;
+      using Rh = fn::optional<int>;
+      static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                 fn::optional<fn::sum< //
+                                     fn::pack<double, int>, fn::pack<int, int>>>>);
+
+      CHECK((Lh{fn::sum{0.5}} & Rh{12})
+                .transform([](auto i, auto j) constexpr -> bool {
+                  return 0.5 == static_cast<double>(i) && 12 == static_cast<int>(j);
+                })
+                .value()
+            == fn::sum{true});
+      CHECK(not(Lh{std::nullopt} & Rh{12}).has_value());
+      CHECK(not(Lh{fn::sum{0.5}} & Rh{std::nullopt}).has_value());
+      CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
+
+      WHEN("sum of packs on left")
+      {
+        using Lh = fn::optional<fn::sum<fn::pack<double, bool>, fn::pack<double, int>>>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::optional<fn::sum< //
+                                       fn::pack<double, bool, int>, fn::pack<double, int, int>>>>);
+
+        CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{12})
+                  .transform([](auto i, auto j, auto k) constexpr -> bool {
+                    return 0.5 == static_cast<double>(i) && 3 == static_cast<int>(j) && 12 == static_cast<int>(k);
+                  })
+                  .value()
+              == fn::sum{true});
+        CHECK(not(Lh{std::nullopt} & Rh{12}).has_value());
+        CHECK(not(Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{std::nullopt}).has_value());
+        CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
+      }
+    }
+
+    WHEN("sum on right side only")
+    {
+      using Lh = fn::optional<double>;
+      using Rh = fn::optional<fn::sum<bool, int>>;
+      static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                 fn::optional<fn::sum< //
+                                     fn::pack<double, bool>, fn::pack<double, int>>>>);
+
+      CHECK((Lh{0.5} & Rh{fn::sum{12}})
+                .transform([](auto i, auto j) constexpr -> bool {
+                  return 0.5 == static_cast<double>(i) && 12 == static_cast<int>(j);
+                })
+                .value()
+            == fn::sum{true});
+      CHECK(not(Lh{std::nullopt} & Rh{fn::sum{12}}).has_value());
+      CHECK(not(Lh{0.5} & Rh{std::nullopt}).has_value());
+      CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
+
+      WHEN("pack on left")
+      {
+        using Lh = fn::optional<fn::pack<double, int>>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::optional<fn::sum< //
+                                       fn::pack<double, int, bool>, fn::pack<double, int, int>>>>);
+
+        CHECK((Lh{fn::pack{0.5, 3}} & Rh{fn::sum{12}})
+                  .transform([](auto i, auto j, auto k) constexpr -> bool {
+                    return 0.5 == static_cast<double>(i) && 3 == static_cast<int>(j) && 12 == static_cast<int>(k);
+                  })
+                  .value()
+              == fn::sum{true});
+        CHECK(not(Lh{std::nullopt} & Rh{fn::sum{12}}).has_value());
+        CHECK(not(Lh{fn::pack{0.5, 3}} & Rh{std::nullopt}).has_value());
+        CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
+      }
     }
   }
 }
-
-namespace {
-struct Xint {
-  int v = {};
-
-  constexpr explicit Xint(int i) : v(i) {}
-  constexpr ~Xint() = default;
-  constexpr Xint(Xint const &) = default;
-  constexpr Xint &operator=(Xint const &) = default;
-};
-} // namespace
 
 TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
 {
@@ -203,16 +454,6 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
                    [](Xint const &) -> fn::optional<bool> { throw 0; }, [](Xint &&) -> fn::optional<bool> { throw 0; },
                    [](Xint const &&) -> fn::optional<bool> { throw 0; }))
               .value());
-    CHECK(s.and_then( //
-               fn::overload([](std::in_place_type_t<int>, int &i) -> fn::optional<bool> { return i == 12; },
-                            [](std::in_place_type_t<int>, int const &) -> fn::optional<bool> { throw 0; },
-                            [](std::in_place_type_t<int>, int &&) -> fn::optional<bool> { throw 0; },
-                            [](std::in_place_type_t<int>, int const &&) -> fn::optional<bool> { throw 0; },
-                            [](std::in_place_type_t<Xint>, Xint &) -> fn::optional<bool> { throw 0; },
-                            [](std::in_place_type_t<Xint>, Xint const &) -> fn::optional<bool> { throw 0; },
-                            [](std::in_place_type_t<Xint>, Xint &&) -> fn::optional<bool> { throw 0; },
-                            [](std::in_place_type_t<Xint>, Xint const &&) -> fn::optional<bool> { throw 0; }))
-              .value());
 
     CHECK(std::as_const(s)
               .and_then( //
@@ -224,17 +465,6 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
                                [](Xint const &) -> fn::optional<bool> { throw 0; },
                                [](Xint &&) -> fn::optional<bool> { throw 0; },
                                [](Xint const &&) -> fn::optional<bool> { throw 0; })) //
-              .value());
-    CHECK(std::as_const(s)
-              .and_then( //
-                  fn::overload([](std::in_place_type_t<int>, int &) -> fn::optional<bool> { throw 0; },
-                               [](std::in_place_type_t<int>, int const &i) -> fn::optional<bool> { return i == 12; },
-                               [](std::in_place_type_t<int>, int &&) -> fn::optional<bool> { throw 0; },
-                               [](std::in_place_type_t<int>, int const &&) -> fn::optional<bool> { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint &) -> fn::optional<bool> { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint const &) -> fn::optional<bool> { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint &&) -> fn::optional<bool> { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint const &&) -> fn::optional<bool> { throw 0; })) //
               .value());
 
     CHECK(std::move(std::as_const(s))
@@ -248,20 +478,9 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
                                [](Xint &&) -> fn::optional<bool> { throw 0; },
                                [](Xint const &&) -> fn::optional<bool> { throw 0; })) //
               .value());
-    CHECK(std::move(std::as_const(s))
-              .and_then( //
-                  fn::overload([](std::in_place_type_t<int>, int &) -> fn::optional<bool> { throw 0; },
-                               [](std::in_place_type_t<int>, int const &) -> fn::optional<bool> { throw 0; },
-                               [](std::in_place_type_t<int>, int &&) -> fn::optional<bool> { throw 0; },
-                               [](std::in_place_type_t<int>, int const &&i) -> fn::optional<bool> { return i == 12; },
-                               [](std::in_place_type_t<Xint>, Xint &) -> fn::optional<bool> { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint const &) -> fn::optional<bool> { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint &&) -> fn::optional<bool> { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint const &&) -> fn::optional<bool> { throw 0; })) //
-              .value());
 
     CHECK(
-        auto(s)
+        std::move(s)
             .and_then( //
                 fn::overload(
                     [](int &) -> fn::optional<bool> { throw 0; }, [](int const &) -> fn::optional<bool> { throw 0; },
@@ -270,17 +489,6 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
                     [](Xint const &) -> fn::optional<bool> { throw 0; }, [](Xint &&) -> fn::optional<bool> { throw 0; },
                     [](Xint const &&) -> fn::optional<bool> { throw 0; })) //
             .value());
-    CHECK(std::move(s)
-              .and_then( //
-                  fn::overload([](std::in_place_type_t<int>, int &) -> fn::optional<bool> { throw 0; },
-                               [](std::in_place_type_t<int>, int const &) -> fn::optional<bool> { throw 0; },
-                               [](std::in_place_type_t<int>, int &&i) -> fn::optional<bool> { return i == 12; },
-                               [](std::in_place_type_t<int>, int const &&) -> fn::optional<bool> { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint &) -> fn::optional<bool> { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint const &) -> fn::optional<bool> { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint &&) -> fn::optional<bool> { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint const &&) -> fn::optional<bool> { throw 0; })) //
-              .value());
   }
 
   WHEN("error")
@@ -330,17 +538,6 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
                             [](Xint &&) -> bool { throw 0; }, [](Xint const &&) -> bool { throw 0; }))
               .value()
           == fn::sum{true});
-    CHECK(s.transform( //
-               fn::overload([](std::in_place_type_t<int>, int &i) -> bool { return i == 12; },
-                            [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
-                            [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
-                            [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; },
-                            [](std::in_place_type_t<Xint>, Xint &) -> bool { throw 0; },
-                            [](std::in_place_type_t<Xint>, Xint const &) -> bool { throw 0; },
-                            [](std::in_place_type_t<Xint>, Xint &&) -> bool { throw 0; },
-                            [](std::in_place_type_t<Xint>, Xint const &&) -> bool { throw 0; }))
-              .value()
-          == fn::sum{true});
 
     CHECK(std::as_const(s)
               .transform( //
@@ -348,18 +545,6 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
                                [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; },
                                [](Xint &) -> bool { throw 0; }, [](Xint const &) -> bool { throw 0; },
                                [](Xint &&) -> bool { throw 0; }, [](Xint const &&) -> bool { throw 0; })) //
-              .value()
-          == fn::sum{true});
-    CHECK(std::as_const(s)
-              .transform( //
-                  fn::overload([](std::in_place_type_t<int>, int &) -> bool { throw 0; },
-                               [](std::in_place_type_t<int>, int const &i) -> bool { return i == 12; },
-                               [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
-                               [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint &) -> bool { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint const &) -> bool { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint &&) -> bool { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint const &&) -> bool { throw 0; })) //
               .value()
           == fn::sum{true});
 
@@ -371,37 +556,13 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
                                [](Xint &&) -> bool { throw 0; }, [](Xint const &&) -> bool { throw 0; })) //
               .value()
           == fn::sum{true});
-    CHECK(std::move(std::as_const(s))
-              .transform( //
-                  fn::overload([](std::in_place_type_t<int>, int &) -> bool { throw 0; },
-                               [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
-                               [](std::in_place_type_t<int>, int &&) -> bool { throw 0; },
-                               [](std::in_place_type_t<int>, int const &&i) -> bool { return i == 12; },
-                               [](std::in_place_type_t<Xint>, Xint &) -> bool { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint const &) -> bool { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint &&) -> bool { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint const &&) -> bool { throw 0; })) //
-              .value()
-          == fn::sum{true});
 
-    CHECK(auto(s)
+    CHECK(std::move(s)
               .transform( //
                   fn::overload([](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
                                [](int &&i) -> bool { return i == 12; }, [](int const &&) -> bool { throw 0; },
                                [](Xint &) -> bool { throw 0; }, [](Xint const &) -> bool { throw 0; },
                                [](Xint &&) -> bool { throw 0; }, [](Xint const &&) -> bool { throw 0; })) //
-              .value()
-          == fn::sum{true});
-    CHECK(std::move(s)
-              .transform( //
-                  fn::overload([](std::in_place_type_t<int>, int &) -> bool { throw 0; },
-                               [](std::in_place_type_t<int>, int const &) -> bool { throw 0; },
-                               [](std::in_place_type_t<int>, int &&i) -> bool { return i == 12; },
-                               [](std::in_place_type_t<int>, int const &&) -> bool { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint &) -> bool { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint const &) -> bool { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint &&) -> bool { throw 0; },
-                               [](std::in_place_type_t<Xint>, Xint const &&) -> bool { throw 0; })) //
               .value()
           == fn::sum{true});
   }

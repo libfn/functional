@@ -21,7 +21,7 @@ setup_target_for_coverage_gcovr(
     FORMAT ${CODE_COVERAGE_FORMAT}
     EXECUTABLE ${CODE_COVERAGE_TEST}
     EXECUTABLE_ARGS ${CODE_COVERAGE_TEST_ARGS}
-    EXCLUDE "tests" "external"
+    EXCLUDE "tests"
     DEPENDENCIES tests
 )
 

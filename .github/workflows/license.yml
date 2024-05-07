@@ -6,13 +6,11 @@ on:
       - main
 
 jobs:
-  enforce-license-compliance:
+  license-check:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
-      with:
-        submodules: 'true'
 
-    - uses: fossas/fossa-action@main
+    - uses: fossas/fossa-action@v1.3.3
       with:
         api-key: ${{ secrets.FOSSA_API_KEY }}

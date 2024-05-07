@@ -6,16 +6,11 @@
 #ifndef INCLUDE_FUNCTIONAL_EXPECTED
 #define INCLUDE_FUNCTIONAL_EXPECTED
 
-#include "functional/detail/meta.hpp"
-#include "functional/functional.hpp"
-#include "functional/fwd.hpp"
 #include "functional/pack.hpp"
 #include "functional/sum.hpp"
-#include "functional/utility.hpp"
 
 #include <concepts>
 #include <expected>
-#include <functional>
 #include <type_traits>
 #include <utility>
 
@@ -38,6 +33,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
   using value_type = std::expected<T, Err>::value_type;
   using error_type = std::expected<T, Err>::error_type;
   using unexpected_type = std::unexpected<Err>;
+  static_assert(not std::is_same_v<value_type, ::fn::sum<>>);
 
   using std::expected<T, Err>::expected;
 
@@ -144,8 +140,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       else
         return type(std::unexpect, this->error());
     } else {
-      using new_error_type = ::fn::detail::_collapsing_sum::normalized<
-          ::fn::sum, ::fn::detail::_collapsing_sum::flattened<error_type, typename type::error_type>>::type;
+      using new_error_type = sum_for<error_type, typename type::error_type>;
       using new_type = ::fn::expected<typename type::value_type, new_error_type>;
       if (this->has_value()) {
         auto t = ::fn::detail::_invoke(FWD(fn), this->value());
@@ -156,8 +151,12 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
             return new_type{std::in_place};
         else
           return new_type{std::unexpect, std::move(t).error()};
-      } else
-        return new_type(std::unexpect, this->error());
+      } else {
+        if constexpr (not std::is_same_v<error_type, sum<>>)
+          return new_type(std::unexpect, this->error());
+        else
+          std::unreachable();
+      }
     }
   }
 
@@ -174,8 +173,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       else
         return type(std::unexpect, this->error());
     } else {
-      using new_error_type = ::fn::detail::_collapsing_sum::normalized<
-          ::fn::sum, ::fn::detail::_collapsing_sum::flattened<error_type, typename type::error_type>>::type;
+      using new_error_type = sum_for<error_type, typename type::error_type>;
       using new_type = ::fn::expected<typename type::value_type, new_error_type>;
       if (this->has_value()) {
         auto t = ::fn::detail::_invoke(FWD(fn), this->value());
@@ -186,8 +184,12 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
             return new_type{std::in_place};
         else
           return new_type{std::unexpect, std::move(t).error()};
-      } else
-        return new_type(std::unexpect, this->error());
+      } else {
+        if constexpr (not std::is_same_v<error_type, sum<>>)
+          return new_type(std::unexpect, this->error());
+        else
+          std::unreachable();
+      }
     }
   }
 
@@ -204,8 +206,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       else
         return type(std::unexpect, std::move(*this).error());
     } else {
-      using new_error_type = ::fn::detail::_collapsing_sum::normalized<
-          ::fn::sum, ::fn::detail::_collapsing_sum::flattened<error_type, typename type::error_type>>::type;
+      using new_error_type = sum_for<error_type, typename type::error_type>;
       using new_type = ::fn::expected<typename type::value_type, new_error_type>;
       if (this->has_value()) {
         auto t = ::fn::detail::_invoke(FWD(fn), std::move(*this).value());
@@ -216,8 +217,12 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
             return new_type{std::in_place};
         else
           return new_type{std::unexpect, std::move(t).error()};
-      } else
-        return new_type(std::unexpect, std::move(*this).error());
+      } else {
+        if constexpr (not std::is_same_v<error_type, sum<>>)
+          return new_type(std::unexpect, std::move(*this).error());
+        else
+          std::unreachable();
+      }
     }
   }
 
@@ -234,8 +239,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       else
         return type(std::unexpect, std::move(*this).error());
     } else {
-      using new_error_type = ::fn::detail::_collapsing_sum::normalized<
-          ::fn::sum, ::fn::detail::_collapsing_sum::flattened<error_type, typename type::error_type>>::type;
+      using new_error_type = sum_for<error_type, typename type::error_type>;
       using new_type = ::fn::expected<typename type::value_type, new_error_type>;
       if (this->has_value()) {
         auto t = ::fn::detail::_invoke(FWD(fn), std::move(*this).value());
@@ -246,8 +250,12 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
             return new_type{std::in_place};
         else
           return new_type{std::unexpect, std::move(t).error()};
-      } else
-        return new_type(std::unexpect, std::move(*this).error());
+      } else {
+        if constexpr (not std::is_same_v<error_type, sum<>>)
+          return new_type(std::unexpect, std::move(*this).error());
+        else
+          std::unreachable();
+      }
     }
   }
 
@@ -265,8 +273,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       else
         return type(std::unexpect, this->error());
     } else {
-      using new_error_type = ::fn::detail::_collapsing_sum::normalized<
-          ::fn::sum, ::fn::detail::_collapsing_sum::flattened<error_type, typename type::error_type>>::type;
+      using new_error_type = sum_for<error_type, typename type::error_type>;
       using new_type = ::fn::expected<typename type::value_type, new_error_type>;
       if (this->has_value()) {
         auto t = ::fn::detail::_invoke(FWD(fn));
@@ -277,8 +284,12 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
             return new_type{std::in_place};
         else
           return new_type{std::unexpect, std::move(t).error()};
-      } else
-        return new_type(std::unexpect, this->error());
+      } else {
+        if constexpr (not std::is_same_v<error_type, sum<>>)
+          return new_type(std::unexpect, this->error());
+        else
+          std::unreachable();
+      }
     }
   }
 
@@ -295,8 +306,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       else
         return type(std::unexpect, this->error());
     } else {
-      using new_error_type = ::fn::detail::_collapsing_sum::normalized<
-          ::fn::sum, ::fn::detail::_collapsing_sum::flattened<error_type, typename type::error_type>>::type;
+      using new_error_type = sum_for<error_type, typename type::error_type>;
       using new_type = ::fn::expected<typename type::value_type, new_error_type>;
       if (this->has_value()) {
         auto t = ::fn::detail::_invoke(FWD(fn));
@@ -307,8 +317,12 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
             return new_type{std::in_place};
         else
           return new_type{std::unexpect, std::move(t).error()};
-      } else
-        return new_type(std::unexpect, this->error());
+      } else {
+        if constexpr (not std::is_same_v<error_type, sum<>>)
+          return new_type(std::unexpect, this->error());
+        else
+          std::unreachable();
+      }
     }
   }
 
@@ -325,8 +339,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       else
         return type(std::unexpect, std::move(*this).error());
     } else {
-      using new_error_type = ::fn::detail::_collapsing_sum::normalized<
-          ::fn::sum, ::fn::detail::_collapsing_sum::flattened<error_type, typename type::error_type>>::type;
+      using new_error_type = sum_for<error_type, typename type::error_type>;
       using new_type = ::fn::expected<typename type::value_type, new_error_type>;
       if (this->has_value()) {
         auto t = ::fn::detail::_invoke(FWD(fn));
@@ -337,8 +350,12 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
             return new_type{std::in_place};
         else
           return new_type{std::unexpect, std::move(t).error()};
-      } else
-        return new_type(std::unexpect, std::move(*this).error());
+      } else {
+        if constexpr (not std::is_same_v<error_type, sum<>>)
+          return new_type(std::unexpect, std::move(*this).error());
+        else
+          std::unreachable();
+      }
     }
   }
 
@@ -355,8 +372,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       else
         return type(std::unexpect, std::move(*this).error());
     } else {
-      using new_error_type = ::fn::detail::_collapsing_sum::normalized<
-          ::fn::sum, ::fn::detail::_collapsing_sum::flattened<error_type, typename type::error_type>>::type;
+      using new_error_type = sum_for<error_type, typename type::error_type>;
       using new_type = ::fn::expected<typename type::value_type, new_error_type>;
       if (this->has_value()) {
         auto t = ::fn::detail::_invoke(FWD(fn));
@@ -367,15 +383,19 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
             return new_type{std::in_place};
         else
           return new_type{std::unexpect, std::move(t).error()};
-      } else
-        return new_type(std::unexpect, std::move(*this).error());
+      } else {
+        if constexpr (not std::is_same_v<error_type, sum<>>)
+          return new_type(std::unexpect, std::move(*this).error());
+        else
+          std::unreachable();
+      }
     }
   }
 
   // or_else
   template <typename Fn>
   constexpr auto or_else(Fn &&fn) &
-    requires (std::is_constructible_v<T, T &> || std::same_as<T, void>)
+    requires(std::is_constructible_v<T, T &> || std::same_as<T, void>)
   {
     using type = ::fn::detail::_invoke_result<Fn, error_type &>::type;
     static_assert(some_expected<type>);
@@ -390,8 +410,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
         return ::fn::detail::_invoke(FWD(fn), this->error());
     } else {
       static_assert(not std::is_same_v<typename type::value_type, void>);
-      using new_value_type = ::fn::detail::_collapsing_sum::normalized<
-          ::fn::sum, ::fn::detail::_collapsing_sum::flattened<value_type, typename type::value_type>>::type;
+      using new_value_type = sum_for<value_type, typename type::value_type>;
       using new_type = ::fn::expected<new_value_type, typename type::error_type>;
       if (this->has_value())
         return new_type{std::in_place, this->value()};
@@ -422,8 +441,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
         return ::fn::detail::_invoke(FWD(fn), this->error());
     } else {
       static_assert(not std::is_same_v<typename type::value_type, void>);
-      using new_value_type = ::fn::detail::_collapsing_sum::normalized<
-          ::fn::sum, ::fn::detail::_collapsing_sum::flattened<value_type, typename type::value_type>>::type;
+      using new_value_type = sum_for<value_type, typename type::value_type>;
       using new_type = ::fn::expected<new_value_type, typename type::error_type>;
       if (this->has_value())
         return new_type{std::in_place, this->value()};
@@ -454,8 +472,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
         return ::fn::detail::_invoke(FWD(fn), std::move(*this).error());
     } else {
       static_assert(not std::is_same_v<typename type::value_type, void>);
-      using new_value_type = ::fn::detail::_collapsing_sum::normalized<
-          ::fn::sum, ::fn::detail::_collapsing_sum::flattened<value_type, typename type::value_type>>::type;
+      using new_value_type = sum_for<value_type, typename type::value_type>;
       using new_type = ::fn::expected<new_value_type, typename type::error_type>;
       if (this->has_value())
         return new_type{std::in_place, std::move(*this).value()};
@@ -486,8 +503,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
         return ::fn::detail::_invoke(FWD(fn), std::move(*this).error());
     } else {
       static_assert(not std::is_same_v<typename type::value_type, void>);
-      using new_value_type = ::fn::detail::_collapsing_sum::normalized<
-          ::fn::sum, ::fn::detail::_collapsing_sum::flattened<value_type, typename type::value_type>>::type;
+      using new_value_type = sum_for<value_type, typename type::value_type>;
       using new_type = ::fn::expected<new_value_type, typename type::error_type>;
       if (this->has_value())
         return new_type{std::in_place, std::move(*this).value()};
@@ -818,207 +834,176 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
   }
 };
 
+// Lifts for sum transformation functions
+[[nodiscard]] constexpr auto sum_value(some_expected auto &&src) -> decltype(auto) { return FWD(src).sum_value(); }
+[[nodiscard]] constexpr auto sum_error(some_expected auto &&src) -> decltype(auto) { return FWD(src).sum_error(); }
+
 // When any of the sides is expected<void, ...>, we do not produce expected<pack<...>, ...>
 // Instead just elide void and carry non-void (or elide both voids if that's what we get)
-template <some_expected_non_void Lh, some_expected_void Rh>
-  requires std::is_same_v<typename std::remove_cvref_t<Lh>::error_type, typename std::remove_cvref_t<Rh>::error_type>
-constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
+template <typename Lh, typename Rh>
+  requires some_expected_void<Lh> && (not some_expected_void<Rh>)
+           && std::is_same_v<typename std::remove_cvref_t<Lh>::error_type, typename std::remove_cvref_t<Rh>::error_type>
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
 {
-  using value_type = std::remove_cvref_t<Lh>::value_type;
   using error_type = std::remove_cvref_t<Lh>::error_type;
+  using value_type = std::remove_cvref_t<Rh>::value_type;
   using type = expected<value_type, error_type>;
   if (lh.has_value() && rh.has_value())
-    return type{std::in_place, FWD(lh).value()};
+    return type{std::in_place, FWD(rh).value()};
   else if (not lh.has_value())
     return type{std::unexpect, FWD(lh).error()};
   else
     return type{std::unexpect, FWD(rh).error()};
 }
 
-template <some_expected_non_void Lh, some_expected_void Rh>
-  requires(not std::is_same_v<typename std::remove_cvref_t<Lh>::error_type,
-                              typename std::remove_cvref_t<Rh>::error_type>)
-          && (some_sum<typename std::remove_cvref_t<Lh>::error_type>
-              || some_sum<typename std::remove_cvref_t<Rh>::error_type>)
-constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
+template <typename Lh, typename Rh>
+  requires some_expected_void<Lh> && (not some_expected_void<Rh>)
+           && (not std::is_same_v<typename std::remove_cvref_t<Lh>::error_type,
+                                  typename std::remove_cvref_t<Rh>::error_type>)
+           && (some_sum<typename std::remove_cvref_t<Lh>::error_type>
+               || some_sum<typename std::remove_cvref_t<Rh>::error_type>)
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
 {
+  using new_error_type
+      = sum_for<typename std::remove_cvref_t<Lh>::error_type, typename std::remove_cvref_t<Rh>::error_type>;
+  using value_type = std::remove_cvref_t<Rh>::value_type;
+  using type = expected<value_type, new_error_type>;
+  if (lh.has_value() && rh.has_value())
+    return type{std::in_place, FWD(rh).value()};
+  else if (not lh.has_value()) {
+    if constexpr (not std::is_same_v<typename std::remove_cvref_t<Lh>::error_type, sum<>>)
+      return type{std::unexpect, new_error_type{FWD(lh).error()}};
+    else
+      std::unreachable();
+  } else {
+    if constexpr (not std::is_same_v<typename std::remove_cvref_t<Rh>::error_type, sum<>>)
+      return type{std::unexpect, new_error_type{FWD(rh).error()}};
+    else
+      std::unreachable();
+  }
+}
+
+template <typename Lh, typename Rh>
+  requires(not some_expected_void<Lh>) && some_expected_void<Rh>
+          && std::is_same_v<typename std::remove_cvref_t<Lh>::error_type, typename std::remove_cvref_t<Rh>::error_type>
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
+{
+  using error_type = std::remove_cvref_t<Lh>::error_type;
   using value_type = std::remove_cvref_t<Lh>::value_type;
-  using new_error_type = ::fn::detail::_collapsing_sum::normalized<
-      ::fn::sum, ::fn::detail::_collapsing_sum::flattened<typename std::remove_cvref_t<Lh>::error_type,
-                                                          typename std::remove_cvref_t<Rh>::error_type>>::type;
-  using type = expected<value_type, new_error_type>;
-  if (lh.has_value() && rh.has_value())
-    return type{std::in_place, FWD(lh).value()};
-  else if (not lh.has_value())
-    return type{std::unexpect, new_error_type{FWD(lh).error()}};
-  else
-    return type{std::unexpect, new_error_type{FWD(rh).error()}};
-}
-
-template <some_expected_void Lh, some_expected_non_void Rh>
-  requires std::is_same_v<typename std::remove_cvref_t<Lh>::error_type, typename std::remove_cvref_t<Rh>::error_type>
-constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
-{
-  using value_type = std::remove_cvref_t<Rh>::value_type;
-  using error_type = std::remove_cvref_t<Rh>::error_type;
   using type = expected<value_type, error_type>;
   if (lh.has_value() && rh.has_value())
-    return type{std::in_place, FWD(rh).value()};
+    return type{std::in_place, FWD(lh).value()};
   else if (not lh.has_value())
     return type{std::unexpect, FWD(lh).error()};
   else
     return type{std::unexpect, FWD(rh).error()};
 }
 
-template <some_expected_void Lh, some_expected_non_void Rh>
-  requires(not std::is_same_v<typename std::remove_cvref_t<Lh>::error_type,
-                              typename std::remove_cvref_t<Rh>::error_type>)
+template <typename Lh, typename Rh>
+  requires(not some_expected_void<Lh>) && some_expected_void<Rh>
+          && (not std::is_same_v<typename std::remove_cvref_t<Lh>::error_type,
+                                 typename std::remove_cvref_t<Rh>::error_type>)
           && (some_sum<typename std::remove_cvref_t<Lh>::error_type>
               || some_sum<typename std::remove_cvref_t<Rh>::error_type>)
-constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
 {
-  using value_type = std::remove_cvref_t<Rh>::value_type;
-  using new_error_type = ::fn::detail::_collapsing_sum::normalized<
-      ::fn::sum, ::fn::detail::_collapsing_sum::flattened<typename std::remove_cvref_t<Lh>::error_type,
-                                                          typename std::remove_cvref_t<Rh>::error_type>>::type;
+  using new_error_type
+      = sum_for<typename std::remove_cvref_t<Lh>::error_type, typename std::remove_cvref_t<Rh>::error_type>;
+  using value_type = std::remove_cvref_t<Lh>::value_type;
   using type = expected<value_type, new_error_type>;
   if (lh.has_value() && rh.has_value())
-    return type{std::in_place, FWD(rh).value()};
-  else if (not lh.has_value())
-    return type{std::unexpect, new_error_type{FWD(lh).error()}};
-  else
-    return type{std::unexpect, new_error_type{FWD(rh).error()}};
+    return type{std::in_place, FWD(lh).value()};
+  else if (not lh.has_value()) {
+    if constexpr (not std::is_same_v<typename std::remove_cvref_t<Lh>::error_type, sum<>>)
+      return type{std::unexpect, new_error_type{FWD(lh).error()}};
+    else
+      std::unreachable();
+  } else {
+    if constexpr (not std::is_same_v<typename std::remove_cvref_t<Rh>::error_type, sum<>>)
+      return type{std::unexpect, new_error_type{FWD(rh).error()}};
+    else
+      std::unreachable();
+  }
 }
 
-template <some_expected_void Lh, some_expected_void Rh>
-  requires std::is_same_v<typename std::remove_cvref_t<Lh>::error_type, typename std::remove_cvref_t<Rh>::error_type>
-constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
+template <typename Lh, typename Rh>
+  requires some_expected_void<Lh> && some_expected_void<Rh>
+           && std::is_same_v<typename std::remove_cvref_t<Lh>::error_type, typename std::remove_cvref_t<Rh>::error_type>
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
 {
-  using error_type = std::remove_cvref_t<Rh>::error_type;
+  using error_type = std::remove_cvref_t<Lh>::error_type;
   using type = expected<void, error_type>;
   if (lh.has_value() && rh.has_value())
-    return type();
+    return type{std::in_place};
   else if (not lh.has_value())
     return type{std::unexpect, FWD(lh).error()};
   else
     return type{std::unexpect, FWD(rh).error()};
 }
 
-template <some_expected_void Lh, some_expected_void Rh>
-  requires(not std::is_same_v<typename std::remove_cvref_t<Lh>::error_type,
-                              typename std::remove_cvref_t<Rh>::error_type>)
-          && (some_sum<typename std::remove_cvref_t<Lh>::error_type>
-              || some_sum<typename std::remove_cvref_t<Rh>::error_type>)
-constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
+template <typename Lh, typename Rh>
+  requires some_expected_void<Lh> && some_expected_void<Rh>
+           && (not std::is_same_v<typename std::remove_cvref_t<Lh>::error_type,
+                                  typename std::remove_cvref_t<Rh>::error_type>)
+           && (some_sum<typename std::remove_cvref_t<Lh>::error_type>
+               || some_sum<typename std::remove_cvref_t<Rh>::error_type>)
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
 {
-  using new_error_type = ::fn::detail::_collapsing_sum::normalized<
-      ::fn::sum, ::fn::detail::_collapsing_sum::flattened<typename std::remove_cvref_t<Lh>::error_type,
-                                                          typename std::remove_cvref_t<Rh>::error_type>>::type;
+  using new_error_type
+      = sum_for<typename std::remove_cvref_t<Lh>::error_type, typename std::remove_cvref_t<Rh>::error_type>;
   using type = expected<void, new_error_type>;
   if (lh.has_value() && rh.has_value())
-    return type();
-  else if (not lh.has_value())
-    return type{std::unexpect, new_error_type{FWD(lh).error()}};
-  else
-    return type{std::unexpect, new_error_type{FWD(rh).error()}};
+    return type{std::in_place};
+  else if (not lh.has_value()) {
+    if constexpr (not std::is_same_v<typename std::remove_cvref_t<Lh>::error_type, sum<>>)
+      return type{std::unexpect, new_error_type{FWD(lh).error()}};
+    else
+      std::unreachable();
+  } else {
+    if constexpr (not std::is_same_v<typename std::remove_cvref_t<Rh>::error_type, sum<>>)
+      return type{std::unexpect, new_error_type{FWD(rh).error()}};
+    else
+      std::unreachable();
+  }
 }
 
-// Overloads when both sides are non-void, producing expected<pack<...>, ...>
-template <some_expected_non_void Lh, some_expected_non_void Rh>
-  requires std::is_same_v<typename std::remove_cvref_t<Lh>::error_type, typename std::remove_cvref_t<Rh>::error_type>
-           && (not some_pack<typename std::remove_cvref_t<Lh>::value_type>)
-           && (not some_pack<typename std::remove_cvref_t<Rh>::value_type>)
-constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
+// Overloads when both sides are non-void, producing either of
+// expected<pack<...>, ...> or expected<sum<pack<...>, pack...>, ...>
+namespace detail {
+template <typename E> struct _expected_type {
+  template <typename T> using type = ::fn::expected<T, E>;
+};
+} // namespace detail
+
+template <typename Lh, typename Rh>
+  requires(not some_expected_void<Lh>) && (not some_expected_void<Rh>)
+          && std::is_same_v<typename std::remove_cvref_t<Lh>::error_type, typename std::remove_cvref_t<Rh>::error_type>
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
 {
-  using lh_type = std::remove_cvref_t<Lh>::value_type;
-  using rh_type = std::remove_cvref_t<Rh>::value_type;
-  using value_type = pack<lh_type, rh_type>;
-  using error_type = std::remove_cvref_t<Rh>::error_type;
-  using type = expected<value_type, error_type>;
-  if (lh.has_value() && rh.has_value())
-    return type{std::in_place, pack<lh_type>{FWD(lh).value()}.append(std::in_place_type_t<rh_type>{}, FWD(rh).value())};
-  else if (not lh.has_value())
-    return type{std::unexpect, FWD(lh).error()};
-  else
-    return type{std::unexpect, FWD(rh).error()};
+  using error_type = std::remove_cvref_t<Lh>::error_type;
+  static constexpr auto efn = [](auto &&v) { return std::unexpected<error_type>(FWD(v).error()); };
+  return ::fn::detail::_join<detail::template _expected_type<error_type>::template type>(FWD(lh), FWD(rh), efn);
 }
 
-template <some_expected_non_void Lh, some_expected_non_void Rh>
-  requires(not std::is_same_v<typename std::remove_cvref_t<Lh>::error_type,
-                              typename std::remove_cvref_t<Rh>::error_type>)
+template <typename Lh, typename Rh>
+  requires(not some_expected_void<Lh>) && (not some_expected_void<Rh>)
+          && (not std::is_same_v<typename std::remove_cvref_t<Lh>::error_type,
+                                 typename std::remove_cvref_t<Rh>::error_type>)
           && (some_sum<typename std::remove_cvref_t<Lh>::error_type>
               || some_sum<typename std::remove_cvref_t<Rh>::error_type>)
-          && (not some_pack<typename std::remove_cvref_t<Lh>::value_type>)
-          && (not some_pack<typename std::remove_cvref_t<Rh>::value_type>)
-constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
 {
-  using lh_type = std::remove_cvref_t<Lh>::value_type;
-  using rh_type = std::remove_cvref_t<Rh>::value_type;
-  using value_type = pack<lh_type, rh_type>;
-  using new_error_type = ::fn::detail::_collapsing_sum::normalized<
-      ::fn::sum, ::fn::detail::_collapsing_sum::flattened<typename std::remove_cvref_t<Lh>::error_type,
-                                                          typename std::remove_cvref_t<Rh>::error_type>>::type;
-  using type = expected<value_type, new_error_type>;
-  if (lh.has_value() && rh.has_value())
-    return type{std::in_place, pack<lh_type>{FWD(lh).value()}.append(std::in_place_type_t<rh_type>{}, FWD(rh).value())};
-  else if (not lh.has_value())
-    return type{std::unexpect, new_error_type{FWD(lh).error()}};
-  else
-    return type{std::unexpect, new_error_type{FWD(rh).error()}};
+  using new_error_type
+      = sum_for<typename std::remove_cvref_t<Lh>::error_type, typename std::remove_cvref_t<Rh>::error_type>;
+  static constexpr auto efn = [](auto &&v) {
+    if constexpr (not std::is_same_v<typename std::remove_cvref_t<decltype(v)>::error_type, sum<>>) {
+      return std::unexpected<new_error_type>(FWD(v).error());
+    } else {
+      std::unreachable();
+    }
+  };
+  return ::fn::detail::_join<detail::template _expected_type<new_error_type>::template type>(FWD(lh), FWD(rh), efn);
 }
-
-template <some_expected_non_void Lh, some_expected_non_void Rh>
-  requires std::is_same_v<typename std::remove_cvref_t<Lh>::error_type, typename std::remove_cvref_t<Rh>::error_type>
-           && some_pack<typename std::remove_cvref_t<Lh>::value_type>
-           && (not some_pack<typename std::remove_cvref_t<Rh>::value_type>)
-constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
-{
-  using lh_type = std::remove_cvref_t<Lh>::value_type;
-  using rh_type = std::remove_cvref_t<Rh>::value_type;
-  using value_type = typename lh_type::template append_type<rh_type>;
-  using error_type = std::remove_cvref_t<Rh>::error_type;
-  using type = expected<value_type, error_type>;
-  if (lh.has_value() && rh.has_value())
-    return type{std::in_place, FWD(lh).value().append(std::in_place_type_t<rh_type>{}, FWD(rh).value())};
-  else if (not lh.has_value())
-    return type{std::unexpect, FWD(lh).error()};
-  else
-    return type{std::unexpect, FWD(rh).error()};
-}
-
-template <some_expected_non_void Lh, some_expected_non_void Rh>
-  requires(not std::is_same_v<typename std::remove_cvref_t<Lh>::error_type,
-                              typename std::remove_cvref_t<Rh>::error_type>)
-          && (some_sum<typename std::remove_cvref_t<Lh>::error_type>
-              || some_sum<typename std::remove_cvref_t<Rh>::error_type>)
-          && some_pack<typename std::remove_cvref_t<Lh>::value_type>
-          && (not some_pack<typename std::remove_cvref_t<Rh>::value_type>)
-constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
-{
-  using lh_type = std::remove_cvref_t<Lh>::value_type;
-  using rh_type = std::remove_cvref_t<Rh>::value_type;
-  using value_type = typename lh_type::template append_type<rh_type>;
-  using new_error_type = ::fn::detail::_collapsing_sum::normalized<
-      ::fn::sum, ::fn::detail::_collapsing_sum::flattened<typename std::remove_cvref_t<Lh>::error_type,
-                                                          typename std::remove_cvref_t<Rh>::error_type>>::type;
-  using type = expected<value_type, new_error_type>;
-  if (lh.has_value() && rh.has_value())
-    return type{std::in_place, FWD(lh).value().append(std::in_place_type_t<rh_type>{}, FWD(rh).value())};
-  else if (not lh.has_value())
-    return type{std::unexpect, new_error_type{FWD(lh).error()}};
-  else
-    return type{std::unexpect, new_error_type{FWD(rh).error()}};
-}
-
-template <some_expected_non_void Lh, some_expected_non_void Rh>
-  requires(not some_pack<typename std::remove_cvref_t<Lh>::value_type>)
-              && some_pack<typename std::remove_cvref_t<Rh>::value_type>
-constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept = delete;
-
-template <some_expected_non_void Lh, some_expected_non_void Rh>
-  requires some_pack<typename std::remove_cvref_t<Lh>::value_type>
-               && (some_pack<typename std::remove_cvref_t<Rh>::value_type>)
-constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept = delete;
 
 } // namespace fn
 

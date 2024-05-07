@@ -11,14 +11,10 @@
 #include "functional/expected.hpp"
 #include "functional/functional.hpp"
 #include "functional/functor.hpp"
-#include "functional/fwd.hpp"
 #include "functional/optional.hpp"
 #include "functional/sum.hpp"
-#include "functional/utility.hpp"
 
-#include <concepts>
 #include <type_traits>
-#include <utility>
 
 namespace fn {
 template <typename Fn, typename V>
@@ -51,7 +47,7 @@ concept invocable_transform //
         } -> convertible_to_choice;
       });
 
-static constexpr struct transform_t final {
+constexpr inline struct transform_t final {
   [[nodiscard]] constexpr auto operator()(auto &&fn) const noexcept -> functor<transform_t, decltype(fn)> //
   {
     return {FWD(fn)};

@@ -13,12 +13,11 @@
 
 #include <concepts>
 #include <type_traits>
-#include <utility>
 
 namespace fn {
 template <typename Functor, typename V, typename... Args>
 concept monadic_invocable //
-    = some_monadic_type<V> && invocable<typename Functor::apply, V, Args...>;
+    = some_monadic_type<V> && ::std::invocable<typename Functor::apply, V, Args...>;
 
 template <typename Functor, typename... Args> struct functor final {
   using functor_type = Functor;
@@ -35,7 +34,7 @@ template <typename Functor, typename... Args> struct functor final {
     requires std::same_as<std::remove_cvref_t<decltype(self)>, functor>
              && monadic_invocable<functor_type, decltype(v), Args...>
   {
-    return FWD(self).data.invoke(functor_apply{}, FWD(v));
+    return data_t::_swap_invoke(FWD(self).data, functor_apply{}, FWD(v));
   }
 };
 

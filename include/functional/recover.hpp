@@ -6,11 +6,8 @@
 #ifndef INCLUDE_FUNCTIONAL_RECOVER
 #define INCLUDE_FUNCTIONAL_RECOVER
 
-#include "functional/concepts.hpp"
 #include "functional/functional.hpp"
 #include "functional/functor.hpp"
-#include "functional/fwd.hpp"
-#include "functional/utility.hpp"
 
 #include <concepts>
 #include <type_traits>

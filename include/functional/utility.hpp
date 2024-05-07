@@ -8,13 +8,6 @@
 
 #include "functional/detail/fwd_macro.hpp"
 #include "functional/detail/traits.hpp"
-#include "functional/fwd.hpp"
-
-#include <concepts>
-#include <functional>
-#include <type_traits>
-#include <utility>
-#include <variant>
 
 namespace fn {
 template <typename T> using as_value_t = decltype(detail::_as_value<T>);
@@ -30,6 +23,22 @@ template <typename... Ts> struct overload final : Ts... {
   using Ts::operator()...;
 };
 template <typename... Ts> overload(Ts const &...) -> overload<Ts...>;
+
+// Preferred make lift function using {}
+template <typename T, typename... Args>
+[[nodiscard]] constexpr auto make(Args &&...args) -> T
+  requires requires(Args &&...args) { T{FWD(args)...}; }
+{
+  return T{FWD(args)...};
+}
+
+// Fallback to () construction if {} is not available
+template <typename T, typename... Args>
+[[nodiscard]] constexpr auto make(Args &&...args) -> T
+  requires requires(Args &&...args) { T(FWD(args)...); } && (not requires(Args &&...args) { T{FWD(args)...}; })
+{
+  return T(FWD(args)...);
+}
 
 } // namespace fn
 

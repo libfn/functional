@@ -9,11 +9,6 @@
 #include "functional/concepts.hpp"
 #include "functional/functional.hpp"
 #include "functional/functor.hpp"
-#include "functional/fwd.hpp"
-#include "functional/utility.hpp"
-
-#include <concepts>
-#include <utility>
 
 namespace fn {
 template <typename Fn, typename V>
@@ -31,6 +26,11 @@ concept invocable_or_else //
         {
           ::fn::invoke(FWD(fn))
         } -> same_value_kind<V>;
+      }) || (some_optional<V>  //
+         && some_sum<typename std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
+        {
+          ::fn::invoke(FWD(fn))
+        } -> some_optional;
       });
 
 constexpr inline struct or_else_t final {
