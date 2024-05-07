@@ -1,11 +1,14 @@
 { lib
+, pkgs
 , stdenv
 , cmake
-, catch2_3
 , ccache
 , enableTests ? true
 }:
 
+let 
+  catch2_mine = pkgs.callPackage ./catch2_3.nix {};
+in
 stdenv.mkDerivation {
   name = "cpp-nix";
 
@@ -22,7 +25,7 @@ stdenv.mkDerivation {
   # at compile time) and normal build inputs (runnable on target
   # platform at run time) is important for cross compilation.
   nativeBuildInputs = [ cmake ccache ];
-  buildInputs = [ catch2_3 ];
+  buildInputs = [ catch2_mine ];
   checkInputs = [ ];
 
   doCheck = enableTests;
