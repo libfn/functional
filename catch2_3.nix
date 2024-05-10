@@ -6,7 +6,7 @@
 }:
 
 stdenv.mkDerivation rec {
-  pname = "catch2_mine";
+  pname = "catch2_local";
   version = "3.5.2";
 
   src = fetchFromGitHub {

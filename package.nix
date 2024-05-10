@@ -7,10 +7,10 @@
 }:
 
 let 
-  catch2_mine = pkgs.callPackage ./catch2_3.nix { inherit stdenv; };
+  catch2_local = pkgs.callPackage ./catch2_3.nix { inherit stdenv; };
 in
 stdenv.mkDerivation {
-  name = "cpp-nix";
+  name = "libfn";
 
   # good source filtering is important for caching of builds.
   # It's easier when subprojects have their own distinct subfolders.
@@ -25,7 +25,7 @@ stdenv.mkDerivation {
   # at compile time) and normal build inputs (runnable on target
   # platform at run time) is important for cross compilation.
   nativeBuildInputs = [ cmake ccache ];
-  buildInputs = [ catch2_mine ];
+  buildInputs = [ catch2_local ];
   checkInputs = [ ];
 
   doCheck = enableTests;
