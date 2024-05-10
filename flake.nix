@@ -13,7 +13,7 @@
       perSystem = { config, self', inputs', pkgs, system, ... }: {
         packages = {
           default = pkgs.callPackage ./package.nix { stdenv = pkgs.gcc13Stdenv; };
-          clang = pkgs.callPackage ./package.nix { stdenv = pkgs.clang17Stdenv; }; # No clang18 in nix yet
+          clang = pkgs.callPackage ./package.nix { stdenv = pkgs.llvmPackages_18.stdenv; };
           gcc = pkgs.callPackage ./package.nix { stdenv = pkgs.gcc13Stdenv; };
         }
         // pkgs.lib.optionalAttrs (system != "x86_64-linux") {
@@ -27,7 +27,7 @@
         };
         checks = config.packages // {
           clang = config.packages.default.override {
-            stdenv = pkgs.clang17Stdenv; # Update to clang18 when available
+            stdenv = pkgs.llvmPackages_18.stdenv;
           };
           gcc = config.packages.default.override {
             stdenv = pkgs.gcc13Stdenv;
