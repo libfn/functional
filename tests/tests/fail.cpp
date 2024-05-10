@@ -339,12 +339,43 @@ TEST_CASE("constexpr fail expected", "[fail][constexpr][expected]")
   SUCCEED();
 }
 
+TEST_CASE("constexpr fail expected with sum", "[fail][constexpr][expected][sum]")
+{
+  enum class Error { ThresholdExceeded, SomethingElse, Reserved };
+  using T = fn::expected<fn::sum<Value, int>, Error>;
+  constexpr auto fn = fn::overload{[](int) constexpr noexcept -> Error { return Error::ThresholdExceeded; },
+                                   [](Value const &) { return Error::SomethingElse; }};
+  constexpr auto r1 = T{0} | fn::fail(fn);
+  static_assert(r1.error() == Error::ThresholdExceeded);
+  constexpr auto r2 = T{Value{13}} | fn::fail(fn);
+  static_assert(r2.error() == Error::SomethingElse);
+  constexpr auto r3 = T{3} | fn::fail(fn);
+  static_assert(r3.error() == Error::ThresholdExceeded);
+  constexpr auto r4 = T{std::unexpect, Error::Reserved} | fn::fail(fn);
+  static_assert(r4.error() == Error::Reserved);
+
+  SUCCEED();
+}
+
 TEST_CASE("constexpr fail optional", "[fail][constexpr][optional]")
 {
   using T = fn::optional<int>;
   constexpr auto fn = [](int) constexpr noexcept -> void {};
   constexpr auto r1 = T{0} | fn::fail(fn);
   static_assert(not r1.has_value());
+
+  SUCCEED();
+}
+
+TEST_CASE("constexpr fail optional with sum", "[fail][constexpr][optional][sum]")
+{
+  using T = fn::optional<fn::sum<Value, int>>;
+  constexpr auto fn
+      = fn::overload{[](int) constexpr noexcept -> void {}, [](Value const &) constexpr noexcept -> void {}};
+  constexpr auto r1 = T{0} | fn::fail(fn);
+  static_assert(not r1.has_value());
+  constexpr auto r2 = T{Value{12}} | fn::fail(fn);
+  static_assert(not r2.has_value());
 
   SUCCEED();
 }

@@ -1,3 +1,11 @@
+codecov:
+  require_ci_to_pass: true
+
+comment:
+  behavior: default
+  layout: reach,diff,flags,tree,reach
+  show_carryforward_flags: false
+
 coverage:
   range: "90..98"
   precision: 1
@@ -7,17 +15,24 @@ coverage:
       default:
         target: 99%
         threshold: 1%
-
     patch:
       default:
         target: auto
         threshold: 1%
+    changes: false
+
+github_checks:
+  annotations: true
+
+slack_app: false
 
 parsers:
-  cobertura:
-    partials_as_hits: false
-    handle_missing_conditions: false
+  gcov:
+    branch_detection:
+      conditional: false
+      loop: false
+      method: false
+      macro: false
 
 ignore:
-  - "external/"
   - "tests/"

@@ -9,11 +9,6 @@
 #include "functional/concepts.hpp"
 #include "functional/functional.hpp"
 #include "functional/functor.hpp"
-#include "functional/fwd.hpp"
-#include "functional/utility.hpp"
-
-#include <concepts>
-#include <utility>
 
 namespace fn {
 template <typename Fn, typename V>
@@ -22,10 +17,20 @@ concept invocable_or_else //
         {
           ::fn::invoke(FWD(fn), FWD(v).error())
         } -> same_value_kind<V>;
+      }) || (some_expected<V> //
+         && some_sum<typename std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
+        {
+          ::fn::invoke(FWD(fn), FWD(v).error())
+        } -> some_expected;
       }) || (some_optional<V> && requires(Fn &&fn) {
         {
           ::fn::invoke(FWD(fn))
         } -> same_value_kind<V>;
+      }) || (some_optional<V>  //
+         && some_sum<typename std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
+        {
+          ::fn::invoke(FWD(fn))
+        } -> some_optional;
       });
 
 constexpr inline struct or_else_t final {
@@ -38,7 +43,7 @@ constexpr inline struct or_else_t final {
 } or_else = {};
 
 struct or_else_t::apply final {
-  [[nodiscard]] static constexpr auto operator()(some_monadic_type auto &&v, auto &&fn) noexcept
+  [[nodiscard]] static constexpr auto operator()(some_monadic_type auto &&v, auto &&fn) noexcept //
       -> same_value_kind<decltype(v)> auto
     requires invocable_or_else<decltype(fn), decltype(v)>
   {

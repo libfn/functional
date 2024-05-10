@@ -110,3 +110,23 @@ TEST_CASE("overload", "[overload]")
   static_assert(fn::overload{a2}(2) == 3);
   static_assert(fn::overload{A{}}(3) == 4);
 }
+
+TEST_CASE("make lift")
+{
+  WHEN("aggregate constructor")
+  {
+    constexpr auto a = fn::make<std::array<int, 2>>(3, 5);
+    static_assert(std::is_same_v<decltype(a), std::array<int, 2> const>);
+    static_assert(a[0] == 3 && a[1] == 5);
+  }
+
+  WHEN("aggregate class")
+  {
+    struct A {
+      int const i;
+    };
+    constexpr auto a = fn::make<A>(12);
+    static_assert(std::is_same_v<decltype(a), A const>);
+    static_assert(a.i == 12);
+  }
+}

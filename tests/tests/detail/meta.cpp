@@ -9,7 +9,6 @@
 
 #include <concepts>
 #include <type_traits>
-#include <utility>
 
 TEST_CASE("select nth", "[select_nth]")
 {

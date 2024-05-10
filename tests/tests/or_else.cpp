@@ -5,12 +5,10 @@
 
 #include "static_check.hpp"
 
-#include "functional/functor.hpp"
 #include "functional/or_else.hpp"
 
 #include <catch2/catch_all.hpp>
 
-#include <compare>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -386,6 +384,72 @@ TEST_CASE("constexpr or_else expected", "[or_else][constexpr][expected]")
   SUCCEED();
 }
 
+TEST_CASE("constexpr or_else expected with sum", "[or_else][constexpr][expected][sum]")
+{
+  enum class Error { ThresholdExceeded, SomethingElse, UnexpectedType };
+  using T = fn::expected<int, fn::sum<Error, int>>;
+
+  WHEN("same error type")
+  {
+    constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> T {
+                                       if (i < 3)
+                                         return {i + 1};
+                                       return std::unexpected<fn::sum<Error, int>>{Error::ThresholdExceeded};
+                                     },
+                                     [](Error v) constexpr noexcept -> T { return {static_cast<int>(v)}; }};
+    constexpr auto r1 = T{std::unexpect, 0} | fn::or_else(fn);
+    static_assert(r1.value() == 1);
+    constexpr auto r2 = T{std::unexpect, 3} | fn::or_else(fn);
+    static_assert(r2.error() == fn::sum{Error::ThresholdExceeded});
+  }
+
+  WHEN("different error type")
+  {
+    using T1 = fn::expected<int, Error>;
+    constexpr auto fn
+        = fn::overload{[](int i) constexpr noexcept -> T1 {
+                         if (i < 2)
+                           return {i + 1};
+                         return std::unexpected<Error>{Error::SomethingElse};
+                       },
+                       [](Error) constexpr noexcept -> T1 { return std::unexpected<Error>{Error::UnexpectedType}; }};
+    constexpr auto r1 = T{std::unexpect, 1} | fn::or_else(fn);
+    static_assert(std::is_same_v<decltype(r1), fn::expected<int, Error> const>);
+    static_assert(r1.value() == 2);
+    constexpr auto r2 = T{std::unexpect, 2} | fn::or_else(fn);
+    static_assert(r2.error() == Error::SomethingElse);
+    constexpr auto r3 = T{std::unexpect, Error::ThresholdExceeded} | fn::or_else(fn);
+    static_assert(r3.error() == Error::UnexpectedType);
+  }
+
+  SUCCEED();
+}
+
+TEST_CASE("constexpr or_else graded monad", "[or_else][constexpr][expected][graded]")
+{
+  enum class Error : int { Unknown, InvalidValue };
+  using T = fn::expected<fn::sum<int>, Error>;
+
+  WHEN("same error type")
+  {
+    constexpr auto fn1 = [](Error i) -> fn::expected<int, int> {
+      if (i == Error::Unknown)
+        return {0};
+      return std::unexpected<int>{(int)i};
+    };
+
+    constexpr auto r1 = T{14} | fn::or_else(fn1);
+    static_assert(std::is_same_v<decltype(r1), fn::expected<fn::sum<int>, int> const>);
+    static_assert(r1.value() == fn::sum{14});
+    constexpr auto r2 = T{std::unexpect, Error::InvalidValue} | fn::or_else(fn1);
+    static_assert(r2.error() == 1);
+    constexpr auto r3 = T{std::unexpect, Error::Unknown} | fn::or_else(fn1);
+    static_assert(r3.value() == fn::sum{0});
+  }
+
+  SUCCEED();
+}
+
 TEST_CASE("constexpr or_else optional", "[or_else][constexpr][optional]")
 {
   using T = fn::optional<int>;
@@ -394,6 +458,19 @@ TEST_CASE("constexpr or_else optional", "[or_else][constexpr][optional]")
   static_assert(r1.value() == 0);
   constexpr auto r2 = T{} | fn::or_else(fn);
   static_assert(r2.value() == 1);
+
+  SUCCEED();
+}
+
+TEST_CASE("constexpr or_else optional with sum", "[or_else][constexpr][optional][sum]")
+{
+  using T = fn::optional<fn::sum<int>>;
+  constexpr auto fn = []() constexpr noexcept -> fn::optional<unsigned long> { return {1ul}; };
+  constexpr auto r1 = T{0} | fn::or_else(fn);
+  static_assert(std::is_same_v<decltype(r1), fn::optional<fn::sum<int, unsigned long>> const>);
+  static_assert(r1.value() == fn::sum{0});
+  constexpr auto r2 = T{} | fn::or_else(fn);
+  static_assert(r2.value() == fn::sum{1ul});
 
   SUCCEED();
 }

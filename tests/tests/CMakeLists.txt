@@ -30,6 +30,7 @@ set(TESTS_SOURCE_FILES
     transform_error.cpp
     transform.cpp
     utility.cpp
+    value_or.cpp
 )
 add_executable(${PROJECT_NAME} ${TESTS_SOURCE_FILES})
 target_link_libraries(${PROJECT_NAME} include util catch2_main)

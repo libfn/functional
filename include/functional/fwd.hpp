@@ -6,6 +6,7 @@
 #ifndef INCLUDE_FUNCTIONAL_FWD
 #define INCLUDE_FUNCTIONAL_FWD
 
+// For exposition only
 #include "functional/detail/fwd.hpp"
 
 #endif // INCLUDE_FUNCTIONAL_FWD

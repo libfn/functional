@@ -9,9 +9,9 @@
 #include "functional/choice.hpp"
 #include "functional/expected.hpp"
 #include "functional/optional.hpp"
+#include "functional/sum.hpp"
 
 #include <concepts>
-#include <functional>
 #include <type_traits>
 
 namespace fn {
@@ -25,17 +25,22 @@ template <typename T, typename U>
 concept same_kind
     = (some_expected<T> && some_expected<U>
        && std::same_as<typename std::remove_cvref_t<T>::error_type, typename std::remove_cvref_t<U>::error_type>)
+      || (some_expected<T> && some_sum<typename std::remove_cvref_t<T>::error_type> //
+          && some_expected<U> && some_sum<typename std::remove_cvref_t<U>::error_type>)
       || (some_optional<T> && some_optional<U>) //
       || (some_choice<T> && some_choice<U>);
 
-// NOTE similar to the above, but not nearly as useful since it only allows
-// transformation of an error type
+// NOTE symmetrical to the above
 template <typename T, typename U>
 concept same_value_kind
     = (some_expected<T> && some_expected<U>
        && std::same_as<typename std::remove_cvref_t<T>::value_type, typename std::remove_cvref_t<U>::value_type>)
+      || (some_expected<T> && some_sum<typename std::remove_cvref_t<T>::value_type> //
+          && some_expected<U> && some_sum<typename std::remove_cvref_t<U>::value_type>)
       || (some_optional<T> && some_optional<U>
           && std::same_as<typename std::remove_cvref_t<U>::value_type, typename std::remove_cvref_t<T>::value_type>) //
+      || (some_optional<T> && some_sum<typename std::remove_cvref_t<T>::value_type>                                  //
+          && some_optional<U> && some_sum<typename std::remove_cvref_t<U>::value_type>)
       || (some_choice<T> && some_choice<U>);
 
 template <typename T, typename U>
