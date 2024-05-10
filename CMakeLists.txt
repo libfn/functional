@@ -6,6 +6,8 @@ include(Ccache)
 
 include(Catch2)
 
+option(USE_NIX "Use nix packages to resolve dependencies." OFF)
+
 option(COVERARE "Enable coverage report." OFF)
 if(COVERAGE)
   include(CodeCoverage)

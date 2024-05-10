@@ -1,5 +1,6 @@
-find_package(Catch2 3)
-if(NOT Catch2_FOUND)
+if(USE_NIX)
+  find_package(Catch2 3)
+else()  
   include(FetchContent)
   FetchContent_Declare(
     Catch2
@@ -10,4 +11,3 @@ if(NOT Catch2_FOUND)
   
   list(APPEND CMAKE_MODULE_PATH ${Catch2_SOURCE_DIR}/extras)
 endif()
-  
