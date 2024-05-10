@@ -6,7 +6,12 @@ First you will need to install Nix from [https://nixos.org/download](https://nix
 It's as simple as running a command in your terminal.
 
 ## Usage
-Any of the commands below will download the toolchain and all required tooling at first run so give it some time. It will be fast for the next build.
+> [!NOTE]  
+> First build will trigger multiple downloads. 
+
+The default compiler is gcc.
+
+---
 
 Create a development shell:
 ```bash
@@ -18,7 +23,10 @@ Or just build and run the tests:
 $ nix build .
 ```
 
-To select the toolchain use these:
+### Changing the compiler
+Currently two compilers are supported: gcc 13 and clang 18.
+
+To select a specific compiler use this notation (works for both `build` and `develop`):
 ```bash
 $ nix develop .#gcc
 $ nix develop .#clang
