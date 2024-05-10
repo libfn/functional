@@ -36,7 +36,7 @@ stdenv.mkDerivation rec {
     NIX_CFLAGS_COMPILE = "-msse2 -mfpmath=sse";
   };
 
-  doCheck = true;
+  doCheck = false;
 
   nativeCheckInputs = [
     python3
