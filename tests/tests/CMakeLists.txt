@@ -33,7 +33,7 @@ set(TESTS_SOURCE_FILES
     value_or.cpp
 )
 add_executable(${PROJECT_NAME} ${TESTS_SOURCE_FILES})
-target_link_libraries(${PROJECT_NAME} include util catch2_main)
+target_link_libraries(${PROJECT_NAME} include util catch2_main Catch2::Catch2)
 
 add_test(
     NAME ${PROJECT_NAME}

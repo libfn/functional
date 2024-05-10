@@ -4,9 +4,8 @@ project(functional VERSION 0.0.1 LANGUAGES C CXX)
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 include(Ccache)
 
-include(Catch2)
-
 option(USE_NIX "Use nix packages to resolve dependencies." OFF)
+include(Catch2)
 
 option(COVERARE "Enable coverage report." OFF)
 if(COVERAGE)
