@@ -17,6 +17,8 @@ stdenv.mkDerivation {
     "^tests.*"
     "CMakeLists.txt"
     "^cmake.*"
+    "README.md"
+    "LICENSE.md"
   ];
 
   nativeBuildInputs = [ cmake ccache ];
