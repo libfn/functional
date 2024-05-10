@@ -7,7 +7,7 @@
 }:
 
 let 
-  catch2_mine = pkgs.callPackage ./catch2_3.nix {};
+  catch2_mine = pkgs.callPackage ./catch2_3.nix { inherit stdenv; };
 in
 stdenv.mkDerivation {
   name = "cpp-nix";

@@ -20,7 +20,7 @@ stdenv.mkDerivation rec {
     cmake
   ];
 
-  #hardeningDisable = [ "trivialautovarinit" ];
+  hardeningDisable = [ "trivialautovarinit" ];
 
   cmakeFlags = [
     "-DCATCH_DEVELOPMENT_BUILD=ON"
