@@ -13,7 +13,7 @@ The default compiler is gcc.
 
 ---
 
-Create a development shell:
+Create a build environment:
 ```bash
 $ nix develop .
 ``` 
@@ -31,3 +31,17 @@ To select a specific compiler use this notation (works for both `build` and `dev
 $ nix develop .#gcc
 $ nix develop .#clang
 ```
+
+### VSCode
+> [!NOTE]  
+> The executable `code` is assumed to be available in your `$PATH`.
+> on Mac it's in `/Applications/Visual Studio Code.app/Contents/Resources/app/bin`
+
+Once you are in a build environment it's possible to use VSCode directly by running it from that environment:
+```bash
+$ git clone git@github.com:libfn/functional.git 
+$ cd functional && nix develop .
+bash-5.2$ code .
+```
+
+This makes the selected compiler available as a kit in VSCode as well as allows the project to be automatically configured by cmake once the kit is selected.
