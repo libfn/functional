@@ -12,7 +12,7 @@ in
 stdenv.mkDerivation {
   name = "libfn";
 
-  src = lib.sourceByRegex ./. [
+  src = lib.sourceByRegex ./.. [
     "^include.*"
     "^tests.*"
     "CMakeLists.txt"
