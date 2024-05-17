@@ -10,7 +10,7 @@ let
   catch2_local = pkgs.callPackage ./catch2_3.nix { inherit stdenv; };
 in
 stdenv.mkDerivation {
-  name = "libfn";
+  name = "functional";
 
   src = lib.sourceByRegex ./.. [
     "^include.*"
