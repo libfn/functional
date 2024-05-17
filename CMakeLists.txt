@@ -4,6 +4,8 @@ project(functional VERSION 0.0.1 LANGUAGES C CXX)
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 include(Ccache)
 
+option(USE_NIX "Use nix packages to resolve dependencies." OFF)
+
 option(COVERARE "Enable coverage report." OFF)
 if(COVERAGE)
   include(CodeCoverage)
@@ -31,3 +33,6 @@ add_subdirectory(include)
 include(Catch2)
 enable_testing()
 add_subdirectory(tests)
+
+install(FILES README.md LICENSE.md
+    DESTINATION share/doc/functional)
