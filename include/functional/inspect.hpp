@@ -17,21 +17,13 @@ namespace fn {
 template <typename Fn, typename V>
 concept invocable_inspect //
     = (some_expected_non_void<V> && requires(Fn &&fn, V &&v) {
-        {
-          ::fn::invoke(FWD(fn), std::as_const(v).value())
-        } -> std::same_as<void>;
+        { ::fn::invoke(FWD(fn), std::as_const(v).value()) } -> std::same_as<void>;
       }) || (some_expected_void<V> && requires(Fn &&fn) {
-        {
-          ::fn::invoke(FWD(fn))
-        } -> std::same_as<void>;
+        { ::fn::invoke(FWD(fn)) } -> std::same_as<void>;
       }) || (some_optional<V> && requires(Fn &&fn, V &&v) {
-        {
-          ::fn::invoke(FWD(fn), std::as_const(v).value())
-        } -> std::same_as<void>;
+        { ::fn::invoke(FWD(fn), std::as_const(v).value()) } -> std::same_as<void>;
       }) || (some_choice<V> && requires(Fn &&fn, V &&v) {
-        {
-          ::fn::invoke(FWD(fn), std::as_const(v).value())
-        } -> std::same_as<void>;
+        { ::fn::invoke(FWD(fn), std::as_const(v).value()) } -> std::same_as<void>;
       });
 
 constexpr inline struct inspect_t final {

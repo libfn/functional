@@ -132,8 +132,8 @@ template <typename... Ts> struct normalized final {
   static constexpr _uniqued _indices_v = _indices();
 
   template <template <typename...> typename F, std::size_t... Is>
-  static constexpr auto _normalized_f(std::index_sequence<Is...> const &)
-      -> F<select_nth_t<_indices_v.indices[Is], Ts...>...>;
+  static constexpr auto
+  _normalized_f(std::index_sequence<Is...> const &) -> F<select_nth_t<_indices_v.indices[Is], Ts...>...>;
 
   // How many unique types
   static constexpr std::size_t size = _indices_v.size;

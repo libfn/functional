@@ -38,8 +38,8 @@ constexpr inline bool is_nothrow_invocable_r_v = is_nothrow_invocable_r<Ret, Fn,
 // invoke
 template <typename Fn, typename... Args>
   requires is_invocable_v<Fn, Args...>
-constexpr inline auto invoke(Fn &&fn, Args &&...args) noexcept(is_nothrow_invocable_v<Fn, Args...>)
-    -> invoke_result_t<Fn, Args...>
+constexpr inline auto
+invoke(Fn &&fn, Args &&...args) noexcept(is_nothrow_invocable_v<Fn, Args...>) -> invoke_result_t<Fn, Args...>
 {
   return detail::_invoke(FWD(fn), FWD(args)...);
 }

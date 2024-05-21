@@ -6,7 +6,7 @@ jobs:
   format-check:
     runs-on: ubuntu-22.04
     env:
-      CLANG_VERSION: 17
+      CLANG_VERSION: 18
     steps:
     - uses: actions/checkout@v4
 
