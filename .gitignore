@@ -2,7 +2,7 @@
 .idea_modules/
 .build*/
 build*/
-result/
+result
 .clangd
 .devcontainer/
 .vscode/

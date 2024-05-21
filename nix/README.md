@@ -9,6 +9,15 @@ It's as simple as running a command in your terminal.
 > [!NOTE]  
 > First build will trigger multiple downloads. 
 
+Software immediately available in the build environment:
+- Compiler (clang or gcc)
+- clang-format
+- clang-tidy
+- clangd
+- cmake
+- ccache
+- ninja
+
 The default compiler is gcc.
 
 ---

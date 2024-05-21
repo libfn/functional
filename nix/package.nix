@@ -3,6 +3,8 @@
 , stdenv
 , cmake
 , ccache
+, clang-tools_18
+, ninja
 , enableTests ? true
 }:
 
@@ -21,7 +23,7 @@ stdenv.mkDerivation {
     "LICENSE.md"
   ];
 
-  nativeBuildInputs = [ cmake ccache ];
+  nativeBuildInputs = [ cmake ninja ccache clang-tools_18 ];
   buildInputs = [ catch2_local ];
   checkInputs = [ ];
 
