@@ -1,4 +1,4 @@
-name: build
+name: nix-build
 
 on: [push, pull_request]
 
