@@ -44,8 +44,8 @@ jobs:
           --slave /usr/bin/gcc-nm gcc-nm /usr/local/bin/gcc-nm \
           --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/local/bin/gcc-ranlib \
           --slave /usr/bin/gcov gcov /usr/local/bin/gcov \
-          --slave /usr/bin/gcov-tool gcov-tool /usr/local/bin/gcov-dump \
-          --slave /usr/bin/gcov-dump gcov-dump /usr/local/bin/gcov-tool \
+          --slave /usr/bin/gcov-tool gcov-tool /usr/local/bin/gcov-tool \
+          --slave /usr/bin/gcov-dump gcov-dump /usr/local/bin/gcov-dump \
           --slave /usr/bin/lto-dump lto-dump /usr/local/bin/lto-dump
         update-alternatives --auto gcc
 
