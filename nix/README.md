@@ -16,6 +16,7 @@ Software immediately available in the build environment:
 - clangd
 - cmake
 - ccache
+- ninja
 
 The default compiler is gcc.
 
