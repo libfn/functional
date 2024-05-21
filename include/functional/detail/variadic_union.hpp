@@ -34,9 +34,10 @@ template <typename T, typename Ret, typename... Args>
 }
 
 template <typename T, typename Fn, typename... Args>
-constexpr auto _is_type_invocable_result(
-    Fn &&, Args &&..., std::type_identity<decltype(_invoke_type<T>(std::declval<Fn>(), std::declval<Args>()...))> = {})
-    -> std::true_type;
+constexpr auto
+_is_type_invocable_result(Fn &&, Args &&...,
+                          std::type_identity<decltype(_invoke_type<T>(std::declval<Fn>(), std::declval<Args>()...))>
+                          = {}) -> std::true_type;
 template <typename T, typename Fn, typename... Args>
 constexpr auto _is_type_invocable_result(auto &&...) -> std::false_type;
 
@@ -73,8 +74,8 @@ concept _typelist_type_invocable = _is_tst_invocable<Fn, T &&>;
 template <typename T, typename Ret, typename Fn, typename... Args>
 constexpr auto _is_type_invocable_r_result(
     Fn &&, Args &&...,
-    std::type_identity<decltype(_invoke_type_r<T, Ret>(std::declval<Fn>(), std::declval<Args>()...))> = {})
-    -> std::true_type;
+    std::type_identity<decltype(_invoke_type_r<T, Ret>(std::declval<Fn>(), std::declval<Args>()...))>
+    = {}) -> std::true_type;
 template <typename T, typename Ret, typename Fn, typename... Args>
 constexpr auto _is_type_invocable_r_result(auto &&...) -> std::false_type;
 template <typename T, typename Ret, typename Fn, typename... Args> struct _is_type_invocable_r {
@@ -230,40 +231,40 @@ union variadic_union<T0, T1, T2, T3, Ts...> final {
 
 template <typename T, typename U>
 [[nodiscard]] constexpr auto *ptr_variadic_union(some_variadic_union auto &&v) noexcept
-  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U>
-           && (U::template has_type<T>) && std::is_same_v<T, typename U::t0>
+  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U> && (U::template has_type<T>)
+           && std::is_same_v<T, typename U::t0>
 {
   return &v.v0;
 }
 
 template <typename T, typename U>
 [[nodiscard]] constexpr auto *ptr_variadic_union(some_variadic_union auto &&v) noexcept
-  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U>
-           && (U::template has_type<T>) && std::is_same_v<T, typename U::t1>
+  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U> && (U::template has_type<T>)
+           && std::is_same_v<T, typename U::t1>
 {
   return &v.v1;
 }
 
 template <typename T, typename U>
 [[nodiscard]] constexpr auto *ptr_variadic_union(some_variadic_union auto &&v) noexcept
-  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U>
-           && (U::template has_type<T>) && std::is_same_v<T, typename U::t2>
+  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U> && (U::template has_type<T>)
+           && std::is_same_v<T, typename U::t2>
 {
   return &v.v2;
 }
 
 template <typename T, typename U>
 [[nodiscard]] constexpr auto *ptr_variadic_union(some_variadic_union auto &&v) noexcept
-  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U>
-           && (U::template has_type<T>) && std::is_same_v<T, typename U::t3>
+  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U> && (U::template has_type<T>)
+           && std::is_same_v<T, typename U::t3>
 {
   return &v.v3;
 }
 
 template <typename T, typename U>
 [[nodiscard]] constexpr auto *ptr_variadic_union(some_variadic_union auto &&v) noexcept
-  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U>
-           && (U::template has_type<T>) && (U::more_t::template has_type<T>)
+  requires std::is_same_v<std::remove_cvref_t<decltype(v)>, U> && (U::template has_type<T>)
+           && (U::more_t::template has_type<T>)
 {
   return ptr_variadic_union<T, typename U::more_t>(v.more);
 }
