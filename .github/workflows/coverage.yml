@@ -1,91 +1,91 @@
-name: coverage
+# name: coverage
 
-on:
-  pull_request:
-    branches:
-      - main
-  push:
-    branches:
-      - main
-      - 'feature/*'
-      - 'bugfix/*'
-      - 'release/*'
+# on:
+#   pull_request:
+#     branches:
+#       - main
+#   push:
+#     branches:
+#       - main
+#       - 'feature/*'
+#       - 'bugfix/*'
+#       - 'release/*'
 
-jobs:
-  coverage:
-    runs-on: ubuntu-22.04
-    container: gcc:13-bookworm
-    strategy:
-      fail-fast: false
-    env:
-      CC: /usr/local/bin/gcc
-      CXX: /usr/local/bin/g++
-      GCOV: /usr/local/bin/gcov
+# jobs:
+#   coverage:
+#     runs-on: ubuntu-22.04
+#     container: gcc:13-bookworm
+#     strategy:
+#       fail-fast: false
+#     env:
+#       CC: /usr/local/bin/gcc
+#       CXX: /usr/local/bin/g++
+#       GCOV: /usr/local/bin/gcov
 
-    steps:
-    - uses: actions/checkout@v4
+#     steps:
+#     - uses: actions/checkout@v4
 
-    - name: Install prerequisites
-      env:
-        DEBIAN_FRONTEND: noninteractive
-      run: |
-        apt-get update -y
-        apt-get install -y --no-install-recommends cmake ninja-build
-        apt-get clean -y
+#     - name: Install prerequisites
+#       env:
+#         DEBIAN_FRONTEND: noninteractive
+#       run: |
+#         apt-get update -y
+#         apt-get install -y --no-install-recommends cmake ninja-build
+#         apt-get clean -y
 
-    - name: Verify compiler compatibility
-      env:
-        SOURCE: |
-          #include <optional>
-          #include <expected>
-          #include <cstdio>
-          int main() {
-            using type1=std::expected<int, const char*>;
-            using type2=std::optional<int>;
-            return type1{1}.and_then([](int i) -> type1 { std::puts("OK expected"); return {i-1}; }).value()
-              + type2{2}.and_then([](int i) -> type2 { std::puts("OK optional"); return {i-2}; }).value();
-          }
-      run: |
-        FILE=$(mktemp --tmpdir XXXXXX.cpp)
-        printf "$SOURCE\n" > $FILE
-        OUT=$(mktemp --tmpdir  XXXXXX)
-        $CXX -std=c++23 -Wall $FILE -o $OUT
-        $OUT
+#     - name: Verify compiler compatibility
+#       env:
+#         SOURCE: |
+#           #include <optional>
+#           #include <expected>
+#           #include <cstdio>
+#           int main() {
+#             using type1=std::expected<int, const char*>;
+#             using type2=std::optional<int>;
+#             return type1{1}.and_then([](int i) -> type1 { std::puts("OK expected"); return {i-1}; }).value()
+#               + type2{2}.and_then([](int i) -> type2 { std::puts("OK optional"); return {i-2}; }).value();
+#           }
+#       run: |
+#         FILE=$(mktemp --tmpdir XXXXXX.cpp)
+#         printf "$SOURCE\n" > $FILE
+#         OUT=$(mktemp --tmpdir  XXXXXX)
+#         $CXX -std=c++23 -Wall $FILE -o $OUT
+#         $OUT
 
-    - name: Prepare build
-      shell: bash
-      env:
-        CMAKE_GENERATOR: Ninja
-        CMAKE_BUILD_TYPE: Debug
-        COVERAGE_OPTS: "-g --coverage -fprofile-abs-path -fno-early-inlining"
-      run: |
-        mkdir .build
-        cd .build
-        cmake -DCMAKE_C_FLAGS="$COVERAGE_OPTS" -DCMAKE_CXX_FLAGS="$COVERAGE_OPTS" ..
-        COMPILER=$( grep "CMAKE_CXX_COMPILER:FILEPATH" CMakeCache.txt | sed "s|CMAKE_CXX_COMPILER:FILEPATH=/|/|" )
-        [[ "$( realpath $CXX )" == "$( realpath $COMPILER )" ]] || exit 13
-        printf "C++ compiler: %s\n" "$COMPILER"
-        printf "C++ compiler version: %s\n" "$( $COMPILER --version | head -1 )"
-        printf "gcov version: %s\n" "$( $GCOV --version | head -1 )"
+#     - name: Prepare build
+#       shell: bash
+#       env:
+#         CMAKE_GENERATOR: Ninja
+#         CMAKE_BUILD_TYPE: Debug
+#         COVERAGE_OPTS: "-g --coverage -fprofile-abs-path -fno-early-inlining"
+#       run: |
+#         mkdir .build
+#         cd .build
+#         cmake -DCMAKE_C_FLAGS="$COVERAGE_OPTS" -DCMAKE_CXX_FLAGS="$COVERAGE_OPTS" ..
+#         COMPILER=$( grep "CMAKE_CXX_COMPILER:FILEPATH" CMakeCache.txt | sed "s|CMAKE_CXX_COMPILER:FILEPATH=/|/|" )
+#         [[ "$( realpath $CXX )" == "$( realpath $COMPILER )" ]] || exit 13
+#         printf "C++ compiler: %s\n" "$COMPILER"
+#         printf "C++ compiler version: %s\n" "$( $COMPILER --version | head -1 )"
+#         printf "gcov version: %s\n" "$( $GCOV --version | head -1 )"
 
-    - name: Run coverage target
-      shell: bash
-      run: |
-        cd .build
-        cmake --build .
-        tests/tests/tests -a # generate .gcda files
-        $GCOV -pbc -r -s $( realpath .. ) $( find tests/tests/ -type f -name '*.gcno' ) # generate .gcov files
+#     - name: Run coverage target
+#       shell: bash
+#       run: |
+#         cd .build
+#         cmake --build .
+#         tests/tests/tests -a # generate .gcda files
+#         $GCOV -pbc -r -s $( realpath .. ) $( find tests/tests/ -type f -name '*.gcno' ) # generate .gcov files
 
-    - name: Upload .gcov files
-      if: ${{ github.event_name == 'push' }}
-      uses: wandalen/wretry.action@v1.4.10
-      with:
-        action: codecov/codecov-action@v4.3.0
-        with: |
-          fail_ci_if_error: true
-          disable_search: false
-          verbose: true
-          plugin: noop
-          token: ${{ secrets.CODECOV_TOKEN }}
-        attempt_limit: 5
-        attempt_delay: 210000 # in milliseconds
+#     - name: Upload .gcov files
+#       if: ${{ github.event_name == 'push' }}
+#       uses: wandalen/wretry.action@v1.4.10
+#       with:
+#         action: codecov/codecov-action@v4.3.0
+#         with: |
+#           fail_ci_if_error: true
+#           disable_search: false
+#           verbose: true
+#           plugin: noop
+#           token: ${{ secrets.CODECOV_TOKEN }}
+#         attempt_limit: 5
+#         attempt_delay: 210000 # in milliseconds

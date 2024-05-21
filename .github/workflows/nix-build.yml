@@ -20,4 +20,4 @@ jobs:
 
     - name: Build environment
       run: |
-        nix build .#gcc
+        nix build .#gcc -L

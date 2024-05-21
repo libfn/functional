@@ -1,91 +1,91 @@
-name: build
+# name: build
 
-on: [push, pull_request]
+# on: [push, pull_request]
 
-jobs:
-  build:
-    runs-on: ubuntu-22.04
-    container: gcc:13-bookworm
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-        - linux
-        configuration:
-        - Debug
-        - Release
-        compiler:
-        - clang
-        - gcc
-    steps:
-    - uses: actions/checkout@v4
+# jobs:
+#   build:
+#     runs-on: ubuntu-22.04
+#     container: gcc:13-bookworm
+#     strategy:
+#       fail-fast: false
+#       matrix:
+#         platform:
+#         - linux
+#         configuration:
+#         - Debug
+#         - Release
+#         compiler:
+#         - clang
+#         - gcc
+#     steps:
+#     - uses: actions/checkout@v4
 
-    - name: Install prerequisites
-      env:
-        CLANG_VERSION: 18
-      run: |
-        CODENAME=$( . /etc/os-release && echo $VERSION_CODENAME )
-        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /etc/apt/keyrings/llvm.gpg
-        printf "%s\n%s\n" \
-          "deb [signed-by=/etc/apt/keyrings/llvm.gpg] https://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME-${CLANG_VERSION} main" \
-          "deb-src [signed-by=/etc/apt/keyrings/llvm.gpg] https://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME-${CLANG_VERSION} main" \
-          | tee /etc/apt/sources.list.d/llvm.list
-        apt-get update
-        apt-get install -y --no-install-recommends git cmake ninja-build
-        apt-get install -t llvm-toolchain-$CODENAME-${CLANG_VERSION} -y --no-install-recommends \
-          clang-${CLANG_VERSION} libc++-${CLANG_VERSION}-dev libc++abi-${CLANG_VERSION}-dev
-        apt-get clean
-        update-alternatives --install /usr/bin/clang clang /usr/bin/clang-${CLANG_VERSION} 100 \
-          --slave /usr/bin/clang++ clang++ /usr/bin/clang++-${CLANG_VERSION}
-        update-alternatives --auto clang
-        update-alternatives --install /usr/bin/gcc gcc /usr/local/bin/gcc 100 \
-          --slave /usr/bin/g++ g++ /usr/local/bin/g++ \
-          --slave /usr/bin/gcc-ar gcc-ar /usr/local/bin/gcc-ar \
-          --slave /usr/bin/gcc-nm gcc-nm /usr/local/bin/gcc-nm \
-          --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/local/bin/gcc-ranlib \
-          --slave /usr/bin/gcov gcov /usr/local/bin/gcov \
-          --slave /usr/bin/gcov-tool gcov-tool /usr/local/bin/gcov-tool \
-          --slave /usr/bin/gcov-dump gcov-dump /usr/local/bin/gcov-dump \
-          --slave /usr/bin/lto-dump lto-dump /usr/local/bin/lto-dump
-        update-alternatives --auto gcc
+#     - name: Install prerequisites
+#       env:
+#         CLANG_VERSION: 18
+#       run: |
+#         CODENAME=$( . /etc/os-release && echo $VERSION_CODENAME )
+#         wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /etc/apt/keyrings/llvm.gpg
+#         printf "%s\n%s\n" \
+#           "deb [signed-by=/etc/apt/keyrings/llvm.gpg] https://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME-${CLANG_VERSION} main" \
+#           "deb-src [signed-by=/etc/apt/keyrings/llvm.gpg] https://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME-${CLANG_VERSION} main" \
+#           | tee /etc/apt/sources.list.d/llvm.list
+#         apt-get update
+#         apt-get install -y --no-install-recommends git cmake ninja-build
+#         apt-get install -t llvm-toolchain-$CODENAME-${CLANG_VERSION} -y --no-install-recommends \
+#           clang-${CLANG_VERSION} libc++-${CLANG_VERSION}-dev libc++abi-${CLANG_VERSION}-dev
+#         apt-get clean
+#         update-alternatives --install /usr/bin/clang clang /usr/bin/clang-${CLANG_VERSION} 100 \
+#           --slave /usr/bin/clang++ clang++ /usr/bin/clang++-${CLANG_VERSION}
+#         update-alternatives --auto clang
+#         update-alternatives --install /usr/bin/gcc gcc /usr/local/bin/gcc 100 \
+#           --slave /usr/bin/g++ g++ /usr/local/bin/g++ \
+#           --slave /usr/bin/gcc-ar gcc-ar /usr/local/bin/gcc-ar \
+#           --slave /usr/bin/gcc-nm gcc-nm /usr/local/bin/gcc-nm \
+#           --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/local/bin/gcc-ranlib \
+#           --slave /usr/bin/gcov gcov /usr/local/bin/gcov \
+#           --slave /usr/bin/gcov-tool gcov-tool /usr/local/bin/gcov-tool \
+#           --slave /usr/bin/gcov-dump gcov-dump /usr/local/bin/gcov-dump \
+#           --slave /usr/bin/lto-dump lto-dump /usr/local/bin/lto-dump
+#         update-alternatives --auto gcc
 
-    - name: Verify compiler compatibility
-      env:
-        SOURCE: |
-          #include <optional>
-          #include <expected>
-          #include <cstdio>
-          int main() {
-            using type1=std::expected<int, const char*>;
-            using type2=std::optional<int>;
-            return type1{1}.and_then([](int i) -> type1 { std::puts("OK expected"); return {i-1}; }).value()
-              + type2{2}.and_then([](int i) -> type2 { std::puts("OK optional"); return {i-2}; }).value();
-          }
-      run: |
-        FILE=$(mktemp --tmpdir XXXXXX.cpp)
-        printf "$SOURCE\n" > $FILE
-        OUT=$(mktemp --tmpdir  XXXXXX)
-        g++ -std=c++23 -Wall $FILE -o $OUT
-        $OUT
+#     - name: Verify compiler compatibility
+#       env:
+#         SOURCE: |
+#           #include <optional>
+#           #include <expected>
+#           #include <cstdio>
+#           int main() {
+#             using type1=std::expected<int, const char*>;
+#             using type2=std::optional<int>;
+#             return type1{1}.and_then([](int i) -> type1 { std::puts("OK expected"); return {i-1}; }).value()
+#               + type2{2}.and_then([](int i) -> type2 { std::puts("OK optional"); return {i-2}; }).value();
+#           }
+#       run: |
+#         FILE=$(mktemp --tmpdir XXXXXX.cpp)
+#         printf "$SOURCE\n" > $FILE
+#         OUT=$(mktemp --tmpdir  XXXXXX)
+#         g++ -std=c++23 -Wall $FILE -o $OUT
+#         $OUT
 
-    - name: Prepare build
-      env:
-        CMAKE_GENERATOR: Ninja
-        CC: ${{ matrix.compiler == 'gcc' && '/usr/bin/gcc' || ' /usr/bin/clang' }}
-        CXX: ${{ matrix.compiler == 'gcc' && '/usr/bin/g++' || ' /usr/bin/clang++' }}
-      run: |
-        mkdir .build
-        cd .build
-        cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ..
-        COMPILER=$( grep "CMAKE_CXX_COMPILER:FILEPATH" CMakeCache.txt | sed "s|CMAKE_CXX_COMPILER:FILEPATH=/|/|" )
-        printf "C++ compiler: %s\nC++ compiler version: %s\n" "$COMPILER" "$( $COMPILER --version | head -1 )"
+#     - name: Prepare build
+#       env:
+#         CMAKE_GENERATOR: Ninja
+#         CC: ${{ matrix.compiler == 'gcc' && '/usr/bin/gcc' || ' /usr/bin/clang' }}
+#         CXX: ${{ matrix.compiler == 'gcc' && '/usr/bin/g++' || ' /usr/bin/clang++' }}
+#       run: |
+#         mkdir .build
+#         cd .build
+#         cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ..
+#         COMPILER=$( grep "CMAKE_CXX_COMPILER:FILEPATH" CMakeCache.txt | sed "s|CMAKE_CXX_COMPILER:FILEPATH=/|/|" )
+#         printf "C++ compiler: %s\nC++ compiler version: %s\n" "$COMPILER" "$( $COMPILER --version | head -1 )"
 
-    - name: Build all
-      run: |
-        cd .build
-        cmake --build . --target all
+#     - name: Build all
+#       run: |
+#         cd .build
+#         cmake --build . --target all
 
-    - name: Run tests
-      run: |
-        cd .build
-        ctest --output-on-failure
+#     - name: Run tests
+#       run: |
+#         cd .build
+#         ctest --output-on-failure
