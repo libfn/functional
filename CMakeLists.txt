@@ -21,7 +21,7 @@ add_compile_options(
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(
-    -stdlib=libc++ -Wno-missing-braces
+    -stdlib=libc++ -Wno-missing-braces -Wno-unused-command-line-argument
   )
   add_link_options(
     -lc++
