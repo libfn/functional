@@ -104,6 +104,7 @@ jobs:
       matrix:
         compiler:
         - gcc
+        - clang
     steps:
     - uses: actions/checkout@v4
 
@@ -114,4 +115,4 @@ jobs:
           access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
 
     - name: Build and test
-      run: nix -L build .#${{matrix.compiler}}
+      run: nix -L build '.#${{matrix.compiler}}'
