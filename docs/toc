@@ -1,10 +1,14 @@
 reference-manual
     and_then
+    choice
     fail
     filter
     inspect_error
     inspect
     or_else
+    pack
     recover
+    sum
     transform_error
     transform
+    value_or
