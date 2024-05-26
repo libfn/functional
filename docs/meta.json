@@ -1,8 +1,8 @@
 {
   "title": "Functional",
   "type": "Library",
-  "viewOn": {
-    "link": "https://github.com/Bronek/functional",
-    "title": "View On GitHub"
+  "support": {
+    "link": "https://github.com/libfn/functional",
+    "title": "View on GitHub"
   }
 }
