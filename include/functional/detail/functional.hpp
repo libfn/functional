@@ -74,8 +74,8 @@ template <typename Fn, typename... Args>
 
 template <typename Fn, typename Arg, typename... Args>
   requires(_some_pack<Arg> || _some_sum<Arg>)
-          && ((sizeof...(Args) == 0) || (not(... || (_some_pack<Args> || _some_sum<Args>))))
-          && requires(Fn &&fn, Arg &&arg, Args &&...args) { FWD(arg).invoke(FWD(fn), FWD(args)...); }
+              && ((sizeof...(Args) == 0) || (not(... || (_some_pack<Args> || _some_sum<Args>))))
+              && requires(Fn &&fn, Arg &&arg, Args &&...args) { FWD(arg).invoke(FWD(fn), FWD(args)...); }
 [[nodiscard]] constexpr auto invoke(Fn &&fn, Arg &&arg, Args &&...args) -> decltype(auto)
 
 {
@@ -84,10 +84,10 @@ template <typename Fn, typename Arg, typename... Args>
 
 template <typename Fn, typename Arg, typename Arg0, typename... Args>
   requires((_some_pack<Arg0> || _some_sum<Arg0>) || ... || (_some_pack<Args> || _some_sum<Args>))
-          && requires(Fn &&fn, Arg &&arg, Arg0 &&arg0, Args &&...args) {
-               invoke<Fn, decltype(::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0))), Args...>(
-                   FWD(fn), ::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0)), FWD(args)...);
-             }
+              && requires(Fn &&fn, Arg &&arg, Arg0 &&arg0, Args &&...args) {
+                   invoke<Fn, decltype(::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0))), Args...>(
+                       FWD(fn), ::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0)), FWD(args)...);
+                 }
 [[nodiscard]] constexpr auto invoke(Fn &&fn, Arg &&arg, Arg0 &&arg0, Args &&...args) -> decltype(auto)
 {
   using type = decltype(::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0)));
@@ -104,8 +104,10 @@ template <typename Ret, typename Fn, typename... Args>
 
 template <typename Ret, typename Fn, typename Arg, typename... Args>
   requires(_some_pack<Arg> || _some_sum<Arg>)
-          && ((sizeof...(Args) == 0) || (not(... || (_some_pack<Args> || _some_sum<Args>))))
-          && requires(Fn &&fn, Arg &&arg, Args &&...args) { FWD(arg).template invoke_r<Ret>(FWD(fn), FWD(args)...); }
+              && ((sizeof...(Args) == 0) || (not(... || (_some_pack<Args> || _some_sum<Args>))))
+              && requires(Fn &&fn, Arg &&arg, Args &&...args) {
+                   FWD(arg).template invoke_r<Ret>(FWD(fn), FWD(args)...);
+                 }
 [[nodiscard]] constexpr auto invoke_r(Fn &&fn, Arg &&arg, Args &&...args) -> decltype(auto)
 {
   return FWD(arg).template invoke_r<Ret>(FWD(fn), FWD(args)...);
@@ -113,10 +115,11 @@ template <typename Ret, typename Fn, typename Arg, typename... Args>
 
 template <typename Ret, typename Fn, typename Arg, typename Arg0, typename... Args>
   requires((_some_pack<Arg0> || _some_sum<Arg0>) || ... || (_some_pack<Args> || _some_sum<Args>))
-          && requires(Fn &&fn, Arg &&arg, Arg0 &&arg0, Args &&...args) {
-               invoke_r<Ret, Fn, decltype(::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0))), Args...>(
-                   FWD(fn), ::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0)), FWD(args)...);
-             }
+              && requires(Fn &&fn, Arg &&arg, Arg0 &&arg0, Args &&...args) {
+                   invoke_r<Ret, Fn, decltype(::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0))),
+                            Args...>(FWD(fn), ::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0)),
+                                     FWD(args)...);
+                 }
 [[nodiscard]] constexpr auto invoke_r(Fn &&fn, Arg &&arg, Arg0 &&arg0, Args &&...args) -> decltype(auto)
 {
   using type = decltype(::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0)));
@@ -152,8 +155,8 @@ template <typename Fn, typename... Args> struct _is_invocable {
 template <typename Ret, typename Fn, typename... Args>
 constexpr auto _is_invocable_r_result(
     Fn &&, Args &&...,
-    std::type_identity<decltype(_invoke_detail::invoke_r<Ret>(std::declval<Fn>(), std::declval<Args>()...))> = {})
-    -> std::true_type;
+    std::type_identity<decltype(_invoke_detail::invoke_r<Ret>(std::declval<Fn>(), std::declval<Args>()...))>
+    = {}) -> std::true_type;
 template <typename Ret, typename Fn, typename... Args>
 constexpr auto _is_invocable_r_result(auto &&...) -> std::false_type;
 template <typename Ret, typename Fn, typename... Args> struct _is_invocable_r {

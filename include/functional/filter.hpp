@@ -24,23 +24,15 @@ namespace fn {
 template <typename Pred, typename Err, typename V>
 concept invocable_filter //
     = (some_expected_non_void<V> && requires(Pred &&pred, Err &&on_err, V &&v) {
-        {
-          ::fn::invoke(FWD(pred), std::as_const(v).value())
-        } -> convertible_to_bool;
+        { ::fn::invoke(FWD(pred), std::as_const(v).value()) } -> convertible_to_bool;
         {
           ::fn::invoke(FWD(on_err), FWD(v).value())
         } -> std::convertible_to<typename std::remove_cvref_t<V>::error_type>;
       }) || (some_expected_void<V> && requires(Pred &&pred, Err &&on_err, V &&v) {
-        {
-          ::fn::invoke(FWD(pred))
-        } -> convertible_to_bool;
-        {
-          ::fn::invoke(FWD(on_err))
-        } -> std::convertible_to<typename std::remove_cvref_t<V>::error_type>;
+        { ::fn::invoke(FWD(pred)) } -> convertible_to_bool;
+        { ::fn::invoke(FWD(on_err)) } -> std::convertible_to<typename std::remove_cvref_t<V>::error_type>;
       }) || (some_optional<V> && std::same_as<Err, void> && requires(Pred &&pred, V &&v) {
-        {
-          ::fn::invoke(FWD(pred), std::as_const(v).value())
-        } -> convertible_to_bool;
+        { ::fn::invoke(FWD(pred), std::as_const(v).value()) } -> convertible_to_bool;
       });
 
 /**
@@ -78,8 +70,8 @@ constexpr inline struct filter_t final {
 } filter = {};
 
 struct filter_t::apply final {
-  [[nodiscard]] static constexpr auto operator()(some_expected_non_void auto &&v, auto &&pred, auto &&on_err) noexcept
-      -> same_monadic_type_as<decltype(v)> auto
+  [[nodiscard]] static constexpr auto operator()(some_expected_non_void auto &&v, auto &&pred,
+                                                 auto &&on_err) noexcept -> same_monadic_type_as<decltype(v)> auto
     requires invocable_filter<decltype(pred), decltype(on_err), decltype(v)>
   {
     using type = std::remove_cvref_t<decltype(v)>;
@@ -91,8 +83,8 @@ struct filter_t::apply final {
     return FWD(v);
   }
 
-  [[nodiscard]] static constexpr auto operator()(some_expected_void auto &&v, auto &&pred, auto &&on_err) noexcept
-      -> same_monadic_type_as<decltype(v)> auto
+  [[nodiscard]] static constexpr auto operator()(some_expected_void auto &&v, auto &&pred,
+                                                 auto &&on_err) noexcept -> same_monadic_type_as<decltype(v)> auto
     requires invocable_filter<decltype(pred), decltype(on_err), decltype(v)>
   {
     using type = std::remove_cvref_t<decltype(v)>;
@@ -104,8 +96,8 @@ struct filter_t::apply final {
     return FWD(v);
   }
 
-  [[nodiscard]] static constexpr auto operator()(some_optional auto &&v, auto &&pred) noexcept
-      -> same_monadic_type_as<decltype(v)> auto
+  [[nodiscard]] static constexpr auto operator()(some_optional auto &&v,
+                                                 auto &&pred) noexcept -> same_monadic_type_as<decltype(v)> auto
     requires invocable_filter<decltype(pred), void, decltype(v)>
   {
     using type = std::remove_cvref_t<decltype(v)>;

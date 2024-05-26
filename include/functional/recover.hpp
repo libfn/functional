@@ -17,17 +17,11 @@ namespace fn {
 template <typename Fn, typename V>
 concept invocable_recover //
     = (some_expected_non_void<V> && requires(Fn &&fn, V &&v) {
-        {
-          ::fn::invoke(FWD(fn), FWD(v).error())
-        } -> std::convertible_to<typename std::remove_cvref_t<V>::value_type>;
+        { ::fn::invoke(FWD(fn), FWD(v).error()) } -> std::convertible_to<typename std::remove_cvref_t<V>::value_type>;
       }) || (some_expected_void<V> && requires(Fn &&fn, V &&v) {
-        {
-          ::fn::invoke(FWD(fn), FWD(v).error())
-        } -> std::same_as<void>;
+        { ::fn::invoke(FWD(fn), FWD(v).error()) } -> std::same_as<void>;
       }) || (some_optional<V> && requires(Fn &&fn, V &&v) {
-        {
-          ::fn::invoke(FWD(fn))
-        } -> std::convertible_to<typename std::remove_cvref_t<V>::value_type>;
+        { ::fn::invoke(FWD(fn)) } -> std::convertible_to<typename std::remove_cvref_t<V>::value_type>;
       });
 
 constexpr inline struct recover_t final {
@@ -40,8 +34,8 @@ constexpr inline struct recover_t final {
 } recover = {};
 
 struct recover_t::apply final {
-  [[nodiscard]] static constexpr auto operator()(some_expected_non_void auto &&v, auto &&fn) noexcept
-      -> same_monadic_type_as<decltype(v)> auto
+  [[nodiscard]] static constexpr auto operator()(some_expected_non_void auto &&v,
+                                                 auto &&fn) noexcept -> same_monadic_type_as<decltype(v)> auto
     requires invocable_recover<decltype(fn), decltype(v)>
   {
     using type = std::remove_cvref_t<decltype(v)>;
@@ -51,8 +45,8 @@ struct recover_t::apply final {
     return type{std::in_place, ::fn::invoke(FWD(fn), FWD(v).error())};
   }
 
-  [[nodiscard]] static constexpr auto operator()(some_expected_void auto &&v, auto &&fn) noexcept
-      -> same_monadic_type_as<decltype(v)> auto
+  [[nodiscard]] static constexpr auto operator()(some_expected_void auto &&v,
+                                                 auto &&fn) noexcept -> same_monadic_type_as<decltype(v)> auto
     requires invocable_recover<decltype(fn), decltype(v)>
   {
     using type = std::remove_cvref_t<decltype(v)>;
@@ -63,8 +57,8 @@ struct recover_t::apply final {
     return type{std::in_place};
   }
 
-  [[nodiscard]] static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept
-      -> same_monadic_type_as<decltype(v)> auto
+  [[nodiscard]] static constexpr auto operator()(some_optional auto &&v,
+                                                 auto &&fn) noexcept -> same_monadic_type_as<decltype(v)> auto
     requires invocable_recover<decltype(fn), decltype(v)>
   {
     using type = std::remove_cvref_t<decltype(v)>;
