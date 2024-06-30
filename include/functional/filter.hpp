@@ -50,8 +50,8 @@ constexpr inline struct filter_t final {
    * @param on_err The error handler, takes the value by const reference and returns the error type
    * @return A functor that will filter the value of the monadic type
    */
-  [[nodiscard]] constexpr auto operator()(auto &&pred, auto &&on_err) const noexcept
-      -> functor<filter_t, decltype(pred), decltype(on_err)>
+  [[nodiscard]] constexpr auto
+  operator()(auto &&pred, auto &&on_err) const noexcept -> functor<filter_t, decltype(pred), decltype(on_err)>
   {
     return {FWD(pred), FWD(on_err)};
   }
@@ -69,7 +69,18 @@ constexpr inline struct filter_t final {
   struct apply;
 } filter = {};
 
+/**
+ * @brief TODO
+ */
 struct filter_t::apply final {
+  /**
+   * @brief TODO
+   *
+   * @param v TODO
+   * @param pred TODO
+   * @param on_err TODO
+   * @return TODO
+   */
   [[nodiscard]] static constexpr auto operator()(some_expected_non_void auto &&v, auto &&pred,
                                                  auto &&on_err) noexcept -> same_monadic_type_as<decltype(v)> auto
     requires invocable_filter<decltype(pred), decltype(on_err), decltype(v)>
@@ -83,6 +94,14 @@ struct filter_t::apply final {
     return FWD(v);
   }
 
+  /**
+   * @brief TODO
+   *
+   * @param v TODO
+   * @param pred TODO
+   * @param on_err TODO
+   * @return TODO
+   */
   [[nodiscard]] static constexpr auto operator()(some_expected_void auto &&v, auto &&pred,
                                                  auto &&on_err) noexcept -> same_monadic_type_as<decltype(v)> auto
     requires invocable_filter<decltype(pred), decltype(on_err), decltype(v)>
@@ -96,6 +115,13 @@ struct filter_t::apply final {
     return FWD(v);
   }
 
+  /**
+   * @brief TODO
+   *
+   * @param v TODO
+   * @param pred TODO
+   * @return TODO
+   */
   [[nodiscard]] static constexpr auto operator()(some_optional auto &&v,
                                                  auto &&pred) noexcept -> same_monadic_type_as<decltype(v)> auto
     requires invocable_filter<decltype(pred), void, decltype(v)>

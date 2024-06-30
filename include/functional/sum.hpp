@@ -17,9 +17,19 @@
 
 namespace fn {
 
+/**
+ * @brief TODO
+ *
+ * @tparam T TODO
+ */
 template <typename T>
 concept some_sum = detail::_some_sum<T>;
 
+/**
+ * @brief TODO
+ *
+ * @tparam T TODO
+ */
 template <typename T>
 concept some_in_place_type = detail::_some_in_place_type<T>;
 
@@ -115,9 +125,16 @@ template <typename Fn, typename Self> struct _sum_invoke_type_result<_collapsing
 
 } // namespace detail
 
+/**
+ * @brief TODO
+ *
+ * @tparam Ts TODO
+ */
 template <typename... Ts> struct sum;
 
-// A unit of sum<> monoid, cannot be created but offers useful static functions and can be put in an union
+/**
+ * @brief A unit of sum<> monoid, cannot be created but offers useful static functions and can be put in an union
+ */
 template <> struct sum<> final {
   constexpr sum() noexcept = delete; // NOTE, `= delete` here is the whole point
   constexpr ~sum() noexcept = default;
@@ -128,6 +145,11 @@ template <> struct sum<> final {
   template <typename T> static constexpr bool has_type = false;
 };
 
+/**
+ * @brief TODO
+ *
+ * @tparam Ts TODO
+ */
 template <typename... Ts>
   requires(sizeof...(Ts) > 0)
 struct sum<Ts...> {
@@ -139,7 +161,19 @@ struct sum<Ts...> {
   std::size_t index;
 
   static constexpr std::size_t size = sizeof...(Ts);
+
+  /**
+   * @brief TODO
+   *
+   * @tparam Ts I
+   */
   template <std::size_t I> using select_nth = detail::select_nth_t<I, Ts...>;
+
+  /**
+   * @brief TODO
+   *
+   * @tparam T TODO
+   */
   template <typename T> static constexpr bool has_type = data_t::template has_type<T>;
 
   template <typename Ret> [[nodiscard]] constexpr auto _invoke(auto &&fn) const & noexcept
@@ -164,6 +198,12 @@ struct sum<Ts...> {
     return detail::invoke_type_variadic_union<type, data_t>(std::move(*this).data, index, FWD(fn));
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam T TODO
+   * @param v TODO
+   */
   template <typename T>
   constexpr sum(T &&v)
     requires has_type<std::remove_cvref_t<T>> && (std::is_constructible_v<std::remove_cvref_t<T>, decltype(v)>)
@@ -173,6 +213,12 @@ struct sum<Ts...> {
   {
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam T TODO
+   * @param v TODO
+   */
   template <typename T>
   constexpr explicit sum(T &&v)
     requires has_type<std::remove_cvref_t<T>> && (std::is_constructible_v<std::remove_cvref_t<T>, decltype(v)>)
@@ -182,6 +228,12 @@ struct sum<Ts...> {
   {
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam T TODO
+   * @param args TODO
+   */
   template <typename T>
   constexpr sum(std::in_place_type_t<T>, auto &&...args)
     requires has_type<T>
@@ -189,6 +241,12 @@ struct sum<Ts...> {
   {
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Tx TODO
+   * @param arg TODO
+   */
   template <typename... Tx>
   constexpr sum(sum<Tx...> const &arg) noexcept
     requires detail::is_superset_of<sum, sum<Tx...>> && (not std::is_same_v<sum, sum<Tx...>>)
@@ -202,6 +260,12 @@ struct sum<Ts...> {
   {
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Tx TODO
+   * @param arg TODO
+   */
   template <typename... Tx>
   constexpr sum(sum<Tx...> &&arg) noexcept
     requires detail::is_superset_of<sum, sum<Tx...>> && (not std::is_same_v<sum, sum<Tx...>>)
@@ -215,6 +279,12 @@ struct sum<Ts...> {
   {
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Tx TODO
+   * @param arg TODO
+   */
   template <typename... Tx>
   constexpr sum(std::in_place_type_t<sum<Tx...>>, some_sum auto &&arg) noexcept
     requires std::is_same_v<std::remove_cvref_t<decltype(arg)>, sum<Tx...>> && detail::is_superset_of<sum, sum<Tx...>>
@@ -228,6 +298,11 @@ struct sum<Ts...> {
   {
   }
 
+  /**
+   * @brief TODO
+   *
+   * @param other TODO
+   */
   constexpr sum(sum const &other) noexcept
     requires(... && std::is_copy_constructible_v<Ts>)
       : data(detail::invoke_type_variadic_union<data_t, data_t>(     //
@@ -239,6 +314,11 @@ struct sum<Ts...> {
   {
   }
 
+  /**
+   * @brief TODO
+   *
+   * @param other TODO
+   */
   constexpr sum(sum &&other) noexcept
     requires(... && std::is_move_constructible_v<Ts>)
       : data(detail::invoke_type_variadic_union<data_t, data_t>( //
@@ -258,6 +338,12 @@ struct sum<Ts...> {
         });
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam T TODO
+   * @return TODO
+   */
   template <typename T>
     requires has_type<T>
   [[nodiscard]] constexpr bool has_value(std::in_place_type_t<T> = std::in_place_type<T>) const noexcept
@@ -267,6 +353,12 @@ struct sum<Ts...> {
         []<typename U>(std::in_place_type_t<U>, auto &&) constexpr -> bool { return std::is_same_v<T, U>; });
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam T TODO
+   * @return TODO
+   */
   template <typename T>
     requires has_type<T>
   [[nodiscard]] constexpr T *get_ptr(std::in_place_type_t<T> = std::in_place_type<T>) noexcept
@@ -274,6 +366,12 @@ struct sum<Ts...> {
     return has_value(std::in_place_type<T>) ? detail::ptr_variadic_union<T, data_t>(data) : nullptr;
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam T TODO
+   * @return TODO
+   */
   template <typename T>
     requires has_type<T>
   [[nodiscard]] constexpr T const *get_ptr(std::in_place_type_t<T> = std::in_place_type<T>) const noexcept
@@ -281,6 +379,15 @@ struct sum<Ts...> {
     return has_value(std::in_place_type<T>) ? detail::ptr_variadic_union<T, data_t>(data) : nullptr;
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @tparam Args TODO
+   * @param fn TODO
+   * @param args TODO
+   * @return TODO
+   */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto invoke(Fn &&fn, Args &&...args) & noexcept
     requires typelist_invocable<Fn, sum &, Args &&...>
@@ -289,6 +396,15 @@ struct sum<Ts...> {
     return detail::invoke_variadic_union<type, data_t>(this->data, index, FWD(fn), FWD(args)...);
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @tparam Args TODO
+   * @param fn TODO
+   * @param args TODO
+   * @return TODO
+   */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto invoke(Fn &&fn, Args &&...args) const & noexcept
     requires typelist_invocable<Fn, sum const &, Args &&...>
@@ -298,6 +414,15 @@ struct sum<Ts...> {
     return detail::invoke_variadic_union<type, data_t>(this->data, index, FWD(fn), FWD(args)...);
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @tparam Args TODO
+   * @param fn TODO
+   * @param args TODO
+   * @return TODO
+   */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto invoke(Fn &&fn, Args &&...args) && noexcept
     requires typelist_invocable<Fn, sum &&, Args &&...>
@@ -306,6 +431,15 @@ struct sum<Ts...> {
     return detail::invoke_variadic_union<type, data_t>(std::move(*this).data, index, FWD(fn), FWD(args)...);
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @tparam Args TODO
+   * @param fn TODO
+   * @param args TODO
+   * @return TODO
+   */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto invoke(Fn &&fn, Args &&...args) const && noexcept
     requires typelist_invocable<Fn, sum const &&, Args &&...>
@@ -315,6 +449,16 @@ struct sum<Ts...> {
     return detail::invoke_variadic_union<type, data_t>(std::move(*this).data, index, FWD(fn), FWD(args)...);
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Ret TODO
+   * @tparam Fn TODO
+   * @tparam Args TODO
+   * @param fn TODO
+   * @param args TODO
+   * @return TODO
+   */
   template <typename Ret, typename Fn, typename... Args>
   [[nodiscard]] constexpr auto invoke_r(Fn &&fn, Args &&...args) & noexcept
     requires typelist_invocable_r<Ret, Fn, sum &, Args &&...>
@@ -323,6 +467,16 @@ struct sum<Ts...> {
     return detail::invoke_variadic_union<type, data_t>(this->data, index, FWD(fn), FWD(args)...);
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Ret TODO
+   * @tparam Fn TODO
+   * @tparam Args TODO
+   * @param fn TODO
+   * @param args TODO
+   * @return TODO
+   */
   template <typename Ret, typename Fn, typename... Args>
   [[nodiscard]] constexpr auto invoke_r(Fn &&fn, Args &&...args) const & noexcept -> Ret
     requires typelist_invocable_r<Ret, Fn, sum const &, Args &&...>
@@ -331,6 +485,16 @@ struct sum<Ts...> {
     return detail::invoke_variadic_union<type, data_t>(this->data, index, FWD(fn), FWD(args)...);
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Ret TODO
+   * @tparam Fn TODO
+   * @tparam Args TODO
+   * @param fn TODO
+   * @param args TODO
+   * @return TODO
+   */
   template <typename Ret, typename Fn, typename... Args>
   [[nodiscard]] constexpr auto invoke_r(Fn &&fn, Args &&...args) && noexcept -> Ret
     requires typelist_invocable_r<Ret, Fn, sum &&, Args &&...>
@@ -339,6 +503,16 @@ struct sum<Ts...> {
     return detail::invoke_variadic_union<type, data_t>(std::move(*this).data, index, FWD(fn), FWD(args)...);
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Ret TODO
+   * @tparam Fn TODO
+   * @tparam Args TODO
+   * @param fn TODO
+   * @param args TODO
+   * @return TODO
+   */
   template <typename Ret, typename Fn, typename... Args>
   [[nodiscard]] constexpr auto invoke_r(Fn &&fn, Args &&...args) const && noexcept -> Ret
     requires typelist_invocable_r<Ret, Fn, sum const &&, Args &&...>
@@ -347,6 +521,15 @@ struct sum<Ts...> {
     return detail::invoke_variadic_union<type, data_t>(std::move(*this).data, index, FWD(fn), FWD(args)...);
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @tparam Args TODO
+   * @param fn TODO
+   * @param args TODO
+   * @return TODO
+   */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto transform(Fn &&fn, Args &&...args) & noexcept
     requires typelist_invocable<Fn, sum &, Args &&...>
@@ -355,6 +538,15 @@ struct sum<Ts...> {
     return detail::invoke_variadic_union<type, data_t>(this->data, index, FWD(fn), FWD(args)...);
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @tparam Args TODO
+   * @param fn TODO
+   * @param args TODO
+   * @return TODO
+   */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto transform(Fn &&fn, Args &&...args) const & noexcept
     requires typelist_invocable<Fn, sum const &, Args &&...>
@@ -363,6 +555,15 @@ struct sum<Ts...> {
     return detail::invoke_variadic_union<type, data_t>(this->data, index, FWD(fn), FWD(args)...);
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @tparam Args TODO
+   * @param fn TODO
+   * @param args TODO
+   * @return TODO
+   */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto transform(Fn &&fn, Args &&...args) && noexcept
     requires typelist_invocable<Fn, sum &&, Args &&...>
@@ -371,6 +572,15 @@ struct sum<Ts...> {
     return detail::invoke_variadic_union<type, data_t>(std::move(*this).data, index, FWD(fn), FWD(args)...);
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @tparam Args TODO
+   * @param fn TODO
+   * @param args TODO
+   * @return TODO
+   */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto transform(Fn &&fn, Args &&...args) const && noexcept
     requires typelist_invocable<Fn, sum const &&, Args &&...>
@@ -385,15 +595,37 @@ template <typename T> explicit sum(std::in_place_type_t<T>, auto &&...) -> sum<T
 template <typename T> explicit sum(T) -> sum<std::remove_cvref_t<T>>;
 
 // Lifts
+/**
+ * @brief TODO
+ *
+ * @param src TODO
+ * @return TODO
+ */
 [[nodiscard]] constexpr auto as_sum(auto &&src) -> decltype(auto)
 {
   return sum<std::remove_cvref_t<decltype(src)>>(FWD(src));
 }
+
+/**
+ * @brief TODO
+ *
+ * @param src TODO
+ * @return TODO
+ */
 template <typename T> [[nodiscard]] constexpr auto as_sum(std::in_place_type_t<T>, auto &&...args) -> decltype(auto)
 {
   return sum<T>(std::in_place_type<T>, FWD(args)...);
 }
 
+/**
+ * @brief TODO
+ *
+ * @tparam Ts TODO
+ * @tparam Tx TODO
+ * @param lh TODO
+ * @param rh TODO
+ * @return TODO
+ */
 template <typename... Ts, typename... Tx>
 [[nodiscard]] constexpr bool operator==(sum<Ts...> const &lh, sum<Tx...> const &rh) noexcept
   requires(... && (std::equality_comparable<Ts> || not detail::type_one_of<Ts, Tx...>)) //
@@ -408,6 +640,15 @@ template <typename... Ts, typename... Tx>
   });
 }
 
+/**
+ * @brief TODO
+ *
+ * @tparam Ts TODO
+ * @tparam Tx TODO
+ * @param lh TODO
+ * @param rh TODO
+ * @return TODO
+ */
 template <typename... Ts, typename... Tx>
 [[nodiscard]] constexpr bool operator!=(sum<Ts...> const &lh, sum<Tx...> const &rh) noexcept
   requires(... && (std::equality_comparable<Ts> || not detail::type_one_of<Ts, Tx...>))
@@ -415,6 +656,11 @@ template <typename... Ts, typename... Tx>
   return not(lh == rh);
 }
 
+/**
+ * @brief TODO
+ *
+ * @tparam Ts TODO
+ */
 template <typename... Ts>
 using sum_for = detail::_collapsing_sum::normalized<::fn::sum, detail::_collapsing_sum::flattened<Ts...>>::type;
 

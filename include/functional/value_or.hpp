@@ -12,12 +12,27 @@
 #include <type_traits>
 
 namespace fn {
+/**
+ * @brief TODO
+ *
+ * @tparam V TODO
+ * @tparam Args TODO
+ */
 template <typename V, typename... Args>
 concept invocable_value_or //
     = (some_expected_non_void<V> && std::is_constructible_v<typename std::remove_cvref_t<V>::value_type, Args...>)
       || (some_optional<V> && std::is_constructible_v<typename std::remove_cvref_t<V>::value_type, Args...>);
 
+/**
+ * @brief TODO
+ */
 constexpr inline struct value_or_t final {
+  /**
+   * @brief TODO
+   *
+   * @param args TODO
+   * @return TODO
+   */
   [[nodiscard]] constexpr auto operator()(auto &&...args) const noexcept -> functor<value_or_t, decltype(args)...> //
   {
     return {FWD(args)...};
@@ -26,7 +41,17 @@ constexpr inline struct value_or_t final {
   struct apply;
 } value_or = {};
 
+/**
+ * @brief TODO
+ */
 struct value_or_t::apply final {
+  /**
+   * @brief TODO
+   *
+   * @param v TODO
+   * @param args TODO
+   * @return TODO
+   */
   [[nodiscard]] static constexpr auto operator()(some_monadic_type auto &&v, auto &&...args) noexcept //
       -> same_value_kind<decltype(v)> auto
     requires invocable_value_or<decltype(v), decltype(args)...>

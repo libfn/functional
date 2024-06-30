@@ -3,6 +3,10 @@
   "type": "Library",
   "support": {
     "link": "https://github.com/libfn/functional",
-    "title": "View on GitHub"
+    "title": "Support"
+  },
+  "viewOn": {
+    "link": "https://github.com/libfn/functional/docs",
+    "title": "View On GitHub"
   }
 }

@@ -72,6 +72,12 @@ constexpr inline struct and_then_t final {
 } and_then = {};
 
 struct and_then_t::apply final {
+  /**
+   * @brief TODO
+   *
+   * @param v The monad
+   * @param fn The function to apply
+   */
   [[nodiscard]] static constexpr auto operator()(some_monadic_type auto &&v, auto &&fn) noexcept //
       -> same_kind<decltype(v)> auto
     requires invocable_and_then<decltype(fn), decltype(v)>

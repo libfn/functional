@@ -13,6 +13,12 @@
 #include <utility>
 
 namespace fn {
+/**
+ * @brief TODO
+ *
+ * @tparam Fn TODO
+ * @tparam V TODO
+ */
 template <typename Fn, typename V>
 concept invocable_inspect_error //
     = (some_expected<V> && requires(Fn &&fn, V &&v) {
@@ -21,7 +27,16 @@ concept invocable_inspect_error //
         { ::fn::invoke(FWD(fn)) } -> std::same_as<void>;
       });
 
+/**
+ * @brief TODO
+ */
 constexpr inline struct inspect_error_t final {
+  /**
+   * @brief TODO
+   *
+   * @param fn TODO
+   * @return TODO
+   */
   [[nodiscard]] constexpr auto operator()(auto &&fn) const noexcept -> functor<inspect_error_t, decltype(fn)> //
   {
     return {FWD(fn)};
@@ -30,7 +45,17 @@ constexpr inline struct inspect_error_t final {
   struct apply;
 } inspect_error = {};
 
+/**
+ * @brief TODO
+ */
 struct inspect_error_t::apply final {
+  /**
+   * @brief TODO
+   *
+   * @param v TODO
+   * @param fn TODO
+   * @return TODO
+   */
   [[nodiscard]] static constexpr auto operator()(some_expected auto &&v, auto &&fn) noexcept -> decltype(v)
     requires invocable_inspect_error<decltype(fn), decltype(v)>
   {
@@ -40,6 +65,13 @@ struct inspect_error_t::apply final {
     return FWD(v);
   }
 
+  /**
+   * @brief TODO
+   *
+   * @param v TODO
+   * @param fn TODO
+   * @return TODO
+   */
   [[nodiscard]] static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept -> decltype(v)
     requires invocable_inspect_error<decltype(fn), decltype(v)>
   {
