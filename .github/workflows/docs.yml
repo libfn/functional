@@ -1,0 +1,50 @@
+name: docs
+on:
+  push:
+    branches: [main, feature/doxygen]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  generate_docs:
+    name: Generate and upload docs
+    runs-on: ubuntu-20.04
+    container:
+      image: godexsoft/functional-ci:0.0.4
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+            
+      - name: Export docs
+        continue-on-error: false
+        shell: bash
+        id: run_cmake
+        run: |
+          mkdir .build
+          cd .build
+          cmake -DDOCS=True ..
+          cmake --build . --target export_docs
+      
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./.build/docs
+          name: docs-develop
+      
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+        with:
+          artifact_name: docs-develop

@@ -7,9 +7,15 @@ include(Ccache)
 option(USE_NIX "Use nix packages to resolve dependencies." OFF)
 
 option(COVERARE "Enable coverage report." OFF)
+option(DOCS     "Generate documentation." OFF)
+
 if(COVERAGE)
   include(CodeCoverage)
   include(Coverage)
+endif()
+
+if (DOCS)
+  include(Docs)
 endif()
 
 set(CMAKE_CXX_EXTENSIONS OFF)

@@ -1,0 +1,12 @@
+{
+  "title": "Functional",
+  "type": "Library",
+  "support": {
+    "link": "https://github.com/libfn/functional",
+    "title": "Support"
+  },
+  "viewOn": {
+    "link": "https://github.com/libfn/functional/docs",
+    "title": "View On GitHub"
+  }
+}

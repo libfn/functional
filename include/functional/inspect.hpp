@@ -14,6 +14,12 @@
 #include <utility>
 
 namespace fn {
+/**
+ * @brief TODO
+ *
+ * @tparam Fn TODO
+ * @tparam V TODO
+ */
 template <typename Fn, typename V>
 concept invocable_inspect //
     = (some_expected_non_void<V> && requires(Fn &&fn, V &&v) {
@@ -26,7 +32,16 @@ concept invocable_inspect //
         { ::fn::invoke(FWD(fn), std::as_const(v).value()) } -> std::same_as<void>;
       });
 
+/**
+ * @brief TODO
+ */
 constexpr inline struct inspect_t final {
+  /**
+   * @brief TODO
+   *
+   * @param fn TODO
+   * @return TODO
+   */
   [[nodiscard]] constexpr auto operator()(auto &&fn) const noexcept -> functor<inspect_t, decltype(fn)>
   {
     return {FWD(fn)};
@@ -36,6 +51,13 @@ constexpr inline struct inspect_t final {
 } inspect = {};
 
 struct inspect_t::apply final {
+  /**
+   * @brief TODO
+   *
+   * @param v TODO
+   * @param fn TODO
+   * @return TODO
+   */
   [[nodiscard]] static constexpr auto operator()(some_expected_non_void auto &&v, auto &&fn) noexcept -> decltype(v)
     requires invocable_inspect<decltype(fn), decltype(v)>
   {
@@ -45,6 +67,13 @@ struct inspect_t::apply final {
     return FWD(v);
   }
 
+  /**
+   * @brief TODO
+   *
+   * @param v TODO
+   * @param fn TODO
+   * @return TODO
+   */
   [[nodiscard]] static constexpr auto operator()(some_expected_void auto &&v, auto &&fn) noexcept -> decltype(v)
     requires invocable_inspect<decltype(fn), decltype(v)>
   {
@@ -54,6 +83,13 @@ struct inspect_t::apply final {
     return FWD(v);
   }
 
+  /**
+   * @brief TODO
+   *
+   * @param v TODO
+   * @param fn TODO
+   * @return TODO
+   */
   [[nodiscard]] static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept -> decltype(v)
     requires invocable_inspect<decltype(fn), decltype(v)>
   {
@@ -63,6 +99,13 @@ struct inspect_t::apply final {
     return FWD(v);
   }
 
+  /**
+   * @brief TODO
+   *
+   * @param v TODO
+   * @param fn TODO
+   * @return TODO
+   */
   [[nodiscard]] static constexpr auto operator()(some_choice auto &&v, auto &&fn) noexcept -> decltype(v)
     requires invocable_inspect<decltype(fn), decltype(v)>
   {
