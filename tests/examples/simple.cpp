@@ -25,9 +25,11 @@
 #include <string_view>
 #include <type_traits>
 
+// example-error-struct
 struct Error final {
   std::string what;
 };
+// example-error-struct
 
 template <typename T> struct ImmovableValue final {
   T value;
@@ -58,6 +60,62 @@ template <typename Fn> struct ImmovableFn final {
   constexpr ImmovableFn &operator=(ImmovableFn &&) = delete;
 };
 template <typename Fn> ImmovableFn(Fn &&) -> ImmovableFn<Fn>;
+
+TEST_CASE("Minimal expected", "[expected][and_then]")
+{
+  // note: formatting is disabled here because otherwise we need to add artificial empty comments to align the pipes
+  // properly but they will show up as inline comments in the doc - not nice. in the future we could try and change this
+  // behaviour in Znai if that's preferred.
+
+  // clang-format off
+  {
+    // example-expected-and_then-value
+    fn::expected<double, Error> ex{12.1};
+
+    auto rounded = ex 
+      | fn::and_then([](auto&& v) -> fn::expected<unsigned, Error> { 
+          return static_cast<unsigned>(std::ceil(v + 0.5)); 
+        });
+
+    REQUIRE(rounded.value() == 13u);
+    // example-expected-and_then-value
+  }
+  {
+    // example-expected-and_then-error
+    fn::expected<double, Error> ex = std::unexpected<Error>{"Not good"};
+
+    auto oops = ex 
+      | fn::and_then([](auto&& v) -> fn::expected<unsigned, Error> { 
+          return static_cast<unsigned>(std::ceil(v + 0.5)); 
+        }); // Not called because ex contains an Error
+
+    REQUIRE(oops.error().what == "Not good");
+    // example-expected-and_then-error
+  }
+  {
+    // example-expected-filter-value
+    fn::expected<int, Error> ex{42};
+
+    auto value = ex
+        | fn::filter([](auto &&i) { return i >= 42; },            // Filter out values less than 42
+                     [](auto) { return Error{"Less than 42"}; }); // Return error if predicate fails
+
+    REQUIRE(value.value() == 42);
+    // example-expected-filter-value
+  }
+  {
+    // example-expected-filter-error
+    fn::expected<int, Error> ex{12};
+
+    auto value = ex
+        | fn::filter([](auto &&i) { return i >= 42; },
+                     [](auto) { return Error{"Less than 42"}; });
+
+    REQUIRE(value.error().what == "Less than 42");
+    // example-expected-filter-error
+  }
+  // clang-format on
+}
 
 TEST_CASE("Demo expected", "[expected][pack][and_then][transform_error][transform][inspect][inspect_error]["
                            "recover][fail][filter][immovable]")
@@ -163,6 +221,56 @@ TEST_CASE("Demo expected", "[expected][pack][and_then][transform_error][transfor
   CHECK(p4.value() == 42 * 12);
 }
 
+TEST_CASE("Minimal optional", "[optional][and_then]")
+{
+  // clang-format off
+  {
+    // example-optional-and_then-value
+    fn::optional<double> op{12.1};
+
+    auto rounded = op 
+      | fn::and_then([](auto&& v) -> fn::optional<unsigned> { 
+          return static_cast<unsigned>(std::ceil(v + 0.5)); 
+        });
+
+    REQUIRE(rounded.value() == 13u);
+    // example-optional-and_then-value
+  }
+  {
+    // example-optional-and_then-empty
+    fn::optional<double> op = std::nullopt;
+
+    auto empty = op 
+      | fn::and_then([](auto&& v) -> fn::optional<unsigned> { 
+          return static_cast<unsigned>(std::ceil(v + 0.5)); 
+        }); // Not called because op is empty
+
+    REQUIRE(not empty.has_value());
+    // example-optional-and_then-empty
+  }
+  {
+    // example-optional-filter-value
+    fn::optional<int> ex{42};
+
+    auto value = ex
+        | fn::filter([](auto &&i) { return i >= 42; }); // Filter out values less than 42
+                     
+    REQUIRE(value.value() == 42);
+    // example-optional-filter-value
+  }
+  {
+    // example-optional-filter-empty
+    fn::optional<int> ex{12};
+
+    auto value = ex
+        | fn::filter([](auto &&i) { return i >= 42; });
+
+    REQUIRE(not value.has_value());
+    // example-optional-filter-empty
+  }
+  // clang-format on
+}
+
 TEST_CASE("Demo optional", "[optional][pack][and_then][or_else][inspect][transform][fail][filter][recover]")
 {
   constexpr auto fn1 = [](char const *str, int &peek) {
@@ -255,6 +363,7 @@ TEST_CASE("Demo optional", "[optional][pack][and_then][or_else][inspect][transfo
 
 TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform][graded]")
 {
+  // example-choice-parse
   static constexpr auto parse = [](std::string_view str) noexcept
       -> fn::choice_for<bool, double, long, std::string_view, std::nullptr_t, std::nullopt_t> {
     if (str.size() > 0) {
@@ -288,7 +397,9 @@ TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform
     }
     return {nullptr};
   };
+  // example-choice-parse
 
+  // example-choice-checks
   static_assert(std::is_same_v<decltype(parse("")),
                                fn::choice_for<bool, double, long, std::string_view, std::nullopt_t, std::nullptr_t>>);
   CHECK(parse("'abc'") == fn::choice{std::string_view{"abc"}});
@@ -302,6 +413,7 @@ TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform
   CHECK(parse("2e9") == fn::choice(2e9));
   CHECK(parse("5e9") == fn::choice(5e9));
   CHECK(parse("foo").has_value(std::in_place_type<std::nullopt_t>));
+  // example-choice-checks
 
   std::ostringstream ss;
   auto fn = [&ss](auto const &v) {
