@@ -2,7 +2,7 @@
 ```columns
 left:
 </#if>
-:include-file: ../${path} {
+:include-file: ${path} {
 <#if surroundedBy??>
   surroundedBy: ["${surroundedBy?join("\", \"")}"],
 </#if>
