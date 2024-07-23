@@ -1,0 +1,31 @@
+expected
+    and_then
+    fail
+    filter
+    inspect_error
+    inspect
+    or_else
+    recover
+    transform_error
+    transform
+    value_or
+optional
+    and_then
+    fail
+    filter
+    inspect_error
+    inspect
+    or_else
+    recover
+    transform_error
+    transform
+    value_or
+choice
+    index
+    and_then
+    transform
+pack
+    index
+sum
+    index
+    
