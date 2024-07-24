@@ -29,8 +29,8 @@ slack_app: false
 parsers:
   gcov:
     branch_detection:
-      conditional: false
-      loop: false
+      conditional: true
+      loop: true
       method: false
       macro: false
 
