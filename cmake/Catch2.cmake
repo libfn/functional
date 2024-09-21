@@ -1,4 +1,4 @@
-if(USE_NIX)
+if(DISABLE_FETCH_CONTENT)
   find_package(Catch2 3)
 else()  
   include(FetchContent)

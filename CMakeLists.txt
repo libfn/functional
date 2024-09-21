@@ -4,8 +4,7 @@ project(functional VERSION 0.0.1 LANGUAGES C CXX)
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 include(Ccache)
 
-option(USE_NIX "Use nix packages to resolve dependencies." OFF)
-
+option(DISABLE_FETCH_CONTENT "Do not use FetchContent for dependencies." OFF)
 option(COVERARE "Enable coverage report." OFF)
 option(DOCS     "Generate documentation." OFF)
 

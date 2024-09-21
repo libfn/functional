@@ -28,6 +28,6 @@ stdenv.mkDerivation {
   checkInputs = [ ];
 
   doCheck = enableTests;
-  cmakeFlags = [ "-DDISABLE_CCACHE_DETECTION=On" "-DUSE_NIX=On" ] 
+  cmakeFlags = [ "-DDISABLE_CCACHE_DETECTION=On" "-DDISABLE_FETCH_CONTENT=On" ]
     ++ lib.optional (!enableTests) "-DTESTING=off";
 }
