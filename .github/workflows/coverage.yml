@@ -14,7 +14,7 @@ on:
 jobs:
   coverage:
     runs-on: ubuntu-22.04
-    container: gcc:13-bookworm
+    container: gcc:14-bookworm
     strategy:
       fail-fast: false
     env:
@@ -80,12 +80,12 @@ jobs:
       if: ${{ github.event_name == 'push' }}
       uses: wandalen/wretry.action@v1.4.10
       with:
-        action: codecov/codecov-action@v4.3.0
+        action: codecov/codecov-action@v4.6.0
         with: |
           fail_ci_if_error: true
           disable_search: false
           verbose: true
-          plugin: noop
+          plugin: gcov
           token: ${{ secrets.CODECOV_TOKEN }}
         attempt_limit: 5
         attempt_delay: 210000 # in milliseconds
