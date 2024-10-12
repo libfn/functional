@@ -4,10 +4,17 @@ project(functional VERSION 0.0.1 LANGUAGES C CXX)
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 include(Ccache)
 
+option(DISABLE_FETCH_CONTENT "Do not use FetchContent for dependencies." OFF)
 option(COVERARE "Enable coverage report." OFF)
+option(DOCS     "Generate documentation." OFF)
+
 if(COVERAGE)
   include(CodeCoverage)
   include(Coverage)
+endif()
+
+if (DOCS)
+  include(Docs)
 endif()
 
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -19,7 +26,7 @@ add_compile_options(
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(
-    -stdlib=libc++ -Wno-missing-braces
+    -stdlib=libc++ -Wno-missing-braces -Wno-unused-command-line-argument
   )
   add_link_options(
     -lc++
@@ -31,3 +38,6 @@ add_subdirectory(include)
 include(Catch2)
 enable_testing()
 add_subdirectory(tests)
+
+install(FILES README.md LICENSE.md
+    DESTINATION share/doc/functional)

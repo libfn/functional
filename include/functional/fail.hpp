@@ -13,22 +13,27 @@
 #include <type_traits>
 
 namespace fn {
+/**
+ * @brief TODO
+ *
+ * @tparam Fn TODO
+ * @tparam V TODO
+ * @param fn TODO
+ * @param v TODO
+ */
 template <typename Fn, typename V>
 concept invocable_fail //
     = (some_expected_non_void<V> && requires(Fn &&fn, V &&v) {
-        {
-          ::fn::invoke(FWD(fn), FWD(v).value())
-        } -> std::convertible_to<typename std::remove_cvref_t<V>::error_type>;
+        { ::fn::invoke(FWD(fn), FWD(v).value()) } -> std::convertible_to<typename std::remove_cvref_t<V>::error_type>;
       }) || (some_expected_void<V> && requires(Fn &&fn) {
-        {
-          ::fn::invoke(FWD(fn))
-        } -> std::convertible_to<typename std::remove_cvref_t<V>::error_type>;
+        { ::fn::invoke(FWD(fn)) } -> std::convertible_to<typename std::remove_cvref_t<V>::error_type>;
       }) || (some_optional<V> && requires(Fn &&fn, V &&v) {
-        {
-          ::fn::invoke(FWD(fn), FWD(v).value())
-        } -> std::same_as<void>;
+        { ::fn::invoke(FWD(fn), FWD(v).value()) } -> std::same_as<void>;
       });
 
+/**
+ * @brief TODO
+ */
 constexpr inline struct fail_t final {
   [[nodiscard]] constexpr auto operator()(auto &&fn) const noexcept -> functor<fail_t, decltype(fn)> //
   {
@@ -38,7 +43,17 @@ constexpr inline struct fail_t final {
   struct apply;
 } fail = {};
 
+/**
+ * @brief TODO
+ */
 struct fail_t::apply final {
+  /**
+   * @brief TODO
+   *
+   * @param v TODO
+   * @param fn TODO
+   * @return TODO
+   */
   [[nodiscard]] static constexpr auto operator()(some_expected_non_void auto &&v, auto &&fn) noexcept //
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_fail<decltype(fn), decltype(v)>
@@ -50,6 +65,13 @@ struct fail_t::apply final {
     return type{std::unexpect, FWD(v).error()};
   }
 
+  /**
+   * @brief TODO
+   *
+   * @param v TODO
+   * @param fn TODO
+   * @return TODO
+   */
   [[nodiscard]] static constexpr auto operator()(some_expected_void auto &&v, auto &&fn) noexcept //
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_fail<decltype(fn), decltype(v)>
@@ -61,8 +83,15 @@ struct fail_t::apply final {
     return type{std::unexpect, FWD(v).error()};
   }
 
-  [[nodiscard]] static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept
-      -> same_monadic_type_as<decltype(v)> auto
+  /**
+   * @brief TODO
+   *
+   * @param v TODO
+   * @param fn TODO
+   * @return TODO
+   */
+  [[nodiscard]] static constexpr auto operator()(some_optional auto &&v,
+                                                 auto &&fn) noexcept -> same_monadic_type_as<decltype(v)> auto
     requires invocable_fail<decltype(fn), decltype(v)>
   {
     using type = std::remove_cvref_t<decltype(v)>;

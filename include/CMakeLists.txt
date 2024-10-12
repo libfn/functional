@@ -33,7 +33,16 @@ set(INCLUDE_SOURCE_FILES
     functional/transform_error.hpp
     functional/transform.hpp
     functional/utility.hpp
+    functional/value_or.hpp
 )
 
-add_library(${PROJECT_NAME} INTERFACE ${INCLUDE_SOURCE_FILES})
+add_library(${PROJECT_NAME} INTERFACE)
+target_sources(${PROJECT_NAME} INTERFACE
+    FILE_SET functional
+    TYPE HEADERS
+    FILES ${INCLUDE_SOURCE_FILES})
 target_include_directories(${PROJECT_NAME} INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+
+install(TARGETS include
+    FILE_SET functional
+    DESTINATION include)

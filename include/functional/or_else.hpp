@@ -11,6 +11,12 @@
 #include "functional/functor.hpp"
 
 namespace fn {
+/**
+ * @brief TODO
+ *
+ * @tparam Fn TODO
+ * @tparam V TODO
+ */
 template <typename Fn, typename V>
 concept invocable_or_else //
     = (some_expected<V> && requires(Fn &&fn, V &&v) {
@@ -26,9 +32,23 @@ concept invocable_or_else //
         {
           ::fn::invoke(FWD(fn))
         } -> same_value_kind<V>;
+      }) || (some_optional<V>  //
+         && some_sum<typename std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
+        {
+          ::fn::invoke(FWD(fn))
+        } -> some_optional;
       });
 
+/**
+ * @brief TODO
+ */
 constexpr inline struct or_else_t final {
+  /**
+   * @brief TODO
+   *
+   * @param fn TODO
+   * @return TODO
+   */
   [[nodiscard]] constexpr auto operator()(auto &&fn) const noexcept -> functor<or_else_t, decltype(fn)> //
   {
     return {FWD(fn)};
@@ -37,7 +57,17 @@ constexpr inline struct or_else_t final {
   struct apply;
 } or_else = {};
 
+/**
+ * @brief TODO
+ */
 struct or_else_t::apply final {
+  /**
+   * @brief TODO
+   *
+   * @param v TODO
+   * @param fn TODO
+   * @return TODO
+   */
   [[nodiscard]] static constexpr auto operator()(some_monadic_type auto &&v, auto &&fn) noexcept //
       -> same_value_kind<decltype(v)> auto
     requires invocable_or_else<decltype(fn), decltype(v)>

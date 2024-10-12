@@ -14,6 +14,11 @@
 
 namespace fn {
 
+/**
+ * @brief TODO
+ *
+ * @tparam T TODO
+ */
 template <typename T>
 concept some_choice = detail::_some_choice<T>;
 
@@ -29,6 +34,11 @@ static constexpr bool _is_valid_choice_subtype //
     &&(std::is_same_v<T, std::remove_cv_t<T>>);
 }
 
+/**
+ * @brief TODO
+ *
+ * @tparam Ts TODO
+ */
 template <typename... Ts>
   requires(sizeof...(Ts) > 0)
 struct choice<Ts...> : sum<Ts...> {
@@ -41,17 +51,35 @@ struct choice<Ts...> : sum<Ts...> {
   template <std::size_t I> using select_nth = detail::select_nth_t<I, Ts...>;
   template <typename T> static constexpr bool has_type = _impl::template has_type<T>;
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Ret TODO
+   * @param fn TODO
+   */
   template <typename Ret> [[nodiscard]] constexpr auto _invoke(auto &&fn) const & noexcept
   {
-    return detail::invoke_variadic_union<Ret, typename _impl::data_t>(this->data, this->index, FWD(fn));
+    return detail::invoke_type_variadic_union<Ret, typename _impl::data_t>(this->data, this->index, FWD(fn));
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Ret TODO
+   * @param fn TODO
+   */
   template <typename Ret> [[nodiscard]] constexpr auto _invoke(auto &&fn) && noexcept
   {
-    return detail::invoke_variadic_union<Ret, typename _impl::data_t>( //
+    return detail::invoke_type_variadic_union<Ret, typename _impl::data_t>( //
         std::move(*this).data, std::move(*this).index, FWD(fn));
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam T TODO
+   * @param v TODO
+   */
   template <typename T>
   constexpr choice(T &&v)
     requires has_type<std::remove_cvref_t<T>> && (std::is_constructible_v<std::remove_cvref_t<T>, decltype(v)>)
@@ -60,6 +88,12 @@ struct choice<Ts...> : sum<Ts...> {
   {
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam T TODO
+   * @param v TODO
+   */
   template <typename T>
   constexpr explicit choice(T &&v)
     requires has_type<std::remove_cvref_t<T>> && (std::is_constructible_v<std::remove_cvref_t<T>, decltype(v)>)
@@ -68,6 +102,13 @@ struct choice<Ts...> : sum<Ts...> {
   {
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam T TODO
+   * @param d TODO
+   * @param v TODO
+   */
   template <typename T>
   constexpr choice(std::in_place_type_t<T> d, auto &&...args) noexcept
     requires has_type<T>
@@ -75,6 +116,12 @@ struct choice<Ts...> : sum<Ts...> {
   {
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Tx TODO
+   * @param v TODO
+   */
   template <typename... Tx>
   constexpr choice(sum<Tx...> const &v) noexcept
     requires detail::is_superset_of<choice, choice<Tx...>> && (... && std::is_copy_constructible_v<Tx>)
@@ -82,6 +129,12 @@ struct choice<Ts...> : sum<Ts...> {
   {
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Tx TODO
+   * @param v TODO
+   */
   template <typename... Tx>
   constexpr choice(sum<Tx...> &&v) noexcept
     requires detail::is_superset_of<choice, choice<Tx...>> && (... && std::is_move_constructible_v<Tx>)
@@ -89,6 +142,12 @@ struct choice<Ts...> : sum<Ts...> {
   {
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Tx TODO
+   * @param v TODO
+   */
   template <typename... Tx>
   constexpr choice(std::in_place_type_t<sum<Tx...>>, some_sum auto &&v) noexcept
     requires std::is_same_v<std::remove_cvref_t<decltype(v)>, sum<Tx...>>
@@ -101,11 +160,41 @@ struct choice<Ts...> : sum<Ts...> {
   constexpr choice(choice &&other) noexcept = default;
   constexpr ~choice() = default;
 
+  /**
+   * @brief TODO
+   *
+   * @return TODO
+   */
   [[nodiscard]] constexpr value_type &value() & noexcept { return *this; }
+
+  /**
+   * @brief TODO
+   *
+   * @return TODO
+   */
   [[nodiscard]] constexpr value_type const &value() const & noexcept { return *this; }
+
+  /**
+   * @brief TODO
+   *
+   * @return TODO
+   */
   [[nodiscard]] constexpr value_type &&value() && noexcept { return std::move(*this); }
+
+  /**
+   * @brief TODO
+   *
+   * @return TODO
+   */
   [[nodiscard]] constexpr value_type const &&value() const && noexcept { return std::move(*this); }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @param fn TODO
+   * @return TODO
+   */
   template <typename Fn>
   [[nodiscard]] constexpr auto invoke(Fn &&fn) & noexcept
     requires typelist_invocable<Fn, choice &>
@@ -114,6 +203,13 @@ struct choice<Ts...> : sum<Ts...> {
     return detail::invoke_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn));
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @param fn TODO
+   * @return TODO
+   */
   template <typename Fn>
   [[nodiscard]] constexpr auto invoke(Fn &&fn) const & noexcept
     requires typelist_invocable<Fn, choice const &>
@@ -122,6 +218,13 @@ struct choice<Ts...> : sum<Ts...> {
     return detail::invoke_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn));
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @param fn TODO
+   * @return TODO
+   */
   template <typename Fn>
   [[nodiscard]] constexpr auto invoke(Fn &&fn) && noexcept
     requires typelist_invocable<Fn, choice &&>
@@ -130,6 +233,13 @@ struct choice<Ts...> : sum<Ts...> {
     return detail::invoke_variadic_union<type, typename _impl::data_t>(std::move(_impl::data), _impl::index, FWD(fn));
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @param fn TODO
+   * @return TODO
+   */
   template <typename Fn>
   [[nodiscard]] constexpr auto invoke(Fn &&fn) const && noexcept
     requires typelist_invocable<Fn, choice const &&>
@@ -138,6 +248,14 @@ struct choice<Ts...> : sum<Ts...> {
     return detail::invoke_variadic_union<type, typename _impl::data_t>(std::move(_impl::data), _impl::index, FWD(fn));
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam T TODO
+   * @tparam Fn TODO
+   * @param fn TODO
+   * @return TODO
+   */
   template <typename T, typename Fn>
   [[nodiscard]] constexpr auto invoke_r(Fn &&fn) & noexcept
     requires typelist_invocable<Fn, choice &>
@@ -146,6 +264,14 @@ struct choice<Ts...> : sum<Ts...> {
     return detail::invoke_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn));
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam T TODO
+   * @tparam Fn TODO
+   * @param fn TODO
+   * @return TODO
+   */
   template <typename T, typename Fn>
   [[nodiscard]] constexpr auto invoke_r(Fn &&fn) const & noexcept
     requires typelist_invocable<Fn, choice const &>
@@ -154,6 +280,14 @@ struct choice<Ts...> : sum<Ts...> {
     return detail::invoke_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn));
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam T TODO
+   * @tparam Fn TODO
+   * @param fn TODO
+   * @return TODO
+   */
   template <typename T, typename Fn>
   [[nodiscard]] constexpr auto invoke_r(Fn &&fn) && noexcept
     requires typelist_invocable<Fn, choice &&>
@@ -162,6 +296,14 @@ struct choice<Ts...> : sum<Ts...> {
     return detail::invoke_variadic_union<type, typename _impl::data_t>(std::move(_impl::data), _impl::index, FWD(fn));
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam T TODO
+   * @tparam Fn TODO
+   * @param fn TODO
+   * @return TODO
+   */
   template <typename T, typename Fn>
   [[nodiscard]] constexpr auto invoke_r(Fn &&fn) const && noexcept
     requires typelist_invocable<Fn, choice const &&>
@@ -171,6 +313,13 @@ struct choice<Ts...> : sum<Ts...> {
   }
 
   // NOTE Monadic operations, only `and_then` and `transform` are supported
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @param fn TODO
+   * @return TODO
+   */
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) & noexcept
     requires typelist_invocable<Fn, choice &>
@@ -179,6 +328,13 @@ struct choice<Ts...> : sum<Ts...> {
     return detail::invoke_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn));
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @param fn TODO
+   * @return TODO
+   */
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) const & noexcept
     requires typelist_invocable<Fn, choice const &>
@@ -187,6 +343,13 @@ struct choice<Ts...> : sum<Ts...> {
     return detail::invoke_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn));
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @param fn TODO
+   * @return TODO
+   */
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) && noexcept
     requires typelist_invocable<Fn, choice &&>
@@ -195,6 +358,13 @@ struct choice<Ts...> : sum<Ts...> {
     return detail::invoke_variadic_union<type, typename _impl::data_t>(std::move(_impl::data), _impl::index, FWD(fn));
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @param fn TODO
+   * @return TODO
+   */
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) const && noexcept
     requires typelist_invocable<Fn, choice const &&>
@@ -203,24 +373,52 @@ struct choice<Ts...> : sum<Ts...> {
     return detail::invoke_variadic_union<type, typename _impl::data_t>(std::move(_impl::data), _impl::index, FWD(fn));
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @param fn TODO
+   * @return TODO
+   */
   template <typename Fn> constexpr auto and_then(Fn &&fn) & noexcept -> decltype(this->invoke(FWD(fn)))
   {
     static_assert(some_choice<decltype(this->invoke(FWD(fn)))>);
     return this->invoke(FWD(fn));
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @param fn TODO
+   * @return TODO
+   */
   template <typename Fn> constexpr auto and_then(Fn &&fn) const & noexcept -> decltype(this->invoke(FWD(fn)))
   {
     static_assert(some_choice<decltype(this->invoke(FWD(fn)))>);
     return this->invoke(FWD(fn));
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @param fn TODO
+   * @return TODO
+   */
   template <typename Fn> constexpr auto and_then(Fn &&fn) && noexcept -> decltype(std::move(*this).invoke(FWD(fn)))
   {
     static_assert(some_choice<decltype(std::move(*this).invoke(FWD(fn)))>);
     return std::move(*this).invoke(FWD(fn));
   }
 
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @param fn TODO
+   * @return TODO
+   */
   template <typename Fn>
   constexpr auto and_then(Fn &&fn) const && noexcept -> decltype(std::move(*this).invoke(FWD(fn)))
   {
@@ -233,6 +431,15 @@ struct choice<Ts...> : sum<Ts...> {
 template <typename T> explicit choice(std::in_place_type_t<T>, auto &&...) -> choice<T>;
 template <typename T> explicit choice(T) -> choice<T>;
 
+/**
+ * @brief TODO
+ *
+ * @tparam Ts TODO
+ * @tparam Tx TODO
+ * @param lh TODO
+ * @param rh TODO
+ * @return TODO
+ */
 template <typename... Ts, typename... Tx>
 [[nodiscard]] constexpr bool operator==(choice<Ts...> const &lh, choice<Tx...> const &rh) noexcept
   requires(... && (std::equality_comparable<Ts> || not detail::type_one_of<Ts, Tx...>))
@@ -247,6 +454,15 @@ template <typename... Ts, typename... Tx>
   });
 }
 
+/**
+ * @brief TODO
+ *
+ * @tparam Ts TODO
+ * @tparam Tx TODO
+ * @param lh TODO
+ * @param rh TODO
+ * @return TODO
+ */
 template <typename... Ts, typename... Tx>
 [[nodiscard]] constexpr bool operator!=(choice<Ts...> const &lh, choice<Tx...> const &rh) noexcept
   requires(... && (std::equality_comparable<Ts> || not detail::type_one_of<Ts, Tx...>))
@@ -254,7 +470,13 @@ template <typename... Ts, typename... Tx>
   return not(lh == rh);
 }
 
-template <typename... Ts> using choice_for = detail::normalized<Ts...>::template apply<choice>;
+/**
+ * @brief TODO
+ *
+ * @tparam Ts TODO
+ */
+template <typename... Ts>
+using choice_for = detail::_collapsing_sum::normalized<::fn::choice, detail::_collapsing_sum::flattened<Ts...>>::type;
 
 } // namespace fn
 

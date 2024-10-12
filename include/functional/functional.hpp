@@ -38,8 +38,8 @@ constexpr inline bool is_nothrow_invocable_r_v = is_nothrow_invocable_r<Ret, Fn,
 // invoke
 template <typename Fn, typename... Args>
   requires is_invocable_v<Fn, Args...>
-constexpr inline auto invoke(Fn &&fn, Args &&...args) noexcept(is_nothrow_invocable_v<Fn, Args...>)
-    -> invoke_result_t<Fn, Args...>
+constexpr inline auto
+invoke(Fn &&fn, Args &&...args) noexcept(is_nothrow_invocable_v<Fn, Args...>) -> invoke_result_t<Fn, Args...>
 {
   return detail::_invoke(FWD(fn), FWD(args)...);
 }
@@ -59,10 +59,10 @@ concept invocable = is_invocable_v<Fn, Args...>;
 template <typename Fn, typename... Args>
 concept regular_invocable = invocable<Fn, Args...>;
 
-template <typename Fn, typename T>
-concept typelist_invocable = detail::_typelist_invocable<Fn, T>;
-template <typename Ret, typename Fn, typename T>
-concept typelist_invocable_r = detail::_typelist_invocable_r<Ret, Fn, T>;
+template <typename Fn, typename T, typename... Args>
+concept typelist_invocable = detail::_typelist_invocable<Fn, T, Args...>;
+template <typename Ret, typename Fn, typename T, typename... Args>
+concept typelist_invocable_r = detail::_typelist_invocable_r<Ret, Fn, T, Args...>;
 
 } // namespace fn
 

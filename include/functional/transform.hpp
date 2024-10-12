@@ -17,6 +17,12 @@
 #include <type_traits>
 
 namespace fn {
+/**
+ * @brief TODO
+ *
+ * @tparam Fn TODO
+ * @tparam V TODO
+ */
 template <typename Fn, typename V>
 concept invocable_transform //
     = (some_expected_non_void<V>//
@@ -47,7 +53,16 @@ concept invocable_transform //
         } -> convertible_to_choice;
       });
 
-static constexpr struct transform_t final {
+/**
+ * @brief TODO
+ */
+constexpr inline struct transform_t final {
+  /**
+   * @brief TODO
+   *
+   * @param fn TODO
+   * @return TODO
+   */
   [[nodiscard]] constexpr auto operator()(auto &&fn) const noexcept -> functor<transform_t, decltype(fn)> //
   {
     return {FWD(fn)};
@@ -56,9 +71,19 @@ static constexpr struct transform_t final {
   struct apply;
 } transform = {};
 
+/**
+ * @brief TODO
+ */
 struct transform_t::apply final {
-  [[nodiscard]] static constexpr auto operator()(some_monadic_type auto &&v, auto &&fn) noexcept
-      -> same_kind<decltype(v)> auto
+  /**
+   * @brief TODO
+   *
+   * @param v TODO
+   * @param fn TODO
+   * @return TODO
+   */
+  [[nodiscard]] static constexpr auto operator()(some_monadic_type auto &&v,
+                                                 auto &&fn) noexcept -> same_kind<decltype(v)> auto
     requires invocable_transform<decltype(fn), decltype(v)>
   {
     return FWD(v).transform(FWD(fn));

@@ -462,6 +462,19 @@ TEST_CASE("constexpr or_else optional", "[or_else][constexpr][optional]")
   SUCCEED();
 }
 
+TEST_CASE("constexpr or_else optional with sum", "[or_else][constexpr][optional][sum]")
+{
+  using T = fn::optional<fn::sum<int>>;
+  constexpr auto fn = []() constexpr noexcept -> fn::optional<unsigned long> { return {1ul}; };
+  constexpr auto r1 = T{0} | fn::or_else(fn);
+  static_assert(std::is_same_v<decltype(r1), fn::optional<fn::sum<int, unsigned long>> const>);
+  static_assert(r1.value() == fn::sum{0});
+  constexpr auto r2 = T{} | fn::or_else(fn);
+  static_assert(r2.value() == fn::sum{1ul});
+
+  SUCCEED();
+}
+
 namespace fn {
 namespace {
 struct Error {};

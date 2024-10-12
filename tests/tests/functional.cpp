@@ -13,6 +13,45 @@
 #include <type_traits>
 #include <utility>
 
+TEST_CASE("invoke multidispatch", "[pack][sum][invoke][invoke_r]")
+{
+  using namespace ::fn::detail;
+  using ::fn::pack;
+  using ::fn::sum;
+
+  constexpr auto fn = [](auto &&...a) { return (0 + ... + static_cast<int>(a)); };
+
+  static_assert(fn::invoke(fn) == 0);
+  static_assert(fn::invoke(fn, 1, 2) == 3);
+  static_assert(fn::invoke(fn, pack{1, 2}) == 1 + 2);
+  static_assert(fn::invoke(fn, pack{1, 2}, 3) == 1 + 2 + 3);
+  static_assert(fn::invoke(fn, 1, pack{2, 3, 5}) == 1 + 2 + 3 + 5);
+  static_assert(fn::invoke(fn, sum<bool, int>{2}) == 2);
+  static_assert(fn::invoke(fn, sum<bool, int>{2}, 3) == 2 + 3);
+  static_assert(fn::invoke(fn, 2, sum<bool, int>{3}) == 2 + 3);
+  static_assert(fn::invoke(fn, 2, sum<bool, int>{3}, pack{2, 3, 5}) == 2 + 3 + 2 + 3 + 5);
+  static_assert(fn::invoke(fn, 2, pack{3, 5}, 7, sum<bool, int>{2}) == 2 + 3 + 5 + 7 + 2);
+  static_assert(fn::invoke(fn, sum<bool, int>{3}, 2, pack{2, 3, 5}) == 2 + 3 + 2 + 3 + 5);
+  static_assert(fn::invoke(fn, sum<bool, int>{3}, pack{2, 3, 5}, 2) == 2 + 3 + 2 + 3 + 5);
+  static_assert(fn::invoke(fn, pack{3, 5}, 2, 7, sum<bool, int>{2}) == 2 + 3 + 5 + 7 + 2);
+  static_assert(fn::invoke(fn, pack{3, 5}, sum<bool, int>{2}, 2, 7) == 2 + 3 + 5 + 7 + 2);
+
+  static_assert(fn::invoke_r<long>(fn) == 0);
+  static_assert(fn::invoke_r<long>(fn, 1, 2) == 3);
+  static_assert(fn::invoke_r<long>(fn, pack{1, 2}) == 1 + 2);
+  static_assert(fn::invoke_r<long>(fn, pack{1, 2}, 3) == 1 + 2 + 3);
+  static_assert(fn::invoke_r<long>(fn, 1, pack{2, 3, 5}) == 1 + 2 + 3 + 5);
+  static_assert(fn::invoke_r<long>(fn, sum<bool, int>{2}) == 2);
+  static_assert(fn::invoke_r<long>(fn, sum<bool, int>{2}, 3) == 2 + 3);
+  static_assert(fn::invoke_r<long>(fn, 2, sum<bool, int>{3}) == 2 + 3);
+  static_assert(fn::invoke_r<long>(fn, 2, sum<bool, int>{3}, pack{2, 3, 5}) == 2 + 3 + 2 + 3 + 5);
+  static_assert(fn::invoke_r<long>(fn, 2, pack{3, 5}, 7, sum<bool, int>{2}) == 2 + 3 + 5 + 7 + 2);
+  static_assert(fn::invoke_r<long>(fn, sum<bool, int>{3}, 2, pack{2, 3, 5}) == 2 + 3 + 2 + 3 + 5);
+  static_assert(fn::invoke_r<long>(fn, sum<bool, int>{3}, pack{2, 3, 5}, 2) == 2 + 3 + 2 + 3 + 5);
+  static_assert(fn::invoke_r<long>(fn, pack{3, 5}, 2, 7, sum<bool, int>{2}) == 2 + 3 + 5 + 7 + 2);
+  static_assert(fn::invoke_r<long>(fn, pack{3, 5}, sum<bool, int>{2}, 2, 7) == 2 + 3 + 5 + 7 + 2);
+}
+
 TEST_CASE("invoke_result pack", "[invoke_result][pack]")
 {
   using fn::invoke_result;
@@ -36,6 +75,7 @@ TEST_CASE("is_invocable pack", "[is_invocable][pack]")
   constexpr auto fn1 = [](int i, double j) -> int { return i * 100 + (int)j; };
   static_assert(is_invocable<decltype(fn1), decltype(p)>::value);
   static_assert(is_invocable_v<decltype(fn1), decltype(p)>);
+
   constexpr auto fn2 = [](int, double &) -> int { throw 0; };
   static_assert(not is_invocable<decltype(fn2), decltype(p)>::value);
   static_assert(not is_invocable_v<decltype(fn2), decltype(p)>);

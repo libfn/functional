@@ -21,6 +21,82 @@ struct Xint {
 
 TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value][sum_error]")
 {
+  WHEN("unit")
+  {
+    constexpr fn::expected<void, fn::sum<>> unit{};
+    static_assert(unit.has_value());
+
+    WHEN("constexpr")
+    {
+      WHEN("and_then to value/sum<>")
+      {
+        constexpr auto fn = []() -> fn::expected<int, fn::sum<>> { return {7}; };
+        constexpr auto a = unit.and_then(fn);
+        static_assert(std::is_same_v<decltype(a), fn::expected<int, fn::sum<>> const>);
+        static_assert(a.value() == 7);
+      }
+
+      WHEN("and_then to value")
+      {
+        constexpr auto fn = []() -> fn::expected<int, Error> { return {12}; };
+        constexpr auto a = unit.and_then(fn);
+        static_assert(std::is_same_v<decltype(a), fn::expected<int, fn::sum<Error>> const>);
+        static_assert(a.value() == 12);
+      }
+
+      WHEN("and_then to error")
+      {
+        constexpr auto fn = []() -> fn::expected<int, Error> { return std::unexpected<Error>(FileNotFound); };
+        constexpr auto a = unit.and_then(fn);
+        static_assert(std::is_same_v<decltype(a), fn::expected<int, fn::sum<Error>> const>);
+        static_assert(a.error() == fn::sum{FileNotFound});
+      }
+
+      WHEN("transform to int")
+      {
+        constexpr auto fn = []() -> int { return 144'000; };
+        constexpr auto a = unit.transform(fn);
+        static_assert(std::is_same_v<decltype(a), fn::expected<int, fn::sum<>> const>);
+        static_assert(a.value() == 144'000);
+      }
+    }
+
+    WHEN("runtime")
+    {
+      WHEN("and_then to value/sum<>")
+      {
+        constexpr auto fn = []() -> fn::expected<int, fn::sum<>> { return {7}; };
+        auto a = unit.and_then(fn);
+        static_assert(std::is_same_v<decltype(a), fn::expected<int, fn::sum<>>>);
+        CHECK(a.value() == 7);
+      }
+
+      WHEN("and_then to value")
+      {
+        constexpr auto fn = []() -> fn::expected<int, Error> { return {12}; };
+        auto a = unit.and_then(fn);
+        static_assert(std::is_same_v<decltype(a), fn::expected<int, fn::sum<Error>>>);
+        CHECK(a.value() == 12);
+      }
+
+      WHEN("and_then to error")
+      {
+        constexpr auto fn = []() -> fn::expected<int, Error> { return std::unexpected<Error>(FileNotFound); };
+        auto a = unit.and_then(fn);
+        static_assert(std::is_same_v<decltype(a), fn::expected<int, fn::sum<Error>>>);
+        CHECK(a.error() == fn::sum{FileNotFound});
+      }
+
+      WHEN("transform to int")
+      {
+        constexpr auto fn = []() -> int { return 144'000; };
+        auto a = unit.transform(fn);
+        static_assert(std::is_same_v<decltype(a), fn::expected<int, fn::sum<>>>);
+        CHECK(a.value() == 144'000);
+      }
+    }
+  }
+
   WHEN("sum_error from sum")
   {
     using T = fn::expected<int, fn::sum<Error>>;
@@ -44,6 +120,8 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
       CHECK(std::move(std::as_const(s)).sum_error().error() == fn::sum{Unknown});
       CHECK(std::move(s).sum_error().error() == fn::sum{Unknown});
     }
+
+    static_assert(std::is_same_v<decltype(fn::sum_error(s)), T &>);
   }
 
   WHEN("sum_error from non-sum")
@@ -69,6 +147,8 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
       CHECK(std::move(std::as_const(s)).sum_error().error() == fn::sum{Unknown});
       CHECK(std::move(s).sum_error().error() == fn::sum{Unknown});
     }
+
+    static_assert(std::is_same_v<decltype(fn::sum_error(s)), fn::expected<int, fn::sum<Error>>>);
   }
 
   WHEN("sum_value from sum")
@@ -94,6 +174,8 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
       CHECK(std::move(std::as_const(s)).sum_value().error() == Unknown);
       CHECK(std::move(s).sum_value().error() == Unknown);
     }
+
+    static_assert(std::is_same_v<decltype(fn::sum_value(s)), T &>);
   }
 
   WHEN("sum_value from non-sum")
@@ -119,6 +201,8 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
       CHECK(std::move(std::as_const(s)).sum_value().error() == Unknown);
       CHECK(std::move(s).sum_value().error() == Unknown);
     }
+
+    static_assert(std::is_same_v<decltype(fn::sum_value(s)), fn::expected<fn::sum<int>, Error>>);
   }
 
   WHEN("and_then")
@@ -775,6 +859,30 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
               == FileNotFound);
       }
 
+      WHEN("value & pack yield pack")
+      {
+        static_assert(std::same_as<decltype(std::declval<fn::expected<int, Error>>()
+                                            & std::declval<fn::expected<fn::pack<bool, int>, Error>>()),
+                                   fn::expected<fn::pack<int, bool, int>, Error>>);
+
+        CHECK((fn::expected<double, Error>{0.5} //
+               & fn::expected<fn::pack<bool, int>, Error>{std::in_place, fn::pack{true, 12}})
+                  .transform([](double d, bool b, int i) constexpr -> bool { return d == 0.5 && b && i == 12; })
+                  .value());
+        CHECK((fn::expected<double, Error>{std::unexpect, FileNotFound} //
+               & fn::expected<fn::pack<bool, int>, Error>{std::in_place, fn::pack{true, 12}})
+                  .error()
+              == FileNotFound);
+        CHECK((fn::expected<double, Error>{} //
+               & fn::expected<fn::pack<bool, int>, Error>{std::unexpect, Unknown})
+                  .error()
+              == Unknown);
+        CHECK((fn::expected<double, Error>{std::unexpect, FileNotFound} //
+               & fn::expected<fn::pack<bool, int>, Error>{std::unexpect, Unknown})
+                  .error()
+              == FileNotFound);
+      }
+
       WHEN("pack & value yield pack")
       {
         static_assert(std::same_as<decltype(std::declval<fn::expected<fn::pack<double, bool>, Error>>()
@@ -795,6 +903,32 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
               == Unknown);
         CHECK((fn::expected<fn::pack<double, bool>, Error>{std::unexpect, FileNotFound} //
                & fn::expected<int, Error>{std::unexpect, Unknown})
+                  .error()
+              == FileNotFound);
+      }
+
+      WHEN("pack & pack yield pack")
+      {
+        static_assert(std::same_as<decltype(std::declval<fn::expected<fn::pack<double, bool>, Error>>()
+                                            & std::declval<fn::expected<fn::pack<bool, int>, Error>>()),
+                                   fn::expected<fn::pack<double, bool, bool, int>, Error>>);
+
+        CHECK((fn::expected<fn::pack<double, bool>, Error>{std::in_place, fn::pack<double, bool>{0.5, true}} //
+               & fn::expected<fn::pack<bool, int>, Error>{std::in_place, fn::pack{true, 12}})
+                  .transform([](double d, bool b1, bool b2, int i) constexpr -> bool {
+                    return d == 0.5 && b1 && b2 && i == 12;
+                  })
+                  .value());
+        CHECK((fn::expected<fn::pack<double, bool>, Error>{std::unexpect, FileNotFound} //
+               & fn::expected<fn::pack<bool, int>, Error>{std::in_place, fn::pack{true, 12}})
+                  .error()
+              == FileNotFound);
+        CHECK((fn::expected<fn::pack<double, bool>, Error>{std::in_place, fn::pack<double, bool>{0.5, true}} //
+               & fn::expected<fn::pack<bool, int>, Error>{std::unexpect, Unknown})
+                  .error()
+              == Unknown);
+        CHECK((fn::expected<fn::pack<double, bool>, Error>{std::unexpect, FileNotFound} //
+               & fn::expected<fn::pack<bool, int>, Error>{std::unexpect, Unknown})
                   .error()
               == FileNotFound);
       }
@@ -847,20 +981,162 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
               == FileNotFound);
       }
 
-      WHEN("value & pack is unsupported")
+      WHEN("sum on both sides")
       {
-        static_assert(
-            [](auto &&lh,                                                          //
-               auto &&rh) constexpr -> bool { return not requires { lh & rh; }; }( //
-                                        fn::expected<int, Error>{12}, fn::expected<fn::pack<double, bool>, Error>{
-                                                                          fn::pack<double, bool>{0.5, true}}));
+        using Lh = fn::expected<fn::sum<double, int>, Error>;
+        using Rh = fn::expected<fn::sum<bool, int>, Error>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::expected<fn::sum< //
+                                                    fn::pack<double, bool>, fn::pack<double, int>, fn::pack<int, bool>,
+                                                    fn::pack<int, int>>,
+                                                Error>>);
+
+        CHECK((Lh{fn::sum{0.5}} & Rh{fn::sum{12}})
+                  .transform([](auto i, auto j) constexpr -> bool {
+                    return 0.5 == static_cast<double>(i) && 12 == static_cast<int>(j);
+                  })
+                  .value()
+              == fn::sum{true});
+        CHECK((Lh{std::unexpect, FileNotFound} & Rh{fn::sum{12}}).error() == FileNotFound);
+        CHECK((Lh{fn::sum{0.5}} & Rh{std::unexpect, Unknown}).error() == Unknown);
+        CHECK((Lh{std::unexpect, FileNotFound} & Rh{std::unexpect, Unknown}).error() == FileNotFound);
+
+        WHEN("sum of packs on left")
+        {
+          using Lh = fn::expected<fn::sum<fn::pack<double, bool>, fn::pack<double, int>>, Error>;
+          static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                     fn::expected<fn::sum< //
+                                                      fn::pack<double, bool, bool>, fn::pack<double, bool, int>,
+                                                      fn::pack<double, int, bool>, fn::pack<double, int, int>>,
+                                                  Error>>);
+
+          CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{fn::sum{12}})
+                    .transform([](auto i, auto j, auto k) constexpr -> bool {
+                      return 0.5 == static_cast<double>(i) && 3 == static_cast<int>(j) && 12 == static_cast<int>(k);
+                    })
+                    .value()
+                == fn::sum{true});
+          CHECK((Lh{std::unexpect, FileNotFound} & Rh{fn::sum{12}}).error() == FileNotFound);
+          CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{std::unexpect, Unknown}).error() == Unknown);
+          CHECK((Lh{std::unexpect, FileNotFound} & Rh{std::unexpect, Unknown}).error() == FileNotFound);
+        }
+
+        WHEN("sum of packs on right")
+        {
+          using Rh = fn::expected<fn::sum<fn::pack<double, bool>, fn::pack<double, int>>, Error>;
+          static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                     fn::expected<fn::sum< //
+                                                      fn::pack<double, double, bool>, fn::pack<double, double, int>,
+                                                      fn::pack<int, double, bool>, fn::pack<int, double, int>>,
+                                                  Error>>);
+
+          CHECK((Lh{fn::sum{12}} & Rh{fn::sum{fn::pack{0.5, 3}}})
+                    .transform([](auto i, auto j, auto k) constexpr -> bool {
+                      return 12 == static_cast<int>(i) && 0.5 == static_cast<double>(j) && 3 == static_cast<int>(k);
+                    })
+                    .value()
+                == fn::sum{true});
+          CHECK((Lh{std::unexpect, FileNotFound} & Rh{fn::sum{fn::pack{0.5, 3}}}).error() == FileNotFound);
+          CHECK((Lh{fn::sum{12}} & Rh{std::unexpect, Unknown}).error() == Unknown);
+          CHECK((Lh{std::unexpect, FileNotFound} & Rh{std::unexpect, Unknown}).error() == FileNotFound);
+        }
       }
-      WHEN("pack & pack is unsupported")
+
+      WHEN("sum on left side only")
       {
-        static_assert([](auto &&lh, auto &&rh) constexpr
-                      -> bool { return not requires { lh & rh; }; }( //
-                          fn::expected<fn::pack<double, bool>, Error>{fn::pack<double, bool>{0.5, true}},
-                          fn::expected<fn::pack<double, bool>, Error>{fn::pack<double, bool>{0.5, true}}));
+        using Lh = fn::expected<fn::sum<double, int>, Error>;
+        using Rh = fn::expected<int, Error>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::expected<fn::sum< //
+                                                    fn::pack<double, int>, fn::pack<int, int>>,
+                                                Error>>);
+
+        CHECK((Lh{fn::sum{0.5}} & Rh{12})
+                  .transform([](auto i, auto j) constexpr -> bool {
+                    return 0.5 == static_cast<double>(i) && 12 == static_cast<int>(j);
+                  })
+                  .value()
+              == fn::sum{true});
+        CHECK((Lh{std::unexpect, FileNotFound} & Rh{12}).error() == FileNotFound);
+        CHECK((Lh{fn::sum{0.5}} & Rh{std::unexpect, Unknown}).error() == Unknown);
+        CHECK((Lh{std::unexpect, FileNotFound} & Rh{std::unexpect, Unknown}).error() == FileNotFound);
+
+        WHEN("sum of packs on left")
+        {
+          using Lh = fn::expected<fn::sum<fn::pack<double, bool>, fn::pack<double, int>>, Error>;
+          static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                     fn::expected<fn::sum< //
+                                                      fn::pack<double, bool, int>, fn::pack<double, int, int>>,
+                                                  Error>>);
+
+          CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{12})
+                    .transform([](auto i, auto j, auto k) constexpr -> bool {
+                      return 0.5 == static_cast<double>(i) && 3 == static_cast<int>(j) && 12 == static_cast<int>(k);
+                    })
+                    .value()
+                == fn::sum{true});
+          CHECK((Lh{std::unexpect, FileNotFound} & Rh{12}).error() == FileNotFound);
+          CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{std::unexpect, Unknown}).error() == Unknown);
+          CHECK((Lh{std::unexpect, FileNotFound} & Rh{std::unexpect, Unknown}).error() == FileNotFound);
+        }
+
+        WHEN("pack on right")
+        {
+          using Rh = fn::expected<fn::pack<double, bool>, Error>;
+          static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                     fn::expected<fn::sum< //
+                                                      fn::pack<double, double, bool>, fn::pack<int, double, bool>>,
+                                                  Error>>);
+
+          CHECK((Lh{fn::sum{1.5}} & Rh{std::in_place, fn::pack{0.5, true}})
+                    .transform([](auto i, auto j, auto k) constexpr -> bool {
+                      return 1.5 == static_cast<double>(i) && 0.5 == static_cast<double>(j) && static_cast<bool>(k);
+                    })
+                    .value()
+                == fn::sum{true});
+          CHECK((Lh{std::unexpect, FileNotFound} & Rh{std::in_place, fn::pack{0.5, true}}).error() == FileNotFound);
+          CHECK((Lh{fn::sum{1.5}} & Rh{std::unexpect, Unknown}).error() == Unknown);
+          CHECK((Lh{std::unexpect, FileNotFound} & Rh{std::unexpect, Unknown}).error() == FileNotFound);
+        }
+      }
+
+      WHEN("sum on right side only")
+      {
+        using Lh = fn::expected<double, Error>;
+        using Rh = fn::expected<fn::sum<bool, int>, Error>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::expected<fn::sum< //
+                                                    fn::pack<double, bool>, fn::pack<double, int>>,
+                                                Error>>);
+
+        CHECK((Lh{0.5} & Rh{fn::sum{12}})
+                  .transform([](auto i, auto j) constexpr -> bool {
+                    return 0.5 == static_cast<double>(i) && 12 == static_cast<int>(j);
+                  })
+                  .value()
+              == fn::sum{true});
+        CHECK((Lh{std::unexpect, FileNotFound} & Rh{fn::sum{12}}).error() == FileNotFound);
+        CHECK((Lh{0.5} & Rh{std::unexpect, Unknown}).error() == Unknown);
+        CHECK((Lh{std::unexpect, FileNotFound} & Rh{std::unexpect, Unknown}).error() == FileNotFound);
+
+        WHEN("pack on left")
+        {
+          using Lh = fn::expected<fn::pack<double, int>, Error>;
+          static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                     fn::expected<fn::sum< //
+                                                      fn::pack<double, int, bool>, fn::pack<double, int, int>>,
+                                                  Error>>);
+
+          CHECK((Lh{fn::pack{0.5, 3}} & Rh{fn::sum{12}})
+                    .transform([](auto i, auto j, auto k) constexpr -> bool {
+                      return 0.5 == static_cast<double>(i) && 3 == static_cast<int>(j) && 12 == static_cast<int>(k);
+                    })
+                    .value()
+                == fn::sum{true});
+          CHECK((Lh{std::unexpect, FileNotFound} & Rh{fn::sum{12}}).error() == FileNotFound);
+          CHECK((Lh{fn::pack{0.5, 3}} & Rh{std::unexpect, Unknown}).error() == Unknown);
+          CHECK((Lh{std::unexpect, FileNotFound} & Rh{std::unexpect, Unknown}).error() == FileNotFound);
+        }
       }
     }
 
@@ -1052,6 +1328,125 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
                   .error()
               == fn::sum{FileNotFound});
       }
+
+      WHEN("sum on both sides")
+      {
+        using Lh = fn::expected<fn::sum<double, int>, fn::sum<Error>>;
+        using Rh = fn::expected<fn::sum<bool, int>, int>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::expected<fn::sum< //
+                                                    fn::pack<double, bool>, fn::pack<double, int>, fn::pack<int, bool>,
+                                                    fn::pack<int, int>>,
+                                                fn::sum<Error, int>>>);
+
+        CHECK((Lh{fn::sum{0.5}} & Rh{fn::sum{12}})
+                  .transform([](auto i, auto j) constexpr -> bool {
+                    return 0.5 == static_cast<double>(i) && 12 == static_cast<int>(j);
+                  })
+                  .value()
+              == fn::sum{true});
+        CHECK((Lh{std::unexpect, fn::sum{FileNotFound}} & Rh{fn::sum{12}}).error() == fn::sum{FileNotFound});
+        CHECK((Lh{fn::sum{0.5}} & Rh{std::unexpect, 13}).error() == fn::sum{13});
+        CHECK((Lh{std::unexpect, fn::sum{FileNotFound}} & Rh{std::unexpect, 13}).error() == fn::sum{FileNotFound});
+
+        WHEN("sum of packs on left")
+        {
+          using Lh = fn::expected<fn::sum<fn::pack<double, bool>, fn::pack<double, int>>, fn::sum<Error>>;
+          static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                     fn::expected<fn::sum< //
+                                                      fn::pack<double, bool, bool>, fn::pack<double, bool, int>,
+                                                      fn::pack<double, int, bool>, fn::pack<double, int, int>>,
+                                                  fn::sum<Error, int>>>);
+
+          CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{fn::sum{12}})
+                    .transform([](auto i, auto j, auto k) constexpr -> bool {
+                      return 0.5 == static_cast<double>(i) && 3 == static_cast<int>(j) && 12 == static_cast<int>(k);
+                    })
+                    .value()
+                == fn::sum{true});
+          CHECK((Lh{std::unexpect, fn::sum{FileNotFound}} & Rh{fn::sum{12}}).error() == fn::sum{FileNotFound});
+          CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{std::unexpect, 13}).error() == fn::sum{13});
+          CHECK((Lh{std::unexpect, fn::sum{FileNotFound}} & Rh{std::unexpect, 13}).error() == fn::sum{FileNotFound});
+        }
+      }
+
+      WHEN("sum on left side only")
+      {
+        using Lh = fn::expected<fn::sum<double, int>, fn::sum<Error>>;
+        using Rh = fn::expected<int, int>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::expected<fn::sum< //
+                                                    fn::pack<double, int>, fn::pack<int, int>>,
+                                                fn::sum<Error, int>>>);
+
+        CHECK((Lh{fn::sum{0.5}} & Rh{12})
+                  .transform([](auto i, auto j) constexpr -> bool {
+                    return 0.5 == static_cast<double>(i) && 12 == static_cast<int>(j);
+                  })
+                  .value()
+              == fn::sum{true});
+        CHECK((Lh{std::unexpect, fn::sum{FileNotFound}} & Rh{12}).error() == fn::sum{FileNotFound});
+        CHECK((Lh{fn::sum{0.5}} & Rh{std::unexpect, 13}).error() == fn::sum{13});
+        CHECK((Lh{std::unexpect, fn::sum{FileNotFound}} & Rh{std::unexpect, 13}).error() == fn::sum{FileNotFound});
+
+        WHEN("sum of packs on left")
+        {
+          using Lh = fn::expected<fn::sum<fn::pack<double, bool>, fn::pack<double, int>>, fn::sum<Error>>;
+          static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                     fn::expected<fn::sum< //
+                                                      fn::pack<double, bool, int>, fn::pack<double, int, int>>,
+                                                  fn::sum<Error, int>>>);
+
+          CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{12})
+                    .transform([](auto i, auto j, auto k) constexpr -> bool {
+                      return 0.5 == static_cast<double>(i) && 3 == static_cast<int>(j) && 12 == static_cast<int>(k);
+                    })
+                    .value()
+                == fn::sum{true});
+          CHECK((Lh{std::unexpect, fn::sum{FileNotFound}} & Rh{12}).error() == fn::sum{FileNotFound});
+          CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{std::unexpect, 13}).error() == fn::sum{13});
+          CHECK((Lh{std::unexpect, fn::sum{FileNotFound}} & Rh{std::unexpect, 13}).error() == fn::sum{FileNotFound});
+        }
+      }
+
+      WHEN("sum on right side only")
+      {
+        using Lh = fn::expected<double, fn::sum<Error>>;
+        using Rh = fn::expected<fn::sum<bool, int>, int>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::expected<fn::sum< //
+                                                    fn::pack<double, bool>, fn::pack<double, int>>,
+                                                fn::sum<Error, int>>>);
+
+        CHECK((Lh{0.5} & Rh{fn::sum{12}})
+                  .transform([](auto i, auto j) constexpr -> bool {
+                    return 0.5 == static_cast<double>(i) && 12 == static_cast<int>(j);
+                  })
+                  .value()
+              == fn::sum{true});
+        CHECK((Lh{std::unexpect, fn::sum{FileNotFound}} & Rh{fn::sum{12}}).error() == fn::sum{FileNotFound});
+        CHECK((Lh{0.5} & Rh{std::unexpect, 13}).error() == fn::sum{13});
+        CHECK((Lh{std::unexpect, fn::sum{FileNotFound}} & Rh{std::unexpect, 13}).error() == fn::sum{FileNotFound});
+
+        WHEN("pack on left")
+        {
+          using Lh = fn::expected<fn::pack<double, int>, fn::sum<Error>>;
+          static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                     fn::expected<fn::sum< //
+                                                      fn::pack<double, int, bool>, fn::pack<double, int, int>>,
+                                                  fn::sum<Error, int>>>);
+
+          CHECK((Lh{fn::pack{0.5, 3}} & Rh{fn::sum{12}})
+                    .transform([](auto i, auto j, auto k) constexpr -> bool {
+                      return 0.5 == static_cast<double>(i) && 3 == static_cast<int>(j) && 12 == static_cast<int>(k);
+                    })
+                    .value()
+                == fn::sum{true});
+          CHECK((Lh{std::unexpect, fn::sum{FileNotFound}} & Rh{fn::sum{12}}).error() == fn::sum{FileNotFound});
+          CHECK((Lh{fn::pack{0.5, 3}} & Rh{std::unexpect, 13}).error() == fn::sum{13});
+          CHECK((Lh{std::unexpect, fn::sum{FileNotFound}} & Rh{std::unexpect, 13}).error() == fn::sum{FileNotFound});
+        }
+      }
     }
 
     WHEN("graded monad as right operand")
@@ -1241,6 +1636,384 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
                & fn::expected<fn::pack<double, bool>, fn::sum<Error>>{std::unexpect, FileNotFound})
                   .error()
               == fn::sum{13});
+      }
+
+      WHEN("sum on both sides")
+      {
+        using Lh = fn::expected<fn::sum<double, int>, Error>;
+        using Rh = fn::expected<fn::sum<bool, int>, fn::sum<int>>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::expected<fn::sum< //
+                                                    fn::pack<double, bool>, fn::pack<double, int>, fn::pack<int, bool>,
+                                                    fn::pack<int, int>>,
+                                                fn::sum<Error, int>>>);
+
+        CHECK((Lh{fn::sum{0.5}} & Rh{fn::sum{12}})
+                  .transform([](auto i, auto j) constexpr -> bool {
+                    return 0.5 == static_cast<double>(i) && 12 == static_cast<int>(j);
+                  })
+                  .value()
+              == fn::sum{true});
+        CHECK((Lh{std::unexpect, FileNotFound} & Rh{fn::sum{12}}).error() == fn::sum{FileNotFound});
+        CHECK((Lh{fn::sum{0.5}} & Rh{std::unexpect, fn::sum{13}}).error() == fn::sum{13});
+        CHECK((Lh{std::unexpect, FileNotFound} & Rh{std::unexpect, fn::sum{13}}).error() == fn::sum{FileNotFound});
+
+        WHEN("sum of packs on left")
+        {
+          using Lh = fn::expected<fn::sum<fn::pack<double, bool>, fn::pack<double, int>>, Error>;
+          static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                     fn::expected<fn::sum< //
+                                                      fn::pack<double, bool, bool>, fn::pack<double, bool, int>,
+                                                      fn::pack<double, int, bool>, fn::pack<double, int, int>>,
+                                                  fn::sum<Error, int>>>);
+
+          CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{fn::sum{12}})
+                    .transform([](auto i, auto j, auto k) constexpr -> bool {
+                      return 0.5 == static_cast<double>(i) && 3 == static_cast<int>(j) && 12 == static_cast<int>(k);
+                    })
+                    .value()
+                == fn::sum{true});
+          CHECK((Lh{std::unexpect, FileNotFound} & Rh{fn::sum{12}}).error() == fn::sum{FileNotFound});
+          CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{std::unexpect, fn::sum{13}}).error() == fn::sum{13});
+          CHECK((Lh{std::unexpect, FileNotFound} & Rh{std::unexpect, fn::sum{13}}).error() == fn::sum{FileNotFound});
+        }
+      }
+
+      WHEN("sum on left side only")
+      {
+        using Lh = fn::expected<fn::sum<double, int>, Error>;
+        using Rh = fn::expected<int, fn::sum<int>>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::expected<fn::sum< //
+                                                    fn::pack<double, int>, fn::pack<int, int>>,
+                                                fn::sum<Error, int>>>);
+
+        CHECK((Lh{fn::sum{0.5}} & Rh{12})
+                  .transform([](auto i, auto j) constexpr -> bool {
+                    return 0.5 == static_cast<double>(i) && 12 == static_cast<int>(j);
+                  })
+                  .value()
+              == fn::sum{true});
+        CHECK((Lh{std::unexpect, FileNotFound} & Rh{12}).error() == fn::sum{FileNotFound});
+        CHECK((Lh{fn::sum{0.5}} & Rh{std::unexpect, 13}).error() == fn::sum{13});
+        CHECK((Lh{std::unexpect, FileNotFound} & Rh{std::unexpect, 13}).error() == fn::sum{FileNotFound});
+
+        WHEN("sum of packs on left")
+        {
+          using Lh = fn::expected<fn::sum<fn::pack<double, bool>, fn::pack<double, int>>, Error>;
+          static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                     fn::expected<fn::sum< //
+                                                      fn::pack<double, bool, int>, fn::pack<double, int, int>>,
+                                                  fn::sum<Error, int>>>);
+
+          CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{12})
+                    .transform([](auto i, auto j, auto k) constexpr -> bool {
+                      return 0.5 == static_cast<double>(i) && 3 == static_cast<int>(j) && 12 == static_cast<int>(k);
+                    })
+                    .value()
+                == fn::sum{true});
+          CHECK((Lh{std::unexpect, FileNotFound} & Rh{12}).error() == fn::sum{FileNotFound});
+          CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{std::unexpect, fn::sum{13}}).error() == fn::sum{13});
+          CHECK((Lh{std::unexpect, FileNotFound} & Rh{std::unexpect, fn::sum{13}}).error() == fn::sum{FileNotFound});
+        }
+      }
+
+      WHEN("sum on right side only")
+      {
+        using Lh = fn::expected<double, Error>;
+        using Rh = fn::expected<fn::sum<bool, int>, fn::sum<int>>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::expected<fn::sum< //
+                                                    fn::pack<double, bool>, fn::pack<double, int>>,
+                                                fn::sum<Error, int>>>);
+
+        CHECK((Lh{0.5} & Rh{fn::sum{12}})
+                  .transform([](auto i, auto j) constexpr -> bool {
+                    return 0.5 == static_cast<double>(i) && 12 == static_cast<int>(j);
+                  })
+                  .value()
+              == fn::sum{true});
+        CHECK((Lh{std::unexpect, FileNotFound} & Rh{fn::sum{12}}).error() == fn::sum{FileNotFound});
+        CHECK((Lh{0.5} & Rh{std::unexpect, fn::sum{13}}).error() == fn::sum{13});
+        CHECK((Lh{std::unexpect, FileNotFound} & Rh{std::unexpect, fn::sum{13}}).error() == fn::sum{FileNotFound});
+
+        WHEN("pack on left")
+        {
+          using Lh = fn::expected<fn::pack<double, int>, Error>;
+          static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                     fn::expected<fn::sum< //
+                                                      fn::pack<double, int, bool>, fn::pack<double, int, int>>,
+                                                  fn::sum<Error, int>>>);
+
+          CHECK((Lh{fn::pack{0.5, 3}} & Rh{fn::sum{12}})
+                    .transform([](auto i, auto j, auto k) constexpr -> bool {
+                      return 0.5 == static_cast<double>(i) && 3 == static_cast<int>(j) && 12 == static_cast<int>(k);
+                    })
+                    .value()
+                == fn::sum{true});
+          CHECK((Lh{std::unexpect, FileNotFound} & Rh{fn::sum{12}}).error() == fn::sum{FileNotFound});
+          CHECK((Lh{fn::pack{0.5, 3}} & Rh{std::unexpect, fn::sum{13}}).error() == fn::sum{13});
+          CHECK((Lh{std::unexpect, FileNotFound} & Rh{std::unexpect, fn::sum{13}}).error() == fn::sum{FileNotFound});
+        }
+      }
+    }
+
+    WHEN("graded monad on both ides")
+    {
+      static_assert(std::same_as<decltype(std::declval<fn::expected<int, fn::sum<bool, int>>>()
+                                          & std::declval<fn::expected<void, fn::sum<Error>>>()),
+                                 fn::expected<int, fn::sum<Error, bool, int>>>);
+
+      WHEN("value & void & yield value")
+      {
+        using Lh = fn::expected<int, fn::sum<bool, int>>;
+        using Rh = fn::expected<void, fn::sum<Error>>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::expected<int, fn::sum<Error, bool, int>>>);
+
+        CHECK((Lh{12} & Rh{}).value() == 12);
+        CHECK((Lh{12} & Rh{std::unexpect, fn::sum{FileNotFound}}).error() == fn::sum{FileNotFound});
+        CHECK((Lh{std::unexpect, fn::sum{13}} & Rh{}).error() == fn::sum{13});
+        CHECK((Lh{std::unexpect, fn::sum{13}} & Rh{std::unexpect, fn::sum{FileNotFound}}).error() == fn::sum{13});
+      }
+
+      WHEN("void & value yield value")
+      {
+        using Lh = fn::expected<void, fn::sum<bool, int>>;
+        using Rh = fn::expected<int, fn::sum<Error>>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::expected<int, fn::sum<Error, bool, int>>>);
+
+        CHECK((Lh{} & Rh{42}).value() == 42);
+        CHECK((Lh{} & Rh{std::unexpect, fn::sum{FileNotFound}}).error() == fn::sum{FileNotFound});
+        CHECK((Lh{std::unexpect, fn::sum{13}} & Rh{42}).error() == fn::sum{13});
+        CHECK((Lh{std::unexpect, fn::sum{13}} & Rh{std::unexpect, fn::sum{FileNotFound}}).error() == fn::sum{13});
+      }
+
+      WHEN("void & void yield void")
+      {
+        using Lh = fn::expected<void, fn::sum<bool, int>>;
+        using Rh = fn::expected<void, fn::sum<Error>>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::expected<void, fn::sum<Error, bool, int>>>);
+
+        CHECK((Lh{} & Rh{}).has_value());
+        CHECK((Lh{} & Rh{std::unexpect, fn::sum{FileNotFound}}).error() == fn::sum{FileNotFound});
+        CHECK((Lh{std::unexpect, fn::sum{13}} & Rh{}).error() == fn::sum{13});
+        CHECK((Lh{std::unexpect, fn::sum{13}} & Rh{std::unexpect, fn::sum{FileNotFound}}).error() == fn::sum{13});
+      }
+
+      WHEN("value & value yield pack")
+      {
+        using Lh = fn::expected<double, fn::sum<bool, int>>;
+        using Rh = fn::expected<int, fn::sum<Error>>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::expected<fn::pack<double, int>, fn::sum<Error, bool, int>>>);
+
+        CHECK((Lh{0.5} & Rh{12})
+                  .transform([](double d, int i) constexpr -> bool { return d == 0.5 && i == 12; })
+                  .value());
+        CHECK((Lh{0.5} & Rh{std::unexpect, fn::sum{FileNotFound}}).error() == fn::sum{FileNotFound});
+        CHECK((Lh{std::unexpect, fn::sum{13}} & Rh{12}).error() == fn::sum{13});
+        CHECK((Lh{std::unexpect, fn::sum{13}} & Rh{std::unexpect, fn::sum{FileNotFound}}).error() == fn::sum{13});
+      }
+
+      WHEN("pack & value yield pack")
+      {
+        using Lh = fn::expected<fn::pack<double, bool>, fn::sum<bool, int>>;
+        using Rh = fn::expected<int, fn::sum<Error>>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::expected<fn::pack<double, bool, int>, fn::sum<Error, bool, int>>>);
+
+        CHECK((Lh{std::in_place, fn::pack<double, bool>{0.5, true}} //
+               & Rh{12})
+                  .transform([](double d, bool b, int i) constexpr -> bool { return d == 0.5 && b && i == 12; })
+                  .value());
+        CHECK((Lh{std::in_place, fn::pack<double, bool>{0.5, true}} //
+               & Rh{std::unexpect, fn::sum{FileNotFound}})
+                  .error()
+              == fn::sum{FileNotFound});
+        CHECK((Lh{std::unexpect, fn::sum{13}} //
+               & Rh{12})
+                  .error()
+              == fn::sum{13});
+        CHECK((Lh{std::unexpect, fn::sum{13}} //
+               & Rh{std::unexpect, fn::sum{FileNotFound}})
+                  .error()
+              == fn::sum{13});
+      }
+
+      WHEN("pack & void yield pack")
+      {
+        using Lh = fn::expected<fn::pack<double, bool>, fn::sum<bool, int>>;
+        using Rh = fn::expected<void, fn::sum<Error>>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::expected<fn::pack<double, bool>, fn::sum<Error, bool, int>>>);
+
+        CHECK((Lh{std::in_place, fn::pack<double, bool>{0.5, true}} & Rh{})
+                  .transform([](double d, bool b) constexpr -> bool { return d == 0.5 && b; })
+                  .value());
+        CHECK((Lh{std::in_place, fn::pack<double, bool>{0.5, true}} & Rh{std::unexpect, fn::sum{FileNotFound}}).error()
+              == fn::sum{FileNotFound});
+        CHECK((Lh{std::unexpect, fn::sum{13}} & Rh{}).error() == fn::sum{13});
+        CHECK((Lh{std::unexpect, fn::sum{13}} & Rh{std::unexpect, fn::sum{FileNotFound}}).error() == fn::sum{13});
+      }
+
+      WHEN("void & pack yield pack")
+      {
+        using Lh = fn::expected<void, fn::sum<bool, int>>;
+        using Rh = fn::expected<fn::pack<double, bool>, fn::sum<Error>>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::expected<fn::pack<double, bool>, fn::sum<Error, bool, int>>>);
+
+        CHECK((Lh{} & Rh{std::in_place, fn::pack<double, bool>{0.5, true}})
+                  .transform([](double d, bool b) constexpr -> bool { return d == 0.5 && b; })
+                  .value());
+        CHECK((Lh{} & Rh{std::unexpect, fn::sum{FileNotFound}}).error() == fn::sum{FileNotFound});
+        CHECK((Lh{std::unexpect, fn::sum{13}} & Rh{std::in_place, fn::pack<double, bool>{0.5, true}}).error()
+              == fn::sum{13});
+        CHECK((Lh{std::unexpect, fn::sum{13}} & Rh{std::unexpect, fn::sum{FileNotFound}}).error() == fn::sum{13});
+      }
+
+      WHEN("sum on both sides")
+      {
+        using Lh = fn::expected<fn::sum<double, int>, fn::sum<Error>>;
+        using Rh = fn::expected<fn::sum<bool, int>, fn::sum<bool, int>>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::expected<fn::sum< //
+                                                    fn::pack<double, bool>, fn::pack<double, int>, fn::pack<int, bool>,
+                                                    fn::pack<int, int>>,
+                                                fn::sum<Error, bool, int>>>);
+
+        CHECK((Lh{fn::sum{0.5}} & Rh{fn::sum{12}})
+                  .transform([](auto i, auto j) constexpr -> bool {
+                    return 0.5 == static_cast<double>(i) && 12 == static_cast<int>(j);
+                  })
+                  .value()
+              == fn::sum{true});
+        CHECK((Lh{std::unexpect, fn::sum{FileNotFound}} & Rh{fn::sum{12}}).error() == fn::sum{FileNotFound});
+        CHECK((Lh{fn::sum{0.5}} & Rh{std::unexpect, fn::sum{13}}).error() == fn::sum{13});
+        CHECK((Lh{std::unexpect, fn::sum{FileNotFound}} & Rh{std::unexpect, fn::sum{13}}).error()
+              == fn::sum{FileNotFound});
+
+        WHEN("sum of packs on left")
+        {
+          using Lh = fn::expected<fn::sum<fn::pack<double, bool>, fn::pack<double, int>>, fn::sum<Error>>;
+          static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                     fn::expected<fn::sum< //
+                                                      fn::pack<double, bool, bool>, fn::pack<double, bool, int>,
+                                                      fn::pack<double, int, bool>, fn::pack<double, int, int>>,
+                                                  fn::sum<Error, bool, int>>>);
+
+          CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{fn::sum{12}})
+                    .transform([](auto i, auto j, auto k) constexpr -> bool {
+                      if constexpr (std::is_same_v<decltype(i), double> //
+                                    && std::is_same_v<decltype(j), int> //
+                                    && std::is_same_v<decltype(k), int>) {
+                        return 0.5 == i && 3 == j && 12 == k;
+                      } else {
+                        throw 0;
+                      }
+                    })
+                    .value()
+                == fn::sum{true});
+          CHECK((Lh{std::unexpect, fn::sum{FileNotFound}} & Rh{fn::sum{12}}).error() == fn::sum{FileNotFound});
+          CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{std::unexpect, fn::sum{13}}).error() == fn::sum{13});
+          CHECK((Lh{std::unexpect, fn::sum{FileNotFound}} & Rh{std::unexpect, fn::sum{13}}).error()
+                == fn::sum{FileNotFound});
+        }
+      }
+
+      WHEN("sum on left side only")
+      {
+        using Lh = fn::expected<fn::sum<double, int>, fn::sum<Error>>;
+        using Rh = fn::expected<int, fn::sum<bool, int>>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::expected<fn::sum< //
+                                                    fn::pack<double, int>, fn::pack<int, int>>,
+                                                fn::sum<Error, bool, int>>>);
+
+        CHECK((Lh{fn::sum{0.5}} & Rh{12})
+                  .transform([](auto i, auto j) constexpr -> bool {
+                    return 0.5 == static_cast<double>(i) && 12 == static_cast<int>(j);
+                  })
+                  .value()
+              == fn::sum{true});
+        CHECK((Lh{std::unexpect, fn::sum{FileNotFound}} & Rh{12}).error() == fn::sum{FileNotFound});
+        CHECK((Lh{fn::sum{0.5}} & Rh{std::unexpect, 13}).error() == fn::sum{13});
+        CHECK((Lh{std::unexpect, fn::sum{FileNotFound}} & Rh{std::unexpect, 13}).error() == fn::sum{FileNotFound});
+
+        WHEN("sum of packs on left")
+        {
+          using Lh = fn::expected<fn::sum<fn::pack<double, bool>, fn::pack<double, int>>, fn::sum<Error>>;
+          static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                     fn::expected<fn::sum< //
+                                                      fn::pack<double, bool, int>, fn::pack<double, int, int>>,
+                                                  fn::sum<Error, bool, int>>>);
+
+          CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{12})
+                    .transform([](auto i, auto j, auto k) constexpr -> bool {
+                      if constexpr (std::is_same_v<decltype(i), double> //
+                                    && std::is_same_v<decltype(j), int> //
+                                    && std::is_same_v<decltype(k), int>) {
+                        return 0.5 == i && 3 == j && 12 == k;
+                      } else {
+                        throw 0;
+                      }
+                    })
+                    .value()
+                == fn::sum{true});
+          CHECK((Lh{std::unexpect, fn::sum{FileNotFound}} & Rh{12}).error() == fn::sum{FileNotFound});
+          CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{std::unexpect, fn::sum{13}}).error() == fn::sum{13});
+          CHECK((Lh{std::unexpect, fn::sum{FileNotFound}} & Rh{std::unexpect, fn::sum{13}}).error()
+                == fn::sum{FileNotFound});
+        }
+      }
+
+      WHEN("sum on right side only")
+      {
+        using Lh = fn::expected<double, fn::sum<Error>>;
+        using Rh = fn::expected<fn::sum<bool, int>, fn::sum<bool, int>>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                   fn::expected<fn::sum< //
+                                                    fn::pack<double, bool>, fn::pack<double, int>>,
+                                                fn::sum<Error, bool, int>>>);
+
+        CHECK((Lh{0.5} & Rh{fn::sum{12}})
+                  .transform([](auto i, auto j) constexpr -> bool {
+                    return 0.5 == static_cast<double>(i) && 12 == static_cast<int>(j);
+                  })
+                  .value()
+              == fn::sum{true});
+        CHECK((Lh{std::unexpect, FileNotFound} & Rh{fn::sum{12}}).error() == fn::sum{FileNotFound});
+        CHECK((Lh{0.5} & Rh{std::unexpect, fn::sum{13}}).error() == fn::sum{13});
+        CHECK((Lh{std::unexpect, FileNotFound} & Rh{std::unexpect, fn::sum{13}}).error() == fn::sum{FileNotFound});
+
+        WHEN("pack on left")
+        {
+          using Lh = fn::expected<fn::pack<double, int>, fn::sum<Error>>;
+          static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
+                                     fn::expected<fn::sum< //
+                                                      fn::pack<double, int, bool>, fn::pack<double, int, int>>,
+                                                  fn::sum<Error, bool, int>>>);
+
+          CHECK((Lh{fn::pack{0.5, 3}} & Rh{fn::sum{12}})
+                    .transform([](auto i, auto j, auto k) constexpr -> bool {
+                      if constexpr (std::is_same_v<decltype(i), double> //
+                                    && std::is_same_v<decltype(j), int> //
+                                    && std::is_same_v<decltype(k), int>) {
+                        return 0.5 == i && 3 == j && 12 == k;
+                      } else {
+                        throw 0;
+                      }
+                    })
+                    .value()
+                == fn::sum{true});
+          CHECK((Lh{std::unexpect, fn::sum{FileNotFound}} & Rh{fn::sum{12}}).error() == fn::sum{FileNotFound});
+          CHECK((Lh{fn::pack{0.5, 3}} & Rh{std::unexpect, fn::sum{13}}).error() == fn::sum{13});
+          CHECK((Lh{std::unexpect, fn::sum{FileNotFound}} & Rh{std::unexpect, fn::sum{13}}).error()
+                == fn::sum{FileNotFound});
+        }
       }
     }
   }
