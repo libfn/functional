@@ -1,7 +1,9 @@
 name: docs
+
 on:
   push:
-    branches: [main, feature/doxygen]
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:

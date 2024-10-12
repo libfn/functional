@@ -1,10 +1,20 @@
 name: build
 
-on: [push, pull_request]
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - 'feature/*'
+      - 'bugfix/*'
+      - 'release/*'
 
 jobs:
   build-linux:
-    runs-on: ubuntu-22.04
+    runs-on:
+      group: runners-functional
     container: gcc:13-bookworm
     strategy:
       fail-fast: false
@@ -98,7 +108,8 @@ jobs:
         ctest --output-on-failure
 
   build-nixos:
-    runs-on: ubuntu-22.04
+    runs-on:
+      group: runners-functional
     strategy:
       fail-fast: false
       matrix:
