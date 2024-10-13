@@ -15,7 +15,7 @@ jobs:
   coverage:
     runs-on:
       group: default
-    container: gcc:14-bookworm
+    container: libfn/ci-build-gcc:14
     strategy:
       fail-fast: false
     env:
@@ -25,14 +25,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-
-    - name: Install prerequisites
-      env:
-        DEBIAN_FRONTEND: noninteractive
-      run: |
-        apt-get update -y
-        apt-get install -y --no-install-recommends cmake ninja-build
-        apt-get clean -y
 
     - name: Verify compiler compatibility
       env:
