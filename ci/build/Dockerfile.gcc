@@ -7,7 +7,7 @@ RUN set -ex ;\
     cat /etc/os-release ;\
     /usr/local/bin/gcc --version
 
-FROM debian:bookworm-slim
+FROM debian:bookworm
 COPY --from=gcc /usr/local/ /usr/local/
 COPY --from=gcc /etc/ld.so.conf.d/000-local-lib.conf /etc/ld.so.conf.d/000-local-lib.conf
 
