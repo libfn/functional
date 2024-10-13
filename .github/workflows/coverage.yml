@@ -15,7 +15,7 @@ on:
 jobs:
   coverage:
     runs-on:
-      group: default
+      group: intel-runners
     container: libfn/ci-build-gcc:14
     strategy:
       fail-fast: false
