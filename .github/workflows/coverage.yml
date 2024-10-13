@@ -14,7 +14,7 @@ on:
 jobs:
   coverage:
     runs-on:
-      group: runners-functional
+      group: default
     container: gcc:14-bookworm
     strategy:
       fail-fast: false

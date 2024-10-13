@@ -14,7 +14,7 @@ on:
 jobs:
   build-linux:
     runs-on:
-      group: runners-functional
+      group: default
     container: gcc:13-bookworm
     strategy:
       fail-fast: false
@@ -109,7 +109,7 @@ jobs:
 
   build-nixos:
     runs-on:
-      group: runners-functional
+      group: default
     strategy:
       fail-fast: false
       matrix:
