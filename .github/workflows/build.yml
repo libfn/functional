@@ -14,8 +14,7 @@ on:
 jobs:
   build-linux:
     runs-on:
-      group: runners-functional
-    container: gcc:13-bookworm
+      group: default
     strategy:
       fail-fast: false
       matrix:
@@ -23,51 +22,16 @@ jobs:
         - Debug
         - Release
         compiler:
-        - clang
-        - gcc
+        - gcc:13
+        - gcc:14
+        - clang:18
+        - clang:19
+    container: libfn/ci-build-${{ matrix.compiler }}
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install prerequisites
-      env:
-        CLANG_VERSION: 18
-        CLANG_ENABLED: ${{ matrix.compiler == 'clang' && 1 || 0 }}
-      run: |
-        if [ $CLANG_ENABLED -eq 1 ]; then \
-          CODENAME=$( . /etc/os-release && echo $VERSION_CODENAME ) ;\
-          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /etc/apt/keyrings/llvm.gpg ;\
-          printf "%s\n%s\n" \
-            "deb [signed-by=/etc/apt/keyrings/llvm.gpg] https://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME-${CLANG_VERSION} main" \
-            "deb-src [signed-by=/etc/apt/keyrings/llvm.gpg] https://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME-${CLANG_VERSION} main" \
-            | tee /etc/apt/sources.list.d/llvm.list ;\
-          apt-get update ;\
-          apt-get install -y --no-install-recommends git cmake ninja-build ;\
-          apt-get install -t llvm-toolchain-$CODENAME-${CLANG_VERSION} -y --no-install-recommends \
-            clang-${CLANG_VERSION} libc++-${CLANG_VERSION}-dev libc++abi-${CLANG_VERSION}-dev ;\
-          apt-get clean ;\
-          update-alternatives --install /usr/bin/clang clang /usr/bin/clang-${CLANG_VERSION} 100 \
-            --slave /usr/bin/clang++ clang++ /usr/bin/clang++-${CLANG_VERSION} ;\
-          update-alternatives --auto clang ;\
-        else \
-          apt-get update ;\
-          apt-get install -y --no-install-recommends git cmake ninja-build ;\
-          apt-get clean ;\
-          update-alternatives --install /usr/bin/gcc gcc /usr/local/bin/gcc 100 \
-            --slave /usr/bin/g++ g++ /usr/local/bin/g++ \
-            --slave /usr/bin/gcc-ar gcc-ar /usr/local/bin/gcc-ar \
-            --slave /usr/bin/gcc-nm gcc-nm /usr/local/bin/gcc-nm \
-            --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/local/bin/gcc-ranlib \
-            --slave /usr/bin/gcov gcov /usr/local/bin/gcov \
-            --slave /usr/bin/gcov-tool gcov-tool /usr/local/bin/gcov-tool \
-            --slave /usr/bin/gcov-dump gcov-dump /usr/local/bin/gcov-dump \
-            --slave /usr/bin/lto-dump lto-dump /usr/local/bin/lto-dump ;\
-          update-alternatives --auto gcc ;\
-        fi
-
     - name: Verify compiler compatibility
       env:
-        CXX: ${{ matrix.compiler == 'gcc' && '/usr/bin/g++' || ' /usr/bin/clang++' }}
-        CXX_FLAGS: ${{ matrix.compiler == 'clang' && '-stdlib=libc++ ' || '' }}
         SOURCE: |
           #include <optional>
           #include <expected>
@@ -79,23 +43,22 @@ jobs:
               + type2{2}.and_then([](int i) -> type2 { std::puts("OK optional"); return {i-2}; }).value();
           }
       run: |
+        printf "CXX=%s\nCXXFLAGS=%s\n" "$CXX" "$CXXFLAGS"
+        $CXX --version | head -1
         FILE=$(mktemp --tmpdir XXXXXX.cpp)
         printf "$SOURCE\n" > $FILE
         OUT=$(mktemp --tmpdir  XXXXXX)
-        $CXX -std=c++23 -Wall $CXX_FLAGS $FILE -o $OUT
+        $CXX -std=c++2b $CXXFLAGS -Wall $FILE -o $OUT
         $OUT
 
     - name: Prepare build
-      env:
-        CMAKE_GENERATOR: Ninja
-        CC: ${{ matrix.compiler == 'gcc' && '/usr/bin/gcc' || ' /usr/bin/clang' }}
-        CXX: ${{ matrix.compiler == 'gcc' && '/usr/bin/g++' || ' /usr/bin/clang++' }}
       run: |
         mkdir .build
         cd .build
         cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ..
-        COMPILER=$( grep "CMAKE_CXX_COMPILER:FILEPATH" CMakeCache.txt | sed "s|CMAKE_CXX_COMPILER:FILEPATH=/|/|" )
-        printf "C++ compiler: %s\nC++ compiler version: %s\n" "$COMPILER" "$( $COMPILER --version | head -1 )"
+        COMPILER=$( grep -E "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -e "s|^[^=]*=||" )
+        FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS_${{ matrix.configuration }}:STRING=" CMakeCache.txt | sed -e "s|^[^=]*=||" )
+        printf "C++ compiler: %s\nC++ compiler version: %s\nC++ compilation options: %s\n\n" "$COMPILER" "$( $COMPILER --version | head -1 )" "$FLAGS"
 
     - name: Build all
       run: |
@@ -109,7 +72,7 @@ jobs:
 
   build-nixos:
     runs-on:
-      group: runners-functional
+      group: default
     strategy:
       fail-fast: false
       matrix:

@@ -14,8 +14,8 @@ on:
 jobs:
   coverage:
     runs-on:
-      group: runners-functional
-    container: gcc:14-bookworm
+      group: default
+    container: libfn/ci-build-gcc:14
     strategy:
       fail-fast: false
     env:
@@ -25,14 +25,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-
-    - name: Install prerequisites
-      env:
-        DEBIAN_FRONTEND: noninteractive
-      run: |
-        apt-get update -y
-        apt-get install -y --no-install-recommends cmake ninja-build
-        apt-get clean -y
 
     - name: Verify compiler compatibility
       env:
@@ -79,14 +71,10 @@ jobs:
 
     - name: Upload .gcov files
       if: ${{ github.event_name == 'push' }}
-      uses: wandalen/wretry.action@v1.4.10
+      uses: codecov/codecov-action@v4
       with:
-        action: codecov/codecov-action@v4.6.0
-        with: |
-          fail_ci_if_error: true
-          disable_search: false
-          verbose: true
-          plugin: noop
-          token: ${{ secrets.CODECOV_TOKEN }}
-        attempt_limit: 5
-        attempt_delay: 210000 # in milliseconds
+        fail_ci_if_error: true
+        disable_search: false
+        verbose: true
+        plugin: noop
+        token: ${{ secrets.CODECOV_TOKEN }}
