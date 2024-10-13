@@ -79,14 +79,10 @@ jobs:
 
     - name: Upload .gcov files
       if: ${{ github.event_name == 'push' }}
-      uses: wandalen/wretry.action@v3
+      uses: codecov/codecov-action@v4
       with:
-        action: codecov/codecov-action@v4
-        with: |
-          fail_ci_if_error: true
-          disable_search: false
-          verbose: true
-          plugin: noop
-          token: ${{ secrets.CODECOV_TOKEN }}
-        attempt_limit: 5
-        attempt_delay: 210000 # in milliseconds
+        fail_ci_if_error: true
+        disable_search: false
+        verbose: true
+        plugin: noop
+        token: ${{ secrets.CODECOV_TOKEN }}
