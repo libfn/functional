@@ -27,9 +27,6 @@ jobs:
           - linux/arm64
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Prepare
         run: |
           platform=${{ matrix.platform }}
@@ -65,10 +62,12 @@ jobs:
           build-args: |
             GCC_RELEASE=${{ env.RELEASE }}
             CLANG_RELEASE=${{ env.RELEASE }}
-          context: ./ci/build
-          file: ./ci/build/Dockerfile.${{ env.COMPILER }}
+          context: "{{defaultContext}}:ci/build"
+          file: Dockerfile.${{ env.COMPILER }}
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.REGISTRY_IMAGE }}-${{ env.COMPILER }},push-by-digest=true,name-canonical=true,push=true
+          sbom: true
+          provenance: mode=max
 
       - name: Export digest
         run: |
