@@ -7,7 +7,7 @@ RUN set -ex ;\
     cat /etc/os-release ;\
     /usr/local/bin/gcc --version
 
-FROM debian:bookworm-slim
+FROM debian:bookworm
 COPY --from=gcc /usr/local/ /usr/local/
 COPY --from=gcc /etc/ld.so.conf.d/000-local-lib.conf /etc/ld.so.conf.d/000-local-lib.conf
 
@@ -35,7 +35,7 @@ RUN set -ex ;\
 RUN set -ex ;\
     apt-get update ;\
     apt-get install -y --no-install-recommends \
-      ca-certificates gpg gpg-agent wget \
+      ca-certificates gpg gpg-agent wget vim \
       cmake ninja-build binutils libc6-dev git ;\
     apt-get clean
 
