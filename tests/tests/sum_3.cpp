@@ -5,6 +5,8 @@
 
 #include "functional/sum.hpp"
 
+#include "functional/utility.hpp"
+
 #include <catch2/catch_all.hpp>
 
 #include <concepts>
@@ -282,7 +284,7 @@ TEST_CASE("sum", "[sum][has_value][get_ptr]")
 
   constexpr auto fn1 = [](auto) {};
   constexpr auto fn2 = [](auto...) {};
-  constexpr auto fn3 = [](int &) {};
+  constexpr auto fn3 = overload([](int &) {}, [](double &) {});
 
   constexpr sum<std::array<int, 3>> a{std::in_place_type<std::array<int, 3>>, 3, 14, 15};
   static_assert(a.index == 0);
@@ -295,454 +297,35 @@ TEST_CASE("sum", "[sum][has_value][get_ptr]")
            && i[2] == 15;
   }));
 
-  WHEN("size 1")
-  {
-    using T = sum<int>;
-    T a{std::in_place_type<int>, 42};
-    static_assert(T::size == 1);
-    static_assert(std::is_same_v<T::template select_nth<0>, int>);
-    static_assert(T::has_type<int>);
-    static_assert(not T::has_type<bool>);
-    CHECK(a.index == 0);
-    CHECK(a.template has_value<int>());
-    CHECK(a.has_value(std::in_place_type<int>));
+  using T = sum<double, int>;
+  T b{std::in_place_type<int>, 42};
+  static_assert(T::size == 2);
+  static_assert(std::is_same_v<T::template select_nth<0>, double>);
+  static_assert(std::is_same_v<T::template select_nth<1>, int>);
+  static_assert(T::has_type<int>);
+  static_assert(T::has_type<double>);
+  static_assert(not T::has_type<bool>);
+  CHECK(b.index == 1);
+  CHECK(b.template has_value<int>());
+  CHECK(b.has_value(std::in_place_type<int>));
 
-    static_assert(fn::typelist_invocable<decltype(fn1), decltype(a)>);
-    static_assert(fn::typelist_invocable<decltype(fn2), decltype(a)>);
-    static_assert(fn::typelist_invocable<decltype(fn2), decltype(a)>);
-    static_assert(fn::typelist_invocable<decltype(fn3), decltype(a) &>);
-    static_assert(not fn::typelist_invocable<decltype(fn3), decltype(a) const &>);
-    static_assert(not fn::typelist_invocable<decltype(fn3), decltype(a)>);
-    static_assert(not fn::typelist_invocable<decltype(fn3), decltype(a) const>);
-    static_assert(not fn::typelist_invocable<decltype(fn3), decltype(a) &&>);
-    static_assert(not fn::typelist_invocable<decltype(fn3), decltype(a) const &&>);
+  static_assert(fn::typelist_invocable<decltype(fn1), decltype(b)>);
+  static_assert(fn::typelist_invocable<decltype(fn2), decltype(b)>);
+  static_assert(fn::typelist_invocable<decltype(fn2), decltype(b)>);
+  static_assert(fn::typelist_invocable<decltype(fn3), decltype(b) &>);
+  static_assert(not fn::typelist_invocable<decltype(fn3), decltype(b) const &>);
+  static_assert(not fn::typelist_invocable<decltype(fn3), decltype(b)>);
+  static_assert(not fn::typelist_invocable<decltype(fn3), decltype(b) const>);
+  static_assert(not fn::typelist_invocable<decltype(fn3), decltype(b) &&>);
+  static_assert(not fn::typelist_invocable<decltype(fn3), decltype(b) const &&>);
 
-    static_assert(std::is_same_v<decltype(a.get_ptr(std::in_place_type<int>)), int *>);
-    CHECK(a.get_ptr(std::in_place_type<int>) == &a.data.v0);
-    static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(std::in_place_type<int>)), int const *>);
-    CHECK(std::as_const(a).get_ptr(std::in_place_type<int>) == &a.data.v0);
+  static_assert(std::is_same_v<decltype(b.get_ptr(std::in_place_type<int>)), int *>);
+  CHECK(b.get_ptr(std::in_place_type<int>) == &b.data.v1);
+  CHECK(b.get_ptr(std::in_place_type<double>) == nullptr);
+  static_assert(std::is_same_v<decltype(std::as_const(b).get_ptr(std::in_place_type<int>)), int const *>);
+  CHECK(std::as_const(b).get_ptr(std::in_place_type<int>) == &b.data.v1);
+  CHECK(std::as_const(b).get_ptr(std::in_place_type<double>) == nullptr);
 
-    constexpr auto a1 = sum<int>{std::in_place_type<int>, 12};
-    static_assert(*a1.get_ptr(std::in_place_type<int>) == 12);
-  }
-
-  WHEN("size 2")
-  {
-    using T = sum<double, int>;
-    static_assert(T::size == 2);
-    static_assert(std::is_same_v<T::template select_nth<0>, double>);
-    static_assert(std::is_same_v<T::template select_nth<1>, int>);
-    static_assert(T::has_type<int>);
-    static_assert(T::has_type<double>);
-    static_assert(not T::has_type<bool>);
-
-    WHEN("element v0 set")
-    {
-      constexpr auto element = std::in_place_type<double>;
-      T a{element, 0.5};
-      CHECK(a.data.v0 == 0.5);
-      CHECK(a.index == 0);
-      CHECK(a.template has_value<double>());
-      CHECK(a.has_value(std::in_place_type<double>));
-      CHECK(not a.template has_value<int>());
-      CHECK(not a.has_value(std::in_place_type<int>));
-
-      constexpr auto fn5 = [](auto &) {};
-      static_assert(fn::typelist_invocable<decltype(fn5), decltype(a) &>);
-
-      static_assert(std::is_same_v<decltype(a.get_ptr(element)), double *>);
-      CHECK(a.get_ptr(element) == &a.data.v0);
-      CHECK(a.get_ptr(std::in_place_type<int>) == nullptr);
-      static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), double const *>);
-      CHECK(std::as_const(a).get_ptr(element) == &a.data.v0);
-      CHECK(std::as_const(a).get_ptr(std::in_place_type<int>) == nullptr);
-    }
-
-    WHEN("element v1 set")
-    {
-      constexpr auto element = std::in_place_type<int>;
-      T a{element, 42};
-      CHECK(a.data.v1 == 42);
-      CHECK(a.index == 1);
-      CHECK(not a.template has_value<double>());
-      CHECK(not a.has_value(std::in_place_type<double>));
-      CHECK(a.template has_value<int>());
-      CHECK(a.has_value(std::in_place_type<int>));
-
-      static_assert(fn::typelist_invocable<decltype(fn1), decltype(a)>);
-      static_assert(fn::typelist_invocable<decltype(fn2), decltype(a)>);
-      static_assert(fn::typelist_invocable<decltype(fn2), decltype(a)>);
-
-      static_assert(std::is_same_v<decltype(a.get_ptr(element)), int *>);
-      CHECK(a.get_ptr(element) == &a.data.v1);
-      CHECK(a.get_ptr(std::in_place_type<double>) == nullptr);
-      static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), int const *>);
-      CHECK(std::as_const(a).get_ptr(element) == &a.data.v1);
-      CHECK(std::as_const(a).get_ptr(std::in_place_type<double>) == nullptr);
-    }
-  }
-  WHEN("size 3")
-  {
-    using T = sum<double, int, std::string_view>;
-    static_assert(T::size == 3);
-    static_assert(std::is_same_v<T::template select_nth<0>, double>);
-    static_assert(std::is_same_v<T::template select_nth<1>, int>);
-    static_assert(std::is_same_v<T::template select_nth<2>, std::string_view>);
-    static_assert(T::has_type<int>);
-    static_assert(T::has_type<double>);
-    static_assert(T::has_type<std::string_view>);
-    static_assert(not T::has_type<bool>);
-
-    WHEN("element v0 set")
-    {
-      constexpr auto element = std::in_place_type<double>;
-      T a{element, 0.5};
-      CHECK(a.data.v0 == 0.5);
-      CHECK(a.index == 0);
-      CHECK(a.template has_value<double>());
-      CHECK(a.has_value(std::in_place_type<double>));
-      CHECK(not a.template has_value<int>());
-      CHECK(not a.has_value(std::in_place_type<int>));
-      CHECK(not a.template has_value<std::string_view>());
-      CHECK(not a.has_value(std::in_place_type<std::string_view>));
-
-      constexpr auto fn5 = [](auto &) {};
-      static_assert(fn::typelist_invocable<decltype(fn5), decltype(a) &>);
-
-      static_assert(std::is_same_v<decltype(a.get_ptr(element)), double *>);
-      CHECK(a.get_ptr(element) == &a.data.v0);
-      CHECK(a.get_ptr(std::in_place_type<int>) == nullptr);
-      static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), double const *>);
-      CHECK(std::as_const(a).get_ptr(element) == &a.data.v0);
-      CHECK(std::as_const(a).get_ptr(std::in_place_type<int>) == nullptr);
-    }
-
-    WHEN("element v1 set")
-    {
-      constexpr auto element = std::in_place_type<int>;
-      T a{element, 42};
-      CHECK(a.data.v1 == 42);
-      CHECK(a.index == 1);
-      CHECK(not a.template has_value<double>());
-      CHECK(not a.has_value(std::in_place_type<double>));
-      CHECK(a.template has_value<int>());
-      CHECK(a.has_value(std::in_place_type<int>));
-      CHECK(not a.template has_value<std::string_view>());
-      CHECK(not a.has_value(std::in_place_type<std::string_view>));
-
-      static_assert(fn::typelist_invocable<decltype(fn1), decltype(a)>);
-      static_assert(fn::typelist_invocable<decltype(fn2), decltype(a)>);
-      static_assert(fn::typelist_invocable<decltype(fn2), decltype(a)>);
-
-      static_assert(std::is_same_v<decltype(a.get_ptr(element)), int *>);
-      CHECK(a.get_ptr(element) == &a.data.v1);
-      CHECK(a.get_ptr(std::in_place_type<double>) == nullptr);
-      static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), int const *>);
-      CHECK(std::as_const(a).get_ptr(element) == &a.data.v1);
-      CHECK(std::as_const(a).get_ptr(std::in_place_type<double>) == nullptr);
-    }
-
-    WHEN("element v2 set")
-    {
-      constexpr auto element = std::in_place_type<std::string_view>;
-      T a{element, "baz"};
-      CHECK(a.data.v2 == "baz");
-      CHECK(a.index == 2);
-      CHECK(not a.template has_value<double>());
-      CHECK(not a.has_value(std::in_place_type<double>));
-      CHECK(not a.template has_value<int>());
-      CHECK(not a.has_value(std::in_place_type<int>));
-      CHECK(a.template has_value<std::string_view>());
-      CHECK(a.has_value(std::in_place_type<std::string_view>));
-
-      constexpr auto fn5 = [](auto &) {};
-      static_assert(fn::typelist_invocable<decltype(fn5), decltype(a) &>);
-
-      static_assert(std::is_same_v<decltype(a.get_ptr(element)), std::string_view *>);
-      CHECK(a.get_ptr(element) == &a.data.v2);
-      CHECK(a.get_ptr(std::in_place_type<double>) == nullptr);
-      static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), std::string_view const *>);
-      CHECK(std::as_const(a).get_ptr(element) == &a.data.v2);
-      CHECK(std::as_const(a).get_ptr(std::in_place_type<double>) == nullptr);
-    }
-  }
-
-  WHEN("size 4")
-  {
-    using T = sum<double, int, std::string, std::string_view>;
-    static_assert(T::size == 4);
-    static_assert(std::is_same_v<T::template select_nth<0>, double>);
-    static_assert(std::is_same_v<T::template select_nth<1>, int>);
-    static_assert(std::is_same_v<T::template select_nth<2>, std::string>);
-    static_assert(std::is_same_v<T::template select_nth<3>, std::string_view>);
-    static_assert(T::has_type<int>);
-    static_assert(T::has_type<double>);
-    static_assert(T::has_type<std::string>);
-    static_assert(T::has_type<std::string_view>);
-    static_assert(not T::has_type<bool>);
-
-    WHEN("element v0 set")
-    {
-      constexpr auto element = std::in_place_type<double>;
-      T a{element, 0.5};
-      CHECK(a.data.v0 == 0.5);
-      CHECK(a.index == 0);
-      CHECK(a.template has_value<double>());
-      CHECK(a.has_value(std::in_place_type<double>));
-      CHECK(not a.template has_value<int>());
-      CHECK(not a.has_value(std::in_place_type<int>));
-      CHECK(not a.template has_value<std::string>());
-      CHECK(not a.has_value(std::in_place_type<std::string>));
-      CHECK(not a.template has_value<std::string_view>());
-      CHECK(not a.has_value(std::in_place_type<std::string_view>));
-
-      constexpr auto fn5 = [](auto &) {};
-      static_assert(fn::typelist_invocable<decltype(fn5), decltype(a) &>);
-
-      static_assert(std::is_same_v<decltype(a.get_ptr(element)), double *>);
-      CHECK(a.get_ptr(element) == &a.data.v0);
-      CHECK(a.get_ptr(std::in_place_type<int>) == nullptr);
-      static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), double const *>);
-      CHECK(std::as_const(a).get_ptr(element) == &a.data.v0);
-      CHECK(std::as_const(a).get_ptr(std::in_place_type<int>) == nullptr);
-    }
-
-    WHEN("element v1 set")
-    {
-      constexpr auto element = std::in_place_type<int>;
-      T a{element, 42};
-      CHECK(a.data.v1 == 42);
-      CHECK(a.index == 1);
-      CHECK(not a.template has_value<double>());
-      CHECK(not a.has_value(std::in_place_type<double>));
-      CHECK(a.template has_value<int>());
-      CHECK(a.has_value(std::in_place_type<int>));
-      CHECK(not a.template has_value<std::string>());
-      CHECK(not a.has_value(std::in_place_type<std::string>));
-      CHECK(not a.template has_value<std::string_view>());
-      CHECK(not a.has_value(std::in_place_type<std::string_view>));
-
-      static_assert(fn::typelist_invocable<decltype(fn1), decltype(a)>);
-      static_assert(fn::typelist_invocable<decltype(fn2), decltype(a)>);
-      static_assert(fn::typelist_invocable<decltype(fn2), decltype(a)>);
-
-      static_assert(std::is_same_v<decltype(a.get_ptr(element)), int *>);
-      CHECK(a.get_ptr(element) == &a.data.v1);
-      CHECK(a.get_ptr(std::in_place_type<double>) == nullptr);
-      static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), int const *>);
-      CHECK(std::as_const(a).get_ptr(element) == &a.data.v1);
-      CHECK(std::as_const(a).get_ptr(std::in_place_type<double>) == nullptr);
-    }
-
-    WHEN("element v2 set")
-    {
-      constexpr auto element = std::in_place_type<std::string>;
-      T a{element, "bar"};
-      CHECK(a.data.v2 == "bar");
-      CHECK(a.index == 2);
-      CHECK(not a.template has_value<double>());
-      CHECK(not a.has_value(std::in_place_type<double>));
-      CHECK(not a.template has_value<int>());
-      CHECK(not a.has_value(std::in_place_type<int>));
-      CHECK(a.template has_value<std::string>());
-      CHECK(a.has_value(std::in_place_type<std::string>));
-      CHECK(not a.template has_value<std::string_view>());
-      CHECK(not a.has_value(std::in_place_type<std::string_view>));
-
-      constexpr auto fn5 = [](auto &) {};
-      static_assert(fn::typelist_invocable<decltype(fn5), decltype(a) &>);
-
-      static_assert(std::is_same_v<decltype(a.get_ptr(element)), std::string *>);
-      CHECK(a.get_ptr(element) == &a.data.v2);
-      CHECK(a.get_ptr(std::in_place_type<double>) == nullptr);
-      static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), std::string const *>);
-      CHECK(std::as_const(a).get_ptr(element) == &a.data.v2);
-      CHECK(std::as_const(a).get_ptr(std::in_place_type<double>) == nullptr);
-    }
-
-    WHEN("element v3 set")
-    {
-      constexpr auto element = std::in_place_type<std::string_view>;
-      T a{element, "baz"};
-      CHECK(a.data.v3 == "baz");
-      CHECK(a.index == 3);
-      CHECK(not a.template has_value<double>());
-      CHECK(not a.has_value(std::in_place_type<double>));
-      CHECK(not a.template has_value<int>());
-      CHECK(not a.has_value(std::in_place_type<int>));
-      CHECK(not a.template has_value<std::string>());
-      CHECK(not a.has_value(std::in_place_type<std::string>));
-      CHECK(a.template has_value<std::string_view>());
-      CHECK(a.has_value(std::in_place_type<std::string_view>));
-
-      constexpr auto fn5 = [](auto &) {};
-      static_assert(fn::typelist_invocable<decltype(fn5), decltype(a) &>);
-
-      static_assert(std::is_same_v<decltype(a.get_ptr(element)), std::string_view *>);
-      CHECK(a.get_ptr(element) == &a.data.v3);
-      CHECK(a.get_ptr(std::in_place_type<double>) == nullptr);
-      static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), std::string_view const *>);
-      CHECK(std::as_const(a).get_ptr(element) == &a.data.v3);
-      CHECK(std::as_const(a).get_ptr(std::in_place_type<double>) == nullptr);
-    }
-  }
-
-  WHEN("size 5")
-  {
-    using T = sum<double, int, std::string, std::string_view, std::vector<int>>;
-    static_assert(T::size == 5);
-    static_assert(std::is_same_v<T::template select_nth<0>, double>);
-    static_assert(std::is_same_v<T::template select_nth<1>, int>);
-    static_assert(std::is_same_v<T::template select_nth<2>, std::string>);
-    static_assert(std::is_same_v<T::template select_nth<3>, std::string_view>);
-    static_assert(std::is_same_v<T::template select_nth<4>, std::vector<int>>);
-    static_assert(T::has_type<int>);
-    static_assert(T::has_type<double>);
-    static_assert(T::has_type<std::string>);
-    static_assert(T::has_type<std::string_view>);
-    static_assert(T::has_type<std::vector<int>>);
-    static_assert(not T::has_type<bool>);
-
-    WHEN("element v0 set")
-    {
-      constexpr auto element = std::in_place_type<double>;
-      T a{element, 0.5};
-      CHECK(a.data.v0 == 0.5);
-      CHECK(a.index == 0);
-      CHECK(a.template has_value<double>());
-      CHECK(a.has_value(std::in_place_type<double>));
-      CHECK(not a.template has_value<int>());
-      CHECK(not a.has_value(std::in_place_type<int>));
-      CHECK(not a.template has_value<std::string>());
-      CHECK(not a.has_value(std::in_place_type<std::string>));
-      CHECK(not a.template has_value<std::string_view>());
-      CHECK(not a.has_value(std::in_place_type<std::string_view>));
-      CHECK(not a.template has_value<std::vector<int>>());
-      CHECK(not a.has_value(std::in_place_type<std::vector<int>>));
-
-      constexpr auto fn5 = [](auto &) {};
-      static_assert(fn::typelist_invocable<decltype(fn5), decltype(a) &>);
-
-      static_assert(std::is_same_v<decltype(a.get_ptr(element)), double *>);
-      CHECK(a.get_ptr(element) == &a.data.v0);
-      CHECK(a.get_ptr(std::in_place_type<int>) == nullptr);
-      static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), double const *>);
-      CHECK(std::as_const(a).get_ptr(element) == &a.data.v0);
-      CHECK(std::as_const(a).get_ptr(std::in_place_type<int>) == nullptr);
-    }
-
-    WHEN("element v1 set")
-    {
-      constexpr auto element = std::in_place_type<int>;
-      T a{element, 42};
-      CHECK(a.data.v1 == 42);
-      CHECK(a.index == 1);
-      CHECK(not a.template has_value<double>());
-      CHECK(not a.has_value(std::in_place_type<double>));
-      CHECK(a.template has_value<int>());
-      CHECK(a.has_value(std::in_place_type<int>));
-      CHECK(not a.template has_value<std::string>());
-      CHECK(not a.has_value(std::in_place_type<std::string>));
-      CHECK(not a.template has_value<std::string_view>());
-      CHECK(not a.has_value(std::in_place_type<std::string_view>));
-      CHECK(not a.template has_value<std::vector<int>>());
-      CHECK(not a.has_value(std::in_place_type<std::vector<int>>));
-
-      static_assert(fn::typelist_invocable<decltype(fn1), decltype(a)>);
-      static_assert(fn::typelist_invocable<decltype(fn2), decltype(a)>);
-      static_assert(fn::typelist_invocable<decltype(fn2), decltype(a)>);
-
-      static_assert(std::is_same_v<decltype(a.get_ptr(element)), int *>);
-      CHECK(a.get_ptr(element) == &a.data.v1);
-      CHECK(a.get_ptr(std::in_place_type<double>) == nullptr);
-      static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), int const *>);
-      CHECK(std::as_const(a).get_ptr(element) == &a.data.v1);
-      CHECK(std::as_const(a).get_ptr(std::in_place_type<double>) == nullptr);
-    }
-
-    WHEN("element v2 set")
-    {
-      constexpr auto element = std::in_place_type<std::string>;
-      T a{element, "bar"};
-      CHECK(a.data.v2 == "bar");
-      CHECK(a.index == 2);
-      CHECK(not a.template has_value<double>());
-      CHECK(not a.has_value(std::in_place_type<double>));
-      CHECK(not a.template has_value<int>());
-      CHECK(not a.has_value(std::in_place_type<int>));
-      CHECK(a.template has_value<std::string>());
-      CHECK(a.has_value(std::in_place_type<std::string>));
-      CHECK(not a.template has_value<std::string_view>());
-      CHECK(not a.has_value(std::in_place_type<std::string_view>));
-      CHECK(not a.template has_value<std::vector<int>>());
-      CHECK(not a.has_value(std::in_place_type<std::vector<int>>));
-
-      constexpr auto fn5 = [](auto &) {};
-      static_assert(fn::typelist_invocable<decltype(fn5), decltype(a) &>);
-
-      static_assert(std::is_same_v<decltype(a.get_ptr(element)), std::string *>);
-      CHECK(a.get_ptr(element) == &a.data.v2);
-      CHECK(a.get_ptr(std::in_place_type<double>) == nullptr);
-      static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), std::string const *>);
-      CHECK(std::as_const(a).get_ptr(element) == &a.data.v2);
-      CHECK(std::as_const(a).get_ptr(std::in_place_type<double>) == nullptr);
-    }
-
-    WHEN("element v3 set")
-    {
-      constexpr auto element = std::in_place_type<std::string_view>;
-      T a{element, "baz"};
-      CHECK(a.data.v3 == "baz");
-      CHECK(a.index == 3);
-      CHECK(not a.template has_value<double>());
-      CHECK(not a.has_value(std::in_place_type<double>));
-      CHECK(not a.template has_value<int>());
-      CHECK(not a.has_value(std::in_place_type<int>));
-      CHECK(not a.template has_value<std::string>());
-      CHECK(not a.has_value(std::in_place_type<std::string>));
-      CHECK(a.template has_value<std::string_view>());
-      CHECK(a.has_value(std::in_place_type<std::string_view>));
-      CHECK(not a.template has_value<std::vector<int>>());
-      CHECK(not a.has_value(std::in_place_type<std::vector<int>>));
-
-      constexpr auto fn5 = [](auto &) {};
-      static_assert(fn::typelist_invocable<decltype(fn5), decltype(a) &>);
-
-      static_assert(std::is_same_v<decltype(a.get_ptr(element)), std::string_view *>);
-      CHECK(a.get_ptr(element) == &a.data.v3);
-      CHECK(a.get_ptr(std::in_place_type<double>) == nullptr);
-      static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), std::string_view const *>);
-      CHECK(std::as_const(a).get_ptr(element) == &a.data.v3);
-      CHECK(std::as_const(a).get_ptr(std::in_place_type<double>) == nullptr);
-    }
-
-    WHEN("more elements set")
-    {
-      std::vector<int> const foo{3, 14, 15};
-      constexpr auto element = std::in_place_type<std::vector<int>>;
-      T a{element, foo};
-      CHECK(a.data.more.v0 == foo);
-      CHECK(a.index == 4);
-      CHECK(not a.template has_value<double>());
-      CHECK(not a.has_value(std::in_place_type<double>));
-      CHECK(not a.template has_value<int>());
-      CHECK(not a.has_value(std::in_place_type<int>));
-      CHECK(not a.template has_value<std::string>());
-      CHECK(not a.has_value(std::in_place_type<std::string>));
-      CHECK(not a.template has_value<std::string_view>());
-      CHECK(not a.has_value(std::in_place_type<std::string_view>));
-      CHECK(a.template has_value<std::vector<int>>());
-      CHECK(a.has_value(std::in_place_type<std::vector<int>>));
-
-      constexpr auto fn5 = [](auto &) {};
-      static_assert(fn::typelist_invocable<decltype(fn5), decltype(a) &>);
-
-      static_assert(std::is_same_v<decltype(a.get_ptr(element)), std::vector<int> *>);
-      CHECK(a.get_ptr(element) == &a.data.more.v0);
-      CHECK(a.get_ptr(std::in_place_type<double>) == nullptr);
-      static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr(element)), std::vector<int> const *>);
-      CHECK(std::as_const(a).get_ptr(element) == &a.data.more.v0);
-      CHECK(std::as_const(a).get_ptr(std::in_place_type<double>) == nullptr);
-    }
-  }
+  constexpr auto a1 = sum<int>{std::in_place_type<int>, 12};
+  static_assert(*a1.get_ptr(std::in_place_type<int>) == 12);
 }
