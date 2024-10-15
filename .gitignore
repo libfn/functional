@@ -4,6 +4,7 @@
 build*/
 result
 .clangd
+.cache/
 .devcontainer/
 .vscode/
 *.iws

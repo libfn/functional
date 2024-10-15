@@ -623,7 +623,7 @@ TEST_CASE("sum transform", "[sum][transform]")
       type a{std::in_place_type<double>, 0.5};
       CHECK(a.data.v0 == 0.5);
 
-      static_assert(type{0.5}.transform(fn1) == sum{8ul});
+      static_assert(type{0.5}.transform(fn1) == sum{8uz});
       CHECK(a.transform(      //
                 fn::overload( //
                     [](auto) -> int { throw 1; }, [](double &i) -> bool { return i == 0.5; },
@@ -656,7 +656,7 @@ TEST_CASE("sum transform", "[sum][transform]")
       type a{std::in_place_type<int>, 42};
       CHECK(a.data.v1 == 42);
 
-      static_assert(type{42}.transform(fn1) == sum{4ul});
+      static_assert(type{42}.transform(fn1) == sum{4uz});
       CHECK(a.transform(      //
                 fn::overload( //
                     [](auto) -> bool { throw 1; }, [](int &i) -> bool { return i == 42; },
@@ -722,7 +722,7 @@ TEST_CASE("sum transform", "[sum][transform]")
       type a{std::in_place_type<std::string_view>, "baz"};
       CHECK(a.data.v3 == "baz");
 
-      static_assert(type{std::in_place_type<std::string_view>, "baz"}.transform(fn1) == sum{16ul});
+      static_assert(type{std::in_place_type<std::string_view>, "baz"}.transform(fn1) == sum{16uz});
       CHECK(a.transform(      //
                 fn::overload( //
                     [](auto) -> sum<int, std::string_view> { throw 1; },

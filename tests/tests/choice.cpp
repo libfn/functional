@@ -519,7 +519,7 @@ TEST_CASE("choice transform", "[choice][transform]")
       CHECK(a.data.v0 == 0.5);
       WHEN("value only")
       {
-        static_assert(type{0.5}.transform(fn1) == choice{8ul});
+        static_assert(type{0.5}.transform(fn1) == choice{8uz});
         CHECK(a.transform(      //
                   fn::overload( //
                       [](auto) -> int { throw 1; }, [](double &i) -> bool { return i == 0.5; },
@@ -555,7 +555,7 @@ TEST_CASE("choice transform", "[choice][transform]")
 
       WHEN("value only")
       {
-        static_assert(type{42}.transform(fn1) == choice{4ul});
+        static_assert(type{42}.transform(fn1) == choice{4uz});
         CHECK(a.transform(      //
                   fn::overload( //
                       [](auto) -> bool { throw 1; }, [](int &i) -> bool { return i == 42; },
@@ -626,7 +626,7 @@ TEST_CASE("choice transform", "[choice][transform]")
       CHECK(a.data.v3 == "baz");
       WHEN("value only")
       {
-        static_assert(type{std::in_place_type<std::string_view>, "baz"}.transform(fn1) == choice{16ul});
+        static_assert(type{std::in_place_type<std::string_view>, "baz"}.transform(fn1) == choice{16uz});
         CHECK(a.transform(      //
                   fn::overload( //
                       [](auto) -> sum<int, std::string_view> { throw 1; },
