@@ -38,11 +38,9 @@ jobs:
       id: assert
       shell: bash
       run: |
-        GIT_DIR=${{ github.workspace }}/.git
-        GIT_WORK_TREE=${{ github.workspace }}
-        ls -al ${GIT_WORK_TREE}
-        ls -al ${GIT_DIR}
-        git -C ${GIT_WORK_TREE} diff --exit-code | tee "clang-format.patch"
+        GIT_DIR=$(realpath .)/.git
+        GIT_WORK_TREE=$(realpath .)
+        git diff --exit-code | tee "clang-format.patch"
 
     - name: Upload patch
       if: failure() && steps.assert.outcome == 'failure'
