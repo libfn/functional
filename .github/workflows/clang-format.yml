@@ -21,10 +21,6 @@ jobs:
         release:
           - 18
     container: libfn/ci-build-clang:${{ matrix.release }}
-    defaults:
-      run:
-        shell: bash
-        working-directory: ${{ github.workspace }}
     steps:
     - uses: actions/checkout@v4
 
@@ -36,15 +32,14 @@ jobs:
 
     - name: Format source files
       run: |
-        realpath .
-        ls -al
         find include tests -type f \( -name '*.cpp' -o -name '*.hpp' -o -name '*.ipp' \) -print0 | xargs -0 clang-format-${CLANG_RELEASE} -i
 
     - name: Check for differences
       id: assert
+      shell: bash
       run: |
-        realpath .
-        ls -al
+        GIT_DIR=${{ github.workspace }}/.git
+        GIT_WORK_TREE=${{ github.workspace }}
         git diff --exit-code | tee "clang-format.patch"
 
     - name: Upload patch
