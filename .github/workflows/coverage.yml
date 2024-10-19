@@ -2,13 +2,16 @@ name: coverage
 
 on:
   push:
+    branches:
+      - '*'
     paths:
-      - '.codecov.yml'
+      - '.github/**'
       - 'cmake/**'
       - 'CMakeLists.txt'
       - '*.cpp'
       - '*.hpp'
       - '*.ipp'
+      - '.codecov.yml'
 
 jobs:
   coverage:

@@ -4,6 +4,14 @@ on:
   push:
     branches:
       - main
+    paths:
+      - '.github/**'
+      - 'cmake/**'
+      - 'CMakeLists.txt'
+      - '*.cpp'
+      - '*.hpp'
+      - '*.ipp'
+      - 'docs/**'
   workflow_dispatch:
 
 permissions:

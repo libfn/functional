@@ -2,7 +2,10 @@ name: build
 
 on:
   push:
+    branches:
+      - '*'
     paths:
+      - '.github/**'
       - 'cmake/**'
       - 'CMakeLists.txt'
       - '*.cpp'

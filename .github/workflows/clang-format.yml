@@ -2,11 +2,14 @@ name: clang-format
 
 on:
   push:
+    branches:
+      - '*'
     paths:
-      - '.clang-format'
+      - '.github/**'
       - '*.cpp'
       - '*.hpp'
       - '*.ipp'
+      - '.clang-format'
 
 jobs:
   format-check:
