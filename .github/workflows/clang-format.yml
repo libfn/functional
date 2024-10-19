@@ -37,8 +37,8 @@ jobs:
     - name: Check for differences
       id: assert
       run: |
-        set -o pipefail
-        git diff --exit-code | tee "clang-format.patch"
+        git diff | tee "clang-format.patch"
+        [ -s "clang-format.patch" ] && exit 1
 
     - name: Upload patch
       if: failure() && steps.assert.outcome == 'failure'
