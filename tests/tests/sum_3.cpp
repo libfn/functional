@@ -326,6 +326,11 @@ TEST_CASE("sum", "[sum][has_value][get_ptr]")
   CHECK(std::as_const(b).get_ptr(std::in_place_type<int>) == &b.data.v1);
   CHECK(std::as_const(b).get_ptr(std::in_place_type<double>) == nullptr);
 
-  constexpr auto a1 = sum<int>{std::in_place_type<int>, 12};
-  static_assert(*a1.get_ptr(std::in_place_type<int>) == 12);
+  T const c{std::in_place_type<double>, 4.25};
+  CHECK(c.get_ptr(std::in_place_type<int>) == nullptr);
+  CHECK(c.get_ptr(std::in_place_type<double>) == &c.data.v0);
+
+  constexpr auto d = sum<double, int>{std::in_place_type<int>, 12};
+  static_assert(d.get_ptr(std::in_place_type<double>) == nullptr);
+  static_assert(*d.get_ptr(std::in_place_type<int>) == 12);
 }
