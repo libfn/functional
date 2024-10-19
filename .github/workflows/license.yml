@@ -2,11 +2,14 @@ name: license
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+    paths:
+      - '.fossa.yml'
+      - 'LICENSE*'
+      - 'cmake/**'
+      - 'CMakeLists.txt'
+      - '*.cpp'
+      - '*.hpp'
+      - '*.ipp'
 
 jobs:
   license-check:

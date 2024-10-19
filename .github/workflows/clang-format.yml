@@ -1,28 +1,22 @@
 name: clang-format
 
-on: [push, pull_request]
+on:
+  push:
+    paths:
+      - '.clang-format'
+      - '*.cpp'
+      - '*.hpp'
+      - '*.ipp'
 
 jobs:
   format-check:
-    runs-on: ubuntu-22.04
-    env:
-      CLANG_VERSION: 18
+    runs-on:
+      group: default
+    strategy:
+      fail-fast: false
+    container: libfn/ci-build-clang:18
     steps:
     - uses: actions/checkout@v4
-
-    - name: Install clang-format
-      env:
-        DEBIAN_FRONTEND: noninteractive
-      run: |
-        CODENAME=$( . /etc/os-release && echo $VERSION_CODENAME )
-        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/llvm.gpg
-        printf "%s\n%s\n" \
-          "deb [signed-by=/etc/apt/keyrings/llvm.gpg] https://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME-${CLANG_VERSION} main" \
-          "deb-src [signed-by=/etc/apt/keyrings/llvm.gpg] https://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME-${CLANG_VERSION} main" \
-          | sudo tee /etc/apt/sources.list.d/llvm.list
-        sudo apt-get update
-        sudo apt-get install -t llvm-toolchain-${CODENAME}-${CLANG_VERSION} -y --no-install-recommends clang-format-${CLANG_VERSION}
-        sudo apt-get clean
 
     - name: Format source files
       run: find include tests -type f \( -name '*.cpp' -o -name '*.hpp' -o -name '*.ipp' \) -print0 | xargs -0 clang-format-${CLANG_VERSION} -i
