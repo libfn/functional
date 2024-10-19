@@ -17,18 +17,19 @@ jobs:
       group: default
     strategy:
       fail-fast: false
-    env:
-      - CLANG_RELEASE: 18
-    container: libfn/ci-build-clang:${CLANG_RELEASE}
+    container: libfn/ci-build-clang:18
     steps:
+    - name: Prepare
+      run: |
+        container=${{ jobs.format-check.container.image }}
+        echo "RELEASE=${container##*:}" >> $GITHUB_ENV
+        RELEASE=${container##*:}
+        clang-format --version | grep -F "clang-format version ${RELEASE}"
+
     - uses: actions/checkout@v4
 
-    - name: Version check
-      run: |
-        clang-format --version | grep -F "clang-format version ${CLANG_RELEASE}"
-
     - name: Format source files
-      run: find include tests -type f \( -name '*.cpp' -o -name '*.hpp' -o -name '*.ipp' \) -print0 | xargs -0 clang-format-${CLANG_RELEASE} -i
+      run: find include tests -type f \( -name '*.cpp' -o -name '*.hpp' -o -name '*.ipp' \) -print0 | xargs -0 clang-format-${{ env.RELEASE }} -i
 
     - name: Check for differences
       id: assert
@@ -64,6 +65,6 @@ jobs:
              in your repo, commit, and push.
       run: |
         echo "${PREAMBLE}"
-        clang-format-${CLANG_RELEASE} --version
+        clang-format-${{ env.RELEASE }} --version
         echo "${SUGGESTION}"
         exit 1
