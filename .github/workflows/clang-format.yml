@@ -15,14 +15,17 @@ jobs:
   format-check:
     runs-on:
       group: default
-    env:
-      CLANG_RELEASE: 18
     strategy:
       fail-fast: false
-    container: libfn/ci-build-clang:${{ env.CLANG_RELEASE }}
+      matrix:
+        release:
+          - 18
+    container: libfn/ci-build-clang:${{ matrix.release }}
     steps:
     - name: Check version
       run: |
+        echo "CLANG_RELEASE=${{ matrix.release }}" >> $GITHUB_ENV
+        CLANG_RELEASE=${{ matrix.release }}
         clang-format --version | grep -F "clang-format version ${CLANG_RELEASE}"
 
     - uses: actions/checkout@v4
