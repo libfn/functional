@@ -4,7 +4,6 @@ else()
   if(DEFINED ENV{CMAKE_FIND_CATCH2})
     find_package(Catch2 3)
   else()
-    find_package(Catch2 3)
     include(FetchContent)
     FetchContent_Declare(
       Catch2
