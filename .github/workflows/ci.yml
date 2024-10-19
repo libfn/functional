@@ -6,7 +6,7 @@ on:
   # This is meant to run at 13:17 on 11th of every month
     - cron: '17 13 11 * *'
   push:
-    branch:
+    branches:
       - main
     paths:
       - '.github/**'
