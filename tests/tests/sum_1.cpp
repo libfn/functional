@@ -609,235 +609,39 @@ TEST_CASE("sum type collapsing", "[sum][transform][normalized]")
 
 TEST_CASE("sum transform", "[sum][transform]")
 {
-  static constexpr auto sizeof_string = sizeof(std::string);
   using ::fn::sum;
   constexpr auto fn1 = [](auto i) noexcept -> std::size_t { return sizeof(i); };
 
-  WHEN("size 5")
-  {
-    using type = sum<double, int, std::string, std::string_view, std::vector<int>>;
-    static_assert(type::size == 5);
+  using type = sum<double>;
+  static_assert(type::size == 1);
 
-    WHEN("element v0 set")
-    {
-      type a{std::in_place_type<double>, 0.5};
-      CHECK(a.data.v0 == 0.5);
+  type a{std::in_place_type<double>, 0.5};
+  CHECK(a.data.v0 == 0.5);
 
-      static_assert(type{0.5}.transform(fn1) == sum{8uz});
-      CHECK(a.transform(      //
+  static_assert(type{0.5}.transform(fn1) == sum{8uz});
+  CHECK(a.transform(      //
+            fn::overload( //
+                [](auto) -> int { throw 1; }, [](double &i) -> bool { return i == 0.5; },
+                [](double const &) -> bool { throw 0; }, [](double &&) -> bool { throw 0; },
+                [](double const &&) -> bool { throw 0; }))
+        == sum<bool, int>{true});
+  CHECK(std::as_const(a).transform( //
+            fn::overload(           //
+                [](auto) -> int { throw 1; }, [](double &) -> bool { throw 0; },
+                [](double const &i) -> bool { return i == 0.5; }, [](double &&) -> bool { throw 0; },
+                [](double const &&) -> bool { throw 0; }))
+        == sum<bool, int>{true});
+  CHECK(std::move(std::as_const(a))
+            .transform(       //
                 fn::overload( //
-                    [](auto) -> int { throw 1; }, [](double &i) -> bool { return i == 0.5; },
+                    [](auto) -> int { throw 1; }, [](double &) -> bool { throw 0; },
                     [](double const &) -> bool { throw 0; }, [](double &&) -> bool { throw 0; },
-                    [](double const &&) -> bool { throw 0; }))
-            == sum<bool, int>{true});
-      CHECK(std::as_const(a).transform( //
-                fn::overload(           //
-                    [](auto) -> int { throw 1; }, [](double &) -> bool { throw 0; },
-                    [](double const &i) -> bool { return i == 0.5; }, [](double &&) -> bool { throw 0; },
-                    [](double const &&) -> bool { throw 0; }))
-            == sum<bool, int>{true});
-      CHECK(std::move(std::as_const(a))
-                .transform(       //
-                    fn::overload( //
-                        [](auto) -> int { throw 1; }, [](double &) -> bool { throw 0; },
-                        [](double const &) -> bool { throw 0; }, [](double &&) -> bool { throw 0; },
-                        [](double const &&i) -> bool { return i == 0.5; }))
-            == sum<bool, int>{true});
-      CHECK(std::move(a).transform( //
-                fn::overload(       //
-                    [](auto) -> int { throw 1; }, [](double &) -> bool { throw 0; },
-                    [](double const &) -> bool { throw 0; }, [](double &&i) -> bool { return i == 0.5; },
-                    [](double const &&) -> bool { throw 0; }))
-            == sum<bool, int>{true});
-    }
-
-    WHEN("element v1 set")
-    {
-      type a{std::in_place_type<int>, 42};
-      CHECK(a.data.v1 == 42);
-
-      static_assert(type{42}.transform(fn1) == sum{4uz});
-      CHECK(a.transform(      //
-                fn::overload( //
-                    [](auto) -> bool { throw 1; }, [](int &i) -> bool { return i == 42; },
-                    [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
-                    [](int const &&) -> bool { throw 0; }))
-            == sum{true});
-      CHECK(std::as_const(a).transform( //
-                fn::overload(           //
-                    [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
-                    [](int const &i) -> bool { return i == 42; }, [](int &&) -> bool { throw 0; },
-                    [](int const &&) -> bool { throw 0; }))
-            == sum{true});
-      CHECK(sum<int>{std::in_place_type<int>, 42}.transform( //
-                fn::overload(                                //
-                    [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
-                    [](int &&i) -> bool { return i == 42; }, [](int const &&) -> bool { throw 0; }))
-            == sum{true});
-      CHECK(std::move(std::as_const(a))
-                .transform(       //
-                    fn::overload( //
-                        [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
-                        [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
-                        [](int const &&i) -> bool { return i == 42; }))
-            == sum{true});
-    }
-
-    WHEN("element v2 set")
-    {
-      type a{std::in_place_type<std::string>, "bar"};
-      CHECK(a.data.v2 == "bar");
-
-      // TODO Change single CHECK below to static_assert when supported by GCC
-      CHECK(type{std::in_place_type<std::string>, "bar"}.transform(fn1) == sum{sizeof_string});
-      CHECK(a.transform(      //
-                fn::overload( //
-                    [](auto) -> sum<bool, std::string> { throw 1; }, [](std::string &i) -> bool { return i == "bar"; },
-                    [](std::string const &) -> bool { throw 0; }, [](std::string &&) -> bool { throw 0; },
-                    [](std::string const &&) -> bool { throw 0; }))
-            == sum<bool, std::string>{true});
-      CHECK(std::as_const(a).transform( //
-                fn::overload(           //
-                    [](auto) -> sum<bool, std::string> { throw 1; }, [](std::string &) -> bool { throw 0; },
-                    [](std::string const &i) -> bool { return i == "bar"; }, [](std::string &&) -> bool { throw 0; },
-                    [](std::string const &&) -> bool { throw 0; }))
-            == sum<bool, std::string>{true});
-      CHECK(std::move(std::as_const(a))
-                .transform(       //
-                    fn::overload( //
-                        [](auto) -> sum<bool, std::string> { throw 1; }, [](std::string &) -> bool { throw 0; },
-                        [](std::string const &) -> bool { throw 0; }, [](std::string &&) -> bool { throw 0; },
-                        [](std::string const &&i) -> bool { return i == "bar"; }))
-            == sum<bool, std::string>{true});
-      CHECK(std::move(a).transform( //
-                fn::overload(       //
-                    [](auto) -> sum<bool, std::string> { throw 1; }, [](std::string &) -> bool { throw 0; },
-                    [](std::string const &) -> bool { throw 0; }, [](std::string &&i) -> bool { return i == "bar"; },
-                    [](std::string const &&) -> bool { throw 0; }))
-            == sum<bool, std::string>{true});
-    }
-
-    WHEN("element v3 set")
-    {
-      type a{std::in_place_type<std::string_view>, "baz"};
-      CHECK(a.data.v3 == "baz");
-
-      static_assert(type{std::in_place_type<std::string_view>, "baz"}.transform(fn1) == sum{16uz});
-      CHECK(a.transform(      //
-                fn::overload( //
-                    [](auto) -> sum<int, std::string_view> { throw 1; },
-                    [](std::string_view &i) -> sum<bool, int> { return {i == "baz"}; },
-                    [](std::string_view const &) -> sum<bool, int> { throw 0; },
-                    [](std::string_view &&) -> sum<bool, int> { throw 0; },
-                    [](std::string_view const &&) -> sum<bool, int> { throw 0; }))
-            == sum<bool, int, std::string_view>{true});
-      CHECK(std::as_const(a).transform( //
-                fn::overload(           //
-                    [](auto) -> sum<int, std::string_view> { throw 1; },
-                    [](std::string_view &) -> sum<bool, int> { throw 0; },
-                    [](std::string_view const &i) -> sum<bool, int> { return {i == "baz"}; },
-                    [](std::string_view &&) -> sum<bool, int> { throw 0; },
-                    [](std::string_view const &&) -> sum<bool, int> { throw 0; }))
-            == sum<bool, int, std::string_view>{true});
-      CHECK(std::move(std::as_const(a))
-                .transform(       //
-                    fn::overload( //
-                        [](auto) -> sum<int, std::string_view> { throw 1; },
-                        [](std::string_view &) -> sum<bool, int> { throw 0; },
-                        [](std::string_view const &) -> sum<bool, int> { throw 0; },
-                        [](std::string_view &&) -> sum<bool, int> { throw 0; },
-                        [](std::string_view const &&i) -> sum<bool, int> { return {i == "baz"}; }))
-            == sum<bool, int, std::string_view>{true});
-      CHECK(std::move(a).transform( //
-                fn::overload(       //
-                    [](auto) -> sum<int, std::string_view> { throw 1; },
-                    [](std::string_view &) -> sum<bool, int> { throw 0; },
-                    [](std::string_view const &) -> sum<bool, int> { throw 0; },
-                    [](std::string_view &&i) -> sum<bool, int> { return {i == "baz"}; },
-                    [](std::string_view const &&) -> sum<bool, int> { throw 0; }))
-            == sum<bool, int, std::string_view>{true});
-    }
-
-    WHEN("more elements set")
-    {
-      std::vector<int> const foo = {3, 14, 15};
-      type a{std::in_place_type<std::vector<int>>, foo};
-      CHECK(a.data.more.v0 == foo);
-
-      CHECK(a.transform(      //
-                fn::overload( //
-                    [](auto) -> sum<int, std::vector<int>> { throw 1; },
-                    [&](std::vector<int> &i) -> sum<bool, int> { return {i == foo}; },
-                    [](std::vector<int> const &) -> sum<bool, int> { throw 0; },
-                    [](std::vector<int> &&) -> sum<bool, int> { throw 0; },
-                    [](std::vector<int> const &&) -> sum<bool, int> { throw 0; }))
-            == sum<bool, int, std::vector<int>>{true});
-      CHECK(std::as_const(a).transform( //
-                fn::overload(           //
-                    [](auto) -> sum<int, std::vector<int>> { throw 1; },
-                    [](std::vector<int> &) -> sum<bool, int> { throw 0; },
-                    [&](std::vector<int> const &i) -> sum<bool, int> { return {i == foo}; },
-                    [](std::vector<int> &&) -> sum<bool, int> { throw 0; },
-                    [](std::vector<int> const &&) -> sum<bool, int> { throw 0; }))
-            == sum<bool, int, std::vector<int>>{true});
-      CHECK(std::move(std::as_const(a))
-                .transform(       //
-                    fn::overload( //
-                        [](auto) -> sum<int, std::vector<int>> { throw 1; },
-                        [](std::vector<int> &) -> sum<bool, int> { throw 0; },
-                        [](std::vector<int> const &) -> sum<bool, int> { throw 0; },
-                        [](std::vector<int> &&) -> sum<bool, int> { throw 0; },
-                        [&](std::vector<int> const &&i) -> sum<bool, int> { return {i == foo}; }))
-            == sum<bool, int, std::vector<int>>{true});
-      CHECK(std::move(a).transform( //
-                fn::overload(       //
-                    [](auto) -> sum<int, std::vector<int>> { throw 1; },
-                    [](std::vector<int> &) -> sum<bool, int> { throw 0; },
-                    [](std::vector<int> const &) -> sum<bool, int> { throw 0; },
-                    [&](std::vector<int> &&i) -> sum<bool, int> { return {i == foo}; },
-                    [](std::vector<int> const &&) -> sum<bool, int> { throw 0; }))
-            == sum<bool, int, std::vector<int>>{true});
-
-      WHEN("extra argument set")
-      {
-        CHECK(a.transform(      //
-                  fn::overload( //
-                      [](auto...) -> sum<int, std::vector<int>> { throw 1; },
-                      [&](std::vector<int> &i, int j) -> sum<bool, int> { return {i == foo && j == 12}; },
-                      [](std::vector<int> const &, int) -> sum<bool, int> { throw 0; },
-                      [](std::vector<int> &&, int) -> sum<bool, int> { throw 0; },
-                      [](std::vector<int> const &&, int) -> sum<bool, int> { throw 0; }),
-                  12)
-              == sum<bool, int, std::vector<int>>{true});
-        CHECK(std::as_const(a).transform( //
-                  fn::overload(           //
-                      [](auto...) -> sum<int, std::vector<int>> { throw 1; },
-                      [](std::vector<int> &, int) -> sum<bool, int> { throw 0; },
-                      [&](std::vector<int> const &i, int j) -> sum<bool, int> { return {i == foo && j == 12}; },
-                      [](std::vector<int> &&, int) -> sum<bool, int> { throw 0; },
-                      [](std::vector<int> const &&, int) -> sum<bool, int> { throw 0; }),
-                  12)
-              == sum<bool, int, std::vector<int>>{true});
-        CHECK(std::move(std::as_const(a))
-                  .transform(       //
-                      fn::overload( //
-                          [](auto...) -> sum<int, std::vector<int>> { throw 1; },
-                          [](std::vector<int> &, int) -> sum<bool, int> { throw 0; },
-                          [](std::vector<int> const &, int) -> sum<bool, int> { throw 0; },
-                          [](std::vector<int> &&, int) -> sum<bool, int> { throw 0; },
-                          [&](std::vector<int> const &&i, int j) -> sum<bool, int> { return {i == foo && j == 12}; }),
-                      12)
-              == sum<bool, int, std::vector<int>>{true});
-        CHECK(std::move(a).transform( //
-                  fn::overload(       //
-                      [](auto...) -> sum<int, std::vector<int>> { throw 1; },
-                      [](std::vector<int> &, int) -> sum<bool, int> { throw 0; },
-                      [](std::vector<int> const &, int) -> sum<bool, int> { throw 0; },
-                      [&](std::vector<int> &&i, int j) -> sum<bool, int> { return {i == foo && j == 12}; },
-                      [](std::vector<int> const &&, int) -> sum<bool, int> { throw 0; }),
-                  12)
-              == sum<bool, int, std::vector<int>>{true});
-      }
-    }
-  }
+                    [](double const &&i) -> bool { return i == 0.5; }))
+        == sum<bool, int>{true});
+  CHECK(
+      std::move(a).transform( //
+          fn::overload(       //
+              [](auto) -> int { throw 1; }, [](double &) -> bool { throw 0; }, [](double const &) -> bool { throw 0; },
+              [](double &&i) -> bool { return i == 0.5; }, [](double const &&) -> bool { throw 0; }))
+      == sum<bool, int>{true});
 }
