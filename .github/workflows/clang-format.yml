@@ -36,10 +36,8 @@ jobs:
 
     - name: Check for differences
       id: assert
-      shell: bash
       run: |
-        GIT_DIR=$(realpath .)/.git
-        GIT_WORK_TREE=$(realpath .)
+        set -o pipefail
         git diff --exit-code | tee "clang-format.patch"
 
     - name: Upload patch
