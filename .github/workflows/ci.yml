@@ -5,6 +5,12 @@ on:
   # https://pubs.opengroup.org/onlinepubs/9699919799/utilities/crontab.html#tag_20_25_07
   # This is meant to run at 13:17 on 11th of every month
     - cron: '17 13 11 * *'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/**'
+      - 'ci/**'
   workflow_dispatch:
 
 # Based on https://docs.docker.com/build/ci/github-actions/multi-platform/

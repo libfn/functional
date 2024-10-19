@@ -1,15 +1,16 @@
 name: build
 
 on:
-  pull_request:
-    branches:
-      - main
   push:
     branches:
-      - main
-      - 'feature/*'
-      - 'bugfix/*'
-      - 'release/*'
+      - '*'
+    paths:
+      - '.github/**'
+      - 'cmake/**'
+      - 'CMakeLists.txt'
+      - '*.cpp'
+      - '*.hpp'
+      - '*.ipp'
 
 jobs:
   build-linux:

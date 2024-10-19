@@ -3,10 +3,16 @@ name: license
 on:
   push:
     branches:
-      - main
-  pull_request:
-    branches:
-      - main
+      - '*'
+    paths:
+      - '.github/**'
+      - 'cmake/**'
+      - 'CMakeLists.txt'
+      - '*.cpp'
+      - '*.hpp'
+      - '*.ipp'
+      - '.fossa.yml'
+      - 'LICENSE*'
 
 jobs:
   license-check:
