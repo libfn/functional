@@ -2,6 +2,8 @@ name: clang-format
 
 on:
   push:
+    branches:
+      - '*'
     paths:
       - '.clang-format'
       - '*.cpp'
