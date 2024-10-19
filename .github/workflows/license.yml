@@ -1,6 +1,9 @@
 name: license
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
@@ -11,6 +14,6 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - uses: fossas/fossa-action@v1.3.3
+    - uses: fossas/fossa-action@v1
       with:
         api-key: ${{ secrets.FOSSA_API_KEY }}

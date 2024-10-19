@@ -1,0 +1,136 @@
+name: ci
+
+on:
+  schedule:
+  # https://pubs.opengroup.org/onlinepubs/9699919799/utilities/crontab.html#tag_20_25_07
+  # This is meant to run at 13:17 on 11th of every month
+    - cron: '17 13 11 * *'
+  workflow_dispatch:
+
+# Based on https://docs.docker.com/build/ci/github-actions/multi-platform/
+env:
+  REGISTRY_IMAGE: libfn/ci-build
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler:
+          - gcc:13
+          - gcc:14
+          - clang:18
+          - clang:19
+        platform:
+          - linux/amd64
+          - linux/arm64
+
+    steps:
+      - name: Prepare
+        run: |
+          platform=${{ matrix.platform }}
+          echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
+          compiler=${{ matrix.compiler }}
+          echo "COMPILER=${compiler%%:*}" >> $GITHUB_ENV
+          echo "RELEASE=${compiler##*:}" >> $GITHUB_ENV
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}-${{ env.COMPILER }}
+          tags: type=raw,value=${{ env.RELEASE }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            GCC_RELEASE=${{ env.RELEASE }}
+            CLANG_RELEASE=${{ env.RELEASE }}
+          context: "{{defaultContext}}:ci/build"
+          file: Dockerfile.${{ env.COMPILER }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE }}-${{ env.COMPILER }},push-by-digest=true,name-canonical=true,push=true
+          sbom: true
+          provenance: mode=max
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ env.COMPILER}}-${{ env.RELEASE }}-${{ env.PLATFORM_PAIR }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    runs-on: ubuntu-latest
+    needs:
+      - build
+    strategy:
+      matrix:
+        compiler:
+          - gcc:13
+          - gcc:14
+          - clang:18
+          - clang:19
+
+    steps:
+      - name: Prepare
+        run: |
+          compiler=${{ matrix.compiler }}
+          echo "COMPILER=${compiler%%:*}" >> $GITHUB_ENV
+          echo "RELEASE=${compiler##*:}" >> $GITHUB_ENV
+
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-${{ env.COMPILER}}-${{ env.RELEASE }}-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}-${{ env.COMPILER }}
+          tags: type=raw,value=${{ env.RELEASE }}
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.REGISTRY_IMAGE }}-${{ env.COMPILER }}@sha256:%s ' *)          
+
+      - name: Inspect image
+        run: |
+          docker buildx imagetools inspect ${{ env.REGISTRY_IMAGE }}-${{ env.COMPILER }}:${{ steps.meta.outputs.version }}

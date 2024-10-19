@@ -10,11 +10,13 @@ on:
       - 'feature/*'
       - 'bugfix/*'
       - 'release/*'
+  workflow_dispatch:
 
 jobs:
   coverage:
-    runs-on: ubuntu-22.04
-    container: gcc:13-bookworm
+    runs-on:
+      group: intel-runners
+    container: libfn/ci-build-gcc:14
     strategy:
       fail-fast: false
     env:
@@ -24,14 +26,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-
-    - name: Install prerequisites
-      env:
-        DEBIAN_FRONTEND: noninteractive
-      run: |
-        apt-get update -y
-        apt-get install -y --no-install-recommends cmake ninja-build
-        apt-get clean -y
 
     - name: Verify compiler compatibility
       env:
@@ -78,14 +72,10 @@ jobs:
 
     - name: Upload .gcov files
       if: ${{ github.event_name == 'push' }}
-      uses: wandalen/wretry.action@v1.4.10
+      uses: codecov/codecov-action@v4
       with:
-        action: codecov/codecov-action@v4.3.0
-        with: |
-          fail_ci_if_error: true
-          disable_search: false
-          verbose: true
-          plugin: noop
-          token: ${{ secrets.CODECOV_TOKEN }}
-        attempt_limit: 5
-        attempt_delay: 210000 # in milliseconds
+        fail_ci_if_error: true
+        disable_search: false
+        verbose: true
+        plugin: noop
+        token: ${{ secrets.CODECOV_TOKEN }}

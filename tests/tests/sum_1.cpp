@@ -618,7 +618,7 @@ TEST_CASE("sum transform", "[sum][transform]")
   type a{std::in_place_type<double>, 0.5};
   CHECK(a.data.v0 == 0.5);
 
-  static_assert(type{0.5}.transform(fn1) == sum{8ul});
+  static_assert(type{0.5}.transform(fn1) == sum{8uz});
   CHECK(a.transform(      //
             fn::overload( //
                 [](auto) -> int { throw 1; }, [](double &i) -> bool { return i == 0.5; },

@@ -10,7 +10,7 @@ set(EXAMPLES_SOURCE_FILES
     simple.cpp
 )
 add_executable(${PROJECT_NAME} ${EXAMPLES_SOURCE_FILES})
-target_link_libraries(${PROJECT_NAME} include catch2_main Catch2::Catch2)
+target_link_libraries(${PROJECT_NAME} include Catch2::Catch2WithMain)
 
 add_test(
     NAME ${PROJECT_NAME}
