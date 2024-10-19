@@ -5,10 +5,11 @@ on:
     branches:
       - '*'
     paths:
-      - '.clang-format'
+      - '.github/**'
       - '*.cpp'
       - '*.hpp'
       - '*.ipp'
+      - '.clang-format'
 
 jobs:
   format-check:

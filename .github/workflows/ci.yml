@@ -9,6 +9,7 @@ on:
     branch:
       - main
     paths:
+      - '.github/**'
       - 'ci/**'
   workflow_dispatch:
 

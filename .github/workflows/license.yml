@@ -5,13 +5,14 @@ on:
     branches:
       - '*'
     paths:
-      - '.fossa.yml'
-      - 'LICENSE*'
+      - '.github/**'
       - 'cmake/**'
       - 'CMakeLists.txt'
       - '*.cpp'
       - '*.hpp'
       - '*.ipp'
+      - '.fossa.yml'
+      - 'LICENSE*'
 
 jobs:
   license-check:
