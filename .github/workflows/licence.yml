@@ -14,7 +14,7 @@ on:
   pull_request:
     branches:
       - main
-    paths-ignore:
+    paths:
       - '.github/workflows/licence.yml'
       - 'include/**'
       - 'tests/**'
