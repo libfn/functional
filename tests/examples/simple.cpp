@@ -72,9 +72,9 @@ TEST_CASE("Minimal expected", "[expected][and_then]")
     // example-expected-and_then-value
     fn::expected<double, Error> ex{12.1};
 
-    auto rounded = ex 
-      | fn::and_then([](auto&& v) -> fn::expected<unsigned, Error> { 
-          return static_cast<unsigned>(std::ceil(v + 0.5)); 
+    auto rounded = ex
+      | fn::and_then([](auto&& v) -> fn::expected<unsigned, Error> {
+          return static_cast<unsigned>(std::ceil(v + 0.5));
         });
 
     REQUIRE(rounded.value() == 13u);
@@ -84,9 +84,9 @@ TEST_CASE("Minimal expected", "[expected][and_then]")
     // example-expected-and_then-error
     fn::expected<double, Error> ex = std::unexpected<Error>{"Not good"};
 
-    auto oops = ex 
-      | fn::and_then([](auto&& v) -> fn::expected<unsigned, Error> { 
-          return static_cast<unsigned>(std::ceil(v + 0.5)); 
+    auto oops = ex
+      | fn::and_then([](auto&& v) -> fn::expected<unsigned, Error> {
+          return static_cast<unsigned>(std::ceil(v + 0.5));
         }); // Not called because ex contains an Error
 
     REQUIRE(oops.error().what == "Not good");
@@ -228,9 +228,9 @@ TEST_CASE("Minimal optional", "[optional][and_then]")
     // example-optional-and_then-value
     fn::optional<double> op{12.1};
 
-    auto rounded = op 
-      | fn::and_then([](auto&& v) -> fn::optional<unsigned> { 
-          return static_cast<unsigned>(std::ceil(v + 0.5)); 
+    auto rounded = op
+      | fn::and_then([](auto&& v) -> fn::optional<unsigned> {
+          return static_cast<unsigned>(std::ceil(v + 0.5));
         });
 
     REQUIRE(rounded.value() == 13u);
@@ -240,9 +240,9 @@ TEST_CASE("Minimal optional", "[optional][and_then]")
     // example-optional-and_then-empty
     fn::optional<double> op = std::nullopt;
 
-    auto empty = op 
-      | fn::and_then([](auto&& v) -> fn::optional<unsigned> { 
-          return static_cast<unsigned>(std::ceil(v + 0.5)); 
+    auto empty = op
+      | fn::and_then([](auto&& v) -> fn::optional<unsigned> {
+          return static_cast<unsigned>(std::ceil(v + 0.5));
         }); // Not called because op is empty
 
     REQUIRE(not empty.has_value());
@@ -254,7 +254,7 @@ TEST_CASE("Minimal optional", "[optional][and_then]")
 
     auto value = ex
         | fn::filter([](auto &&i) { return i >= 42; }); // Filter out values less than 42
-                     
+
     REQUIRE(value.value() == 42);
     // example-optional-filter-value
   }

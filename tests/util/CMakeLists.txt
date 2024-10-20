@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Pls keep the filenames sorted
-set(UTIL_SOURCE_FILES    
+set(UTIL_SOURCE_FILES
     static_check.hpp
 )
 add_library(${PROJECT_NAME} INTERFACE ${UTIL_SOURCE_FILES})

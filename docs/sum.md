@@ -12,4 +12,3 @@ title: fn::sum
 
 ## Return value {style: "api"}
 TODO
-
