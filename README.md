@@ -5,6 +5,13 @@
 
 Functional programming in C++
 
+# NOTE: upcoming `main` branch history rewrite
+
+> As of Saturday 19th Oct, the `clang-format` github workflow is broken, apparently due to the change of the container in which this action is run. Rather than revert to the old container, I've chosen to try to fix the bug. Now there's a long series of PRs merged into the `main` branch for this purpose from `bugfix/clang_format` branch. I intend to continue to try to fix it (without reverting to the old container) and when the workflow is fixed, **I will rewrite a part of the `main` branch history to squash all the merges from `bugfix/clang_format` into one**. The scope of changes is limited to `.github` directory only, so hopefully it won't affect forks.
+>
+> ### Apologies for the inconenience.
+
+
 ## Why
 
 The purpose of this library is to exercise an approach to functional programming in C++ on top of the existing `std` C++ vocabulary types (such as `std::expected` and `std::optional`), with the aim of eventually extending the future versions of the C++ standard library with the functionality found to work well.
