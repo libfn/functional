@@ -6,6 +6,7 @@ result
 .clangd
 .cache/
 .devcontainer/
+.venv/
 .vscode/
 *.iws
 *.swp

@@ -9,7 +9,7 @@ title: fn::pack
 <!--
 For some reason `fn::pack` does not work here and produces the following error:
 ```
-Exception in thread "main" java.lang.RuntimeException: 
+Exception in thread "main" java.lang.RuntimeException:
 markup parsing error:
     TOC item: reference-manual/pack
     full path: /Users/godexsoft/Development/functional/docs/reference-manual/pack.md
@@ -71,7 +71,7 @@ Caused by: java.lang.IllegalArgumentException: expected to find element <declnam
         ... 18 more
 ```
 
-Interestingly using fn::detail::pack_impl does not produce the same error. 
+Interestingly using fn::detail::pack_impl does not produce the same error.
 And similarly looking code in choice.md and sum.md also appears to work fine.
 -->
 :include-doxygen-doc: fn::detail::pack_impl
@@ -80,4 +80,3 @@ And similarly looking code in choice.md and sum.md also appears to work fine.
 
 ## Return value {style: "api"}
 TODO
-

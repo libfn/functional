@@ -23,5 +23,5 @@ znai_export_docs(
   ${CMAKE_BINARY_DIR}/docs
   COMMENT "Export final documentation"
 )
-  
+
 add_dependencies(export_docs docs)

@@ -23,6 +23,6 @@ A monadic type of the same kind.
 ## Examples {style: "api"}
 
 :include-template: templates/snippet.md {
-    path:  "examples/simple.cpp", 
+    path:  "examples/simple.cpp",
     surroundedBy: ["// example-choice-parse", "// example-choice-checks"]
 }
