@@ -3,13 +3,16 @@ name: clang-format
 on:
   push:
     branches:
-      - '*'
+      - 'main'
     paths:
       - '.github/**'
       - '*.cpp'
       - '*.hpp'
       - '*.ipp'
       - '.clang-format'
+  pull_request:
+    branches:
+      - 'main'
 
 jobs:
   format-check:
@@ -24,21 +27,23 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Check version
+    - name: Prepare
       run: |
-        echo "CLANG_RELEASE=${{ matrix.release }}" >> $GITHUB_ENV
+        # Required because of https://github.com/actions/checkout/issues/766
+        git config --global --add safe.directory "${GITHUB_WORKSPACE}"
         CLANG_RELEASE=${{ matrix.release }}
-        clang-format-${CLANG_RELEASE} --version | grep -F "clang-format version ${CLANG_RELEASE}"
+        clang-format --version | grep -F "clang-format version ${CLANG_RELEASE}"
 
     - name: Format source files
       run: |
-        find include tests -type f \( -name '*.cpp' -o -name '*.hpp' -o -name '*.ipp' \) -print0 | xargs -0 clang-format-${CLANG_RELEASE} -i
+        find include tests -type f \( -name '*.cpp' -o -name '*.hpp' -o -name '*.ipp' \) -print0 | xargs -0 clang-format -i
 
     - name: Check for differences
       id: assert
+      shell: bash
       run: |
-        git diff | tee "clang-format.patch"
-        [ -s "clang-format.patch" ] && exit 1
+        set -o pipefail
+        git diff --exit-code | tee "clang-format.patch"
 
     - name: Upload patch
       if: failure() && steps.assert.outcome == 'failure'
@@ -58,16 +63,18 @@ jobs:
           to the formatting specified in .clang-format. That may be because
           you neglected to run 'git clang-format' or 'clang-format' before
           committing, or perhaps your version of clang-format is not compatible
-          with the one on this machine, which is:
+          with the one used in this workflow, which is:
         SUGGESTION: |
-
-          To fix it, you can do one of two things:
+          To fix it, you can do one of three things:
           1. Download and apply the patch generated as an artifact of this
              job to your repo, commit, and push.
           2. Run 'git-clang-format --extensions cpp,hpp,ipp main'
              in your repo, commit, and push.
+          3. Run 'find include tests -type f \( -name '*.cpp' -o -name '*.hpp' -o -name '*.ipp' \) -print0 | xargs -0 clang-format -i'
+             in your repo, commit, and push.
       run: |
         echo "${PREAMBLE}"
-        clang-format-${CLANG_RELEASE} --version
+        clang-format --version
+        echo
         echo "${SUGGESTION}"
         exit 1
