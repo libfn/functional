@@ -33,6 +33,27 @@ This library requires standardized type ordering, which currently is a [proposed
 [nix]: https://nixos.org
 [nixmd]: nix/README.md
 
+## Pre-commit
+This repository use [pre-commit](https://pre-commit.com/) to install git commit hooks which will run checks on the repository (currently just clang-format).  To install the git commit hooks locally so they run on each commit you make just set up a virtual environment, install the requirement and run pre-commit install:
+```
+# Set up a virtual environment to install pre-commit
+python3 -m venv .venv
+source ./.venv/bin/activate
+pip install -r ./requirements.txt
+
+# Now install the pre-commit hooks locally
+pre-commit install
+```
+
+You can run the check manually as follows:
+```
+# Source the virtual environment to access pre-commit
+source ./.venv/bin/activate
+
+# Run pre-commit on local files.
+pre-commit run --all-files
+```
+
 ## Test Coverage
 
 In this project, 100% tests coverage does not actually mean much, because the most useful tests cases are around compile-time language elements, such as overload resolution, built-in conversions etc. Any meaningful tests must execute the same set of functions in many, subtly different ways, rather than simply execute each function and branch at least once.
