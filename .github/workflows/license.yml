@@ -3,19 +3,35 @@ name: license
 on:
   push:
     branches:
-      - '*'
+      - main
     paths:
-      - '.github/**'
-      - 'cmake/**'
+      - '.github/workflows/license.yml'
+      - 'include/**'
+      - 'tests/**'
       - 'CMakeLists.txt'
-      - '*.cpp'
-      - '*.hpp'
-      - '*.ipp'
+      - 'cmake/**'
       - '.fossa.yml'
-      - 'LICENSE*'
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - '.github/workflows/license.yml'
+      - 'include/**'
+      - 'tests/**'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - '.fossa.yml'
+  workflow_dispatch:
+    inputs:
+      run_license_check:
+        description: "Run FOSSA license check"
+        required: true
+        default: true
+        type: boolean
 
 jobs:
   license-check:
+    if: ${{ github.event_name == 'push' || inputs.run_license_check }}
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
@@ -23,3 +39,25 @@ jobs:
     - uses: fossas/fossa-action@v1
       with:
         api-key: ${{ secrets.FOSSA_API_KEY }}
+
+  license-unchanged:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-22.04
+    env:
+      LICENSE_FILE: LICENSE.md
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        sparse-checkout: .
+        fetch-depth: 0
+
+    - name: Compare license file
+      id: assert
+      run:
+        git diff --exit-code origin/${{ github.base_ref }} -- ${LICENSE_FILE}
+
+    - name: What happened?
+      if: failure() && steps.assert.outcome == 'failure'
+      run:
+        echo "You branch appear to have attempted to modify ${LICENSE_FILE}"
+        exit 1

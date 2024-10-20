@@ -5,13 +5,13 @@ on:
     branches:
       - main
     paths:
-      - '.github/**'
-      - 'cmake/**'
-      - 'CMakeLists.txt'
-      - '*.cpp'
-      - '*.hpp'
-      - '*.ipp'
+      - '.github/workflows/docs.yml'
       - 'docs/**'
+      - 'include/**'
+      - 'tests/**'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - '*.md'
   workflow_dispatch:
 
 permissions:

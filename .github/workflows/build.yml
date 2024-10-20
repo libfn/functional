@@ -3,14 +3,22 @@ name: build
 on:
   push:
     branches:
-      - '*'
+      - main
     paths:
-      - '.github/**'
-      - 'cmake/**'
+      - '.github/workflows/build.yml'
+      - 'include/**'
+      - 'tests/**'
       - 'CMakeLists.txt'
-      - '*.cpp'
-      - '*.hpp'
-      - '*.ipp'
+      - 'cmake/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/build.yml'
+      - 'include/**'
+      - 'tests/**'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
 
 jobs:
   build-linux:
@@ -58,8 +66,10 @@ jobs:
         cd .build
         cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ..
         COMPILER=$( grep -E "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -e "s|^[^=]*=||" )
-        FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS_${{ matrix.configuration }}:STRING=" CMakeCache.txt | sed -e "s|^[^=]*=||" )
-        printf "C++ compiler: %s\nC++ compiler version: %s\nC++ compilation options: %s\n\n" "$COMPILER" "$( $COMPILER --version | head -1 )" "$FLAGS"
+        FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS:STRING=" CMakeCache.txt | sed -e "s|^[^=]*=||" )
+        printf "C++ compiler: %s\n" "$COMPILER"
+        printf "C++ compiler version: %s\n" "$( $COMPILER --version | head -1 )"
+        printf "C++ compilation options: %s\n" "$FLAGS"
 
     - name: Build all
       run: |
@@ -70,24 +80,3 @@ jobs:
       run: |
         cd .build
         ctest --output-on-failure
-
-  build-nixos:
-    runs-on:
-      group: default
-    strategy:
-      fail-fast: false
-      matrix:
-        compiler:
-        - gcc
-        - clang
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Install Nix
-      uses: cachix/install-nix-action@v27
-      with:
-        extra_nix_config: |
-          access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
-
-    - name: Build and test
-      run: nix -L build '.#${{matrix.compiler}}'

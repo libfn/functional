@@ -3,14 +3,23 @@ name: coverage
 on:
   push:
     branches:
-      - '*'
+      - main
     paths:
-      - '.github/**'
-      - 'cmake/**'
+      - '.github/workflows/coverage.yml'
+      - 'include/**'
+      - 'tests/**'
       - 'CMakeLists.txt'
-      - '*.cpp'
-      - '*.hpp'
-      - '*.ipp'
+      - 'cmake/**'
+      - '.codecov.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/coverage.yml'
+      - 'include/**'
+      - 'tests/**'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
       - '.codecov.yml'
 
 jobs:
@@ -41,10 +50,12 @@ jobs:
               + type2{2}.and_then([](int i) -> type2 { std::puts("OK optional"); return {i-2}; }).value();
           }
       run: |
+        printf "CXX=%s\nCXXFLAGS=%s\n" "$CXX" "$CXXFLAGS"
+        $CXX --version | head -1
         FILE=$(mktemp --tmpdir XXXXXX.cpp)
         printf "$SOURCE\n" > $FILE
         OUT=$(mktemp --tmpdir  XXXXXX)
-        $CXX -std=c++23 -Wall $FILE -o $OUT
+        $CXX -std=c++2b $CXXFLAGS -Wall $FILE -o $OUT
         $OUT
 
     - name: Prepare build
@@ -57,11 +68,13 @@ jobs:
         mkdir .build
         cd .build
         cmake -DCMAKE_C_FLAGS="$COVERAGE_OPTS" -DCMAKE_CXX_FLAGS="$COVERAGE_OPTS" ..
-        COMPILER=$( grep "CMAKE_CXX_COMPILER:FILEPATH" CMakeCache.txt | sed "s|CMAKE_CXX_COMPILER:FILEPATH=/|/|" )
-        [[ "$( realpath $CXX )" == "$( realpath $COMPILER )" ]] || exit 13
+        COMPILER=$( grep -E "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -e "s|^[^=]*=||" )
+        FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS:STRING=" CMakeCache.txt | sed -e "s|^[^=]*=||" )
         printf "C++ compiler: %s\n" "$COMPILER"
         printf "C++ compiler version: %s\n" "$( $COMPILER --version | head -1 )"
+        printf "C++ compilation options: %s\n" "$FLAGS"
         printf "gcov version: %s\n" "$( $GCOV --version | head -1 )"
+        [[ "$( realpath $CXX )" == "$( realpath $COMPILER )" ]] || exit 13
 
     - name: Run coverage target
       shell: bash
@@ -72,7 +85,6 @@ jobs:
         $GCOV -pbc -r -s $( realpath .. ) $( find tests/tests/ -type f -name '*.gcno' ) # generate .gcov files
 
     - name: Upload .gcov files
-      if: ${{ github.event_name == 'push' }}
       uses: codecov/codecov-action@v4
       with:
         fail_ci_if_error: true
