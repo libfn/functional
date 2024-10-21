@@ -33,7 +33,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
-            
+
       - name: Export docs
         continue-on-error: false
         shell: bash
@@ -43,7 +43,7 @@ jobs:
           cd .build
           cmake -DDOCS=True ..
           cmake --build . --target export_docs
-      
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
@@ -52,7 +52,7 @@ jobs:
         with:
           path: ./.build/docs
           name: docs-develop
-      
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

@@ -23,13 +23,13 @@ A monadic type of the same kind.
 ## Examples {style: "api"}
 
 :include-template: templates/snippet.md {
-    path:  "examples/simple.cpp", 
+    path:  "examples/simple.cpp",
     surroundedBy: ["// example-optional-and_then-value"],
     desc:  "The resulting value is `13` because `op` is not a `nullopt` and therefore `and_then` is called."
 }
 
 :include-template: templates/snippet.md {
-    path:  "examples/simple.cpp", 
+    path:  "examples/simple.cpp",
     surroundedBy: ["// example-optional-and_then-empty"],
     desc:  "The result is a `nullopt` because `op` was already a `nullopt` and therefore `and_then` is not called."
 }

@@ -23,13 +23,13 @@ A monadic type of the same kind.
 ## Examples {style: "api"}
 
 :include-template: templates/snippet.md {
-    path:  "examples/simple.cpp", 
+    path:  "examples/simple.cpp",
     surroundedBy: ["// example-error-struct", "// example-expected-filter-value"],
     desc:  "The resulting value is `42` because the filter predicate returns `true` for `42` as it is not less than `42`."
 }
 
 :include-template: templates/snippet.md {
-    path:  "examples/simple.cpp", 
+    path:  "examples/simple.cpp",
     surroundedBy: ["// example-error-struct", "// example-expected-filter-error"],
     desc:  "The error is set to `Less than 42` because the predicate returns `false` for `12` since it's less than `42`."
 }

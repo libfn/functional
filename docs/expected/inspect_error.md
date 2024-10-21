@@ -17,4 +17,3 @@ title: fn::inspect_error
 
 ## Return value {style: "api"}
 A monadic type of the same kind.
-

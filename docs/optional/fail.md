@@ -17,4 +17,3 @@ title: fn::fail
 
 ## Return value {style: "api"}
 A monadic type of the same kind.
-

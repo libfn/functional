@@ -12,4 +12,3 @@ title: fn::choice
 
 ## Return value {style: "api"}
 TODO
-
