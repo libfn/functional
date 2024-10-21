@@ -50,12 +50,13 @@ The maintainers are unable to guarantee that no significant refactoring will eve
 [ripple]: https://ripple.com/
 
 ## Pre-commit
-This repository use [pre-commit](https://pre-commit.com/) to install git commit hooks which will run checks on the repository (currently just clang-format).  To install the git commit hooks locally so they run on each commit you make just set up a virtual environment, install the requirement and run pre-commit install:
+This repository supports [pre-commit](https://pre-commit.com/) to install git commit hooks which will run checks on the repository (currently just clang-format).  Pre-commit will install git commit hooks locally so that they run on each commit. To set up locally you configure a virtual environment, install the requirements and run pre-commit install.
+
 ```
 # Set up a virtual environment to install pre-commit
 python3 -m venv .venv
 source ./.venv/bin/activate
-pip install -r ./requirements.txt
+pip install pre-commit
 # Now install the pre-commit hooks locally
 pre-commit install
 ```
