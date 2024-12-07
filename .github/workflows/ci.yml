@@ -50,7 +50,7 @@ jobs:
           images: ${{ env.REGISTRY_IMAGE_BUILD }}-${{ env.COMPILER }}
           tags: |
             type=raw,value=${{ env.RELEASE }}
-            type=sha,prefix=${{ env.RELEASE }}-
+            type=sha,prefix=${{ env.RELEASE }}-sha-
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -129,7 +129,7 @@ jobs:
           images: ${{ env.REGISTRY_IMAGE_BUILD }}-${{ env.COMPILER }}
           tags: |
             type=raw,value=${{ env.RELEASE }}
-            type=sha,prefix=${{ env.RELEASE }}-
+            type=sha,prefix=${{ env.RELEASE }}-sha-
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
