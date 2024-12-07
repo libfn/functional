@@ -1,0 +1,30 @@
+name: pre-commit
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  checks:
+    runs-on:
+      group: default
+    strategy:
+      fail-fast: false
+    container: libfn/ci-pre-commit:latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Prepare
+      run: |
+        # Required because of https://github.com/actions/checkout/issues/766
+        git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+        pip freeze --local
+
+    - name: Apply pre-commit
+      run: |
+        pre-commit run --show-diff-on-failure --color=always --all-files
