@@ -11,6 +11,7 @@ on:
       - 'CMakeLists.txt'
       - 'cmake/**'
       - '.fossa.yml'
+      - 'LICENSE.md'
   pull_request:
     branches:
       - main
@@ -21,6 +22,7 @@ on:
       - 'CMakeLists.txt'
       - 'cmake/**'
       - '.fossa.yml'
+      - 'LICENSE.md'
   workflow_dispatch:
     inputs:
       run_licence_check:
@@ -59,5 +61,6 @@ jobs:
     - name: What happened?
       if: failure() && steps.assert.outcome == 'failure'
       run:
-        echo "You branch appear to have attempted to modify ${LICENCE_FILE}"
+        echo "Your pull request appear to have attempted to modify ${LICENCE_FILE}"
+        echo "If you want your name added to ${LICENCE_FILE}, please ask project maintainers."
         exit 1

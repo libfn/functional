@@ -19,16 +19,13 @@ permissions:
   pages: write
   id-token: write
 
-concurrency:
-  group: "pages"
-  cancel-in-progress: true
-
 jobs:
   generate_docs:
-    name: Generate and upload docs
-    runs-on: ubuntu-20.04
-    container:
-      image: godexsoft/functional-ci:0.0.4
+    runs-on:
+      group: default
+    strategy:
+      fail-fast: false
+    container: libfn/ci-docs:latest
     steps:
       - uses: actions/checkout@v3
         with:
@@ -36,8 +33,6 @@ jobs:
 
       - name: Export docs
         continue-on-error: false
-        shell: bash
-        id: run_cmake
         run: |
           mkdir .build
           cd .build

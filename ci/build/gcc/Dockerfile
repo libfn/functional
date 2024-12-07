@@ -3,16 +3,15 @@ ARG GCC_DIST=${GCC_RELEASE}-bookworm
 FROM gcc:${GCC_DIST} AS gcc
 RUN set -ex ;\
     find /usr/local/ -type f ;\
-    cat /etc/ld.so.conf.d/000-local-lib.conf ;\
+    cat /etc/ld.so.conf.d/* ;\
     cat /etc/os-release ;\
     /usr/local/bin/gcc --version
 
 FROM debian:bookworm
 COPY --from=gcc /usr/local/ /usr/local/
-COPY --from=gcc /etc/ld.so.conf.d/000-local-lib.conf /etc/ld.so.conf.d/000-local-lib.conf
+COPY --from=gcc /etc/ld.so.conf.d/ /etc/ld.so.conf.d/
 
 WORKDIR /root
-ENV DEBIAN_FRONTEND=noninteractive
 RUN set -ex ;\
     ldconfig -v ;\
     dpkg-divert --divert /usr/bin/gcc.orig --rename /usr/bin/gcc ;\
@@ -32,6 +31,7 @@ RUN set -ex ;\
     update-alternatives --auto cc ;\
     update-alternatives --auto gcc
 
+ENV DEBIAN_FRONTEND=noninteractive
 RUN set -ex ;\
     apt-get update ;\
     apt-get install -y --no-install-recommends \
