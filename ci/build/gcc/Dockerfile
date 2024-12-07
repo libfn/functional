@@ -46,6 +46,7 @@ ENV CMAKE_BUILD_TYPE=Debug
 
 WORKDIR /work
 ARG CATCH_RELEASE=3.7.1
+ENV CATCH_RELEASE=${CATCH_RELEASE}
 RUN set -ex ;\
     git clone https://github.com/catchorg/Catch2.git ;\
     cd Catch2 ;\
