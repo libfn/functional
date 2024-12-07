@@ -1,6 +1,7 @@
 FROM debian:bookworm
 
 ARG CLANG_RELEASE=19
+ENV CLANG_RELEASE=${CLANG_RELEASE}
 ENV DEBIAN_FRONTEND=noninteractive
 RUN set -ex ;\
     apt-get update ;\
@@ -32,6 +33,7 @@ ENV CMAKE_BUILD_TYPE=Debug
 
 WORKDIR /work
 ARG CATCH_RELEASE=3.7.1
+ENV CATCH_RELEASE=${CATCH_RELEASE}
 RUN set -ex ;\
     git clone https://github.com/catchorg/Catch2.git ;\
     cd Catch2 ;\
