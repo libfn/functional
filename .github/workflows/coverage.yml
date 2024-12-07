@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-     - '.github/workflows/coverage.yml'
+      - '.github/workflows/coverage.yml'
       - 'include/**'
       - 'tests/**'
       - 'CMakeLists.txt'
