@@ -1,7 +1,6 @@
 .idea/
 .idea_modules/
 .build*/
-build*/
 result
 .clangd
 .cache/

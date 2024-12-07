@@ -15,18 +15,14 @@ RUN set -ex ;\
       | tee /etc/apt/sources.list.d/llvm.list ;\
     apt-get update ;\
     apt-get install -t llvm-toolchain-${CODENAME}-${CLANG_RELEASE} -y --no-install-recommends \
-      clang-${CLANG_RELEASE} clang-format-${CLANG_RELEASE} \
-      libc++-${CLANG_RELEASE}-dev libc++abi-${CLANG_RELEASE}-dev ;\
+      clang++-${CLANG_RELEASE} clang-${CLANG_RELEASE} libc++-${CLANG_RELEASE}-dev libc++abi-${CLANG_RELEASE}-dev ;\
     apt-get clean
 
 RUN set -ex ;\
     update-alternatives --install \
       /usr/bin/clang clang /usr/bin/clang-${CLANG_RELEASE} 100 \
       --slave /usr/bin/clang++ clang++ /usr/bin/clang++-${CLANG_RELEASE} ;\
-    update-alternatives --install \
-      /usr/bin/clang-format clang-format /usr/bin/clang-format-${CLANG_RELEASE} 100 ;\
-    update-alternatives --auto clang ;\
-    update-alternatives --auto clang-format
+    update-alternatives --auto clang
 
 ENV CC=/usr/bin/clang
 ENV CXX=/usr/bin/clang++
