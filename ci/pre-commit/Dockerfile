@@ -5,7 +5,7 @@ RUN set -ex ;\
     apt-get update ;\
     apt-get install -y --no-install-recommends \
       python3 python3-pip python3-venv \
-      ca-certificates wget vim ;\
+      ca-certificates wget vim git ;\
     apt-get clean
 
 COPY requirements.txt /requirements.txt
