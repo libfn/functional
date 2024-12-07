@@ -1,4 +1,4 @@
 pre-commit<5
-# NOTE versions listed below must match .pre-commit-config.yaml
+# NOTE packages and versions listed below must match .pre-commit-config.yaml
 clang-format==18.1.8
 pre-commit-hooks==5.0.0

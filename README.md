@@ -50,24 +50,31 @@ The maintainers are unable to guarantee that no significant refactoring will eve
 [ripple]: https://ripple.com/
 
 ## Pre-commit
-This repository supports [pre-commit](https://pre-commit.com/) to install git commit hooks which will run checks on the repository (currently just clang-format).  Pre-commit will install git commit hooks locally so that they run on each commit. To set up locally you configure a virtual environment, install the requirements and run pre-commit install.
 
-```
+This repository uses [pre-commit](https://pre-commit.com/) to enforce formatting of the C++ source code and perform other checks. The details can be seen in `.pre-commit-config.yaml`. To install git commit hooks, which will run checks on the repository as you commit changes:
+
+* configure a Python virtual environment
+* install the requirements from `ci/pre-commit/requirements.txt`
+* run `pre-commit install` in your local repository
+
+```bash
 # Set up a virtual environment to install pre-commit
 python3 -m venv .venv
-source ./.venv/bin/activate
-pip install pre-commit
+source .venv/bin/activate
+pip install -r ci/pre-commit/requirements.txt
 # Now install the pre-commit hooks locally
 pre-commit install
 ```
 
-You can run the check manually as follows:
-```
+You can run all checks manually as follows:
+
+```bash
 # Source the virtual environment to access pre-commit
-source ./.venv/bin/activate
+source .venv/bin/activate
 # Run pre-commit on local files.
 pre-commit run --all-files
 ```
 
 ## License
+
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Flibfn%2Ffunctional.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Flibfn%2Ffunctional?ref=badge_large)
