@@ -21,7 +21,7 @@
 #include <iostream>
 #include <optional>
 #include <sstream>
-#include <string>
+# include <string>
 #include <string_view>
 #include <type_traits>
 
@@ -70,7 +70,7 @@ TEST_CASE("Minimal expected", "[expected][and_then]")
   // clang-format off
   {
     // example-expected-and_then-value
-    fn::expected<double, Error> ex{12.1};
+    fn::expected<double, Error> ex{12.1 };
 
     auto rounded = ex
       | fn::and_then([](auto&& v) -> fn::expected<unsigned, Error> {
