@@ -1,23 +1,57 @@
-FROM fedora:39
+ARG GCC_RELEASE=14
+ARG GCC_DIST=${GCC_RELEASE}-bookworm
+FROM gcc:${GCC_DIST} AS gcc
+RUN set -ex ;\
+    find /usr/local/ -type f ;\
+    cat /etc/ld.so.conf.d/* ;\
+    cat /etc/os-release ;\
+    /usr/local/bin/gcc --version
+
+FROM debian:bookworm
+COPY --from=gcc /usr/local/ /usr/local/
+COPY --from=gcc /etc/ld.so.conf.d/ /etc/ld.so.conf.d/
 
 WORKDIR /root
+RUN set -ex ;\
+    ldconfig -v ;\
+    dpkg-divert --divert /usr/bin/gcc.orig --rename /usr/bin/gcc ;\
+    dpkg-divert --divert /usr/bin/g++.orig --rename /usr/bin/g++ ;\
+    dpkg-divert --divert /usr/bin/gfortran.orig --rename /usr/bin/gfortran ;\
+    update-alternatives --install /usr/bin/cc cc /usr/local/bin/gcc 999 ;\
+    update-alternatives --install \
+      /usr/bin/gcc gcc /usr/local/bin/gcc 100 \
+      --slave /usr/bin/g++ g++ /usr/local/bin/g++ \
+      --slave /usr/bin/gcc-ar gcc-ar /usr/local/bin/gcc-ar \
+      --slave /usr/bin/gcc-nm gcc-nm /usr/local/bin/gcc-nm \
+      --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/local/bin/gcc-ranlib \
+      --slave /usr/bin/gcov gcov /usr/local/bin/gcov \
+      --slave /usr/bin/gcov-tool gcov-tool /usr/local/bin/gcov-tool \
+      --slave /usr/bin/gcov-dump gcov-dump /usr/local/bin/gcov-dump \
+      --slave /usr/bin/lto-dump lto-dump /usr/local/bin/lto-dump ;\
+    update-alternatives --auto cc ;\
+    update-alternatives --auto gcc
 
-RUN dnf -y update ;\
-    dnf -y install redhat-lsb python3.11 gcc libstdc++-static ccache \
-    vim wget sudo curl git grep sed gdb zsh cmake doxygen ninja-build \
-    unzip java-latest-openjdk clang git-clang-format clang-tools-extra llvm ;\
-    dnf -y clean all
+ENV DEBIAN_FRONTEND=noninteractive
+RUN set -ex ;\
+    apt-get update ;\
+    apt-get install -y --no-install-recommends \
+      ca-certificates gpg gpg-agent wget vim \
+      cmake ninja-build binutils libc6-dev git \
+      openjdk-17-jdk doxygen unzip ;\
+    apt-get clean
 
-# Fail build if unexpected gcc version
-RUN gcc --version | grep -E "^gcc \(GCC\) 13"
+ARG ZNAI_RELEASE=1.73
+ENV ZNAI_RELEASE=${ZNAI_RELEASE}
+WORKDIR /work
+RUN set -ex ;\
+    DIST="https://repo.maven.apache.org/maven2/org/testingisdocumenting/znai/znai-dist" ;\
+    wget ${DIST}/${ZNAI_RELEASE}/znai-dist-${ZNAI_RELEASE}-znai.zip ;\
+    unzip znai-dist-${ZNAI_RELEASE}-znai.zip -d znai_tmp ;\
+    mv znai_tmp/dist /opt/znai ;\
+    rm -rf znai-dist-${ZNAI_RELEASE}-znai.zip znai_tmp
 
-RUN wget https://repo.maven.apache.org/maven2/org/testingisdocumenting/znai/znai-dist/1.70/znai-dist-1.70-znai.zip ;\
-    unzip znai-dist-1.70-znai.zip -d znai_tmp; mv znai_tmp/dist /opt/znai ;\
-    rm -rf znai-dist-1.70-znai.zip znai_tmp
 ENV PATH=/opt/znai:${PATH}
-
 ENV CC=/usr/bin/gcc
 ENV CXX=/usr/bin/g++
-ENV CMAKE_GENERATOR='Ninja'
-ENV CMAKE_C_COMPILER=${CC}
-ENV CMAKE_CXX_COMPILER=${CXX}
+ENV CMAKE_GENERATOR=Ninja
+ENV CMAKE_BUILD_TYPE=Debug
