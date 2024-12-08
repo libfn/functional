@@ -38,6 +38,7 @@ runs:
   using: composite
   steps:
     - name: Prepare
+      shell: bash
       run: |
         platform=${{ inputs.platform }}
         echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
@@ -75,6 +76,7 @@ runs:
         provenance: mode=max
 
     - name: Export digest
+      shell: bash
       run: |
         mkdir -p /tmp/digests
         digest="${{ steps.build.outputs.digest }}"
