@@ -47,7 +47,7 @@ jobs:
 
       - uses: ./.github/actions/build-ci-image
         with:
-          platform: $${{ matrix.platform }}
+          platform: ${{ matrix.platform }}
           image: ${{ env.REGISTRY_IMAGE_ROOT }}-${{ env.COMPILER }}
           tags: |
             type=raw,value=${{ env.RELEASE }}
