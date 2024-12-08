@@ -10,7 +10,7 @@ on:
     branches:
       - main
     paths:
-      - '.github/actions/prepare-ci-image/**'
+      - '.github/actions/build-ci-image/**'
       - '.github/actions/merge-ci-images/**'
       - '.github/workflows/ci-build.yml'
       - 'ci/build/**'
@@ -41,7 +41,7 @@ jobs:
           echo "COMPILER=${compiler%%:*}" >> $GITHUB_ENV
           echo "RELEASE=${compiler##*:}" >> $GITHUB_ENV
 
-      - uses: ./.github/actions/prepare-ci-image
+      - uses: ./.github/actions/build-ci-image
         with:
           platform: $${{ matrix.platform }}
           image: ${{ env.REGISTRY_IMAGE_ROOT }}-${{ env.COMPILER }}

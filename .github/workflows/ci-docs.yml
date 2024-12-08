@@ -10,7 +10,7 @@ on:
     branches:
       - main
     paths:
-      - '.github/actions/prepare-ci-image/**'
+      - '.github/actions/build-ci-image/**'
       - '.github/actions/merge-ci-images/**'
       - '.github/workflows/ci-docs.yml'
       - 'ci/docs/**'
@@ -30,7 +30,7 @@ jobs:
           - linux/arm64
 
     steps:
-      - uses: ./.github/actions/prepare-ci-image
+      - uses: ./.github/actions/build-ci-image
         with:
           platform: $${{ matrix.platform }}
           image: ${{ env.REGISTRY_IMAGE }}
