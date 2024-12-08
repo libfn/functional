@@ -21,10 +21,7 @@ permissions:
 
 jobs:
   generate_docs:
-    runs-on:
-      group: default
-    strategy:
-      fail-fast: false
+    runs-on: ubuntu-latest
     container: libfn/ci-docs:latest
     steps:
       - uses: actions/checkout@v3
