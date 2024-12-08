@@ -30,6 +30,10 @@ jobs:
           - linux/arm64
 
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github
+
       - uses: ./.github/actions/build-ci-image
         with:
           platform: $${{ matrix.platform }}
@@ -49,6 +53,10 @@ jobs:
       - build
 
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github
+
       - uses: ./.github/actions/merge-ci-images
         with:
           image: ${{ env.REGISTRY_IMAGE }}
