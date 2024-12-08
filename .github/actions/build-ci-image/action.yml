@@ -51,7 +51,7 @@ runs:
         tags: ${{ inputs.tags }}
         labels: |
           org.opencontainers.image.authors=For inquiries, please use https://github.com/libfn/functional/issues
-          org.opencontainers.image.documentation=https://libfn.org/ci
+          org.opencontainers.image.documentation=https://libfn.org/ci/index
           org.opencontainers.image.vendor=libfn.org
           org.opencontainers.image.title=libfn/ci/${{ inputs.title }}
 
