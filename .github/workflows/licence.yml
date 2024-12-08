@@ -34,7 +34,7 @@ on:
 jobs:
   licence-check:
     if: ${{ github.event_name == 'push' || inputs.run_licence_check }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
 
@@ -44,7 +44,7 @@ jobs:
 
   licence-unchanged:
     if: ${{ github.event_name == 'pull_request' }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     env:
       LICENCE_FILE: LICENSE.md
     steps:

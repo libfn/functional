@@ -10,10 +10,7 @@ on:
 
 jobs:
   checks:
-    runs-on:
-      group: default
-    strategy:
-      fail-fast: false
+    runs-on: ubuntu-latest
     container: libfn/ci-pre-commit:latest
 
     steps:
