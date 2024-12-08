@@ -45,7 +45,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           context: "ci/pre-commit"
-          digest_suffix: "pre-commit"
+          title: "pre-commit"
 
   merge:
     runs-on: ubuntu-latest
@@ -66,4 +66,4 @@ jobs:
             type=sha
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          digest_suffix: "pre-commit"
+          title: "pre-commit"
