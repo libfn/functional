@@ -29,7 +29,7 @@ inputs:
     default: null
     required: true
     type: string
-  digest_suffix:
+  title:
     default: null
     required: true
     type: string
@@ -49,6 +49,11 @@ runs:
       with:
         images: ${{ inputs.image }}
         tags: ${{ inputs.tags }}
+      labels: |
+        org.opencontainers.image.authors=For inquiries, please use https://github.com/libfn/functional/issues
+        org.opencontainers.image.documentation=https://libfn.org/ci/
+        org.opencontainers.image.vendor=libfn.org
+        org.opencontainers.image.title=libfn/ci/${{ inputs.title }}
 
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
@@ -85,7 +90,7 @@ runs:
     - name: Upload digest
       uses: actions/upload-artifact@v4
       with:
-        name: digests-${{ inputs.digest_suffix }}-${{ env.PLATFORM_PAIR }}
+        name: digests-${{ inputs.title }}-${{ env.PLATFORM_PAIR }}
         path: /tmp/digests/*
         if-no-files-found: error
         retention-days: 1

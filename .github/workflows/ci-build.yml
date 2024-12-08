@@ -58,7 +58,7 @@ jobs:
             GCC_RELEASE=${{ env.RELEASE }}
             CLANG_RELEASE=${{ env.RELEASE }}
           context: "ci/build/${{ env.COMPILER }}"
-          digest_suffix: "build-${{ env.COMPILER}}-${{ env.RELEASE }}"
+          title: "build-${{ env.COMPILER}}-${{ env.RELEASE }}"
 
   merge:
     runs-on: ubuntu-latest
@@ -91,4 +91,4 @@ jobs:
             type=sha,prefix=${{ env.RELEASE }}-sha-
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          digest_suffix: "build-${{ env.COMPILER}}-${{ env.RELEASE }}"
+          title: "build-${{ env.COMPILER}}-${{ env.RELEASE }}"

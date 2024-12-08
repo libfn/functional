@@ -18,7 +18,7 @@ inputs:
     default: null
     required: true
     type: string
-  digest_suffix:
+  title:
     default: null
     required: true
     type: string
@@ -30,7 +30,7 @@ runs:
       uses: actions/download-artifact@v4
       with:
         path: /tmp/digests
-        pattern: digests-${{ inputs.digest_suffix }}-*
+        pattern: digests-${{ inputs.title }}-*
         merge-multiple: true
 
     - name: Set up Docker Buildx
