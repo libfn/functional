@@ -41,6 +41,10 @@ jobs:
           echo "COMPILER=${compiler%%:*}" >> $GITHUB_ENV
           echo "RELEASE=${compiler##*:}" >> $GITHUB_ENV
 
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github
+
       - uses: ./.github/actions/build-ci-image
         with:
           platform: $${{ matrix.platform }}
@@ -74,6 +78,10 @@ jobs:
           compiler=${{ matrix.compiler }}
           echo "COMPILER=${compiler%%:*}" >> $GITHUB_ENV
           echo "RELEASE=${compiler##*:}" >> $GITHUB_ENV
+
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github
 
       - uses: ./.github/actions/merge-ci-images
         with:
