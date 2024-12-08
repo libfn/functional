@@ -1,0 +1,86 @@
+name: ci-build
+
+on:
+  schedule:
+  # https://pubs.opengroup.org/onlinepubs/9699919799/utilities/crontab.html#tag_20_25_07
+  # This is meant to run at 13:17 UTC on 11th and 26th of every month
+    - cron: '17 13 11 * *'
+    - cron: '17 13 26 * *'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/actions/prepare-ci-image/**'
+      - '.github/actions/merge-ci-images/**'
+      - '.github/workflows/ci-build.yml'
+      - 'ci/build/**'
+  workflow_dispatch:
+
+env:
+  REGISTRY_IMAGE_ROOT: libfn/ci-build
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler:
+          - gcc:13
+          - gcc:14
+          - clang:18
+          - clang:19
+        platform:
+          - linux/amd64
+          - linux/arm64
+
+    steps:
+      - name: Prepare
+        run: |
+          compiler=${{ matrix.compiler }}
+          echo "COMPILER=${compiler%%:*}" >> $GITHUB_ENV
+          echo "RELEASE=${compiler##*:}" >> $GITHUB_ENV
+
+      - uses: ./.github/actions/prepare-ci-image
+        with:
+          platform: $${{ matrix.platform }}
+          image: ${{ env.REGISTRY_IMAGE_ROOT }}-${{ env.COMPILER }}
+          tags: |
+            type=raw,value=${{ env.RELEASE }}
+            type=sha,prefix=${{ env.RELEASE }}-sha-
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          build_args: |
+            GCC_RELEASE=${{ env.RELEASE }}
+            CLANG_RELEASE=${{ env.RELEASE }}
+          context: "ci/build/${{ env.COMPILER }}"
+          digest_suffix: "build-${{ env.COMPILER}}-${{ env.RELEASE }}"
+
+  merge:
+    runs-on: ubuntu-latest
+    needs:
+      - build
+    strategy:
+      matrix:
+        compiler:
+          - gcc:13
+          - gcc:14
+          - clang:18
+          - clang:19
+
+    steps:
+      - name: Prepare
+        run: |
+          compiler=${{ matrix.compiler }}
+          echo "COMPILER=${compiler%%:*}" >> $GITHUB_ENV
+          echo "RELEASE=${compiler##*:}" >> $GITHUB_ENV
+
+      - uses: ./.github/actions/merge-ci-images
+        with:
+          image: ${{ env.REGISTRY_IMAGE_ROOT }}-${{ env.COMPILER }}
+          tags: |
+            type=raw,value=${{ env.RELEASE }}
+            type=sha,prefix=${{ env.RELEASE }}-sha-
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          digest_suffix: "build-${{ env.COMPILER}}-${{ env.RELEASE }}"

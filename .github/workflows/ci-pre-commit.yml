@@ -1,0 +1,61 @@
+name: ci-pre-commit
+
+on:
+  schedule:
+  # https://pubs.opengroup.org/onlinepubs/9699919799/utilities/crontab.html#tag_20_25_07
+  # This is meant to run at 12:17 UTC on 11th and 26th of every month
+    - cron: '17 12 11 * *'
+    - cron: '17 12 26 * *'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/actions/prepare-ci-image/**'
+      - '.github/actions/merge-ci-images/**'
+      - '.github/workflows/ci-pre-commit.yml'
+      - 'ci/pre-commit/**'
+  workflow_dispatch:
+
+env:
+  REGISTRY_IMAGE: libfn/ci-pre-commit
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - linux/amd64
+          - linux/arm64
+
+    steps:
+      - uses: ./.github/actions/prepare-ci-image
+        with:
+          platform: $${{ matrix.platform }}
+          image: ${{ env.REGISTRY_IMAGE }}
+          tags: |
+            type=schedule,pattern={{date 'YYYYMMDD'}}
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          context: "ci/pre-commit"
+          digest_suffix: "pre-commit"
+
+  merge:
+    runs-on: ubuntu-latest
+    needs:
+      - build
+
+    steps:
+      - uses: ./.github/actions/merge-ci-images
+        with:
+          image: ${{ env.REGISTRY_IMAGE }}
+          tags: |
+            type=schedule,pattern={{date 'YYYYMMDD'}}
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          digest_suffix: "pre-commit"
