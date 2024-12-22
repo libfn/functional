@@ -5,6 +5,8 @@
 
 #include "functional/detail/fwd_macro.hpp"
 
+#include <catch2/catch_all.hpp>
+
 #include <type_traits>
 #include <utility>
 
@@ -35,3 +37,5 @@ static_assert(      //
 static_assert(      //
     std::is_same_v< //
         decltype(FWD(const_rvalue)), decltype(std::forward<decltype(const_rvalue)>(const_rvalue))>);
+
+TEST_CASE("Dummy") { SUCCEED(); }

@@ -17,3 +17,5 @@ add_test(
     COMMAND ${PROJECT_NAME} -r console
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
+
+set_property(TEST ${PROJECT_NAME} PROPERTY LABELS examples)

@@ -285,3 +285,5 @@ static_assert(not same_kind<expected<void, Error> const && , expected<void, Xerr
 static_assert(not same_kind<expected<void, Error> const && , expected<void, Xerror> const &&>);
 // clang-format on
 } // namespace fn
+
+TEST_CASE("Dummy") { SUCCEED(); }

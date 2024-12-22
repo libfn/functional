@@ -30,11 +30,18 @@ set(TESTS_SOURCE_FILES
     utility.cpp
     value_or.cpp
 )
-add_executable(${PROJECT_NAME} ${TESTS_SOURCE_FILES})
-target_link_libraries(${PROJECT_NAME} include util Catch2::Catch2WithMain)
 
-add_test(
-    NAME ${PROJECT_NAME}
-    COMMAND ${PROJECT_NAME} -r console
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-)
+# Generate separate target for each individual test source
+include(TargetGenerator)
+
+foreach(source IN ITEMS ${TESTS_SOURCE_FILES})
+    string(REGEX REPLACE "^(detail/|)([a-z_]+)\.cpp$" "\\2" root_name ${source})
+    setup_target_for_file(
+        SOURCE "${source}"
+        DEPENDENCIES include util Catch2::Catch2WithMain
+        TEST_OPTIONS -r console
+        TEST_LABELS tests_fn ${root_name}
+        ADD_TEST
+    )
+    unset(root_name)
+endforeach()
