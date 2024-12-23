@@ -24,16 +24,22 @@ jobs:
     runs-on: ubuntu-latest
     container: libfn/ci-docs:latest
     steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: 'true'
+      - uses: actions/checkout@v4
 
-      - name: Export docs
+      # Guardrail to ensure that we do not update docs after a bad merge
+      - name: Build and run tests
         continue-on-error: false
         run: |
           mkdir .build
           cd .build
-          cmake -DDOCS=True ..
+          cmake -DDOCS=On ..
+          cmake --build .
+          ctest
+
+      - name: Export docs
+        continue-on-error: false
+        run: |
+          cd .build
           cmake --build . --target export_docs
 
       - name: Setup Pages

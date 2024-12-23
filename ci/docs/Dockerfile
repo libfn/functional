@@ -36,9 +36,21 @@ RUN set -ex ;\
     apt-get update ;\
     apt-get install -y --no-install-recommends \
       ca-certificates gpg gpg-agent wget vim \
-      cmake ninja-build binutils libc6-dev git \
-      openjdk-17-jdk doxygen unzip ;\
+      cmake ninja-build make binutils libc6-dev git \
+      openjdk-17-jdk unzip ;\
     apt-get clean
+
+ARG DOXYGEN_RELEASE=1.12.0
+ENV DOXYGEN_RELEASE=${DOXYGEN_RELEASE}
+WORKDIR /work
+RUN set -ex ;\
+  DIST="https://www.doxygen.nl/files" ;\
+  wget ${DIST}/doxygen-${DOXYGEN_RELEASE}.linux.bin.tar.gz -O doxygen.tar.gz ;\
+  tar -xzf doxygen.tar.gz ;\
+  cd doxygen-${DOXYGEN_RELEASE} ;\
+  make install ;\
+  cd /work ;\
+  rm -rf doxygen.tar.gz doxygen-${DOXYGEN_RELEASE}
 
 ARG ZNAI_RELEASE=1.73
 ENV ZNAI_RELEASE=${ZNAI_RELEASE}
@@ -56,9 +68,9 @@ ENV CXX=/usr/bin/g++
 ENV CMAKE_GENERATOR=Ninja
 ENV CMAKE_BUILD_TYPE=Debug
 
-WORKDIR /work
 ARG CATCH_RELEASE=3.7.1
 ENV CATCH_RELEASE=${CATCH_RELEASE}
+WORKDIR /work
 RUN set -ex ;\
     git clone https://github.com/catchorg/Catch2.git ;\
     cd Catch2 ;\
