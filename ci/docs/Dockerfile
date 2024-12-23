@@ -31,26 +31,35 @@ RUN set -ex ;\
     update-alternatives --auto cc ;\
     update-alternatives --auto gcc
 
+ARG DOXYGEN_RELEASE=1.12.0
+ENV DOXYGEN_RELEASE=${DOXYGEN_RELEASE}
+ENV CC=/usr/bin/gcc
+ENV CXX=/usr/bin/g++
+ENV CMAKE_GENERATOR=Ninja
+ENV CMAKE_BUILD_TYPE=Debug
 ENV DEBIAN_FRONTEND=noninteractive
+WORKDIR /work
 RUN set -ex ;\
     apt-get update ;\
     apt-get install -y --no-install-recommends \
       ca-certificates gpg gpg-agent wget vim \
-      cmake ninja-build make binutils libc6-dev git \
-      openjdk-17-jdk unzip ;\
+      cmake ninja-build binutils libc6-dev git \
+      openjdk-17-jdk unzip graphviz \
+      python3 bison flex libiconv-hook-dev ;\
+    DIST="https://www.doxygen.nl/files" ;\
+    FILE="doxygen-${DOXYGEN_RELEASE}.src.tar.gz" ;\
+    wget ${DIST}/${FILE} ;\
+    tar -xzf ${FILE} ;\
+    cd doxygen-${DOXYGEN_RELEASE} ;\
+    cmake -B build -S . \
+      -DCMAKE_BUILD_TYPE=Release ;\
+    cmake --build build/ ;\
+    cmake --build build/ --target install ;\
+    cd /work ;\
+    rm -rf ${FILE} doxygen-${DOXYGEN_RELEASE} ;\
+    apt-get remove --purge -y python3 bison flex libiconv-hook-dev ;\
+    apt-get autoremove --purge -y ;\
     apt-get clean
-
-ARG DOXYGEN_RELEASE=1.12.0
-ENV DOXYGEN_RELEASE=${DOXYGEN_RELEASE}
-WORKDIR /work
-RUN set -ex ;\
-  DIST="https://www.doxygen.nl/files" ;\
-  wget ${DIST}/doxygen-${DOXYGEN_RELEASE}.linux.bin.tar.gz -O doxygen.tar.gz ;\
-  tar -xzf doxygen.tar.gz ;\
-  cd doxygen-${DOXYGEN_RELEASE} ;\
-  make install ;\
-  cd /work ;\
-  rm -rf doxygen.tar.gz doxygen-${DOXYGEN_RELEASE}
 
 ARG ZNAI_RELEASE=1.73
 ENV ZNAI_RELEASE=${ZNAI_RELEASE}
@@ -61,12 +70,7 @@ RUN set -ex ;\
     unzip znai-dist-${ZNAI_RELEASE}-znai.zip -d znai_tmp ;\
     mv znai_tmp/dist /opt/znai ;\
     rm -rf znai-dist-${ZNAI_RELEASE}-znai.zip znai_tmp
-
 ENV PATH=/opt/znai:${PATH}
-ENV CC=/usr/bin/gcc
-ENV CXX=/usr/bin/g++
-ENV CMAKE_GENERATOR=Ninja
-ENV CMAKE_BUILD_TYPE=Debug
 
 ARG CATCH_RELEASE=3.7.1
 ENV CATCH_RELEASE=${CATCH_RELEASE}
