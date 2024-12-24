@@ -44,13 +44,14 @@ ENV CXX=/usr/bin/g++
 ENV CMAKE_GENERATOR=Ninja
 ENV CMAKE_BUILD_TYPE=Debug
 
-WORKDIR /work
 ARG CATCH_RELEASE=3.7.1
-ENV CATCH_RELEASE=${CATCH_RELEASE}
+WORKDIR /work
 RUN set -ex ;\
-    git clone https://github.com/catchorg/Catch2.git ;\
-    cd Catch2 ;\
-    git checkout v${CATCH_RELEASE} ;\
+    DIST="https://github.com/catchorg/Catch2/archive/refs/tags/" ;\
+    FILE="v${CATCH_RELEASE}.tar.gz" ;\
+    wget ${DIST}/${FILE} ;\
+    tar -xzf ${FILE} ;\
+    cd Catch2-${CATCH_RELEASE} ;\
     cmake -B build -S . \
       -DCMAKE_BUILD_TYPE=Release \
       -DBUILD_TESTING=OFF \
@@ -58,6 +59,6 @@ RUN set -ex ;\
       -DCATCH_BUILD_TESTING=OFF ;\
     cmake --build build/ --target install ;\
     cd /work ;\
-    rm -rf Catch2
+    rm -rf ${FILE} Catch2-${CATCH_RELEASE}
 
 ENV CMAKE_FIND_CATCH2=1
