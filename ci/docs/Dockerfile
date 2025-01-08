@@ -8,11 +8,8 @@ RUN set -ex ;\
     /usr/local/bin/gcc --version
 
 FROM debian:bookworm AS build
-
 ARG DOXYGEN_RELEASE=1.12.0
-ENV DOXYGEN_RELEASE=${DOXYGEN_RELEASE}
 ARG ZNAI_RELEASE=1.73
-ENV ZNAI_RELEASE=${ZNAI_RELEASE}
 
 ENV CMAKE_GENERATOR=Ninja
 ENV CMAKE_BUILD_TYPE=Debug
@@ -49,12 +46,13 @@ RUN set -ex ;\
 FROM debian:bookworm
 COPY --from=gcc /usr/local/ /usr/local/
 COPY --from=gcc /etc/ld.so.conf.d/ /etc/ld.so.conf.d/
-COPY --from=build /usr/local/bin/doxygen /usr/local/bin/doxygen
-COPY --from=build /usr/local/share/man/man1/doxygen.1 /usr/local/share/man/man1/doxygen.1
+COPY --from=build /usr/local/ /usr/local/
 COPY --from=build /opt/znai /opt/znai
 
 WORKDIR /root
 RUN set -ex ;\
+    rm -rf /usr/local/lib/python3.11 ;\
+    find /usr/local -type d -empty -exec rm -r {} + ;\
     ldconfig -v ;\
     dpkg-divert --divert /usr/bin/gcc.orig --rename /usr/bin/gcc ;\
     dpkg-divert --divert /usr/bin/g++.orig --rename /usr/bin/g++ ;\
@@ -79,7 +77,6 @@ ENV CXX=/usr/bin/g++
 ENV CMAKE_GENERATOR=Ninja
 ENV CMAKE_BUILD_TYPE=Debug
 ENV DEBIAN_FRONTEND=noninteractive
-WORKDIR /work
 RUN set -ex ;\
     apt-get update ;\
     apt-get install -y --no-install-recommends \
@@ -89,12 +86,13 @@ RUN set -ex ;\
     apt-get clean
 
 ARG CATCH_RELEASE=3.7.1
-ENV CATCH_RELEASE=${CATCH_RELEASE}
 WORKDIR /work
 RUN set -ex ;\
-    git clone https://github.com/catchorg/Catch2.git ;\
-    cd Catch2 ;\
-    git checkout v${CATCH_RELEASE} ;\
+    DIST="https://github.com/catchorg/Catch2/archive/refs/tags/" ;\
+    FILE="v${CATCH_RELEASE}.tar.gz" ;\
+    wget ${DIST}/${FILE} ;\
+    tar -xzf ${FILE} ;\
+    cd Catch2-${CATCH_RELEASE} ;\
     cmake -B build -S . \
       -DCMAKE_BUILD_TYPE=Release \
       -DBUILD_TESTING=OFF \
@@ -102,6 +100,6 @@ RUN set -ex ;\
       -DCATCH_BUILD_TESTING=OFF ;\
     cmake --build build/ --target install ;\
     cd /work ;\
-    rm -rf Catch2
+    rm -rf ${FILE} Catch2-${CATCH_RELEASE}
 
 ENV CMAKE_FIND_CATCH2=1
