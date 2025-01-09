@@ -21,6 +21,7 @@ on:
       - 'CMakeLists.txt'
       - 'cmake/**'
       - '.codecov.yml'
+  workflow_dispatch:
 
 jobs:
   coverage:
