@@ -57,6 +57,8 @@ foreach(source IN ITEMS ${INCLUDE_FN_HEADERS})
         SOURCE "${source}"
         NEW_SOURCE "#include <${source}>\nint main() {}\n"
         DEPENDENCIES include_fn
+        COMPILE_OPTIONS -Wall -Wextra -Wpedantic -Wno-missing-braces
     )
     unset(root_name)
+
 endforeach()

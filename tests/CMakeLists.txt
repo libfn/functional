@@ -49,6 +49,7 @@ foreach(source IN ITEMS ${TESTS_FN_SOURCES})
         NAME "tests_fn_${root_name}"
         SOURCE "${source}"
         DEPENDENCIES include_fn tests_util Catch2::Catch2WithMain
+        COMPILE_OPTIONS -Wall -Wextra -Wpedantic -Wno-missing-braces "$<$<CONFIG:DEBUG>:-O0>"
         TEST_OPTIONS -r console
         TEST_LABELS tests_fn ${root_name}
         ADD_TEST
@@ -67,6 +68,7 @@ foreach(source IN ITEMS ${TESTS_EXAMPLES_SOURCES})
         NAME "tests_examples_${root_name}"
         SOURCE "${source}"
         DEPENDENCIES include_fn Catch2::Catch2WithMain
+        COMPILE_OPTIONS -Wall -Wextra -Wpedantic -Wno-missing-braces
         TEST_OPTIONS -r console
         TEST_LABELS tests_examples ${root_name}
         ADD_TEST
