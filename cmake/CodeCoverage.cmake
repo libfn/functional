@@ -98,6 +98,9 @@
 # 2024-04-03, Bronek Kozicki
 #     - add support for output formats: jacoco, clover, lcov
 #
+# 2025-01-09, Bronek Kozicki
+#     - add dummy command to remove cmake warning
+#
 # USAGE:
 #
 # 1. Copy this file into your cmake modules path.
@@ -431,7 +434,7 @@ function(setup_target_for_coverage_gcovr)
 
     # Show info where to find the report
     add_custom_command(TARGET ${Coverage_NAME} POST_BUILD
-        COMMAND ;
+        COMMAND echo;
         COMMENT "Code coverage report saved in ${GCOVR_OUTPUT_FILE} formatted as ${Coverage_FORMAT}"
     )
 endfunction() # setup_target_for_coverage_gcovr

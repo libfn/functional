@@ -1,4 +1,6 @@
-find_program (Znai NAMES znai)
-if(Znai_FOUND)
-    message(STATUS "Znai found at ${Znai}")
+find_program(ZNAI_FOUND NAMES znai)
+
+if(ZNAI_FOUND)
+    message(STATUS "Znai found at ${ZNAI_FOUND}")
+    set(Znai ${ZNAI_FOUND})
 endif()

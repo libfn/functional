@@ -2,7 +2,7 @@
 title: fn::inspect
 ---
 
-##### Defined in {style: "api", badge: "#include <functional/inspect.hpp>"}
+##### Defined in {style: "api", badge: "#include <fn/inspect.hpp>"}
 
 ---
 

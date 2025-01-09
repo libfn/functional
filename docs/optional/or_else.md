@@ -2,7 +2,7 @@
 title: fn::or_else
 ---
 
-##### Defined in {style: "api", badge: "#include <functional/or_else.hpp>"}
+##### Defined in {style: "api", badge: "#include <fn/or_else.hpp>"}
 
 ---
 

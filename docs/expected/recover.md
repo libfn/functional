@@ -2,7 +2,7 @@
 title: fn::recover
 ---
 
-##### Defined in {style: "api", badge: "#include <functional/recover.hpp>"}
+##### Defined in {style: "api", badge: "#include <fn/recover.hpp>"}
 
 ---
 

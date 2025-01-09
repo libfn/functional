@@ -1,14 +1,14 @@
-# Enable coverate report target and compilation options
+# Enable coverate report target and compilation options, requires gcovr
 
 # In this project, 100% tests coverage does not actually mean much, because the most useful
 # test cases are around overload resolution, parameter dispatch, value categories,
 # concepts etc. elements of the language which may not show in the coverage tests.
-# This means that we need many more tests than just the minimum needed to ensure good coverage.
+# This means that we need many more tests than just the minimum needed to ensure "good" coverage.
 
 set(CODE_COVERAGE_VERBOSE ON)
 set(CODE_COVERAGE_FORMAT "xml" CACHE STRING "Format of the coverage report.")
-set(CODE_COVERAGE_TEST "$<TARGET_FILE:tests>" CACHE STRING "Command to run tests.")
-set(CODE_COVERAGE_TEST_ARGS "-a" CACHE STRING "Parameters to the test command.")
+set(CODE_COVERAGE_TEST "ctest" CACHE STRING "Command to run tests.")
+set(CODE_COVERAGE_TEST_ARGS -L tests_fn -j1 CACHE STRING "Parameters to the test command.")
 set(GCOVR_ADDITIONAL_ARGS
 --exclude-noncode-lines
 --exclude-unreachable-branches
@@ -22,7 +22,7 @@ setup_target_for_coverage_gcovr(
     EXECUTABLE ${CODE_COVERAGE_TEST}
     EXECUTABLE_ARGS ${CODE_COVERAGE_TEST_ARGS}
     EXCLUDE "tests"
-    DEPENDENCIES tests
+    DEPENDENCIES all
 )
 
 append_coverage_compiler_flags()

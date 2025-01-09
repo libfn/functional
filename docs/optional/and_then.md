@@ -2,7 +2,7 @@
 title: fn::and_then
 ---
 
-##### Defined in {style: "api", badge: "#include <functional/and_then.hpp>"}
+##### Defined in {style: "api", badge: "#include <fn/and_then.hpp>"}
 
 ---
 

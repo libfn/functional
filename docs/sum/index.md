@@ -2,7 +2,7 @@
 title: Sum
 ---
 
-##### Defined in {style: "api", badge: "#include <functional/sum.hpp>"}
+##### Defined in {style: "api", badge: "#include <fn/sum.hpp>"}
 
 ---
 

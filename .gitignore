@@ -1,7 +1,8 @@
 .idea/
 .idea_modules/
 .build*/
-result
+dist*/
+result*
 .clangd
 .cache/
 .devcontainer/

@@ -3,16 +3,16 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#include "functional/and_then.hpp"
-#include "functional/fail.hpp"
-#include "functional/filter.hpp"
-#include "functional/inspect.hpp"
-#include "functional/inspect_error.hpp"
-#include "functional/or_else.hpp"
-#include "functional/recover.hpp"
-#include "functional/transform.hpp"
-#include "functional/transform_error.hpp"
-#include "functional/utility.hpp"
+#include <fn/and_then.hpp>
+#include <fn/fail.hpp>
+#include <fn/filter.hpp>
+#include <fn/inspect.hpp>
+#include <fn/inspect_error.hpp>
+#include <fn/or_else.hpp>
+#include <fn/recover.hpp>
+#include <fn/transform.hpp>
+#include <fn/transform_error.hpp>
+#include <fn/utility.hpp>
 
 #include <catch2/catch_all.hpp>
 

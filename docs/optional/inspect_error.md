@@ -2,7 +2,7 @@
 title: fn::inspect_error
 ---
 
-##### Defined in {style: "api", badge: "#include <functional/inspect_error.hpp>"}
+##### Defined in {style: "api", badge: "#include <fn/inspect_error.hpp>"}
 
 ---
 
