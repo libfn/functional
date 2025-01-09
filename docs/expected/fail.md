@@ -2,7 +2,7 @@
 title: fn::fail
 ---
 
-##### Defined in {style: "api", badge: "#include <functional/fail.hpp>"}
+##### Defined in {style: "api", badge: "#include <fn/fail.hpp>"}
 
 ---
 

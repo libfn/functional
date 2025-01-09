@@ -2,7 +2,7 @@
 title: Packs
 ---
 
-##### Defined in {style: "api", badge: "#include <functional/pack.hpp>"}
+##### Defined in {style: "api", badge: "#include <fn/pack.hpp>"}
 
 ---
 

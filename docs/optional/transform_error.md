@@ -2,7 +2,7 @@
 title: fn::transform_error
 ---
 
-##### Defined in {style: "api", badge: "#include <functional/transform_error.hpp>"}
+##### Defined in {style: "api", badge: "#include <fn/transform_error.hpp>"}
 
 ---
 

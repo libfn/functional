@@ -2,7 +2,7 @@
 title: Choice monad
 ---
 
-##### Defined in {style: "api", badge: "#include <functional/choice.hpp>"}
+##### Defined in {style: "api", badge: "#include <fn/choice.hpp>"}
 
 ---
 

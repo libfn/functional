@@ -2,7 +2,7 @@
 title: fn::value_or
 ---
 
-##### Defined in {style: "api", badge: "#include <functional/value_or.hpp>"}
+##### Defined in {style: "api", badge: "#include <fn/value_or.hpp>"}
 
 ---
 

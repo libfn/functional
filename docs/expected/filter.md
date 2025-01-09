@@ -2,7 +2,7 @@
 title: fn::filter
 ---
 
-##### Defined in {style: "api", badge: "#include <functional/filter.hpp>"}
+##### Defined in {style: "api", badge: "#include <fn/filter.hpp>"}
 
 ---
 

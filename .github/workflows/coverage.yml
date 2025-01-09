@@ -76,7 +76,7 @@ jobs:
         cd .build
         cmake --build .
         ctest -L tests_fn -j1 # generate .gcda files
-        $GCOV -pbc -r -s $( realpath .. ) $( find tests/tests/ -type f -name '*.gcno' ) # generate .gcov files
+        $GCOV -pbc -r -s $( realpath .. ) $( find tests -type f -name '*.gcno' ) # generate .gcov files
 
     - name: Upload .gcov files
       uses: codecov/codecov-action@v4
