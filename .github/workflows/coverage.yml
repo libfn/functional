@@ -76,13 +76,12 @@ jobs:
         cd .build
         cmake --build .
         ctest -L tests_fn -j1 # generate .gcda files
-        $GCOV --json-format -pbc -r -s $( realpath .. ) $( find tests -type f -name '*.gcno' ) # generate .gcov files
 
     - name: Upload .gcov files
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v5
       with:
         fail_ci_if_error: true
         disable_search: false
         verbose: true
-        plugin: noop
+        plugin: gcov
         token: ${{ secrets.CODECOV_TOKEN }}
