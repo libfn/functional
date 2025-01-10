@@ -80,7 +80,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN set -ex ;\
     apt-get update ;\
     apt-get install -y --no-install-recommends \
-      ca-certificates gpg gpg-agent wget vim \
+      ca-certificates gpg gpg-agent wget vim curl jq \
       cmake ninja-build binutils libc6-dev git \
       openjdk-17-jdk graphviz  ;\
     apt-get clean
