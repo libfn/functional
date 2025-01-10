@@ -6,7 +6,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN set -ex ;\
     apt-get update ;\
     apt-get install -y --no-install-recommends \
-      ca-certificates gpg gpg-agent wget vim \
+      ca-certificates gpg gpg-agent wget vim curl jq \
       cmake ninja-build binutils libc6-dev git ;\
     CODENAME=$( . /etc/os-release && echo $VERSION_CODENAME ) ;\
     wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /etc/apt/keyrings/llvm.gpg ;\
