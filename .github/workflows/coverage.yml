@@ -84,4 +84,6 @@ jobs:
         disable_search: false
         verbose: true
         plugin: gcov
+        gcov_include: tests
+        gcov_args: -r -s ..
         token: ${{ secrets.CODECOV_TOKEN }}
