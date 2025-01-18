@@ -13,7 +13,6 @@ add_library(tests_util INTERFACE ${TESTS_UTIL_SOURCES})
 target_include_directories(tests_util INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(tests_util INTERFACE include_fn)
 
-
 # Pls keep the filenames sorted
 set(TESTS_FN_SOURCES
     fn/detail/fwd_macro.cpp
@@ -40,38 +39,40 @@ set(TESTS_FN_SOURCES
     fn/value_or.cpp
 )
 
+set(TESTS_PFN_SOURCES
+    pfn/expected.cpp
+)
+
 include(TargetGenerator)
 
 # Generate separate target for each individual test source
-foreach(source IN ITEMS ${TESTS_FN_SOURCES})
-    string(REGEX REPLACE "^fn/(detail|)/?([^\.]+)\.cpp$" "\\1\\2" root_name ${source})
+foreach(source IN ITEMS ${TESTS_FN_SOURCES} ${TESTS_PFN_SOURCES})
+    string(REGEX REPLACE "^(fn|pfn)/(detail|)/?([^\.]+)\.cpp$" "\\1_\\2\\3" root_name ${source})
+    string(REGEX REPLACE "^(fn|pfn)/.*$" "\\1" subdir ${source})
     setup_target_for_file(
-        NAME "tests_fn_${root_name}"
+        NAME "tests_${root_name}"
         SOURCE "${source}"
-        DEPENDENCIES include_fn tests_util Catch2::Catch2WithMain
-        COMPILE_OPTIONS -Wall -Wextra -Wpedantic -Wno-missing-braces "$<$<CONFIG:DEBUG>:-O0>"
+        DEPENDENCIES "include_${subdir}" tests_util Catch2::Catch2WithMain
+        COMPILE_OPTIONS -Wall -Wextra -Wpedantic "$<$<CONFIG:DEBUG>:-O0>"
         TEST_OPTIONS -r console
-        TEST_LABELS tests_fn ${root_name}
+        TEST_LABELS "tests_${subdir}" ${root_name}
         ADD_TEST
     )
     unset(root_name)
 endforeach()
 
-# Pls keep the filenames sorted
+# TODO change examples into subproject and switch to add_subdirectory
 set(TESTS_EXAMPLES_SOURCES
     examples/simple.cpp
 )
 
-foreach(source IN ITEMS ${TESTS_EXAMPLES_SOURCES})
-    string(REGEX REPLACE "^examples/([^\.]+)\.cpp$" "\\1" root_name ${source})
-    setup_target_for_file(
-        NAME "tests_examples_${root_name}"
-        SOURCE "${source}"
-        DEPENDENCIES include_fn Catch2::Catch2WithMain
-        COMPILE_OPTIONS -Wall -Wextra -Wpedantic -Wno-missing-braces
-        TEST_OPTIONS -r console
-        TEST_LABELS tests_examples ${root_name}
-        ADD_TEST
-    )
-    unset(root_name)
-endforeach()
+add_executable(tests_examples ${TESTS_EXAMPLES_SOURCES})
+target_link_libraries(tests_examples include_fn Catch2::Catch2WithMain)
+target_compile_options(tests_examples PRIVATE -Wall -Wextra -Wpedantic)
+
+add_test(
+    NAME tests_examples
+    COMMAND tests_examples -r console
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+set_property(TEST tests_examples PROPERTY LABELS tests_examples)
