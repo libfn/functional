@@ -3,8 +3,8 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#ifndef INCLUDE_FUNCTIONAL_DETAIL_FWD
-#define INCLUDE_FUNCTIONAL_DETAIL_FWD
+#ifndef INCLUDE_FN_DETAIL_FWD
+#define INCLUDE_FN_DETAIL_FWD
 
 namespace fn {
 // NOTE Some forward declarations can lead to hard to troubleshoot compilation
