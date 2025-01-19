@@ -10,31 +10,35 @@
 #include <type_traits>
 #include <utility>
 
-namespace fn::detail {
+namespace pfn {
 
 template <class E> class bad_expected_access;
 
 template <> class bad_expected_access<void> : public std::exception {
 protected:
-  bad_expected_access() noexcept;
-  bad_expected_access(bad_expected_access const &) noexcept;
-  bad_expected_access(bad_expected_access &&) noexcept;
-  bad_expected_access &operator=(bad_expected_access const &) noexcept;
-  bad_expected_access &operator=(bad_expected_access &&) noexcept;
-  ~bad_expected_access();
+  bad_expected_access() noexcept = default;
+  bad_expected_access(bad_expected_access const &) noexcept = default;
+  bad_expected_access(bad_expected_access &&) noexcept = default;
+  bad_expected_access &operator=(bad_expected_access const &) noexcept = default;
+  bad_expected_access &operator=(bad_expected_access &&) noexcept = default;
+  ~bad_expected_access() noexcept = default;
 
 public:
-  [[nodiscard]] char const *what() const noexcept override;
+  [[nodiscard]] char const *what() const noexcept override
+  {
+    static char const msg_[] = "bad access to expected without expected value";
+    return msg_;
+  }
 };
 
 template <class E> class bad_expected_access : public bad_expected_access<void> {
 public:
-  explicit bad_expected_access(E);
-  [[nodiscard]] char const *what() const noexcept override;
-  E &error() & noexcept;
-  E const &error() const & noexcept;
-  E &&error() && noexcept;
-  E const &&error() const && noexcept;
+  explicit bad_expected_access(E e) : e_(std::move(e)) {}
+  [[nodiscard]] char const *what() const noexcept override { return bad_expected_access<void>::what(); };
+  E &error() & noexcept { return e_; }
+  E const &error() const & noexcept { return e_; }
+  E &&error() && noexcept { return std::move(e_); }
+  E const &&error() const && noexcept { return std::move(e_); }
 
 private:
   E e_;
@@ -261,6 +265,6 @@ private:
   bool set_;
 };
 
-} // namespace fn::detail
+} // namespace pfn
 
 #endif // INCLUDE_PFN_EXPECTED
