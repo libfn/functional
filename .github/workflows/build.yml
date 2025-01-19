@@ -21,7 +21,7 @@ on:
       - 'cmake/**'
 
 jobs:
-  build-linux:
+  build-cxx23:
     runs-on:
       group: default
     strategy:
@@ -80,3 +80,63 @@ jobs:
       run: |
         cd .build
         ctest --output-on-failure
+
+  build-cxx20:
+    runs-on:
+      group: default
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration:
+        - Debug
+        - Release
+        compiler:
+        - gcc:12
+        - gcc:13
+        - gcc:14
+        - clang:16
+        - clang:17
+        - clang:18
+        - clang:19
+    container: libfn/ci-build-${{ matrix.compiler }}
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Verify compiler compatibility
+      env:
+        SOURCE: |
+          #include <optional>
+          int main() {
+            using type=std::optional<int>;
+            constexpr type a{std::in_place, 1};
+            return a.value() - 1;
+          }
+      run: |
+        printf "CXX=%s\nCXXFLAGS=%s\n" "$CXX" "$CXXFLAGS"
+        $CXX --version | head -1
+        FILE=$(mktemp --tmpdir XXXXXX.cpp)
+        printf "$SOURCE\n" > $FILE
+        OUT=$(mktemp --tmpdir  XXXXXX)
+        $CXX -std=c++2a $CXXFLAGS -Wall $FILE -o $OUT
+        $OUT
+
+    - name: Prepare build
+      run: |
+        mkdir .build
+        cd .build
+        cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ..
+        COMPILER=$( grep -E "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -e "s|^[^=]*=||" )
+        FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS:STRING=" CMakeCache.txt | sed -e "s|^[^=]*=||" )
+        printf "C++ compiler: %s\n" "$COMPILER"
+        printf "C++ compiler version: %s\n" "$( $COMPILER --version | head -1 )"
+        printf "C++ compilation options: %s\n" "$FLAGS"
+
+    - name: Build all
+      run: |
+        cd .build
+        cmake --build . --target $(ctest -L cxx20 --show-only=json-v1 | jq ".tests[].name" | tr -d '"')
+
+    - name: Run tests
+      run: |
+        cd .build
+        ctest -L cxx20 --output-on-failure
