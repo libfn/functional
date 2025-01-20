@@ -49,31 +49,48 @@ include(TargetGenerator)
 foreach(source IN ITEMS ${TESTS_FN_SOURCES} ${TESTS_PFN_SOURCES})
     string(REGEX REPLACE "^(fn|pfn)/(detail|)/?([^\.]+)\.cpp$" "\\1_\\2\\3" root_name ${source})
     string(REGEX REPLACE "^(fn|pfn)/.*$" "\\1" subdir ${source})
-    setup_target_for_file(
-        NAME "tests_${root_name}"
+    set(target "tests_${root_name}")
+
+    create_target_for_file(
+        NAME "${target}"
         SOURCE "${source}"
         DEPENDENCIES "include_${subdir}" tests_util Catch2::Catch2WithMain
         COMPILE_OPTIONS -Wall -Wextra -Wpedantic "$<$<CONFIG:DEBUG>:-O0>"
-        TEST_OPTIONS -r console
-        TEST_LABELS "tests_${subdir}" ${root_name}
-        ADD_TEST
     )
+
+    add_test(
+        NAME "${target}"
+        COMMAND "${target}" -r console
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    )
+    set_property(TEST "${target}" PROPERTY LABELS "tests_${subdir}" ${root_name})
+
+    unset(target)
     unset(root_name)
 endforeach()
 
 # Generate C++20 targets for pfn tests
 foreach(source IN ITEMS ${TESTS_PFN_SOURCES})
     string(REGEX REPLACE "^(pfn)/(detail|)/?([^\.]+)\.cpp$" "\\1_\\2\\3" root_name ${source})
-    setup_target_for_file(
-        NAME "tests_${root_name}_cxx20"
+    set(target "tests_${root_name}_cxx20")
+
+    create_target_for_file(
+        NAME "${target}"
         SOURCE "${source}"
         DEPENDENCIES include_pfn Catch2::Catch2WithMain
         COMPILE_OPTIONS -Wall -Wextra -Wpedantic "$<$<CONFIG:DEBUG>:-O0>"
-        TEST_OPTIONS -r console
-        TEST_LABELS tests_pfn cxx20 ${root_name}
-        ADD_TEST
     )
-    set_property(TARGET "tests_${root_name}_cxx20" PROPERTY CXX_STANDARD 20)
+    add_dependencies(cxx20 "${target}")
+    set_property(TARGET "${target}" PROPERTY CXX_STANDARD 20)
+
+    add_test(
+        NAME "${target}"
+        COMMAND "${target}" -r console
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    )
+    set_property(TEST "${target}" PROPERTY LABELS "tests_${subdir}" cxx20 ${root_name})
+
+    unset(target)
     unset(root_name)
 endforeach()
 

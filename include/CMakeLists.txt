@@ -16,7 +16,10 @@ target_sources(include_pfn INTERFACE
     TYPE HEADERS
     FILES ${INCLUDE_PFN_HEADERS})
 target_include_directories(include_pfn INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_options(include_pfn INTERFACE -Wno-non-template-friend)
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    target_compile_options(include_pfn INTERFACE -Wno-non-template-friend)
+endif()
 
 install(TARGETS include_pfn
     FILE_SET include_pfn_headers
@@ -73,13 +76,13 @@ include(TargetGenerator)
 foreach(source IN ITEMS ${INCLUDE_FN_HEADERS} ${INCLUDE_PFN_HEADERS})
     string(REGEX REPLACE "^(fn|pfn)/(detail|)/?([^\.]+)\.hpp$" "\\1_\\2\\3" root_name ${source})
     string(REGEX REPLACE "^(fn|pfn)/.*$" "\\1" subdir ${source})
-    setup_target_for_file(
+    create_target_for_file(
         NAME "sentinel_${root_name}"
         SOURCE "${source}"
         NEW_SOURCE "#include <${source}>\nint main() {}\n"
         SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
         DEPENDENCIES "include_${subdir}"
-        COMPILE_OPTIONS -Wall -Wextra -Wpedantic -Wno-missing-braces
+        COMPILE_OPTIONS -Wall -Wextra -Wpedantic
     )
     unset(root_name)
 endforeach()

@@ -134,7 +134,7 @@ jobs:
     - name: Build all
       run: |
         cd .build
-        cmake --build . --target $(ctest -L cxx20 --show-only=json-v1 | jq ".tests[].name" | tr -d '"')
+        cmake --build . --target cxx20
 
     - name: Run tests
       run: |
