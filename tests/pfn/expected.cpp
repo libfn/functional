@@ -130,3 +130,9 @@ TEST_CASE("unexpect", "[expected][polyfill][unexpect]")
     static_assert(std::is_same_v<test::A<pfn::unexpect>, test::A<a>>);
   }
 }
+
+TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
+{
+  // TODO
+  SUCCEED();
+}

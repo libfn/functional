@@ -7,8 +7,18 @@
 #define INCLUDE_PFN_EXPECTED
 
 #include <exception>
+#include <initializer_list>
 #include <type_traits>
 #include <utility>
+
+#ifdef FWD
+#pragma push_macro("FWD")
+#define INCLUDE_PFN_EXPECTED__POP_FWD
+#undef FWD
+#endif
+
+// Also defined in fn/detail/fwd_macro.hpp but pfn/* headers are standalone
+#define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 
 namespace pfn {
 
@@ -49,28 +59,77 @@ struct unexpect_t {
 };
 constexpr inline unexpect_t unexpect{};
 
+template <class E> class unexpected;
+
+namespace detail {
+template <typename T> constexpr bool _is_some_unexpected = false;
+template <typename T> constexpr bool _is_some_unexpected<::pfn::unexpected<T>> = true;
+
+template <typename T>
+constexpr bool _is_valid_unexpected = //
+    ::std::is_object_v<T>             // i.e. not a reference or void or function
+    && not ::std::is_array_v<T>       //
+    && not _is_some_unexpected<T>     //
+    && not ::std::is_const_v<T>       //
+    && not ::std::is_volatile_v<T>;
+} // namespace detail
+
 template <class E> class unexpected {
+  static_assert(detail::_is_valid_unexpected<E>);
+
 public:
   constexpr unexpected(unexpected const &) = default;
   constexpr unexpected(unexpected &&) = default;
-  template <class Err = E> constexpr explicit unexpected(Err &&);
-  template <class... Args> constexpr explicit unexpected(std::in_place_t, Args &&...);
+
+  template <class Err = E>
+  constexpr explicit unexpected(Err &&e) noexcept(::std::is_nothrow_constructible_v<E, Err>)
+    requires(not ::std::is_same_v<::std::remove_cvref_t<Err>, unexpected> &&        //
+             not ::std::is_same_v<::std::remove_cvref_t<Err>, ::std::in_place_t> && //
+             ::std::is_constructible_v<E, Err>)
+      : e_(FWD(e))
+  {
+  }
+
+  template <class... Args>
+  constexpr explicit unexpected(std::in_place_t, Args &&...a) noexcept(::std::is_nothrow_constructible_v<E, Args...>)
+    requires ::std::is_constructible_v<E, Args...>
+      : e_(FWD(a)...)
+  {
+  }
+
   template <class U, class... Args>
-  constexpr explicit unexpected(std::in_place_t, std::initializer_list<U>, Args &&...);
+  constexpr explicit unexpected(std::in_place_t, std::initializer_list<U> i, Args &&...a) noexcept(
+      ::std::is_nothrow_constructible_v<E, ::std::initializer_list<U> &, Args...>)
+    requires ::std::is_constructible_v<E, ::std::initializer_list<U> &, Args...>
+      : e_(i, FWD(a)...)
+  {
+  }
 
   constexpr unexpected &operator=(unexpected const &) = default;
   constexpr unexpected &operator=(unexpected &&) = default;
 
-  constexpr E const &error() const & noexcept;
-  constexpr E &error() & noexcept;
-  constexpr E const &&error() const && noexcept;
-  constexpr E &&error() && noexcept;
+  constexpr E const &error() const & noexcept { return e_; };
+  constexpr E &error() & noexcept { return e_; };
+  constexpr E const &&error() const && noexcept { return ::std::move(e_); };
+  constexpr E &&error() && noexcept { return ::std::move(e_); };
 
-  constexpr void swap(unexpected &other) noexcept(/* TODO */ false);
+  constexpr void swap(unexpected &other) noexcept(::std::is_nothrow_swappable_v<E>)
+  {
+    static_assert(::std::is_swappable_v<E>);
+    using ::std::swap;
+    swap(e_, other.e_);
+  }
 
-  template <class E2> constexpr friend bool operator==(unexpected const &, unexpected<E2> const &);
+  template <class E2> constexpr friend bool operator==(unexpected const &x, unexpected<E2> const &y)
+  {
+    return x.e_ == y.e_;
+  }
 
-  constexpr friend void swap(unexpected &x, unexpected &y) noexcept(noexcept(x.swap(y)));
+  constexpr friend void swap(unexpected &x, unexpected &y) noexcept(noexcept(x.swap(y)))
+    requires ::std::is_swappable_v<E>
+  {
+    x.swap(y);
+  }
 
 private:
   E e_;
@@ -266,5 +325,11 @@ private:
 };
 
 } // namespace pfn
+
+#undef FWD
+
+#ifdef INCLUDE_PFN_EXPECTED__POP_FWD
+#pragma pop_macro("FWD")
+#endif
 
 #endif // INCLUDE_PFN_EXPECTED
