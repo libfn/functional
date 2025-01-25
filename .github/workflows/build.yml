@@ -72,9 +72,12 @@ jobs:
         printf "C++ compilation options: %s\n" "$FLAGS"
 
     - name: Build all
+      env:
+        # We want to build "--target all" for at least one arbitrary configuration
+        TARGET: ${{ ( matrix.configuration == 'Debug' && matrix.compiler == 'gcc:14' ) && 'all' || 'cxx23' }}
       run: |
         cd .build
-        cmake --build . --target cxx23
+        cmake --build . --target ${TARGET}
 
     - name: Run tests
       run: |
