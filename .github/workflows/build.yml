@@ -74,12 +74,12 @@ jobs:
     - name: Build all
       run: |
         cd .build
-        cmake --build . --target all
+        cmake --build . --target cxx23
 
     - name: Run tests
       run: |
         cd .build
-        ctest --output-on-failure
+        ctest -L cxx23 --output-on-failure
 
   build-cxx20:
     runs-on:

@@ -2,8 +2,9 @@ cmake_minimum_required(VERSION 3.25)
 project(include)
 
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+### include/pfn
 
 # Pls keep the filenames sorted
 set(INCLUDE_PFN_HEADERS
@@ -11,11 +12,12 @@ set(INCLUDE_PFN_HEADERS
 )
 
 add_library(include_pfn INTERFACE)
+set_property(TARGET include_pfn PROPERTY CXX_STANDARD 20)
 target_sources(include_pfn INTERFACE
     FILE_SET include_pfn_headers
     TYPE HEADERS
     FILES ${INCLUDE_PFN_HEADERS})
-target_include_directories(include_pfn INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(include_pfn SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     target_compile_options(include_pfn INTERFACE -Wno-non-template-friend)
@@ -24,6 +26,32 @@ endif()
 install(TARGETS include_pfn
     FILE_SET include_pfn_headers
     DESTINATION include)
+
+include(TargetGenerator)
+
+# Generate sentinel target for each individual header, as a basic sanity check
+foreach(cxxrel 20 23)
+    foreach(source IN ITEMS ${INCLUDE_PFN_HEADERS})
+        string(REGEX REPLACE "^(pfn)/(detail|)/?([^\.]+)\.hpp$" "\\1_\\2\\3" root_name ${source})
+        set(target "sentinel_${root_name}_cxx${cxxrel}")
+
+        create_target_for_file(
+            NAME "${target}"
+            SOURCE "${source}"
+            NEW_SOURCE "#include <${source}>\nint main() {}\n"
+            SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
+            DEPENDENCIES include_pfn
+            COMPILE_OPTIONS -Wall -Wextra -Wpedantic
+        )
+        add_dependencies("cxx${cxxrel}" "${target}")
+        set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${cxxrel}")
+
+        unset(target)
+        unset(root_name)
+    endforeach()
+endforeach()
+
+### include/fn
 
 # Pls keep the filenames sorted
 set(INCLUDE_FN_HEADERS
@@ -57,6 +85,7 @@ set(INCLUDE_FN_HEADERS
 )
 
 add_library(include_fn INTERFACE)
+set_property(TARGET include_fn PROPERTY CXX_STANDARD 23)
 target_sources(include_fn INTERFACE
     FILE_SET include_fn_headers
     TYPE HEADERS
@@ -70,19 +99,25 @@ install(TARGETS include_fn
     FILE_SET include_fn_headers
     DESTINATION include)
 
-include(TargetGenerator)
-
 # Generate sentinel target for each individual header, as a basic sanity check
-foreach(source IN ITEMS ${INCLUDE_FN_HEADERS} ${INCLUDE_PFN_HEADERS})
-    string(REGEX REPLACE "^(fn|pfn)/(detail|)/?([^\.]+)\.hpp$" "\\1_\\2\\3" root_name ${source})
-    string(REGEX REPLACE "^(fn|pfn)/.*$" "\\1" subdir ${source})
-    create_target_for_file(
-        NAME "sentinel_${root_name}"
-        SOURCE "${source}"
-        NEW_SOURCE "#include <${source}>\nint main() {}\n"
-        SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
-        DEPENDENCIES "include_${subdir}"
-        COMPILE_OPTIONS -Wall -Wextra -Wpedantic
-    )
-    unset(root_name)
+# TODO add 20 when we are compatible with C++20
+foreach(cxxrel 23)
+    foreach(source IN ITEMS ${INCLUDE_FN_HEADERS})
+        string(REGEX REPLACE "^(fn)/(detail|)/?([^\.]+)\.hpp$" "\\1_\\2\\3" root_name ${source})
+        set(target "sentinel_${root_name}_cxx${cxxrel}")
+
+        create_target_for_file(
+            NAME "${target}"
+            SOURCE "${source}"
+            NEW_SOURCE "#include <${source}>\nint main() {}\n"
+            SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
+            DEPENDENCIES include_fn
+            COMPILE_OPTIONS -Wall -Wextra -Wpedantic
+        )
+        add_dependencies("cxx${cxxrel}" "${target}")
+        set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${cxxrel}")
+
+        unset(target)
+        unset(root_name)
+    endforeach()
 endforeach()
