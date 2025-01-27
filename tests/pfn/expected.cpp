@@ -133,6 +133,62 @@ TEST_CASE("unexpect", "[expected][polyfill][unexpect]")
 
 TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
 {
-  // TODO
-  SUCCEED();
+  SECTION("is_valid_unexpected")
+  {
+    using pfn::detail::_is_valid_unexpected;
+    static_assert(not _is_valid_unexpected<void>);
+    static_assert(not _is_valid_unexpected<void volatile>);
+    static_assert(not _is_valid_unexpected<void const>);
+    static_assert(not _is_valid_unexpected<void const volatile>);
+    static_assert(not _is_valid_unexpected<int *()>);
+    static_assert(not _is_valid_unexpected<void()>);
+    static_assert(not _is_valid_unexpected<void(int) const>);
+    static_assert(not _is_valid_unexpected<int const>);
+    static_assert(not _is_valid_unexpected<int volatile>);
+    static_assert(not _is_valid_unexpected<int const volatile>);
+    static_assert(not _is_valid_unexpected<::pfn::unexpected<int>>);
+    static_assert(not _is_valid_unexpected<::pfn::unexpected<Error>>);
+    static_assert(_is_valid_unexpected<int>);
+    static_assert(_is_valid_unexpected<Error>);
+    static_assert(_is_valid_unexpected<std::optional<int>>);
+    SUCCEED();
+  }
+
+  SECTION("constructors")
+  {
+    using pfn::unexpected;
+
+    SECTION("explicit single parameter")
+    {
+      SECTION("constexpr, CTAD")
+      {
+        constexpr unexpected c1{Error::mystery};
+        static_assert(std::is_same_v<decltype(c1), unexpected<Error> const>);
+        static_assert(c1.error() == Error::mystery);
+      }
+
+      SECTION("constexpr, no CTAD")
+      {
+        constexpr unexpected<int> c1{42};
+        static_assert(std::is_same_v<decltype(c1), unexpected<int> const>);
+        static_assert(c1.error() == 42);
+      }
+
+      SECTION("no conversion, CTAD")
+      {
+        unexpected const c2{Error::secret};
+        static_assert(std::is_same_v<decltype(c2), unexpected<Error> const>);
+        CHECK(c2.error() == Error::secret);
+      }
+
+      SECTION("conversion, no CTAD")
+      {
+        unexpected<double> c3(12);
+        static_assert(std::is_same_v<decltype(c3), unexpected<double>>);
+        CHECK(c3.error() == 12.0);
+      }
+    }
+
+    SECTION("in_place") {}
+  }
 }
