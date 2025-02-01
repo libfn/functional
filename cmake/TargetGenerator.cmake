@@ -2,7 +2,7 @@
 
 function(create_target_for_file)
     set(oneValueArgs NAME SOURCE SOURCE_ROOT NEW_SOURCE)
-    set(multiValueArgs DEPENDENCIES COMPILE_OPTIONS)
+    set(multiValueArgs DEPENDENCIES)
     cmake_parse_arguments(Generator "" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     if(NOT DEFINED Generator_SOURCE)
@@ -27,6 +27,4 @@ function(create_target_for_file)
     endif()
 
     target_link_libraries(${Generator_NAME} ${Generator_DEPENDENCIES})
-
-    target_compile_options(${Generator_NAME} PRIVATE ${Generator_COMPILE_OPTIONS})
 endfunction()

@@ -28,6 +28,7 @@ install(TARGETS include_pfn
     DESTINATION include)
 
 include(TargetGenerator)
+include(CompilationOptions)
 
 # Generate sentinel target for each individual header, as a basic sanity check
 foreach(cxxrel 20 23)
@@ -41,8 +42,8 @@ foreach(cxxrel 20 23)
             NEW_SOURCE "#include <${source}>\nint main() {}\n"
             SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
             DEPENDENCIES include_pfn
-            COMPILE_OPTIONS -Wall -Wextra -Wpedantic
         )
+        append_compilation_options(NAME "${target}" WARNINGS)
         add_dependencies("cxx${cxxrel}" "${target}")
         set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${cxxrel}")
 
@@ -112,8 +113,8 @@ foreach(cxxrel 23)
             NEW_SOURCE "#include <${source}>\nint main() {}\n"
             SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
             DEPENDENCIES include_fn
-            COMPILE_OPTIONS -Wall -Wextra -Wpedantic
         )
+        append_compilation_options(NAME "${target}" WARNINGS)
         add_dependencies("cxx${cxxrel}" "${target}")
         set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${cxxrel}")
 

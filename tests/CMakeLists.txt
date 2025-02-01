@@ -20,6 +20,7 @@ set(TESTS_PFN_SOURCES
 )
 
 include(TargetGenerator)
+include(CompilationOptions)
 
 # Generate separate target for each individual test source
 foreach(cxxrel 20 23)
@@ -31,8 +32,8 @@ foreach(cxxrel 20 23)
             NAME "${target}"
             SOURCE "${source}"
             DEPENDENCIES include_pfn Catch2::Catch2WithMain
-            COMPILE_OPTIONS -Wall -Wextra -Wpedantic "$<$<CONFIG:DEBUG>:-O0>"
         )
+        append_compilation_options(NAME "${target}" WARNINGS OPTIMIZATION)
         add_dependencies("cxx${cxxrel}" "${target}")
         set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${cxxrel}")
 
@@ -87,8 +88,8 @@ foreach(cxxrel 23)
             NAME "${target}"
             SOURCE "${source}"
             DEPENDENCIES include_fn tests_util Catch2::Catch2WithMain
-            COMPILE_OPTIONS -Wall -Wextra -Wpedantic "$<$<CONFIG:DEBUG>:-O0>"
         )
+        append_compilation_options(NAME "${target}" WARNINGS OPTIMIZATION)
         add_dependencies("cxx${cxxrel}" "${target}")
         set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${cxxrel}")
 
