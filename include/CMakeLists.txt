@@ -31,10 +31,10 @@ include(TargetGenerator)
 include(CompilationOptions)
 
 # Generate sentinel target for each individual header, as a basic sanity check
-foreach(cxxrel 20 23)
+foreach(mode 20 23)
     foreach(source IN ITEMS ${INCLUDE_PFN_HEADERS})
         string(REGEX REPLACE "^(pfn)/(detail|)/?([^\.]+)\.hpp$" "\\1_\\2\\3" root_name ${source})
-        set(target "sentinel_${root_name}_cxx${cxxrel}")
+        set(target "sentinel_${root_name}_cxx${mode}")
 
         create_target_for_file(
             NAME "${target}"
@@ -44,8 +44,8 @@ foreach(cxxrel 20 23)
             DEPENDENCIES include_pfn
         )
         append_compilation_options(NAME "${target}" WARNINGS)
-        add_dependencies("cxx${cxxrel}" "${target}")
-        set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${cxxrel}")
+        add_dependencies("cxx${mode}" "${target}")
+        set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
 
         unset(target)
         unset(root_name)
@@ -92,7 +92,10 @@ target_sources(include_fn INTERFACE
     TYPE HEADERS
     FILES ${INCLUDE_FN_HEADERS})
 target_include_directories(include_fn SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_options(include_fn INTERFACE -Wno-missing-braces)
+
+if(NOT CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+    target_compile_options(include_fn INTERFACE -Wno-missing-braces)
+endif()
 # TODO uncomment when include_pfn is ready
 # target_link_libraries(include_fn INTERFACE include_pfn)
 
@@ -102,10 +105,10 @@ install(TARGETS include_fn
 
 # Generate sentinel target for each individual header, as a basic sanity check
 # TODO add 20 when we are compatible with C++20
-foreach(cxxrel 23)
+foreach(mode 23)
     foreach(source IN ITEMS ${INCLUDE_FN_HEADERS})
         string(REGEX REPLACE "^(fn)/(detail|)/?([^\.]+)\.hpp$" "\\1_\\2\\3" root_name ${source})
-        set(target "sentinel_${root_name}_cxx${cxxrel}")
+        set(target "sentinel_${root_name}_cxx${mode}")
 
         create_target_for_file(
             NAME "${target}"
@@ -115,8 +118,8 @@ foreach(cxxrel 23)
             DEPENDENCIES include_fn
         )
         append_compilation_options(NAME "${target}" WARNINGS)
-        add_dependencies("cxx${cxxrel}" "${target}")
-        set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${cxxrel}")
+        add_dependencies("cxx${mode}" "${target}")
+        set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
 
         unset(target)
         unset(root_name)

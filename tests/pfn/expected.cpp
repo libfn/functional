@@ -5,6 +5,8 @@
 
 #include <pfn/expected.hpp>
 
+#include <util/helper_types.hpp>
+
 #include <catch2/catch_all.hpp>
 
 #include <stdexcept>
@@ -16,202 +18,204 @@ TEST_CASE("bad_expected_access", "[expected][polyfill][bad_expected_access]")
 {
   SECTION("bad_expected_access<void>")
   {
-    struct A : pfn::bad_expected_access<void> {};
+    struct T : pfn::bad_expected_access<void> {};
 
-    static_assert(noexcept(A{}));
-    A a;
-    static_assert(noexcept(A{a}));
-    static_assert(noexcept(A{std::move(a)}));
+    static_assert(noexcept(T{}));
+    T a;
+    static_assert(noexcept(T{a}));
+    static_assert(noexcept(T{std::move(a)}));
     static_assert(noexcept(a.what()));
     static_assert(std::is_same_v<decltype(a.what()), char const *>);
     SECTION("constructors and assignment")
     {
-      A a1 = [&]() -> A & { return a; }();
+      T a1 = [&]() -> T & { return a; }();
       CHECK(a.what() == a1.what());
-      A a2 = [&]() -> A && { return std::move(a); }();
+      T a2 = [&]() -> T && { return std::move(a); }();
       CHECK(a.what() == a2.what());
-      A a3 = [&]() -> A const & { return a; }();
+      T a3 = [&]() -> T const & { return a; }();
       CHECK(a.what() == a3.what());
-      A a4 = [&]() -> A const && { return std::move(a); }();
+      T a4 = [&]() -> T const && { return std::move(a); }();
       CHECK(a.what() == a4.what());
 
-      a = [&]() -> A & { return a; }();
-      CHECK(A{}.what() == a.what());
-      a = [&]() -> A && { return std::move(a); }();
-      CHECK(A{}.what() == a.what());
-      a = [&]() -> A const & { return a; }();
-      CHECK(A{}.what() == a.what());
-      a = [&]() -> A const && { return std::move(a); }();
-      CHECK(A{}.what() == a.what());
+      a = [&]() -> T & { return a; }();
+      CHECK(T{}.what() == a.what());
+      a = [&]() -> T && { return std::move(a); }();
+      CHECK(T{}.what() == a.what());
+      a = [&]() -> T const & { return a; }();
+      CHECK(T{}.what() == a.what());
+      a = [&]() -> T const && { return std::move(a); }();
+      CHECK(T{}.what() == a.what());
     }
     CHECK(std::strcmp(a.what(), "bad access to expected without expected value") == 0);
 
-    A const b;
+    T const b;
     CHECK(&decltype(a)::what == &decltype(b)::what);
     CHECK(a.what() == b.what());
 
-    static_assert(noexcept(A{b}));
-    static_assert(noexcept(A{std::move(b)}));
+    static_assert(noexcept(T{b}));
+    static_assert(noexcept(T{std::move(b)}));
     static_assert(noexcept(b.what()));
     static_assert(std::is_same_v<decltype(b.what()), char const *>);
   }
 
   SECTION("bad_expected_access<E>")
   {
-    using A = pfn::bad_expected_access<Error>;
-    static_assert(std::is_base_of_v<pfn::bad_expected_access<void>, A>);
+    using T = pfn::bad_expected_access<helper>;
+    static_assert(std::is_base_of_v<pfn::bad_expected_access<void>, T>);
 
-    A a{secret};
-    static_assert(noexcept(A{a}));
-    static_assert(noexcept(A{std::move(a)}));
+    T a{12};
+    static_assert(noexcept(T{a}));
+    static_assert(noexcept(T{std::move(a)}));
     static_assert(noexcept(a.what()));
-    SECTION("constructors and assignment")
-    {
-      A a1 = [&]() -> A & { return a; }();
-      CHECK(a1.error() == secret);
-      A a2 = [&]() -> A && { return std::move(a); }();
-      CHECK(a2.error() == secret);
-      A a3 = [&]() -> A const & { return a; }();
-      CHECK(a3.error() == secret);
-      A a4 = [&]() -> A const && { return std::move(a); }();
-      CHECK(a4.error() == secret);
-
-      a = [&]() -> A & { return a; }();
-      CHECK(a.error() == secret);
-      a = [&]() -> A && { return std::move(a); }();
-      CHECK(a.error() == secret);
-      a = [&]() -> A const & { return a; }();
-      CHECK(a.error() == secret);
-      a = [&]() -> A const && { return std::move(a); }();
-      CHECK(a.error() == secret);
-    }
     static_assert(std::is_same_v<decltype(a.what()), char const *>);
-    static_assert(std::is_same_v<decltype(a.error()), Error &>);
-    static_assert(std::is_same_v<decltype(std::move(a).error()), Error &&>);
-    CHECK(a.error() == secret);
-    CHECK(std::move(a).error() == secret);
+    static_assert(std::is_same_v<decltype(a.error()), helper &>);
+    static_assert(std::is_same_v<decltype(std::move(a).error()), helper &&>);
 
-    A const b{mystery};
-    static_assert(noexcept(A{b}));
-    static_assert(noexcept(A{std::move(b)}));
-    static_assert(noexcept(b.what()));
-    static_assert(std::is_same_v<decltype(b.what()), char const *>);
-    static_assert(std::is_same_v<decltype(b.error()), Error const &>);
-    static_assert(std::is_same_v<decltype(std::move(b).error()), Error const &&>);
-    CHECK(b.error() == mystery);
-    CHECK(std::move(b).error() == mystery);
+    SECTION("copy/move constructors")
+    {
+      SECTION("lval")
+      {
+        auto const before = helper::witness;
+        T c = a;
+        CHECK(helper::witness == before * helper::from_lval_const);
+        CHECK(c.error() == 12);
+      }
+
+      SECTION("lval const")
+      {
+        T const b{13};
+        auto const before = helper::witness;
+        T c = b;
+        CHECK(helper::witness == before * helper::from_lval_const);
+        CHECK(c.error() == 13);
+      }
+
+      SECTION("rval")
+      {
+        auto const before = helper::witness;
+        T c = std::move(a);
+        CHECK(helper::witness == before * helper::from_rval);
+        CHECK(c.error() == 12);
+      }
+
+      SECTION("rval cont")
+      {
+        T const b{17};
+        auto const before = helper::witness;
+        T c = std::move(b);
+        CHECK(helper::witness == before * helper::from_lval_const);
+        CHECK(c.error() == 17);
+      }
+    }
+
+    SECTION("assignment")
+    {
+      SECTION("lval")
+      {
+        T b{11};
+        auto const before = helper::witness;
+        a = b;
+        CHECK(helper::witness == before * helper::from_lval_const);
+        CHECK(a.error() == 11);
+      }
+
+      SECTION("lval const")
+      {
+        T const b{11};
+        auto const before = helper::witness;
+        a = b;
+        CHECK(helper::witness == before * helper::from_lval_const);
+        CHECK(a.error() == 11);
+      }
+
+      SECTION("rval")
+      {
+        T b{11};
+        auto const before = helper::witness;
+        a = std::move(b);
+        CHECK(helper::witness == before * helper::from_rval);
+        CHECK(a.error() == 11);
+      }
+
+      SECTION("rval const")
+      {
+        T const b{11};
+        auto const before = helper::witness;
+        a = std::move(b);
+        CHECK(helper::witness == before * helper::from_lval_const);
+        CHECK(a.error() == 11);
+      }
+    }
+
+    SECTION("accessors")
+    {
+      helper c{0};
+
+      SECTION("lval")
+      {
+        T b{11};
+        auto const before = helper::witness;
+        c = b.error();
+        CHECK(helper::witness == before * helper::from_lval);
+        CHECK(c == 11);
+      }
+
+      SECTION("lval const")
+      {
+        T const b{13};
+        auto const before = helper::witness;
+        c = b.error();
+        CHECK(helper::witness == before * helper::from_lval_const);
+        CHECK(c == 13);
+      }
+
+      SECTION("rval")
+      {
+        T b{17};
+        auto const before = helper::witness;
+        c = std::move(b).error();
+        CHECK(helper::witness == before * helper::from_rval);
+        CHECK(c == 17);
+      }
+
+      SECTION("rval const")
+      {
+        T const b{19};
+        auto const before = helper::witness;
+        c = std::move(b).error();
+        CHECK(helper::witness == before * helper::from_rval_const);
+        CHECK(c == 19);
+      }
+    }
 
     CHECK(std::strcmp(a.what(), "bad access to expected without expected value") == 0);
-    CHECK(a.what() == b.what());
     auto const c = []() {
       struct C : pfn::bad_expected_access<void> {};
       return C{};
     }();
     CHECK(a.what() == c.what());
-    CHECK(&decltype(a)::what == &decltype(b)::what);
   }
 }
-
-namespace test {
-template <auto E> struct A {};
-} // namespace test
 
 TEST_CASE("unexpect", "[expected][polyfill][unexpect]")
 {
-  SECTION("unexpect")
-  {
-    static_assert(std::is_empty_v<pfn::unexpect_t>);
-    static_assert(noexcept(pfn::unexpect_t{}));
-    static_assert(std::is_same_v<decltype(pfn::unexpect), pfn::unexpect_t const>);
-    // pfn::unexpect can be used as a NTTP
-    static_assert(std::is_empty_v<test::A<pfn::unexpect>>);
-    static constexpr auto a = pfn::unexpect;
-    static_assert(std::is_empty_v<test::A<a>>);
-    static_assert(std::is_same_v<decltype(a), pfn::unexpect_t const>);
-    static_assert(std::is_same_v<test::A<pfn::unexpect>, test::A<a>>);
-  }
+  static_assert(std::is_empty_v<pfn::unexpect_t>);
+  static_assert(noexcept(pfn::unexpect_t{}));
+  static_assert(std::is_same_v<decltype(pfn::unexpect), pfn::unexpect_t const>);
+
+  // pfn::unexpect can be used as a NTTP
+  static_assert(not std::is_empty_v<helper_t<pfn::unexpect>>);
+  static constexpr auto a = pfn::unexpect;
+  static_assert(not std::is_empty_v<helper_t<a>>);
+  static_assert(std::is_same_v<decltype(a), pfn::unexpect_t const>);
+  static_assert(std::is_same_v<helper_t<pfn::unexpect>, helper_t<a>>);
+
+  SUCCEED();
 }
-
-namespace unxp {
-static int witness = 0;
-
-struct Foo {
-  int v = {};
-
-  Foo() = delete;
-  Foo(Foo &&) = default;
-
-  Foo &operator=(Foo &o) noexcept
-  {
-    v = o.v;
-    witness *= 53;
-    return *this;
-  }
-
-  Foo &operator=(Foo const &o) noexcept
-  {
-    v = o.v;
-    witness *= 59;
-    return *this;
-  }
-
-  Foo &operator=(Foo &&o) noexcept
-  {
-    v = o.v;
-    witness *= 61;
-    return *this;
-  }
-
-  Foo &operator=(Foo const &&o) noexcept
-  {
-    v = o.v;
-    witness *= 67;
-    return *this;
-  }
-
-  Foo(int a) noexcept : v(a) { witness += a; }
-
-  Foo(auto &&...a) noexcept
-    requires(sizeof...(a) > 1 && (std::is_same_v<std::remove_cvref_t<decltype(a)>, int> && ...))
-      : v((1 * ... * a))
-  {
-    witness += v;
-  }
-
-  Foo(std::initializer_list<double> l, auto... a) noexcept(false)
-    requires(std::is_same_v<std::remove_cvref_t<decltype(a)>, int> && ...)
-      : v(init(l, a...))
-  {
-    witness += v;
-  }
-
-  bool operator==(Foo const &) const noexcept = default;
-
-  static int init(std::initializer_list<double> l, auto &&...a) noexcept(false)
-  {
-    double ret = (1 * ... * a);
-    for (auto d : l) {
-      if (d == 0.0)
-        throw std::runtime_error("invalid input");
-      ret *= d;
-    }
-    return static_cast<int>(ret);
-  }
-};
-
-void swap(Foo &l, Foo &r)
-{
-  std::swap(l.v, r.v);
-  witness *= 97;
-}
-
-} // namespace unxp
 
 TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
 {
   using pfn::unexpected;
-  using unxp::Foo;
-  using unxp::witness;
 
   SECTION("is_valid_unexpected")
   {
@@ -255,32 +259,32 @@ TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
 
     SECTION("no conversion, CTAD")
     {
-      auto const before = witness;
-      unexpected c{Foo{2}};
-      CHECK(witness == before + 2);
-      CHECK(c.error() == Foo{2});
-      CHECK(c == unexpected<Foo>{2});
-      static_assert(std::is_same_v<decltype(c), unexpected<Foo>>);
-      static_assert(std::is_nothrow_constructible_v<decltype(c), Foo>);
+      auto const before = helper::witness;
+      unexpected c{helper{2}};
+      CHECK(helper::witness == (before + 2) * helper::from_rval);
+      CHECK(c.error() == helper{2});
+      CHECK(c == unexpected<helper>{2});
+      static_assert(std::is_same_v<decltype(c), unexpected<helper>>);
+      static_assert(std::is_nothrow_constructible_v<decltype(c), helper>);
     }
 
     SECTION("conversion, no CTAD")
     {
-      auto const before = witness;
-      unexpected<Foo> c(3);
-      CHECK(witness == before + 3);
+      auto const before = helper::witness;
+      unexpected<helper> c(3);
+      CHECK(helper::witness == before + 3);
       CHECK(c.error().v == 3);
-      CHECK(c == unexpected<Foo>{3});
+      CHECK(c == unexpected<helper>{3});
       static_assert(std::is_nothrow_constructible_v<decltype(c), int>);
     }
 
     SECTION("in-place, no CTAD")
     {
-      auto const before = witness;
-      unexpected<Foo> c(std::in_place, 3, 5);
-      CHECK(witness == before + 3 * 5);
-      CHECK(c.error() == Foo{3, 5});
-      CHECK(c == unexpected<Foo>{15});
+      auto const before = helper::witness;
+      unexpected<helper> c(std::in_place, 3, 5);
+      CHECK(helper::witness == before + 3 * 5);
+      CHECK(c.error() == helper{3, 5});
+      CHECK(c == unexpected<helper>{15});
       static_assert(std::is_nothrow_constructible_v<decltype(c), std::in_place_t, int, int>);
     }
 
@@ -288,12 +292,12 @@ TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
     {
       SECTION("forwarded args")
       {
-        auto const before = witness;
-        unexpected<Foo> c(std::in_place, {3.0, 5.0}, 7, 11);
+        auto const before = helper::witness;
+        unexpected<helper> c(std::in_place, {3.0, 5.0}, 7, 11);
         auto const d = 3 * 5 * 7 * 11;
-        CHECK(witness == before + d);
-        CHECK(c.error() == Foo{d});
-        CHECK(c == unexpected{Foo{d}});
+        CHECK(helper::witness == before + d);
+        CHECK(c.error() == helper{d});
+        CHECK(c == unexpected{helper{d}});
         static_assert(
             not std::is_nothrow_constructible_v<decltype(c), std::in_place_t, std::initializer_list<double>, int, int>);
         static_assert(std::is_constructible_v<decltype(c), std::in_place_t, std::initializer_list<double>, int, int>);
@@ -301,127 +305,127 @@ TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
 
       SECTION("no forwarded args")
       {
-        auto const before = witness;
-        unexpected<Foo> c(std::in_place, {2.0, 2.5});
-        CHECK(witness == before + 5);
-        CHECK(c.error() == Foo{5});
-        CHECK(c == unexpected<Foo>{5});
+        auto const before = helper::witness;
+        unexpected<helper> c(std::in_place, {2.0, 2.5});
+        CHECK(helper::witness == before + 5);
+        CHECK(c.error() == helper{5});
+        CHECK(c == unexpected<helper>{5});
         static_assert(not std::is_nothrow_constructible_v<decltype(c), std::in_place_t, std::initializer_list<double>>);
         static_assert(std::is_constructible_v<decltype(c), std::in_place_t, std::initializer_list<double>>);
       }
 
       SECTION("exception thrown")
       {
-        unexpected<Foo> t{13};
-        auto const before = witness;
+        unexpected<helper> t{13};
+        auto const before = helper::witness;
         try {
-          t = unexpected<Foo>{std::in_place, {2.0, 1.0, 0.0}, 5};
+          t = unexpected<helper>{std::in_place, {2.0, 1.0, 0.0}, 5};
           FAIL();
         } catch (std::runtime_error const &) {
           SUCCEED();
         }
         CHECK(t.error().v == 13);
-        CHECK(witness == before);
+        CHECK(helper::witness == before);
       }
     }
   }
 
-  SECTION("accessor")
+  SECTION("accessors")
   {
-    Foo v{1};
+    helper v{1};
 
     SECTION("lval")
     {
-      unexpected<Foo> t{13};
-      auto before = witness;
+      unexpected<helper> t{13};
+      auto before = helper::witness;
       v = t.error();
-      CHECK(witness == before * 53);
-      CHECK(v == Foo{13});
+      CHECK(helper::witness == before * helper::from_lval);
+      CHECK(v == helper{13});
     }
 
     SECTION("lval const")
     {
-      unexpected<Foo> const t{17};
-      auto before = witness;
+      unexpected<helper> const t{17};
+      auto before = helper::witness;
       v = t.error();
-      CHECK(witness == before * 59);
-      CHECK(v == Foo{17});
+      CHECK(helper::witness == before * helper::from_lval_const);
+      CHECK(v == helper{17});
     }
 
     SECTION("rval")
     {
-      unexpected<Foo> t{19};
-      auto before = witness;
+      unexpected<helper> t{19};
+      auto before = helper::witness;
       v = std::move(t).error();
-      CHECK(witness == before * 61);
-      CHECK(v == Foo{19});
+      CHECK(helper::witness == before * helper::from_rval);
+      CHECK(v == helper{19});
     }
 
     SECTION("rval const")
     {
-      unexpected<Foo> const t{23};
-      auto before = witness;
+      unexpected<helper> const t{23};
+      auto before = helper::witness;
       v = std::move(t).error();
-      CHECK(witness == before * 67);
-      CHECK(v == Foo{23});
+      CHECK(helper::witness == before * helper::from_rval_const);
+      CHECK(v == helper{23});
     }
   }
 
   SECTION("assignment")
   {
-    unexpected<Foo> v{0};
+    unexpected<helper> v{0};
 
     SECTION("lval")
     {
-      unexpected<Foo> t{13};
-      auto before = witness;
-      v = t; // t binds to unexpected<Foo> const &
-      CHECK(witness == before * 59);
-      CHECK(v.error() == Foo{13});
+      unexpected<helper> t{13};
+      auto before = helper::witness;
+      v = t;
+      CHECK(helper::witness == before * helper::from_lval_const);
+      CHECK(v.error() == helper{13});
     }
 
     SECTION("lval const")
     {
-      unexpected<Foo> const t{17};
-      auto before = witness;
-      v = t; // t binds to unexpected<Foo> const &
-      CHECK(witness == before * 59);
-      CHECK(v.error() == Foo{17});
+      unexpected<helper> const t{17};
+      auto before = helper::witness;
+      v = t;
+      CHECK(helper::witness == before * helper::from_lval_const);
+      CHECK(v.error() == helper{17});
     }
 
     SECTION("rval")
     {
-      unexpected<Foo> t{19};
-      auto before = witness;
-      v = std::move(t); // t binds to unexpected<Foo> &&
-      CHECK(witness == before * 61);
-      CHECK(v.error() == Foo{19});
+      unexpected<helper> t{19};
+      auto before = helper::witness;
+      v = std::move(t);
+      CHECK(helper::witness == before * helper::from_rval);
+      CHECK(v.error() == helper{19});
     }
 
     SECTION("rval const")
     {
-      unexpected<Foo> const t{23};
-      auto before = witness;
-      v = std::move(t); // t binds to unexpected<Foo> const &
-      CHECK(witness == before * 59);
-      CHECK(v.error() == Foo{23});
+      unexpected<helper> const t{23};
+      auto before = helper::witness;
+      v = std::move(t);
+      CHECK(helper::witness == before * helper::from_lval_const);
+      CHECK(v.error() == helper{23});
     }
   }
 
   SECTION("swap")
   {
-    unexpected<Foo> v{2};
-    unexpected w{Foo{3}};
-    auto before = witness;
+    unexpected<helper> v{2};
+    unexpected w{helper{3}};
+    auto before = helper::witness;
     v.swap(w);
-    CHECK(witness == before * 97);
-    CHECK(v == unexpected{Foo{3}});
-    CHECK(w == unexpected{Foo{2}});
-    w.error() = Foo{11};
-    before = witness;
+    CHECK(helper::witness == before * helper::swapped);
+    CHECK(v == unexpected{helper{3}});
+    CHECK(w == unexpected{helper{2}});
+    w.error() = helper{11};
+    before = helper::witness;
     swap(v, w);
-    CHECK(v.error() == Foo{11});
-    CHECK(w.error() == Foo(3));
+    CHECK(v.error() == helper{11});
+    CHECK(w.error() == helper(3));
   }
 
   SECTION("constexpr all, CTAD")
