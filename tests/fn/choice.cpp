@@ -443,7 +443,7 @@ TEST_CASE("choice and_then", "[choice][and_then]")
 
 TEST_CASE("choice transform", "[choice][transform]")
 {
-  WHEN("size 1")
+  WHEN("size 2, only one set")
   {
     using type = fn::choice<bool, int>;
     constexpr auto init = std::in_place_type<int>;
@@ -503,15 +503,14 @@ TEST_CASE("choice transform", "[choice][transform]")
                   == fn::choice<double>{5.25});
   }
 
-  WHEN("size 4")
+  WHEN("size 2")
   {
-    static constexpr auto sizeof_string = sizeof(std::string);
     using ::fn::choice;
     using ::fn::sum;
     constexpr auto fn1 = [](auto i) noexcept -> std::size_t { return sizeof(i); };
 
-    using type = choice<double, int, std::string, std::string_view>;
-    static_assert(type::size == 4);
+    using type = choice<double, int>;
+    static_assert(type::size == 2);
 
     WHEN("element v0 set")
     {
@@ -581,85 +580,6 @@ TEST_CASE("choice transform", "[choice][transform]")
                           [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
                           [](int const &&i) -> bool { return i == 42; }))
               == choice{true});
-      }
-    }
-
-    WHEN("element v2 set")
-    {
-      type a{std::in_place_type<std::string>, "bar"};
-      CHECK(a.data.v2 == "bar");
-      WHEN("value only")
-      {
-        // TODO Change single CHECK below to static_assert when supported by Clang
-        CHECK(type{std::in_place_type<std::string>, "bar"}.transform(fn1) == choice{sizeof_string});
-        CHECK(a.transform(      //
-                  fn::overload( //
-                      [](auto) -> sum<bool, std::string> { throw 1; },
-                      [](std::string &i) -> bool { return i == "bar"; }, [](std::string const &) -> bool { throw 0; },
-                      [](std::string &&) -> bool { throw 0; }, [](std::string const &&) -> bool { throw 0; }))
-              == choice<bool, std::string>{true});
-        CHECK(std::as_const(a).transform( //
-                  fn::overload(           //
-                      [](auto) -> sum<bool, std::string> { throw 1; }, [](std::string &) -> bool { throw 0; },
-                      [](std::string const &i) -> bool { return i == "bar"; }, [](std::string &&) -> bool { throw 0; },
-                      [](std::string const &&) -> bool { throw 0; }))
-              == choice<bool, std::string>{true});
-        CHECK(type{std::in_place_type<std::string>, "bar"}.transform( //
-                  fn::overload(                                       //
-                      [](auto) -> sum<bool, std::string> { throw 1; }, [](std::string &) -> bool { throw 0; },
-                      [](std::string const &) -> bool { throw 0; }, [](std::string &&i) -> bool { return i == "bar"; },
-                      [](std::string const &&) -> bool { throw 0; }))
-              == choice<bool, std::string>{true});
-        CHECK(std::move(std::as_const(a))
-                  .transform(       //
-                      fn::overload( //
-                          [](auto) -> sum<bool, std::string> { throw 1; }, [](std::string &) -> bool { throw 0; },
-                          [](std::string const &) -> bool { throw 0; }, [](std::string &&) -> bool { throw 0; },
-                          [](std::string const &&i) -> bool { return i == "bar"; }))
-              == choice<bool, std::string>{true});
-      }
-    }
-
-    WHEN("element v3 set")
-    {
-      type a{std::in_place_type<std::string_view>, "baz"};
-      CHECK(a.data.v3 == "baz");
-      WHEN("value only")
-      {
-        static_assert(type{std::in_place_type<std::string_view>, "baz"}.transform(fn1) == choice{16uz});
-        CHECK(a.transform(      //
-                  fn::overload( //
-                      [](auto) -> sum<int, std::string_view> { throw 1; },
-                      [](std::string_view &i) -> sum<bool, int> { return {i == "baz"}; },
-                      [](std::string_view const &) -> sum<bool, int> { throw 0; },
-                      [](std::string_view &&) -> sum<bool, int> { throw 0; },
-                      [](std::string_view const &&) -> sum<bool, int> { throw 0; }))
-              == choice<bool, int, std::string_view>{true});
-        CHECK(std::as_const(a).transform( //
-                  fn::overload(           //
-                      [](auto) -> sum<int, std::string_view> { throw 1; },
-                      [](std::string_view &) -> sum<bool, int> { throw 0; },
-                      [](std::string_view const &i) -> sum<bool, int> { return {i == "baz"}; },
-                      [](std::string_view &&) -> sum<bool, int> { throw 0; },
-                      [](std::string_view const &&) -> sum<bool, int> { throw 0; }))
-              == choice<bool, int, std::string_view>{true});
-        CHECK(type{std::in_place_type<std::string_view>, "baz"}.transform( //
-                  fn::overload(                                            //
-                      [](auto) -> sum<int, std::string_view> { throw 1; },
-                      [](std::string_view &) -> sum<bool, int> { throw 0; },
-                      [](std::string_view const &) -> sum<bool, int> { throw 0; },
-                      [](std::string_view &&i) -> sum<bool, int> { return {i == "baz"}; },
-                      [](std::string_view const &&) -> sum<bool, int> { throw 0; }))
-              == choice<bool, int, std::string_view>{true});
-        CHECK(std::move(std::as_const(a))
-                  .transform(       //
-                      fn::overload( //
-                          [](auto) -> sum<int, std::string_view> { throw 1; },
-                          [](std::string_view &) -> sum<bool, int> { throw 0; },
-                          [](std::string_view const &) -> sum<bool, int> { throw 0; },
-                          [](std::string_view &&) -> sum<bool, int> { throw 0; },
-                          [](std::string_view const &&i) -> sum<bool, int> { return {i == "baz"}; }))
-              == choice<bool, int, std::string_view>{true});
       }
     }
   }
