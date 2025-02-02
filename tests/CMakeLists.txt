@@ -7,11 +7,34 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Pls keep the filenames sorted
 set(TESTS_UTIL_SOURCES
     util/static_check.hpp
+    util/helper_types.hpp
 )
 add_library(tests_util INTERFACE ${TESTS_UTIL_SOURCES})
 set_property(TARGET include_fn PROPERTY CXX_STANDARD 23)
 target_include_directories(tests_util INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(tests_util INTERFACE include_fn)
+
+# Generate sentinel target for each individual header, as a basic sanity check
+foreach(mode 23)
+    foreach(source IN ITEMS ${TESTS_UTIL_SOURCES})
+        string(REGEX REPLACE "^(util)/([^\.]+)\.hpp$" "\\1_\\2" root_name ${source})
+        set(target "sentinel_${root_name}_cxx${mode}")
+
+        create_target_for_file(
+            NAME "${target}"
+            SOURCE "${source}"
+            NEW_SOURCE "#include <${source}>\nint main() {}\n"
+            SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
+            DEPENDENCIES include_fn tests_util
+        )
+        append_compilation_options(NAME "${target}" WARNINGS)
+        add_dependencies("cxx${mode}" "${target}")
+        set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
+
+        unset(target)
+        unset(root_name)
+    endforeach()
+endforeach()
 
 ### tests/pfn
 
@@ -23,26 +46,26 @@ include(TargetGenerator)
 include(CompilationOptions)
 
 # Generate separate target for each individual test source
-foreach(cxxrel 20 23)
+foreach(mode 20 23)
     foreach(source IN ITEMS ${TESTS_PFN_SOURCES})
         string(REGEX REPLACE "^(pfn)/(detail|)/?([^\.]+)\.cpp$" "\\1_\\2\\3" root_name ${source})
-        set(target "tests_${root_name}_cxx${cxxrel}")
+        set(target "tests_${root_name}_cxx${mode}")
 
         create_target_for_file(
             NAME "${target}"
             SOURCE "${source}"
-            DEPENDENCIES include_pfn Catch2::Catch2WithMain
+            DEPENDENCIES include_pfn tests_util Catch2::Catch2WithMain
         )
         append_compilation_options(NAME "${target}" WARNINGS OPTIMIZATION)
-        add_dependencies("cxx${cxxrel}" "${target}")
-        set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${cxxrel}")
+        add_dependencies("cxx${mode}" "${target}")
+        set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
 
         add_test(
             NAME "${target}"
             COMMAND "${target}" -r console
             WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
         )
-        set_property(TEST "${target}" PROPERTY LABELS tests_pfn "cxx${cxxrel}" "${root_name}")
+        set_property(TEST "${target}" PROPERTY LABELS tests_pfn "cxx${mode}" "${root_name}")
 
         unset(target)
         unset(root_name)
@@ -79,10 +102,10 @@ set(TESTS_FN_SOURCES
 
 # Generate separate target for each individual test source
 # TODO add 20 when we are compatible with C++20
-foreach(cxxrel 23)
+foreach(mode 23)
     foreach(source IN ITEMS ${TESTS_FN_SOURCES})
         string(REGEX REPLACE "^(fn)/(detail|)/?([^\.]+)\.cpp$" "\\1_\\2\\3" root_name ${source})
-        set(target "tests_${root_name}_cxx${cxxrel}")
+        set(target "tests_${root_name}_cxx${mode}")
 
         create_target_for_file(
             NAME "${target}"
@@ -90,15 +113,15 @@ foreach(cxxrel 23)
             DEPENDENCIES include_fn tests_util Catch2::Catch2WithMain
         )
         append_compilation_options(NAME "${target}" WARNINGS OPTIMIZATION)
-        add_dependencies("cxx${cxxrel}" "${target}")
-        set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${cxxrel}")
+        add_dependencies("cxx${mode}" "${target}")
+        set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
 
         add_test(
             NAME "${target}"
             COMMAND "${target}" -r console
             WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
         )
-        set_property(TEST "${target}" PROPERTY LABELS tests_fn "cxx${cxxrel}" "${root_name}")
+        set_property(TEST "${target}" PROPERTY LABELS tests_fn "cxx${mode}" "${root_name}")
 
         unset(target)
         unset(root_name)
@@ -111,21 +134,21 @@ set(TESTS_EXAMPLES_SOURCES
 )
 
 # TODO add 20 when we are compatible with C++20
-foreach(cxxrel 23)
-    set(target "tests_examples_cxx${cxxrel}")
+foreach(mode 23)
+    set(target "tests_examples_cxx${mode}")
 
     add_executable("${target}" ${TESTS_EXAMPLES_SOURCES})
     target_link_libraries("${target}" include_fn Catch2::Catch2WithMain)
-    target_compile_options("${target}" PRIVATE -Wall -Wextra -Wpedantic)
-    add_dependencies("cxx${cxxrel}" "${target}")
-    set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${cxxrel}")
+    append_compilation_options(NAME "${target}" WARNINGS)
+    add_dependencies("cxx${mode}" "${target}")
+    set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
 
     add_test(
         NAME "${target}"
         COMMAND "${target}" -r console
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     )
-    set_property(TEST "${target}" PROPERTY LABELS tests_examples "cxx${cxxrel}")
+    set_property(TEST "${target}" PROPERTY LABELS tests_examples "cxx${mode}")
 
     unset(target)
 endforeach()
