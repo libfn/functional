@@ -27,7 +27,7 @@ foreach(mode 23)
             SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
             DEPENDENCIES include_fn tests_util
         )
-        append_compilation_options(NAME "${target}" WARNINGS)
+        append_compilation_options("${target}" WARNINGS)
         add_dependencies("cxx${mode}" "${target}")
         set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
 
@@ -56,7 +56,7 @@ foreach(mode 20 23)
             SOURCE "${source}"
             DEPENDENCIES include_pfn tests_util Catch2::Catch2WithMain
         )
-        append_compilation_options(NAME "${target}" WARNINGS OPTIMIZATION)
+        append_compilation_options("${target}" WARNINGS OPTIMIZATION)
         add_dependencies("cxx${mode}" "${target}")
         set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
 
@@ -112,7 +112,7 @@ foreach(mode 23)
             SOURCE "${source}"
             DEPENDENCIES include_fn tests_util Catch2::Catch2WithMain
         )
-        append_compilation_options(NAME "${target}" WARNINGS OPTIMIZATION)
+        append_compilation_options("${target}" WARNINGS OPTIMIZATION)
         add_dependencies("cxx${mode}" "${target}")
         set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
 
@@ -139,7 +139,7 @@ foreach(mode 23)
 
     add_executable("${target}" ${TESTS_EXAMPLES_SOURCES})
     target_link_libraries("${target}" include_fn Catch2::Catch2WithMain)
-    append_compilation_options(NAME "${target}" WARNINGS)
+    append_compilation_options("${target}" WARNINGS)
     add_dependencies("cxx${mode}" "${target}")
     set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
 

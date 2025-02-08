@@ -35,11 +35,6 @@ include(Ccache)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND (NOT APPLE))
-    add_compile_options(-stdlib=libc++)
-    add_link_options(-lc++)
-endif()
-
 # Phony targets for all supported C++ versions
 add_custom_target(cxx20)
 add_custom_target(cxx23)
