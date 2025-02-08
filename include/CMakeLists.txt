@@ -4,6 +4,8 @@ project(include)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+include(CompilationOptions)
+
 ### include/pfn
 
 # Pls keep the filenames sorted
@@ -17,18 +19,14 @@ target_sources(include_pfn INTERFACE
     FILE_SET include_pfn_headers
     TYPE HEADERS
     FILES ${INCLUDE_PFN_HEADERS})
+append_compilation_options(include_pfn INTERFACE)
 target_include_directories(include_pfn SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
-
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-    target_compile_options(include_pfn INTERFACE -Wno-non-template-friend)
-endif()
 
 install(TARGETS include_pfn
     FILE_SET include_pfn_headers
     DESTINATION include)
 
 include(TargetGenerator)
-include(CompilationOptions)
 
 # Generate sentinel target for each individual header, as a basic sanity check
 foreach(mode 20 23)
@@ -43,7 +41,7 @@ foreach(mode 20 23)
             SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
             DEPENDENCIES include_pfn
         )
-        append_compilation_options(NAME "${target}" WARNINGS)
+        append_compilation_options("${target}" WARNINGS)
         add_dependencies("cxx${mode}" "${target}")
         set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
 
@@ -91,11 +89,8 @@ target_sources(include_fn INTERFACE
     FILE_SET include_fn_headers
     TYPE HEADERS
     FILES ${INCLUDE_FN_HEADERS})
+append_compilation_options(include_fn INTERFACE)
 target_include_directories(include_fn SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
-
-if(NOT CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-    target_compile_options(include_fn INTERFACE -Wno-missing-braces)
-endif()
 # TODO uncomment when include_pfn is ready
 # target_link_libraries(include_fn INTERFACE include_pfn)
 
@@ -117,7 +112,7 @@ foreach(mode 23)
             SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
             DEPENDENCIES include_fn
         )
-        append_compilation_options(NAME "${target}" WARNINGS)
+        append_compilation_options("${target}" WARNINGS)
         add_dependencies("cxx${mode}" "${target}")
         set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
 
