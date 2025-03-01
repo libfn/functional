@@ -25,7 +25,7 @@ template <auto V> struct helper_t {
   // No default constructor
   helper_t() = delete;
 
-  constexpr ~helper_t() noexcept = default;
+  constexpr ~helper_t() noexcept {};
 
   constexpr bool operator==(helper_t const &) const noexcept = default;
 
