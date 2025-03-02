@@ -73,118 +73,102 @@ TEST_CASE("bad_expected_access", "[expected][polyfill][bad_expected_access]")
 
     SECTION("copy/move constructors")
     {
+      T b{0};
+
       SECTION("lval")
       {
-        auto const before = helper::witness;
-        T c = a;
-        CHECK(helper::witness == before * helper::from_lval_const);
-        CHECK(c.error() == 12);
+        b.error().v = 11;
+        T c = b;
+        CHECK(c.error().v == 11 * helper::from_lval_const);
       }
 
       SECTION("lval const")
       {
-        T const b{13};
-        auto const before = helper::witness;
-        T c = b;
-        CHECK(helper::witness == before * helper::from_lval_const);
-        CHECK(c.error() == 13);
+        b.error().v = 13;
+        T c = std::as_const(b);
+        CHECK(c.error().v == 13 * helper::from_lval_const);
       }
 
       SECTION("rval")
       {
-        auto const before = helper::witness;
-        T c = std::move(a);
-        CHECK(helper::witness == before * helper::from_rval);
-        CHECK(c.error() == 12);
+        b.error().v = 17;
+        T c = std::move(b);
+        CHECK(c.error().v == 17 * helper::from_rval);
       }
 
       SECTION("rval cont")
       {
-        T const b{17};
-        auto const before = helper::witness;
-        T c = std::move(b);
-        CHECK(helper::witness == before * helper::from_lval_const);
-        CHECK(c.error() == 17);
+        b.error().v = 19;
+        T c = std::move(std::as_const(b));
+        CHECK(c.error().v == 19 * helper::from_lval_const);
       }
     }
 
     SECTION("assignment")
     {
+      T a{12};
+      T b{0};
+
       SECTION("lval")
       {
-        T b{11};
-        auto const before = helper::witness;
+        b.error().v = 11;
         a = b;
-        CHECK(helper::witness == before * helper::from_lval_const);
-        CHECK(a.error() == 11);
+        CHECK(a.error().v == 11 * helper::from_lval_const);
       }
 
       SECTION("lval const")
       {
-        T const b{11};
-        auto const before = helper::witness;
-        a = b;
-        CHECK(helper::witness == before * helper::from_lval_const);
-        CHECK(a.error() == 11);
+        b.error().v = 13;
+        a = std::as_const(b);
+        CHECK(a.error().v == 13 * helper::from_lval_const);
       }
 
       SECTION("rval")
       {
-        T b{11};
-        auto const before = helper::witness;
+        b.error().v = 17;
         a = std::move(b);
-        CHECK(helper::witness == before * helper::from_rval);
-        CHECK(a.error() == 11);
+        CHECK(a.error().v == 17 * helper::from_rval);
       }
 
       SECTION("rval const")
       {
-        T const b{11};
-        auto const before = helper::witness;
-        a = std::move(b);
-        CHECK(helper::witness == before * helper::from_lval_const);
-        CHECK(a.error() == 11);
+        b.error().v = 19;
+        a = std::move(std::as_const(b));
+        CHECK(a.error().v == 19 * helper::from_lval_const);
       }
     }
 
     SECTION("accessors")
     {
       helper c{0};
+      T b{0};
 
       SECTION("lval")
       {
-        T b{11};
-        auto const before = helper::witness;
+        b.error().v = 11;
         c = b.error();
-        CHECK(helper::witness == before * helper::from_lval);
-        CHECK(c == 11);
+        CHECK(c.v == 11 * helper::from_lval);
       }
 
       SECTION("lval const")
       {
-        T const b{13};
-        auto const before = helper::witness;
-        c = b.error();
-        CHECK(helper::witness == before * helper::from_lval_const);
-        CHECK(c == 13);
+        b.error().v = 13;
+        c = std::as_const(b).error();
+        CHECK(c.v == 13 * helper::from_lval_const);
       }
 
       SECTION("rval")
       {
-        T b{17};
-        auto const before = helper::witness;
+        b.error().v = 17;
         c = std::move(b).error();
-        CHECK(helper::witness == before * helper::from_rval);
-        CHECK(c == 17);
+        CHECK(c.v == 17 * helper::from_rval);
       }
 
       SECTION("rval const")
       {
-        T const b{19};
-        auto const before = helper::witness;
-        c = std::move(b).error();
-        CHECK(helper::witness == before * helper::from_rval_const);
-        CHECK(c == 19);
+        b.error().v = 19;
+        c = std::move(std::as_const(b)).error();
+        CHECK(c.v == 19 * helper::from_rval_const);
       }
     }
 
@@ -259,32 +243,23 @@ TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
 
     SECTION("no conversion, CTAD")
     {
-      auto const before = helper::witness;
       unexpected c{helper{2}};
-      CHECK(helper::witness == (before + 2) * helper::from_rval);
-      CHECK(c.error() == helper{2});
-      CHECK(c == unexpected<helper>{2});
+      CHECK(c.error().v == 2 * helper::from_rval);
       static_assert(std::is_same_v<decltype(c), unexpected<helper>>);
       static_assert(std::is_nothrow_constructible_v<decltype(c), helper>);
     }
 
     SECTION("conversion, no CTAD")
     {
-      auto const before = helper::witness;
       unexpected<helper> c(3);
-      CHECK(helper::witness == before + 3);
       CHECK(c.error().v == 3);
-      CHECK(c == unexpected<helper>{3});
       static_assert(std::is_nothrow_constructible_v<decltype(c), int>);
     }
 
     SECTION("in-place, no CTAD")
     {
-      auto const before = helper::witness;
       unexpected<helper> c(std::in_place, 3, 5);
-      CHECK(helper::witness == before + 3 * 5);
-      CHECK(c.error() == helper{3, 5});
-      CHECK(c == unexpected<helper>{15});
+      CHECK(c.error().v == 3 * 5);
       static_assert(std::is_nothrow_constructible_v<decltype(c), std::in_place_t, int, int>);
     }
 
@@ -292,12 +267,9 @@ TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
     {
       SECTION("forwarded args")
       {
-        auto const before = helper::witness;
         unexpected<helper> c(std::in_place, {3.0, 5.0}, 7, 11);
         auto const d = 3 * 5 * 7 * 11;
-        CHECK(helper::witness == before + d);
-        CHECK(c.error() == helper{d});
-        CHECK(c == unexpected{helper{d}});
+        CHECK(c.error().v == d);
         static_assert(
             not std::is_nothrow_constructible_v<decltype(c), std::in_place_t, std::initializer_list<double>, int, int>);
         static_assert(std::is_constructible_v<decltype(c), std::in_place_t, std::initializer_list<double>, int, int>);
@@ -305,11 +277,8 @@ TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
 
       SECTION("no forwarded args")
       {
-        auto const before = helper::witness;
         unexpected<helper> c(std::in_place, {2.0, 2.5});
-        CHECK(helper::witness == before + 5);
-        CHECK(c.error() == helper{5});
-        CHECK(c == unexpected<helper>{5});
+        CHECK(c.error().v == 5);
         static_assert(not std::is_nothrow_constructible_v<decltype(c), std::in_place_t, std::initializer_list<double>>);
         static_assert(std::is_constructible_v<decltype(c), std::in_place_t, std::initializer_list<double>>);
       }
@@ -317,7 +286,6 @@ TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
       SECTION("exception thrown")
       {
         unexpected<helper> t{13};
-        auto const before = helper::witness;
         try {
           t = unexpected<helper>{std::in_place, {2.0, 1.0, 0.0}, 5};
           FAIL();
@@ -325,107 +293,89 @@ TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
           SUCCEED();
         }
         CHECK(t.error().v == 13);
-        CHECK(helper::witness == before);
       }
     }
   }
 
   SECTION("accessors")
   {
-    helper v{1};
+    helper a{1};
 
     SECTION("lval")
     {
       unexpected<helper> t{13};
-      auto before = helper::witness;
-      v = t.error();
-      CHECK(helper::witness == before * helper::from_lval);
-      CHECK(v == helper{13});
+      a = t.error();
+      CHECK(a.v == 13 * helper::from_lval);
     }
 
     SECTION("lval const")
     {
       unexpected<helper> const t{17};
-      auto before = helper::witness;
-      v = t.error();
-      CHECK(helper::witness == before * helper::from_lval_const);
-      CHECK(v == helper{17});
+      a = t.error();
+      CHECK(a.v == 17 * helper::from_lval_const);
     }
 
     SECTION("rval")
     {
       unexpected<helper> t{19};
-      auto before = helper::witness;
-      v = std::move(t).error();
-      CHECK(helper::witness == before * helper::from_rval);
-      CHECK(v == helper{19});
+      a = std::move(t).error();
+      CHECK(a.v == 19 * helper::from_rval);
     }
 
     SECTION("rval const")
     {
       unexpected<helper> const t{23};
-      auto before = helper::witness;
-      v = std::move(t).error();
-      CHECK(helper::witness == before * helper::from_rval_const);
-      CHECK(v == helper{23});
+      a = std::move(t).error();
+      CHECK(a.v == 23 * helper::from_rval_const);
     }
   }
 
   SECTION("assignment")
   {
-    unexpected<helper> v{0};
+    unexpected<helper> a{0};
 
     SECTION("lval")
     {
       unexpected<helper> t{13};
-      auto before = helper::witness;
-      v = t;
-      CHECK(helper::witness == before * helper::from_lval_const);
-      CHECK(v.error() == helper{13});
+      a = t;
+      CHECK(a.error().v == 13 * helper::from_lval_const);
     }
 
     SECTION("lval const")
     {
       unexpected<helper> const t{17};
-      auto before = helper::witness;
-      v = t;
-      CHECK(helper::witness == before * helper::from_lval_const);
-      CHECK(v.error() == helper{17});
+      a = t;
+      CHECK(a.error().v == 17 * helper::from_lval_const);
     }
 
     SECTION("rval")
     {
       unexpected<helper> t{19};
-      auto before = helper::witness;
-      v = std::move(t);
-      CHECK(helper::witness == before * helper::from_rval);
-      CHECK(v.error() == helper{19});
+      a = std::move(t);
+      CHECK(a.error().v == 19 * helper::from_rval);
     }
 
     SECTION("rval const")
     {
       unexpected<helper> const t{23};
-      auto before = helper::witness;
-      v = std::move(t);
-      CHECK(helper::witness == before * helper::from_lval_const);
-      CHECK(v.error() == helper{23});
+      a = std::move(t);
+      CHECK(a.error().v == 23 * helper::from_lval_const);
     }
   }
 
   SECTION("swap")
   {
-    unexpected<helper> v{2};
-    unexpected w{helper{3}};
-    auto before = helper::witness;
-    v.swap(w);
-    CHECK(helper::witness == before * helper::swapped);
-    CHECK(v == unexpected{helper{3}});
-    CHECK(w == unexpected{helper{2}});
-    w.error() = helper{11};
-    before = helper::witness;
-    swap(v, w);
-    CHECK(v.error() == helper{11});
-    CHECK(w.error() == helper(3));
+    unexpected<helper> a{0};
+    a.error().v = 2;
+    unexpected b{helper{0}};
+    b.error().v = 3;
+    a.swap(b);
+    CHECK(a.error().v == 3 * helper::swapped);
+    CHECK(b.error().v == 2 * helper::swapped);
+    b.error() = helper{11};
+    swap(a, b);
+    CHECK(a.error().v == 11 * helper::from_rval * helper::swapped);
+    CHECK(b.error().v == 3 * helper::swapped * helper::swapped);
   }
 
   SECTION("constexpr all, CTAD")

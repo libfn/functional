@@ -28,7 +28,7 @@ function(append_compilation_options)
         endif()
     elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "(Apple)?Clang")
         if(Options_WARNINGS)
-            target_compile_options(${Options_NAME} PRIVATE -Wall -Wextra -Wpedantic -Werror)
+            target_compile_options(${Options_NAME} PRIVATE -Wall -Wextra -Wpedantic -Werror -Wno-redundant-move)
         endif()
 
         if(Options_OPTIMIZATION)

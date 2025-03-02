@@ -50,7 +50,8 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     static_assert(std::same_as<value_type &&, decltype(std::declval<type &&>().value())>);
     static_assert(std::same_as<value_type const &&, decltype(std::declval<type const &&>().value())>);
 
-    type s{helper{42}};
+    type s{helper{0}};
+    s.value().get_ptr<helper>()->v = 42;
     constexpr auto fn = fn::overload{
         [](auto &&) -> int { throw 0; }, //
         [](helper &o) -> int { return o.v + 1; },  [](helper const &o) -> int { return o.v + 2; },
@@ -151,43 +152,77 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
     WHEN("constexpr move from rvalue")
     {
-      using T = fn::choice<bool, int>;
+      using T = fn::choice<bool, helper>;
       constexpr auto fn = [](auto i) constexpr noexcept -> T { return {std::move(i)}; };
       constexpr auto a = fn(true);
       static_assert(std::is_same_v<decltype(a), T const>);
       static_assert(a.has_value<bool>());
+      static_assert(a.value() == fn::sum{true});
 
-      constexpr auto b = fn(12);
+      constexpr auto b = fn(helper{19});
       static_assert(std::is_same_v<decltype(b), T const>);
-      static_assert(b.has_value<int>());
+      static_assert(b.has_value<helper>());
+      static_assert(b.value().get_ptr<helper>()->v == 19 * helper::from_rval);
     }
 
     WHEN("move from rvalue")
     {
       using T = fn::choice<bool, helper>;
       constexpr auto fn = [](auto i) noexcept -> T { return {std::move(i)}; };
-      auto const before = helper::witness;
-      auto const a = fn(helper{12});
-      CHECK(helper::witness == (before + 12) * helper::from_rval);
+      auto const a = fn(helper{9});
       static_assert(std::is_same_v<decltype(a), T const>);
       CHECK(a.has_value<helper>());
+      CHECK(a.value().get_ptr<helper>()->v == 9 * helper::from_rval);
 
       auto b = fn(true);
       static_assert(std::is_same_v<decltype(b), T>);
       CHECK(b.has_value<bool>());
+      CHECK(b.value() == fn::sum{true});
+    }
+
+    WHEN("constexpr move from const rvalue")
+    {
+      using T = fn::choice<bool, helper>;
+      constexpr auto fn = [](auto const i) constexpr noexcept -> T { return {std::move(i)}; };
+      constexpr auto a = fn(true);
+      static_assert(std::is_same_v<decltype(a), T const>);
+      static_assert(a.has_value<bool>());
+      static_assert(a.value() == fn::sum{true});
+
+      constexpr auto b = fn(helper{17});
+      static_assert(std::is_same_v<decltype(b), T const>);
+      static_assert(b.has_value<helper>());
+      static_assert(b.value().get_ptr<helper>()->v == 17 * helper::from_rval_const);
+    }
+
+    WHEN("move from const rvalue")
+    {
+      using T = fn::choice<bool, helper>;
+      constexpr auto fn = [](auto const i) noexcept -> T { return {std::move(i)}; };
+      auto const a = fn(helper{7});
+      static_assert(std::is_same_v<decltype(a), T const>);
+      CHECK(a.has_value<helper>());
+      CHECK(a.value().get_ptr<helper>()->v == 7 * helper::from_rval_const);
+
+      auto b = fn(true);
+      static_assert(std::is_same_v<decltype(b), T>);
+      CHECK(b.has_value<bool>());
+      CHECK(b.value() == fn::sum{true});
     }
 
     WHEN("constexpr copy from lvalue")
     {
-      using T = fn::choice<bool, int>;
+      using T = fn::choice<bool, helper>;
       constexpr auto fn = [](auto i) constexpr noexcept -> T { return {i}; };
       constexpr auto a = fn(true);
       static_assert(std::is_same_v<decltype(a), T const>);
       static_assert(a.has_value<bool>());
+      static_assert(a.value() == fn::sum{true});
 
-      constexpr auto b = fn(12);
+      constexpr auto b = fn(helper{17});
       static_assert(std::is_same_v<decltype(b), T const>);
-      static_assert(b.has_value<int>());
+      static_assert(b.has_value<helper>());
+      static_assert(b.value().get_ptr<helper>()->v == 17 * helper::from_lval);
     }
 
     WHEN("copy from lvalue")
@@ -197,36 +232,64 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       auto const a = fn(true);
       static_assert(std::is_same_v<decltype(a), T const>);
       CHECK(a.has_value<bool>());
+      CHECK(a.value() == fn::sum{true});
 
-      auto const before = helper::witness;
       auto b = fn(helper{13});
-      CHECK(helper::witness == (before + 13) * helper::from_lval_const);
       static_assert(std::is_same_v<decltype(b), T>);
       CHECK(b.has_value<helper>());
+      CHECK(b.value().get_ptr<helper>()->v == 13 * helper::from_lval);
+    }
+
+    WHEN("constexpr copy from const lvalue")
+    {
+      using T = fn::choice<bool, helper>;
+      constexpr auto fn = [](auto const i) constexpr noexcept -> T { return {i}; };
+      constexpr auto a = fn(true);
+      static_assert(std::is_same_v<decltype(a), T const>);
+      static_assert(a.has_value<bool>());
+      static_assert(a.value() == fn::sum{true});
+
+      constexpr auto b = fn(helper{15});
+      static_assert(std::is_same_v<decltype(b), T const>);
+      static_assert(b.has_value<helper>());
+      static_assert(b.value().get_ptr<helper>()->v == 15 * helper::from_lval_const);
+    }
+
+    WHEN("copy from const lvalue")
+    {
+      using T = fn::choice<bool, helper>;
+      constexpr auto fn = [](auto const i) noexcept -> T { return {i}; };
+      auto const a = fn(true);
+      static_assert(std::is_same_v<decltype(a), T const>);
+      CHECK(a.has_value<bool>());
+      CHECK(a.value() == fn::sum{true});
+
+      auto b = fn(helper{5});
+      static_assert(std::is_same_v<decltype(b), T>);
+      CHECK(b.has_value<helper>());
+      CHECK(b.value().get_ptr<helper>()->v == 5 * helper::from_lval_const);
     }
 
     WHEN("copy ctor")
     {
       using T = fn::choice<bool, helper>;
-      auto const h = helper{23};
-      auto const a = T{h};
-      auto const before = helper::witness;
-      auto const b = a;
-      CHECK(helper::witness == before * helper::from_lval_const);
+      auto a = T{helper{0}};
+      a.value().get_ptr<helper>()->v = 23;
+      auto const b = std::as_const(a);
+
       CHECK(b.has_value<helper>());
-      CHECK(b.value() == fn::sum{h});
+      CHECK(b.value().get_ptr<helper>()->v == 23 * helper::from_lval_const);
     }
 
     WHEN("move ctor")
     {
       using T = fn::choice<bool, helper>;
-      auto const h = helper{29};
-      auto a = T{h};
-      auto const before = helper::witness;
+      auto a = T{helper{0}};
+      a.value().get_ptr<helper>()->v = 29;
       auto const b = std::move(a);
-      CHECK(helper::witness == before * helper::from_rval);
+
       CHECK(b.has_value<helper>());
-      CHECK(b.value() == fn::sum{h});
+      CHECK(b.value().get_ptr<helper>()->v == 29 * helper::from_rval);
     }
   }
 
@@ -235,19 +298,17 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     using T = fn::choice<bool, helper>;
     WHEN("move from rvalue")
     {
-      fn::sum h{helper{17}};
-      auto const before = helper::witness;
+      fn::sum h{helper{0}};
+      h.get_ptr<helper>()->v = 17;
       T const a{std::move(h)};
-      CHECK(helper::witness == before * helper::from_rval);
-      CHECK(a == h);
+      CHECK(a.value().get_ptr<helper>()->v == 17 * helper::from_rval);
     }
     WHEN("copy from const lvalue")
     {
-      fn::sum h{helper{19}};
-      auto const before = helper::witness;
-      T const a{h};
-      CHECK(helper::witness == before * helper::from_lval_const);
-      CHECK(a == h);
+      fn::sum h{helper{0}};
+      h.get_ptr<helper>()->v = 19;
+      T const a{std::as_const(h)};
+      CHECK(a.value().get_ptr<helper>()->v == 19 * helper::from_lval_const);
     }
   }
 
