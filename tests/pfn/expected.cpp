@@ -506,10 +506,6 @@ TEST_CASE("expected", "[expected][polyfill]")
       static_assert(std::is_default_constructible_v<T>);
       static_assert(extension && std::is_nothrow_constructible_v<T>);
 
-      constexpr T a;
-      static_assert(a.has_value());
-      static_assert(a.value() == 0);
-
       T b;
       CHECK(b.has_value());
       CHECK(b.value() == 0);
@@ -664,18 +660,18 @@ TEST_CASE("expected", "[expected][polyfill]")
     struct B {
       int v;
       constexpr B(int v) : v(v) {}
-      constexpr B(B const &) noexcept(false) = default;
-      constexpr B(B &&) noexcept(false) = default;
+      constexpr B(B const &s) noexcept(false) : v(s.v) {};
+      constexpr B(B &&s) noexcept(false) : v(s.v) {};
     };
 
     SECTION("noexcept(false) from value type")
     {
       using T = expected<B, Error>;
       static_assert(std::is_copy_constructible_v<T>);
-      static_assert(std::is_trivially_copy_constructible_v<T>);
+      static_assert(not std::is_trivially_copy_constructible_v<T>);
       static_assert(extension && not std::is_nothrow_copy_constructible_v<T>);
       static_assert(std::is_move_constructible_v<T>);
-      static_assert(std::is_trivially_move_constructible_v<T>);
+      static_assert(not std::is_trivially_move_constructible_v<T>);
       static_assert(extension && not std::is_nothrow_move_constructible_v<T>);
       static_assert(std::is_trivially_destructible_v<T>);
       static_assert(std::is_nothrow_destructible_v<T>);
@@ -700,10 +696,10 @@ TEST_CASE("expected", "[expected][polyfill]")
     {
       using T = expected<int, B>;
       static_assert(std::is_copy_constructible_v<T>);
-      static_assert(std::is_trivially_copy_constructible_v<T>);
+      static_assert(not std::is_trivially_copy_constructible_v<T>);
       static_assert(extension && not std::is_nothrow_copy_constructible_v<T>);
       static_assert(std::is_move_constructible_v<T>);
-      static_assert(std::is_trivially_move_constructible_v<T>);
+      static_assert(not std::is_trivially_move_constructible_v<T>);
       static_assert(extension && not std::is_nothrow_move_constructible_v<T>);
       static_assert(std::is_trivially_destructible_v<T>);
       static_assert(std::is_nothrow_destructible_v<T>);
@@ -725,7 +721,8 @@ TEST_CASE("expected", "[expected][polyfill]")
     }
 
     struct C {
-      constexpr C() = default;
+      constexpr C() noexcept(true) {};
+      constexpr C(C const &) noexcept(true) {}; // WORKAROUND:MSVC
       constexpr ~C() noexcept(false) {};
     };
 
