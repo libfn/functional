@@ -184,12 +184,13 @@ private:
   template <class U, class G> using _can_move_convert = _can_convert_detail<U, G, U, G>;
 
   template <class U>
-  using _can_convert = ::std::bool_constant< //
-      not ::std::is_same_v<::std::remove_cvref_t<U>, ::std::in_place_t>
-      && not ::std::is_same_v<expected, ::std::remove_cvref_t<U>>  //
-      && not detail::_is_some_unexpected<::std::remove_cvref_t<U>> //
-      && ::std::is_constructible_v<T, U>                           //
-      && (not ::std::is_same_v<bool, ::std::remove_cv_t<T>>        //
+  using _can_convert = ::std::bool_constant<                            //
+      not ::std::is_same_v<::std::remove_cvref_t<U>, ::std::in_place_t> //
+      && not ::std::is_same_v<::std::remove_cvref_t<U>, unexpect_t>     //
+      && not ::std::is_same_v<expected, ::std::remove_cvref_t<U>>       //
+      && not detail::_is_some_unexpected<::std::remove_cvref_t<U>>      //
+      && ::std::is_constructible_v<T, U>                                //
+      && (not ::std::is_same_v<bool, ::std::remove_cv_t<T>>             //
           || not detail::_is_some_expected<::std::remove_cvref_t<U>>)>;
 
 public:
