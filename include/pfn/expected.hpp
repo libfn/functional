@@ -101,14 +101,14 @@ public:
   }
 
   template <class... Args>
-  constexpr explicit unexpected(std::in_place_t, Args &&...a) noexcept(::std::is_nothrow_constructible_v<E, Args...>)
+  constexpr explicit unexpected(::std::in_place_t, Args &&...a) noexcept(::std::is_nothrow_constructible_v<E, Args...>)
     requires ::std::is_constructible_v<E, Args...>
       : e_(FWD(a)...)
   {
   }
 
   template <class U, class... Args>
-  constexpr explicit unexpected(std::in_place_t, ::std::initializer_list<U> i, Args &&...a) noexcept(
+  constexpr explicit unexpected(::std::in_place_t, ::std::initializer_list<U> i, Args &&...a) noexcept(
       ::std::is_nothrow_constructible_v<E, ::std::initializer_list<U> &, Args...>)
     requires ::std::is_constructible_v<E, ::std::initializer_list<U> &, Args...>
       : e_(i, FWD(a)...)
@@ -279,15 +279,15 @@ public:
   template <class G> constexpr explicit(/* TODO */ false) expected(unexpected<G> &&);
 
   template <class... Args>
-  constexpr explicit expected(std::in_place_t, Args &&...a)   //
+  constexpr explicit expected(::std::in_place_t, Args &&...a) //
       noexcept(::std::is_nothrow_constructible_v<T, Args...>) // extension
     requires ::std::is_constructible_v<T, Args...>
       : v_(FWD(a)...), set_(true)
   {
   }
   template <class U, class... Args>
-  constexpr explicit expected(std::in_place_t, ::std::initializer_list<U> il, Args &&...a)  //
-      noexcept(::std::is_nothrow_constructible_v<T, ::std::initializer_list<U> &, Args...>) // extension
+  constexpr explicit expected(::std::in_place_t, ::std::initializer_list<U> il, Args &&...a) //
+      noexcept(::std::is_nothrow_constructible_v<T, ::std::initializer_list<U> &, Args...>)  // extension
     requires ::std::is_constructible_v<T, ::std::initializer_list<U> &, Args...>
       : v_(il, FWD(a)...), set_(true)
   {
@@ -316,7 +316,7 @@ public:
     requires(::std::is_trivially_destructible_v<T> && not ::std::is_trivially_destructible_v<E>)
   {
     if (not set_)
-      e_.~E();
+      ::std::destroy_at(&e_);
     // else T is trivially destructible, no need to do anything
   }
   constexpr ~expected()                             //
@@ -324,7 +324,7 @@ public:
     requires(not ::std::is_trivially_destructible_v<T> && ::std::is_trivially_destructible_v<E>)
   {
     if (set_)
-      v_.~T();
+      ::std::destroy_at(&v_);
     // else E is trivially destructible, no need to do anything
   }
   constexpr ~expected()                                                                    //
@@ -332,9 +332,9 @@ public:
     requires(not ::std::is_trivially_destructible_v<T> && not ::std::is_trivially_destructible_v<E>)
   {
     if (set_)
-      v_.~T();
+      ::std::destroy_at(&v_);
     else
-      e_.~E();
+      ::std::destroy_at(&e_);
   }
 
   // [expected.object.assign], assignment
@@ -471,7 +471,7 @@ public:
   template <class G> constexpr explicit(/* TODO */ false) expected(unexpected<G> const &);
   template <class G> constexpr explicit(/* TODO */ false) expected(unexpected<G> &&);
 
-  constexpr explicit expected(std::in_place_t) noexcept;
+  constexpr explicit expected(::std::in_place_t) noexcept;
   template <class... Args> constexpr explicit expected(unexpect_t, Args &&...);
   template <class U, class... Args> constexpr explicit expected(unexpect_t, ::std::initializer_list<U>, Args &&...);
 

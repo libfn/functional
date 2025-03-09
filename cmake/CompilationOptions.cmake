@@ -20,7 +20,8 @@ function(append_compilation_options)
 
     if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
         if(Options_WARNINGS)
-            target_compile_options(${Options_NAME} PRIVATE /W4)
+            # disable C4456: declaration of 'b' hides previous local declaration
+            target_compile_options(${Options_NAME} PRIVATE /W4 /wd4456)
         endif()
 
         if(Options_OPTIMIZATION)
