@@ -34,7 +34,8 @@ on:
 jobs:
   licence-check:
     if: ${{ github.event_name == 'push' || inputs.run_licence_check }}
-    runs-on: ubuntu-latest
+    runs-on:
+      group: runners-arm64
     steps:
     - uses: actions/checkout@v4
 
@@ -44,7 +45,8 @@ jobs:
 
   licence-unchanged:
     if: ${{ github.event_name == 'pull_request' }}
-    runs-on: ubuntu-latest
+    runs-on:
+      group: runners-arm64
     env:
       LICENCE_FILE: LICENSE.md
     steps:
