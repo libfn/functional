@@ -21,13 +21,14 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         platform:
           - linux/amd64
           - linux/arm64
+    runs-on:
+      group: ${{ matrix.platform == 'linux/arm64' && 'runners-arm64' || 'runners-intel' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -48,7 +49,8 @@ jobs:
           title: "docs"
 
   merge:
-    runs-on: ubuntu-latest
+    runs-on:
+      group: runners-intel
     needs:
       - build
 
