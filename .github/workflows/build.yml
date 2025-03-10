@@ -35,6 +35,7 @@ jobs:
         - gcc:14
         - clang:18
         - clang:19
+        - clang:20
     container: libfn/ci-build-${{ matrix.compiler }}
     steps:
     - uses: actions/checkout@v4
