@@ -21,7 +21,6 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -33,9 +32,12 @@ jobs:
           - clang:17
           - clang:18
           - clang:19
+          - clang:20
         platform:
           - linux/amd64
           - linux/arm64
+    runs-on:
+      group: ${{ matrix.platform == 'linux/arm64' && 'runners-arm64' || 'runners-intel' }}
 
     steps:
       - name: Prepare
@@ -64,7 +66,8 @@ jobs:
           title: "build-${{ env.COMPILER}}-${{ env.RELEASE }}"
 
   merge:
-    runs-on: ubuntu-latest
+    runs-on:
+      group: runners-intel
     needs:
       - build
     strategy:
@@ -77,6 +80,7 @@ jobs:
           - clang:17
           - clang:18
           - clang:19
+          - clang:20
 
     steps:
       - name: Prepare

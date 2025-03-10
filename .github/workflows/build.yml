@@ -25,7 +25,7 @@ on:
 jobs:
   linux:
     runs-on:
-      group: default
+      group: runners-arm64
     strategy:
       fail-fast: false
       matrix:
@@ -53,6 +53,9 @@ jobs:
           modes: "cxx20 cxx23"
         - compiler: clang
           release: 19
+          modes: "cxx20 cxx23"
+        - compiler: clang
+          release: 20
           modes: "cxx20 cxx23"
     container: libfn/ci-build-${{ matrix.env.compiler }}:${{ matrix.env.release }}
     steps:
@@ -186,7 +189,8 @@ jobs:
           ctest -L cxx23 -C  ${{ matrix.configuration }} --output-on-failure
 
   nixos:
-    runs-on: ubuntu-latest
+    runs-on:
+      group: runners-intel
     strategy:
       fail-fast: false
       matrix:
