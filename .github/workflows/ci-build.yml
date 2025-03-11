@@ -21,6 +21,9 @@ env:
 
 jobs:
   build:
+    if: ${{ github.repository == 'libfn/functional' }}
+    runs-on:
+      group: ${{ matrix.platform == 'linux/arm64' && 'runners-arm64' || 'runners-intel' }}
     strategy:
       fail-fast: false
       matrix:
@@ -36,8 +39,6 @@ jobs:
         platform:
           - linux/amd64
           - linux/arm64
-    runs-on:
-      group: ${{ matrix.platform == 'linux/arm64' && 'runners-arm64' || 'runners-intel' }}
 
     steps:
       - name: Prepare
@@ -64,8 +65,10 @@ jobs:
             CLANG_RELEASE=${{ env.RELEASE }}
           context: "ci/build/${{ env.COMPILER }}"
           title: "build-${{ env.COMPILER}}-${{ env.RELEASE }}"
+          push: ${{ github.ref_type == 'branch' && github.ref_name == 'main' }}
 
   merge:
+    if: ${{ github.repository == 'libfn/functional' && github.ref_type == 'branch' && github.ref_name == 'main' }}
     runs-on:
       group: runners-intel
     needs:
