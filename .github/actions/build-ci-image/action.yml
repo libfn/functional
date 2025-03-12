@@ -33,6 +33,10 @@ inputs:
     default: null
     required: true
     type: string
+  push:
+    default: false
+    required: true
+    type: boolean
 
 runs:
   using: composite
@@ -79,8 +83,10 @@ runs:
         outputs: type=image,name=${{ inputs.image }},push-by-digest=true,name-canonical=true,push=true
         sbom: true
         provenance: mode=max
+        push: ${{ inputs.push }}
 
     - name: Export digest
+      if: ${{ inputs.push }}
       shell: bash
       run: |
         mkdir -p /tmp/digests
@@ -88,6 +94,7 @@ runs:
         touch "/tmp/digests/${digest#sha256:}"
 
     - name: Upload digest
+      if: ${{ inputs.push }}
       uses: actions/upload-artifact@v4
       with:
         name: digests-${{ inputs.title }}-${{ env.PLATFORM_PAIR }}

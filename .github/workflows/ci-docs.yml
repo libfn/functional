@@ -21,14 +21,15 @@ env:
 
 jobs:
   build:
+    if: ${{ github.repository == 'libfn/functional' }}
+    runs-on:
+      group: ${{ matrix.platform == 'linux/arm64' && 'runners-arm64' || 'runners-intel' }}
     strategy:
       fail-fast: false
       matrix:
         platform:
           - linux/amd64
           - linux/arm64
-    runs-on:
-      group: ${{ matrix.platform == 'linux/arm64' && 'runners-arm64' || 'runners-intel' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -47,8 +48,10 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           context: "ci/docs"
           title: "docs"
+          push: ${{ github.ref_type == 'branch' && github.ref_name == 'main' }}
 
   merge:
+    if: ${{ github.repository == 'libfn/functional' && github.ref_type == 'branch' && github.ref_name == 'main' }}
     runs-on:
       group: runners-intel
     needs:
