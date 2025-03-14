@@ -28,7 +28,12 @@
 #undef ASSERT
 #endif
 
-#define ASSERT(...) assert((__VA_ARGS__) == true);
+// LIBFN_ASSERT is a customization point for the user
+#ifdef LIBFN_ASSERT
+#define ASSERT(...) LIBFN_ASSERT(__VA_ARGS__)
+#else
+#define ASSERT(...) assert((__VA_ARGS__) == true)
+#endif
 
 namespace pfn {
 

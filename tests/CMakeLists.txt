@@ -10,7 +10,7 @@ set(TESTS_UTIL_SOURCES
     util/helper_types.hpp
 )
 add_library(tests_util INTERFACE ${TESTS_UTIL_SOURCES})
-set_property(TARGET include_fn PROPERTY CXX_STANDARD 23)
+set_property(TARGET tests_util PROPERTY CXX_STANDARD 23)
 target_include_directories(tests_util INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(tests_util INTERFACE include_fn)
 
@@ -30,6 +30,7 @@ foreach(mode 23)
         append_compilation_options("${target}" WARNINGS)
         add_dependencies("cxx${mode}" "${target}")
         set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
+        target_compile_definitions("${target}" PRIVATE LIBFN_MODE=${mode})
 
         unset(target)
         unset(root_name)
@@ -59,6 +60,7 @@ foreach(mode 20 23)
         append_compilation_options("${target}" WARNINGS OPTIMIZATION)
         add_dependencies("cxx${mode}" "${target}")
         set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
+        target_compile_definitions("${target}" PRIVATE LIBFN_MODE=${mode})
 
         add_test(
             NAME "${target}"
@@ -115,6 +117,7 @@ foreach(mode 23)
         append_compilation_options("${target}" WARNINGS OPTIMIZATION)
         add_dependencies("cxx${mode}" "${target}")
         set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
+        target_compile_definitions("${target}" PRIVATE LIBFN_MODE=${mode})
 
         add_test(
             NAME "${target}"
@@ -142,6 +145,7 @@ foreach(mode 23)
     append_compilation_options("${target}" WARNINGS)
     add_dependencies("cxx${mode}" "${target}")
     set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
+    target_compile_definitions("${target}" PRIVATE LIBFN_MODE=${mode})
 
     add_test(
         NAME "${target}"
