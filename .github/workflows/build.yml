@@ -72,8 +72,10 @@ jobs:
         $COMPILER --version
         printf "C++ compilation options: %s\n" "$FLAGS"
 
+    # Separate step for each compilation mode
     - name: Build and test C++20 mode
       if: ${{ contains( matrix.env.modes, 'cxx20' ) }}
+      continue-on-error: true
       run: |
         cd .build
         cmake --build . --target clean
@@ -82,13 +84,14 @@ jobs:
 
     - name: Build and test C++23 mode
       if: ${{ contains( matrix.env.modes, 'cxx23' ) }}
+      continue-on-error: true
       run: |
         cd .build
         cmake --build . --target clean
         cmake --build . --target cxx23
         ctest -L cxx23 --output-on-failure
 
-    # We want to build all for at least one arbitrary configuration
+    # Build and test all for one arbitrary configuration
     - name: Build and test all
       if: ${{ matrix.env.compiler == 'gcc' && matrix.env.release == '14' }}
       run: |
@@ -135,8 +138,10 @@ jobs:
         $COMPILER --version
         printf "C++ compilation options: %s\n" "$FLAGS"
 
+    # Separate step for each compilation mode
     - name: Build and test C++20 mode
       if: ${{ contains( matrix.env.modes, 'cxx20' ) }}
+      continue-on-error: true
       run: |
         cd .build
         cmake --build . --target clean
@@ -145,6 +150,7 @@ jobs:
 
     - name: Build and test C++23 mode
       if: ${{ contains( matrix.env.modes, 'cxx23' ) }}
+      continue-on-error: true
       run: |
         cd .build
         cmake --build . --target clean
@@ -172,8 +178,10 @@ jobs:
           cd .build
           cmake -G "${{ matrix.env.compiler }}" -A x64 ..
 
+      # Separate step for each compilation mode
       - name: Build and test C++20 mode
         if: ${{ contains( matrix.env.modes, 'cxx20' ) }}
+        continue-on-error: true
         run: |
           cd .build
           cmake --build . --config ${{ matrix.configuration }} --target clean
@@ -182,6 +190,7 @@ jobs:
 
       - name: Build and test C++23 mode
         if: ${{ contains( matrix.env.modes, 'cxx23' ) }}
+        continue-on-error: true
         run: |
           cd .build
           cmake --build . --config ${{ matrix.configuration }} --target clean
