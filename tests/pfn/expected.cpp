@@ -16,6 +16,10 @@
 
 enum Error { unknown = 1, file_not_found = 5 };
 
+namespace {
+int volatile state = 0; // To be used as a side effect when we need to disable optimizations
+}
+
 TEST_CASE("bad_expected_access", "[expected][polyfill][bad_expected_access]")
 {
   SECTION("bad_expected_access<void>")
@@ -513,120 +517,171 @@ TEST_CASE("expected", "[expected][polyfill]")
       CHECK(b.value() == 0);
     }
 
-    SECTION("from other expected rval")
+    SECTION("constexpr")
     {
       using T = expected<helper, Error>;
-      static_assert(std::is_constructible_v<T, expected<int, Error>>);
-      static_assert(std::is_nothrow_constructible_v<T, expected<int, Error>>); // extension
-      static_assert(std::is_constructible_v<T, expected<std::initializer_list<double>, Error>>);
-      static_assert(
-          not std::is_nothrow_constructible_v<T, expected<std::initializer_list<double>, Error>>); // extension
 
       constexpr T a(expected<int, Error>(2));
       static_assert(a.value().v == 2);
-      constexpr T b(expected<int, Error>(unexpect, Error::unknown));
-      static_assert(b.error() == Error::unknown);
 
+      constexpr expected<int, Error> v(3);
+      constexpr T b(v);
+      static_assert(b.value().v == 3);
+
+      constexpr T c(std::in_place, 5, 7);
+      static_assert(c.value().v == 35);
+
+      constexpr T d(std::in_place, {5.0, 6.0});
+      static_assert(d.value().v == 30);
+
+      using U = expected<int, helper>;
+      constexpr U e(unexpect, 5, 7);
+      static_assert(e.error().v == 35);
+
+      constexpr U f(unexpect, {5.0, 6.0});
+      static_assert(f.error().v == 30);
+    }
+
+    struct H {
+      int v;
+      struct zero_exception {};
+
+      H(H const &) = default;
+      H(int a) noexcept : v(a) { state += v; };
+      H(int a, int b) noexcept : v(a * b) { state += v; };
+      H(std::initializer_list<int> list) noexcept(false) : v(init(list))
+      {
+        if (v == 0)
+          throw zero_exception();
+        state += v;
+      }
+      static int init(std::initializer_list<int> list)
+      {
+        int r = 1;
+        for (int i : list)
+          r *= i;
+        return r;
+      }
+    };
+
+    SECTION("from other expected rval")
+    {
+      using T = expected<H, Error>;
+      static_assert(std::is_constructible_v<T, expected<int, Error>>);
+      static_assert(std::is_nothrow_constructible_v<T, expected<int, Error>>); // extension
+      static_assert(std::is_constructible_v<T, expected<std::initializer_list<int>, Error>>);
+      static_assert(not std::is_nothrow_constructible_v<T, expected<std::initializer_list<int>, Error>>); // extension
+
+      auto before = state;
       T c(expected<int, Error>(3));
       CHECK(c.value().v == 3);
+      CHECK(state == before + 3);
       T d(expected<int, Error>(unexpect, Error::file_not_found));
       CHECK(d.error() == Error::file_not_found);
+
+      using U = expected<int, H>;
+      before = state;
+      U const g(expected<int, int>(unexpect, 7));
+      CHECK(g.error().v == 7);
+      CHECK(state == before + 7);
     }
 
     SECTION("from other expected lval const")
     {
-      using T = expected<helper, Error>;
+      using T = expected<H, Error>;
       static_assert(std::is_constructible_v<T, expected<int, Error> const &>);
       static_assert(std::is_nothrow_constructible_v<T, expected<int, Error> const &>); // extension
-      static_assert(std::is_constructible_v<T, expected<std::initializer_list<double>, Error> const &>);
+      static_assert(std::is_constructible_v<T, expected<std::initializer_list<int>, Error> const &>);
       static_assert(
-          not std::is_nothrow_constructible_v<T, expected<std::initializer_list<double>, Error> const &>); // extension
+          not std::is_nothrow_constructible_v<T, expected<std::initializer_list<int>, Error> const &>); // extension
 
       constexpr expected<int, Error> v(5);
       constexpr expected<int, Error> e(unexpect, Error::file_not_found);
-      constexpr T a(v);
-      static_assert(a.value().v == 5);
-      constexpr T b(e);
-      static_assert(b.error() == Error::file_not_found);
 
+      auto before = state;
       T c(v);
       CHECK(c.value().v == 5);
+      CHECK(state == before + 5);
       T d(e);
       CHECK(d.error() == Error::file_not_found);
+
+      using U = expected<int, H>;
+      constexpr expected<int, int> f(unexpect, 11);
+      before = state;
+      U const g(f);
+      CHECK(g.error().v == 11);
+      CHECK(state == before + 11);
     }
 
     SECTION("converting")
     {
-      using T = expected<helper, Error>;
+      using T = expected<H, Error>;
       static_assert(std::is_constructible_v<T, int>);
       static_assert(std::is_nothrow_constructible_v<T, int>); // extension
-      static_assert(std::is_constructible_v<T, helper>);
-      static_assert(std::is_nothrow_constructible_v<T, helper>); // extension
-      static_assert(std::is_constructible_v<T, std::initializer_list<double>>);
-      static_assert(not std::is_nothrow_constructible_v<T, std::initializer_list<double>>); // extension
+      static_assert(std::is_constructible_v<T, H>);
+      static_assert(std::is_nothrow_constructible_v<T, H>); // extension
+      static_assert(std::is_constructible_v<T, std::initializer_list<int>>);
+      static_assert(not std::is_nothrow_constructible_v<T, std::initializer_list<int>>); // extension
 
-      constexpr T a(7);
-      static_assert(a.value().v == 7);
-
+      auto before = state;
       T const b(11);
       CHECK(b.value().v == 11);
-
-      T const c(helper(13));
-      CHECK(c.value().v == 13 * helper::from_rval);
+      CHECK(state == before + 11);
     }
 
     SECTION("with in_place")
     {
-      using T = expected<helper, Error>;
+      using T = expected<H, Error>;
       static_assert(std::is_constructible_v<T, std::in_place_t, int>);
       static_assert(std::is_nothrow_constructible_v<T, std::in_place_t, int>); // extension
-      static_assert(std::is_constructible_v<T, std::in_place_t, helper>);
-      static_assert(std::is_nothrow_constructible_v<T, std::in_place_t, helper>); // extension
-      static_assert(std::is_constructible_v<T, std::in_place_t, std::initializer_list<double>>);
-      static_assert(
-          not std::is_nothrow_constructible_v<T, std::in_place_t, std::initializer_list<double>>); // extension
+      static_assert(std::is_constructible_v<T, std::in_place_t, H>);
+      static_assert(std::is_nothrow_constructible_v<T, std::in_place_t, H>); // extension
+      static_assert(std::is_constructible_v<T, std::in_place_t, std::initializer_list<int>>);
+      static_assert(not std::is_nothrow_constructible_v<T, std::in_place_t, std::initializer_list<int>>); // extension
 
-      constexpr T a(std::in_place, 5, 7);
-      static_assert(a.value().v == 35);
-
+      auto before = state;
       T const b(std::in_place, 11, 13);
       CHECK(b.value().v == 11 * 13);
+      CHECK(state == before + (11 * 13));
 
-      T const c(std::in_place, {2.0, 3.0, 5.0});
-      CHECK(c.value().v == 2 * 3 * 5.0);
+      before = state;
+      T const c(std::in_place, {2, 3, 5});
+      CHECK(c.value().v == 2 * 3 * 5);
+      CHECK(state == before + (2 * 3 * 5));
 
       try {
-        T const d(std::in_place, {2.0, 3.0, 0.0});
+        T const d(std::in_place, {2, 3, 0});
         FAIL();
-      } catch (std::runtime_error const &e) {
-        CHECK(std::strcmp(e.what(), "invalid input") == 0);
+      } catch (H::zero_exception) {
+        SUCCEED();
       }
     }
 
     SECTION("with unexpect")
     {
-      using T = expected<int, helper>;
+      using T = expected<int, H>;
       static_assert(std::is_constructible_v<T, unexpect_t, int>);
       static_assert(std::is_nothrow_constructible_v<T, unexpect_t, int>); // extension
-      static_assert(std::is_constructible_v<T, unexpect_t, helper>);
-      static_assert(std::is_nothrow_constructible_v<T, unexpect_t, helper>); // extension
-      static_assert(std::is_constructible_v<T, unexpect_t, std::initializer_list<double>>);
-      static_assert(not std::is_nothrow_constructible_v<T, unexpect_t, std::initializer_list<double>>); // extension
+      static_assert(std::is_constructible_v<T, unexpect_t, H>);
+      static_assert(std::is_nothrow_constructible_v<T, unexpect_t, H>); // extension
+      static_assert(std::is_constructible_v<T, unexpect_t, std::initializer_list<int>>);
+      static_assert(not std::is_nothrow_constructible_v<T, unexpect_t, std::initializer_list<int>>); // extension
 
-      constexpr T a(unexpect, 5, 7);
-      static_assert(a.error().v == 35);
-
+      auto before = state;
       T const b(unexpect, 11, 13);
       CHECK(b.error().v == 11 * 13);
+      CHECK(state == before + (11 * 13));
 
-      T const c(unexpect, {2.0, 3.0, 5.0});
-      CHECK(c.error().v == 2 * 3 * 5.0);
+      before = state;
+      T const c(unexpect, {2, 3, 5});
+      CHECK(c.error().v == 2 * 3 * 5);
+      CHECK(state == before + (2 * 3 * 5));
 
       try {
-        T const d(unexpect, {2.0, 3.0, 0.0});
+        T const d(unexpect, {2, 3, 0});
         FAIL();
-      } catch (std::runtime_error const &e) {
-        CHECK(std::strcmp(e.what(), "invalid input") == 0);
+      } catch (H::zero_exception) {
+        SUCCEED();
       }
     }
   }
