@@ -3,8 +3,8 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#ifndef INCLUDE_FUNCTIONAL_UTILITY
-#define INCLUDE_FUNCTIONAL_UTILITY
+#ifndef INCLUDE_FN_UTILITY
+#define INCLUDE_FN_UTILITY
 
 #include <fn/detail/fwd_macro.hpp>
 #include <fn/detail/traits.hpp>

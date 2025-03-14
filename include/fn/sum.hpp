@@ -3,8 +3,8 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#ifndef INCLUDE_FUNCTIONAL_SUM
-#define INCLUDE_FUNCTIONAL_SUM
+#ifndef INCLUDE_FN_SUM
+#define INCLUDE_FN_SUM
 
 #include <fn/detail/functional.hpp>
 #include <fn/detail/meta.hpp>
