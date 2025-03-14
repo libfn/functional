@@ -9,6 +9,7 @@
 
 #include <catch2/catch_all.hpp>
 
+#include <initializer_list>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -413,11 +414,12 @@ TEST_CASE("expected", "[expected][polyfill]")
   using pfn::bad_expected_access;
   using pfn::expected;
   using pfn::unexpect;
+  using pfn::unexpect_t;
   constexpr bool extension = true;
 
-  SECTION("default ctor")
+  SECTION("constructors")
   {
-    SECTION("unavailable")
+    SECTION("default unavailable")
     {
       static_assert(not std::is_default_constructible_v<helper>); // prerequisite
       static_assert(not std::is_default_constructible_v<expected<helper, Error>>);
@@ -425,7 +427,7 @@ TEST_CASE("expected", "[expected][polyfill]")
       SUCCEED();
     }
 
-    SECTION("trivial")
+    SECTION("default trivial")
     {
       using T = expected<int, Error>;
       static_assert(std::is_default_constructible_v<T>);
@@ -445,7 +447,7 @@ TEST_CASE("expected", "[expected][polyfill]")
       int v = 12;
     };
 
-    SECTION("noexcept(true) from value type")
+    SECTION("default noexcept(true) from value type")
     {
       using T = expected<A, Error>;
       static_assert(std::is_default_constructible_v<T>);
@@ -465,7 +467,7 @@ TEST_CASE("expected", "[expected][polyfill]")
       int v = 42;
     };
 
-    SECTION("noexcept(false) from value type")
+    SECTION("default noexcept(false) from value type")
     {
       using T = expected<B, Error>;
       static_assert(std::is_default_constructible_v<T>);
@@ -509,6 +511,123 @@ TEST_CASE("expected", "[expected][polyfill]")
       T b;
       CHECK(b.has_value());
       CHECK(b.value() == 0);
+    }
+
+    SECTION("from other expected rval")
+    {
+      using T = expected<helper, Error>;
+      static_assert(std::is_constructible_v<T, expected<int, Error>>);
+      static_assert(std::is_nothrow_constructible_v<T, expected<int, Error>>); // extension
+      static_assert(std::is_constructible_v<T, expected<std::initializer_list<double>, Error>>);
+      static_assert(
+          not std::is_nothrow_constructible_v<T, expected<std::initializer_list<double>, Error>>); // extension
+
+      constexpr T a(expected<int, Error>(2));
+      static_assert(a.value().v == 2);
+      constexpr T b(expected<int, Error>(unexpect, Error::unknown));
+      static_assert(b.error() == Error::unknown);
+
+      T c(expected<int, Error>(3));
+      CHECK(c.value().v == 3);
+      T d(expected<int, Error>(unexpect, Error::file_not_found));
+      CHECK(d.error() == Error::file_not_found);
+    }
+
+    SECTION("from other expected lval const")
+    {
+      using T = expected<helper, Error>;
+      static_assert(std::is_constructible_v<T, expected<int, Error> const &>);
+      static_assert(std::is_nothrow_constructible_v<T, expected<int, Error> const &>); // extension
+      static_assert(std::is_constructible_v<T, expected<std::initializer_list<double>, Error> const &>);
+      static_assert(
+          not std::is_nothrow_constructible_v<T, expected<std::initializer_list<double>, Error> const &>); // extension
+
+      constexpr expected<int, Error> v(5);
+      constexpr expected<int, Error> e(unexpect, Error::file_not_found);
+      constexpr T a(v);
+      static_assert(a.value().v == 5);
+      constexpr T b(e);
+      static_assert(b.error() == Error::file_not_found);
+
+      T c(v);
+      CHECK(c.value().v == 5);
+      T d(e);
+      CHECK(d.error() == Error::file_not_found);
+    }
+
+    SECTION("converting")
+    {
+      using T = expected<helper, Error>;
+      static_assert(std::is_constructible_v<T, int>);
+      static_assert(std::is_nothrow_constructible_v<T, int>); // extension
+      static_assert(std::is_constructible_v<T, helper>);
+      static_assert(std::is_nothrow_constructible_v<T, helper>); // extension
+      static_assert(std::is_constructible_v<T, std::initializer_list<double>>);
+      static_assert(not std::is_nothrow_constructible_v<T, std::initializer_list<double>>); // extension
+
+      constexpr T a(7);
+      static_assert(a.value().v == 7);
+
+      T const b(11);
+      CHECK(b.value().v == 11);
+
+      T const c(helper(13));
+      CHECK(c.value().v == 13 * helper::from_rval);
+    }
+
+    SECTION("with in_place")
+    {
+      using T = expected<helper, Error>;
+      static_assert(std::is_constructible_v<T, std::in_place_t, int>);
+      static_assert(std::is_nothrow_constructible_v<T, std::in_place_t, int>); // extension
+      static_assert(std::is_constructible_v<T, std::in_place_t, helper>);
+      static_assert(std::is_nothrow_constructible_v<T, std::in_place_t, helper>); // extension
+      static_assert(std::is_constructible_v<T, std::in_place_t, std::initializer_list<double>>);
+      static_assert(
+          not std::is_nothrow_constructible_v<T, std::in_place_t, std::initializer_list<double>>); // extension
+
+      constexpr T a(std::in_place, 5, 7);
+      static_assert(a.value().v == 35);
+
+      T const b(std::in_place, 11, 13);
+      CHECK(b.value().v == 11 * 13);
+
+      T const c(std::in_place, {2.0, 3.0, 5.0});
+      CHECK(c.value().v == 2 * 3 * 5.0);
+
+      try {
+        T const d(std::in_place, {2.0, 3.0, 0.0});
+        FAIL();
+      } catch (std::runtime_error const &e) {
+        CHECK(std::strcmp(e.what(), "invalid input") == 0);
+      }
+    }
+
+    SECTION("with unexpect")
+    {
+      using T = expected<int, helper>;
+      static_assert(std::is_constructible_v<T, unexpect_t, int>);
+      static_assert(std::is_nothrow_constructible_v<T, unexpect_t, int>); // extension
+      static_assert(std::is_constructible_v<T, unexpect_t, helper>);
+      static_assert(std::is_nothrow_constructible_v<T, unexpect_t, helper>); // extension
+      static_assert(std::is_constructible_v<T, unexpect_t, std::initializer_list<double>>);
+      static_assert(not std::is_nothrow_constructible_v<T, unexpect_t, std::initializer_list<double>>); // extension
+
+      constexpr T a(unexpect, 5, 7);
+      static_assert(a.error().v == 35);
+
+      T const b(unexpect, 11, 13);
+      CHECK(b.error().v == 11 * 13);
+
+      T const c(unexpect, {2.0, 3.0, 5.0});
+      CHECK(c.error().v == 2 * 3 * 5.0);
+
+      try {
+        T const d(unexpect, {2.0, 3.0, 0.0});
+        FAIL();
+      } catch (std::runtime_error const &e) {
+        CHECK(std::strcmp(e.what(), "invalid input") == 0);
+      }
     }
   }
 
