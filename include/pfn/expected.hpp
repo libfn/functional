@@ -187,6 +187,7 @@ private:
 
   template <class U, class G> using _can_copy_convert = _can_convert_detail<U, G, U const &, G const &>;
   template <class U, class G> using _can_move_convert = _can_convert_detail<U, G, U, G>;
+  template <class U, class G> friend class expected;
 
   template <class U>
   using _can_convert = ::std::bool_constant<                            //
