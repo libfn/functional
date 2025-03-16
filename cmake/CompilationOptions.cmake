@@ -33,7 +33,12 @@ function(append_compilation_options)
         endif()
 
         if(Options_OPTIMIZATION)
-            target_compile_options(${Options_NAME} PRIVATE $<IF:$<CONFIG:Debug>,-O0,-O2>)
+            if(CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+                target_compile_options(${Options_NAME} PRIVATE -O0 -fsanitize=address -static-libasan -fno-omit-frame-pointer)
+                target_link_options(${Options_NAME} PRIVATE -fsanitize=address)
+            else()
+                target_compile_options(${Options_NAME} PRIVATE $<IF:$<CONFIG:Debug>,-O0 -fno-omit-frame-pointer,-O2>)
+            endif()
         endif()
 
         if(Options_INTERFACE)
