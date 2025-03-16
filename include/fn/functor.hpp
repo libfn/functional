@@ -3,8 +3,8 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#ifndef INCLUDE_FUNCTIONAL_FUNCTOR
-#define INCLUDE_FUNCTIONAL_FUNCTOR
+#ifndef INCLUDE_FN_FUNCTOR
+#define INCLUDE_FN_FUNCTOR
 
 #include <fn/concepts.hpp>
 #include <fn/functional.hpp>

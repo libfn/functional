@@ -3,8 +3,8 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#ifndef INCLUDE_FUNCTIONAL_FAIL
-#define INCLUDE_FUNCTIONAL_FAIL
+#ifndef INCLUDE_FN_FAIL
+#define INCLUDE_FN_FAIL
 
 #include <fn/functor.hpp>
 #include <fn/optional.hpp>
