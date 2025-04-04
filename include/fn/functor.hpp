@@ -39,7 +39,6 @@ template <typename Functor, typename... Args> struct functor final {
   using data_t = pack<as_value_t<Args>...>;
   data_t data;
 
-  static_assert(sizeof...(Args) > 0); // NOTE Consider relaxing
   static_assert(std::is_empty_v<functor_type> && std::is_empty_v<functor_apply>
                 && std::is_default_constructible_v<functor_type> && std::is_default_constructible_v<functor_apply>);
 
