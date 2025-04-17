@@ -192,7 +192,7 @@ private:
   template <class U>
   using _can_convert = ::std::bool_constant<                            //
       not ::std::is_same_v<::std::remove_cvref_t<U>, ::std::in_place_t> //
-      && not ::std::is_same_v<::std::remove_cvref_t<U>, unexpect_t>     //
+      && not ::std::is_same_v<::std::remove_cvref_t<U>, unexpect_t>     // LWG4222
       && not ::std::is_same_v<expected, ::std::remove_cvref_t<U>>       //
       && not detail::_is_some_unexpected<::std::remove_cvref_t<U>>      //
       && ::std::is_constructible_v<T, U>                                //
@@ -282,8 +282,21 @@ public:
   {
   }
 
-  template <class G> constexpr explicit(/* TODO */ false) expected(unexpected<G> const &);
-  template <class G> constexpr explicit(/* TODO */ false) expected(unexpected<G> &&);
+  template <class G>
+  constexpr explicit(!::std::is_convertible_v<G const &, E>) expected(unexpected<G> const &g) //
+      noexcept(::std::is_nothrow_constructible_v<E, G const &>)                               // extension
+    requires(::std::is_constructible_v<E, G const &>)
+      : e_(std::forward<G const &>(g.error())), set_(false)
+  {
+  }
+
+  template <class G>
+  constexpr explicit(!::std::is_convertible_v<G, E>) expected(unexpected<G> &&g) //
+      noexcept(::std::is_nothrow_constructible_v<E, G>)                          // extension
+    requires(::std::is_constructible_v<E, G>)
+      : e_(std::forward<G>(g.error())), set_(false)
+  {
+  }
 
   template <class... Args>
   constexpr explicit expected(::std::in_place_t, Args &&...a) //
