@@ -12,6 +12,7 @@ namespace fn {
 
 // functors
 struct and_then_t;
+struct discard_t;
 struct transform_t;
 struct transform_error_t;
 struct or_else_t;

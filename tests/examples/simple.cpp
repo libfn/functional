@@ -4,6 +4,7 @@
 // or copy at https://opensource.org/licenses/ISC
 
 #include <fn/and_then.hpp>
+#include <fn/discard.hpp>
 #include <fn/fail.hpp>
 #include <fn/filter.hpp>
 #include <fn/inspect.hpp>
@@ -114,10 +115,19 @@ TEST_CASE("Minimal expected", "[expected][and_then]")
     REQUIRE(value.error().what == "Less than 42");
     // example-expected-filter-error
   }
+  {
+    // example-expected-discard
+    fn::expected<int, Error> ex{42};
+
+    // Observe for side-effects only
+    ex | fn::inspect([](int v) noexcept { REQUIRE(v == 42); })
+       | fn::discard();
+    // example-expected-discard
+  }
   // clang-format on
 }
 
-TEST_CASE("Demo expected", "[expected][pack][and_then][transform_error][transform][inspect][inspect_error]["
+TEST_CASE("Demo expected", "[expected][pack][and_then][discard][transform_error][transform][inspect][inspect_error]["
                            "recover][fail][filter][immovable]")
 {
   constexpr auto fn1 = [](char const *str, double &peek) {
@@ -219,6 +229,16 @@ TEST_CASE("Demo expected", "[expected][pack][and_then][transform_error][transfor
   auto const p4 = fn3("42", "12");
   CHECK(p4.has_value());
   CHECK(p4.value() == 42 * 12);
+
+  fn::expected<int, Error>{42}                                  //
+      | fn::inspect([](int v) noexcept { REQUIRE(v == 42); })   //
+      | fn::inspect_error([](Error) noexcept { CHECK(false); }) //
+      | fn::discard();
+
+  fn::expected<int, Error>{std::unexpected<Error>{"discarded"}}                     //
+      | fn::inspect([](int) noexcept { CHECK(false); })                             //
+      | fn::inspect_error([](Error e) noexcept { REQUIRE(e.what == "discarded"); }) //
+      | fn::discard();
 }
 
 TEST_CASE("Minimal optional", "[optional][and_then]")
@@ -250,9 +270,9 @@ TEST_CASE("Minimal optional", "[optional][and_then]")
   }
   {
     // example-optional-filter-value
-    fn::optional<int> ex{42};
+    fn::optional<int> op{42};
 
-    auto value = ex
+    auto value = op
         | fn::filter([](auto &&i) { return i >= 42; }); // Filter out values less than 42
 
     REQUIRE(value.value() == 42);
@@ -260,18 +280,27 @@ TEST_CASE("Minimal optional", "[optional][and_then]")
   }
   {
     // example-optional-filter-empty
-    fn::optional<int> ex{12};
+    fn::optional<int> op{12};
 
-    auto value = ex
+    auto value = op
         | fn::filter([](auto &&i) { return i >= 42; });
 
     REQUIRE(not value.has_value());
     // example-optional-filter-empty
   }
+  {
+    // example-optional-discard
+    fn::optional<int> op{42};
+
+    // Observe for side-effects only
+    op | fn::inspect([](int v) noexcept { REQUIRE(v == 42); })
+       | fn::discard();
+    // example-optional-discard
+  }
   // clang-format on
 }
 
-TEST_CASE("Demo optional", "[optional][pack][and_then][or_else][inspect][transform][fail][filter][recover]")
+TEST_CASE("Demo optional", "[optional][pack][and_then][discard][or_else][inspect][transform][fail][filter][recover]")
 {
   constexpr auto fn1 = [](char const *str, int &peek) {
     using namespace fn;
@@ -359,6 +388,10 @@ TEST_CASE("Demo optional", "[optional][pack][and_then][or_else][inspect][transfo
   auto const p4 = fn3("42", "12");
   CHECK(p4.has_value());
   CHECK(p4.value() == 42 * 12);
+
+  fn::optional<int>{42}                                       //
+      | fn::inspect([](int v) noexcept { REQUIRE(v == 42); }) //
+      | fn::discard();
 }
 
 TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform][graded]")

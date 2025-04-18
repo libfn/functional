@@ -65,6 +65,7 @@ set(INCLUDE_FN_HEADERS
     fn/and_then.hpp
     fn/choice.hpp
     fn/concepts.hpp
+    fn/discard.hpp
     fn/expected.hpp
     fn/fail.hpp
     fn/filter.hpp
