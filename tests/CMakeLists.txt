@@ -22,6 +22,7 @@ set(TESTS_FN_SOURCES
     fn/and_then.cpp
     fn/choice.cpp
     fn/concepts.cpp
+    fn/discard.cpp
     fn/expected.cpp
     fn/fail.cpp
     fn/filter.cpp

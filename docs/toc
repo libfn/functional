@@ -1,5 +1,6 @@
 expected
     and_then
+    discard
     fail
     filter
     inspect_error
@@ -11,6 +12,7 @@ expected
     value_or
 optional
     and_then
+    discard
     fail
     filter
     inspect_error
