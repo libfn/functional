@@ -11,7 +11,7 @@
 #include <type_traits>
 #include <utility>
 
-template <auto V> struct helper_t {
+template <int V> struct helper_t {
   static inline int state = 0;
 
   int v = {};
@@ -61,9 +61,24 @@ template <auto V> struct helper_t {
     return *this;
   }
 
+  // See table below
   constexpr helper_t(helper_t &o) noexcept : v(o.v) { v *= from_lval; }
-  constexpr helper_t(helper_t const &o) noexcept : v(o.v) { v *= from_lval_const; }
-  constexpr helper_t(helper_t &&o) noexcept : v(o.v) { v *= from_rval; }
+  constexpr helper_t(helper_t const &o) noexcept(V < 2 || V >= 4) : v(o.v)
+  {
+    v *= from_lval_const;
+    if constexpr (V >= 2 && V < 4) {
+      if (v == 0)
+        throw std::runtime_error("invalid input");
+    }
+  }
+  constexpr helper_t(helper_t &&o) noexcept(V < 3 || V >= 5) : v(o.v)
+  {
+    v *= from_rval;
+    if constexpr (V >= 3 && V < 5) {
+      if (v == 0)
+        throw std::runtime_error("invalid input");
+    }
+  }
   constexpr helper_t(helper_t const &&o) noexcept : v(o.v) { v *= from_rval_const; }
 
   // The intent of non-constexpr constructors is to make sure that they are never optimized away,
@@ -77,12 +92,7 @@ template <auto V> struct helper_t {
     state += v;
   }
 
-  helper_t(std::initializer_list<double> list) noexcept(true) : v(init(list))
-  {
-    if (v == 0)
-      std::terminate();
-    state += v;
-  }
+  helper_t(std::initializer_list<double> list) noexcept(true) : v(init(list)) { state += v; }
 
   // Potentially throwing constructor
   constexpr helper_t(std::initializer_list<double> list, std::integral auto... a) noexcept(true)
@@ -105,6 +115,27 @@ template <auto V> struct helper_t {
   friend bool operator==(helper_t, std::integral auto) = delete;
   friend std::strong_ordering operator<=>(helper_t, helper_t) = delete;
 };
+
+//    helper_t<V>
+// V  is_nothrow_copy_constructible  is_nothrow_move_constructible
+// 0  1                              1
+// 1  1                              1
+// 2  0                              1
+// 3  0                              0
+// 4  1                              0
+// 5  1                              1
+static_assert(std::is_nothrow_copy_constructible_v<helper_t<0>>);
+static_assert(std::is_nothrow_move_constructible_v<helper_t<0>>);
+static_assert(std::is_nothrow_copy_constructible_v<helper_t<1>>);
+static_assert(std::is_nothrow_move_constructible_v<helper_t<1>>);
+static_assert(not std::is_nothrow_copy_constructible_v<helper_t<2>>);
+static_assert(std::is_nothrow_move_constructible_v<helper_t<2>>);
+static_assert(not std::is_nothrow_copy_constructible_v<helper_t<3>>);
+static_assert(not std::is_nothrow_move_constructible_v<helper_t<3>>);
+static_assert(std::is_nothrow_copy_constructible_v<helper_t<4>>);
+static_assert(not std::is_nothrow_move_constructible_v<helper_t<4>>);
+static_assert(std::is_nothrow_copy_constructible_v<helper_t<5>>);
+static_assert(std::is_nothrow_move_constructible_v<helper_t<5>>);
 
 // Swap will also multiply witness by a prime
 template <auto V> constexpr void swap(helper_t<V> &l, helper_t<V> &r)

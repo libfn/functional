@@ -199,6 +199,39 @@ private:
       && (not ::std::is_same_v<bool, ::std::remove_cv_t<T>>             //
           || not detail::_is_some_expected<::std::remove_cvref_t<U>>)>;
 
+  template <class U>
+  using _can_convert_assign = ::std::bool_constant<                //
+      not ::std::is_same_v<expected, ::std::remove_cvref_t<U>>     //
+      && not detail::_is_some_unexpected<::std::remove_cvref_t<U>> //
+      && ::std::is_constructible_v<T, U>                           //
+      && ::std::is_assignable_v<T, U>                              //
+      && (::std::is_nothrow_constructible_v<T, U>                  //
+          || ::std::is_nothrow_move_constructible_v<T>             //
+          || ::std::is_nothrow_move_constructible_v<E>)>;
+
+  // [expected.object.assign]
+  template <typename New, typename Old, typename... Args>
+  static constexpr void _reinit(New &newval, Old &oldval, Args &&...args)
+  {
+    if constexpr (::std::is_nothrow_constructible_v<New, Args...>) {
+      ::std::destroy_at(::std::addressof(oldval));
+      ::std::construct_at(::std::addressof(newval), FWD(args)...);
+    } else if constexpr (::std::is_nothrow_move_constructible_v<New>) {
+      New tmp(FWD(args)...);
+      ::std::destroy_at(::std::addressof(oldval));
+      ::std::construct_at(::std::addressof(newval), std::move(tmp));
+    } else {
+      Old tmp(std::move(oldval));
+      ::std::destroy_at(::std::addressof(oldval));
+      try {
+        ::std::construct_at(::std::addressof(newval), FWD(args)...);
+      } catch (...) {
+        ::std::construct_at(::std::addressof(oldval), std::move(tmp));
+        throw;
+      }
+    }
+  }
+
 public:
   using value_type = T;
   using error_type = E;
@@ -226,9 +259,9 @@ public:
       : set_(s.set_)
   {
     if (set_)
-      ::std::construct_at(&v_, s.v_);
+      ::std::construct_at(::std::addressof(v_), s.v_);
     else
-      ::std::construct_at(&e_, s.e_);
+      ::std::construct_at(::std::addressof(e_), s.e_);
   }
 
   constexpr expected(expected &&s)
@@ -242,9 +275,9 @@ public:
       : set_(s.set_)
   {
     if (set_)
-      ::std::construct_at(&v_, ::std::move(s.v_));
+      ::std::construct_at(::std::addressof(v_), ::std::move(s.v_));
     else
-      ::std::construct_at(&e_, ::std::move(s.e_));
+      ::std::construct_at(::std::addressof(e_), ::std::move(s.e_));
   }
 
   template <class U, class G>
@@ -256,9 +289,9 @@ public:
       : set_(s.set_)
   {
     if (set_)
-      ::std::construct_at(&v_, s.v_);
+      ::std::construct_at(::std::addressof(v_), s.v_);
     else
-      ::std::construct_at(&e_, s.e_);
+      ::std::construct_at(::std::addressof(e_), s.e_);
   }
 
   template <class U, class G>
@@ -269,9 +302,9 @@ public:
       : set_(s.set_)
   {
     if (set_)
-      ::std::construct_at(&v_, ::std::move(s.v_));
+      ::std::construct_at(::std::addressof(v_), ::std::move(s.v_));
     else
-      ::std::construct_at(&e_, ::std::move(s.e_));
+      ::std::construct_at(::std::addressof(e_), ::std::move(s.e_));
   }
 
   template <class U = ::std::remove_cv_t<T>>
@@ -286,7 +319,7 @@ public:
   constexpr explicit(!::std::is_convertible_v<G const &, E>) expected(unexpected<G> const &g) //
       noexcept(::std::is_nothrow_constructible_v<E, G const &>)                               // extension
     requires(::std::is_constructible_v<E, G const &>)
-      : e_(std::forward<G const &>(g.error())), set_(false)
+      : e_(::std::forward<G const &>(g.error())), set_(false)
   {
   }
 
@@ -294,7 +327,7 @@ public:
   constexpr explicit(!::std::is_convertible_v<G, E>) expected(unexpected<G> &&g) //
       noexcept(::std::is_nothrow_constructible_v<E, G>)                          // extension
     requires(::std::is_constructible_v<E, G>)
-      : e_(std::forward<G>(g.error())), set_(false)
+      : e_(::std::forward<G>(g.error())), set_(false)
   {
   }
 
@@ -336,7 +369,7 @@ public:
     requires(::std::is_trivially_destructible_v<T> && not ::std::is_trivially_destructible_v<E>)
   {
     if (not set_)
-      ::std::destroy_at(&e_);
+      ::std::destroy_at(::std::addressof(e_));
     // else T is trivially destructible, no need to do anything
   }
   constexpr ~expected()                             //
@@ -344,7 +377,7 @@ public:
     requires(not ::std::is_trivially_destructible_v<T> && ::std::is_trivially_destructible_v<E>)
   {
     if (set_)
-      ::std::destroy_at(&v_);
+      ::std::destroy_at(::std::addressof(v_));
     // else E is trivially destructible, no need to do anything
   }
   constexpr ~expected()                                                                    //
@@ -352,17 +385,103 @@ public:
     requires(not ::std::is_trivially_destructible_v<T> && not ::std::is_trivially_destructible_v<E>)
   {
     if (set_)
-      ::std::destroy_at(&v_);
+      ::std::destroy_at(::std::addressof(v_));
     else
-      ::std::destroy_at(&e_);
+      ::std::destroy_at(::std::addressof(e_));
   }
 
   // [expected.object.assign], assignment
-  constexpr expected &operator=(expected const &);
-  constexpr expected &operator=(expected &&) noexcept(/* TODO */ false);
-  template <class U = T> constexpr expected &operator=(U &&);
-  template <class G> constexpr expected &operator=(unexpected<G> const &);
-  template <class G> constexpr expected &operator=(unexpected<G> &&);
+  constexpr expected &operator=(expected const &) = delete;
+  constexpr expected &operator=(expected const &s) //
+      noexcept(::std::is_nothrow_copy_assignable_v<T> && ::std::is_nothrow_copy_constructible_v<T>
+               && ::std::is_nothrow_copy_assignable_v<E> && ::std::is_nothrow_copy_constructible_v<E>) // extension
+    requires(::std::is_copy_assignable_v<T> && ::std::is_copy_constructible_v<T> && ::std::is_copy_assignable_v<E>
+             && ::std::is_copy_constructible_v<E>
+             && (::std::is_nothrow_move_constructible_v<T> || ::std::is_nothrow_move_constructible_v<E>))
+  {
+    if (set_ && s.set_) {
+      v_ = s.v_;
+    } else if (set_) {
+      _reinit(e_, v_, s.e_);
+      set_ = false;
+    } else if (s.set_) {
+      _reinit(v_, e_, s.v_);
+      set_ = true;
+    } else {
+      e_ = s.e_;
+    }
+    return *this;
+  }
+
+  constexpr expected &operator=(expected &&s) //
+      noexcept(::std::is_nothrow_move_assignable_v<T> && ::std::is_nothrow_move_constructible_v<T>
+               && ::std::is_nothrow_move_assignable_v<E> && ::std::is_nothrow_move_constructible_v<E>) // required
+    requires(::std::is_move_constructible_v<T> && ::std::is_move_assignable_v<T> && ::std::is_move_constructible_v<E>
+             && ::std::is_move_assignable_v<E>
+             && (::std::is_nothrow_move_constructible_v<T> || ::std::is_nothrow_move_constructible_v<E>))
+  {
+    if (set_ && s.set_) {
+      v_ = ::std::move(s.v_);
+    } else if (set_) {
+      _reinit(e_, v_, ::std::move(s.e_));
+      set_ = false;
+    } else if (s.set_) {
+      _reinit(v_, e_, ::std::move(s.v_));
+      set_ = true;
+    } else {
+      e_ = ::std::move(s.e_);
+    }
+    return *this;
+  }
+
+  template <class U = T>
+  constexpr expected &operator=(U &&s) //
+      noexcept(::std::is_nothrow_assignable_v<T, U &&> && ::std::is_nothrow_constructible_v<T, U &&>
+               && (::std::is_nothrow_move_constructible_v<T> || ::std::is_nothrow_move_constructible_v<E>)) // extension
+    requires(_can_convert_assign<U>::value)
+  {
+    if (set_) {
+      v_ = FWD(s);
+    } else {
+      _reinit(v_, e_, FWD(s));
+      set_ = true;
+    }
+    return *this;
+  }
+
+  template <class G>
+  constexpr expected &operator=(unexpected<G> const &s) //
+      noexcept(::std::is_nothrow_assignable_v<E, G const &> && ::std::is_nothrow_constructible_v<E, G const &>
+               && (::std::is_nothrow_move_constructible_v<E> || ::std::is_nothrow_move_constructible_v<T>)) // extension
+    requires(::std::is_constructible_v<E, G const &> && ::std::is_assignable_v<E &, G const &>
+             && (::std::is_nothrow_constructible_v<E, G const &> || ::std::is_nothrow_move_constructible_v<T>
+                 || ::std::is_nothrow_move_constructible_v<E>))
+  {
+    if (not set_) {
+      e_ = ::std::forward<G const &>(s.error());
+    } else {
+      _reinit(e_, v_, ::std::forward<G const &>(s.error()));
+      set_ = false;
+    }
+    return *this;
+  }
+
+  template <class G>
+  constexpr expected &operator=(unexpected<G> &&s) //
+      noexcept(::std::is_nothrow_assignable_v<E, G &&> && ::std::is_nothrow_constructible_v<E, G &&>
+               && (::std::is_nothrow_move_constructible_v<E> || ::std::is_nothrow_move_constructible_v<T>)) // extension
+    requires(::std::is_constructible_v<E, G> && ::std::is_assignable_v<E &, G>
+             && (::std::is_nothrow_constructible_v<E, G> || ::std::is_nothrow_move_constructible_v<T>
+                 || ::std::is_nothrow_move_constructible_v<E>))
+  {
+    if (not set_) {
+      e_ = ::std::forward<G>(s.error());
+    } else {
+      _reinit(e_, v_, ::std::forward<G>(s.error()));
+      set_ = false;
+    }
+    return *this;
+  }
 
   template <class... Args> constexpr T &emplace(Args &&...) noexcept;
   template <class U, class... Args> constexpr T &emplace(std::initializer_list<U>, Args &&...) noexcept;
@@ -375,12 +494,12 @@ public:
   constexpr T const *operator->() const noexcept
   {
     ASSERT(set_);
-    return addressof(v_);
+    return ::std::addressof(v_);
   }
   constexpr T *operator->() noexcept
   {
     ASSERT(set_);
-    return addressof(v_);
+    return ::std::addressof(v_);
   }
   constexpr T const &operator*() const & noexcept { return *(this->operator->()); }
   constexpr T &operator*() & noexcept { return *(this->operator->()); }
@@ -390,46 +509,46 @@ public:
   constexpr bool has_value() const noexcept { return set_; }
   constexpr T const &value() const &
   {
-    if (!set_)
+    if (not set_)
       throw bad_expected_access<E>(::std::as_const(e_));
     return v_;
   }
   constexpr T &value() &
   {
-    if (!set_)
+    if (not set_)
       throw bad_expected_access<E>(::std::as_const(e_));
     return v_;
   }
   constexpr T const &&value() const &&
   {
-    if (!set_)
+    if (not set_)
       throw bad_expected_access<E>(::std::as_const(e_));
     return ::std::move(v_);
   }
   constexpr T &&value() &&
   {
-    if (!set_)
+    if (not set_)
       throw bad_expected_access<E>(::std::as_const(e_));
     return ::std::move(v_);
   }
   constexpr E const &error() const & noexcept
   {
-    ASSERT(!set_);
+    ASSERT(not set_);
     return e_;
   }
   constexpr E &error() & noexcept
   {
-    ASSERT(!set_);
+    ASSERT(not set_);
     return e_;
   }
   constexpr E const &&error() const && noexcept
   {
-    ASSERT(!set_);
+    ASSERT(not set_);
     return ::std::move(e_);
   }
   constexpr E &&error() && noexcept
   {
-    ASSERT(!set_);
+    ASSERT(not set_);
     return ::std::move(e_);
   }
 

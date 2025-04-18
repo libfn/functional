@@ -190,6 +190,10 @@ TEST_CASE("bad_expected_access", "[expected][polyfill][bad_expected_access]")
   }
 }
 
+template <auto V> struct dummy final {
+  decltype(V) value = V;
+};
+
 TEST_CASE("unexpect", "[expected][polyfill][unexpect]")
 {
   static_assert(std::is_empty_v<pfn::unexpect_t>);
@@ -197,11 +201,11 @@ TEST_CASE("unexpect", "[expected][polyfill][unexpect]")
   static_assert(std::is_same_v<decltype(pfn::unexpect), pfn::unexpect_t const>);
 
   // pfn::unexpect can be used as a NTTP
-  static_assert(not std::is_empty_v<helper_t<pfn::unexpect>>);
+  static_assert(not std::is_empty_v<dummy<pfn::unexpect>>);
   static constexpr auto a = pfn::unexpect;
-  static_assert(not std::is_empty_v<helper_t<a>>);
+  static_assert(not std::is_empty_v<dummy<a>>);
   static_assert(std::is_same_v<decltype(a), pfn::unexpect_t const>);
-  static_assert(std::is_same_v<helper_t<pfn::unexpect>, helper_t<a>>);
+  static_assert(std::is_same_v<dummy<pfn::unexpect>, dummy<a>>);
 
   SUCCEED();
 }
@@ -595,9 +599,6 @@ TEST_CASE("expected", "[expected][polyfill]")
 
       T const b(unexpected<int>(5));
       CHECK(b.error().v == 5);
-
-      T const c(unexpected<std::initializer_list<double>>({2, 3, 5}));
-      CHECK(c.error().v == 2 * 3 * 5);
     }
 
     SECTION("from unexpected lval const")
@@ -609,10 +610,6 @@ TEST_CASE("expected", "[expected][polyfill]")
 
       T const b(g1);
       CHECK(b.error().v == 5);
-
-      auto const g2 = unexpected<std::initializer_list<double>>({2, 3, 5});
-      T const c(g2);
-      CHECK(c.error().v == 2 * 3 * 5);
     }
 
     SECTION("with in_place")
@@ -914,6 +911,633 @@ TEST_CASE("expected", "[expected][polyfill]")
         T const a(unexpect);
         T b = a;
         CHECK(not b.has_value());
+      }
+    }
+  }
+
+  SECTION("assign")
+  {
+    using M = helper_t<2>; // nothrow move constructible
+    using E = helper_t<3>; // may throw on move and copy
+    using C = helper_t<4>; // nothrow copy constructible
+    static_assert(not std::is_nothrow_copy_constructible_v<M>);
+    static_assert(std::is_nothrow_move_constructible_v<M>);
+    static_assert(not std::is_nothrow_copy_constructible_v<E>);
+    static_assert(not std::is_nothrow_move_constructible_v<E>);
+    static_assert(std::is_nothrow_copy_constructible_v<C>);
+    static_assert(not std::is_nothrow_move_constructible_v<C>);
+
+    SECTION("from rval")
+    {
+      SECTION("value to value")
+      {
+        using T = expected<helper, Error>;
+
+        {
+          static_assert(std::is_nothrow_assignable_v<T &, T &&>); // required
+
+          T a(std::in_place, 3);
+          a = T(std::in_place, 5);
+          CHECK(a.value().v == 5 * helper::from_rval);
+        }
+
+        {
+          static_assert(not extension || std::is_nothrow_assignable_v<T &, helper &&>);
+
+          T a(std::in_place, 3);
+          a = helper(5);
+          CHECK(a.value().v == 5 * helper::from_rval);
+        }
+      }
+
+      SECTION("value to error")
+      {
+        SECTION("nothrow move")
+        {
+          using T = expected<int, M>;
+          static_assert(std::is_nothrow_assignable_v<T &, T &&>); // required
+
+          {
+            T a(std::in_place, 3);
+            a = T(unexpect, 5);
+            CHECK(a.error().v == 5 * helper::from_rval);
+          }
+
+          {
+            T a(std::in_place, 4);
+            try {
+              a = T(unexpect, {0.0});
+              SUCCEED();
+            } catch (std::runtime_error const &) {
+              FAIL();
+            }
+          }
+
+          {
+            static_assert(not extension || std::is_nothrow_assignable_v<T &, unexpected<M> &&>);
+            T a(std::in_place, 4);
+            a = unexpected<M>(5);
+            CHECK(a.error().v == 5 * helper::from_rval);
+          }
+
+          {
+            T a(std::in_place, 4);
+            try {
+              a = unexpected<M>({0.0});
+              SUCCEED();
+            } catch (std::runtime_error const &e) {
+              FAIL();
+            }
+          }
+        }
+
+        SECTION("throwing")
+        {
+          using T = expected<int, E>;
+          static_assert(not std::is_nothrow_assignable_v<T &, T &&>); // required
+
+          {
+            T a(std::in_place, 3);
+            a = T(unexpect, 5);
+            CHECK(a.error().v == 5 * helper::from_rval);
+          }
+
+          {
+            T a(std::in_place, 4);
+            try {
+              a = T(unexpect, {0.0});
+              FAIL();
+            } catch (std::runtime_error const &e) {
+              CHECK(std::strcmp(e.what(), "invalid input") == 0);
+              CHECK(a.value() == 4);
+            }
+          }
+
+          {
+            static_assert(not extension || not std::is_nothrow_assignable_v<T &, unexpected<E> &&>);
+            T a(std::in_place, 4);
+            a = unexpected<E>(5);
+            CHECK(a.error().v == 5 * helper::from_rval);
+          }
+
+          {
+            T a(std::in_place, 4);
+            try {
+              a = unexpected<E>({0.0});
+              FAIL();
+            } catch (std::runtime_error const &e) {
+              CHECK(std::strcmp(e.what(), "invalid input") == 0);
+              CHECK(a.value() == 4);
+            }
+          }
+        }
+
+        SECTION("nothrow copy")
+        {
+          using T = expected<int, C>;
+          static_assert(not std::is_nothrow_assignable_v<T &, T &&>); // required
+
+          {
+            T a(std::in_place, 3);
+            a = T(unexpect, 5);
+            CHECK(a.error().v == 5 * helper::from_rval);
+          }
+
+          {
+            T a(std::in_place, 4);
+            try {
+              a = T(unexpect, {0.0});
+              FAIL();
+            } catch (std::runtime_error const &e) {
+              CHECK(std::strcmp(e.what(), "invalid input") == 0);
+              CHECK(a.value() == 4);
+            }
+          }
+
+          {
+            static_assert(not extension || not std::is_nothrow_assignable_v<T &, unexpected<C> &&>);
+            T a(std::in_place, 4);
+            a = unexpected<C>(5);
+            CHECK(a.error().v == 5 * helper::from_rval);
+          }
+
+          {
+            T a(std::in_place, 4);
+            try {
+              a = unexpected<C>({0.0});
+              FAIL();
+            } catch (std::runtime_error const &e) {
+              CHECK(std::strcmp(e.what(), "invalid input") == 0);
+              CHECK(a.value() == 4);
+            }
+          }
+        }
+      }
+
+      SECTION("error to value")
+      {
+        SECTION("nothrow move")
+        {
+          using T = expected<M, Error>;
+          static_assert(std::is_nothrow_assignable_v<T &, T &&>); // required
+
+          {
+            T a(unexpect, Error::file_not_found);
+            a = T(std::in_place, 5);
+            CHECK(a.value().v == 5 * helper::from_rval);
+          }
+
+          {
+            T a(unexpect, Error::file_not_found);
+            try {
+              a = T(std::in_place, {0.0});
+              // expected<M, ...> must not use throwing copy constructor
+              SUCCEED();
+            } catch (std::runtime_error const &e) {
+              FAIL();
+            }
+          }
+
+          {
+            static_assert(not extension || std::is_nothrow_assignable_v<T &, M>);
+            T a(unexpect, Error::file_not_found);
+            a = M(5);
+            CHECK(a.value().v == 5 * helper::from_rval);
+          }
+
+          {
+            T a(unexpect, Error::file_not_found);
+            try {
+              a = M({0.0});
+              SUCCEED();
+            } catch (std::runtime_error const &e) {
+              FAIL();
+            }
+          }
+        }
+
+        SECTION("throwing")
+        {
+          using T = expected<E, Error>;
+          static_assert(not std::is_nothrow_assignable_v<T &, T &&>); // required
+
+          {
+            T a(unexpect, Error::file_not_found);
+            a = T(std::in_place, 5);
+            CHECK(a.value().v == 5 * helper::from_rval);
+          }
+
+          {
+            T a(unexpect, Error::file_not_found);
+            try {
+              a = T(std::in_place, {0.0});
+              FAIL();
+            } catch (std::runtime_error const &e) {
+              CHECK(std::strcmp(e.what(), "invalid input") == 0);
+              CHECK(a.error() == Error::file_not_found);
+            }
+          }
+
+          {
+            static_assert(not extension || not std::is_nothrow_assignable_v<T &, E>);
+            T a(unexpect, Error::file_not_found);
+            a = E(5);
+            CHECK(a.value().v == 5 * helper::from_rval);
+          }
+
+          {
+            T a(unexpect, Error::file_not_found);
+            try {
+              a = E({0.0});
+              FAIL();
+            } catch (std::runtime_error const &e) {
+              CHECK(std::strcmp(e.what(), "invalid input") == 0);
+              CHECK(a.error() == Error::file_not_found);
+            }
+          }
+        }
+
+        SECTION("nothrow copy")
+        {
+          using T = expected<C, Error>;
+          static_assert(not std::is_nothrow_assignable_v<T &, T &&>); // required
+
+          {
+            T a(unexpect, Error::file_not_found);
+            a = T(std::in_place, 5);
+            CHECK(a.value().v == 5 * helper::from_rval);
+          }
+
+          {
+            T a(unexpect, Error::file_not_found);
+            try {
+              a = T(std::in_place, {0.0});
+              FAIL();
+            } catch (std::runtime_error const &e) {
+              CHECK(std::strcmp(e.what(), "invalid input") == 0);
+              CHECK(a.error() == Error::file_not_found);
+            }
+          }
+
+          {
+            static_assert(not extension || not std::is_nothrow_assignable_v<T &, C>);
+            T a(unexpect, Error::file_not_found);
+            a = C(5);
+            CHECK(a.value().v == 5 * helper::from_rval);
+          }
+
+          {
+            T a(unexpect, Error::file_not_found);
+            try {
+              a = C({0.0});
+              FAIL();
+            } catch (std::runtime_error const &e) {
+              CHECK(std::strcmp(e.what(), "invalid input") == 0);
+              CHECK(a.error() == Error::file_not_found);
+            }
+          }
+        }
+      }
+
+      SECTION("error to error")
+      {
+        using T = expected<int, helper>;
+        static_assert(std::is_nothrow_assignable_v<T &, T &&>); // required
+
+        T a(unexpect, 3);
+        a = T(unexpect, 5);
+        CHECK(a.error().v == 5 * helper::from_rval);
+
+        a = unexpected<helper>(7);
+        CHECK(a.error().v == 7 * helper::from_rval);
+      }
+    }
+
+    SECTION("from lval const")
+    {
+      SECTION("value to value")
+      {
+        using T = expected<helper, Error>;
+        {
+          static_assert(not extension || std::is_nothrow_assignable_v<T &, T const &>);
+
+          T a(std::in_place, 3);
+          T const b(std::in_place, 5);
+          a = b;
+          CHECK(a.value().v == 5 * helper::from_lval_const);
+
+          T c(std::in_place, 7);
+          a = c;
+          CHECK(a.value().v == 7 * helper::from_lval_const);
+
+          T const d(std::in_place, 11);
+          a = std::move(d);
+          CHECK(a.value().v == 11 * helper::from_lval_const);
+        }
+
+        {
+          static_assert(not extension || std::is_nothrow_assignable_v<T &, helper const &>);
+
+          T a(std::in_place, 3);
+          helper const b(5);
+          a = b;
+          CHECK(a.value().v == 5 * helper::from_lval_const);
+
+          helper c(7);
+          a = c;
+          CHECK(a.value().v == 7 * helper::from_lval);
+
+          helper const d(11);
+          a = std::move(d);
+          CHECK(a.value().v == 11 * helper::from_rval_const);
+        }
+      }
+
+      SECTION("value to error")
+      {
+        SECTION("nothrow move")
+        {
+          using T = expected<int, M>;
+          static_assert(not extension || not std::is_nothrow_assignable_v<T &, T const &>);
+
+          {
+            T a(std::in_place, 3);
+            T const b(unexpect, 5);
+            a = b;
+            CHECK(a.error().v == 5 * helper::from_lval_const * helper::from_rval);
+          }
+
+          {
+            T a(std::in_place, 4);
+            try {
+              T const b(unexpect, {0.0});
+              a = b; // copy construction on a side of `New tmp` will throw
+              FAIL();
+            } catch (std::runtime_error const &e) {
+              CHECK(std::strcmp(e.what(), "invalid input") == 0);
+              CHECK(a.value() == 4);
+            }
+          }
+
+          {
+            static_assert(not extension || not std::is_nothrow_assignable_v<T &, unexpected<M> const &>);
+            T a(std::in_place, 4);
+            unexpected<M> const b(5);
+            a = b;
+            CHECK(a.error().v == 5 * helper::from_lval_const * helper::from_rval);
+          }
+
+          {
+            T a(std::in_place, 4);
+            try {
+              unexpected<M> const b({0.0});
+              a = b;
+              FAIL();
+            } catch (std::runtime_error const &e) {
+              CHECK(std::strcmp(e.what(), "invalid input") == 0);
+              CHECK(a.value() == 4);
+            }
+          }
+        }
+
+        SECTION("throwing")
+        {
+          using T = expected<int, E>;
+          static_assert(not extension || not std::is_nothrow_assignable_v<T &, T const &>);
+
+          {
+            T a(std::in_place, 3);
+            T const b(unexpect, 5);
+            a = b;
+            CHECK(a.error().v == 5 * helper::from_lval_const);
+          }
+
+          {
+            T a(std::in_place, 4);
+            try {
+              T const b(unexpect, {0.0});
+              a = b;
+              FAIL();
+            } catch (std::runtime_error const &e) {
+              CHECK(std::strcmp(e.what(), "invalid input") == 0);
+              CHECK(a.value() == 4);
+            }
+          }
+
+          {
+            static_assert(not extension || not std::is_nothrow_assignable_v<T &, unexpected<E> const &>);
+            T a(std::in_place, 4);
+            unexpected<E> const b(5);
+            a = b;
+            CHECK(a.error().v == 5 * helper::from_lval_const);
+          }
+
+          {
+            T a(std::in_place, 4);
+            try {
+              unexpected<E> const b({0.0});
+              a = b;
+              FAIL();
+            } catch (std::runtime_error const &e) {
+              CHECK(std::strcmp(e.what(), "invalid input") == 0);
+              CHECK(a.value() == 4);
+            }
+          }
+        }
+
+        SECTION("nothrow copy")
+        {
+          using T = expected<int, C>;
+          static_assert(not extension || std::is_nothrow_assignable_v<T &, T const &>);
+
+          {
+            T a(std::in_place, 3);
+            T const b(unexpect, 5);
+            a = b;
+            CHECK(a.error().v == 5 * helper::from_lval_const);
+          }
+
+          {
+            T a(std::in_place, 4);
+            try {
+              T const b(unexpect, {0.0});
+              a = b;
+              SUCCEED();
+            } catch (std::runtime_error const &e) {
+              FAIL();
+            }
+          }
+
+          {
+            static_assert(not extension || std::is_nothrow_assignable_v<T &, unexpected<C> const &>);
+            T a(std::in_place, 4);
+            unexpected<C> const b(5);
+            a = b;
+            CHECK(a.error().v == 5 * helper::from_lval_const);
+          }
+
+          {
+            T a(std::in_place, 4);
+            try {
+              unexpected<C> b(std::in_place, {0.0});
+              a = b;
+              SUCCEED();
+            } catch (std::runtime_error const &e) {
+              FAIL();
+            }
+          }
+        }
+      }
+
+      SECTION("error to value")
+      {
+        SECTION("nothrow move")
+        {
+          using T = expected<M, Error>;
+          static_assert(not extension || not std::is_nothrow_assignable_v<T &, T const &>);
+
+          {
+            T a(unexpect, Error::file_not_found);
+            T const b(std::in_place, 5);
+            a = b;
+            CHECK(a.value().v == 5 * helper::from_lval_const * helper::from_rval);
+          }
+
+          {
+            T a(unexpect, Error::file_not_found);
+            try {
+              T const b(std::in_place, {0.0});
+              a = b; // copy construction on a side of `New tmp` will throw
+              FAIL();
+            } catch (std::runtime_error const &e) {
+              CHECK(std::strcmp(e.what(), "invalid input") == 0);
+              CHECK(a.error() == Error::file_not_found);
+            }
+          }
+
+          {
+            static_assert(not extension || not std::is_nothrow_assignable_v<T &, M const &>);
+            T a(unexpect, Error::file_not_found);
+            M const b(5);
+            a = b;
+            CHECK(a.value().v == 5 * helper::from_lval_const * helper::from_rval);
+          }
+
+          {
+            T a(unexpect, Error::file_not_found);
+            try {
+              M const b({0.0});
+              a = b; // copy construction on a side of `New tmp` will throw
+              FAIL();
+            } catch (std::runtime_error const &e) {
+              CHECK(std::strcmp(e.what(), "invalid input") == 0);
+              CHECK(a.error() == Error::file_not_found);
+            }
+          }
+        }
+
+        SECTION("throwing")
+        {
+          using T = expected<E, Error>;
+          static_assert(not extension || not std::is_nothrow_assignable_v<T &, T const &>);
+
+          {
+            T a(unexpect, Error::file_not_found);
+            T const b(std::in_place, 5);
+            a = b;
+            CHECK(a.value().v == 5 * helper::from_lval_const);
+          }
+
+          {
+            T a(unexpect, Error::file_not_found);
+            try {
+              T const b(std::in_place, {0.0});
+              a = b;
+              FAIL();
+            } catch (std::runtime_error const &e) {
+              CHECK(std::strcmp(e.what(), "invalid input") == 0);
+              CHECK(a.error() == Error::file_not_found);
+            }
+          }
+
+          {
+            static_assert(not extension || not std::is_nothrow_assignable_v<T &, E const &>);
+            T a(unexpect, Error::file_not_found);
+            E const b(5);
+            a = b;
+            CHECK(a.value().v == 5 * helper::from_lval_const);
+          }
+
+          {
+            T a(unexpect, Error::file_not_found);
+            try {
+              E const b({0.0});
+              a = b;
+              FAIL();
+            } catch (std::runtime_error const &e) {
+              CHECK(std::strcmp(e.what(), "invalid input") == 0);
+              CHECK(a.error() == Error::file_not_found);
+            }
+          }
+        }
+
+        SECTION("nothrow copy")
+        {
+          using T = expected<C, Error>;
+          static_assert(not extension || std::is_nothrow_assignable_v<T &, T const &>);
+
+          {
+            T a(unexpect, Error::file_not_found);
+            T const b(std::in_place, 5);
+            a = b;
+            CHECK(a.value().v == 5 * helper::from_lval_const);
+          }
+
+          {
+            T a(unexpect, Error::file_not_found);
+            try {
+              T const b(std::in_place, {0.0});
+              a = b;
+              SUCCEED();
+            } catch (std::runtime_error const &e) {
+              FAIL();
+            }
+          }
+
+          {
+            static_assert(not extension || std::is_nothrow_assignable_v<T &, C const &>);
+            T a(unexpect, Error::file_not_found);
+            C const b(5);
+            a = b;
+            CHECK(a.value().v == 5 * helper::from_lval_const);
+          }
+
+          {
+            T a(unexpect, Error::file_not_found);
+            try {
+              C const b({0.0});
+              a = b;
+              SUCCEED();
+            } catch (std::runtime_error const &e) {
+              FAIL();
+            }
+          }
+        }
+      }
+
+      SECTION("error to error")
+      {
+        using T = expected<int, helper>;
+        static_assert(not extension || std::is_nothrow_assignable_v<T &, T const &>);
+
+        T a(unexpect, 3);
+        T const b(unexpect, 5);
+        a = b;
+        CHECK(a.error().v == 5 * helper::from_lval_const);
+
+        unexpected<helper> const c(7);
+        a = c;
+        CHECK(a.error().v == 7 * helper::from_lval_const);
       }
     }
   }
