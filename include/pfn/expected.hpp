@@ -483,8 +483,31 @@ public:
     return *this;
   }
 
-  template <class... Args> constexpr T &emplace(Args &&...) noexcept;
-  template <class U, class... Args> constexpr T &emplace(std::initializer_list<U>, Args &&...) noexcept;
+  template <class... Args>
+  constexpr T &emplace(Args &&...args) noexcept(true)
+    requires(::std::is_nothrow_constructible_v<T, Args...>)
+  {
+    if (set_) {
+      ::std::destroy_at(::std::addressof(v_));
+    } else {
+      ::std::destroy_at(::std::addressof(e_));
+      set_ = true;
+    }
+    return *::std::construct_at(::std::addressof(v_), std::forward<Args>(args)...);
+  }
+
+  template <class U, class... Args>
+  constexpr T &emplace(::std::initializer_list<U> il, Args &&...args) noexcept(true)
+    requires(::std::is_nothrow_constructible_v<T, ::std::initializer_list<U> &, Args...>)
+  {
+    if (set_) {
+      ::std::destroy_at(::std::addressof(v_));
+    } else {
+      ::std::destroy_at(::std::addressof(e_));
+      set_ = true;
+    }
+    return *::std::construct_at(::std::addressof(v_), il, std::forward<Args>(args)...);
+  }
 
   // [expected.object.swap], swap
   constexpr void swap(expected &) noexcept(/* TODO */ false);

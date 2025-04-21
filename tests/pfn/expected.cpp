@@ -915,7 +915,7 @@ TEST_CASE("expected", "[expected][polyfill]")
     }
   }
 
-  SECTION("assign")
+  SECTION("assignment")
   {
     using M = helper_t<2>; // nothrow move constructible
     using E = helper_t<3>; // may throw on move and copy
@@ -1539,6 +1539,79 @@ TEST_CASE("expected", "[expected][polyfill]")
         a = c;
         CHECK(a.error().v == 7 * helper::from_lval_const);
       }
+    }
+  }
+
+  SECTION("emplace")
+  {
+    using T = expected<helper_t<8>, Error>;
+    SECTION("value to value")
+    {
+      {
+        T a(std::in_place, 13);
+        a.emplace(2, 3, 5);
+        CHECK(a.value().v == 2 * 3 * 5);
+      }
+
+      {
+        T a(std::in_place, 13);
+        a.emplace({7.0, 11.0});
+        CHECK(a.value().v == 7 * 11);
+      }
+    }
+
+    SECTION("error to value")
+    {
+      {
+        T a(unexpect, Error::file_not_found);
+        a.emplace(2, 3, 5);
+        CHECK(a.value().v == 2 * 3 * 5);
+      }
+
+      {
+        T a(unexpect, Error::file_not_found);
+        a.emplace({7.0, 11.0});
+        CHECK(a.value().v == 7 * 11);
+      }
+    }
+
+    SECTION("constexpr")
+    {
+      using T = expected<helper, Error>;
+      {
+        constexpr auto fn = [](auto &&...v) constexpr -> T {
+          T a(unexpect, Error::unknown);
+          a.emplace(std::forward<decltype(v) &&>(v)...);
+          return a;
+        };
+
+        constexpr auto a = fn(std::initializer_list<double>{5.0, 11.0}, 3);
+        static_assert(a.value().v == 5 * 11 * 3 * helper::from_rval);
+      }
+
+      {
+        constexpr auto fn = [](auto &&...v) constexpr -> T {
+          T a(std::in_place, {9.0}, 1);
+          a.emplace(std::forward<decltype(v) &&>(v)...);
+          return a;
+        };
+
+        constexpr auto a = fn(std::initializer_list<double>{7.0, 13.0}, 3);
+        static_assert(a.value().v == 7 * 13 * 3 * helper::from_rval);
+      }
+
+      {
+        constexpr auto fn = [](auto &&...args) constexpr -> bool {
+          return requires {
+            expected<helper, Error>(unexpect, Error::unknown).emplace(std::forward<decltype(args)>(args)...);
+          };
+        };
+
+        static_assert(fn(std::initializer_list<double>{3.0, 5.0}, 1));
+        static_assert(not fn(1, 2));
+      }
+
+      SUCCEED();
     }
   }
 

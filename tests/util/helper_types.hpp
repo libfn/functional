@@ -83,12 +83,14 @@ template <int V> struct helper_t {
 
   // The intent of non-constexpr constructors is to make sure that they are never optimized away,
   // thus ensuring that any code which relies on them in tests will show up in coverage reports.
-  helper_t(std::integral auto... a) noexcept(false)
+  helper_t(std::integral auto... a) noexcept(V >= 8)
     requires(sizeof...(a) > 0) // intentionally implicit when sizeof...(a) == 1
       : v((1 * ... * a))
   {
-    if (v == 0)
-      throw std::runtime_error("invalid input");
+    if constexpr (V < 8) {
+      if (v == 0)
+        throw std::runtime_error("invalid input");
+    }
     state += v;
   }
 
