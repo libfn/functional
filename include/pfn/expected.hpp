@@ -215,16 +215,16 @@ private:
   {
     if constexpr (::std::is_nothrow_constructible_v<New, Args...>) {
       ::std::destroy_at(::std::addressof(oldval));
-      ::std::construct_at(::std::addressof(newval), FWD(args)...);
+      ::std::construct_at(::std::addressof(newval), ::std::forward<Args>(args)...);
     } else if constexpr (::std::is_nothrow_move_constructible_v<New>) {
-      New tmp(FWD(args)...);
+      New tmp(::std::forward<Args>(args)...);
       ::std::destroy_at(::std::addressof(oldval));
       ::std::construct_at(::std::addressof(newval), std::move(tmp));
     } else {
       Old tmp(std::move(oldval));
       ::std::destroy_at(::std::addressof(oldval));
       try {
-        ::std::construct_at(::std::addressof(newval), FWD(args)...);
+        ::std::construct_at(::std::addressof(newval), ::std::forward<Args>(args)...);
       } catch (...) {
         ::std::construct_at(::std::addressof(oldval), std::move(tmp));
         throw;
@@ -309,7 +309,7 @@ public:
 
   template <class U = ::std::remove_cv_t<T>>
   constexpr explicit(not ::std::is_convertible_v<U, T>) expected(U &&v) //
-      noexcept(::std::is_nothrow_constructible_v<T, U &&>)              // extension
+      noexcept(::std::is_nothrow_constructible_v<T, U>)                 // extension
     requires(_can_convert<U>::value)
       : v_(FWD(v)), set_(true)
   {
@@ -436,7 +436,7 @@ public:
 
   template <class U = T>
   constexpr expected &operator=(U &&s) //
-      noexcept(::std::is_nothrow_assignable_v<T, U &&> && ::std::is_nothrow_constructible_v<T, U &&>
+      noexcept(::std::is_nothrow_assignable_v<T, U> && ::std::is_nothrow_constructible_v<T, U>
                && (::std::is_nothrow_move_constructible_v<T> || ::std::is_nothrow_move_constructible_v<E>)) // extension
     requires(_can_convert_assign<U>::value)
   {
@@ -468,7 +468,7 @@ public:
 
   template <class G>
   constexpr expected &operator=(unexpected<G> &&s) //
-      noexcept(::std::is_nothrow_assignable_v<E, G &&> && ::std::is_nothrow_constructible_v<E, G &&>
+      noexcept(::std::is_nothrow_assignable_v<E, G> && ::std::is_nothrow_constructible_v<E, G>
                && (::std::is_nothrow_move_constructible_v<E> || ::std::is_nothrow_move_constructible_v<T>)) // extension
     requires(::std::is_constructible_v<E, G> && ::std::is_assignable_v<E &, G>
              && (::std::is_nothrow_constructible_v<E, G> || ::std::is_nothrow_move_constructible_v<T>
