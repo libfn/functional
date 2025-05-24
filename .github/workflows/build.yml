@@ -115,6 +115,9 @@ jobs:
           - compiler: appleclang
             osver: 15
             modes: "cxx20 cxx23"
+          - compiler: appleclang
+            osver: 14
+            modes: "cxx20"
           - compiler: clang
             release: 18
             osver: 15
