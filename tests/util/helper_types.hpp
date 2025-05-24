@@ -71,10 +71,23 @@ template <int V> struct helper_t {
         throw std::runtime_error("invalid input");
     }
   }
-  constexpr helper_t(helper_t &&o) noexcept(V < 3 || V >= 5) : v(o.v)
+  constexpr helper_t(helper_t &&o) noexcept(V < 3 || V >= 5)
+    requires(V < 30)
+      : v(o.v)
   {
     v *= from_rval;
     if constexpr (V >= 3 && V < 5) {
+      if (v == 0)
+        throw std::runtime_error("invalid input");
+    }
+  }
+  helper_t(helper_t &&o) noexcept(V < 33 || V >= 35)
+    requires(V >= 30)
+      : v(o.v)
+  {
+    v *= from_rval;
+    state += v;
+    if constexpr (V >= 33 && V < 35) {
       if (v == 0)
         throw std::runtime_error("invalid input");
     }

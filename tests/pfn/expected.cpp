@@ -410,6 +410,28 @@ TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
   }
 }
 
+namespace {
+
+template <typename T> struct non_swappable {
+  friend void swap(T &, T &) = delete;
+};
+
+template <typename T> struct swappable {
+  friend void swap(T &, T &) noexcept(false) {}
+};
+
+template <typename T> struct nothrow_swappable {
+  friend void swap(T &, T &) noexcept(true) {}
+};
+
+// NOTE: not the same as std::is_swappable https://eel.is/c++draft/swappable.requirements
+// because std::is_swappable brings std::swap https://eel.is/c++draft/utility.swap#lib:swap
+// into scope, which we do not want for this check.
+template <typename T>
+concept is_swappable = requires { swap(std::declval<T &>(), std::declval<T &>()); };
+
+} // namespace
+
 TEST_CASE("expected", "[expected][polyfill]")
 {
   using pfn::bad_expected_access;
@@ -1612,6 +1634,331 @@ TEST_CASE("expected", "[expected][polyfill]")
       }
 
       SUCCEED();
+    }
+  }
+
+  SECTION("swap")
+  {
+    SECTION("non-swappable")
+    {
+      struct A : non_swappable<A> {};
+      static_assert(not std::is_swappable_v<A>);
+      static_assert(std::is_move_constructible_v<A>);
+      static_assert(std::is_nothrow_move_constructible_v<A>);
+
+      static_assert(not is_swappable<expected<int, A>>);
+      static_assert(not is_swappable<expected<A, int>>);
+
+      SUCCEED();
+    }
+
+    SECTION("non-move-constructible")
+    {
+      struct A : swappable<A> {
+        A(A &&) = delete;
+      };
+      static_assert(std::is_swappable_v<A>);
+      static_assert(not std::is_nothrow_swappable_v<A>);
+      static_assert(not std::is_move_constructible_v<A>);
+
+      static_assert(not is_swappable<expected<int, A>>);
+      static_assert(not is_swappable<expected<A, int>>);
+
+      SUCCEED();
+    }
+
+    SECTION("non-nothrow-move-constructible")
+    {
+      struct A : swappable<A> {
+        A(A &&) noexcept(false) {}
+      };
+      static_assert(std::is_swappable_v<A>);
+      static_assert(not std::is_nothrow_swappable_v<A>);
+      static_assert(std::is_move_constructible_v<A>);
+      static_assert(not std::is_nothrow_move_constructible_v<A>);
+
+      struct B : swappable<B> {
+        B(B &&) noexcept(false) {}
+      };
+      static_assert(std::is_swappable_v<B>);
+      static_assert(not std::is_nothrow_swappable_v<B>);
+      static_assert(std::is_move_constructible_v<B>);
+      static_assert(not std::is_nothrow_move_constructible_v<B>);
+
+      static_assert(is_swappable<expected<int, A>>);
+      static_assert(is_swappable<expected<A, int>>);
+      static_assert(not is_swappable<expected<A, B>>);
+
+      SUCCEED();
+    }
+
+    SECTION("nothrow-swappable non-nothrow-move-constructible")
+    {
+      struct A : nothrow_swappable<A> {
+        A(A &&) noexcept(false) {}
+      };
+      static_assert(std::is_swappable_v<A>);
+      static_assert(std::is_nothrow_swappable_v<A>);
+      static_assert(std::is_move_constructible_v<A>);
+      static_assert(not std::is_nothrow_move_constructible_v<A>);
+
+      struct B : nothrow_swappable<B> {
+        B(B &&) noexcept(false) {}
+      };
+      static_assert(std::is_swappable_v<B>);
+      static_assert(std::is_nothrow_swappable_v<B>);
+      static_assert(std::is_move_constructible_v<B>);
+      static_assert(not std::is_nothrow_move_constructible_v<B>);
+
+      static_assert(is_swappable<expected<int, A>>);
+      static_assert(is_swappable<expected<A, int>>);
+      static_assert(not is_swappable<expected<A, B>>);
+
+      SUCCEED();
+    }
+
+    SECTION("swappabla, non-nothrow-move-constructible")
+    {
+      struct A : swappable<A> {
+        A(A &&) noexcept(false) {}
+      };
+      static_assert(std::is_swappable_v<A>);
+      static_assert(not std::is_nothrow_swappable_v<A>);
+      static_assert(std::is_move_constructible_v<A>);
+      static_assert(not std::is_nothrow_move_constructible_v<A>);
+
+      struct B : swappable<B> {
+        B(B &&) noexcept(true) = default;
+      };
+      static_assert(std::is_swappable_v<B>);
+      static_assert(not std::is_nothrow_swappable_v<B>);
+      static_assert(std::is_move_constructible_v<B>);
+      static_assert(std::is_nothrow_move_constructible_v<B>);
+
+      static_assert(is_swappable<expected<int, A>>);
+      static_assert(is_swappable<expected<A, int>>);
+
+      {
+        using T = expected<A, B>;
+        static_assert(is_swappable<T>);
+        static_assert(not noexcept(swap(std::declval<T &>(), std::declval<T &>())));
+      }
+      {
+        using T = expected<B, A>;
+        static_assert(is_swappable<T>);
+        static_assert(not noexcept(swap(std::declval<T &>(), std::declval<T &>())));
+      }
+
+      SUCCEED();
+    }
+
+    SECTION("nothrow-swappabla, non-nothrow-move-constructible")
+    {
+      struct A : nothrow_swappable<A> {
+        A(A &&) noexcept(false) {}
+      };
+      static_assert(std::is_swappable_v<A>);
+      static_assert(std::is_nothrow_swappable_v<A>);
+      static_assert(std::is_move_constructible_v<A>);
+      static_assert(not std::is_nothrow_move_constructible_v<A>);
+
+      struct B : nothrow_swappable<B> {
+        B(B &&) noexcept(true) = default;
+      };
+      static_assert(std::is_swappable_v<B>);
+      static_assert(std::is_nothrow_swappable_v<B>);
+      static_assert(std::is_move_constructible_v<B>);
+      static_assert(std::is_nothrow_move_constructible_v<B>);
+
+      static_assert(is_swappable<expected<int, A>>);
+      static_assert(is_swappable<expected<A, int>>);
+
+      {
+        using T = expected<A, B>;
+        static_assert(is_swappable<T>);
+        static_assert(not noexcept(swap(std::declval<T &>(), std::declval<T &>())));
+      }
+      {
+        using T = expected<B, A>;
+        static_assert(is_swappable<T>);
+        static_assert(not noexcept(swap(std::declval<T &>(), std::declval<T &>())));
+      }
+
+      SUCCEED();
+    }
+
+    SECTION("nothrow-swappabla, nothrow-move-constructible")
+    {
+      struct A : nothrow_swappable<A> {
+        A(A &&) noexcept(true) = default;
+      };
+      static_assert(std::is_swappable_v<A>);
+      static_assert(std::is_nothrow_swappable_v<A>);
+      static_assert(std::is_move_constructible_v<A>);
+      static_assert(std::is_nothrow_move_constructible_v<A>);
+
+      struct B : nothrow_swappable<B> {
+        B(B &&) noexcept(true) = default;
+      };
+      static_assert(std::is_swappable_v<B>);
+      static_assert(std::is_nothrow_swappable_v<B>);
+      static_assert(std::is_move_constructible_v<B>);
+      static_assert(std::is_nothrow_move_constructible_v<B>);
+
+      static_assert(is_swappable<expected<int, A>>);
+      static_assert(is_swappable<expected<A, int>>);
+
+      {
+        using T = expected<A, B>;
+        static_assert(is_swappable<T>);
+        static_assert(noexcept(swap(std::declval<T &>(), std::declval<T &>())));
+      }
+      {
+        using T = expected<B, A>;
+        static_assert(is_swappable<T>);
+        static_assert(noexcept(swap(std::declval<T &>(), std::declval<T &>())));
+      }
+
+      SUCCEED();
+    }
+
+    SECTION("swap same")
+    {
+      SECTION("value")
+      {
+        using T = expected<helper, Error>;
+        T a(7);
+        T b(13);
+        swap(a, b);
+        CHECK(a.value().v == 13 * helper::swapped);
+        CHECK(b.value().v == 7 * helper::swapped);
+      }
+
+      SECTION("error")
+      {
+        using T = expected<int, helper>;
+        T a(unexpect, 17);
+        T b(unexpect, 23);
+        swap(a, b);
+        CHECK(a.error().v == 23 * helper::swapped);
+        CHECK(b.error().v == 17 * helper::swapped);
+      }
+    }
+
+    SECTION("swap error/value")
+    {
+      using T = expected<helper, helper_t<1>>;
+      T a(unexpect, 19);
+      T b(27);
+      swap(a, b);
+      CHECK(a.value().v == 27 * helper::from_rval);
+      CHECK(b.error().v == 19 * helper::from_rval * helper::from_rval);
+    }
+
+    SECTION("swap value/error")
+    {
+      SECTION("nothrow")
+      {
+        using T = expected<helper, helper_t<1>>;
+        T a(17);
+        T b(unexpect, 29);
+        swap(a, b);
+        CHECK(a.error().v == 29 * helper::from_rval * helper::from_rval);
+        CHECK(b.value().v == 17 * helper::from_rval);
+      }
+
+      static_assert(not std::is_nothrow_move_constructible_v<helper_t<33>>);
+      static_assert(std::is_nothrow_move_constructible_v<helper_t<30>>);
+      SECTION("nothrow error")
+      {
+        using T = expected<helper_t<33>, helper_t<30>>;
+        SECTION("happy path")
+        {
+          T a(13);
+          T b(unexpect, 23);
+          swap(a, b);
+          CHECK(a.error().v == 23 * helper::from_rval * helper::from_rval);
+          CHECK(b.value().v == 13 * helper::from_rval);
+        }
+
+        SECTION("exception")
+        {
+          T a(std::in_place, {0.0});
+          T b(unexpect, 23);
+          try {
+            swap(a, b);
+            FAIL();
+          } catch (std::runtime_error const &) {
+            CHECK(a.value().v == 0);
+            CHECK(b.error().v == 23 * helper::from_rval * helper::from_rval);
+          }
+        }
+      }
+
+      SECTION("nothrow value")
+      {
+        using T = expected<helper_t<30>, helper_t<33>>;
+        SECTION("happy path")
+        {
+          T a(7);
+          T b(unexpect, 11);
+          swap(a, b);
+          CHECK(a.error().v == 11 * helper::from_rval);
+          CHECK(b.value().v == 7 * helper::from_rval * helper::from_rval);
+        }
+
+        SECTION("exception")
+        {
+          T a(std::in_place, 13);
+          T b(unexpect, {0.0});
+          try {
+            swap(a, b);
+            FAIL();
+          } catch (std::runtime_error const &) {
+            CHECK(a.value().v == 13 * helper::from_rval * helper::from_rval);
+            CHECK(b.error().v == 0);
+          }
+        }
+      }
+    }
+
+    SECTION("constexpr")
+    {
+      using T = expected<int, Error>;
+
+      SECTION("to error")
+      {
+        constexpr auto fn = [](T &&v) constexpr -> T {
+          T tmp{unexpect, Error::unknown};
+          swap(tmp, v);
+          return v;
+        };
+
+        constexpr T a = fn(T(unexpect, Error::file_not_found));
+        static_assert(a.error() == Error::unknown);
+
+        constexpr T b = fn(T(12));
+        static_assert(b.error() == Error::unknown);
+
+        SUCCEED();
+      }
+
+      SECTION("to value")
+      {
+        constexpr auto fn = [](T &&v) constexpr -> T {
+          T tmp{7};
+          swap(tmp, v);
+          return v;
+        };
+
+        constexpr T a = fn(T(unexpect, Error::file_not_found));
+        static_assert(a.value() == 7);
+
+        constexpr T b = fn(T(12));
+        static_assert(b.value() == 7);
+
+        SUCCEED();
+      }
     }
   }
 

@@ -211,7 +211,8 @@ private:
 
   // [expected.object.assign]
   template <typename New, typename Old, typename... Args>
-  static constexpr void _reinit(New &newval, Old &oldval, Args &&...args)
+  static constexpr void _reinit(New &newval, Old &oldval, Args &&...args) //
+      noexcept(::std::is_nothrow_constructible_v<New, Args...>)
   {
     if constexpr (::std::is_nothrow_constructible_v<New, Args...>) {
       ::std::destroy_at(::std::addressof(oldval));
@@ -230,6 +231,36 @@ private:
         throw;
       }
     }
+  }
+
+  static constexpr void _swap(expected &lhs, expected &rhs) //
+      noexcept(::std::is_nothrow_move_constructible_v<T> && ::std::is_nothrow_move_constructible_v<E>)
+  {
+    if constexpr (::std::is_nothrow_move_constructible_v<E>) {
+      E tmp(::std::move(rhs.e_));
+      ::std::destroy_at(::std::addressof(rhs.e_));
+      try {
+        ::std::construct_at(::std::addressof(rhs.v_), ::std::move(lhs.v_));
+        ::std::destroy_at(::std::addressof(lhs.v_));
+        ::std::construct_at(::std::addressof(lhs.e_), ::std::move(tmp));
+      } catch (...) {
+        ::std::construct_at(::std::addressof(rhs.e_), ::std::move(tmp));
+        throw;
+      }
+    } else {
+      T tmp(::std::move(lhs.v_));
+      ::std::destroy_at(::std::addressof(lhs.v_));
+      try {
+        ::std::construct_at(::std::addressof(lhs.e_), ::std::move(rhs.e_));
+        ::std::destroy_at(::std::addressof(rhs.e_));
+        ::std::construct_at(::std::addressof(rhs.v_), ::std::move(tmp));
+      } catch (...) {
+        ::std::construct_at(::std::addressof(lhs.v_), ::std::move(tmp));
+        throw;
+      }
+    }
+    lhs.set_ = false;
+    rhs.set_ = true;
   }
 
 public:
@@ -510,8 +541,37 @@ public:
   }
 
   // [expected.object.swap], swap
-  constexpr void swap(expected &) noexcept(/* TODO */ false);
-  constexpr friend void swap(expected &x, expected &y) noexcept(noexcept(x.swap(y)));
+  constexpr void
+  swap(expected &rhs) noexcept(::std::is_nothrow_move_constructible_v<T> && ::std::is_nothrow_swappable_v<T>
+                               && ::std::is_nothrow_move_constructible_v<E> && ::std::is_nothrow_swappable_v<E>)
+    requires(::std::is_swappable_v<T> && ::std::is_swappable_v<E> && ::std::is_move_constructible_v<T>
+             && ::std::is_move_constructible_v<E>
+             && (::std::is_nothrow_move_constructible_v<T> || ::std::is_nothrow_move_constructible_v<E>))
+  {
+    bool const lhset = has_value();
+    bool const rhset = rhs.has_value();
+    if (lhset == rhset) {
+      if (lhset) {
+        using ::std::swap;
+        swap(v_, rhs.v_);
+      } else {
+        using ::std::swap;
+        swap(e_, rhs.e_);
+      }
+    } else {
+      if (lhset) {
+        _swap(*this, rhs);
+      } else {
+        _swap(rhs, *this);
+      }
+    }
+  }
+
+  constexpr friend void swap(expected &x, expected &y) noexcept(noexcept(x.swap(y)))
+    requires requires { x.swap(y); }
+  {
+    x.swap(y);
+  }
 
   // [expected.object.obs], observers
   constexpr T const *operator->() const noexcept
