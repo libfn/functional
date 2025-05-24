@@ -31,6 +31,7 @@ jobs:
           - gcc:12
           - gcc:13
           - gcc:14
+          - gcc:15
           - clang:16
           - clang:17
           - clang:18
@@ -79,6 +80,7 @@ jobs:
           - gcc:12
           - gcc:13
           - gcc:14
+          - gcc:15
           - clang:16
           - clang:17
           - clang:18

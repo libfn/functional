@@ -48,6 +48,9 @@ jobs:
         - compiler: gcc
           release: 14
           modes: "cxx20 cxx23"
+        - compiler: gcc
+          release: 15
+          modes: "cxx20 cxx23"
         - compiler: clang
           release: 18
           modes: "cxx20 cxx23"
