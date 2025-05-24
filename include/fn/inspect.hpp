@@ -3,8 +3,8 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#ifndef INCLUDE_FUNCTIONAL_INSPECT
-#define INCLUDE_FUNCTIONAL_INSPECT
+#ifndef INCLUDE_FN_INSPECT
+#define INCLUDE_FN_INSPECT
 
 #include <fn/expected.hpp>
 #include <fn/functional.hpp>

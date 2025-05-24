@@ -3,8 +3,8 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#ifndef INCLUDE_FUNCTIONAL_INSPECT_ERROR
-#define INCLUDE_FUNCTIONAL_INSPECT_ERROR
+#ifndef INCLUDE_FN_INSPECT_ERROR
+#define INCLUDE_FN_INSPECT_ERROR
 
 #include <fn/functional.hpp>
 #include <fn/functor.hpp>
