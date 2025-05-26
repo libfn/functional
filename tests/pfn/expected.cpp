@@ -2186,4 +2186,118 @@ TEST_CASE("expected", "[expected][polyfill]")
       }
     }
   }
+
+  SECTION("monadic functions")
+  {
+    SECTION("and_then")
+    {
+      SECTION("value")
+      {
+        using T = expected<helper, Error>;
+        constexpr auto fn
+            = [](auto &&a) constexpr -> expected<int, Error> { return helper(std::forward<decltype(a)>(a)).v * 2; };
+
+        T a(7);
+        CHECK(a.and_then(fn).value() == 7 * 2 * helper::from_lval);
+        CHECK(std::as_const(a).and_then(fn).value() == 7 * 2 * helper::from_lval_const);
+        CHECK(std::move(std::as_const(a)).and_then(fn).value() == 7 * 2 * helper::from_rval_const);
+        CHECK(std::move(a).and_then(fn).value() == 7 * 2 * helper::from_rval);
+      }
+
+      SECTION("error")
+      {
+        using T = expected<int, helper>;
+        constexpr auto fn = [](auto &&) constexpr -> expected<int, helper> { return {0}; };
+
+        T a(unexpect, 11);
+        CHECK(a.and_then(fn).error().v == 11 * helper::from_lval);
+        CHECK(std::as_const(a).and_then(fn).error().v == 11 * helper::from_lval_const);
+        CHECK(std::move(std::as_const(a)).and_then(fn).error().v == 11 * helper::from_rval_const);
+        CHECK(std::move(a).and_then(fn).error().v == 11 * helper::from_rval);
+      }
+    }
+
+    SECTION("or_else")
+    {
+      SECTION("error")
+      {
+        using T = expected<bool, helper>;
+        constexpr auto fn = [](auto &&a) constexpr -> expected<bool, int> {
+          return unexpected<int>(helper(std::forward<decltype(a)>(a)).v * 3);
+        };
+
+        T a(unexpect, 5);
+        CHECK(a.or_else(fn).error() == 5 * 3 * helper::from_lval);
+        CHECK(std::as_const(a).or_else(fn).error() == 5 * 3 * helper::from_lval_const);
+        CHECK(std::move(std::as_const(a)).or_else(fn).error() == 5 * 3 * helper::from_rval_const);
+        CHECK(std::move(a).or_else(fn).error() == 5 * 3 * helper::from_rval);
+      }
+
+      SECTION("value")
+      {
+        using T = expected<helper, Error>;
+        constexpr auto fn = [](auto &&) constexpr -> expected<helper, int> { return {0}; };
+
+        T a(13);
+        CHECK(a.or_else(fn).value().v == 13 * helper::from_lval);
+        CHECK(std::as_const(a).or_else(fn).value().v == 13 * helper::from_lval_const);
+        CHECK(std::move(std::as_const(a)).or_else(fn).value().v == 13 * helper::from_rval_const);
+        CHECK(std::move(a).or_else(fn).value().v == 13 * helper::from_rval);
+      }
+    }
+
+    SECTION("transform")
+    {
+      SECTION("value")
+      {
+        using T = expected<helper, Error>;
+        constexpr auto fn = [](auto &&a) constexpr -> int { return helper(std::forward<decltype(a)>(a)).v * 2; };
+
+        T a(7);
+        CHECK(a.transform(fn).value() == 7 * 2 * helper::from_lval);
+        CHECK(std::as_const(a).transform(fn).value() == 7 * 2 * helper::from_lval_const);
+        CHECK(std::move(std::as_const(a)).transform(fn).value() == 7 * 2 * helper::from_rval_const);
+        CHECK(std::move(a).transform(fn).value() == 7 * 2 * helper::from_rval);
+      }
+
+      SECTION("error")
+      {
+        using T = expected<int, helper>;
+        constexpr auto fn = [](auto &&) constexpr -> int { return 0; };
+
+        T a(unexpect, 11);
+        CHECK(a.transform(fn).error().v == 11 * helper::from_lval);
+        CHECK(std::as_const(a).transform(fn).error().v == 11 * helper::from_lval_const);
+        CHECK(std::move(std::as_const(a)).transform(fn).error().v == 11 * helper::from_rval_const);
+        CHECK(std::move(a).transform(fn).error().v == 11 * helper::from_rval);
+      }
+    }
+
+    SECTION("transform_error")
+    {
+      SECTION("error")
+      {
+        using T = expected<bool, helper>;
+        constexpr auto fn = [](auto &&a) constexpr -> int { return helper(std::forward<decltype(a)>(a)).v * 3; };
+
+        T a(unexpect, 5);
+        CHECK(a.transform_error(fn).error() == 5 * 3 * helper::from_lval);
+        CHECK(std::as_const(a).transform_error(fn).error() == 5 * 3 * helper::from_lval_const);
+        CHECK(std::move(std::as_const(a)).transform_error(fn).error() == 5 * 3 * helper::from_rval_const);
+        CHECK(std::move(a).transform_error(fn).error() == 5 * 3 * helper::from_rval);
+      }
+
+      SECTION("value")
+      {
+        using T = expected<helper, Error>;
+        constexpr auto fn = [](auto &&) constexpr -> int { return 0; };
+
+        T a(13);
+        CHECK(a.transform_error(fn).value().v == 13 * helper::from_lval);
+        CHECK(std::as_const(a).transform_error(fn).value().v == 13 * helper::from_lval_const);
+        CHECK(std::move(std::as_const(a)).transform_error(fn).value().v == 13 * helper::from_rval_const);
+        CHECK(std::move(a).transform_error(fn).value().v == 13 * helper::from_rval);
+      }
+    }
+  }
 }

@@ -8,6 +8,7 @@
 
 #include <cassert>
 #include <exception>
+#include <functional>
 #include <initializer_list>
 #include <memory>
 #include <type_traits>
@@ -156,6 +157,15 @@ template <class T, class E> class expected;
 namespace detail {
 template <typename> constexpr bool _is_some_expected = false;
 template <typename T, typename E> constexpr bool _is_some_expected<::pfn::expected<T, E>> = true;
+
+template <typename T, typename E>
+constexpr bool _is_valid_expected =                                   //
+    not ::std::is_reference_v<T>                                      //
+    && not ::std::is_function_v<T>                                    //
+    && not ::std::is_same_v<::std::remove_cv_t<T>, ::std::in_place_t> //
+    && not ::std::is_same_v<::std::remove_cv_t<T>, unexpect_t>        //
+    && not _is_some_unexpected<::std::remove_cv_t<T>>                 //
+    && detail::_is_valid_unexpected<E>;
 } // namespace detail
 
 // declare void specialization
@@ -164,7 +174,8 @@ template <class T, class E>
 class expected<T, E>;
 
 template <class T, class E> class expected {
-private:
+  static_assert(detail::_is_valid_expected<T, E>);
+
   template <class U, class G, class UF, class GF>
   using _can_convert_detail = ::std::bool_constant<                           //
       not(::std::is_same_v<T, U> && ::std::is_same_v<E, G>)                   //
@@ -261,6 +272,80 @@ private:
     }
     lhs.set_ = false;
     rhs.set_ = true;
+  }
+
+  template <typename Self, typename Fn>
+  static constexpr auto _and_then(Self &&self, Fn &&fn) //
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(FWD(self).value())>
+               && ::std::is_nothrow_constructible_v<E, decltype(FWD(self).error())>)
+    requires(::std::is_constructible_v<E, decltype(FWD(self).error())>)
+  {
+    using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(FWD(self).value())>>;
+    static_assert(detail::_is_some_expected<result_t>);
+    static_assert(::std::is_same_v<typename result_t::error_type, typename ::std::remove_cvref_t<Self>::error_type>);
+    if (self.has_value()) {
+      return ::std::invoke(FWD(fn), FWD(self).value());
+    }
+    return result_t(unexpect, FWD(self).error());
+  }
+
+  template <typename Self, typename Fn>
+  static constexpr auto _or_else(Self &&self, Fn &&fn) //
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(FWD(self).error())>
+               && ::std::is_nothrow_constructible_v<T, decltype(FWD(self).value())>)
+    requires(::std::is_constructible_v<T, decltype(FWD(self).value())>)
+  {
+    using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(FWD(self).error())>>;
+    static_assert(detail::_is_some_expected<result_t>);
+    static_assert(::std::is_same_v<typename result_t::value_type, typename ::std::remove_cvref_t<Self>::value_type>);
+    if (self.has_value()) {
+      return result_t(::std::in_place, FWD(self).value());
+    }
+    return ::std::invoke(FWD(fn), FWD(self).error());
+  }
+
+  template <typename Self, typename Fn>
+  static constexpr auto _transform(Self &&self, Fn &&fn) //
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(FWD(self).value())>
+               && ::std::is_nothrow_constructible_v<E, decltype(FWD(self).error())>
+               && (::std::is_void_v<::std::invoke_result_t<Fn, decltype(FWD(self).value())>>
+                   || ::std::is_nothrow_constructible_v<
+                       ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(FWD(self).value())>>,
+                       ::std::invoke_result_t<Fn, decltype(FWD(self).value())>>))
+    requires(::std::is_constructible_v<E, decltype(FWD(self).error())>)
+  {
+    using value_t = ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(FWD(self).value())>>;
+    static_assert(detail::_is_valid_expected<value_t, E>);
+    using result_t = expected<value_t, E>;
+    if (self.has_value()) {
+      if constexpr (not ::std::is_void_v<value_t>) {
+        static_assert(::std::is_constructible_v<value_t, ::std::invoke_result_t<Fn, decltype(FWD(self).value())>>);
+        return result_t(::std::in_place, ::std::invoke(FWD(fn), FWD(self).value()));
+      } else {
+        ::std::invoke(FWD(fn), FWD(self).value());
+        return result_t();
+      }
+    }
+    return result_t(unexpect, FWD(self).error());
+  }
+
+  template <typename Self, typename Fn>
+  static constexpr auto _transform_error(Self &&self, Fn &&fn) //
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(FWD(self).error())>
+               && ::std::is_nothrow_constructible_v<T, decltype(FWD(self).value())>
+               && ::std::is_nothrow_constructible_v<
+                   ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(FWD(self).error())>>,
+                   ::std::invoke_result_t<Fn, decltype(FWD(self).error())>>)
+    requires(::std::is_constructible_v<T, decltype(FWD(self).value())>)
+  {
+    using error_t = ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(FWD(self).error())>>;
+    static_assert(detail::_is_valid_unexpected<error_t>);
+    static_assert(::std::is_constructible_v<error_t, ::std::invoke_result_t<Fn, decltype(FWD(self).error())>>);
+    using result_t = expected<T, error_t>;
+    if (not self.has_value()) {
+      return result_t(unexpect, ::std::invoke(FWD(fn), FWD(self).error()));
+    }
+    return result_t(::std::in_place, FWD(self).value());
   }
 
 public:
@@ -675,29 +760,158 @@ public:
   }
 
   // [expected.object.monadic], monadic operations
-  template <class F> constexpr auto and_then(F &&f) &;
-  template <class F> constexpr auto and_then(F &&f) &&;
-  template <class F> constexpr auto and_then(F &&f) const &;
-  template <class F> constexpr auto and_then(F &&f) const &&;
-  template <class F> constexpr auto or_else(F &&f) &;
-  template <class F> constexpr auto or_else(F &&f) &&;
-  template <class F> constexpr auto or_else(F &&f) const &;
-  template <class F> constexpr auto or_else(F &&f) const &&;
-  template <class F> constexpr auto transform(F &&f) &;
-  template <class F> constexpr auto transform(F &&f) &&;
-  template <class F> constexpr auto transform(F &&f) const &;
-  template <class F> constexpr auto transform(F &&f) const &&;
-  template <class F> constexpr auto transform_error(F &&f) &;
-  template <class F> constexpr auto transform_error(F &&f) &&;
-  template <class F> constexpr auto transform_error(F &&f) const &;
-  template <class F> constexpr auto transform_error(F &&f) const &&;
+  template <class F>
+  constexpr auto and_then(F &&f) &                 //
+      noexcept(noexcept(_and_then<expected &, F>)) // extension
+      -> decltype(_and_then(*this, FWD(f)))
+  {
+    return _and_then(*this, FWD(f));
+  }
+  template <class F>
+  constexpr auto and_then(F &&f) &&                 //
+      noexcept(noexcept(_and_then<expected &&, F>)) // extension
+      -> decltype(_and_then(::std::move(*this), FWD(f)))
+  {
+    return _and_then(::std::move(*this), FWD(f));
+  }
+  template <class F>
+  constexpr auto and_then(F &&f) const &                 //
+      noexcept(noexcept(_and_then<expected const &, F>)) // extension
+      -> decltype(_and_then(*this, FWD(f)))
+  {
+    return _and_then(*this, FWD(f));
+  }
+  template <class F>
+  constexpr auto and_then(F &&f) const &&                 //
+      noexcept(noexcept(_and_then<expected const &&, F>)) // extension
+      -> decltype(_and_then(::std::move(*this), FWD(f)))
+  {
+    return _and_then(::std::move(*this), FWD(f));
+  }
+
+  template <class F>
+  constexpr auto or_else(F &&f) &                 //
+      noexcept(noexcept(_or_else<expected &, F>)) // extension
+      -> decltype(_or_else(*this, FWD(f)))
+  {
+    return _or_else(*this, FWD(f));
+  }
+  template <class F>
+  constexpr auto or_else(F &&f) &&                 //
+      noexcept(noexcept(_or_else<expected &&, F>)) // extension
+      -> decltype(_or_else(::std::move(*this), FWD(f)))
+  {
+    return _or_else(::std::move(*this), FWD(f));
+  }
+  template <class F>
+  constexpr auto or_else(F &&f) const &                 //
+      noexcept(noexcept(_or_else<expected const &, F>)) // extension
+      -> decltype(_or_else(*this, FWD(f)))
+  {
+    return _or_else(*this, FWD(f));
+  }
+  template <class F>
+  constexpr auto or_else(F &&f) const &&                 //
+      noexcept(noexcept(_or_else<expected const &&, F>)) // extension
+      -> decltype(_or_else(::std::move(*this), FWD(f)))
+  {
+    return _or_else(::std::move(*this), FWD(f));
+  }
+
+  template <class F>
+  constexpr auto transform(F &&f) &                 //
+      noexcept(noexcept(_transform<expected &, F>)) // extension
+      -> decltype(_transform(*this, FWD(f)))
+  {
+    return _transform(*this, FWD(f));
+  }
+  template <class F>
+  constexpr auto transform(F &&f) &&                //
+      noexcept(noexcept(_transform<expected &, F>)) // extension
+      -> decltype(_transform(::std::move(*this), FWD(f)))
+  {
+    return _transform(::std::move(*this), FWD(f));
+  }
+  template <class F>
+  constexpr auto transform(F &&f) const &           //
+      noexcept(noexcept(_transform<expected &, F>)) // extension
+      -> decltype(_transform(*this, FWD(f)))
+  {
+    return _transform(*this, FWD(f));
+  }
+  template <class F>
+  constexpr auto transform(F &&f) const &&          //
+      noexcept(noexcept(_transform<expected &, F>)) // extension
+      -> decltype(_transform(::std::move(*this), FWD(f)))
+  {
+    return _transform(::std::move(*this), FWD(f));
+  }
+
+  template <class F>
+  constexpr auto transform_error(F &&f) &                 //
+      noexcept(noexcept(_transform_error<expected &, F>)) // extension
+      -> decltype(_transform_error(*this, FWD(f)))
+  {
+    return _transform_error(*this, FWD(f));
+  }
+  template <class F>
+  constexpr auto transform_error(F &&f) &&                //
+      noexcept(noexcept(_transform_error<expected &, F>)) // extension
+      -> decltype(_transform_error(::std::move(*this), FWD(f)))
+  {
+    return _transform_error(::std::move(*this), FWD(f));
+  }
+  template <class F>
+  constexpr auto transform_error(F &&f) const &           //
+      noexcept(noexcept(_transform_error<expected &, F>)) // extension
+      -> decltype(_transform_error(*this, FWD(f)))
+  {
+    return _transform_error(*this, FWD(f));
+  }
+  template <class F>
+  constexpr auto transform_error(F &&f) const &&          //
+      noexcept(noexcept(_transform_error<expected &, F>)) // extension
+      -> decltype(_transform_error(::std::move(*this), FWD(f)))
+  {
+    return _transform_error(::std::move(*this), FWD(f));
+  }
 
   // [expected.object.eq], equality operators
   template <class T2, class E2>
     requires(not ::std::is_void_v<T2>)
-  constexpr friend bool operator==(expected const &x, expected<T2, E2> const &y);
-  template <class T2> constexpr friend bool operator==(expected const &, const T2 &);
-  template <class E2> constexpr friend bool operator==(expected const &, unexpected<E2> const &);
+  constexpr friend bool operator==(expected const &x, expected<T2, E2> const &y) //
+      noexcept(noexcept(*x == *y) && noexcept(x.error() == y.error()))           // extension
+    requires requires {
+      { *x == *y } -> ::std::convertible_to<bool>;
+      { x.error() == y.error() } -> ::std::convertible_to<bool>;
+    }
+  {
+    if (x.has_value() != y.has_value()) {
+      return false;
+    } else if (x.has_value()) {
+      return *x == *y;
+    } else {
+      return x.error() == y.error();
+    }
+  }
+  template <class T2>
+  constexpr friend bool operator==(expected const &x, const T2 &v) //
+      noexcept(noexcept(*x == v))                                  // extension
+    requires(not detail::_is_some_expected<T2>) && requires {
+      { *x == v } -> ::std::convertible_to<bool>;
+    }
+  {
+    return x.has_value() && static_cast<bool>(*x == v);
+  }
+  template <class E2>
+  constexpr friend bool operator==(expected const &x, unexpected<E2> const &e) //
+      noexcept(noexcept(x.error() == e.error()))                               // extension
+    requires requires {
+      { x.error() == e.error() } -> ::std::convertible_to<bool>;
+    }
+  {
+    return (not x.has_value()) && static_cast<bool>(x.error() == e.error());
+  }
 
 private:
   union {
