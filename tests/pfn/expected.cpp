@@ -3,6 +3,9 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
+// TODO: Add death tests. Until then, empty definition to avoid false "no coverage" reports
+#define LIBFN_ASSERT(...)
+
 #include <pfn/expected.hpp>
 
 #include <util/helper_types.hpp>
