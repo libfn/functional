@@ -2048,5 +2048,139 @@ TEST_CASE("expected", "[expected][polyfill]")
         CHECK((b = std::move(a).error()).v == 17 * helper::from_rval);
       }
     }
+
+    SECTION("value_or")
+    {
+      using T = expected<helper, Error>;
+      static_assert(not noexcept(std::declval<T>().value_or(std::declval<int>())));
+      static_assert(noexcept(std::declval<T>().value_or(std::declval<std::initializer_list<double>>())));
+      static_assert(not noexcept(std::declval<T &>().value_or(std::declval<int>())));
+      static_assert(noexcept(std::declval<T &>().value_or(std::declval<std::initializer_list<double>>())));
+
+      SECTION("value")
+      {
+        T a(7);
+        CHECK(a.value_or(0) == helper(7 * helper::from_lval_const));
+        CHECK(std::as_const(a).value_or(0) == helper(7 * helper::from_lval_const));
+        CHECK(std::move(std::as_const(a)).value_or(0) == helper(7 * helper::from_lval_const));
+        CHECK(std::move(a).value_or(0) == helper(7 * helper::from_rval));
+      }
+
+      SECTION("error")
+      {
+        {
+          T a(unexpect, Error::file_not_found);
+          CHECK(a.value_or(13) == helper(13));
+          CHECK(std::move(a).value_or(5) == helper(5));
+        }
+
+        {
+          T const a(unexpect, Error::unknown);
+          helper b(11);
+          CHECK(a.value_or(b) == helper(11 * helper::from_lval));
+          CHECK(a.value_or(std::as_const(b)) == helper(11 * helper::from_lval_const));
+          CHECK(a.value_or(std::move(std::as_const(b))) == helper(11 * helper::from_rval_const));
+          CHECK(a.value_or(std::move(b)) == helper(11 * helper::from_rval));
+        }
+      }
+
+      SECTION("noexcept extension")
+      {
+        {
+          using T = expected<helper_t<2>, Error>;
+          static_assert(not std::is_nothrow_copy_constructible_v<T::value_type>);
+          static_assert(std::is_nothrow_move_constructible_v<T::value_type>);
+          static_assert(not std::is_nothrow_convertible_v<int, T::value_type>);
+          static_assert(std::is_nothrow_convertible_v<std::initializer_list<double>, T::value_type>);
+
+          static_assert(not noexcept(std::declval<T>().value_or(std::declval<int>())));
+          static_assert(noexcept(std::declval<T>().value_or(std::declval<std::initializer_list<double>>())));
+          static_assert(not noexcept(std::declval<T &>().value_or(std::declval<int>())));
+          static_assert(not noexcept(std::declval<T &>().value_or(std::declval<std::initializer_list<double>>())));
+        }
+
+        {
+          using T = expected<helper_t<4>, Error>;
+          static_assert(std::is_nothrow_copy_constructible_v<T::value_type>);
+          static_assert(not std::is_nothrow_move_constructible_v<T::value_type>);
+          static_assert(not std::is_nothrow_convertible_v<int, T::value_type>);
+          static_assert(std::is_nothrow_convertible_v<std::initializer_list<double>, T::value_type>);
+
+          static_assert(not noexcept(std::declval<T>().value_or(std::declval<int>())));
+          static_assert(not noexcept(std::declval<T>().value_or(std::declval<std::initializer_list<double>>())));
+          static_assert(not noexcept(std::declval<T &>().value_or(std::declval<int>())));
+          static_assert(noexcept(std::declval<T &>().value_or(std::declval<std::initializer_list<double>>())));
+        }
+
+        SUCCEED();
+      }
+    }
+
+    SECTION("error_or")
+    {
+      using T = expected<int, helper>;
+      static_assert(not noexcept(std::declval<T>().error_or(std::declval<int>())));
+      static_assert(noexcept(std::declval<T>().error_or(std::declval<std::initializer_list<double>>())));
+      static_assert(not noexcept(std::declval<T &>().error_or(std::declval<int>())));
+      static_assert(noexcept(std::declval<T &>().error_or(std::declval<std::initializer_list<double>>())));
+
+      SECTION("error")
+      {
+        T a(unexpect, 7);
+        CHECK(a.error_or(0) == helper(7 * helper::from_lval_const));
+        CHECK(std::as_const(a).error_or(0) == helper(7 * helper::from_lval_const));
+        CHECK(std::move(std::as_const(a)).error_or(0) == helper(7 * helper::from_lval_const));
+        CHECK(std::move(a).error_or(0) == helper(7 * helper::from_rval));
+      }
+
+      SECTION("value")
+      {
+        {
+          T a(17);
+          CHECK(a.error_or(17) == helper(17));
+          CHECK(std::move(a).error_or(5) == helper(5));
+        }
+
+        {
+          T const a(23);
+          helper b(11);
+          CHECK(a.error_or(b) == helper(11 * helper::from_lval));
+          CHECK(a.error_or(std::as_const(b)) == helper(11 * helper::from_lval_const));
+          CHECK(a.error_or(std::move(std::as_const(b))) == helper(11 * helper::from_rval_const));
+          CHECK(a.error_or(std::move(b)) == helper(11 * helper::from_rval));
+        }
+      }
+
+      SECTION("noexcept extension")
+      {
+        {
+          using T = expected<int, helper_t<2>>;
+          static_assert(not std::is_nothrow_copy_constructible_v<T::error_type>);
+          static_assert(std::is_nothrow_move_constructible_v<T::error_type>);
+          static_assert(not std::is_nothrow_convertible_v<int, T::error_type>);
+          static_assert(std::is_nothrow_convertible_v<std::initializer_list<double>, T::error_type>);
+
+          static_assert(not noexcept(std::declval<T>().error_or(std::declval<int>())));
+          static_assert(noexcept(std::declval<T>().error_or(std::declval<std::initializer_list<double>>())));
+          static_assert(not noexcept(std::declval<T &>().error_or(std::declval<int>())));
+          static_assert(not noexcept(std::declval<T &>().error_or(std::declval<std::initializer_list<double>>())));
+        }
+
+        {
+          using T = expected<int, helper_t<4>>;
+          static_assert(std::is_nothrow_copy_constructible_v<T::error_type>);
+          static_assert(not std::is_nothrow_move_constructible_v<T::error_type>);
+          static_assert(not std::is_nothrow_convertible_v<int, T::error_type>);
+          static_assert(std::is_nothrow_convertible_v<std::initializer_list<double>, T::error_type>);
+
+          static_assert(not noexcept(std::declval<T>().error_or(std::declval<int>())));
+          static_assert(not noexcept(std::declval<T>().error_or(std::declval<std::initializer_list<double>>())));
+          static_assert(not noexcept(std::declval<T &>().error_or(std::declval<int>())));
+          static_assert(noexcept(std::declval<T &>().error_or(std::declval<std::initializer_list<double>>())));
+        }
+
+        SUCCEED();
+      }
+    }
   }
 }

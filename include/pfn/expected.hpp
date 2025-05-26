@@ -635,10 +635,44 @@ public:
     return ::std::move(e_);
   }
 
-  template <class U> constexpr T value_or(U &&) const &;
-  template <class U> constexpr T value_or(U &&) &&;
-  template <class G = E> constexpr E error_or(G &&) const &;
-  template <class G = E> constexpr E error_or(G &&) &&;
+  template <class U>
+  constexpr T value_or(U &&v) const &                                                              //
+      noexcept(::std::is_nothrow_copy_constructible_v<T> && ::std::is_nothrow_convertible_v<U, T>) // extension
+  {
+    static_assert(::std::is_copy_constructible_v<T>);
+    static_assert(::std::is_convertible_v<U, T>);
+    return set_ ? v_ : static_cast<T>(FWD(v));
+  }
+  template <class U>
+  constexpr T value_or(U &&v) &&                                                                   //
+      noexcept(::std::is_nothrow_move_constructible_v<T> && ::std::is_nothrow_convertible_v<U, T>) // extension
+  {
+    static_assert(::std::is_move_constructible_v<T>);
+    static_assert(::std::is_convertible_v<U, T>);
+    return set_ ? ::std::move(v_) : static_cast<T>(FWD(v));
+  }
+  template <class G = E>
+  constexpr E error_or(G &&e) const &                                                              //
+      noexcept(::std::is_nothrow_copy_constructible_v<E> && ::std::is_nothrow_convertible_v<G, E>) // extension
+  {
+    static_assert(::std::is_copy_constructible_v<E>);
+    static_assert(::std::is_convertible_v<G, E>);
+    if (set_) {
+      return FWD(e);
+    }
+    return e_;
+  }
+  template <class G = E>
+  constexpr E error_or(G &&e) &&                                                                   //
+      noexcept(::std::is_nothrow_move_constructible_v<E> && ::std::is_nothrow_convertible_v<G, E>) // extension
+  {
+    static_assert(::std::is_move_constructible_v<E>);
+    static_assert(::std::is_convertible_v<G, E>);
+    if (set_) {
+      return FWD(e);
+    }
+    return ::std::move(e_);
+  }
 
   // [expected.object.monadic], monadic operations
   template <class F> constexpr auto and_then(F &&f) &;
