@@ -1968,22 +1968,37 @@ TEST_CASE("expected", "[expected][polyfill]")
     {
       using T = expected<helper, Error>;
 
-      T a = {11};
-      CHECK(a.value().v == 11);
-      CHECK(std::as_const(a).value().v == 11);
-      CHECK(std::move(std::as_const(a)).value().v == 11);
-      CHECK(std::move(a).value().v == 11);
+      {
+        T a = {11};
+        CHECK(a.value().v == 11);
+        CHECK(std::as_const(a).value().v == 11);
+        CHECK(std::move(std::as_const(a)).value().v == 11);
+        CHECK(std::move(a).value().v == 11);
+      }
 
       {
+        T a = {13};
+        CHECK(a);
         helper b{1};
-        CHECK((b = a.value()).v == 11 * helper::from_lval);
-        CHECK((b = std::as_const(a).value()).v == 11 * helper::from_lval_const);
-        CHECK((b = std::move(std::as_const(a)).value()).v == 11 * helper::from_rval_const);
-        CHECK((b = std::move(a).value()).v == 11 * helper::from_rval);
+        CHECK((b = a.value()).v == 13 * helper::from_lval);
+        CHECK((b = std::as_const(a).value()).v == 13 * helper::from_lval_const);
+        CHECK((b = std::move(std::as_const(a)).value()).v == 13 * helper::from_rval_const);
+        CHECK((b = std::move(a).value()).v == 13 * helper::from_rval);
+      }
+
+      {
+        T a = {17};
+        helper b{1};
+        CHECK(a);
+        CHECK((b = *a).v == 17 * helper::from_lval);
+        CHECK((b = *std::as_const(a)).v == 17 * helper::from_lval_const);
+        CHECK((b = *std::move(std::as_const(a))).v == 17 * helper::from_rval_const);
+        CHECK((b = *std::move(a)).v == 17 * helper::from_rval);
       }
 
       {
         T a{unexpect, Error::file_not_found};
+        CHECK(!a);
 
         try {
           auto _ = a.value();
