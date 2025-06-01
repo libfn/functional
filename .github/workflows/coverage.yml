@@ -20,7 +20,7 @@ jobs:
   coverage:
     runs-on:
       group: runners-intel
-    container: libfn/ci-build-gcc:15
+    container: libfn.azurecr.io/ci-build-gcc:15
     strategy:
       fail-fast: false
     env:

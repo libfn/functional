@@ -12,7 +12,7 @@ jobs:
   checks:
     runs-on:
       group: runners-arm64
-    container: libfn/ci-pre-commit:latest
+    container: libfn.azurecr.io/ci-pre-commit:latest
 
     steps:
     - uses: actions/checkout@v4
