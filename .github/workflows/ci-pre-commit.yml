@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
 
 env:
-  REGISTRY_IMAGE: libfn/ci-pre-commit
+  REGISTRY_IMAGE: libfn.azurecr.io/ci-pre-commit
 
 jobs:
   build:
@@ -44,8 +44,9 @@ jobs:
             type=schedule,pattern={{date 'YYYYMMDD'}}
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: libfn.azurecr.io
+          username: ${{ secrets.AZURECR_NAME }}
+          password: ${{ secrets.AZURECR_PASS }}
           context: "ci/pre-commit"
           title: "pre-commit"
           push: ${{ github.ref_type == 'branch' && github.ref_name == 'main' }}
@@ -69,6 +70,7 @@ jobs:
             type=schedule,pattern={{date 'YYYYMMDD'}}
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: libfn.azurecr.io
+          username: ${{ secrets.AZURECR_NAME }}
+          password: ${{ secrets.AZURECR_PASS }}
           title: "pre-commit"

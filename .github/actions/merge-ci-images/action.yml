@@ -10,6 +10,10 @@ inputs:
   tags:
     default: null
     required: true
+  registry:
+    default: "docker.io"
+    required: true
+    type: string
   username:
     default: null
     required: true
@@ -46,6 +50,7 @@ runs:
     - name: Login to Docker Hub
       uses: docker/login-action@v3
       with:
+        registry: ${{ inputs.registry }}
         username: ${{ inputs.username }}
         password: ${{ inputs.password  }}
 
