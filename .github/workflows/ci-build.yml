@@ -17,6 +17,10 @@ on:
   workflow_dispatch:
 
 env:
+  # By default azurecr.io does not allow anynymous pulls. This has been enabled explicitly
+  # https://learn.microsoft.com/en-us/azure/container-registry/anonymous-pull-access
+  # Also see https://learn.microsoft.com/en-gb/azure/container-registry/
+  # and https://docs.docker.com/build/ci/github-actions/push-multi-registries/
   REGISTRY_IMAGE_ROOT: libfn.azurecr.io/ci-build
 
 jobs:
