@@ -23,7 +23,7 @@ jobs:
   generate_docs:
     runs-on:
       group: runners-arm64
-    container: libfn/ci-docs:latest
+    container: libfn.azurecr.io/ci-docs:latest
     steps:
       - uses: actions/checkout@v4
 
