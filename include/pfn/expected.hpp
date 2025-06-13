@@ -736,6 +736,7 @@ public:
     static_assert(::std::is_convertible_v<U, T>);
     return set_ ? ::std::move(v_) : static_cast<T>(FWD(v));
   }
+
   template <class G = E>
   constexpr E error_or(G &&e) const &                                                              //
       noexcept(::std::is_nothrow_copy_constructible_v<E> && ::std::is_nothrow_convertible_v<G, E>) // extension

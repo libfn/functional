@@ -394,9 +394,9 @@ TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
     CHECK(b.error().v == 3 * helper::swapped * helper::swapped);
   }
 
-  SECTION("constexpr all, CTAD")
+  SECTION("constexpr")
   {
-    constexpr auto test = [](auto i) constexpr {
+    constexpr auto fn = [](auto i) constexpr {
       unexpected a{i};
       unexpected b{i * 5};
       swap(a, b);
@@ -405,7 +405,8 @@ TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
       b.swap(c);
       return unexpected{b.error() * a.error() * 7};
     };
-    constexpr auto c = test(21);
+
+    constexpr auto c = fn(21);
     static_assert(std::is_same_v<decltype(c), unexpected<int> const>);
     static_assert(c.error() == 21 * 21 * 5 * 7);
 
@@ -1236,6 +1237,47 @@ TEST_CASE("expected", "[expected][polyfill]")
         a = unexpected<helper>(7);
         CHECK(a.error().v == 7 * helper::from_rval);
       }
+
+      SECTION("constexpr")
+      {
+        using T = expected<helper, Error>;
+
+        SECTION("from error")
+        {
+          constexpr auto fn = [](T &&v) constexpr -> T {
+            T tmp{unexpect, Error::unknown};
+            tmp = std::move(v);
+            return tmp;
+          };
+
+          constexpr T a = fn(T(unexpect, Error::file_not_found));
+          static_assert(a.error() == Error::file_not_found);
+
+          constexpr T b = fn(T(std::in_place, std::initializer_list<double>(), 7));
+          static_assert(b.value().v == 7 * helper::from_rval * helper::from_rval);
+
+          SUCCEED();
+        }
+
+        SECTION("from value")
+        {
+          {
+            constexpr auto fn = [](T &&v) constexpr -> T {
+              T tmp{std::in_place, std::initializer_list<double>(), 13};
+              tmp = std::move(v);
+              return tmp;
+            };
+
+            constexpr T a = fn(T(unexpect, Error::file_not_found));
+            static_assert(a.error() == Error::file_not_found);
+
+            constexpr T b = fn(T(std::in_place, std::initializer_list<double>(), 11));
+            static_assert(b.value().v == 11 * helper::from_rval * helper::from_rval);
+
+            SUCCEED();
+          }
+        }
+      }
     }
 
     SECTION("from lval const")
@@ -1565,6 +1607,49 @@ TEST_CASE("expected", "[expected][polyfill]")
         CHECK(a.error().v == 7 * helper::from_lval_const);
       }
     }
+
+    SECTION("constexpr")
+    {
+      using T = expected<helper, Error>;
+      constexpr T c{unexpect, Error::file_not_found};
+      constexpr T d{std::in_place, std::initializer_list<double>(), 5};
+
+      SECTION("from error")
+      {
+        constexpr auto fn = [](T const &v) constexpr -> T {
+          T tmp{unexpect, Error::unknown};
+          tmp = v;
+          return tmp;
+        };
+
+        constexpr T a = fn(c);
+        static_assert(a.error() == Error::file_not_found);
+
+        constexpr T b = fn(d);
+        static_assert(b.value().v == 5 * helper::from_lval_const * helper::from_rval);
+
+        SUCCEED();
+      }
+
+      SECTION("from value")
+      {
+        {
+          constexpr auto fn = [](T const &v) constexpr -> T {
+            T tmp{std::in_place, std::initializer_list<double>(), 13};
+            tmp = v;
+            return tmp;
+          };
+
+          constexpr T a = fn(c);
+          static_assert(a.error() == Error::file_not_found);
+
+          constexpr T b = fn(d);
+          static_assert(b.value().v == 5 * helper::from_lval_const * helper::from_rval);
+
+          SUCCEED();
+        }
+      }
+    }
   }
 
   SECTION("emplace")
@@ -1603,40 +1688,54 @@ TEST_CASE("expected", "[expected][polyfill]")
     SECTION("constexpr")
     {
       using T = expected<helper, Error>;
+      constexpr helper c{std::initializer_list<double>(), 5};
+
+      SECTION("from error")
       {
-        constexpr auto fn = [](auto &&...v) constexpr -> T {
-          T a(unexpect, Error::unknown);
-          a.emplace(std::forward<decltype(v) &&>(v)...);
-          return a;
+        constexpr auto fn = [](auto &&...args) constexpr -> T {
+          T tmp{unexpect, Error::unknown};
+          tmp.emplace(std::forward<decltype(args)>(args)...);
+          return tmp;
         };
 
-        constexpr auto a = fn(std::initializer_list<double>{5.0, 11.0}, 3);
-        static_assert(a.value().v == 5 * 11 * 3 * helper::from_rval);
+        constexpr T a = fn(c);
+        static_assert(a.value().v == 5 * helper::from_lval_const * helper::from_rval);
+
+        constexpr T b = fn(std::initializer_list<double>{3.0, 11.0}, 7);
+        static_assert(b.value().v == 3 * 11 * 7 * helper::from_rval);
+
+        SUCCEED();
       }
 
+      SECTION("from value")
       {
-        constexpr auto fn = [](auto &&...v) constexpr -> T {
-          T a(std::in_place, {9.0}, 1);
-          a.emplace(std::forward<decltype(v) &&>(v)...);
-          return a;
-        };
+        {
+          constexpr auto fn = [](auto &&...args) constexpr -> T {
+            T tmp{std::in_place, std::initializer_list<double>(), 13};
+            tmp.emplace(std::forward<decltype(args)>(args)...);
+            return tmp;
+          };
 
-        constexpr auto a = fn(std::initializer_list<double>{7.0, 13.0}, 3);
-        static_assert(a.value().v == 7 * 13 * 3 * helper::from_rval);
+          constexpr T a = fn(c);
+          static_assert(a.value().v == 5 * helper::from_lval_const * helper::from_rval);
+
+          constexpr T b = fn(std::initializer_list<double>{3.0, 11.0}, 7);
+          static_assert(b.value().v == 3 * 11 * 7 * helper::from_rval);
+
+          SUCCEED();
+        }
       }
 
+      SECTION("throwing constructor")
       {
         constexpr auto fn = [](auto &&...args) constexpr -> bool {
-          return requires {
-            expected<helper, Error>(unexpect, Error::unknown).emplace(std::forward<decltype(args)>(args)...);
-          };
+          return requires { std::declval<T>().emplace(std::forward<decltype(args)>(args)...); };
         };
 
-        static_assert(fn(std::initializer_list<double>{3.0, 5.0}, 1));
         static_assert(not fn(1, 2));
-      }
 
-      SUCCEED();
+        SUCCEED();
+      }
     }
   }
 
@@ -2117,6 +2216,37 @@ TEST_CASE("expected", "[expected][polyfill]")
 
         SUCCEED();
       }
+
+      SECTION("constexpr")
+      {
+        using T = expected<helper, Error>;
+        constexpr helper c{std::initializer_list<double>(), 7};
+
+        SECTION("lval const")
+        {
+          {
+            constexpr T a(std::in_place, {3.0}, 5);
+            static_assert(a.value_or(c).v == 3 * 5 * helper::from_lval_const);
+          }
+
+          {
+            constexpr T a(unexpect, Error::unknown);
+            static_assert(a.value_or(c).v == 7 * helper::from_lval_const);
+          }
+
+          SUCCEED();
+        }
+
+        SECTION("rval")
+        {
+          static_assert(T{std::in_place, {3.0}, 5}.value_or(c).v == 3 * 5 * helper::from_rval);
+          static_assert(T{unexpect, Error::unknown}.value_or(c).v == 7 * helper::from_lval_const);
+          static_assert(T{unexpect, Error::unknown}.value_or(helper(std::initializer_list<double>{7.0}, 3)).v
+                        == 7 * 3 * helper::from_rval);
+
+          SUCCEED();
+        }
+      }
     }
 
     SECTION("error_or")
@@ -2184,6 +2314,37 @@ TEST_CASE("expected", "[expected][polyfill]")
 
         SUCCEED();
       }
+
+      SECTION("constexpr")
+      {
+        using T = expected<int, helper>;
+        constexpr helper c{std::initializer_list<double>(), 7};
+
+        SECTION("lval const")
+        {
+          {
+            constexpr T a(unexpect, {3.0}, 5);
+            static_assert(a.error_or(c).v == 3 * 5 * helper::from_lval_const);
+          }
+
+          {
+            constexpr T a(std::in_place, 13);
+            static_assert(a.error_or(c).v == 7 * helper::from_lval_const);
+          }
+
+          SUCCEED();
+        }
+
+        SECTION("rval")
+        {
+          static_assert(T{unexpect, {3.0}, 5}.error_or(c).v == 3 * 5 * helper::from_rval);
+          static_assert(T{std::in_place, 13}.error_or(c).v == 7 * helper::from_lval_const);
+          static_assert(T{std::in_place, 13}.error_or(helper(std::initializer_list<double>{7.0}, 3)).v
+                        == 7 * 3 * helper::from_rval);
+
+          SUCCEED();
+        }
+      }
     }
   }
 
@@ -2215,6 +2376,37 @@ TEST_CASE("expected", "[expected][polyfill]")
         CHECK(std::move(std::as_const(a)).and_then(fn).error().v == 11 * helper::from_rval_const);
         CHECK(std::move(a).and_then(fn).error().v == 11 * helper::from_rval);
       }
+
+      SECTION("constexpr")
+      {
+        using T = expected<helper, Error>;
+        constexpr helper c{std::initializer_list<double>(), 7};
+        constexpr auto fn
+            = [](auto &&a) constexpr -> expected<int, Error> { return helper(std::forward<decltype(a)>(a)).v * 3; };
+
+        SECTION("lval const")
+        {
+          {
+            constexpr T a(std::in_place, {3.0}, 5);
+            static_assert(a.and_then(fn).value() == 3 * 3 * 5 * helper::from_lval_const);
+          }
+
+          {
+            constexpr T a(unexpect, Error::file_not_found);
+            static_assert(a.and_then(fn).error() == Error::file_not_found);
+          }
+
+          SUCCEED();
+        }
+
+        SECTION("rval")
+        {
+          static_assert(T{std::in_place, {3.0}, 5}.and_then(fn) == 3 * 3 * 5 * helper::from_rval);
+          static_assert(T{unexpect, Error::file_not_found}.and_then(fn).error() == Error::file_not_found);
+
+          SUCCEED();
+        }
+      }
     }
 
     SECTION("or_else")
@@ -2244,6 +2436,37 @@ TEST_CASE("expected", "[expected][polyfill]")
         CHECK(std::move(std::as_const(a)).or_else(fn).value().v == 13 * helper::from_rval_const);
         CHECK(std::move(a).or_else(fn).value().v == 13 * helper::from_rval);
       }
+
+      SECTION("constexpr")
+      {
+        using T = expected<int, helper>;
+        constexpr helper c{std::initializer_list<double>(), 7};
+        constexpr auto fn
+            = [](auto &&a) constexpr -> expected<int, int> { return helper(std::forward<decltype(a)>(a)).v * 3; };
+
+        SECTION("lval const")
+        {
+          {
+            constexpr T a(std::in_place, 5);
+            static_assert(a.or_else(fn).value() == 5);
+          }
+
+          {
+            constexpr T a(unexpect, {3.0}, 5);
+            static_assert(a.or_else(fn).value() == 3 * 3 * 5 * helper::from_lval_const);
+          }
+
+          SUCCEED();
+        }
+
+        SECTION("rval")
+        {
+          static_assert(T{unexpect, {3.0}, 5}.or_else(fn).value() == 3 * 3 * 5 * helper::from_rval);
+          static_assert(T{std::in_place, 13}.or_else(fn).value() == 13);
+
+          SUCCEED();
+        }
+      }
     }
 
     SECTION("transform")
@@ -2271,6 +2494,36 @@ TEST_CASE("expected", "[expected][polyfill]")
         CHECK(std::move(std::as_const(a)).transform(fn).error().v == 11 * helper::from_rval_const);
         CHECK(std::move(a).transform(fn).error().v == 11 * helper::from_rval);
       }
+
+      SECTION("constexpr")
+      {
+        using T = expected<helper, Error>;
+        constexpr helper c{std::initializer_list<double>(), 7};
+        constexpr auto fn = [](auto &&a) constexpr -> int { return helper(std::forward<decltype(a)>(a)).v * 3; };
+
+        SECTION("lval const")
+        {
+          {
+            constexpr T a(std::in_place, {3.0}, 5);
+            static_assert(a.transform(fn).value() == 3 * 3 * 5 * helper::from_lval_const);
+          }
+
+          {
+            constexpr T a(unexpect, Error::file_not_found);
+            static_assert(a.transform(fn).error() == Error::file_not_found);
+          }
+
+          SUCCEED();
+        }
+
+        SECTION("rval")
+        {
+          static_assert(T{std::in_place, {3.0}, 5}.transform(fn) == 3 * 3 * 5 * helper::from_rval);
+          static_assert(T{unexpect, Error::file_not_found}.transform(fn).error() == Error::file_not_found);
+
+          SUCCEED();
+        }
+      }
     }
 
     SECTION("transform_error")
@@ -2297,6 +2550,36 @@ TEST_CASE("expected", "[expected][polyfill]")
         CHECK(std::as_const(a).transform_error(fn).value().v == 13 * helper::from_lval_const);
         CHECK(std::move(std::as_const(a)).transform_error(fn).value().v == 13 * helper::from_rval_const);
         CHECK(std::move(a).transform_error(fn).value().v == 13 * helper::from_rval);
+      }
+
+      SECTION("constexpr")
+      {
+        using T = expected<int, helper>;
+        constexpr helper c{std::initializer_list<double>(), 7};
+        constexpr auto fn = [](auto &&a) constexpr -> int { return helper(std::forward<decltype(a)>(a)).v * 3; };
+
+        SECTION("lval const")
+        {
+          {
+            constexpr T a(std::in_place, 5);
+            static_assert(a.transform_error(fn).value() == 5);
+          }
+
+          {
+            constexpr T a(unexpect, {3.0}, 5);
+            static_assert(a.transform_error(fn).error() == 3 * 3 * 5 * helper::from_lval_const);
+          }
+
+          SUCCEED();
+        }
+
+        SECTION("rval")
+        {
+          static_assert(T{unexpect, {3.0}, 5}.transform_error(fn).error() == 3 * 3 * 5 * helper::from_rval);
+          static_assert(T{std::in_place, 13}.transform_error(fn).value() == 13);
+
+          SUCCEED();
+        }
       }
     }
   }

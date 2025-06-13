@@ -5,7 +5,6 @@
 
 #include <compare>
 #include <concepts>
-#include <exception>
 #include <initializer_list>
 #include <stdexcept>
 #include <type_traits>
