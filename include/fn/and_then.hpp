@@ -3,8 +3,8 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#ifndef INCLUDE_FUNCTIONAL_AND_THEN
-#define INCLUDE_FUNCTIONAL_AND_THEN
+#ifndef INCLUDE_FN_AND_THEN
+#define INCLUDE_FN_AND_THEN
 
 #include <fn/choice.hpp>
 #include <fn/concepts.hpp>

@@ -3,8 +3,8 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#ifndef INCLUDE_FUNCTIONAL_OPTIONAL
-#define INCLUDE_FUNCTIONAL_OPTIONAL
+#ifndef INCLUDE_FN_OPTIONAL
+#define INCLUDE_FN_OPTIONAL
 
 #include <fn/detail/functional.hpp>
 #include <fn/pack.hpp>

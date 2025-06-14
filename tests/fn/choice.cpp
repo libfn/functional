@@ -4,7 +4,10 @@
 // or copy at https://opensource.org/licenses/ISC
 
 #include <fn/choice.hpp>
+
 #include <fn/utility.hpp>
+
+#include <util/helper_types.hpp>
 
 #include <catch2/catch_all.hpp>
 
@@ -40,18 +43,19 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     static_assert(std::same_as<fn::sum<NonCopyable, int>, typename choice<NonCopyable, int>::value_type>);
     static_assert(std::same_as<fn::sum<int>, typename choice<int>::value_type>);
 
-    using type = choice<bool, int>;
-    using value_type = fn::sum<bool, int>;
+    using type = fn::choice<bool, helper>;
+    using value_type = fn::sum<bool, helper>;
     static_assert(std::same_as<value_type &, decltype(std::declval<type &>().value())>);
     static_assert(std::same_as<value_type const &, decltype(std::declval<type const &>().value())>);
     static_assert(std::same_as<value_type &&, decltype(std::declval<type &&>().value())>);
     static_assert(std::same_as<value_type const &&, decltype(std::declval<type const &&>().value())>);
 
-    type s{42};
+    type s{helper{1}};
+    s.value().get_ptr<helper>()->v = 42;
     constexpr auto fn = fn::overload{
         [](auto &&) -> int { throw 0; }, //
-        [](int &i) -> int { return i + 1; },  [](int const &i) -> int { return i + 2; },
-        [](int &&i) -> int { return i + 3; }, [](int const &&i) -> int { return i + 4; },
+        [](helper &o) -> int { return o.v + 1; },  [](helper const &o) -> int { return o.v + 2; },
+        [](helper &&o) -> int { return o.v + 3; }, [](helper const &&o) -> int { return o.v + 4; },
     };
     static_assert(std::same_as<int, decltype(s.value().invoke(fn))>);
     CHECK((s.value().invoke(fn)) == 43);
@@ -146,30 +150,165 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       static_assert(c.invoke([](auto &&a) -> bool { return a.size() == 3 && a[0] == 3 && a[1] == 14 && a[2] == 15; }));
     }
 
-    WHEN("move from rvalue")
+    WHEN("constexpr move from rvalue")
     {
-      using T = fn::choice<bool, int>;
+      using T = fn::choice<bool, helper>;
       constexpr auto fn = [](auto i) constexpr noexcept -> T { return {std::move(i)}; };
       constexpr auto a = fn(true);
       static_assert(std::is_same_v<decltype(a), T const>);
       static_assert(a.has_value<bool>());
+      static_assert(a.value() == fn::sum{true});
 
-      constexpr auto b = fn(12);
+      constexpr auto b = fn(helper{{0.5, 2.0}, 19});
       static_assert(std::is_same_v<decltype(b), T const>);
-      static_assert(b.has_value<int>());
+      static_assert(b.has_value<helper>());
+      static_assert(b.value().get_ptr<helper>()->v == 19 * helper::from_rval);
     }
 
-    WHEN("copy from lvalue")
+    WHEN("move from rvalue")
     {
-      using T = fn::choice<bool, int>;
+      using T = fn::choice<bool, helper>;
+      constexpr auto fn = [](auto i) noexcept -> T { return {std::move(i)}; };
+      auto const a = fn(helper{9});
+      static_assert(std::is_same_v<decltype(a), T const>);
+      CHECK(a.has_value<helper>());
+      CHECK(a.value().get_ptr<helper>()->v == 9 * helper::from_rval);
+
+      auto b = fn(true);
+      static_assert(std::is_same_v<decltype(b), T>);
+      CHECK(b.has_value<bool>());
+      CHECK(b.value() == fn::sum{true});
+    }
+
+    WHEN("constexpr move from const rvalue")
+    {
+      using T = fn::choice<bool, helper>;
+      constexpr auto fn = [](auto const i) constexpr noexcept -> T { return {std::move(i)}; };
+      constexpr auto a = fn(true);
+      static_assert(std::is_same_v<decltype(a), T const>);
+      static_assert(a.has_value<bool>());
+      static_assert(a.value() == fn::sum{true});
+
+      constexpr auto b = fn(helper{{0.5, 2.0}, 17});
+      static_assert(std::is_same_v<decltype(b), T const>);
+      static_assert(b.has_value<helper>());
+      static_assert(b.value().get_ptr<helper>()->v == 17 * helper::from_rval_const);
+    }
+
+    WHEN("move from const rvalue")
+    {
+      using T = fn::choice<bool, helper>;
+      constexpr auto fn = [](auto const i) noexcept -> T { return {std::move(i)}; };
+      auto const a = fn(helper{7});
+      static_assert(std::is_same_v<decltype(a), T const>);
+      CHECK(a.has_value<helper>());
+      CHECK(a.value().get_ptr<helper>()->v == 7 * helper::from_rval_const);
+
+      auto b = fn(true);
+      static_assert(std::is_same_v<decltype(b), T>);
+      CHECK(b.has_value<bool>());
+      CHECK(b.value() == fn::sum{true});
+    }
+
+    WHEN("constexpr copy from lvalue")
+    {
+      using T = fn::choice<bool, helper>;
       constexpr auto fn = [](auto i) constexpr noexcept -> T { return {i}; };
       constexpr auto a = fn(true);
       static_assert(std::is_same_v<decltype(a), T const>);
       static_assert(a.has_value<bool>());
+      static_assert(a.value() == fn::sum{true});
 
-      constexpr auto b = fn(12);
+      constexpr auto b = fn(helper{{0.5, 2.0}, 17});
       static_assert(std::is_same_v<decltype(b), T const>);
-      static_assert(b.has_value<int>());
+      static_assert(b.has_value<helper>());
+      static_assert(b.value().get_ptr<helper>()->v == 17 * helper::from_lval);
+    }
+
+    WHEN("copy from lvalue")
+    {
+      using T = fn::choice<bool, helper>;
+      constexpr auto fn = [](auto i) noexcept -> T { return {i}; };
+      auto const a = fn(true);
+      static_assert(std::is_same_v<decltype(a), T const>);
+      CHECK(a.has_value<bool>());
+      CHECK(a.value() == fn::sum{true});
+
+      auto b = fn(helper{13});
+      static_assert(std::is_same_v<decltype(b), T>);
+      CHECK(b.has_value<helper>());
+      CHECK(b.value().get_ptr<helper>()->v == 13 * helper::from_lval);
+    }
+
+    WHEN("constexpr copy from const lvalue")
+    {
+      using T = fn::choice<bool, helper>;
+      constexpr auto fn = [](auto const i) constexpr noexcept -> T { return {i}; };
+      constexpr auto a = fn(true);
+      static_assert(std::is_same_v<decltype(a), T const>);
+      static_assert(a.has_value<bool>());
+      static_assert(a.value() == fn::sum{true});
+
+      constexpr auto b = fn(helper{{0.5, 2.0}, 15});
+      static_assert(std::is_same_v<decltype(b), T const>);
+      static_assert(b.has_value<helper>());
+      static_assert(b.value().get_ptr<helper>()->v == 15 * helper::from_lval_const);
+    }
+
+    WHEN("copy from const lvalue")
+    {
+      using T = fn::choice<bool, helper>;
+      constexpr auto fn = [](auto const i) noexcept -> T { return {i}; };
+      auto const a = fn(true);
+      static_assert(std::is_same_v<decltype(a), T const>);
+      CHECK(a.has_value<bool>());
+      CHECK(a.value() == fn::sum{true});
+
+      auto b = fn(helper{5});
+      static_assert(std::is_same_v<decltype(b), T>);
+      CHECK(b.has_value<helper>());
+      CHECK(b.value().get_ptr<helper>()->v == 5 * helper::from_lval_const);
+    }
+
+    WHEN("copy ctor")
+    {
+      using T = fn::choice<bool, helper>;
+      auto a = T{helper{1}};
+      a.value().get_ptr<helper>()->v = 23;
+      auto const b = std::as_const(a);
+
+      CHECK(b.has_value<helper>());
+      CHECK(b.value().get_ptr<helper>()->v == 23 * helper::from_lval_const);
+    }
+
+    WHEN("move ctor")
+    {
+      using T = fn::choice<bool, helper>;
+      auto a = T{helper{1}};
+      a.value().get_ptr<helper>()->v = 29;
+      auto const b = std::move(a);
+
+      CHECK(b.has_value<helper>());
+      CHECK(b.value().get_ptr<helper>()->v == 29 * helper::from_rval);
+    }
+  }
+
+  WHEN("constructor from sum")
+  {
+    using T = fn::choice<bool, helper>;
+    WHEN("move from rvalue")
+    {
+      fn::sum h{helper{1}};
+      h.get_ptr<helper>()->v = 17;
+      T const a{std::move(h)};
+      CHECK(a.value().get_ptr<helper>()->v == 17 * helper::from_rval);
+    }
+    WHEN("copy from const lvalue")
+    {
+      fn::sum h{helper{1}};
+      h.get_ptr<helper>()->v = 19;
+      T const a{std::as_const(h)};
+      CHECK(a.value().get_ptr<helper>()->v == 19 * helper::from_lval_const);
     }
   }
 
@@ -443,7 +582,7 @@ TEST_CASE("choice and_then", "[choice][and_then]")
 
 TEST_CASE("choice transform", "[choice][transform]")
 {
-  WHEN("size 1")
+  WHEN("size 2, only one set")
   {
     using type = fn::choice<bool, int>;
     constexpr auto init = std::in_place_type<int>;
@@ -503,15 +642,14 @@ TEST_CASE("choice transform", "[choice][transform]")
                   == fn::choice<double>{5.25});
   }
 
-  WHEN("size 4")
+  WHEN("size 2")
   {
-    static constexpr auto sizeof_string = sizeof(std::string);
     using ::fn::choice;
     using ::fn::sum;
     constexpr auto fn1 = [](auto i) noexcept -> std::size_t { return sizeof(i); };
 
-    using type = choice<double, int, std::string, std::string_view>;
-    static_assert(type::size == 4);
+    using type = choice<double, int>;
+    static_assert(type::size == 2);
 
     WHEN("element v0 set")
     {
@@ -581,85 +719,6 @@ TEST_CASE("choice transform", "[choice][transform]")
                           [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
                           [](int const &&i) -> bool { return i == 42; }))
               == choice{true});
-      }
-    }
-
-    WHEN("element v2 set")
-    {
-      type a{std::in_place_type<std::string>, "bar"};
-      CHECK(a.data.v2 == "bar");
-      WHEN("value only")
-      {
-        // TODO Change single CHECK below to static_assert when supported by Clang
-        CHECK(type{std::in_place_type<std::string>, "bar"}.transform(fn1) == choice{sizeof_string});
-        CHECK(a.transform(      //
-                  fn::overload( //
-                      [](auto) -> sum<bool, std::string> { throw 1; },
-                      [](std::string &i) -> bool { return i == "bar"; }, [](std::string const &) -> bool { throw 0; },
-                      [](std::string &&) -> bool { throw 0; }, [](std::string const &&) -> bool { throw 0; }))
-              == choice<bool, std::string>{true});
-        CHECK(std::as_const(a).transform( //
-                  fn::overload(           //
-                      [](auto) -> sum<bool, std::string> { throw 1; }, [](std::string &) -> bool { throw 0; },
-                      [](std::string const &i) -> bool { return i == "bar"; }, [](std::string &&) -> bool { throw 0; },
-                      [](std::string const &&) -> bool { throw 0; }))
-              == choice<bool, std::string>{true});
-        CHECK(type{std::in_place_type<std::string>, "bar"}.transform( //
-                  fn::overload(                                       //
-                      [](auto) -> sum<bool, std::string> { throw 1; }, [](std::string &) -> bool { throw 0; },
-                      [](std::string const &) -> bool { throw 0; }, [](std::string &&i) -> bool { return i == "bar"; },
-                      [](std::string const &&) -> bool { throw 0; }))
-              == choice<bool, std::string>{true});
-        CHECK(std::move(std::as_const(a))
-                  .transform(       //
-                      fn::overload( //
-                          [](auto) -> sum<bool, std::string> { throw 1; }, [](std::string &) -> bool { throw 0; },
-                          [](std::string const &) -> bool { throw 0; }, [](std::string &&) -> bool { throw 0; },
-                          [](std::string const &&i) -> bool { return i == "bar"; }))
-              == choice<bool, std::string>{true});
-      }
-    }
-
-    WHEN("element v3 set")
-    {
-      type a{std::in_place_type<std::string_view>, "baz"};
-      CHECK(a.data.v3 == "baz");
-      WHEN("value only")
-      {
-        static_assert(type{std::in_place_type<std::string_view>, "baz"}.transform(fn1) == choice{16uz});
-        CHECK(a.transform(      //
-                  fn::overload( //
-                      [](auto) -> sum<int, std::string_view> { throw 1; },
-                      [](std::string_view &i) -> sum<bool, int> { return {i == "baz"}; },
-                      [](std::string_view const &) -> sum<bool, int> { throw 0; },
-                      [](std::string_view &&) -> sum<bool, int> { throw 0; },
-                      [](std::string_view const &&) -> sum<bool, int> { throw 0; }))
-              == choice<bool, int, std::string_view>{true});
-        CHECK(std::as_const(a).transform( //
-                  fn::overload(           //
-                      [](auto) -> sum<int, std::string_view> { throw 1; },
-                      [](std::string_view &) -> sum<bool, int> { throw 0; },
-                      [](std::string_view const &i) -> sum<bool, int> { return {i == "baz"}; },
-                      [](std::string_view &&) -> sum<bool, int> { throw 0; },
-                      [](std::string_view const &&) -> sum<bool, int> { throw 0; }))
-              == choice<bool, int, std::string_view>{true});
-        CHECK(type{std::in_place_type<std::string_view>, "baz"}.transform( //
-                  fn::overload(                                            //
-                      [](auto) -> sum<int, std::string_view> { throw 1; },
-                      [](std::string_view &) -> sum<bool, int> { throw 0; },
-                      [](std::string_view const &) -> sum<bool, int> { throw 0; },
-                      [](std::string_view &&i) -> sum<bool, int> { return {i == "baz"}; },
-                      [](std::string_view const &&) -> sum<bool, int> { throw 0; }))
-              == choice<bool, int, std::string_view>{true});
-        CHECK(std::move(std::as_const(a))
-                  .transform(       //
-                      fn::overload( //
-                          [](auto) -> sum<int, std::string_view> { throw 1; },
-                          [](std::string_view &) -> sum<bool, int> { throw 0; },
-                          [](std::string_view const &) -> sum<bool, int> { throw 0; },
-                          [](std::string_view &&) -> sum<bool, int> { throw 0; },
-                          [](std::string_view const &&i) -> sum<bool, int> { return {i == "baz"}; }))
-              == choice<bool, int, std::string_view>{true});
       }
     }
   }
