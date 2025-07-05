@@ -106,17 +106,19 @@ template <int V> struct helper_t {
     state += v;
   }
 
-  helper_t(std::initializer_list<double> list) noexcept(true) : v(init(list)) { state += v; }
+  using list_t = std::initializer_list<double>;
+
+  helper_t(list_t list) noexcept(true) : v(init(list)) { state += v; }
 
   // Potentially throwing constructor
-  constexpr helper_t(std::initializer_list<double> list, std::integral auto... a) noexcept(true)
+  constexpr helper_t(list_t list, std::integral auto... a) noexcept(true)
     requires(sizeof...(a) > 0)
       : v(init(list, a...)) //
   {
   }
 
   // ... and the actual exception being thrown
-  static constexpr int init(std::initializer_list<double> l, auto &&...a) noexcept
+  static constexpr int init(list_t l, auto &&...a) noexcept
   {
     double ret = (1 * ... * a);
     for (auto d : l) {

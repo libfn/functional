@@ -289,14 +289,14 @@ TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
         unexpected<helper> c(std::in_place, {3.0, 5.0});
         auto const d = 3 * 5;
         CHECK(c.error().v == d);
-        static_assert(std::is_nothrow_constructible_v<decltype(c), std::in_place_t, std::initializer_list<double>>);
+        static_assert(std::is_nothrow_constructible_v<decltype(c), std::in_place_t, helper::list_t>);
       }
 
       SECTION("no forwarded args")
       {
         unexpected<helper> c(std::in_place, {2.0, 2.5});
         CHECK(c.error().v == 5);
-        static_assert(std::is_nothrow_constructible_v<decltype(c), std::in_place_t, std::initializer_list<double>>);
+        static_assert(std::is_nothrow_constructible_v<decltype(c), std::in_place_t, helper::list_t>);
       }
 
       SECTION("exception thrown")
@@ -545,10 +545,9 @@ TEST_CASE("expected", "[expected][polyfill]")
     {
       using T = expected<helper, Error>;
       static_assert(std::is_constructible_v<T, expected<int, Error>>);
-      static_assert(std::is_constructible_v<T, expected<std::initializer_list<double>, Error>>);
+      static_assert(std::is_constructible_v<T, expected<helper::list_t, Error>>);
       static_assert(not extension || not std::is_nothrow_constructible_v<T, expected<int, Error>>);
-      static_assert(not extension
-                    || std::is_nothrow_constructible_v<T, expected<std::initializer_list<double>, Error>>);
+      static_assert(not extension || std::is_nothrow_constructible_v<T, expected<helper::list_t, Error>>);
 
       constexpr T b(expected<int, Error>(unexpect, Error::unknown));
       static_assert(b.error() == Error::unknown);
@@ -571,8 +570,7 @@ TEST_CASE("expected", "[expected][polyfill]")
       using T = expected<helper, Error>;
       static_assert(std::is_constructible_v<T, expected<int, Error> const &>);
       static_assert(not extension || not std::is_nothrow_constructible_v<T, expected<int, Error> const &>);
-      static_assert(not extension
-                    || std::is_nothrow_constructible_v<T, expected<std::initializer_list<double>, Error> const &>);
+      static_assert(not extension || std::is_nothrow_constructible_v<T, expected<helper::list_t, Error> const &>);
 
       constexpr expected<int, Error> v(5);
       constexpr expected<int, Error> e(unexpect, Error::file_not_found);
@@ -602,8 +600,8 @@ TEST_CASE("expected", "[expected][polyfill]")
       static_assert(not extension || not std::is_nothrow_constructible_v<T, int>);
       static_assert(std::is_constructible_v<T, helper>);
       static_assert(not extension || std::is_nothrow_constructible_v<T, helper>);
-      static_assert(std::is_constructible_v<T, std::initializer_list<double>>);
-      static_assert(not extension || std::is_nothrow_constructible_v<T, std::initializer_list<double>>);
+      static_assert(std::is_constructible_v<T, helper::list_t>);
+      static_assert(not extension || std::is_nothrow_constructible_v<T, helper::list_t>);
 
       T const b(11);
       CHECK(b.value().v == 11);
@@ -617,8 +615,8 @@ TEST_CASE("expected", "[expected][polyfill]")
       using T = expected<int, helper>;
       static_assert(std::is_constructible_v<T, unexpected<int>>);
       static_assert(not extension || not std::is_nothrow_constructible_v<T, unexpected<int>>);
-      static_assert(std::is_constructible_v<T, unexpected<std::initializer_list<double>>>);
-      static_assert(not extension || std::is_nothrow_constructible_v<T, unexpected<std::initializer_list<double>>>);
+      static_assert(std::is_constructible_v<T, unexpected<helper::list_t>>);
+      static_assert(not extension || std::is_nothrow_constructible_v<T, unexpected<helper::list_t>>);
 
       constexpr expected<std::byte, int> a(unexpected<bool>(true));
       static_assert(a.error() == 1);
@@ -645,9 +643,8 @@ TEST_CASE("expected", "[expected][polyfill]")
       static_assert(not extension || not std::is_nothrow_constructible_v<T, std::in_place_t, int>);
       static_assert(std::is_constructible_v<T, std::in_place_t, helper>);
       static_assert(not extension || std::is_nothrow_constructible_v<T, std::in_place_t, helper>);
-      static_assert(std::is_constructible_v<T, std::in_place_t, std::initializer_list<double>>);
-      static_assert(not extension
-                    || std::is_nothrow_constructible_v<T, std::in_place_t, std::initializer_list<double>>);
+      static_assert(std::is_constructible_v<T, std::in_place_t, helper::list_t>);
+      static_assert(not extension || std::is_nothrow_constructible_v<T, std::in_place_t, helper::list_t>);
 
       T const b(std::in_place, 11, 13);
       CHECK(b.value().v == 11 * 13);
@@ -670,8 +667,8 @@ TEST_CASE("expected", "[expected][polyfill]")
       static_assert(not extension || not std::is_nothrow_constructible_v<T, unexpect_t, int>);
       static_assert(std::is_constructible_v<T, unexpect_t, helper>);
       static_assert(not extension || std::is_nothrow_constructible_v<T, unexpect_t, helper>);
-      static_assert(std::is_constructible_v<T, unexpect_t, std::initializer_list<double>>);
-      static_assert(not extension || std::is_nothrow_constructible_v<T, unexpect_t, std::initializer_list<double>>);
+      static_assert(std::is_constructible_v<T, unexpect_t, helper::list_t>);
+      static_assert(not extension || std::is_nothrow_constructible_v<T, unexpect_t, helper::list_t>);
 
       T const b(unexpect, 11, 13);
       CHECK(b.error().v == 11 * 13);
@@ -1253,7 +1250,7 @@ TEST_CASE("expected", "[expected][polyfill]")
           constexpr T a = fn(T(unexpect, Error::file_not_found));
           static_assert(a.error() == Error::file_not_found);
 
-          constexpr T b = fn(T(std::in_place, std::initializer_list<double>(), 7));
+          constexpr T b = fn(T(std::in_place, helper::list_t(), 7));
           static_assert(b.value().v == 7 * helper::from_rval * helper::from_rval);
 
           SUCCEED();
@@ -1263,7 +1260,7 @@ TEST_CASE("expected", "[expected][polyfill]")
         {
           {
             constexpr auto fn = [](T &&v) constexpr -> T {
-              T tmp{std::in_place, std::initializer_list<double>(), 13};
+              T tmp{std::in_place, helper::list_t(), 13};
               tmp = std::move(v);
               return tmp;
             };
@@ -1271,7 +1268,7 @@ TEST_CASE("expected", "[expected][polyfill]")
             constexpr T a = fn(T(unexpect, Error::file_not_found));
             static_assert(a.error() == Error::file_not_found);
 
-            constexpr T b = fn(T(std::in_place, std::initializer_list<double>(), 11));
+            constexpr T b = fn(T(std::in_place, helper::list_t(), 11));
             static_assert(b.value().v == 11 * helper::from_rval * helper::from_rval);
 
             SUCCEED();
@@ -1612,7 +1609,7 @@ TEST_CASE("expected", "[expected][polyfill]")
     {
       using T = expected<helper, Error>;
       constexpr T c{unexpect, Error::file_not_found};
-      constexpr T d{std::in_place, std::initializer_list<double>(), 5};
+      constexpr T d{std::in_place, helper::list_t(), 5};
 
       SECTION("from error")
       {
@@ -1635,7 +1632,7 @@ TEST_CASE("expected", "[expected][polyfill]")
       {
         {
           constexpr auto fn = [](T const &v) constexpr -> T {
-            T tmp{std::in_place, std::initializer_list<double>(), 13};
+            T tmp{std::in_place, helper::list_t(), 13};
             tmp = v;
             return tmp;
           };
@@ -1688,7 +1685,7 @@ TEST_CASE("expected", "[expected][polyfill]")
     SECTION("constexpr")
     {
       using T = expected<helper, Error>;
-      constexpr helper c{std::initializer_list<double>(), 5};
+      constexpr helper c{helper::list_t(), 5};
 
       SECTION("from error")
       {
@@ -1701,7 +1698,7 @@ TEST_CASE("expected", "[expected][polyfill]")
         constexpr T a = fn(c);
         static_assert(a.value().v == 5 * helper::from_lval_const * helper::from_rval);
 
-        constexpr T b = fn(std::initializer_list<double>{3.0, 11.0}, 7);
+        constexpr T b = fn(helper::list_t{3.0, 11.0}, 7);
         static_assert(b.value().v == 3 * 11 * 7 * helper::from_rval);
 
         SUCCEED();
@@ -1711,7 +1708,7 @@ TEST_CASE("expected", "[expected][polyfill]")
       {
         {
           constexpr auto fn = [](auto &&...args) constexpr -> T {
-            T tmp{std::in_place, std::initializer_list<double>(), 13};
+            T tmp{std::in_place, helper::list_t(), 13};
             tmp.emplace(std::forward<decltype(args)>(args)...);
             return tmp;
           };
@@ -1719,7 +1716,7 @@ TEST_CASE("expected", "[expected][polyfill]")
           constexpr T a = fn(c);
           static_assert(a.value().v == 5 * helper::from_lval_const * helper::from_rval);
 
-          constexpr T b = fn(std::initializer_list<double>{3.0, 11.0}, 7);
+          constexpr T b = fn(helper::list_t{3.0, 11.0}, 7);
           static_assert(b.value().v == 3 * 11 * 7 * helper::from_rval);
 
           SUCCEED();
@@ -2155,9 +2152,9 @@ TEST_CASE("expected", "[expected][polyfill]")
     {
       using T = expected<helper, Error>;
       static_assert(not noexcept(std::declval<T>().value_or(std::declval<int>())));
-      static_assert(noexcept(std::declval<T>().value_or(std::declval<std::initializer_list<double>>())));
+      static_assert(noexcept(std::declval<T>().value_or(std::declval<helper::list_t>())));
       static_assert(not noexcept(std::declval<T &>().value_or(std::declval<int>())));
-      static_assert(noexcept(std::declval<T &>().value_or(std::declval<std::initializer_list<double>>())));
+      static_assert(noexcept(std::declval<T &>().value_or(std::declval<helper::list_t>())));
 
       SECTION("value")
       {
@@ -2193,12 +2190,12 @@ TEST_CASE("expected", "[expected][polyfill]")
           static_assert(not std::is_nothrow_copy_constructible_v<T::value_type>);
           static_assert(std::is_nothrow_move_constructible_v<T::value_type>);
           static_assert(not std::is_nothrow_convertible_v<int, T::value_type>);
-          static_assert(std::is_nothrow_convertible_v<std::initializer_list<double>, T::value_type>);
+          static_assert(std::is_nothrow_convertible_v<helper::list_t, T::value_type>);
 
           static_assert(not noexcept(std::declval<T>().value_or(std::declval<int>())));
-          static_assert(noexcept(std::declval<T>().value_or(std::declval<std::initializer_list<double>>())));
+          static_assert(noexcept(std::declval<T>().value_or(std::declval<helper::list_t>())));
           static_assert(not noexcept(std::declval<T &>().value_or(std::declval<int>())));
-          static_assert(not noexcept(std::declval<T &>().value_or(std::declval<std::initializer_list<double>>())));
+          static_assert(not noexcept(std::declval<T &>().value_or(std::declval<helper::list_t>())));
         }
 
         {
@@ -2206,12 +2203,12 @@ TEST_CASE("expected", "[expected][polyfill]")
           static_assert(std::is_nothrow_copy_constructible_v<T::value_type>);
           static_assert(not std::is_nothrow_move_constructible_v<T::value_type>);
           static_assert(not std::is_nothrow_convertible_v<int, T::value_type>);
-          static_assert(std::is_nothrow_convertible_v<std::initializer_list<double>, T::value_type>);
+          static_assert(std::is_nothrow_convertible_v<helper::list_t, T::value_type>);
 
           static_assert(not noexcept(std::declval<T>().value_or(std::declval<int>())));
-          static_assert(not noexcept(std::declval<T>().value_or(std::declval<std::initializer_list<double>>())));
+          static_assert(not noexcept(std::declval<T>().value_or(std::declval<helper::list_t>())));
           static_assert(not noexcept(std::declval<T &>().value_or(std::declval<int>())));
-          static_assert(noexcept(std::declval<T &>().value_or(std::declval<std::initializer_list<double>>())));
+          static_assert(noexcept(std::declval<T &>().value_or(std::declval<helper::list_t>())));
         }
 
         SUCCEED();
@@ -2220,7 +2217,7 @@ TEST_CASE("expected", "[expected][polyfill]")
       SECTION("constexpr")
       {
         using T = expected<helper, Error>;
-        constexpr helper c{std::initializer_list<double>(), 7};
+        constexpr helper c{helper::list_t(), 7};
 
         SECTION("lval const")
         {
@@ -2241,7 +2238,7 @@ TEST_CASE("expected", "[expected][polyfill]")
         {
           static_assert(T{std::in_place, {3.0}, 5}.value_or(c).v == 3 * 5 * helper::from_rval);
           static_assert(T{unexpect, Error::unknown}.value_or(c).v == 7 * helper::from_lval_const);
-          static_assert(T{unexpect, Error::unknown}.value_or(helper(std::initializer_list<double>{7.0}, 3)).v
+          static_assert(T{unexpect, Error::unknown}.value_or(helper(helper::list_t{7.0}, 3)).v
                         == 7 * 3 * helper::from_rval);
 
           SUCCEED();
@@ -2253,9 +2250,9 @@ TEST_CASE("expected", "[expected][polyfill]")
     {
       using T = expected<int, helper>;
       static_assert(not noexcept(std::declval<T>().error_or(std::declval<int>())));
-      static_assert(noexcept(std::declval<T>().error_or(std::declval<std::initializer_list<double>>())));
+      static_assert(noexcept(std::declval<T>().error_or(std::declval<helper::list_t>())));
       static_assert(not noexcept(std::declval<T &>().error_or(std::declval<int>())));
-      static_assert(noexcept(std::declval<T &>().error_or(std::declval<std::initializer_list<double>>())));
+      static_assert(noexcept(std::declval<T &>().error_or(std::declval<helper::list_t>())));
 
       SECTION("error")
       {
@@ -2291,12 +2288,12 @@ TEST_CASE("expected", "[expected][polyfill]")
           static_assert(not std::is_nothrow_copy_constructible_v<T::error_type>);
           static_assert(std::is_nothrow_move_constructible_v<T::error_type>);
           static_assert(not std::is_nothrow_convertible_v<int, T::error_type>);
-          static_assert(std::is_nothrow_convertible_v<std::initializer_list<double>, T::error_type>);
+          static_assert(std::is_nothrow_convertible_v<helper::list_t, T::error_type>);
 
           static_assert(not noexcept(std::declval<T>().error_or(std::declval<int>())));
-          static_assert(noexcept(std::declval<T>().error_or(std::declval<std::initializer_list<double>>())));
+          static_assert(noexcept(std::declval<T>().error_or(std::declval<helper::list_t>())));
           static_assert(not noexcept(std::declval<T &>().error_or(std::declval<int>())));
-          static_assert(not noexcept(std::declval<T &>().error_or(std::declval<std::initializer_list<double>>())));
+          static_assert(not noexcept(std::declval<T &>().error_or(std::declval<helper::list_t>())));
         }
 
         {
@@ -2304,12 +2301,12 @@ TEST_CASE("expected", "[expected][polyfill]")
           static_assert(std::is_nothrow_copy_constructible_v<T::error_type>);
           static_assert(not std::is_nothrow_move_constructible_v<T::error_type>);
           static_assert(not std::is_nothrow_convertible_v<int, T::error_type>);
-          static_assert(std::is_nothrow_convertible_v<std::initializer_list<double>, T::error_type>);
+          static_assert(std::is_nothrow_convertible_v<helper::list_t, T::error_type>);
 
           static_assert(not noexcept(std::declval<T>().error_or(std::declval<int>())));
-          static_assert(not noexcept(std::declval<T>().error_or(std::declval<std::initializer_list<double>>())));
+          static_assert(not noexcept(std::declval<T>().error_or(std::declval<helper::list_t>())));
           static_assert(not noexcept(std::declval<T &>().error_or(std::declval<int>())));
-          static_assert(noexcept(std::declval<T &>().error_or(std::declval<std::initializer_list<double>>())));
+          static_assert(noexcept(std::declval<T &>().error_or(std::declval<helper::list_t>())));
         }
 
         SUCCEED();
@@ -2318,7 +2315,7 @@ TEST_CASE("expected", "[expected][polyfill]")
       SECTION("constexpr")
       {
         using T = expected<int, helper>;
-        constexpr helper c{std::initializer_list<double>(), 7};
+        constexpr helper c{helper::list_t(), 7};
 
         SECTION("lval const")
         {
@@ -2339,8 +2336,7 @@ TEST_CASE("expected", "[expected][polyfill]")
         {
           static_assert(T{unexpect, {3.0}, 5}.error_or(c).v == 3 * 5 * helper::from_rval);
           static_assert(T{std::in_place, 13}.error_or(c).v == 7 * helper::from_lval_const);
-          static_assert(T{std::in_place, 13}.error_or(helper(std::initializer_list<double>{7.0}, 3)).v
-                        == 7 * 3 * helper::from_rval);
+          static_assert(T{std::in_place, 13}.error_or(helper(helper::list_t{7.0}, 3)).v == 7 * 3 * helper::from_rval);
 
           SUCCEED();
         }
@@ -2380,7 +2376,7 @@ TEST_CASE("expected", "[expected][polyfill]")
       SECTION("constexpr")
       {
         using T = expected<helper, Error>;
-        constexpr helper c{std::initializer_list<double>(), 7};
+        constexpr helper c{helper::list_t(), 7};
         constexpr auto fn
             = [](auto &&a) constexpr -> expected<int, Error> { return helper(std::forward<decltype(a)>(a)).v * 3; };
 
@@ -2440,7 +2436,7 @@ TEST_CASE("expected", "[expected][polyfill]")
       SECTION("constexpr")
       {
         using T = expected<int, helper>;
-        constexpr helper c{std::initializer_list<double>(), 7};
+        constexpr helper c{helper::list_t(), 7};
         constexpr auto fn
             = [](auto &&a) constexpr -> expected<int, int> { return helper(std::forward<decltype(a)>(a)).v * 3; };
 
@@ -2498,7 +2494,7 @@ TEST_CASE("expected", "[expected][polyfill]")
       SECTION("constexpr")
       {
         using T = expected<helper, Error>;
-        constexpr helper c{std::initializer_list<double>(), 7};
+        constexpr helper c{helper::list_t(), 7};
         constexpr auto fn = [](auto &&a) constexpr -> int { return helper(std::forward<decltype(a)>(a)).v * 3; };
 
         SECTION("lval const")
@@ -2555,7 +2551,7 @@ TEST_CASE("expected", "[expected][polyfill]")
       SECTION("constexpr")
       {
         using T = expected<int, helper>;
-        constexpr helper c{std::initializer_list<double>(), 7};
+        constexpr helper c{helper::list_t(), 7};
         constexpr auto fn = [](auto &&a) constexpr -> int { return helper(std::forward<decltype(a)>(a)).v * 3; };
 
         SECTION("lval const")
@@ -2580,6 +2576,150 @@ TEST_CASE("expected", "[expected][polyfill]")
 
           SUCCEED();
         }
+      }
+    }
+  }
+
+  SECTION("equality operators")
+  {
+    SECTION("operand expected")
+    {
+      using T = expected<helper, int>;
+      using U = expected<helper, bool>;
+
+      SECTION("value and error")
+      {
+        T const t1{std::in_place, {12.0}};
+        U const u1{unexpect, false};
+        CHECK(not(t1 == u1));
+        CHECK(t1 != u1);
+
+        constexpr T t2{unexpect, 12};
+        constexpr U u2{std::in_place, helper::list_t(), 13};
+        static_assert(not(t2 == u2));
+        static_assert(t2 != u2);
+      }
+
+      SECTION("value")
+      {
+        SECTION("same type")
+        {
+          T const t1{std::in_place, {12.0}};
+          U const u1{std::in_place, {3.0}};
+          CHECK(not(t1 == u1));
+          CHECK(t1 != u1);
+
+          constexpr T t2{std::in_place, {3.0}, 4};
+          constexpr U u2{std::in_place, {3.0}, 2, 2};
+          static_assert(t2 == u2);
+          static_assert(not(t2 != u2));
+          CHECK(t1 == t2);
+        }
+
+        SECTION("different types")
+        {
+          using V = expected<int, bool>;
+          using W = expected<double, bool>;
+          static_assert(V{12} == W{12.0});
+          static_assert(V{15} != W{12.0});
+
+          SUCCEED();
+        }
+      }
+
+      SECTION("error")
+      {
+        SECTION("same type")
+        {
+          using V = expected<int, helper>;
+          using W = expected<double, helper>;
+
+          V const v1{unexpect, {12.0}};
+          W const w1{unexpect, {3.0}};
+          CHECK(not(v1 == w1));
+          CHECK(v1 != w1);
+
+          constexpr V v2{unexpect, {3.0}, 4};
+          constexpr W w2{unexpect, {3.0}, 2, 2};
+          static_assert(v2 == w2);
+          static_assert(not(v2 != w2));
+          CHECK(v1 == v2);
+        }
+
+        SECTION("different types")
+        {
+          using V = expected<int, int>;
+          using W = expected<int, double>;
+          static_assert(V{unexpect, 12} == W{unexpect, 12.0});
+          static_assert(V{unexpect, 15} != W{unexpect, 12.0});
+
+          SUCCEED();
+        }
+      }
+    }
+
+    SECTION("operand value")
+    {
+      SECTION("same type")
+      {
+        using T = expected<helper, int>;
+        T const t1{std::in_place, {12.0}};
+        helper const u1{3.0};
+        helper const v1{3, 4};
+        CHECK(not(t1 == u1));
+        CHECK(t1 != u1);
+        CHECK(t1 == v1);
+
+        constexpr T t2{std::in_place, {3.0}, 4};
+        constexpr helper u2{helper::list_t(), 3, 2, 2};
+        static_assert(t2 == u2);
+        static_assert(not(t2 != u2));
+        CHECK(t1 == t2);
+      }
+
+      SECTION("different types")
+      {
+        using T = expected<int, bool>;
+        constexpr T t1{std::in_place, 12};
+        constexpr double u1 = 12.0;
+        static_assert(t1 == u1);
+        static_assert(T{15.0} != u1);
+
+        SUCCEED();
+      };
+
+      SUCCEED();
+    }
+
+    SECTION("operand unexpected")
+    {
+      SECTION("same type")
+      {
+        using T = expected<int, helper>;
+        using U = unexpected<helper>;
+        T const t1{unexpect, {12.0}};
+        U const u1{std::in_place, {3.0}};
+        U const v1{std::in_place, {3.0, 4.0}};
+        CHECK(not(t1 == u1));
+        CHECK(t1 != u1);
+        CHECK(t1 == v1);
+
+        constexpr T t2{unexpect, {3.0}, 4};
+        constexpr U u2{std::in_place, helper::list_t(), 3, 2, 2};
+        static_assert(t2 == u2);
+        static_assert(not(t2 != u2));
+        CHECK(t1 == t2);
+      }
+
+      SECTION("different types")
+      {
+        using T = expected<int, int>;
+        using U = unexpected<Error>;
+        constexpr T t1{unexpect, 1};
+        static_assert(t1 == U{Error::unknown});
+        static_assert(t1 != U{Error::file_not_found});
+
+        SUCCEED();
       }
     }
   }
