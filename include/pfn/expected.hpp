@@ -324,7 +324,7 @@ template <class T, class E> class expected {
         return result_t(::std::in_place, ::std::invoke(FWD(fn), FWD(self).value()));
       } else {
         ::std::invoke(FWD(fn), FWD(self).value());
-        return result_t();
+        return result_t(::std::in_place);
       }
     }
     return result_t(unexpect, FWD(self).error());
@@ -601,7 +601,7 @@ public:
   }
 
   template <class... Args>
-  constexpr T &emplace(Args &&...args) noexcept(true)
+  constexpr T &emplace(Args &&...args) noexcept
     requires(::std::is_nothrow_constructible_v<T, Args...>)
   {
     if (set_) {
@@ -614,7 +614,7 @@ public:
   }
 
   template <class U, class... Args>
-  constexpr T &emplace(::std::initializer_list<U> il, Args &&...args) noexcept(true)
+  constexpr T &emplace(::std::initializer_list<U> il, Args &&...args) noexcept
     requires(::std::is_nothrow_constructible_v<T, ::std::initializer_list<U> &, Args...>)
   {
     if (set_) {
@@ -678,26 +678,32 @@ public:
   constexpr bool has_value() const noexcept { return set_; }
   constexpr T const &value() const &
   {
+    static_assert(::std::is_copy_constructible_v<E>);
     if (not set_)
-      throw bad_expected_access<E>(::std::as_const(e_));
+      throw bad_expected_access<E>(e_);
     return v_;
   }
   constexpr T &value() &
   {
+    static_assert(::std::is_copy_constructible_v<E>);
     if (not set_)
       throw bad_expected_access<E>(::std::as_const(e_));
     return v_;
   }
   constexpr T const &&value() const &&
   {
+    static_assert(::std::is_copy_constructible_v<E>);
+    static_assert(::std::is_constructible_v<E, E const &&>);
     if (not set_)
-      throw bad_expected_access<E>(::std::as_const(e_));
+      throw bad_expected_access<E>(::std::move(e_));
     return ::std::move(v_);
   }
   constexpr T &&value() &&
   {
+    static_assert(::std::is_copy_constructible_v<E>);
+    static_assert(::std::is_constructible_v<E, E &&>);
     if (not set_)
-      throw bad_expected_access<E>(::std::as_const(e_));
+      throw bad_expected_access<E>(::std::move(e_));
     return ::std::move(v_);
   }
   constexpr E const &error() const & noexcept
@@ -930,6 +936,97 @@ private:
 template <class T, class E>
   requires ::std::is_void_v<T>
 class expected<T, E> {
+  static_assert(detail::_is_valid_unexpected<E>);
+
+  template <class U, class G, class UF, class GF>
+  using _can_convert_detail = ::std::bool_constant<                           //
+      ::std::is_void_v<U> && ::std::is_constructible_v<E, GF>                 //
+      && not ::std::is_constructible_v<unexpected<E>, expected<U, G> &>       //
+      && not ::std::is_constructible_v<unexpected<E>, expected<U, G>>         //
+      && not ::std::is_constructible_v<unexpected<E>, expected<U, G> const &> //
+      && not ::std::is_constructible_v<unexpected<E>, expected<U, G> const>>;
+
+  template <class U, class G> using _can_copy_convert = _can_convert_detail<U, G, U const &, G const &>;
+  template <class U, class G> using _can_move_convert = _can_convert_detail<U, G, U, G>;
+  template <class U, class G> friend class expected;
+
+  template <class U>
+  using _can_convert = ::std::bool_constant<                            //
+      not ::std::is_same_v<::std::remove_cvref_t<U>, ::std::in_place_t> //
+      && not ::std::is_same_v<::std::remove_cvref_t<U>, unexpect_t>     // LWG4222
+      && not ::std::is_same_v<expected, ::std::remove_cvref_t<U>>       //
+      && not detail::_is_some_unexpected<::std::remove_cvref_t<U>>      //
+      && ::std::is_constructible_v<T, U>                                //
+      && (not ::std::is_same_v<bool, ::std::remove_cv_t<T>>             //
+          || not detail::_is_some_expected<::std::remove_cvref_t<U>>)>;
+
+  template <typename Self, typename Fn>
+  static constexpr auto _and_then(Self &&self, Fn &&fn) //
+      noexcept(::std::is_nothrow_invocable_v<Fn> && ::std::is_nothrow_constructible_v<E, decltype(FWD(self).error())>)
+    requires(::std::is_constructible_v<E, decltype(FWD(self).error())>)
+  {
+    using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn>>;
+    static_assert(detail::_is_some_expected<result_t>);
+    static_assert(::std::is_same_v<typename result_t::error_type, typename ::std::remove_cvref_t<Self>::error_type>);
+    if (self.has_value()) {
+      return ::std::invoke(FWD(fn));
+    }
+    return result_t(unexpect, FWD(self).error());
+  }
+
+  template <typename Self, typename Fn>
+  static constexpr auto _or_else(Self &&self, Fn &&fn) //
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(FWD(self).error())>)
+  {
+    using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(FWD(self).error())>>;
+    static_assert(detail::_is_some_expected<result_t>);
+    static_assert(::std::is_same_v<typename result_t::value_type, typename ::std::remove_cvref_t<Self>::value_type>);
+    if (self.has_value()) {
+      return result_t(::std::in_place);
+    }
+    return ::std::invoke(FWD(fn), FWD(self).error());
+  }
+
+  template <typename Self, typename Fn>
+  static constexpr auto _transform(Self &&self, Fn &&fn) //
+      noexcept(::std::is_nothrow_invocable_v<Fn> && ::std::is_nothrow_constructible_v<E, decltype(FWD(self).error())>
+               && (::std::is_void_v<::std::invoke_result_t<Fn>>
+                   || ::std::is_nothrow_constructible_v<::std::remove_cv_t<::std::invoke_result_t<Fn>>,
+                                                        ::std::invoke_result_t<Fn>>))
+    requires(::std::is_constructible_v<E, decltype(FWD(self).error())>)
+  {
+    using value_t = ::std::remove_cv_t<::std::invoke_result_t<Fn>>;
+    static_assert(detail::_is_valid_expected<value_t, E>);
+    using result_t = expected<value_t, E>;
+    if (self.has_value()) {
+      if constexpr (not ::std::is_void_v<value_t>) {
+        static_assert(::std::is_constructible_v<value_t, ::std::invoke_result_t<Fn>>);
+        return result_t(::std::in_place, ::std::invoke(FWD(fn)));
+      } else {
+        ::std::invoke(FWD(fn));
+        return result_t(::std::in_place);
+      }
+    }
+    return result_t(unexpect, FWD(self).error());
+  }
+
+  template <typename Self, typename Fn>
+  static constexpr auto _transform_error(Self &&self, Fn &&fn) //
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(FWD(self).error())>
+               && ::std::is_nothrow_constructible_v<
+                   ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(FWD(self).error())>>,
+                   ::std::invoke_result_t<Fn, decltype(FWD(self).error())>>)
+  {
+    using error_t = ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(FWD(self).error())>>;
+    static_assert(detail::_is_valid_unexpected<error_t>);
+    static_assert(::std::is_constructible_v<error_t, ::std::invoke_result_t<Fn, decltype(FWD(self).error())>>);
+    using result_t = expected<T, error_t>;
+    if (not self.has_value()) {
+      return result_t(unexpect, ::std::invoke(FWD(fn), FWD(self).error()));
+    }
+    return result_t(::std::in_place);
+  }
+
 public:
   using value_type = T;
   using error_type = E;
@@ -938,73 +1035,432 @@ public:
   template <class U> using rebind = expected<U, error_type>;
 
   // [expected.void.cons], constructors
-  constexpr expected() noexcept;
-  constexpr expected(expected const &);
-  constexpr expected(expected &&) noexcept(/* TODO */ false);
-  template <class U, class G> constexpr explicit(/* TODO */ false) expected(expected<U, G> const &);
-  template <class U, class G> constexpr explicit(/* TODO */ false) expected(expected<U, G> &&);
+  constexpr expected() noexcept : d_(), set_(true) {}
+  constexpr expected(expected const &) = delete;
+  constexpr expected(expected const &)                                                         //
+    requires(::std::is_copy_constructible_v<E> && ::std::is_trivially_copy_constructible_v<E>) //
+  = default;
+  constexpr expected(expected const &s)                                                            //
+      noexcept(::std::is_nothrow_copy_constructible_v<E>)                                          // extension
+    requires(::std::is_copy_constructible_v<E> && not ::std::is_trivially_copy_constructible_v<E>) //
+      : d_(), set_(s.set_)
+  {
+    if (not set_) {
+      ::std::destroy_at(::std::addressof(d_));
+      ::std::construct_at(::std::addressof(e_), s.e_);
+    }
+  }
 
-  template <class G> constexpr explicit(/* TODO */ false) expected(unexpected<G> const &);
-  template <class G> constexpr explicit(/* TODO */ false) expected(unexpected<G> &&);
+  constexpr expected(expected &&s)                                                             //
+    requires(::std::is_move_constructible_v<E> && ::std::is_trivially_move_constructible_v<E>) //
+  = default;
+  constexpr expected(expected &&s)                        //
+      noexcept(::std::is_nothrow_move_constructible_v<E>) // required
+    requires(::std::is_move_constructible_v<E> && not ::std::is_trivially_move_constructible_v<E>)
+      : d_(), set_(s.set_)
+  {
+    if (not set_) {
+      ::std::destroy_at(::std::addressof(d_));
+      ::std::construct_at(::std::addressof(e_), ::std::move(s.e_));
+    }
+  }
 
-  constexpr explicit expected(::std::in_place_t) noexcept;
-  template <class... Args> constexpr explicit expected(unexpect_t, Args &&...);
-  template <class U, class... Args> constexpr explicit expected(unexpect_t, ::std::initializer_list<U>, Args &&...);
+  template <class U, class G>
+  constexpr explicit(not ::std::is_convertible_v<G const &, E>) expected(expected<U, G> const &s) //
+      noexcept(::std::is_nothrow_constructible_v<E, G const &>)                                   // extension
+    requires(_can_copy_convert<U, G>::value)
+      : d_(), set_(s.set_)
+  {
+    if (not set_) {
+      ::std::destroy_at(::std::addressof(d_));
+      ::std::construct_at(::std::addressof(e_), s.e_);
+    }
+  }
+  template <class U, class G>
+  constexpr explicit(not ::std::is_convertible_v<G, E>) expected(expected<U, G> &&s) //
+      noexcept(::std::is_nothrow_constructible_v<E, G>)                              // extension
+    requires(_can_move_convert<U, G>::value)
+      : d_(), set_(s.set_)
+  {
+    if (not set_) {
+      ::std::destroy_at(::std::addressof(d_));
+      ::std::construct_at(::std::addressof(e_), ::std::move(s.e_));
+    }
+  }
+
+  template <class G>
+  constexpr explicit(!::std::is_convertible_v<G const &, E>) expected(unexpected<G> const &g) //
+      noexcept(::std::is_nothrow_constructible_v<E, G const &>)                               // extension
+    requires(::std::is_constructible_v<E, G const &>)
+      : e_(::std::forward<G const &>(g.error())), set_(false)
+  {
+  }
+  template <class G>
+  constexpr explicit(!::std::is_convertible_v<G, E>) expected(unexpected<G> &&g) //
+      noexcept(::std::is_nothrow_constructible_v<E, G>)                          // extension
+    requires(::std::is_constructible_v<E, G>)
+      : e_(::std::forward<G>(g.error())), set_(false)
+  {
+  }
+
+  constexpr explicit expected(::std::in_place_t) noexcept : d_(), set_(true) {}
+
+  template <class... Args>
+  constexpr explicit expected(unexpect_t, Args &&...a)        //
+      noexcept(::std::is_nothrow_constructible_v<E, Args...>) // extension
+    requires ::std::is_constructible_v<E, Args...>
+      : e_(FWD(a)...), set_(false)
+  {
+  }
+  template <class U, class... Args>
+  constexpr explicit expected(unexpect_t, ::std::initializer_list<U> il, Args &&...a)       //
+      noexcept(::std::is_nothrow_constructible_v<E, ::std::initializer_list<U> &, Args...>) // extension
+    requires ::std::is_constructible_v<E, ::std::initializer_list<U> &, Args...>
+      : e_(il, FWD(a)...), set_(false)
+  {
+  }
 
   // [expected.void.dtor], destructor
-  constexpr ~expected();
+  constexpr ~expected() noexcept
+    requires(::std::is_trivially_destructible_v<E>)
+  = default;
+  constexpr ~expected()                             //
+      noexcept(::std::is_nothrow_destructible_v<E>) // extension
+    requires(not ::std::is_trivially_destructible_v<E>)
+  {
+    if (not set_)
+      ::std::destroy_at(::std::addressof(e_));
+    else
+      ::std::destroy_at(::std::addressof(d_));
+  }
 
   // [expected.void.assign], assignment
-  constexpr expected &operator=(expected const &);
-  constexpr expected &operator=(expected &&) noexcept(/* TODO */ false);
-  template <class G> constexpr expected &operator=(unexpected<G> const &);
-  template <class G> constexpr expected &operator=(unexpected<G> &&);
-  constexpr void emplace() noexcept;
+  constexpr expected &operator=(expected const &) = delete;
+  constexpr expected &operator=(expected const &s)                                                  //
+      noexcept(::std::is_nothrow_copy_assignable_v<E> && ::std::is_nothrow_copy_constructible_v<E>) // extension
+    requires(::std::is_copy_assignable_v<E> && ::std::is_copy_constructible_v<E>)
+  {
+    if (set_ && s.set_) {
+      ;
+    } else if (set_) {
+      ::std::destroy_at(::std::addressof(d_));
+      ::std::construct_at(::std::addressof(e_), s.e_);
+      set_ = false;
+    } else if (s.set_) {
+      ::std::destroy_at(::std::addressof(e_));
+      ::std::construct_at(::std::addressof(d_));
+      set_ = true;
+    } else {
+      e_ = s.e_;
+    }
+    return *this;
+  }
+
+  constexpr expected &operator=(expected &&s)                                                       //
+      noexcept(::std::is_nothrow_move_assignable_v<E> && ::std::is_nothrow_move_constructible_v<E>) // required
+    requires(::std::is_move_constructible_v<E> && ::std::is_move_assignable_v<E>)
+  {
+    if (set_ && s.set_) {
+      ;
+    } else if (set_) {
+      ::std::destroy_at(::std::addressof(d_));
+      ::std::construct_at(::std::addressof(e_), ::std::move(s.e_));
+      set_ = false;
+    } else if (s.set_) {
+      ::std::destroy_at(::std::addressof(e_));
+      ::std::construct_at(::std::addressof(d_));
+      set_ = true;
+    } else {
+      e_ = ::std::move(s.e_);
+    }
+    return *this;
+  }
+
+  template <class G>
+  constexpr expected &operator=(unexpected<G> const &s) //
+      noexcept(::std::is_nothrow_assignable_v<E, G const &>
+               && ::std::is_nothrow_constructible_v<E, G const &>) // extension
+    requires(::std::is_constructible_v<E, G const &> && ::std::is_assignable_v<E &, G const &>)
+  {
+    if (set_) {
+      ::std::destroy_at(::std::addressof(d_));
+      ::std::construct_at(::std::addressof(e_), ::std::forward<G const &>(s.error()));
+      set_ = false;
+    } else {
+      e_ = ::std::forward<G const &>(s.error());
+    }
+    return *this;
+  }
+
+  template <class G>
+  constexpr expected &operator=(unexpected<G> &&s)                                              //
+      noexcept(::std::is_nothrow_assignable_v<E, G> && ::std::is_nothrow_constructible_v<E, G>) // extension
+    requires(::std::is_constructible_v<E, G> && ::std::is_assignable_v<E &, G>)
+  {
+    if (set_) {
+      ::std::destroy_at(::std::addressof(d_));
+      ::std::construct_at(::std::addressof(e_), ::std::forward<G>(s.error()));
+      set_ = false;
+    } else {
+      e_ = ::std::forward<G>(s.error());
+    }
+    return *this;
+  }
+
+  constexpr void emplace() noexcept
+  {
+    if (not set_) {
+      ::std::destroy_at(::std::addressof(e_));
+      ::std::construct_at(::std::addressof(d_));
+      set_ = true;
+    }
+  }
 
   // [expected.void.swap], swap
-  constexpr void swap(expected &) noexcept(/* TODO */ false);
-  constexpr friend void swap(expected &x, expected &y) noexcept(noexcept(x.swap(y)));
+  constexpr void swap(expected &rhs) //
+      noexcept(::std::is_nothrow_move_constructible_v<E> && ::std::is_nothrow_swappable_v<E>)
+    requires(::std::is_swappable_v<E> && ::std::is_move_constructible_v<E>)
+  {
+    bool const lhset = has_value();
+    bool const rhset = rhs.has_value();
+    if (lhset == rhset) {
+      if (not lhset) {
+        using ::std::swap;
+        swap(e_, rhs.e_);
+      }
+    } else {
+      if (lhset) {
+        ::std::destroy_at(::std::addressof(d_));
+        ::std::construct_at(::std::addressof(e_), ::std::move(rhs.e_));
+        ::std::destroy_at(::std::addressof(rhs.e_));
+        ::std::construct_at(::std::addressof(rhs.d_));
+        set_ = false;
+        rhs.set_ = true;
+      } else {
+        rhs.swap(*this);
+      }
+    }
+  }
+
+  constexpr friend void swap(expected &x, expected &y) noexcept(noexcept(x.swap(y)))
+    requires requires { x.swap(y); }
+  {
+    x.swap(y);
+  }
 
   // [expected.void.obs], observers
-  constexpr explicit operator bool() const noexcept;
-  constexpr bool has_value() const noexcept;
-  constexpr void operator*() const noexcept;
-  constexpr void value() const &; // freestanding-deleted
-  constexpr void value() &&;      // freestanding-deleted
-  constexpr E const &error() const & noexcept;
-  constexpr E &error() & noexcept;
-  constexpr E const &&error() const && noexcept;
-  constexpr E &&error() && noexcept;
-  template <class G = E> constexpr E error_or(G &&) const &;
-  template <class G = E> constexpr E error_or(G &&) &&;
+  constexpr explicit operator bool() const noexcept { return set_; }
+  constexpr bool has_value() const noexcept { return set_; }
+  constexpr void operator*() const noexcept { ASSERT(set_); }
+  constexpr void value() const &
+  {
+    static_assert(::std::is_copy_constructible_v<E>);
+    if (not set_)
+      throw bad_expected_access<E>(e_);
+  }
+  constexpr void value() &&
+  {
+    static_assert(::std::is_copy_constructible_v<E>);
+    static_assert(::std::is_move_constructible_v<E>);
+    if (not set_)
+      throw bad_expected_access<E>(::std::move(e_));
+  }
+  constexpr E const &error() const & noexcept
+  {
+    ASSERT(not set_);
+    return e_;
+  }
+  constexpr E &error() & noexcept
+  {
+    ASSERT(not set_);
+    return e_;
+  }
+  constexpr E const &&error() const && noexcept
+  {
+    ASSERT(not set_);
+    return ::std::move(e_);
+  }
+  constexpr E &&error() && noexcept
+  {
+    ASSERT(not set_);
+    return ::std::move(e_);
+  }
+
+  template <class G = E>
+  constexpr E error_or(G &&e) const &                                                              //
+      noexcept(::std::is_nothrow_copy_constructible_v<E> && ::std::is_nothrow_convertible_v<G, E>) // extension
+  {
+    static_assert(::std::is_copy_constructible_v<E>);
+    static_assert(::std::is_convertible_v<G, E>);
+    if (set_) {
+      return FWD(e);
+    }
+    return e_;
+  }
+  template <class G = E>
+  constexpr E error_or(G &&e) &&                                                                   //
+      noexcept(::std::is_nothrow_move_constructible_v<E> && ::std::is_nothrow_convertible_v<G, E>) // extension
+  {
+    static_assert(::std::is_move_constructible_v<E>);
+    static_assert(::std::is_convertible_v<G, E>);
+    if (set_) {
+      return FWD(e);
+    }
+    return ::std::move(e_);
+  }
 
   // [expected.void.monadic], monadic operations
-  template <class F> constexpr auto and_then(F &&f) &;
-  template <class F> constexpr auto and_then(F &&f) &&;
-  template <class F> constexpr auto and_then(F &&f) const &;
-  template <class F> constexpr auto and_then(F &&f) const &&;
-  template <class F> constexpr auto or_else(F &&f) &;
-  template <class F> constexpr auto or_else(F &&f) &&;
-  template <class F> constexpr auto or_else(F &&f) const &;
-  template <class F> constexpr auto or_else(F &&f) const &&;
-  template <class F> constexpr auto transform(F &&f) &;
-  template <class F> constexpr auto transform(F &&f) &&;
-  template <class F> constexpr auto transform(F &&f) const &;
-  template <class F> constexpr auto transform(F &&f) const &&;
-  template <class F> constexpr auto transform_error(F &&f) &;
-  template <class F> constexpr auto transform_error(F &&f) &&;
-  template <class F> constexpr auto transform_error(F &&f) const &;
-  template <class F> constexpr auto transform_error(F &&f) const &&;
+  template <class F>
+  constexpr auto and_then(F &&f) &                 //
+      noexcept(noexcept(_and_then<expected &, F>)) // extension
+      -> decltype(_and_then(*this, FWD(f)))
+  {
+    return _and_then(*this, FWD(f));
+  }
+  template <class F>
+  constexpr auto and_then(F &&f) &&                 //
+      noexcept(noexcept(_and_then<expected &&, F>)) // extension
+      -> decltype(_and_then(::std::move(*this), FWD(f)))
+  {
+    return _and_then(::std::move(*this), FWD(f));
+  }
+  template <class F>
+  constexpr auto and_then(F &&f) const &                 //
+      noexcept(noexcept(_and_then<expected const &, F>)) // extension
+      -> decltype(_and_then(*this, FWD(f)))
+  {
+    return _and_then(*this, FWD(f));
+  }
+  template <class F>
+  constexpr auto and_then(F &&f) const &&                 //
+      noexcept(noexcept(_and_then<expected const &&, F>)) // extension
+      -> decltype(_and_then(::std::move(*this), FWD(f)))
+  {
+    return _and_then(::std::move(*this), FWD(f));
+  }
+
+  template <class F>
+  constexpr auto or_else(F &&f) &                 //
+      noexcept(noexcept(_or_else<expected &, F>)) // extension
+      -> decltype(_or_else(*this, FWD(f)))
+  {
+    return _or_else(*this, FWD(f));
+  }
+  template <class F>
+  constexpr auto or_else(F &&f) &&                 //
+      noexcept(noexcept(_or_else<expected &&, F>)) // extension
+      -> decltype(_or_else(::std::move(*this), FWD(f)))
+  {
+    return _or_else(::std::move(*this), FWD(f));
+  }
+  template <class F>
+  constexpr auto or_else(F &&f) const &                 //
+      noexcept(noexcept(_or_else<expected const &, F>)) // extension
+      -> decltype(_or_else(*this, FWD(f)))
+  {
+    return _or_else(*this, FWD(f));
+  }
+  template <class F>
+  constexpr auto or_else(F &&f) const &&                 //
+      noexcept(noexcept(_or_else<expected const &&, F>)) // extension
+      -> decltype(_or_else(::std::move(*this), FWD(f)))
+  {
+    return _or_else(::std::move(*this), FWD(f));
+  }
+
+  template <class F>
+  constexpr auto transform(F &&f) &                 //
+      noexcept(noexcept(_transform<expected &, F>)) // extension
+      -> decltype(_transform(*this, FWD(f)))
+  {
+    return _transform(*this, FWD(f));
+  }
+  template <class F>
+  constexpr auto transform(F &&f) &&                //
+      noexcept(noexcept(_transform<expected &, F>)) // extension
+      -> decltype(_transform(::std::move(*this), FWD(f)))
+  {
+    return _transform(::std::move(*this), FWD(f));
+  }
+  template <class F>
+  constexpr auto transform(F &&f) const &           //
+      noexcept(noexcept(_transform<expected &, F>)) // extension
+      -> decltype(_transform(*this, FWD(f)))
+  {
+    return _transform(*this, FWD(f));
+  }
+  template <class F>
+  constexpr auto transform(F &&f) const &&          //
+      noexcept(noexcept(_transform<expected &, F>)) // extension
+      -> decltype(_transform(::std::move(*this), FWD(f)))
+  {
+    return _transform(::std::move(*this), FWD(f));
+  }
+
+  template <class F>
+  constexpr auto transform_error(F &&f) &                 //
+      noexcept(noexcept(_transform_error<expected &, F>)) // extension
+      -> decltype(_transform_error(*this, FWD(f)))
+  {
+    return _transform_error(*this, FWD(f));
+  }
+  template <class F>
+  constexpr auto transform_error(F &&f) &&                //
+      noexcept(noexcept(_transform_error<expected &, F>)) // extension
+      -> decltype(_transform_error(::std::move(*this), FWD(f)))
+  {
+    return _transform_error(::std::move(*this), FWD(f));
+  }
+  template <class F>
+  constexpr auto transform_error(F &&f) const &           //
+      noexcept(noexcept(_transform_error<expected &, F>)) // extension
+      -> decltype(_transform_error(*this, FWD(f)))
+  {
+    return _transform_error(*this, FWD(f));
+  }
+  template <class F>
+  constexpr auto transform_error(F &&f) const &&          //
+      noexcept(noexcept(_transform_error<expected &, F>)) // extension
+      -> decltype(_transform_error(::std::move(*this), FWD(f)))
+  {
+    return _transform_error(::std::move(*this), FWD(f));
+  }
 
   // [expected.void.eq], equality operators
   template <class T2, class E2>
-    requires ::std::is_void_v<T2>
-  constexpr friend bool operator==(expected const &x, expected<T2, E2> const &y);
-  template <class E2> constexpr friend bool operator==(expected const &, unexpected<E2> const &);
+    requires(::std::is_void_v<T2>)
+  constexpr friend bool operator==(expected const &x, expected<T2, E2> const &y) //
+      noexcept(noexcept(x.error() == y.error()))                                 // extension
+    requires requires {
+      { x.error() == y.error() } -> std::convertible_to<bool>;
+    }
+  {
+    if (x.has_value() != y.has_value()) {
+      return false;
+    } else if (x.has_value()) {
+      return true;
+    } else {
+      return x.error() == y.error();
+    }
+  }
+  template <class E2>
+  constexpr friend bool operator==(expected const &x, unexpected<E2> const &e) //
+      noexcept(noexcept(x.error() == e.error()))                               // extension
+    requires requires {
+      { x.error() == e.error() } -> std::convertible_to<bool>;
+    }
+  {
+    return (not x.has_value()) && static_cast<bool>(x.error() == e.error());
+  }
 
 private:
+  struct dummy final {
+    constexpr dummy() noexcept = default;
+    constexpr ~dummy() noexcept = default;
+  };
+
   union {
-    unsigned char dummy_;
+    [[no_unique_address]] dummy d_;
     E e_;
   };
   bool set_;
