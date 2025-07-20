@@ -6,7 +6,23 @@
 // TODO: Add death tests. Until then, empty definition to avoid false "no coverage" reports
 #define LIBFN_ASSERT(...)
 
+#if LIBFN_MODE < 23
 #include <pfn/expected.hpp>
+using pfn::bad_expected_access;
+using pfn::expected;
+using pfn::unexpect;
+using pfn::unexpect_t;
+using pfn::unexpected;
+constexpr char unexpected_what[] = "bad access to expected without expected value";
+#else
+#include <expected>
+using std::bad_expected_access;
+using std::expected;
+using std::unexpect;
+using std::unexpect_t;
+using std::unexpected;
+constexpr char unexpected_what[] = "bad access to std::expected without expected value";
+#endif
 
 #include <util/helper_types.hpp>
 
@@ -23,7 +39,7 @@ TEST_CASE("bad_expected_access", "[expected][polyfill][bad_expected_access]")
 {
   SECTION("bad_expected_access<void>")
   {
-    struct T : pfn::bad_expected_access<void> {};
+    struct T : bad_expected_access<void> {};
 
     static_assert(noexcept(T{}));
     T a;
@@ -51,7 +67,7 @@ TEST_CASE("bad_expected_access", "[expected][polyfill][bad_expected_access]")
       a = [&]() -> T const && { return std::move(a); }();
       CHECK(T{}.what() == a.what());
     }
-    CHECK(std::strcmp(a.what(), "bad access to expected without expected value") == 0);
+    CHECK(std::strcmp(a.what(), unexpected_what) == 0);
 
     T const b;
     CHECK(&decltype(a)::what == &decltype(b)::what);
@@ -65,8 +81,8 @@ TEST_CASE("bad_expected_access", "[expected][polyfill][bad_expected_access]")
 
   SECTION("bad_expected_access<E>")
   {
-    using T = pfn::bad_expected_access<helper>;
-    static_assert(std::is_base_of_v<pfn::bad_expected_access<void>, T>);
+    using T = bad_expected_access<helper>;
+    static_assert(std::is_base_of_v<bad_expected_access<void>, T>);
 
     SECTION("type and noexcept")
     {
@@ -183,9 +199,9 @@ TEST_CASE("bad_expected_access", "[expected][polyfill][bad_expected_access]")
     SECTION("bad_expected_access")
     {
       T a{12};
-      CHECK(std::strcmp(a.what(), "bad access to expected without expected value") == 0);
+      CHECK(std::strcmp(a.what(), unexpected_what) == 0);
       auto const c = []() {
-        struct C : pfn::bad_expected_access<void> {};
+        struct C : bad_expected_access<void> {};
         return C{};
       }();
       CHECK(a.what() == c.what());
@@ -199,24 +215,23 @@ template <auto V> struct dummy final {
 
 TEST_CASE("unexpect", "[expected][polyfill][unexpect]")
 {
-  static_assert(std::is_empty_v<pfn::unexpect_t>);
-  static_assert(noexcept(pfn::unexpect_t{}));
-  static_assert(std::is_same_v<decltype(pfn::unexpect), pfn::unexpect_t const>);
+  static_assert(std::is_empty_v<unexpect_t>);
+  static_assert(noexcept(unexpect_t{}));
+  static_assert(std::is_same_v<decltype(unexpect), unexpect_t const>);
 
-  // pfn::unexpect can be used as a NTTP
-  static_assert(not std::is_empty_v<dummy<pfn::unexpect>>);
-  static constexpr auto a = pfn::unexpect;
+  // unexpect can be used as a NTTP
+  static_assert(not std::is_empty_v<dummy<unexpect>>);
+  static constexpr auto a = unexpect;
   static_assert(not std::is_empty_v<dummy<a>>);
-  static_assert(std::is_same_v<decltype(a), pfn::unexpect_t const>);
-  static_assert(std::is_same_v<dummy<pfn::unexpect>, dummy<a>>);
+  static_assert(std::is_same_v<decltype(a), unexpect_t const>);
+  static_assert(std::is_same_v<dummy<unexpect>, dummy<a>>);
 
   SUCCEED();
 }
 
 TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
 {
-  using pfn::unexpected;
-
+#if LIBFN_MODE < 23
   SECTION("is_valid_unexpected")
   {
     using pfn::detail::_is_valid_unexpected;
@@ -237,6 +252,7 @@ TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
     static_assert(_is_valid_unexpected<std::optional<int>>);
     SUCCEED();
   }
+#endif
 
   SECTION("constructors")
   {
@@ -438,12 +454,11 @@ concept is_swappable = requires { swap(std::declval<T &>(), std::declval<T &>())
 
 TEST_CASE("expected", "[expected][polyfill]")
 {
-  using pfn::bad_expected_access;
-  using pfn::expected;
-  using pfn::unexpect;
-  using pfn::unexpect_t;
-  using pfn::unexpected;
+#if LIBFN_MODE < 23
   constexpr bool extension = true;
+#else
+  constexpr bool extension = false;
+#endif
 
   SECTION("constructors")
   {
@@ -901,7 +916,7 @@ TEST_CASE("expected", "[expected][polyfill]")
       static_assert(not std::is_trivially_move_constructible_v<T>);
       static_assert(not std::is_nothrow_move_constructible_v<T>); // required
       static_assert(not std::is_trivially_destructible_v<T>);
-      static_assert(not std::is_nothrow_destructible_v<T>);
+      static_assert(not extension || not std::is_nothrow_destructible_v<T>);
 
       constexpr T a(std::in_place);
       constexpr T b = a;
@@ -924,7 +939,7 @@ TEST_CASE("expected", "[expected][polyfill]")
       static_assert(not std::is_trivially_move_constructible_v<T>);
       static_assert(not std::is_nothrow_move_constructible_v<T>); // required
       static_assert(not std::is_trivially_destructible_v<T>);
-      static_assert(not std::is_nothrow_destructible_v<T>);
+      static_assert(not extension || not std::is_nothrow_destructible_v<T>);
 
       constexpr T a(unexpect);
       constexpr T b = a;
@@ -1745,8 +1760,8 @@ TEST_CASE("expected", "[expected][polyfill]")
       static_assert(std::is_move_constructible_v<A>);
       static_assert(std::is_nothrow_move_constructible_v<A>);
 
-      static_assert(not is_swappable<expected<int, A>>);
-      static_assert(not is_swappable<expected<A, int>>);
+      static_assert(not extension || not is_swappable<expected<int, A>>);
+      static_assert(not extension || not is_swappable<expected<A, int>>);
 
       SUCCEED();
     }
@@ -2249,10 +2264,13 @@ TEST_CASE("expected", "[expected][polyfill]")
     SECTION("error_or")
     {
       using T = expected<int, helper>;
-      static_assert(not noexcept(std::declval<T>().error_or(std::declval<int>())));
-      static_assert(noexcept(std::declval<T>().error_or(std::declval<helper::list_t>())));
-      static_assert(not noexcept(std::declval<T &>().error_or(std::declval<int>())));
-      static_assert(noexcept(std::declval<T &>().error_or(std::declval<helper::list_t>())));
+      SECTION("noexcept extension")
+      {
+        static_assert(not noexcept(std::declval<T>().error_or(std::declval<int>())));
+        static_assert(not extension || noexcept(std::declval<T>().error_or(std::declval<helper::list_t>())));
+        static_assert(not noexcept(std::declval<T &>().error_or(std::declval<int>())));
+        static_assert(not extension || noexcept(std::declval<T &>().error_or(std::declval<helper::list_t>())));
+      }
 
       SECTION("error")
       {
@@ -2291,7 +2309,7 @@ TEST_CASE("expected", "[expected][polyfill]")
           static_assert(std::is_nothrow_convertible_v<helper::list_t, T::error_type>);
 
           static_assert(not noexcept(std::declval<T>().error_or(std::declval<int>())));
-          static_assert(noexcept(std::declval<T>().error_or(std::declval<helper::list_t>())));
+          static_assert(not extension || noexcept(std::declval<T>().error_or(std::declval<helper::list_t>())));
           static_assert(not noexcept(std::declval<T &>().error_or(std::declval<int>())));
           static_assert(not noexcept(std::declval<T &>().error_or(std::declval<helper::list_t>())));
         }
@@ -2306,7 +2324,7 @@ TEST_CASE("expected", "[expected][polyfill]")
           static_assert(not noexcept(std::declval<T>().error_or(std::declval<int>())));
           static_assert(not noexcept(std::declval<T>().error_or(std::declval<helper::list_t>())));
           static_assert(not noexcept(std::declval<T &>().error_or(std::declval<int>())));
-          static_assert(noexcept(std::declval<T &>().error_or(std::declval<helper::list_t>())));
+          static_assert(not extension || noexcept(std::declval<T &>().error_or(std::declval<helper::list_t>())));
         }
 
         SUCCEED();
@@ -2592,7 +2610,7 @@ TEST_CASE("expected", "[expected][polyfill]")
         T const t1{std::in_place, {12.0}};
         U const u1{unexpect, false};
         CHECK(not(t1 == u1));
-        CHECK(t1 != u1);
+        CHECK((t1 != u1));
 
         constexpr T t2{unexpect, 12};
         constexpr U u2{std::in_place, helper::list_t(), 13};
@@ -2607,13 +2625,13 @@ TEST_CASE("expected", "[expected][polyfill]")
           T const t1{std::in_place, {12.0}};
           U const u1{std::in_place, {3.0}};
           CHECK(not(t1 == u1));
-          CHECK(t1 != u1);
+          CHECK((t1 != u1));
 
           constexpr T t2{std::in_place, {3.0}, 4};
           constexpr U u2{std::in_place, {3.0}, 2, 2};
           static_assert(t2 == u2);
           static_assert(not(t2 != u2));
-          CHECK(t1 == t2);
+          CHECK((t1 == t2));
         }
 
         SECTION("different types")
@@ -2637,13 +2655,13 @@ TEST_CASE("expected", "[expected][polyfill]")
           V const v1{unexpect, {12.0}};
           W const w1{unexpect, {3.0}};
           CHECK(not(v1 == w1));
-          CHECK(v1 != w1);
+          CHECK((v1 != w1));
 
           constexpr V v2{unexpect, {3.0}, 4};
           constexpr W w2{unexpect, {3.0}, 2, 2};
           static_assert(v2 == w2);
           static_assert(not(v2 != w2));
-          CHECK(v1 == v2);
+          CHECK((v1 == v2));
         }
 
         SECTION("different types")
@@ -2667,14 +2685,14 @@ TEST_CASE("expected", "[expected][polyfill]")
         helper const u1{3.0};
         helper const v1{3, 4};
         CHECK(not(t1 == u1));
-        CHECK(t1 != u1);
-        CHECK(t1 == v1);
+        CHECK((t1 != u1));
+        CHECK((t1 == v1));
 
         constexpr T t2{std::in_place, {3.0}, 4};
         constexpr helper u2{helper::list_t(), 3, 2, 2};
         static_assert(t2 == u2);
         static_assert(not(t2 != u2));
-        CHECK(t1 == t2);
+        CHECK((t1 == t2));
       }
 
       SECTION("different types")
@@ -2701,14 +2719,14 @@ TEST_CASE("expected", "[expected][polyfill]")
         U const u1{std::in_place, {3.0}};
         U const v1{std::in_place, {3.0, 4.0}};
         CHECK(not(t1 == u1));
-        CHECK(t1 != u1);
-        CHECK(t1 == v1);
+        CHECK((t1 == v1));
+        CHECK((t1 != u1));
 
         constexpr T t2{unexpect, {3.0}, 4};
         constexpr U u2{std::in_place, helper::list_t(), 3, 2, 2};
         static_assert(t2 == u2);
         static_assert(not(t2 != u2));
-        CHECK(t1 == t2);
+        CHECK((t1 == t2));
       }
 
       SECTION("different types")
