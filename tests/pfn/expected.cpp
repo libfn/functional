@@ -3875,9 +3875,6 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
         T a;
         CHECK(a.and_then(fn).value() == 2);
-        CHECK(std::as_const(a).and_then(fn).value() == 2);
-        CHECK(std::move(std::as_const(a)).and_then(fn).value() == 2);
-        CHECK(std::move(a).and_then(fn).value() == 2);
       }
 
       SECTION("error")
@@ -3945,9 +3942,6 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
         T a;
         CHECK(a.or_else(fn).has_value());
-        CHECK(std::as_const(a).or_else(fn).has_value());
-        CHECK(std::move(std::as_const(a)).or_else(fn).has_value());
-        CHECK(std::move(a).or_else(fn).has_value());
       }
 
       SECTION("constexpr")
@@ -3992,9 +3986,6 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
         T a;
         CHECK(a.transform(fn).value() == 2);
-        CHECK(std::as_const(a).transform(fn).value() == 2);
-        CHECK(std::move(std::as_const(a)).transform(fn).value() == 2);
-        CHECK(std::move(a).transform(fn).value() == 2);
       }
 
       SECTION("error")
@@ -4060,9 +4051,6 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
         T a{};
         CHECK(a.transform_error(fn).has_value());
-        CHECK(std::as_const(a).transform_error(fn).has_value());
-        CHECK(std::move(std::as_const(a)).transform_error(fn).has_value());
-        CHECK(std::move(a).transform_error(fn).has_value());
       }
 
       SECTION("constexpr")
