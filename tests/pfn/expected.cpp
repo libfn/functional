@@ -3,10 +3,9 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
+#ifndef PFN_TEST_VALIDATION
 // TODO: Add death tests. Until then, empty definition to avoid false "no coverage" reports
 #define LIBFN_ASSERT(...)
-
-#if LIBFN_MODE < 23
 #include <pfn/expected.hpp>
 using pfn::bad_expected_access;
 using pfn::expected;
@@ -235,7 +234,7 @@ TEST_CASE("unexpect", "[expected][polyfill][unexpect]")
 
 TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
 {
-#if LIBFN_MODE < 23
+#ifndef PFN_TEST_VALIDATION
   SECTION("is_valid_unexpected")
   {
     using pfn::detail::_is_valid_unexpected;
@@ -458,7 +457,7 @@ concept is_swappable = requires { swap(std::declval<T &>(), std::declval<T &>())
 
 TEST_CASE("expected non void", "[expected][polyfill]")
 {
-#if LIBFN_MODE < 23
+#ifndef PFN_TEST_VALIDATION
   constexpr bool extension = true;
 #else
   constexpr bool extension = false;
@@ -2749,7 +2748,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
 TEST_CASE("expected void", "[expected_void][polyfill]")
 {
-#if LIBFN_MODE < 23
+#ifndef PFN_TEST_VALIDATION
   constexpr bool extension = true;
 #else
   constexpr bool extension = false;
