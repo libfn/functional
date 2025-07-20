@@ -2498,6 +2498,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         CHECK(std::as_const(a).transform(fn).value() == 7 * 2 * helper::from_lval_const);
         CHECK(std::move(std::as_const(a)).transform(fn).value() == 7 * 2 * helper::from_rval_const);
         CHECK(std::move(a).transform(fn).value() == 7 * 2 * helper::from_rval);
+        CHECK(a.transform([](auto &&) {}).has_value());
       }
 
       SECTION("error")
@@ -2510,6 +2511,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         CHECK(std::as_const(a).transform(fn).error().v == 11 * helper::from_lval_const);
         CHECK(std::move(std::as_const(a)).transform(fn).error().v == 11 * helper::from_rval_const);
         CHECK(std::move(a).transform(fn).error().v == 11 * helper::from_rval);
+        CHECK(a.transform([](auto &&) {}).error().v == 11 * helper::from_lval);
       }
 
       SECTION("constexpr")
@@ -3986,6 +3988,7 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
         T a;
         CHECK(a.transform(fn).value() == 2);
+        CHECK(a.transform([]() {}).has_value());
       }
 
       SECTION("error")
@@ -3998,6 +4001,7 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         CHECK(std::as_const(a).transform(fn).error().v == 11 * helper::from_lval_const);
         CHECK(std::move(std::as_const(a)).transform(fn).error().v == 11 * helper::from_rval_const);
         CHECK(std::move(a).transform(fn).error().v == 11 * helper::from_rval);
+        CHECK(a.transform([]() {}).error().v == 11 * helper::from_lval);
       }
 
       SECTION("constexpr")
