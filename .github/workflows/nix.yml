@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - '.github/workflows/nix.yml'
+      - 'flake.nix'
+      - 'flake.lock'
       - 'nix/**'
       - 'include/**'
       - 'tests/**'
@@ -18,6 +20,8 @@ on:
       - main
     paths:
       - '.github/workflows/nix.yml'
+      - 'flake.nix'
+      - 'flake.lock'
       - 'nix/**'
       - 'include/**'
       - 'tests/**'
