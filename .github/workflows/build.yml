@@ -11,6 +11,8 @@ on:
       - 'CMakeLists.txt'
       - 'cmake/**'
       - 'nix/**'
+      - 'flake.nix'
+      - 'flake.lock'
   pull_request:
     branches:
       - main
@@ -21,6 +23,8 @@ on:
       - 'CMakeLists.txt'
       - 'cmake/**'
       - 'nix/**'
+      - 'flake.nix'
+      - 'flake.lock'
 
 jobs:
   linux:
