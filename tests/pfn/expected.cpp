@@ -2897,7 +2897,7 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
       static_assert(not extension || std::is_nothrow_copy_constructible_v<T>);
       static_assert(std::is_move_constructible_v<T>);
       static_assert(not std::is_trivially_move_constructible_v<T>);
-      static_assert(std::is_nothrow_move_constructible_v<T>); // TODO required
+      static_assert(std::is_nothrow_move_constructible_v<T>); // required
       static_assert(not std::is_trivially_destructible_v<T>);
       static_assert(std::is_nothrow_destructible_v<T>);
 
@@ -3180,7 +3180,7 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
           constexpr T a = fn(T(unexpect, Error::file_not_found));
           static_assert(a.error() == Error::file_not_found);
 
-          constexpr T b = fn(T(std::in_place)); // TODO
+          constexpr T b = fn(T(std::in_place));
           static_assert(b.has_value());
 
           SUCCEED();
@@ -3391,7 +3391,7 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         constexpr T a = fn(c);
         static_assert(a.error() == Error::file_not_found);
 
-        constexpr T b = fn(d); // TODO
+        constexpr T b = fn(d);
         static_assert(b.has_value());
 
         SUCCEED();
@@ -3447,7 +3447,7 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
           return tmp;
         };
 
-        constexpr T a = fn(); // TODO
+        constexpr T a = fn();
         static_assert(a.has_value());
 
         SUCCEED();
@@ -3689,7 +3689,7 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
           return v;
         };
 
-        constexpr T a = fn(T(unexpect, Error::file_not_found)); // TODO
+        constexpr T a = fn(T(unexpect, Error::file_not_found));
         static_assert(a.has_value());
 
         constexpr T b = fn(T());
