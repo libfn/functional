@@ -21,11 +21,19 @@ function(append_compilation_options)
     if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
         if(Options_WARNINGS)
             # disable C4456: declaration of 'b' hides previous local declaration
-            target_compile_options(${Options_NAME} PRIVATE /W4 /wd4456)
+            # disable C4244: 'initializing': conversion from '_Ty' to '_Ty', possible loss of data
+            # disable C4101: 'e': unreferenced local variable
+            target_compile_options(${Options_NAME} PRIVATE /W4 /wd4456 /wd4244 /wd4101 )
         endif()
 
         if(Options_OPTIMIZATION)
             target_compile_options(${Options_NAME} PRIVATE $<IF:$<CONFIG:Debug>,/Od,/Ox>)
+        endif()
+
+        if(Options_INTERFACE)
+            target_compile_options(${Options_NAME} INTERFACE /Za /permissive-)
+            # This will disable `unexpected` in global namespace from eh.h
+            target_compile_definitions(${Options_NAME} INTERFACE _HAS_CXX23)
         endif()
     elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "(Apple)?Clang")
         if(Options_WARNINGS)

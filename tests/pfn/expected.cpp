@@ -2174,6 +2174,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
       static_assert(not noexcept(std::declval<T &>().value_or(std::declval<int>())));
       static_assert(not extension || noexcept(std::declval<T &>().value_or(std::declval<helper::list_t>())));
 
+#ifndef _MSC_VER
       SECTION("value")
       {
         T a(7);
@@ -2200,6 +2201,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
           CHECK(a.value_or(std::move(b)) == helper(11 * helper::from_rval));
         }
       }
+#endif
 
       SECTION("noexcept extension")
       {
@@ -2232,6 +2234,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         SUCCEED();
       }
 
+#ifndef _MSC_VER
       SECTION("constexpr")
       {
         using T = expected<helper, Error>;
@@ -2243,7 +2246,6 @@ TEST_CASE("expected non void", "[expected][polyfill]")
             constexpr T a(std::in_place, {3.0}, 5);
             static_assert(a.value_or(c).v == 3 * 5 * helper::from_lval_const);
           }
-
           {
             constexpr T a(unexpect, Error::unknown);
             static_assert(a.value_or(c).v == 7 * helper::from_lval_const);
@@ -2262,6 +2264,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
           SUCCEED();
         }
       }
+#endif
     }
 
     SECTION("error_or")

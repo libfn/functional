@@ -770,28 +770,28 @@ public:
   // [expected.object.monadic], monadic operations
   template <class F>
   constexpr auto and_then(F &&f) &                 //
-      noexcept(noexcept(_and_then<expected &, F>)) // extension
+      noexcept(noexcept(_and_then(*this, FWD(f)))) // extension
       -> decltype(_and_then(*this, FWD(f)))
   {
     return _and_then(*this, FWD(f));
   }
   template <class F>
-  constexpr auto and_then(F &&f) &&                 //
-      noexcept(noexcept(_and_then<expected &&, F>)) // extension
+  constexpr auto and_then(F &&f) &&                             //
+      noexcept(noexcept(_and_then(::std::move(*this), FWD(f)))) // extension
       -> decltype(_and_then(::std::move(*this), FWD(f)))
   {
     return _and_then(::std::move(*this), FWD(f));
   }
   template <class F>
-  constexpr auto and_then(F &&f) const &                 //
-      noexcept(noexcept(_and_then<expected const &, F>)) // extension
+  constexpr auto and_then(F &&f) const &           //
+      noexcept(noexcept(_and_then(*this, FWD(f)))) // extension
       -> decltype(_and_then(*this, FWD(f)))
   {
     return _and_then(*this, FWD(f));
   }
   template <class F>
-  constexpr auto and_then(F &&f) const &&                 //
-      noexcept(noexcept(_and_then<expected const &&, F>)) // extension
+  constexpr auto and_then(F &&f) const &&                       //
+      noexcept(noexcept(_and_then(::std::move(*this), FWD(f)))) // extension
       -> decltype(_and_then(::std::move(*this), FWD(f)))
   {
     return _and_then(::std::move(*this), FWD(f));
@@ -799,28 +799,28 @@ public:
 
   template <class F>
   constexpr auto or_else(F &&f) &                 //
-      noexcept(noexcept(_or_else<expected &, F>)) // extension
+      noexcept(noexcept(_or_else(*this, FWD(f)))) // extension
       -> decltype(_or_else(*this, FWD(f)))
   {
     return _or_else(*this, FWD(f));
   }
   template <class F>
-  constexpr auto or_else(F &&f) &&                 //
-      noexcept(noexcept(_or_else<expected &&, F>)) // extension
+  constexpr auto or_else(F &&f) &&                             //
+      noexcept(noexcept(_or_else(::std::move(*this), FWD(f)))) // extension
       -> decltype(_or_else(::std::move(*this), FWD(f)))
   {
     return _or_else(::std::move(*this), FWD(f));
   }
   template <class F>
-  constexpr auto or_else(F &&f) const &                 //
-      noexcept(noexcept(_or_else<expected const &, F>)) // extension
+  constexpr auto or_else(F &&f) const &           //
+      noexcept(noexcept(_or_else(*this, FWD(f)))) // extension
       -> decltype(_or_else(*this, FWD(f)))
   {
     return _or_else(*this, FWD(f));
   }
   template <class F>
-  constexpr auto or_else(F &&f) const &&                 //
-      noexcept(noexcept(_or_else<expected const &&, F>)) // extension
+  constexpr auto or_else(F &&f) const &&                       //
+      noexcept(noexcept(_or_else(::std::move(*this), FWD(f)))) // extension
       -> decltype(_or_else(::std::move(*this), FWD(f)))
   {
     return _or_else(::std::move(*this), FWD(f));
@@ -828,28 +828,28 @@ public:
 
   template <class F>
   constexpr auto transform(F &&f) &                 //
-      noexcept(noexcept(_transform<expected &, F>)) // extension
+      noexcept(noexcept(_transform(*this, FWD(f)))) // extension
       -> decltype(_transform(*this, FWD(f)))
   {
     return _transform(*this, FWD(f));
   }
   template <class F>
-  constexpr auto transform(F &&f) &&                //
-      noexcept(noexcept(_transform<expected &, F>)) // extension
+  constexpr auto transform(F &&f) &&                             //
+      noexcept(noexcept(_transform(::std::move(*this), FWD(f)))) // extension
       -> decltype(_transform(::std::move(*this), FWD(f)))
   {
     return _transform(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) const &           //
-      noexcept(noexcept(_transform<expected &, F>)) // extension
+      noexcept(noexcept(_transform(*this, FWD(f)))) // extension
       -> decltype(_transform(*this, FWD(f)))
   {
     return _transform(*this, FWD(f));
   }
   template <class F>
-  constexpr auto transform(F &&f) const &&          //
-      noexcept(noexcept(_transform<expected &, F>)) // extension
+  constexpr auto transform(F &&f) const &&                       //
+      noexcept(noexcept(_transform(::std::move(*this), FWD(f)))) // extension
       -> decltype(_transform(::std::move(*this), FWD(f)))
   {
     return _transform(::std::move(*this), FWD(f));
@@ -857,28 +857,28 @@ public:
 
   template <class F>
   constexpr auto transform_error(F &&f) &                 //
-      noexcept(noexcept(_transform_error<expected &, F>)) // extension
+      noexcept(noexcept(_transform_error(*this, FWD(f)))) // extension
       -> decltype(_transform_error(*this, FWD(f)))
   {
     return _transform_error(*this, FWD(f));
   }
   template <class F>
-  constexpr auto transform_error(F &&f) &&                //
-      noexcept(noexcept(_transform_error<expected &, F>)) // extension
+  constexpr auto transform_error(F &&f) &&                             //
+      noexcept(noexcept(_transform_error(::std::move(*this), FWD(f)))) // extension
       -> decltype(_transform_error(::std::move(*this), FWD(f)))
   {
     return _transform_error(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto transform_error(F &&f) const &           //
-      noexcept(noexcept(_transform_error<expected &, F>)) // extension
+      noexcept(noexcept(_transform_error(*this, FWD(f)))) // extension
       -> decltype(_transform_error(*this, FWD(f)))
   {
     return _transform_error(*this, FWD(f));
   }
   template <class F>
-  constexpr auto transform_error(F &&f) const &&          //
-      noexcept(noexcept(_transform_error<expected &, F>)) // extension
+  constexpr auto transform_error(F &&f) const &&                       //
+      noexcept(noexcept(_transform_error(::std::move(*this), FWD(f)))) // extension
       -> decltype(_transform_error(::std::move(*this), FWD(f)))
   {
     return _transform_error(::std::move(*this), FWD(f));
@@ -1312,28 +1312,28 @@ public:
   // [expected.void.monadic], monadic operations
   template <class F>
   constexpr auto and_then(F &&f) &                 //
-      noexcept(noexcept(_and_then<expected &, F>)) // extension
+      noexcept(noexcept(_and_then(*this, FWD(f)))) // extension
       -> decltype(_and_then(*this, FWD(f)))
   {
     return _and_then(*this, FWD(f));
   }
   template <class F>
-  constexpr auto and_then(F &&f) &&                 //
-      noexcept(noexcept(_and_then<expected &&, F>)) // extension
+  constexpr auto and_then(F &&f) &&                             //
+      noexcept(noexcept(_and_then(::std::move(*this), FWD(f)))) // extension
       -> decltype(_and_then(::std::move(*this), FWD(f)))
   {
     return _and_then(::std::move(*this), FWD(f));
   }
   template <class F>
-  constexpr auto and_then(F &&f) const &                 //
-      noexcept(noexcept(_and_then<expected const &, F>)) // extension
+  constexpr auto and_then(F &&f) const &           //
+      noexcept(noexcept(_and_then(*this, FWD(f)))) // extension
       -> decltype(_and_then(*this, FWD(f)))
   {
     return _and_then(*this, FWD(f));
   }
   template <class F>
-  constexpr auto and_then(F &&f) const &&                 //
-      noexcept(noexcept(_and_then<expected const &&, F>)) // extension
+  constexpr auto and_then(F &&f) const &&                       //
+      noexcept(noexcept(_and_then(::std::move(*this), FWD(f)))) // extension
       -> decltype(_and_then(::std::move(*this), FWD(f)))
   {
     return _and_then(::std::move(*this), FWD(f));
@@ -1341,28 +1341,28 @@ public:
 
   template <class F>
   constexpr auto or_else(F &&f) &                 //
-      noexcept(noexcept(_or_else<expected &, F>)) // extension
+      noexcept(noexcept(_or_else(*this, FWD(f)))) // extension
       -> decltype(_or_else(*this, FWD(f)))
   {
     return _or_else(*this, FWD(f));
   }
   template <class F>
-  constexpr auto or_else(F &&f) &&                 //
-      noexcept(noexcept(_or_else<expected &&, F>)) // extension
+  constexpr auto or_else(F &&f) &&                             //
+      noexcept(noexcept(_or_else(::std::move(*this), FWD(f)))) // extension
       -> decltype(_or_else(::std::move(*this), FWD(f)))
   {
     return _or_else(::std::move(*this), FWD(f));
   }
   template <class F>
-  constexpr auto or_else(F &&f) const &                 //
-      noexcept(noexcept(_or_else<expected const &, F>)) // extension
+  constexpr auto or_else(F &&f) const &           //
+      noexcept(noexcept(_or_else(*this, FWD(f)))) // extension
       -> decltype(_or_else(*this, FWD(f)))
   {
     return _or_else(*this, FWD(f));
   }
   template <class F>
-  constexpr auto or_else(F &&f) const &&                 //
-      noexcept(noexcept(_or_else<expected const &&, F>)) // extension
+  constexpr auto or_else(F &&f) const &&                       //
+      noexcept(noexcept(_or_else(::std::move(*this), FWD(f)))) // extension
       -> decltype(_or_else(::std::move(*this), FWD(f)))
   {
     return _or_else(::std::move(*this), FWD(f));
@@ -1370,28 +1370,28 @@ public:
 
   template <class F>
   constexpr auto transform(F &&f) &                 //
-      noexcept(noexcept(_transform<expected &, F>)) // extension
+      noexcept(noexcept(_transform(*this, FWD(f)))) // extension
       -> decltype(_transform(*this, FWD(f)))
   {
     return _transform(*this, FWD(f));
   }
   template <class F>
-  constexpr auto transform(F &&f) &&                //
-      noexcept(noexcept(_transform<expected &, F>)) // extension
+  constexpr auto transform(F &&f) &&                             //
+      noexcept(noexcept(_transform(::std::move(*this), FWD(f)))) // extension
       -> decltype(_transform(::std::move(*this), FWD(f)))
   {
     return _transform(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) const &           //
-      noexcept(noexcept(_transform<expected &, F>)) // extension
+      noexcept(noexcept(_transform(*this, FWD(f)))) // extension
       -> decltype(_transform(*this, FWD(f)))
   {
     return _transform(*this, FWD(f));
   }
   template <class F>
-  constexpr auto transform(F &&f) const &&          //
-      noexcept(noexcept(_transform<expected &, F>)) // extension
+  constexpr auto transform(F &&f) const &&                       //
+      noexcept(noexcept(_transform(::std::move(*this), FWD(f)))) // extension
       -> decltype(_transform(::std::move(*this), FWD(f)))
   {
     return _transform(::std::move(*this), FWD(f));
@@ -1399,28 +1399,28 @@ public:
 
   template <class F>
   constexpr auto transform_error(F &&f) &                 //
-      noexcept(noexcept(_transform_error<expected &, F>)) // extension
+      noexcept(noexcept(_transform_error(*this, FWD(f)))) // extension
       -> decltype(_transform_error(*this, FWD(f)))
   {
     return _transform_error(*this, FWD(f));
   }
   template <class F>
-  constexpr auto transform_error(F &&f) &&                //
-      noexcept(noexcept(_transform_error<expected &, F>)) // extension
+  constexpr auto transform_error(F &&f) &&                             //
+      noexcept(noexcept(_transform_error(::std::move(*this), FWD(f)))) // extension
       -> decltype(_transform_error(::std::move(*this), FWD(f)))
   {
     return _transform_error(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto transform_error(F &&f) const &           //
-      noexcept(noexcept(_transform_error<expected &, F>)) // extension
+      noexcept(noexcept(_transform_error(*this, FWD(f)))) // extension
       -> decltype(_transform_error(*this, FWD(f)))
   {
     return _transform_error(*this, FWD(f));
   }
   template <class F>
-  constexpr auto transform_error(F &&f) const &&          //
-      noexcept(noexcept(_transform_error<expected &, F>)) // extension
+  constexpr auto transform_error(F &&f) const &&                       //
+      noexcept(noexcept(_transform_error(::std::move(*this), FWD(f)))) // extension
       -> decltype(_transform_error(::std::move(*this), FWD(f)))
   {
     return _transform_error(::std::move(*this), FWD(f));
