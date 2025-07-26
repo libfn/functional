@@ -33,38 +33,30 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        mode:
+          - cxx20
+          - cxx23
         configuration:
-        - Debug
-        - Release
-        env:
-        - compiler: gcc
-          release: 12
-          modes: "cxx20"
-        - compiler: clang
-          release: 16
-          modes: "cxx20"
-        - compiler: clang
-          release: 17
-          modes: "cxx20"
-        - compiler: gcc
-          release: 13
-          modes: "cxx20 cxx23"
-        - compiler: gcc
-          release: 14
-          modes: "cxx20 cxx23"
-        - compiler: gcc
-          release: 15
-          modes: "cxx20 cxx23"
-        - compiler: clang
-          release: 18
-          modes: "cxx20 cxx23"
-        - compiler: clang
-          release: 19
-          modes: "cxx20 cxx23"
-        - compiler: clang
-          release: 20
-          modes: "cxx20 cxx23"
-    container: libfn/ci-build-${{ matrix.env.compiler }}:${{ matrix.env.release }}
+          - Debug
+          - Release
+        compiler:
+          - "gcc:12"
+          - "clang:16"
+          - "clang:17"
+          - "gcc:13"
+          - "gcc:14"
+          - "gcc:15"
+          - "clang:18"
+          - "clang:19"
+          - "clang:20"
+        exclude:
+          - mode: cxx23
+            compiler: "gcc:12"
+          - mode: cxx23
+            compiler: "clang:16"
+          - mode: cxx23
+            compiler: "clang:17"
+    container: libfn/ci-build-${{ matrix.compiler }}
     steps:
     - uses: actions/checkout@v4
 
@@ -76,31 +68,18 @@ jobs:
         COMPILER=$( grep -iE "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
         FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ matrix.configuration }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
         printf "C++ compiler path: %s\n" "$COMPILER"
-        $COMPILER --version
+        "$COMPILER" --version
         printf "C++ compilation options: %s\n" "$FLAGS"
 
-    # Separate step for each compilation mode
-    - name: Build and test C++20 mode
-      if: ${{ contains( matrix.env.modes, 'cxx20' ) }}
-      continue-on-error: true
+    - name: Build and test ${{ matrix.mode }}
       run: |
         cd .build
-        cmake --build . --target clean
-        cmake --build . --target cxx20
-        ctest -L cxx20 --output-on-failure
-
-    - name: Build and test C++23 mode
-      if: ${{ contains( matrix.env.modes, 'cxx23' ) }}
-      continue-on-error: true
-      run: |
-        cd .build
-        cmake --build . --target clean
-        cmake --build . --target cxx23
-        ctest -L cxx23 --output-on-failure
+        cmake --build . --target ${{ matrix.mode }}
+        ctest -L ${{ matrix.mode }} --output-on-failure
 
     # Build and test all for one arbitrary configuration
     - name: Build and test all
-      if: ${{ matrix.env.compiler == 'gcc' && matrix.env.release == '14' }}
+      if: ${{ matrix.compiler == 'gcc:14' && matrix.mode == 'cxx23' }}
       run: |
         cd .build
         cmake --build . --target clean
@@ -108,24 +87,35 @@ jobs:
         ctest --output-on-failure
 
   macos:
-    runs-on: macos-${{ matrix.env.osver }}
+    runs-on: macos-${{ matrix.osver }}
     strategy:
       fail-fast: false
       matrix:
+        mode:
+          - cxx20
+          - cxx23
         configuration:
-        - Debug
-        - Release
-        env:
-          - compiler: appleclang
-            osver: 15
-            modes: "cxx20 cxx23"
-          - compiler: appleclang
-            osver: 14
-            modes: "cxx20"
+          - Debug
+          - Release
+        compiler:
+          - appleclang
+          - clang
+        osver:
+          - 14
+          - 15
+        clangrelease:
+          - NA
+          - 18
+        exclude:
           - compiler: clang
-            release: 18
-            osver: 15
-            modes: "cxx20 cxx23"
+            osver: 14
+          - compiler: clang
+            clangrelease: NA
+          - compiler: appleclang
+            clangrelease: 18
+          - mode: cxx23
+            compiler: appleclang
+            osver: 14
     steps:
     - uses: actions/checkout@v4
 
@@ -133,79 +123,71 @@ jobs:
       run: |
         mkdir .build
         cd .build
-        if [[ "${{ matrix.env.compiler }}" == "appleclang" ]]; then
+        if [[ "${{ matrix.compiler }}" == "appleclang" ]]; then
           export CXX="$(which clang++)"
           export CC="$(which clang)"
         fi
-        if [[ "${{ matrix.env.compiler }}" == "clang" ]]; then
-          export CXX="$(brew --prefix llvm@${{ matrix.env.release }})/bin/clang++"
-          export CC="$(brew --prefix llvm@${{ matrix.env.release }})/bin/clang"
+        if [[ "${{ matrix.compiler }}" == "clang" ]]; then
+          export CXX="$(brew --prefix llvm@${{ matrix.clangrelease }})/bin/clang++"
+          export CC="$(brew --prefix llvm@${{ matrix.clangrelease }})/bin/clang"
         fi
         cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ..
         COMPILER=$( grep -iE "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
         FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ matrix.configuration }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
         printf "C++ compiler path: %s\n" "$COMPILER"
-        $COMPILER --version
+        "$COMPILER" --version
         printf "C++ compilation options: %s\n" "$FLAGS"
 
-    # Separate step for each compilation mode
-    - name: Build and test C++20 mode
-      if: ${{ contains( matrix.env.modes, 'cxx20' ) }}
-      continue-on-error: true
+    - name: Build and test ${{ matrix.mode }}
       run: |
         cd .build
-        cmake --build . --target clean
-        cmake --build . --target cxx20
-        ctest -L cxx20 --output-on-failure
+        cmake --build . --target ${{ matrix.mode }}
+        ctest -L ${{ matrix.mode }} --output-on-failure
 
-    - name: Build and test C++23 mode
-      if: ${{ contains( matrix.env.modes, 'cxx23' ) }}
-      continue-on-error: true
+    # Build and test all for one arbitrary configuration
+    - name: Build and test all
+      if: ${{ matrix.compiler == 'appleclang' && matrix.osver == '15' && matrix.mode == 'cxx23' }}
       run: |
         cd .build
         cmake --build . --target clean
-        cmake --build . --target cxx23
-        ctest -L cxx23 --output-on-failure
+        cmake --build .
+        ctest --output-on-failure
 
   windows:
-      runs-on: windows-${{ matrix.env.osver }}
+      runs-on: windows-${{ matrix.osver }}
       strategy:
         fail-fast: false
         matrix:
+          mode:
+            - cxx20
           configuration:
-          - Debug
-          - Release
-          env:
-            - compiler: "Visual Studio 17 2022"
-              osver: 2025
-              modes: "cxx20"
+            - Debug
+            - Release
+          compiler:
+            - "Visual Studio 17 2022"
+          osver:
+            - 2025
       steps:
       - uses: actions/checkout@v4
 
       - name: Prepare build
+        shell: bash
         run: |
           mkdir .build
           cd .build
-          cmake -G "${{ matrix.env.compiler }}" -A x64 ..
+          cmake -G "${{ matrix.compiler }}" -A x64 ..
+          LINKER=$( grep -iE "^CMAKE_LINKER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
+          FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ matrix.configuration }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
+          printf "C++ linker path: %s\n" "$LINKER"
+          "$LINKER" . || true
+          printf "C++ compilation options: %s\n" "$FLAGS"
 
-      # Separate step for each compilation mode
-      - name: Build and test C++20 mode
-        if: ${{ contains( matrix.env.modes, 'cxx20' ) }}
-        continue-on-error: true
+      - name: Build and test ${{ matrix.mode }}
+        shell: bash
         run: |
           cd .build
-          cmake --build . --config ${{ matrix.configuration }} --target clean
-          cmake --build . --config ${{ matrix.configuration }} --target cxx20
-          ctest -L cxx20 -C  ${{ matrix.configuration }} --output-on-failure
-
-      - name: Build and test C++23 mode
-        if: ${{ contains( matrix.env.modes, 'cxx23' ) }}
-        continue-on-error: true
-        run: |
-          cd .build
-          cmake --build . --config ${{ matrix.configuration }} --target clean
-          cmake --build . --config ${{ matrix.configuration }} --target cxx23
-          ctest -L cxx23 -C  ${{ matrix.configuration }} --output-on-failure
+          cmake --build . --target ${{ matrix.mode }} --config ${{ matrix.configuration }}
+          ctest -L ${{ matrix.mode }} -C ${{ matrix.configuration }} --output-on-failure
 
   nixos:
     runs-on:
@@ -214,8 +196,8 @@ jobs:
       fail-fast: false
       matrix:
         compiler:
-        - gcc
-        - clang
+          - gcc
+          - clang
     steps:
     - uses: actions/checkout@v4
 
