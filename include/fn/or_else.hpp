@@ -3,8 +3,8 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#ifndef INCLUDE_FUNCTIONAL_OR_ELSE
-#define INCLUDE_FUNCTIONAL_OR_ELSE
+#ifndef INCLUDE_FN_OR_ELSE
+#define INCLUDE_FN_OR_ELSE
 
 #include <fn/concepts.hpp>
 #include <fn/functional.hpp>

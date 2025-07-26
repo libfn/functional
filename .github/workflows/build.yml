@@ -10,6 +10,9 @@ on:
       - 'tests/**'
       - 'CMakeLists.txt'
       - 'cmake/**'
+      - 'nix/**'
+      - 'flake.nix'
+      - 'flake.lock'
   pull_request:
     branches:
       - main
@@ -19,66 +22,190 @@ on:
       - 'tests/**'
       - 'CMakeLists.txt'
       - 'cmake/**'
+      - 'nix/**'
+      - 'flake.nix'
+      - 'flake.lock'
 
 jobs:
-  build-linux:
+  linux:
     runs-on:
       group: runners-arm64
     strategy:
       fail-fast: false
       matrix:
+        mode:
+          - cxx20
+          - cxx23
         configuration:
-        - Debug
-        - Release
+          - Debug
+          - Release
         compiler:
-        - gcc:13
-        - gcc:14
-        - gcc:15
-        - clang:18
-        - clang:19
-        - clang:20
+          - "gcc:12"
+          - "clang:16"
+          - "clang:17"
+          - "gcc:13"
+          - "gcc:14"
+          - "gcc:15"
+          - "clang:18"
+          - "clang:19"
+          - "clang:20"
+        exclude:
+          - mode: cxx23
+            compiler: "gcc:12"
+          - mode: cxx23
+            compiler: "clang:16"
+          - mode: cxx23
+            compiler: "clang:17"
     container: libfn/ci-build-${{ matrix.compiler }}
     steps:
     - uses: actions/checkout@v4
-
-    - name: Verify compiler compatibility
-      env:
-        SOURCE: |
-          #include <optional>
-          #include <expected>
-          #include <cstdio>
-          int main() {
-            using type1=std::expected<int, const char*>;
-            using type2=std::optional<int>;
-            return type1{1}.and_then([](int i) -> type1 { std::puts("OK expected"); return {i-1}; }).value()
-              + type2{2}.and_then([](int i) -> type2 { std::puts("OK optional"); return {i-2}; }).value();
-          }
-      run: |
-        printf "CXX=%s\nCXXFLAGS=%s\n" "$CXX" "$CXXFLAGS"
-        $CXX --version | head -1
-        FILE=$(mktemp --tmpdir XXXXXX.cpp)
-        printf "$SOURCE\n" > $FILE
-        OUT=$(mktemp --tmpdir  XXXXXX)
-        $CXX -std=c++2b $CXXFLAGS -Wall $FILE -o $OUT
-        $OUT
 
     - name: Prepare build
       run: |
         mkdir .build
         cd .build
         cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ..
-        COMPILER=$( grep -E "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -e "s|^[^=]*=||" )
-        FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS:STRING=" CMakeCache.txt | sed -e "s|^[^=]*=||" )
-        printf "C++ compiler: %s\n" "$COMPILER"
-        printf "C++ compiler version: %s\n" "$( $COMPILER --version | head -1 )"
+        COMPILER=$( grep -iE "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
+        FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ matrix.configuration }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
+        printf "C++ compiler path: %s\n" "$COMPILER"
+        "$COMPILER" --version
         printf "C++ compilation options: %s\n" "$FLAGS"
 
-    - name: Build all
+    - name: Build and test ${{ matrix.mode }}
       run: |
         cd .build
-        cmake --build . --target all
+        cmake --build . --target ${{ matrix.mode }}
+        ctest -L ${{ matrix.mode }} --output-on-failure
 
-    - name: Run tests
+    # Build and test all for one arbitrary configuration
+    - name: Build and test all
+      if: ${{ matrix.compiler == 'gcc:14' && matrix.mode == 'cxx23' }}
       run: |
         cd .build
+        cmake --build . --target clean
+        cmake --build .
         ctest --output-on-failure
+
+  macos:
+    runs-on: macos-${{ matrix.osver }}
+    strategy:
+      fail-fast: false
+      matrix:
+        mode:
+          - cxx20
+          - cxx23
+        configuration:
+          - Debug
+          - Release
+        compiler:
+          - appleclang
+          - clang
+        osver:
+          - 14
+          - 15
+        clangrelease:
+          - NA
+          - 18
+        exclude:
+          - compiler: clang
+            osver: 14
+          - compiler: clang
+            clangrelease: NA
+          - compiler: appleclang
+            clangrelease: 18
+          - mode: cxx23
+            compiler: appleclang
+            osver: 14
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Prepare build
+      run: |
+        mkdir .build
+        cd .build
+        if [[ "${{ matrix.compiler }}" == "appleclang" ]]; then
+          export CXX="$(which clang++)"
+          export CC="$(which clang)"
+        fi
+        if [[ "${{ matrix.compiler }}" == "clang" ]]; then
+          export CXX="$(brew --prefix llvm@${{ matrix.clangrelease }})/bin/clang++"
+          export CC="$(brew --prefix llvm@${{ matrix.clangrelease }})/bin/clang"
+        fi
+        cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ..
+        COMPILER=$( grep -iE "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
+        FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ matrix.configuration }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
+        printf "C++ compiler path: %s\n" "$COMPILER"
+        "$COMPILER" --version
+        printf "C++ compilation options: %s\n" "$FLAGS"
+
+    - name: Build and test ${{ matrix.mode }}
+      run: |
+        cd .build
+        cmake --build . --target ${{ matrix.mode }}
+        ctest -L ${{ matrix.mode }} --output-on-failure
+
+    # Build and test all for one arbitrary configuration
+    - name: Build and test all
+      if: ${{ matrix.compiler == 'appleclang' && matrix.osver == '15' && matrix.mode == 'cxx23' }}
+      run: |
+        cd .build
+        cmake --build . --target clean
+        cmake --build .
+        ctest --output-on-failure
+
+  windows:
+      runs-on: windows-${{ matrix.osver }}
+      strategy:
+        fail-fast: false
+        matrix:
+          mode:
+            - cxx20
+          configuration:
+            - Debug
+            - Release
+          compiler:
+            - "Visual Studio 17 2022"
+          osver:
+            - 2025
+      steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare build
+        shell: bash
+        run: |
+          mkdir .build
+          cd .build
+          cmake -G "${{ matrix.compiler }}" -A x64 ..
+          LINKER=$( grep -iE "^CMAKE_LINKER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
+          FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ matrix.configuration }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
+          printf "C++ linker path: %s\n" "$LINKER"
+          "$LINKER" . || true
+          printf "C++ compilation options: %s\n" "$FLAGS"
+
+      - name: Build and test ${{ matrix.mode }}
+        shell: bash
+        run: |
+          cd .build
+          cmake --build . --target ${{ matrix.mode }} --config ${{ matrix.configuration }}
+          ctest -L ${{ matrix.mode }} -C ${{ matrix.configuration }} --output-on-failure
+
+  nixos:
+    runs-on:
+      group: runners-intel
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler:
+          - gcc
+          - clang
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Nix
+      uses: cachix/install-nix-action@v30
+      with:
+        extra_nix_config: |
+          access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and test
+      run: nix -L build '.#${{matrix.compiler}}'

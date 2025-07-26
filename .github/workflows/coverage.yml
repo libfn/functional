@@ -65,20 +65,19 @@ jobs:
         mkdir .build
         cd .build
         cmake -DCMAKE_C_FLAGS="$COVERAGE_OPTS" -DCMAKE_CXX_FLAGS="$COVERAGE_OPTS" ..
-        COMPILER=$( grep -E "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -e "s|^[^=]*=||" )
-        FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS:STRING=" CMakeCache.txt | sed -e "s|^[^=]*=||" )
-        printf "C++ compiler: %s\n" "$COMPILER"
-        printf "C++ compiler version: %s\n" "$( $COMPILER --version | head -1 )"
+        COMPILER=$( grep -iE "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
+        FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ matrix.configuration }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
+        printf "C++ compiler path: %s\n" "$COMPILER"
+        $COMPILER --version
         printf "C++ compilation options: %s\n" "$FLAGS"
         printf "gcov version: %s\n" "$( $GCOV --version | head -1 )"
-        [[ "$( realpath $CXX )" == "$( realpath $COMPILER )" ]] || exit 13
 
     - name: Run coverage target
       shell: bash
       run: |
         cd .build
         cmake --build .
-        ctest -L tests_fn -j1 # generate .gcda files
+        ctest -L 'tests_p?fn' -j1 # generate .gcda files
         $GCOV -pbc -r -s $( realpath .. ) $( find tests -type f -name '*.gcno' ) # generate .gcov files
 
     - name: Upload .gcov files
