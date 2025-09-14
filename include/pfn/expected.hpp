@@ -481,24 +481,21 @@ public:
   constexpr ~expected() noexcept
     requires(::std::is_trivially_destructible_v<T> && ::std::is_trivially_destructible_v<E>)
   = default;
-  constexpr ~expected()                             //
-      noexcept(::std::is_nothrow_destructible_v<E>) // extension
+  constexpr ~expected() //
     requires(::std::is_trivially_destructible_v<T> && not ::std::is_trivially_destructible_v<E>)
   {
     if (not set_)
       ::std::destroy_at(::std::addressof(e_));
     // else T is trivially destructible, no need to do anything
   }
-  constexpr ~expected()                             //
-      noexcept(::std::is_nothrow_destructible_v<T>) // extension
+  constexpr ~expected() //
     requires(not ::std::is_trivially_destructible_v<T> && ::std::is_trivially_destructible_v<E>)
   {
     if (set_)
       ::std::destroy_at(::std::addressof(v_));
     // else E is trivially destructible, no need to do anything
   }
-  constexpr ~expected()                                                                    //
-      noexcept(::std::is_nothrow_destructible_v<T> && ::std::is_nothrow_destructible_v<E>) // extension
+  constexpr ~expected() //
     requires(not ::std::is_trivially_destructible_v<T> && not ::std::is_trivially_destructible_v<E>)
   {
     if (set_)
@@ -1124,8 +1121,7 @@ public:
   constexpr ~expected() noexcept
     requires(::std::is_trivially_destructible_v<E>)
   = default;
-  constexpr ~expected()                             //
-      noexcept(::std::is_nothrow_destructible_v<E>) // extension
+  constexpr ~expected() //
     requires(not ::std::is_trivially_destructible_v<E>)
   {
     if (not set_)
