@@ -3,8 +3,8 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#ifndef INCLUDE_FUNCTIONAL_TRANSFORM_ERROR
-#define INCLUDE_FUNCTIONAL_TRANSFORM_ERROR
+#ifndef INCLUDE_FN_TRANSFORM_ERROR
+#define INCLUDE_FN_TRANSFORM_ERROR
 
 #include <fn/concepts.hpp>
 #include <fn/functional.hpp>

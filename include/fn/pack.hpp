@@ -3,8 +3,8 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#ifndef INCLUDE_FUNCTIONAL_PACK
-#define INCLUDE_FUNCTIONAL_PACK
+#ifndef INCLUDE_FN_PACK
+#define INCLUDE_FN_PACK
 
 #include <fn/detail/pack_impl.hpp>
 #include <fn/sum.hpp>

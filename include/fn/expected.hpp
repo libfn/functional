@@ -3,8 +3,8 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#ifndef INCLUDE_FUNCTIONAL_EXPECTED
-#define INCLUDE_FUNCTIONAL_EXPECTED
+#ifndef INCLUDE_FN_EXPECTED
+#define INCLUDE_FN_EXPECTED
 
 #include <fn/pack.hpp>
 #include <fn/sum.hpp>

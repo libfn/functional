@@ -3,8 +3,8 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#ifndef INCLUDE_FUNCTIONAL_CONCEPTS
-#define INCLUDE_FUNCTIONAL_CONCEPTS
+#ifndef INCLUDE_FN_CONCEPTS
+#define INCLUDE_FN_CONCEPTS
 
 #include <fn/choice.hpp>
 #include <fn/expected.hpp>

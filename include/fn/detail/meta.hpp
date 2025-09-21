@@ -3,8 +3,8 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#ifndef INCLUDE_FUNCTIONAL_DETAIL_META
-#define INCLUDE_FUNCTIONAL_DETAIL_META
+#ifndef INCLUDE_FN_DETAIL_META
+#define INCLUDE_FN_DETAIL_META
 
 #include <algorithm>
 #include <array>

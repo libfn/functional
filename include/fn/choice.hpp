@@ -3,8 +3,8 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#ifndef INCLUDE_FUNCTIONAL_CHOICE
-#define INCLUDE_FUNCTIONAL_CHOICE
+#ifndef INCLUDE_FN_CHOICE
+#define INCLUDE_FN_CHOICE
 
 #include <fn/detail/meta.hpp>
 #include <fn/sum.hpp>

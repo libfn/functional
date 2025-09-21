@@ -3,8 +3,8 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#ifndef INCLUDE_FUNCTIONAL_DETAIL_PACK_IMPL
-#define INCLUDE_FUNCTIONAL_DETAIL_PACK_IMPL
+#ifndef INCLUDE_FN_DETAIL_PACK_IMPL
+#define INCLUDE_FN_DETAIL_PACK_IMPL
 
 #include <fn/detail/functional.hpp>
 #include <fn/detail/fwd.hpp>
