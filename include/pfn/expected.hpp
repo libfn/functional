@@ -365,7 +365,8 @@ public:
   }
 
   constexpr expected(expected const &) = delete;
-  constexpr expected(expected const &s) //
+  constexpr expected(expected const &s)                                                                //
+      noexcept(::std::is_nothrow_copy_constructible_v<T> && ::std::is_nothrow_copy_constructible_v<E>) // extension
     requires(::std::is_copy_constructible_v<T> && ::std::is_copy_constructible_v<E>
              && ::std::is_trivially_copy_constructible_v<T> && ::std::is_trivially_copy_constructible_v<E>)
   = default;
@@ -885,7 +886,7 @@ public:
   template <class T2, class E2>
     requires(not ::std::is_void_v<T2>)
   constexpr friend bool operator==(expected const &x, expected<T2, E2> const &y) //
-      noexcept(noexcept(*x == *y) && noexcept(x.error() == y.error()))           // extension
+      noexcept(noexcept(static_cast<bool>(*x == *y)) && noexcept(static_cast<bool>(x.error() == y.error())))           // extension
     requires ( //
 requires {
       { *x == *y } -> std::convertible_to<bool>;
@@ -905,7 +906,7 @@ requires {
   template <class T2>
     requires(not detail::_is_some_expected<T2>)
   constexpr friend bool operator==(expected const &x, const T2 &v) //
-      noexcept(noexcept(*x == v))                                  // extension
+      noexcept(noexcept(static_cast<bool>(*x == v)))               // extension
     requires requires {
       { *x == v } -> std::convertible_to<bool>;
     }
@@ -914,7 +915,7 @@ requires {
   }
   template <class E2>
   constexpr friend bool operator==(expected const &x, unexpected<E2> const &e) //
-      noexcept(noexcept(x.error() == e.error()))                               // extension
+      noexcept(noexcept(static_cast<bool>(x.error() == e.error())))            // extension
     requires requires {
       { x.error() == e.error() } -> std::convertible_to<bool>;
     }
@@ -1426,7 +1427,7 @@ public:
   template <class T2, class E2>
     requires(::std::is_void_v<T2>)
   constexpr friend bool operator==(expected const &x, expected<T2, E2> const &y) //
-      noexcept(noexcept(x.error() == y.error()))                                 // extension
+      noexcept(noexcept(static_cast<bool>((x.error() == y.error()))))            // extension
     requires requires {
       { x.error() == y.error() } -> std::convertible_to<bool>;
     }
@@ -1441,7 +1442,7 @@ public:
   }
   template <class E2>
   constexpr friend bool operator==(expected const &x, unexpected<E2> const &e) //
-      noexcept(noexcept(x.error() == e.error()))                               // extension
+      noexcept(noexcept(static_cast<bool>(x.error() == e.error())))            // extension
     requires requires {
       { x.error() == e.error() } -> std::convertible_to<bool>;
     }
