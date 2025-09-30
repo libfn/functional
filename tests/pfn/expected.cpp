@@ -482,6 +482,9 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
       constexpr T a;
       static_assert(a.has_value());
+#ifndef PFN_TEST_VALIDATION
+      static_assert(not a.has_error());
+#endif
       static_assert(a.value() == 0);
       SUCCEED();
     }
@@ -503,10 +506,16 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
       constexpr T a;
       static_assert(a.has_value());
+#ifndef PFN_TEST_VALIDATION
+      static_assert(not a.has_error());
+#endif
       static_assert(a.value() == A());
 
       T b;
       CHECK(b.has_value());
+#ifndef PFN_TEST_VALIDATION
+      CHECK(not b.has_error());
+#endif
       CHECK(b.value() == A());
     }
 
@@ -523,10 +532,16 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
       constexpr T a;
       static_assert(a.has_value());
+#ifndef PFN_TEST_VALIDATION
+      static_assert(not a.has_error());
+#endif
       static_assert(a.value().v == 42);
 
       T b;
       CHECK(b.has_value());
+#ifndef PFN_TEST_VALIDATION
+      CHECK(not b.has_error());
+#endif
       CHECK(b.value().v == 42);
     }
 
@@ -558,6 +573,9 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
       T b;
       CHECK(b.has_value());
+#ifndef PFN_TEST_VALIDATION
+      CHECK(not b.has_error());
+#endif
       CHECK(b.value() == 0);
     }
 
@@ -743,10 +761,16 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         T a(std::in_place, 13);
         T b = a;
         CHECK(b.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(not b.has_error());
+#endif
         CHECK(b.value() == 13);
 
         T c = std::move(a);
         CHECK(c.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(not c.has_error());
+#endif
         CHECK(c.value() == 13);
       }
     }
@@ -767,18 +791,30 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         T a(std::in_place, 13);
         T b = a; // no overload for lval
         CHECK(b.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(not b.has_error());
+#endif
         CHECK(b.value().v == 13 * helper::from_lval_const);
 
         T c = std::as_const(a);
-        CHECK(b.has_value());
+        CHECK(c.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(not c.has_error());
+#endif
         CHECK(c.value().v == 13 * helper::from_lval_const);
 
         T d = std::move(std::as_const(a)); // no overload for lval const
-        CHECK(b.has_value());
+        CHECK(d.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(not d.has_error());
+#endif
         CHECK(d.value().v == 13 * helper::from_lval_const);
 
         T e = std::move(a);
-        CHECK(b.has_value());
+        CHECK(e.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(not e.has_error());
+#endif
         CHECK(e.value().v == 13 * helper::from_rval);
       }
     }
@@ -799,18 +835,30 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         T a(unexpect, 33);
         T b = a; // no overload for lval
         CHECK(not b.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(b.has_error());
+#endif
         CHECK(b.error().v == 33 * helper::from_lval_const);
 
         T c = std::as_const(a);
-        CHECK(not b.has_value());
+        CHECK(not c.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(c.has_error());
+#endif
         CHECK(c.error().v == 33 * helper::from_lval_const);
 
         T d = std::move(std::as_const(a)); // no overload for lval const
-        CHECK(not b.has_value());
+        CHECK(not d.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(d.has_error());
+#endif
         CHECK(d.error().v == 33 * helper::from_lval_const);
 
         T e = std::move(a);
-        CHECK(not b.has_value());
+        CHECK(not e.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(e.has_error());
+#endif
         CHECK(e.error().v == 33 * helper::from_rval);
       }
     }
@@ -831,6 +879,9 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         T a(std::in_place, 41);
         T b = a; // no overload for lval
         CHECK(b.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(not b.has_error());
+#endif
         CHECK(b.value().v == 41 * helper::from_lval_const);
       }
 
@@ -838,6 +889,9 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         T a(unexpect, 43);
         T b = a; // no overload for lval
         CHECK(not b.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(b.has_error());
+#endif
         CHECK(b.error().v == 43 * helper::from_lval_const);
       }
     }
@@ -869,10 +923,16 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         T const a(std::in_place, 19);
         T b = a;
         CHECK(b.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(not b.has_error());
+#endif
         CHECK(b.value().v == 19);
 
         T c = std::move(a);
-        CHECK(b.has_value());
+        CHECK(c.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(not c.has_error());
+#endif
         CHECK(c.value().v == 19);
       }
     }
@@ -891,16 +951,26 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
       constexpr T a(unexpect, 23);
       constexpr T b = a;
+#ifndef PFN_TEST_VALIDATION
+      static_assert(b.has_error() && a.error().v == b.error().v);
+#else
       static_assert(not b.has_value() && a.error().v == b.error().v);
+#endif
 
       {
         T const a(unexpect, 29);
         T b = a;
         CHECK(not b.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(b.has_error());
+#endif
         CHECK(b.error().v == 29);
 
         T c = std::move(a);
         CHECK(not c.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(c.has_error());
+#endif
         CHECK(c.error().v == 29);
       }
     }
@@ -925,11 +995,17 @@ TEST_CASE("expected non void", "[expected][polyfill]")
       constexpr T a(std::in_place);
       constexpr T b = a;
       static_assert(b.has_value());
+#ifndef PFN_TEST_VALIDATION
+      static_assert(not b.has_error());
+#endif
 
       {
         T const a(std::in_place);
         T b = a;
         CHECK(b.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(not b.has_error());
+#endif
       }
     }
 
@@ -947,11 +1023,17 @@ TEST_CASE("expected non void", "[expected][polyfill]")
       constexpr T a(unexpect);
       constexpr T b = a;
       static_assert(not b.has_value());
+#ifndef PFN_TEST_VALIDATION
+      static_assert(b.has_error());
+#endif
 
       {
         T const a(unexpect);
         T b = a;
         CHECK(not b.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(b.has_error());
+#endif
       }
     }
   }
@@ -2777,6 +2859,9 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
       constexpr T a;
       static_assert(a.has_value());
+#ifndef PFN_TEST_VALIDATION
+      static_assert(not a.has_error());
+#endif
       SUCCEED();
     }
 
@@ -2796,9 +2881,15 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
       constexpr T a;
       static_assert(a.has_value());
+#ifndef PFN_TEST_VALIDATION
+      static_assert(not a.has_error());
+#endif
 
       T b;
       CHECK(b.has_value());
+#ifndef PFN_TEST_VALIDATION
+      CHECK(not b.has_error());
+#endif
     }
 
     struct B {
@@ -2827,6 +2918,9 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
       T b;
       CHECK(b.has_value());
+#ifndef PFN_TEST_VALIDATION
+      CHECK(not b.has_error());
+#endif
     }
 
     SECTION("from unexpected rval")
@@ -2863,6 +2957,9 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
       T const b(std::in_place);
       CHECK(b.has_value());
+#ifndef PFN_TEST_VALIDATION
+      CHECK(not b.has_error());
+#endif
     }
   }
 
@@ -2883,14 +2980,23 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
       constexpr T a;
       constexpr T b = a;
       static_assert(b.has_value());
+#ifndef PFN_TEST_VALIDATION
+      static_assert(not b.has_error());
+#endif
 
       {
         T a(std::in_place);
         T b = a;
         CHECK(b.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(not b.has_error());
+#endif
 
         T c = std::move(a);
         CHECK(c.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(not c.has_error());
+#endif
       }
     }
 
@@ -2910,18 +3016,30 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         T a(unexpect, 33);
         T b = a; // no overload for lval
         CHECK(not b.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(b.has_error());
+#endif
         CHECK(b.error().v == 33 * helper::from_lval_const);
 
         T c = std::as_const(a);
-        CHECK(not b.has_value());
+        CHECK(not c.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(c.has_error());
+#endif
         CHECK(c.error().v == 33 * helper::from_lval_const);
 
         T d = std::move(std::as_const(a)); // no overload for lval const
-        CHECK(not b.has_value());
+        CHECK(not d.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(d.has_error());
+#endif
         CHECK(d.error().v == 33 * helper::from_lval_const);
 
         T e = std::move(a);
-        CHECK(not b.has_value());
+        CHECK(not e.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(e.has_error());
+#endif
         CHECK(e.error().v == 33 * helper::from_rval);
       }
     }
@@ -2947,16 +3065,26 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
       constexpr T a(unexpect, 23);
       constexpr T b = a;
+#ifndef PFN_TEST_VALIDATION
+      static_assert(b.has_error() && a.error().v == b.error().v);
+#else
       static_assert(not b.has_value() && a.error().v == b.error().v);
+#endif
 
       {
         T const a(unexpect, 29);
         T b = a;
         CHECK(not b.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(b.has_error());
+#endif
         CHECK(b.error().v == 29);
 
         T c = std::move(a);
         CHECK(not c.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(c.has_error());
+#endif
         CHECK(c.error().v == 29);
       }
     }
@@ -2981,11 +3109,17 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
       constexpr T a(unexpect);
       constexpr T b = a;
       static_assert(not b.has_value());
+#ifndef PFN_TEST_VALIDATION
+      static_assert(b.has_error());
+#endif
 
       {
         T const a(unexpect);
         T b = a;
         CHECK(not b.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(b.has_error());
+#endif
       }
     }
   }
@@ -3014,6 +3148,9 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
           T a(std::in_place);
           a = T(std::in_place);
           CHECK(a.has_value());
+#ifndef PFN_TEST_VALIDATION
+          CHECK(not a.has_error());
+#endif
         }
       }
 
@@ -3067,6 +3204,9 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
             } catch (std::runtime_error const &e) {
               CHECK(std::strcmp(e.what(), "invalid input") == 0);
               CHECK(a.has_value());
+#ifndef PFN_TEST_VALIDATION
+              CHECK(not a.has_error());
+#endif
             }
           }
 
@@ -3085,6 +3225,9 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
             } catch (std::runtime_error const &e) {
               CHECK(std::strcmp(e.what(), "invalid input") == 0);
               CHECK(a.has_value());
+#ifndef PFN_TEST_VALIDATION
+              CHECK(not a.has_error());
+#endif
             }
           }
         }
@@ -3108,6 +3251,9 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
             } catch (std::runtime_error const &e) {
               CHECK(std::strcmp(e.what(), "invalid input") == 0);
               CHECK(a.has_value());
+#ifndef PFN_TEST_VALIDATION
+              CHECK(not a.has_error());
+#endif
             }
           }
 
@@ -3126,6 +3272,9 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
             } catch (std::runtime_error const &e) {
               CHECK(std::strcmp(e.what(), "invalid input") == 0);
               CHECK(a.has_value());
+#ifndef PFN_TEST_VALIDATION
+              CHECK(not a.has_error());
+#endif
             }
           }
         }
@@ -3142,6 +3291,9 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
             T a(unexpect, Error::file_not_found);
             a = T(std::in_place);
             CHECK(a.has_value());
+#ifndef PFN_TEST_VALIDATION
+            CHECK(not a.has_error());
+#endif
           }
 
           {
@@ -3186,6 +3338,9 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
           constexpr T b = fn(T(std::in_place));
           static_assert(b.has_value());
+#ifndef PFN_TEST_VALIDATION
+          static_assert(not b.has_error());
+#endif
 
           SUCCEED();
         }
@@ -3204,6 +3359,9 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
             constexpr T b = fn(T(std::in_place));
             static_assert(b.has_value());
+#ifndef PFN_TEST_VALIDATION
+            static_assert(not b.has_error());
+#endif
 
             SUCCEED();
           }
@@ -3236,6 +3394,9 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
             } catch (std::runtime_error const &e) {
               CHECK(std::strcmp(e.what(), "invalid input") == 0);
               CHECK(a.has_value());
+#ifndef PFN_TEST_VALIDATION
+              CHECK(not a.has_error());
+#endif
             }
           }
 
@@ -3256,6 +3417,9 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
             } catch (std::runtime_error const &e) {
               CHECK(std::strcmp(e.what(), "invalid input") == 0);
               CHECK(a.has_value());
+#ifndef PFN_TEST_VALIDATION
+              CHECK(not a.has_error());
+#endif
             }
           }
         }
@@ -3281,6 +3445,9 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
             } catch (std::runtime_error const &e) {
               CHECK(std::strcmp(e.what(), "invalid input") == 0);
               CHECK(a.has_value());
+#ifndef PFN_TEST_VALIDATION
+              CHECK(not a.has_error());
+#endif
             }
           }
 
@@ -3301,6 +3468,9 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
             } catch (std::runtime_error const &e) {
               CHECK(std::strcmp(e.what(), "invalid input") == 0);
               CHECK(a.has_value());
+#ifndef PFN_TEST_VALIDATION
+              CHECK(not a.has_error());
+#endif
             }
           }
         }
@@ -3359,6 +3529,9 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
           T const b(std::in_place);
           a = b;
           CHECK(a.has_value());
+#ifndef PFN_TEST_VALIDATION
+          CHECK(not a.has_error());
+#endif
         }
       }
 
@@ -3370,11 +3543,18 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         T a(unexpect, 3);
         T const b(unexpect, 5);
         a = b;
-        CHECK(a.error().v == 5 * helper::from_lval_const);
-
+#ifndef PFN_TEST_VALIDATION
+        CHECK((a.has_error() && a.error().v == 5 * helper::from_lval_const));
+#else
+        CHECK((not a.has_value() && a.error().v == 5 * helper::from_lval_const));
+#endif
         unexpected<helper> const c(7);
         a = c;
-        CHECK(a.error().v == 7 * helper::from_lval_const);
+#ifndef PFN_TEST_VALIDATION
+        CHECK((a.has_error() && a.error().v == 7 * helper::from_lval_const));
+#else
+        CHECK((not a.has_value() && a.error().v == 7 * helper::from_lval_const));
+#endif
       }
     }
 
@@ -3393,10 +3573,17 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         };
 
         constexpr T a = fn(c);
-        static_assert(a.error() == Error::file_not_found);
+#ifndef PFN_TEST_VALIDATION
+        static_assert(a.has_error() && a.error() == Error::file_not_found);
+#else
+        static_assert(not a.has_value() && a.error() == Error::file_not_found);
+#endif
 
         constexpr T b = fn(d);
         static_assert(b.has_value());
+#ifndef PFN_TEST_VALIDATION
+        static_assert(not b.has_error());
+#endif
 
         SUCCEED();
       }
@@ -3411,10 +3598,17 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
           };
 
           constexpr T a = fn(c);
-          static_assert(a.error() == Error::file_not_found);
+#ifndef PFN_TEST_VALIDATION
+          static_assert(a.has_error() && a.error() == Error::file_not_found);
+#else
+          static_assert(not a.has_value() && a.error() == Error::file_not_found);
+#endif
 
           constexpr T b = fn(d);
           static_assert(b.has_value());
+#ifndef PFN_TEST_VALIDATION
+          static_assert(not b.has_error());
+#endif
 
           SUCCEED();
         }
@@ -3430,6 +3624,9 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
       T a(std::in_place);
       a.emplace();
       CHECK(a.has_value());
+#ifndef PFN_TEST_VALIDATION
+      CHECK(not a.has_error());
+#endif
     }
 
     SECTION("error to value")
@@ -3437,6 +3634,9 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
       T a(unexpect, Error::file_not_found);
       a.emplace();
       CHECK(a.has_value());
+#ifndef PFN_TEST_VALIDATION
+      CHECK(not a.has_error());
+#endif
     }
 
     SECTION("constexpr")
@@ -3453,6 +3653,9 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
         constexpr T a = fn();
         static_assert(a.has_value());
+#ifndef PFN_TEST_VALIDATION
+        static_assert(not a.has_error());
+#endif
 
         SUCCEED();
       }
@@ -3468,6 +3671,9 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
           constexpr T a = fn();
           static_assert(a.has_value());
+#ifndef PFN_TEST_VALIDATION
+          static_assert(not a.has_error());
+#endif
 
           SUCCEED();
         }
@@ -3599,6 +3805,10 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         swap(a, b);
         CHECK(a.has_value());
         CHECK(b.has_value());
+#ifndef PFN_TEST_VALIDATION
+        CHECK(not a.has_error());
+        CHECK(not b.has_error());
+#endif
       }
 
       SECTION("error")
@@ -3619,7 +3829,11 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
       T b;
       swap(a, b);
       CHECK(a.has_value());
-      CHECK(b.error().v == 19 * helper::from_rval);
+#ifndef PFN_TEST_VALIDATION
+      CHECK((b.has_error() && b.error().v == 19 * helper::from_rval));
+#else
+      CHECK((not b.has_value() && b.error().v == 19 * helper::from_rval));
+#endif
     }
 
     SECTION("swap value/error")
@@ -3630,7 +3844,11 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         T a;
         T b(unexpect, 29);
         swap(a, b);
-        CHECK(a.error().v == 29 * helper::from_rval);
+#ifndef PFN_TEST_VALIDATION
+        CHECK((a.has_error() && a.error().v == 29 * helper::from_rval));
+#else
+        CHECK((not a.has_value() && a.error().v == 29 * helper::from_rval));
+#endif
         CHECK(b.has_value());
       }
 
@@ -3645,7 +3863,11 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
           T a;
           T b(unexpect, 11);
           swap(a, b);
-          CHECK(a.error().v == 11 * helper::from_rval);
+#ifndef PFN_TEST_VALIDATION
+          CHECK((a.has_error() && a.error().v == 11 * helper::from_rval));
+#else
+          CHECK((not a.has_value() && a.error().v == 11 * helper::from_rval));
+#endif
           CHECK(b.has_value());
         }
 
@@ -3658,7 +3880,11 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
             FAIL();
           } catch (std::runtime_error const &) {
             CHECK(a.has_value());
-            CHECK(b.error().v == 0);
+#ifndef PFN_TEST_VALIDATION
+            CHECK((b.has_error() && b.error().v == 0));
+#else
+            CHECK((not b.has_value() && b.error().v == 0));
+#endif
           }
         }
       }
@@ -3677,10 +3903,18 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         };
 
         constexpr T a = fn(T(unexpect, Error::file_not_found));
-        static_assert(a.error() == Error::unknown);
+#ifndef PFN_TEST_VALIDATION
+        static_assert(a.has_error() && a.error() == Error::unknown);
+#else
+        static_assert(not a.has_value() && a.error() == Error::unknown);
+#endif
 
         constexpr T b = fn(T());
-        static_assert(b.error() == Error::unknown);
+#ifndef PFN_TEST_VALIDATION
+        static_assert(b.has_error() && b.error() == Error::unknown);
+#else
+        static_assert(not b.has_value() && b.error() == Error::unknown);
+#endif
 
         SUCCEED();
       }
@@ -3695,9 +3929,15 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
         constexpr T a = fn(T(unexpect, Error::file_not_found));
         static_assert(a.has_value());
+#ifndef PFN_TEST_VALIDATION
+        static_assert(not a.has_error());
+#endif
 
         constexpr T b = fn(T());
         static_assert(b.has_value());
+#ifndef PFN_TEST_VALIDATION
+        static_assert(not b.has_error());
+#endif
 
         SUCCEED();
       }
@@ -3753,7 +3993,11 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
       using T = expected<void, helper>;
 
       T a{unexpect, 17};
-      CHECK(a.error().v == 17);
+#ifndef PFN_TEST_VALIDATION
+      CHECK((a.has_error() && a.error().v == 17));
+#else
+      CHECK((not a.has_value() && a.error().v == 17));
+#endif
       CHECK(std::as_const(a).error().v == 17);
       CHECK(std::move(std::as_const(a)).error().v == 17);
       CHECK(std::move(a).error().v == 17);

@@ -674,6 +674,7 @@ public:
   constexpr T &&operator*() && noexcept { return ::std::move(*(this->operator->())); }
   constexpr explicit operator bool() const noexcept { return set_; }
   constexpr bool has_value() const noexcept { return set_; }
+  constexpr bool has_error() const noexcept { return !set_; }
   constexpr T const &value() const &
   {
     static_assert(::std::is_copy_constructible_v<E>);
@@ -1248,6 +1249,7 @@ public:
   // [expected.void.obs], observers
   constexpr explicit operator bool() const noexcept { return set_; }
   constexpr bool has_value() const noexcept { return set_; }
+  constexpr bool has_error() const noexcept { return !set_; }
   constexpr void operator*() const noexcept { ASSERT(set_); }
   constexpr void value() const &
   {
