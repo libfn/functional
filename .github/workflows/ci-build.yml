@@ -41,6 +41,7 @@ jobs:
           - clang:18
           - clang:19
           - clang:20
+          - clang:21
         platform:
           - linux/amd64
           - linux/arm64
@@ -91,6 +92,7 @@ jobs:
           - clang:18
           - clang:19
           - clang:20
+          - clang:21
 
     steps:
       - name: Prepare
