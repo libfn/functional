@@ -49,6 +49,7 @@ jobs:
           - "clang:18"
           - "clang:19"
           - "clang:20"
+          - "clang:21"
         exclude:
           - mode: cxx23
             compiler: "gcc:12"
@@ -56,7 +57,7 @@ jobs:
             compiler: "clang:16"
           - mode: cxx23
             compiler: "clang:17"
-    container: libfn/ci-build-${{ matrix.compiler }}
+    container: libfn.azurecr.io/ci-build-${{ matrix.compiler }}
     steps:
     - uses: actions/checkout@v4
 
