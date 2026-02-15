@@ -26,6 +26,7 @@ using std::unexpected;
 #include <catch2/catch_all.hpp>
 
 #include <initializer_list>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -2509,6 +2510,15 @@ TEST_CASE("expected non void", "[expected][polyfill]")
           SUCCEED();
         }
       }
+
+      SECTION("move-only type")
+      {
+        using T = std::unique_ptr<int>;
+        expected<T, Error> e(std::in_place, std::make_unique<int>(42));
+        static_assert(std::is_same_v<decltype(std::move(e)), expected<T, Error> &&>);
+        auto res = std::move(e).and_then([](T p) -> expected<int, Error> { return *p + 1; });
+        CHECK(res.value() == 43);
+      }
     }
 
     SECTION("or_else")
@@ -2569,6 +2579,14 @@ TEST_CASE("expected non void", "[expected][polyfill]")
           SUCCEED();
         }
       }
+
+      SECTION("move-only type")
+      {
+        using T = std::unique_ptr<int>;
+        expected<int, T> e(unexpect, std::make_unique<int>(42));
+        auto res = std::move(e).or_else([](T p) -> expected<int, int> { return unexpected(*p + 1); });
+        CHECK(res.error() == 43);
+      }
     }
 
     SECTION("transform")
@@ -2628,6 +2646,14 @@ TEST_CASE("expected non void", "[expected][polyfill]")
           SUCCEED();
         }
       }
+
+      SECTION("move-only type")
+      {
+        using T = std::unique_ptr<int>;
+        expected<T, Error> e(std::in_place, std::make_unique<int>(42));
+        auto res = std::move(e).transform([](T p) { return *p + 1; });
+        CHECK(res.value() == 43);
+      }
     }
 
     SECTION("transform_error")
@@ -2684,6 +2710,14 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
           SUCCEED();
         }
+      }
+
+      SECTION("move-only type")
+      {
+        using T = std::unique_ptr<int>;
+        expected<int, T> e(unexpect, std::make_unique<int>(42));
+        auto res = std::move(e).transform_error([](T p) { return *p + 1; });
+        CHECK(res.error() == 43);
       }
     }
   }
@@ -4223,6 +4257,14 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
           SUCCEED();
         }
       }
+
+      SECTION("move-only type")
+      {
+        using T = std::unique_ptr<int>;
+        expected<void, T> e(unexpect, std::make_unique<int>(42));
+        auto res = std::move(e).or_else([](T p) -> expected<void, int> { return unexpected(*p + 1); });
+        CHECK(res.error() == 43);
+      }
     }
 
     SECTION("transform")
@@ -4331,6 +4373,14 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
           SUCCEED();
         }
+      }
+
+      SECTION("move-only type")
+      {
+        using T = std::unique_ptr<int>;
+        expected<void, T> e(unexpect, std::make_unique<int>(42));
+        auto res = std::move(e).transform_error([](T p) { return *p + 1; });
+        CHECK(res.error() == 43);
       }
     }
   }
