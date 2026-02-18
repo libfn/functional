@@ -275,22 +275,22 @@ template <class T, class E> class expected {
     rhs.set_ = true;
   }
 
-  constexpr T const &_value() const &
+  constexpr T const &_value() const & noexcept
   {
     ASSERT(set_);
     return v_;
   }
-  constexpr T &_value() &
+  constexpr T &_value() & noexcept
   {
     ASSERT(set_);
     return v_;
   }
-  constexpr T const &&_value() const &&
+  constexpr T const &&_value() const && noexcept
   {
     ASSERT(set_);
     return ::std::move(v_);
   }
-  constexpr T &&_value() &&
+  constexpr T &&_value() && noexcept
   {
     ASSERT(set_);
     return ::std::move(v_);
@@ -298,16 +298,16 @@ template <class T, class E> class expected {
 
   template <typename Self, typename Fn>
   static constexpr auto _and_then(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(FWD(self).value())>
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(FWD(self)._value())>
                && ::std::is_nothrow_constructible_v<E, decltype(FWD(self).error())>)
-    requires(::std::is_invocable_v<Fn, decltype(FWD(self).value())>
+    requires(::std::is_invocable_v<Fn, decltype(FWD(self)._value())>
              && ::std::is_constructible_v<E, decltype(FWD(self).error())>)
   {
-    using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(FWD(self).value())>>;
+    using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(FWD(self)._value())>>;
     static_assert(detail::_is_some_expected<result_t>);
     static_assert(::std::is_same_v<typename result_t::error_type, typename ::std::remove_cvref_t<Self>::error_type>);
     if (self.has_value()) {
-      return ::std::invoke(FWD(fn), FWD(self).value());
+      return ::std::invoke(FWD(fn), FWD(self)._value());
     }
     return result_t(unexpect, FWD(self).error());
   }
@@ -330,24 +330,24 @@ template <class T, class E> class expected {
 
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(FWD(self).value())>
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(FWD(self)._value())>
                && ::std::is_nothrow_constructible_v<E, decltype(FWD(self).error())>
-               && (::std::is_void_v<::std::invoke_result_t<Fn, decltype(FWD(self).value())>>
+               && (::std::is_void_v<::std::invoke_result_t<Fn, decltype(FWD(self)._value())>>
                    || ::std::is_nothrow_constructible_v<
-                       ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(FWD(self).value())>>,
-                       ::std::invoke_result_t<Fn, decltype(FWD(self).value())>>))
-    requires(::std::is_invocable_v<Fn, decltype(FWD(self).value())>
+                       ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(FWD(self)._value())>>,
+                       ::std::invoke_result_t<Fn, decltype(FWD(self)._value())>>))
+    requires(::std::is_invocable_v<Fn, decltype(FWD(self)._value())>
              && ::std::is_constructible_v<E, decltype(FWD(self).error())>)
   {
-    using value_t = ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(FWD(self).value())>>;
+    using value_t = ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(FWD(self)._value())>>;
     static_assert(detail::_is_valid_expected<value_t, E>);
     using result_t = expected<value_t, E>;
     if (self.has_value()) {
       if constexpr (not ::std::is_void_v<value_t>) {
-        static_assert(::std::is_constructible_v<value_t, ::std::invoke_result_t<Fn, decltype(FWD(self).value())>>);
-        return result_t(::std::in_place, ::std::invoke(FWD(fn), FWD(self).value()));
+        static_assert(::std::is_constructible_v<value_t, ::std::invoke_result_t<Fn, decltype(FWD(self)._value())>>);
+        return result_t(::std::in_place, ::std::invoke(FWD(fn), FWD(self)._value()));
       } else {
-        ::std::invoke(FWD(fn), FWD(self).value());
+        ::std::invoke(FWD(fn), FWD(self)._value());
         return result_t(::std::in_place);
       }
     }
