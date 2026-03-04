@@ -106,9 +106,8 @@ int main(int argc, char *argv[])
           | fn::transform([](inputs &&i) -> int {
               std::set<std::string> words;
 
-              for (auto &file : i.files) {
+              return std::accumulate(i.files.begin(), i.files.end(), 0, [&i, &words](int, std::ifstream &file) -> int {
                 std::string line;
-
                 while (std::getline(file, line)) {
                   auto counts = count_characters(line);
                   if (line.size() >= 3 && counts[i.required_character] > 0 && match(i.characters, counts)) {
@@ -117,9 +116,8 @@ int main(int argc, char *argv[])
                     }
                   }
                 }
-              }
-
-              return 0;
+                return 0;
+              });
             })
           | fn::or_else(fn::overload{//
                                      [argv](parameter_error p) -> fn::expected<int, fn::sum<>> {
