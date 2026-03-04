@@ -41,6 +41,7 @@ endforeach()
 
 set(TESTS_PFN_SOURCES
     pfn/expected.cpp
+    pfn/optional.cpp
 )
 
 include(TargetGenerator)
