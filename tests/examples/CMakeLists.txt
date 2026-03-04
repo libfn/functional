@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Pls keep the filenames sorted
 set(TESTS_EXAMPLES_SOURCES
+    polygon/main.cpp
     simple/main.cpp
 )
 
