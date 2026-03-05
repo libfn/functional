@@ -9,6 +9,7 @@ on:
       - 'docs/**'
       - 'include/**'
       - 'tests/**'
+      - 'examples/**'
       - 'CMakeLists.txt'
       - 'cmake/**'
       - '*.md'

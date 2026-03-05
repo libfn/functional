@@ -7,4 +7,5 @@ vendoredDependencies:
     exclude:
       - ".git/**"
       - "tests/**"
+      - "examples/**"
       - "ci/**"
