@@ -152,6 +152,8 @@ int main(int argc, char *argv[])
                       auto counts = count_characters(line);
                       if (line.size() >= 3 && counts[i.required_character] > 0 && match(i.characters, counts)) {
                         if (words.insert(line).second) {
+                          if (i.characters == counts)
+                            std::cout << "* ";
                           std::cout << line << "\n";
                         }
                       }
