@@ -47,5 +47,7 @@ if(TESTS)
     add_subdirectory(tests)
 endif()
 
+add_subdirectory(examples)
+
 install(FILES README.md LICENSE.md
     DESTINATION share/doc/functional)

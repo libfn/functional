@@ -157,5 +157,3 @@ foreach(mode 23)
         unset(root_name)
     endforeach()
 endforeach()
-
-add_subdirectory(examples)
