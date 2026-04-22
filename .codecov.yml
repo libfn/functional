@@ -36,3 +36,4 @@ parsers:
 
 ignore:
   - "tests/"
+  - "examples/"

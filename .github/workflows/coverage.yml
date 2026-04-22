@@ -16,6 +16,8 @@ on:
       - '.codecov.yml'
   workflow_dispatch:
 
+  # examples/** not included in coverage paths intentionally, see also .codecov.yml
+
 jobs:
   coverage:
     runs-on:
