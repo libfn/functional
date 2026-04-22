@@ -18,6 +18,13 @@ struct parameters {
   std::list<std::string> files;
 
   struct too_few_parameters {
+    too_few_parameters(too_few_parameters const &) = default;
+    too_few_parameters(too_few_parameters &&) noexcept = default;
+    explicit too_few_parameters(std::string_view program_name)
+        : message("Usage: " + std::string(program_name) + " <characters> [<file>...]")
+    {
+    }
+
     std::string const message;
     static constexpr int code = 1;
   };
@@ -32,8 +39,7 @@ struct parameters {
   static auto make(int argc, char const *argv[]) -> fn::expected<parameters, error>
   {
     if (argc < 2) {
-      return std::unexpected(
-          too_few_parameters{.message = "Usage: " + std::string(argv[0]) + " <characters> [<file>...]"});
+      return std::unexpected(too_few_parameters{argv[0]});
     }
 
     parameters params;
@@ -52,7 +58,7 @@ struct parameters {
 template <typename T>
 concept parameters_error = parameters::error::has_type<std::remove_cvref_t<T>>;
 
-void print_error(parameters_error auto &&err) { std::cerr << err.message << "\n"; }
+void print_error(parameters_error auto &&err) { std::cerr << FWD(err).message << "\n"; }
 
 using counter = std::array<std::size_t, 256>;
 
@@ -86,7 +92,7 @@ struct inputs {
   std::list<std::unique_ptr<std::ifstream>> files;
   std::list<std::istream *> inputs; // Yes, this name is legal here and I will not change it
 
-  static auto make(parameters &&p) -> fn::expected<struct inputs, error>
+  static auto make(parameters const &p) -> fn::expected<struct inputs, error>
   {
     struct inputs result {
       .characters = count_characters(p.characters), .required_character = static_cast<unsigned char>(p.characters[0]),
@@ -116,8 +122,9 @@ struct inputs {
       auto file = open_file(filename);
 
       // Early return on error
-      if (!file.has_value())
+      if (!file.has_value()) {
         return std::unexpected(std::move(file).error());
+      }
 
       result.files.push_back(std::move(file).value());
       result.inputs.push_back(result.files.back().get());
@@ -130,14 +137,14 @@ struct inputs {
 template <typename T>
 concept inputs_error = inputs::error::has_type<std::remove_cvref_t<T>>;
 
-void print_error(inputs_error auto &&err) { std::cerr << err.message << ": " << err.path << "\n"; }
+void print_error(inputs_error auto &&err) { std::cerr << FWD(err).message << ": " << FWD(err).path << "\n"; }
 
 constexpr inline struct algorithm_t {
   auto operator()(inputs const &inputs) const -> int
   {
     std::set<std::string> words;
 
-    constexpr auto match = [](counter const &lh, counter const &rh) -> bool {
+    constexpr auto match = [](counter const &lh, counter const &rh) {
       for (std::size_t i = 0; i < rh.size(); ++i) {
         if (lh[i] < rh[i]) {
           return false;
@@ -151,12 +158,14 @@ constexpr inline struct algorithm_t {
       while (std::getline(*input, line)) {
         auto const counts = count_characters(line);
 
-        if (line.size() >= 3 && counts[inputs.required_character] > 0 && match(inputs.characters, counts)) {
-          if (words.insert(line).second) {
-            if (inputs.characters == counts)
-              std::cout << "* ";
-            std::cout << line << "\n";
+        if (line.size() >= 3                         //
+            && counts[inputs.required_character] > 0 //
+            && match(inputs.characters, counts)      //
+            && words.insert(line).second) {
+          if (inputs.characters == counts) {
+            std::cout << "* ";
           }
+          std::cout << line << "\n";
         }
       }
     }
@@ -167,7 +176,7 @@ constexpr inline struct algorithm_t {
 
 auto main(int argc, char const **argv) -> int
 try {
-  static constexpr auto wrap = [](auto &&v) -> fn::expected<std::remove_cvref_t<decltype(v)>, fn::sum<>> { //
+  static constexpr auto wrap = []<typename T>(T &&v) -> fn::expected<std::remove_cvref_t<T>, fn::sum<>> { //
     return FWD(v);
   };
 
@@ -177,7 +186,7 @@ try {
           | fn::transform(algorithm)       //
           | fn::or_else(                   //
               [](auto &&p) -> fn::expected<int, fn::sum<>> {
-                print_error(p);
+                print_error(FWD(p));
                 return p.code;
               }))
       .value();
