@@ -1,6 +1,7 @@
 # Based on https://docs.docker.com/build/ci/github-actions/multi-platform/
 
 name: merge-ci-images
+description: Merge CI images built for different platforms into a single multi-arch image.
 
 inputs:
   image:
@@ -57,11 +58,15 @@ runs:
     - name: Create manifest list and push
       working-directory: /tmp/digests
       shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
       run: |
         docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-          $(printf '${{ inputs.image }}@sha256:%s ' *)
+          $(printf "${IMAGE}@sha256:%s " *)
 
     - name: Inspect image
       shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
       run: |
-        docker buildx imagetools inspect ${{ inputs.image }}:${{ steps.meta.outputs.version }}
+        docker buildx imagetools inspect ${IMAGE}:${{ steps.meta.outputs.version }}
