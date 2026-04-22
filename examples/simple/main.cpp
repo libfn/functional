@@ -130,13 +130,13 @@ TEST_CASE("Minimal expected", "[expected][and_then]")
 TEST_CASE("Demo expected", "[expected][pack][and_then][discard][transform_error][transform][inspect][inspect_error]["
                            "recover][fail][filter][immovable]")
 {
-  constexpr auto fn1 = [](char const *str, double &peek) {
+  constexpr auto fn1 = [](std::string_view str, double &peek) {
     using namespace fn;
 
-    constexpr auto parse = [](char const *str) noexcept -> fn::expected<int, Error> {
+    constexpr auto parse = [](std::string_view str) noexcept -> fn::expected<int, Error> {
       int tmp = {};
-      char const *end = str + std::strlen(str);
-      if (std::from_chars(str, end, tmp).ptr == end) {
+      char const *end = str.begin() + str.size();
+      if (std::from_chars(str.begin(), end, tmp).ptr == end) {
         return {tmp};
       }
       return std::unexpected<Error>{"Failed to parse " + std::string(str)};
@@ -193,10 +193,10 @@ TEST_CASE("Demo expected", "[expected][pack][and_then][discard][transform_error]
   constexpr auto fn3 = [](auto first, auto second) noexcept {
     using namespace fn;
 
-    constexpr auto parse = [](char const *str) noexcept -> fn::expected<int, Error> {
+    constexpr auto parse = [](std::string_view str) noexcept -> fn::expected<int, Error> {
       int tmp = {};
-      char const *end = str + std::strlen(str);
-      if (std::from_chars(str, end, tmp).ptr == end) {
+      char const *end = str.begin() + str.size();
+      if (std::from_chars(str.begin(), end, tmp).ptr == end) {
         return {tmp};
       }
       return std::unexpected<Error>{"Failed to parse " + std::string(str)};
@@ -302,13 +302,13 @@ TEST_CASE("Minimal optional", "[optional][and_then]")
 
 TEST_CASE("Demo optional", "[optional][pack][and_then][discard][or_else][inspect][transform][fail][filter][recover]")
 {
-  constexpr auto fn1 = [](char const *str, int &peek) {
+  constexpr auto fn1 = [](std::string_view str, int &peek) {
     using namespace fn;
 
-    constexpr auto parse = [](char const *str) noexcept -> fn::optional<int> {
+    constexpr auto parse = [](std::string_view str) noexcept -> fn::optional<int> {
       int tmp = {};
-      char const *end = str + std::strlen(str);
-      if (std::from_chars(str, end, tmp).ptr == end) {
+      char const *end = str.begin() + str.size();
+      if (std::from_chars(str.begin(), end, tmp).ptr == end) {
         return {tmp};
       }
       return {};
@@ -356,10 +356,10 @@ TEST_CASE("Demo optional", "[optional][pack][and_then][discard][or_else][inspect
   constexpr auto fn3 = [](auto first, auto second) noexcept {
     using namespace fn;
 
-    constexpr auto parse = [](char const *str) noexcept -> fn::optional<int> {
+    constexpr auto parse = [](std::string_view str) noexcept -> fn::optional<int> {
       int tmp = {};
-      char const *end = str + std::strlen(str);
-      if (std::from_chars(str, end, tmp).ptr == end) {
+      char const *end = str.begin() + str.size();
+      if (std::from_chars(str.begin(), end, tmp).ptr == end) {
         return {tmp};
       }
       return {};
