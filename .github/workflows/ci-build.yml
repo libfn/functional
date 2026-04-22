@@ -56,7 +56,7 @@ jobs:
 
       - name: Select Debian version
         run: |
-          [[ $COMPILER == "clang" && $VERSION -ge 21 ]] && echo "DEBIAN_VERSION=trixie" >> $GITHUB_ENV || echo "DEBIAN_VERSION=bookworm" >> $GITHUB_ENV
+          [[ $COMPILER == "clang" && $RELEASE -ge 21 ]] && echo "DEBIAN_VERSION=trixie" >> $GITHUB_ENV || echo "DEBIAN_VERSION=bookworm" >> $GITHUB_ENV
 
       - uses: actions/checkout@v4
         with:
