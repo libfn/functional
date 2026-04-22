@@ -1,0 +1,9 @@
+CompileFlags:
+  Add: [-Wall, -Wextra, -Wpedantic, -Wno-missing-braces]
+  Remove: -W*
+  Compiler: clang++
+  CompilationDatabase: .build
+Diagnostics:
+  ClangTidy:
+    Add: [modernize*, bugprone*, readability*, performance*]
+    Remove: [readability-static-accessed-through-instance, readability-magic-numbers, readability-identifier-length]

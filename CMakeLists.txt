@@ -1,4 +1,8 @@
 cmake_minimum_required(VERSION 3.25)
+
+# CMAKE_EXPORT_COMPILE_COMMANDS must be set before project() to work
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "Export compile commands for clangd")
+
 project(functional VERSION 0.0.1 LANGUAGES C CXX)
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
