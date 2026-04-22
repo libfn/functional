@@ -54,6 +54,10 @@ jobs:
           echo "COMPILER=${compiler%%:*}" >> $GITHUB_ENV
           echo "RELEASE=${compiler##*:}" >> $GITHUB_ENV
 
+      - name: Select Debian version
+        run: |
+          [[ $COMPILER == "clang" && $VERSION -ge 21 ]] && echo "DEBIAN_VERSION=trixie" >> $GITHUB_ENV || echo "DEBIAN_VERSION=bookworm" >> $GITHUB_ENV
+
       - uses: actions/checkout@v4
         with:
           sparse-checkout: .github
@@ -71,6 +75,7 @@ jobs:
           build_args: |
             GCC_RELEASE=${{ env.RELEASE }}
             CLANG_RELEASE=${{ env.RELEASE }}
+            DEBIAN_VERSION=${{ env.DEBIAN_VERSION }}
           context: "ci/build/${{ env.COMPILER }}"
           title: "build-${{ env.COMPILER}}-${{ env.RELEASE }}"
           push: ${{ github.ref_type == 'branch' && github.ref_name == 'main' }}
