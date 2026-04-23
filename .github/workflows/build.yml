@@ -8,6 +8,7 @@ on:
       - '.github/workflows/build.yml'
       - 'include/**'
       - 'tests/**'
+      - 'examples/**'
       - 'CMakeLists.txt'
       - 'cmake/**'
       - 'nix/**'
@@ -20,6 +21,7 @@ on:
       - '.github/workflows/build.yml'
       - 'include/**'
       - 'tests/**'
+      - 'examples/**'
       - 'CMakeLists.txt'
       - 'cmake/**'
       - 'nix/**'
@@ -50,6 +52,7 @@ jobs:
           - "clang:19"
           - "clang:20"
           - "clang:21"
+          - "clang:22"
         exclude:
           - mode: cxx23
             compiler: "gcc:12"
@@ -104,12 +107,15 @@ jobs:
         osver:
           - 14
           - 15
+          - 26
         clangrelease:
           - NA
           - 18
         exclude:
           - compiler: clang
             osver: 14
+          - compiler: clang
+            osver: 26
           - compiler: clang
             clangrelease: NA
           - compiler: appleclang

@@ -17,6 +17,7 @@ stdenv.mkDerivation {
   src = lib.sourceByRegex ./.. [
     "^include.*"
     "^tests.*"
+    "^examples.*"
     "CMakeLists.txt"
     "^cmake.*"
     "README.md"

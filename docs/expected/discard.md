@@ -23,7 +23,7 @@ void
 ## Examples {style: "api"}
 
 :include-template: templates/snippet.md {
-    path:  "examples/simple.cpp",
+    path:  "simple/main.cpp",
     surroundedBy: ["// example-error-struct", "// example-expected-discard"],
     desc:  "`42` is observed by `inspect` and the value is discarded by `discard` (no warning for discarded result of `inspect`)."
 }
