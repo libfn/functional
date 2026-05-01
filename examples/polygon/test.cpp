@@ -218,7 +218,8 @@ TEST_CASE("inputs::make", "[polygon][inputs]")
 
   SECTION("nonexistent path yields file_not_found")
   {
-    std::filesystem::path const missing = "/nonexistent/path/that/does/not/exist";
+    temp_dir const td;
+    auto const missing = td.path / "nonexistent_file.txt";
     parameters const p{.characters = "abc", .files = {missing.string()}};
     auto const result = inputs::make(p);
     REQUIRE(not result.has_value());
