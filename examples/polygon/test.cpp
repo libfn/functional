@@ -142,6 +142,13 @@ struct failing_stream {
   failing_stream &operator=(failing_stream const &) = delete;
 };
 
+// Build a std::error_code carrying value's integer code and the std::error_category of `source`.
+// Lets a test pin its expected error_code's category to whatever the implementation actually used.
+auto same_category_ec(std::error_code const &source, std::errc value) -> std::error_code
+{
+  return {static_cast<int>(value), source.category()};
+}
+
 } // namespace
 
 TEST_CASE("count_characters", "[polygon][count_characters]")
@@ -228,15 +235,52 @@ TEST_CASE("inputs::make", "[polygon][inputs]")
               file_not_found{{.path = missing, .ec = std::make_error_code(std::errc::no_such_file_or_directory)}}});
   }
 
-  SECTION("nonexistent path yields io_error")
+  SECTION("path with non-directory component yields file_not_found")
   {
     temp_file const tf("");
     auto const subpath = tf.file / "nonexistent_subdirectory";
-    parameters const p{.characters = "abc", .files = {subpath}};
+    parameters const p{.characters = "abc", .files = {subpath.string()}};
     auto const result = inputs::make(p);
     REQUIRE(not result.has_value());
-    CHECK(result.error()
-          == inputs::error{io_error{{.path = subpath, .ec = std::make_error_code(std::errc::not_a_directory)}}});
+    REQUIRE(result.error().has_value<file_not_found>());
+    auto const expected_ec = same_category_ec(result.error().get_ptr<file_not_found>()->ec, std::errc::not_a_directory);
+    CHECK(result.error() == inputs::error{file_not_found{{.path = subpath, .ec = expected_ec}}});
+  }
+
+  SECTION("symlink loop yields io_error")
+  {
+    // A self-referential symlink pair causes status() to fail with an ec that is neither
+    // no_such_file_or_directory nor permission_denied, so the error is routed to io_error.
+    temp_dir const td;
+    auto const a = td.path / "a";
+    auto const b = td.path / "b";
+
+    // Ensure the symlinks are removed on any exit path (including a failed REQUIRE).
+    struct cleanup_t {
+      std::filesystem::path const &a;
+      std::filesystem::path const &b;
+      ~cleanup_t()
+      {
+        std::error_code dummy;
+        std::filesystem::remove(a, dummy);
+        std::filesystem::remove(b, dummy);
+      }
+    } const cleanup{.a = a, .b = b};
+    std::error_code create_ec;
+    std::filesystem::create_symlink(b, a, create_ec);
+    if (not create_ec) {
+      std::filesystem::create_symlink(a, b, create_ec);
+    }
+    if (create_ec) {
+      SKIP("symlinks not supported in this environment: " << create_ec.message());
+    }
+    parameters const p{.characters = "abc", .files = {a.string()}};
+    auto const result = inputs::make(p);
+    REQUIRE(not result.has_value());
+    REQUIRE(result.error().has_value<io_error>());
+    auto const &err = *result.error().get_ptr<io_error>();
+    CHECK(err.path == a);
+    CHECK(err.ec);
   }
 
   SECTION("opens a real file")
@@ -288,7 +332,8 @@ TEST_CASE("algorithm returns read_error on bad stream", "[polygon][algorithm]")
   cout_capture capture; // suppress incidental output
   auto const result = algorithm(in);
   REQUIRE(not result.has_value());
-  CHECK(result.error() == read_error{{.path = "<bad>", .ec = std::make_error_code(std::errc::is_a_directory)}});
+  auto const expected_ec = same_category_ec(result.error().ec, std::errc::is_a_directory);
+  CHECK(result.error() == read_error{{.path = "<bad>", .ec = expected_ec}});
 }
 
 TEST_CASE("algorithm processes multiple streams with cross-stream dedup", "[polygon][algorithm]")
@@ -330,7 +375,8 @@ TEST_CASE("algorithm aborts on read_error within a multi-stream input", "[polygo
     };
     auto const result = algorithm(in);
     REQUIRE(not result.has_value());
-    CHECK(result.error() == read_error{{.path = "<bad>", .ec = std::make_error_code(std::errc::is_a_directory)}});
+    auto const expected_ec = same_category_ec(result.error().ec, std::errc::is_a_directory);
+    CHECK(result.error() == read_error{{.path = "<bad>", .ec = expected_ec}});
     // The second stream must not have been read: its read position remains at the start
     CHECK(good.tellg() == std::streampos(0));
     // No output should have been produced
@@ -348,7 +394,8 @@ TEST_CASE("algorithm aborts on read_error within a multi-stream input", "[polygo
     auto const result = algorithm(in);
     REQUIRE(not result.has_value());
     // The error is tagged with the failing (second) stream's path, not the first
-    CHECK(result.error() == read_error{{.path = "<bad>", .ec = std::make_error_code(std::errc::is_a_directory)}});
+    auto const expected_ec = same_category_ec(result.error().ec, std::errc::is_a_directory);
+    CHECK(result.error() == read_error{{.path = "<bad>", .ec = expected_ec}});
     // Output produced from the first stream before the failure must be preserved
     CHECK(capture.out.str() == "* abc\n");
   }

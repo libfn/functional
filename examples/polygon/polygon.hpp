@@ -168,17 +168,20 @@ struct inputs {
       std::filesystem::path path(filename);
 
       auto file = std::make_unique<std::ifstream>(path);
-      if (!file->is_open()) {
-        std::error_code const ec(errno, std::generic_category());
-        if (ec == std::errc::no_such_file_or_directory) {
-          return std::unexpected(file_not_found{{.path = std::move(path), .ec = ec}});
-        }
-        if (ec == std::errc::permission_denied) {
-          return std::unexpected(permission_denied{{.path = std::move(path), .ec = ec}});
-        }
-        return std::unexpected(io_error{{.path = std::move(path), .ec = ec}});
+      if (file->is_open()) {
+        return file;
       }
-      return file;
+
+      // Open failed; classify the cause via std::filesystem::status as a best-effort diagnostic.
+      std::error_code ec;
+      auto const type = std::filesystem::status(path, ec).type();
+      if (ec == std::errc::no_such_file_or_directory || type == std::filesystem::file_type::not_found) {
+        return std::unexpected(file_not_found{{.path = std::move(path), .ec = ec}});
+      }
+      if (ec == std::errc::permission_denied) {
+        return std::unexpected(permission_denied{{.path = std::move(path), .ec = ec}});
+      }
+      return std::unexpected(io_error{{.path = std::move(path), .ec = ec}});
     };
 
     static constexpr auto append =
