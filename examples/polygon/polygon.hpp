@@ -197,8 +197,8 @@ struct inputs {
         return r;
       }
 
-      return open_file(*it) //
-             | fn::and_then([ =, r = std::move(r) ](
+      return open_file(*it)                                      //
+             | fn::and_then([ r = std::move(r), self, it, end ]( //
                                 std::unique_ptr<std::ifstream> f) mutable -> fn::expected<struct inputs, error> {
                  return self(self, append(std::move(r), *it, std::move(f)), std::next(it), end);
                });
@@ -227,15 +227,17 @@ constexpr inline struct algorithm_t {
       while (std::getline(*source.in, line)) {
         auto const counts = count_characters(line);
 
-        if (line.size() >= 3                         //
-            && counts[inputs.required_character] > 0 //
-            && match(inputs.characters, counts)      //
-            && words.insert(line).second) {
-          if (inputs.characters == counts) {
-            std::cout << "* ";
-          }
-          std::cout << line << "\n";
+        if (not(line.size() >= 3                         //
+                && counts[inputs.required_character] > 0 //
+                && match(inputs.characters, counts)      //
+                && words.insert(line).second)) {
+          continue;
         }
+
+        if (inputs.characters == counts) {
+          std::cout << "* ";
+        }
+        std::cout << line << "\n";
       }
 
       // getline stops on EOF (clean) or on an actual stream failure; only the former is acceptable

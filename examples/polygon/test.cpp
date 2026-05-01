@@ -21,6 +21,7 @@
 #include <streambuf>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #ifdef _WIN32
 #include <random>
@@ -154,8 +155,8 @@ TEST_CASE("count_characters", "[polygon][count_characters]")
 
 TEST_CASE("parameters::make happy path", "[polygon][parameters]")
 {
-  char const *argv[] = {"prog", "abcde", "f1.txt", "f2.txt"};
-  auto const result = parameters::make(4, argv);
+  std::vector<char const *> argv{"prog", "abcde", "f1.txt", "f2.txt"};
+  auto const result = parameters::make(static_cast<int>(argv.size()), argv.data());
   REQUIRE(result.has_value());
   CHECK(result->characters == "abcde");
   REQUIRE(result->files.size() == 2);
@@ -168,16 +169,16 @@ TEST_CASE("parameters::make too few parameters", "[polygon][parameters]")
 {
   SECTION("argc == 0 with null argv")
   {
-    char const *argv[] = {nullptr};
-    auto const result = parameters::make(0, argv);
+    std::vector<char const *> argv{nullptr};
+    auto const result = parameters::make(0, argv.data());
     REQUIRE(not result.has_value());
     CHECK(result.error() == parameters::error{parameters::too_few_parameters{"<program>"}});
   }
 
   SECTION("argc == 1 with program name")
   {
-    char const *argv[] = {"polygon"};
-    auto const result = parameters::make(1, argv);
+    std::vector<char const *> argv{"polygon"};
+    auto const result = parameters::make(static_cast<int>(argv.size()), argv.data());
     REQUIRE(not result.has_value());
     CHECK(result.error() == parameters::error{parameters::too_few_parameters{"polygon"}});
   }
@@ -187,16 +188,16 @@ TEST_CASE("parameters::make rejects an invalid characters argument", "[polygon][
 {
   SECTION("too few characters")
   {
-    char const *argv[] = {"prog", "ab"};
-    auto const result = parameters::make(2, argv);
+    std::vector<char const *> argv{"prog", "ab"};
+    auto const result = parameters::make(static_cast<int>(argv.size()), argv.data());
     REQUIRE(not result.has_value());
     CHECK(result.error() == parameters::error{parameters::too_few_characters{}});
   }
 
   SECTION("non-ascii character")
   {
-    char const *argv[] = {"prog", "ab\xC3\xA9"}; // "abé" in UTF-8
-    auto const result = parameters::make(2, argv);
+    std::vector<char const *> argv{"prog", "łąki"};
+    auto const result = parameters::make(static_cast<int>(argv.size()), argv.data());
     REQUIRE(not result.has_value());
     CHECK(result.error() == parameters::error{parameters::non_ascii_characters{}});
   }
