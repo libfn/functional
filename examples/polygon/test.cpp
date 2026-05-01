@@ -8,9 +8,12 @@
 #include <catch2/catch_all.hpp>
 
 #include <atomic>
+#include <cerrno>
 #include <filesystem>
 #include <fstream>
+#include <ios>
 #include <iostream>
+#include <istream>
 #include <list>
 #include <random>
 #include <sstream>
@@ -66,6 +69,21 @@ struct temp_file : temp_dir {
   {
     std::error_code ec;
     std::filesystem::remove(file, ec);
+  }
+};
+
+// Streambuf whose first read attempt sets errno and throws std::ios_base::failure.
+// std::basic_istream's sentry catches the exception and calls setstate(badbit), giving
+// a stream that is bad() && !eof() with errno set to the requested value.
+struct failing_streambuf : std::streambuf {
+  int err;
+  explicit failing_streambuf(int e) : err(e) {}
+
+protected:
+  int_type underflow() override
+  {
+    errno = err;
+    throw std::ios_base::failure("simulated read failure");
   }
 };
 
@@ -201,22 +219,21 @@ TEST_CASE("algorithm filters and prints anagrams", "[polygon][algorithm]")
 
 TEST_CASE("algorithm returns read_error on bad stream", "[polygon][algorithm]")
 {
-  // Opening a directory as a file succeeds on Linux but the first read fails (EISDIR)
-  temp_dir const td;
-  std::ifstream dir_stream(td.path);
-  REQUIRE(dir_stream.is_open());
+  // Force the algorithm down its read_error path with a streambuf that fails on first read
+  failing_streambuf bad_buf(EISDIR);
+  std::istream bad_stream(&bad_buf);
 
   inputs in{
       .characters = count_characters("abc"),
       .required_character = static_cast<unsigned char>('a'),
       .files = {},
-      .streams = {{.path = td.path, .in = &dir_stream}},
+      .streams = {{.path = "<bad>", .in = &bad_stream}},
   };
 
   cout_capture capture; // suppress incidental output
   auto const result = algorithm(in);
   REQUIRE(not result.has_value());
-  CHECK(result.error() == read_error{{.path = td.path, .ec = std::make_error_code(std::errc::is_a_directory)}});
+  CHECK(result.error() == read_error{{.path = "<bad>", .ec = std::make_error_code(std::errc::is_a_directory)}});
 }
 
 TEST_CASE("algorithm processes multiple streams with cross-stream dedup", "[polygon][algorithm]")
@@ -242,12 +259,10 @@ TEST_CASE("algorithm processes multiple streams with cross-stream dedup", "[poly
 
 TEST_CASE("algorithm aborts on read_error within a multi-stream input", "[polygon][algorithm]")
 {
-  // The "bad" stream is a directory opened as an ifstream: open succeeds, the first read
-  // fails with EISDIR (badbit set). The "good" stream contains an exact match that would
-  // print "* abc\n" when drained.
-  temp_dir const td;
-  std::ifstream dir_stream(td.path);
-  REQUIRE(dir_stream.is_open());
+  // The "bad" stream's first read sets badbit and errno=EISDIR (see failing_streambuf).
+  // The "good" stream contains an exact match that would print "* abc\n" when drained.
+  failing_streambuf bad_buf(EISDIR);
+  std::istream bad_stream(&bad_buf);
 
   std::istringstream good("abc\n");
   cout_capture capture;
@@ -258,11 +273,11 @@ TEST_CASE("algorithm aborts on read_error within a multi-stream input", "[polygo
         .characters = count_characters("abc"),
         .required_character = static_cast<unsigned char>('a'),
         .files = {},
-        .streams = {{.path = td.path, .in = &dir_stream}, {.path = "<good>", .in = &good}},
+        .streams = {{.path = "<bad>", .in = &bad_stream}, {.path = "<good>", .in = &good}},
     };
     auto const result = algorithm(in);
     REQUIRE(not result.has_value());
-    CHECK(result.error() == read_error{{.path = td.path, .ec = std::make_error_code(std::errc::is_a_directory)}});
+    CHECK(result.error() == read_error{{.path = "<bad>", .ec = std::make_error_code(std::errc::is_a_directory)}});
     // The second stream must not have been read: its read position remains at the start
     CHECK(good.tellg() == std::streampos(0));
     // No output should have been produced
@@ -275,12 +290,12 @@ TEST_CASE("algorithm aborts on read_error within a multi-stream input", "[polygo
         .characters = count_characters("abc"),
         .required_character = static_cast<unsigned char>('a'),
         .files = {},
-        .streams = {{.path = "<good>", .in = &good}, {.path = td.path, .in = &dir_stream}},
+        .streams = {{.path = "<good>", .in = &good}, {.path = "<bad>", .in = &bad_stream}},
     };
     auto const result = algorithm(in);
     REQUIRE(not result.has_value());
     // The error is tagged with the failing (second) stream's path, not the first
-    CHECK(result.error() == read_error{{.path = td.path, .ec = std::make_error_code(std::errc::is_a_directory)}});
+    CHECK(result.error() == read_error{{.path = "<bad>", .ec = std::make_error_code(std::errc::is_a_directory)}});
     // Output produced from the first stream before the failure must be preserved
     CHECK(capture.out.str() == "* abc\n");
   }
