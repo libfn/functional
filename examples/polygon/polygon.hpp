@@ -181,7 +181,8 @@ struct inputs {
       if (ec == std::errc::permission_denied) {
         return std::unexpected(permission_denied{{.path = std::move(path), .ec = ec}});
       }
-      return std::unexpected(io_error{{.path = std::move(path), .ec = ec}});
+      return std::unexpected(
+          io_error{{.path = std::move(path), .ec = (ec ? ec : std::make_error_code(std::io_errc::stream))}});
     };
 
     static constexpr auto append =
