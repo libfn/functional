@@ -9,19 +9,27 @@
 
 #include <atomic>
 #include <cerrno>
+#include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <ios>
 #include <iostream>
 #include <istream>
 #include <list>
-#include <random>
 #include <sstream>
 #include <streambuf>
 #include <string>
 #include <string_view>
+
+#ifdef _WIN32
+#include <random>
+#include <stdexcept>
+#else
+#include <stdlib.h>
 #include <system_error>
-#include <utility>
+#include <unistd.h>
+#endif
 
 namespace {
 
@@ -42,13 +50,48 @@ struct cout_capture {
 struct temp_dir {
   std::filesystem::path path;
 
-  temp_dir()
+  static auto make_temp_dir(std::string const &prefix) -> std::filesystem::path
   {
-    static auto const salt = std::to_string(std::random_device{}());
-    static std::atomic<unsigned long> seq{0};
-    path = std::filesystem::temp_directory_path() / ("polygon_test_" + salt + "_" + std::to_string(seq++));
-    std::filesystem::create_directory(path);
+    // Note: temp_directory_path() is only used to discover the platform's temp root;
+    // the actual directory is created atomically via mkdtemp (POSIX) or O_EXCL-equivalent
+    // create_directory in a strong-PRNG retry loop (Windows %TEMP% is already per-user).
+    auto const tmp_dir = std::filesystem::temp_directory_path(); // NOSONAR - see above
+
+#ifdef _WIN32
+    // Windows: %TEMP% is inherently per-user (e.g., AppData\Local\Temp).
+    // Because it is not a shared global directory, the cross-user race condition risk is mitigated.
+    // We use a strong PRNG to generate a unique name and create_directory, which acts like O_EXCL.
+    std::random_device rd;
+    std::mt19937_64 gen(rd());
+    std::uniform_int_distribution<std::uint64_t> dis;
+
+    for (int i = 0; i < 1000; ++i) { // Retry limit to prevent infinite loops
+      std::filesystem::path candidate = tmp_dir / (prefix + std::to_string(dis(gen)));
+      std::error_code ec;
+
+      // Fails safely if the directory already exists
+      if (std::filesystem::create_directory(candidate, ec)) {
+        return candidate;
+      }
+    }
+    throw std::runtime_error("Failed to create secure temporary directory after 1000 attempts");
+
+#else
+    // POSIX (Linux/macOS): /tmp is shared globally. We MUST use mkdtemp.
+    // mkdtemp requires a template string ending in exactly 6 'X's.
+    std::string template_name = (tmp_dir / (prefix + "XXXXXX")).string();
+
+    // mkdtemp modifies the template string in-place and creates the dir with strict 0700 permissions atomically.
+    // C++17's .data() returns a non-const char* which is safe for mkdtemp to modify.
+    if (::mkdtemp(template_name.data()) == nullptr) {
+      throw std::system_error(errno, std::generic_category(), "Failed to create secure temp directory via mkdtemp");
+    }
+
+    return std::filesystem::path(template_name);
+#endif
   }
+
+  temp_dir() : path(make_temp_dir("polygon_test_")) {}
   temp_dir(temp_dir const &) = delete;
   temp_dir &operator=(temp_dir const &) = delete;
   ~temp_dir()
@@ -72,19 +115,30 @@ struct temp_file : temp_dir {
   }
 };
 
-// Streambuf whose first read attempt sets errno and throws std::ios_base::failure.
-// std::basic_istream's sentry catches the exception and calls setstate(badbit), giving
-// a stream that is bad() && !eof() with errno set to the requested value.
-struct failing_streambuf : std::streambuf {
-  int err;
-  explicit failing_streambuf(int e) : err(e) {}
+// Helper producing a std::istream whose first read sets errno and marks the stream as
+// bad() without throwing. This allows testing of the algorithm's read_error in a portable way.
+// Setting badbit directly via a back-pointer to the bound istream keeps errno intact.
+struct failing_stream {
+  struct buf_t : std::streambuf {
+    int err;
+    std::istream *bound = nullptr;
+    explicit buf_t(int e) : err(e) {}
 
-protected:
-  int_type underflow() override
-  {
-    errno = err;
-    throw std::ios_base::failure("simulated read failure");
-  }
+  protected:
+    int_type underflow() override
+    {
+      errno = err;
+      if (bound) {
+        bound->setstate(std::ios_base::badbit);
+      }
+      return traits_type::eof();
+    }
+  } buf;
+  std::istream stream;
+
+  explicit failing_stream(int e) : buf(e), stream(&buf) { buf.bound = &stream; }
+  failing_stream(failing_stream const &) = delete;
+  failing_stream &operator=(failing_stream const &) = delete;
 };
 
 } // namespace
@@ -219,15 +273,14 @@ TEST_CASE("algorithm filters and prints anagrams", "[polygon][algorithm]")
 
 TEST_CASE("algorithm returns read_error on bad stream", "[polygon][algorithm]")
 {
-  // Force the algorithm down its read_error path with a streambuf that fails on first read
-  failing_streambuf bad_buf(EISDIR);
-  std::istream bad_stream(&bad_buf);
+  // Force the algorithm down its read_error path with a stream that fails on first read
+  failing_stream bad(EISDIR);
 
   inputs in{
       .characters = count_characters("abc"),
       .required_character = static_cast<unsigned char>('a'),
       .files = {},
-      .streams = {{.path = "<bad>", .in = &bad_stream}},
+      .streams = {{.path = "<bad>", .in = &bad.stream}},
   };
 
   cout_capture capture; // suppress incidental output
@@ -259,10 +312,9 @@ TEST_CASE("algorithm processes multiple streams with cross-stream dedup", "[poly
 
 TEST_CASE("algorithm aborts on read_error within a multi-stream input", "[polygon][algorithm]")
 {
-  // The "bad" stream's first read sets badbit and errno=EISDIR (see failing_streambuf).
+  // The "bad" stream's first read sets badbit and errno=EISDIR (see failing_stream).
   // The "good" stream contains an exact match that would print "* abc\n" when drained.
-  failing_streambuf bad_buf(EISDIR);
-  std::istream bad_stream(&bad_buf);
+  failing_stream bad(EISDIR);
 
   std::istringstream good("abc\n");
   cout_capture capture;
@@ -273,7 +325,7 @@ TEST_CASE("algorithm aborts on read_error within a multi-stream input", "[polygo
         .characters = count_characters("abc"),
         .required_character = static_cast<unsigned char>('a'),
         .files = {},
-        .streams = {{.path = "<bad>", .in = &bad_stream}, {.path = "<good>", .in = &good}},
+        .streams = {{.path = "<bad>", .in = &bad.stream}, {.path = "<good>", .in = &good}},
     };
     auto const result = algorithm(in);
     REQUIRE(not result.has_value());
@@ -290,7 +342,7 @@ TEST_CASE("algorithm aborts on read_error within a multi-stream input", "[polygo
         .characters = count_characters("abc"),
         .required_character = static_cast<unsigned char>('a'),
         .files = {},
-        .streams = {{.path = "<good>", .in = &good}, {.path = "<bad>", .in = &bad_stream}},
+        .streams = {{.path = "<good>", .in = &good}, {.path = "<bad>", .in = &bad.stream}},
     };
     auto const result = algorithm(in);
     REQUIRE(not result.has_value());
