@@ -56,6 +56,9 @@ struct parameters {
 
   static auto make(int argc, char const **argv) -> fn::expected<parameters, error>
   {
+    if (argv == nullptr) {
+      throw std::logic_error("parameters::make: argv is null");
+    }
     if (argc < 2) {
       // Per the C standard argv[0] may be a null pointer (when argc == 0); on Linux the kernel
       // also synthesises an empty argv[0] when execve is called with an empty argv
@@ -153,6 +156,9 @@ struct inputs {
 
   static auto make(parameters const &p) -> fn::expected<struct inputs, error>
   {
+    if (p.characters.empty()) {
+      throw std::logic_error("inputs::make: parameters.characters is empty");
+    }
     struct inputs init {
       .characters = count_characters(p.characters), .required_character = static_cast<unsigned char>(p.characters[0]),
       .files = {}, .streams = {},
