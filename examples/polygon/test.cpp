@@ -275,8 +275,8 @@ TEST_CASE("algorithm filters and prints anagrams", "[polygon][algorithm]")
 
 TEST_CASE("algorithm returns read_error on bad stream", "[polygon][algorithm]")
 {
-  // Force the algorithm down its read_error path with a stream that fails on first read
-  failing_stream bad(EISDIR);
+  // Force the algorithm down its read_error path with a stream that fails on first read.
+  failing_stream bad(static_cast<int>(std::errc::is_a_directory));
 
   inputs in{
       .characters = count_characters("abc"),
@@ -314,9 +314,8 @@ TEST_CASE("algorithm processes multiple streams with cross-stream dedup", "[poly
 
 TEST_CASE("algorithm aborts on read_error within a multi-stream input", "[polygon][algorithm]")
 {
-  // The "bad" stream's first read sets badbit and errno=EISDIR (see failing_stream).
-  // The "good" stream contains an exact match that would print "* abc\n" when drained.
-  failing_stream bad(EISDIR);
+  // The "bad" stream's first read sets badbit and errno to the value of std::errc::is_a_directory
+  failing_stream bad(static_cast<int>(std::errc::is_a_directory));
 
   std::istringstream good("abc\n");
   cout_capture capture;
