@@ -33,25 +33,39 @@ struct cout_capture {
   ~cout_capture() { std::cout.rdbuf(prev); }
 };
 
-// RAII helper for a temporary file populated with content. The unique path is composed
-// from std::filesystem::temp_directory_path() and a per-process random salt plus an
+// RAII helper for a temporary directory. The unique path is composed from
+// std::filesystem::temp_directory_path() and a per-process random salt plus an
 // atomic per-call counter — fully portable (POSIX & Windows), no deprecated facilities.
-struct temp_file {
+struct temp_dir {
   std::filesystem::path path;
 
-  explicit temp_file(std::string_view content)
+  temp_dir()
   {
     static auto const salt = std::to_string(std::random_device{}());
     static std::atomic<unsigned long> seq{0};
-    path = std::filesystem::temp_directory_path() / ("polygon_test_" + salt + "_" + std::to_string(seq++) + ".txt");
-    std::ofstream(path) << content;
+    path = std::filesystem::temp_directory_path() / ("polygon_test_" + salt + "_" + std::to_string(seq++));
+    std::filesystem::create_directory(path);
   }
-  temp_file(temp_file const &) = delete;
-  temp_file &operator=(temp_file const &) = delete;
-  ~temp_file()
+  temp_dir(temp_dir const &) = delete;
+  temp_dir &operator=(temp_dir const &) = delete;
+  ~temp_dir()
   {
     std::error_code ec;
     std::filesystem::remove(path, ec);
+  }
+};
+
+// RAII helper for a temporary file populated with content. The file lives inside a
+// per-instance temp_dir; the file is removed first, then the now-empty directory is
+// removed by the base destructor. Both steps use std::filesystem::remove (non-recursive).
+struct temp_file : temp_dir {
+  std::filesystem::path file;
+
+  explicit temp_file(std::string_view content) : file(path / "content.txt") { std::ofstream(file) << content; }
+  ~temp_file()
+  {
+    std::error_code ec;
+    std::filesystem::remove(file, ec);
   }
 };
 
@@ -143,7 +157,7 @@ TEST_CASE("inputs::make", "[polygon][inputs]")
   SECTION("nonexistent path yields io_error")
   {
     temp_file const tf("");
-    auto const subpath = tf.path / "nonexistent_subdirectory";
+    auto const subpath = tf.file / "nonexistent_subdirectory";
     parameters const p{.characters = "abc", .files = {subpath}};
     auto const result = inputs::make(p);
     REQUIRE(not result.has_value());
@@ -154,11 +168,11 @@ TEST_CASE("inputs::make", "[polygon][inputs]")
   SECTION("opens a real file")
   {
     temp_file const tf("hello\nworld\n");
-    parameters const p{.characters = "abc", .files = {tf.path.string()}};
+    parameters const p{.characters = "abc", .files = {tf.file.string()}};
     auto const result = inputs::make(p);
     REQUIRE(result.has_value());
     REQUIRE(result->streams.size() == 1);
-    CHECK(result->streams.front().path == tf.path);
+    CHECK(result->streams.front().path == tf.file);
     CHECK(result->files.size() == 1);
   }
 }
@@ -188,26 +202,21 @@ TEST_CASE("algorithm filters and prints anagrams", "[polygon][algorithm]")
 TEST_CASE("algorithm returns read_error on bad stream", "[polygon][algorithm]")
 {
   // Opening a directory as a file succeeds on Linux but the first read fails (EISDIR)
-  auto const td = std::filesystem::temp_directory_path() / "polygon_test_dir";
-  std::filesystem::create_directory(td);
-  std::ifstream dir_stream(td);
+  temp_dir const td;
+  std::ifstream dir_stream(td.path);
   REQUIRE(dir_stream.is_open());
 
   inputs in{
       .characters = count_characters("abc"),
       .required_character = static_cast<unsigned char>('a'),
       .files = {},
-      .streams = {{.path = td, .in = &dir_stream}},
+      .streams = {{.path = td.path, .in = &dir_stream}},
   };
 
   cout_capture capture; // suppress incidental output
   auto const result = algorithm(in);
-
-  std::error_code ec;
-  std::filesystem::remove_all(td, ec);
-
   REQUIRE(not result.has_value());
-  CHECK(result.error() == read_error{{.path = td, .ec = std::make_error_code(std::errc::is_a_directory)}});
+  CHECK(result.error() == read_error{{.path = td.path, .ec = std::make_error_code(std::errc::is_a_directory)}});
 }
 
 TEST_CASE("algorithm processes multiple streams with cross-stream dedup", "[polygon][algorithm]")
@@ -236,9 +245,8 @@ TEST_CASE("algorithm aborts on read_error within a multi-stream input", "[polygo
   // The "bad" stream is a directory opened as an ifstream: open succeeds, the first read
   // fails with EISDIR (badbit set). The "good" stream contains an exact match that would
   // print "* abc\n" when drained.
-  auto const td = std::filesystem::temp_directory_path() / "polygon_test_dir_multi";
-  std::filesystem::create_directory(td);
-  std::ifstream dir_stream(td);
+  temp_dir const td;
+  std::ifstream dir_stream(td.path);
   REQUIRE(dir_stream.is_open());
 
   std::istringstream good("abc\n");
@@ -250,11 +258,11 @@ TEST_CASE("algorithm aborts on read_error within a multi-stream input", "[polygo
         .characters = count_characters("abc"),
         .required_character = static_cast<unsigned char>('a'),
         .files = {},
-        .streams = {{.path = td, .in = &dir_stream}, {.path = "<good>", .in = &good}},
+        .streams = {{.path = td.path, .in = &dir_stream}, {.path = "<good>", .in = &good}},
     };
     auto const result = algorithm(in);
     REQUIRE(not result.has_value());
-    CHECK(result.error() == read_error{{.path = td, .ec = std::make_error_code(std::errc::is_a_directory)}});
+    CHECK(result.error() == read_error{{.path = td.path, .ec = std::make_error_code(std::errc::is_a_directory)}});
     // The second stream must not have been read: its read position remains at the start
     CHECK(good.tellg() == std::streampos(0));
     // No output should have been produced
@@ -267,16 +275,13 @@ TEST_CASE("algorithm aborts on read_error within a multi-stream input", "[polygo
         .characters = count_characters("abc"),
         .required_character = static_cast<unsigned char>('a'),
         .files = {},
-        .streams = {{.path = "<good>", .in = &good}, {.path = td, .in = &dir_stream}},
+        .streams = {{.path = "<good>", .in = &good}, {.path = td.path, .in = &dir_stream}},
     };
     auto const result = algorithm(in);
     REQUIRE(not result.has_value());
     // The error is tagged with the failing (second) stream's path, not the first
-    CHECK(result.error() == read_error{{.path = td, .ec = std::make_error_code(std::errc::is_a_directory)}});
+    CHECK(result.error() == read_error{{.path = td.path, .ec = std::make_error_code(std::errc::is_a_directory)}});
     // Output produced from the first stream before the failure must be preserved
     CHECK(capture.out.str() == "* abc\n");
   }
-
-  std::error_code ec;
-  std::filesystem::remove_all(td, ec);
 }
