@@ -116,28 +116,24 @@ struct temp_file : temp_dir {
   }
 };
 
-// Helper producing a std::istream whose first read sets errno and marks the stream as
-// bad() without throwing. This allows testing of the algorithm's read_error in a portable way.
-// Setting badbit directly via a back-pointer to the bound istream keeps errno intact.
+// Helper producing a std::istream whose first read marks the stream as bad() without throwing.
+// This allows testing of the algorithm's read_error path in a portable way.
 struct failing_stream {
   struct buf_t : std::streambuf {
-    int err;
     std::istream *bound = nullptr;
-    explicit buf_t(int e) : err(e) {}
 
   protected:
     int_type underflow() override
     {
-      errno = err;
       if (bound) {
         bound->setstate(std::ios_base::badbit);
       }
       return traits_type::eof();
     }
-  } buf;
+  } buf = {};
   std::istream stream;
 
-  explicit failing_stream(int e) : buf(e), stream(&buf) { buf.bound = &stream; }
+  failing_stream() : stream(&buf) { buf.bound = &stream; }
   failing_stream(failing_stream const &) = delete;
   failing_stream &operator=(failing_stream const &) = delete;
 };
@@ -320,7 +316,7 @@ TEST_CASE("algorithm filters and prints anagrams", "[polygon][algorithm]")
 TEST_CASE("algorithm returns read_error on bad stream", "[polygon][algorithm]")
 {
   // Force the algorithm down its read_error path with a stream that fails on first read.
-  failing_stream bad(static_cast<int>(std::errc::is_a_directory));
+  failing_stream bad;
 
   inputs in{
       .characters = count_characters("abc"),
@@ -332,8 +328,7 @@ TEST_CASE("algorithm returns read_error on bad stream", "[polygon][algorithm]")
   cout_capture capture; // suppress incidental output
   auto const result = algorithm(in);
   REQUIRE(not result.has_value());
-  auto const expected_ec = same_category_ec(result.error().ec, std::errc::is_a_directory);
-  CHECK(result.error() == read_error{{.path = "<bad>", .ec = expected_ec}});
+  CHECK(result.error() == read_error{{.path = "<bad>", .ec = std::make_error_code(std::io_errc::stream)}});
 }
 
 TEST_CASE("algorithm processes multiple streams with cross-stream dedup", "[polygon][algorithm]")
@@ -359,8 +354,8 @@ TEST_CASE("algorithm processes multiple streams with cross-stream dedup", "[poly
 
 TEST_CASE("algorithm aborts on read_error within a multi-stream input", "[polygon][algorithm]")
 {
-  // The "bad" stream's first read sets badbit and errno to the value of std::errc::is_a_directory
-  failing_stream bad(static_cast<int>(std::errc::is_a_directory));
+  // The "bad" stream's first read marks the stream as bad() without throwing
+  failing_stream bad;
 
   std::istringstream good("abc\n");
   cout_capture capture;
@@ -375,8 +370,7 @@ TEST_CASE("algorithm aborts on read_error within a multi-stream input", "[polygo
     };
     auto const result = algorithm(in);
     REQUIRE(not result.has_value());
-    auto const expected_ec = same_category_ec(result.error().ec, std::errc::is_a_directory);
-    CHECK(result.error() == read_error{{.path = "<bad>", .ec = expected_ec}});
+    CHECK(result.error() == read_error{{.path = "<bad>", .ec = std::make_error_code(std::io_errc::stream)}});
     // The second stream must not have been read: its read position remains at the start
     CHECK(good.tellg() == std::streampos(0));
     // No output should have been produced
@@ -394,8 +388,7 @@ TEST_CASE("algorithm aborts on read_error within a multi-stream input", "[polygo
     auto const result = algorithm(in);
     REQUIRE(not result.has_value());
     // The error is tagged with the failing (second) stream's path, not the first
-    auto const expected_ec = same_category_ec(result.error().ec, std::errc::is_a_directory);
-    CHECK(result.error() == read_error{{.path = "<bad>", .ec = expected_ec}});
+    CHECK(result.error() == read_error{{.path = "<bad>", .ec = std::make_error_code(std::io_errc::stream)}});
     // Output produced from the first stream before the failure must be preserved
     CHECK(capture.out.str() == "* abc\n");
   }

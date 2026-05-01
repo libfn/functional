@@ -9,9 +9,9 @@
 #include "fn/and_then.hpp"
 #include "fn/expected.hpp"
 
-#include <cerrno>
 #include <filesystem>
 #include <fstream>
+#include <ios>
 #include <iostream>
 #include <istream>
 #include <list>
@@ -243,11 +243,11 @@ constexpr inline struct algorithm_t {
         std::cout << line << "\n";
       }
 
-      // getline stops on EOF (clean) or on an actual stream failure; only the former is acceptable
+      // getline stops on EOF (clean) or on an actual stream failure; only the former is acceptable.
       if (source.in->eof() && !source.in->bad()) {
         continue;
       }
-      return std::unexpected(read_error{{.path = source.path, .ec = std::error_code(errno, std::generic_category())}});
+      return std::unexpected(read_error{{.path = source.path, .ec = std::make_error_code(std::io_errc::stream)}});
     }
 
     return 0;
