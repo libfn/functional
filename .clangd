@@ -1,5 +1,5 @@
 CompileFlags:
-  Add: [-Wall, -Wextra, -Wpedantic, -Wno-missing-braces]
+  Add: [-Wall, -Wextra, -Wpedantic, -Wno-missing-braces, -Wno-c2y-extensions]
   Remove: -W*
   Compiler: clang++
   CompilationDatabase: .build
