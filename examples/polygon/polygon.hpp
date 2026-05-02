@@ -14,17 +14,18 @@
 #include <ios>
 #include <iostream>
 #include <istream>
-#include <list>
 #include <set>
 #include <string>
 #include <string_view>
 #include <system_error>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 struct parameters {
   std::string characters;
-  std::list<std::string> files;
+  unsigned char required = '\0';
+  std::vector<std::string> files;
 
   struct too_few_parameters {
     too_few_parameters(too_few_parameters const &) = default;
@@ -54,25 +55,23 @@ struct parameters {
 
   using error = fn::sum<non_ascii_characters, too_few_characters, too_few_parameters>;
 
-  static auto make(int argc, char const **argv) -> fn::expected<parameters, error>
+  using arguments_t = std::vector<std::string_view>;
+
+  static auto make(arguments_t &&args) -> fn::expected<parameters, error>
   {
-    if (argv == nullptr) {
-      throw std::logic_error("parameters::make: argv is null");
-    }
-    if (argc < 2) {
-      // Per the C standard argv[0] may be a null pointer (when argc == 0); on Linux the kernel
-      // also synthesises an empty argv[0] when execve is called with an empty argv
-      std::string_view const program_name = (argc >= 1 && argv[0] != nullptr && argv[0][0] != '\0') //
-                                                ? std::string_view{argv[0]}
+    if (args.size() < 2) {
+      std::string_view const program_name = (args.size() >= 1 && !args[0].empty()) //
+                                                ? args[0]
                                                 : std::string_view{"<program>"};
       return std::unexpected(too_few_parameters{program_name});
     }
 
     parameters params;
-    params.characters = argv[1];
+    params.characters = args[1];
     if (params.characters.size() < 3) {
       return std::unexpected(too_few_characters{});
     }
+    params.required = static_cast<unsigned char>(params.characters[0]);
 
     for (char c : params.characters) {
       if (static_cast<unsigned char>(c) > 0x7F) {
@@ -80,8 +79,8 @@ struct parameters {
       }
     }
 
-    for (int i = 2; i < argc; ++i) {
-      params.files.emplace_back(argv[i]);
+    for (std::size_t i = 2; i < args.size(); ++i) {
+      params.files.emplace_back(args[i]);
     }
     return params;
   }
@@ -150,18 +149,17 @@ struct inputs {
   };
 
   counter characters;
-  unsigned char required_character;
-  std::list<std::unique_ptr<std::ifstream>> files;
-  std::list<stream> streams;
+  unsigned char required;
+  std::vector<std::unique_ptr<std::ifstream>> files;
+  std::vector<stream> streams;
 
-  static auto make(parameters const &p) -> fn::expected<struct inputs, error>
+  static auto make(parameters const &p) -> fn::expected<inputs, error>
   {
-    if (p.characters.empty()) {
-      throw std::logic_error("inputs::make: parameters.characters is empty");
-    }
-    struct inputs init {
-      .characters = count_characters(p.characters), .required_character = static_cast<unsigned char>(p.characters[0]),
-      .files = {}, .streams = {},
+    inputs init{
+        .characters = count_characters(p.characters),
+        .required = p.required,
+        .files = {},
+        .streams = {},
     };
 
     if (p.files.empty()) {
@@ -178,10 +176,13 @@ struct inputs {
         return file;
       }
 
-      // Open failed; classify the cause via std::filesystem::status as a best-effort diagnostic.
+      // A non-existent path may be reported as ENOENT, ENOTDIR, or as file_type::not_found
+      // depending on implementation; treat all three as "file not found" for portability.
       std::error_code ec;
       auto const type = std::filesystem::status(path, ec).type();
-      if (ec == std::errc::no_such_file_or_directory || type == std::filesystem::file_type::not_found) {
+      if (ec == std::errc::no_such_file_or_directory //
+          || ec == std::errc::not_a_directory        //
+          || type == std::filesystem::file_type::not_found) {
         return std::unexpected(file_not_found{{.path = std::move(path), .ec = ec}});
       }
       if (ec == std::errc::permission_denied) {
@@ -191,27 +192,25 @@ struct inputs {
           io_error{{.path = std::move(path), .ec = (ec ? ec : std::make_error_code(std::io_errc::stream))}});
     };
 
-    static constexpr auto append =
-        [](struct inputs r, std::filesystem::path path, std::unique_ptr<std::ifstream> f) -> struct inputs {
+    static constexpr auto append
+        = [](inputs r, std::filesystem::path path, std::unique_ptr<std::ifstream> f) -> inputs {
       r.files.push_back(std::move(f));
       r.streams.push_back({.path = std::move(path), .in = r.files.back().get()});
       return r;
     };
 
     // Recursive monadic fold over the file list (Y-combinator: self is passed explicitly)
-    using iterator = std::list<std::string>::const_iterator;
-    static constexpr auto fold =
-        [](auto self, struct inputs r, iterator it, iterator end) -> fn::expected<struct inputs, error>
-    {
+    using iterator = std::vector<std::string>::const_iterator;
+    static constexpr auto fold = [](auto self, inputs r, iterator it, iterator end) -> fn::expected<inputs, error> {
       if (it == end) {
         return r;
       }
 
-      return open_file(*it)                                      //
-             | fn::and_then([ r = std::move(r), self, it, end ]( //
-                                std::unique_ptr<std::ifstream> f) mutable -> fn::expected<struct inputs, error> {
-                 return self(self, append(std::move(r), *it, std::move(f)), std::next(it), end);
-               });
+      return open_file(*it)  //
+             | fn::and_then( //
+                 [r = std::move(r), self, it, end](std::unique_ptr<std::ifstream> f) mutable {
+                   return self(self, append(std::move(r), *it, std::move(f)), std::next(it), end);
+                 });
     };
 
     return fold(fold, std::move(init), p.files.begin(), p.files.end());
@@ -237,9 +236,9 @@ constexpr inline struct algorithm_t {
       while (std::getline(*source.in, line)) {
         auto const counts = count_characters(line);
 
-        if (not(line.size() >= 3                         //
-                && counts[inputs.required_character] > 0 //
-                && match(inputs.characters, counts)      //
+        if (not(line.size() >= 3                    //
+                && counts[inputs.required] > 0      //
+                && match(inputs.characters, counts) //
                 && words.insert(line).second)) {
           continue;
         }

@@ -6,7 +6,7 @@
 
 #include <exception>
 #include <iostream>
-#include <type_traits>
+#include <numeric>
 
 // Exit code for any exception that escapes the typed error channel
 struct unexpected_exception {
@@ -15,11 +15,17 @@ struct unexpected_exception {
 
 auto main(int argc, char const **argv) -> int
 try {
-  static constexpr auto wrap = []<typename T>(T &&v) -> fn::expected<std::remove_cvref_t<T>, fn::sum<>> { //
-    return FWD(v);
+  auto get_args = [=]() -> fn::expected<parameters::arguments_t, fn::sum<>> {
+    parameters::arguments_t args;
+    args.reserve(static_cast<std::size_t>(argc));
+    // Note: std::accumulate used as a move-threaded fold to build a vector.
+    return std::accumulate(argv, argv + argc, std::move(args), [](parameters::arguments_t &&acc, char const *arg) {
+      acc.emplace_back(arg ? arg : std::string_view{});
+      return std::move(acc);
+    });
   };
 
-  return ((wrap(argc) & wrap(argv))        //
+  return (get_args()                       //
           | fn::and_then(parameters::make) //
           | fn::and_then(inputs::make)     //
           | fn::and_then(algorithm)        //

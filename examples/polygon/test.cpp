@@ -7,23 +7,20 @@
 
 #include <catch2/catch_all.hpp>
 
-#include <atomic>
 #include <cerrno>
-#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <ios>
 #include <iostream>
 #include <istream>
-#include <list>
 #include <sstream>
 #include <streambuf>
 #include <string>
 #include <string_view>
-#include <vector>
 
 #ifdef _WIN32
+#include <cstdint>
 #include <random>
 #include <stdexcept>
 #else
@@ -116,6 +113,26 @@ struct temp_file : temp_dir {
   }
 };
 
+// RAII helper for a single symlink. The link is created in the ctor and removed in the dtor;
+// the target is not touched. Creation failure is reported via the public `ec` member rather than
+// thrown, so tests can SKIP cleanly when symlinks are unsupported (e.g. unprivileged Windows).
+struct temp_symlink {
+  std::filesystem::path link;
+  std::error_code ec;
+
+  temp_symlink(std::filesystem::path const &target, std::filesystem::path new_symlink) : link(std::move(new_symlink))
+  {
+    std::filesystem::create_symlink(target, link, ec);
+  }
+  temp_symlink(temp_symlink const &) = delete;
+  temp_symlink &operator=(temp_symlink const &) = delete;
+  ~temp_symlink()
+  {
+    std::error_code dummy;
+    std::filesystem::remove(link, dummy);
+  }
+};
+
 // Helper producing a std::istream whose first read marks the stream as bad() without throwing.
 // This allows testing of the algorithm's read_error path in a portable way.
 struct failing_stream {
@@ -161,8 +178,7 @@ TEST_CASE("count_characters", "[polygon][count_characters]")
 
 TEST_CASE("parameters::make happy path", "[polygon][parameters]")
 {
-  std::vector<char const *> argv{"prog", "abcde", "f1.txt", "f2.txt"};
-  auto const result = parameters::make(static_cast<int>(argv.size()), argv.data());
+  auto const result = parameters::make({"prog", "abcde", "f1.txt", "f2.txt"});
   REQUIRE(result.has_value());
   CHECK(result->characters == "abcde");
   REQUIRE(result->files.size() == 2);
@@ -171,39 +187,39 @@ TEST_CASE("parameters::make happy path", "[polygon][parameters]")
   CHECK(*++it == "f2.txt");
 }
 
+TEST_CASE("parameters::make zero parameters", "[polygon][parameters]")
+{
+  auto const result = parameters::make({});
+  REQUIRE(not result.has_value());
+  CHECK(result.error() == parameters::error{parameters::too_few_parameters{"<program>"}});
+}
+
+TEST_CASE("parameters::make empty program name", "[polygon][parameters]")
+{
+  auto const result = parameters::make({""});
+  REQUIRE(not result.has_value());
+  CHECK(result.error() == parameters::error{parameters::too_few_parameters{"<program>"}});
+}
+
 TEST_CASE("parameters::make too few parameters", "[polygon][parameters]")
 {
-  SECTION("argc == 0 with null argv")
-  {
-    std::vector<char const *> argv{nullptr};
-    auto const result = parameters::make(0, argv.data());
-    REQUIRE(not result.has_value());
-    CHECK(result.error() == parameters::error{parameters::too_few_parameters{"<program>"}});
-  }
-
-  SECTION("argc == 1 with program name")
-  {
-    std::vector<char const *> argv{"polygon"};
-    auto const result = parameters::make(static_cast<int>(argv.size()), argv.data());
-    REQUIRE(not result.has_value());
-    CHECK(result.error() == parameters::error{parameters::too_few_parameters{"polygon"}});
-  }
+  auto const result = parameters::make({"polygon"});
+  REQUIRE(not result.has_value());
+  CHECK(result.error() == parameters::error{parameters::too_few_parameters{"polygon"}});
 }
 
 TEST_CASE("parameters::make rejects an invalid characters argument", "[polygon][parameters]")
 {
   SECTION("too few characters")
   {
-    std::vector<char const *> argv{"prog", "ab"};
-    auto const result = parameters::make(static_cast<int>(argv.size()), argv.data());
+    auto const result = parameters::make({"prog", "ab"});
     REQUIRE(not result.has_value());
     CHECK(result.error() == parameters::error{parameters::too_few_characters{}});
   }
 
   SECTION("non-ascii character")
   {
-    std::vector<char const *> argv{"prog", "łąki"};
-    auto const result = parameters::make(static_cast<int>(argv.size()), argv.data());
+    auto const result = parameters::make({"prog", "łąki"});
     REQUIRE(not result.has_value());
     CHECK(result.error() == parameters::error{parameters::non_ascii_characters{}});
   }
@@ -213,20 +229,20 @@ TEST_CASE("inputs::make", "[polygon][inputs]")
 {
   SECTION("empty file list falls back to stdin")
   {
-    parameters const p{.characters = "abc", .files = {}};
+    parameters const p{.characters = "abc", .required = static_cast<unsigned char>('a'), .files = {}};
     auto const result = inputs::make(p);
     REQUIRE(result.has_value());
     REQUIRE(result->streams.size() == 1);
     CHECK(result->streams.front().path == "<stdin>");
     CHECK(result->streams.front().in == &std::cin);
-    CHECK(result->required_character == static_cast<unsigned char>('a'));
+    CHECK(result->required == static_cast<unsigned char>('a'));
   }
 
   SECTION("nonexistent path yields file_not_found")
   {
     temp_dir const td;
     auto const missing = td.path / "nonexistent_file.txt";
-    parameters const p{.characters = "abc", .files = {missing.string()}};
+    parameters const p{.characters = "abc", .required = static_cast<unsigned char>('a'), .files = {missing.string()}};
     auto const result = inputs::make(p);
     REQUIRE(not result.has_value());
     REQUIRE(result.error().has_value<file_not_found>());
@@ -238,7 +254,7 @@ TEST_CASE("inputs::make", "[polygon][inputs]")
   {
     temp_file const tf("");
     auto const subpath = tf.file / "nonexistent_subdirectory";
-    parameters const p{.characters = "abc", .files = {subpath.string()}};
+    parameters const p{.characters = "abc", .required = static_cast<unsigned char>('a'), .files = {subpath.string()}};
     auto const result = inputs::make(p);
     REQUIRE(not result.has_value());
     REQUIRE(result.error().has_value<file_not_found>());
@@ -254,26 +270,14 @@ TEST_CASE("inputs::make", "[polygon][inputs]")
     auto const a = td.path / "a";
     auto const b = td.path / "b";
 
-    // Ensure the symlinks are removed on any exit path (including a failed REQUIRE).
-    struct cleanup_t {
-      std::filesystem::path const &a;
-      std::filesystem::path const &b;
-      ~cleanup_t()
-      {
-        std::error_code dummy;
-        std::filesystem::remove(a, dummy);
-        std::filesystem::remove(b, dummy);
-      }
-    } const cleanup{.a = a, .b = b};
-    std::error_code create_ec;
-    std::filesystem::create_symlink(b, a, create_ec);
-    if (not create_ec) {
-      std::filesystem::create_symlink(a, b, create_ec);
+    // Two symlinks pointing at each other. RAII removes them on any exit path (including a failed
+    // REQUIRE). If the first creation fails, the second is attempted as a no-op via the same path.
+    temp_symlink const link_a{b, a};
+    temp_symlink const link_b{a, b};
+    if (link_a.ec || link_b.ec) {
+      SKIP("symlinks not supported in this environment: " << (link_a.ec ? link_a.ec : link_b.ec).message());
     }
-    if (create_ec) {
-      SKIP("symlinks not supported in this environment: " << create_ec.message());
-    }
-    parameters const p{.characters = "abc", .files = {a.string()}};
+    parameters const p{.characters = "abc", .required = static_cast<unsigned char>('a'), .files = {a.string()}};
     auto const result = inputs::make(p);
     REQUIRE(not result.has_value());
     REQUIRE(result.error().has_value<io_error>());
@@ -285,7 +289,7 @@ TEST_CASE("inputs::make", "[polygon][inputs]")
   SECTION("opens a real file")
   {
     temp_file const tf("hello\nworld\n");
-    parameters const p{.characters = "abc", .files = {tf.file.string()}};
+    parameters const p{.characters = "abc", .required = static_cast<unsigned char>('a'), .files = {tf.file.string()}};
     auto const result = inputs::make(p);
     REQUIRE(result.has_value());
     REQUIRE(result->streams.size() == 1);
@@ -304,7 +308,7 @@ TEST_CASE("algorithm filters and prints anagrams", "[polygon][algorithm]")
   std::istringstream src("abc\nbca\nxyz\nbac\nabcd\nab\nbca\n");
   inputs in{
       .characters = count_characters("abc"),
-      .required_character = static_cast<unsigned char>('a'),
+      .required = static_cast<unsigned char>('a'),
       .files = {},
       .streams = {{.path = "<test>", .in = &src}},
   };
@@ -323,7 +327,7 @@ TEST_CASE("algorithm returns read_error on bad stream", "[polygon][algorithm]")
 
   inputs in{
       .characters = count_characters("abc"),
-      .required_character = static_cast<unsigned char>('a'),
+      .required = static_cast<unsigned char>('a'),
       .files = {},
       .streams = {{.path = "<bad>", .in = &bad.stream}},
   };
@@ -343,7 +347,7 @@ TEST_CASE("algorithm processes multiple streams with cross-stream dedup", "[poly
   std::istringstream src2("abc\nbac\nxyz\n");
   inputs in{
       .characters = count_characters("abc"),
-      .required_character = static_cast<unsigned char>('a'),
+      .required = static_cast<unsigned char>('a'),
       .files = {},
       .streams = {{.path = "<s1>", .in = &src1}, {.path = "<s2>", .in = &src2}},
   };
@@ -367,7 +371,7 @@ TEST_CASE("algorithm aborts on read_error within a multi-stream input", "[polygo
   {
     inputs in{
         .characters = count_characters("abc"),
-        .required_character = static_cast<unsigned char>('a'),
+        .required = static_cast<unsigned char>('a'),
         .files = {},
         .streams = {{.path = "<bad>", .in = &bad.stream}, {.path = "<good>", .in = &good}},
     };
@@ -384,7 +388,7 @@ TEST_CASE("algorithm aborts on read_error within a multi-stream input", "[polygo
   {
     inputs in{
         .characters = count_characters("abc"),
-        .required_character = static_cast<unsigned char>('a'),
+        .required = static_cast<unsigned char>('a'),
         .files = {},
         .streams = {{.path = "<good>", .in = &good}, {.path = "<bad>", .in = &bad.stream}},
     };
