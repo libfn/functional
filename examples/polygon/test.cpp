@@ -43,7 +43,7 @@ struct cout_capture {
 };
 
 struct temp_dir {
-  std::filesystem::path path;
+  std::filesystem::path const path;
 
   static auto make_temp_dir(std::string const &prefix) -> std::filesystem::path
   {
@@ -87,7 +87,6 @@ struct temp_dir {
 
   temp_dir() : path(make_temp_dir("polygon_test_")) {}
   temp_dir(temp_dir const &) = delete;
-  temp_dir &operator=(temp_dir const &) = delete;
   ~temp_dir()
   {
     std::error_code ec;
@@ -99,7 +98,7 @@ struct temp_dir {
 };
 
 struct temp_file : temp_dir {
-  std::filesystem::path file;
+  std::filesystem::path const file;
 
   explicit temp_file(std::string_view content) : file(path / "content.txt") { std::ofstream(file) << content; }
   ~temp_file()
@@ -114,7 +113,7 @@ struct temp_file : temp_dir {
 };
 
 struct temp_symlink {
-  std::filesystem::path link;
+  std::filesystem::path const link;
   std::error_code ec;
 
   temp_symlink(std::filesystem::path const &target, std::filesystem::path new_symlink) : link(std::move(new_symlink))
@@ -122,14 +121,13 @@ struct temp_symlink {
     std::filesystem::create_symlink(target, link, ec);
   }
   temp_symlink(temp_symlink const &) = delete;
-  temp_symlink &operator=(temp_symlink const &) = delete;
   ~temp_symlink()
   {
     // If create_symlink failed in the ctor, remove() is a no-op via the ec overload.
-    std::error_code ec;
-    std::filesystem::remove(link, ec);
-    if (ec) {
-      FAIL_CHECK("failed to remove temporary symlink " << link << ": " << ec.message());
+    std::error_code remove_ec;
+    std::filesystem::remove(link, remove_ec);
+    if (remove_ec) {
+      FAIL_CHECK("failed to remove temporary symlink " << link << ": " << remove_ec.message());
     }
   }
 };

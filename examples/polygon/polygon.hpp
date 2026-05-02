@@ -174,16 +174,15 @@ struct inputs {
         = [](std::string const &filename) -> fn::expected<std::unique_ptr<std::ifstream>, error> {
       std::filesystem::path path(filename);
 
-      auto file = std::make_unique<std::ifstream>(path);
-      if (file->is_open()) {
+      if (auto file = std::make_unique<std::ifstream>(path); file->is_open()) {
         return file;
       }
 
       // A non-existent path may be reported as ENOENT, ENOTDIR, or as file_type::not_found
       // depending on implementation; treat all three as "file not found" for portability.
       std::error_code ec;
-      auto const type = std::filesystem::status(path, ec).type();
-      if (ec == std::errc::no_such_file_or_directory //
+      if (auto const type = std::filesystem::status(path, ec).type();
+          ec == std::errc::no_such_file_or_directory //
           || ec == std::errc::not_a_directory        //
           || type == std::filesystem::file_type::not_found) {
         return std::unexpected(file_not_found{{.path = std::move(path), .ec = ec}});
@@ -195,8 +194,7 @@ struct inputs {
           io_error{{.path = std::move(path), .ec = (ec ? ec : std::make_error_code(std::io_errc::stream))}});
     };
 
-    static constexpr auto append
-        = [](inputs r, std::filesystem::path path, std::unique_ptr<std::ifstream> f) -> inputs {
+    static constexpr auto append = [](inputs r, std::filesystem::path path, std::unique_ptr<std::ifstream> f) {
       r.files.push_back(std::move(f));
       r.streams.push_back({.path = std::move(path), .in = r.files.back().get()});
       return r;
@@ -223,9 +221,9 @@ struct inputs {
 constexpr inline struct algorithm_t {
   auto operator()(inputs const &inputs) const -> fn::expected<int, read_error>
   {
-    std::set<std::string> words;
+    std::set<std::string, std::less<>> words;
 
-    constexpr auto match = [](counter const &lh, counter const &rh) -> bool {
+    constexpr auto match = [](counter const &lh, counter const &rh) {
       for (std::size_t i = 0; i < rh.size(); ++i) {
         if (lh[i] < rh[i]) {
           return false;
