@@ -170,16 +170,6 @@ struct failing_stream {
   failing_stream &operator=(failing_stream const &) = delete;
 };
 
-// Build a std::error_code carrying value's integer code and the std::error_category of `source`.
-// Lets a test pin its expected error_code's category to whatever the implementation actually used.
-template <typename Error> auto same_category_ec(auto const &source, std::errc value) -> std::error_code
-{
-  if (!source.template has_value<Error>()) {
-    throw std::logic_error("same_category_ec: source does not contain the expected error type");
-  }
-  return {static_cast<int>(value), source.template get_ptr<Error>()->ec.category()};
-}
-
 } // namespace
 
 TEST_CASE("count_characters", "[polygon][count_characters]")
@@ -261,8 +251,9 @@ TEST_CASE("inputs::make", "[polygon][inputs]")
     auto const result = inputs::make(p);
     REQUIRE(not result.has_value());
     REQUIRE(result.error().has_value<file_not_found>());
-    auto const expected_ec = same_category_ec<file_not_found>(result.error(), std::errc::no_such_file_or_directory);
-    CHECK(result.error() == inputs::error{file_not_found{{.path = missing, .ec = expected_ec}}});
+    auto const &err = *result.error().get_ptr<file_not_found>();
+    CHECK(err.path == missing);
+    CHECK(err.ec == std::errc::no_such_file_or_directory);
   }
 
   SECTION("path with non-directory component yields file_not_found")
@@ -273,8 +264,9 @@ TEST_CASE("inputs::make", "[polygon][inputs]")
     auto const result = inputs::make(p);
     REQUIRE(not result.has_value());
     REQUIRE(result.error().has_value<file_not_found>());
-    auto const expected_ec = same_category_ec<file_not_found>(result.error(), std::errc::not_a_directory);
-    CHECK(result.error() == inputs::error{file_not_found{{.path = subpath, .ec = expected_ec}}});
+    auto const &err = *result.error().get_ptr<file_not_found>();
+    CHECK(err.path == subpath);
+    CHECK(err.ec == std::errc::not_a_directory);
   }
 
   SECTION("symlink loop yields io_error")
