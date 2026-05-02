@@ -9,11 +9,14 @@
 #include "fn/and_then.hpp"
 #include "fn/expected.hpp"
 
+#include <array>
+#include <concepts>
 #include <filesystem>
 #include <fstream>
 #include <ios>
 #include <iostream>
 #include <istream>
+#include <memory>
 #include <set>
 #include <string>
 #include <string_view>
