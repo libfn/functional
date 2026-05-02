@@ -57,7 +57,7 @@ struct parameters {
 
   using arguments_t = std::vector<std::string_view>;
 
-  static auto make(arguments_t &&args) -> fn::expected<parameters, error>
+  static auto make(arguments_t const &args) -> fn::expected<parameters, error>
   {
     if (args.size() < 2) {
       std::string_view const program_name = (args.size() >= 1 && !args[0].empty()) //
