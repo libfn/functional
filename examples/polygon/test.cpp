@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Bronek Kozicki
+// Copyright (c) 2026 Bronek Kozicki
 //
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
@@ -42,9 +42,6 @@ struct cout_capture {
   ~cout_capture() { std::cout.rdbuf(prev); }
 };
 
-// RAII helper for a temporary directory. The unique path is composed from
-// std::filesystem::temp_directory_path() and a per-process random salt plus an
-// atomic per-call counter — fully portable (POSIX & Windows), no deprecated facilities.
 struct temp_dir {
   std::filesystem::path path;
 
@@ -80,7 +77,6 @@ struct temp_dir {
     std::string template_name = (tmp_dir / (prefix + "XXXXXX")).string();
 
     // mkdtemp modifies the template string in-place and creates the dir with strict 0700 permissions atomically.
-    // C++17's .data() returns a non-const char* which is safe for mkdtemp to modify.
     if (::mkdtemp(template_name.data()) == nullptr) {
       throw std::system_error(errno, std::generic_category(), "Failed to create secure temp directory via mkdtemp");
     }
@@ -94,38 +90,29 @@ struct temp_dir {
   temp_dir &operator=(temp_dir const &) = delete;
   ~temp_dir()
   {
-    // Non-throwing cleanup: failures (e.g. dir not empty due to leaked content) are reported
-    // as warnings rather than propagated, since destructors must not throw during unwinding.
     std::error_code ec;
     std::filesystem::remove(path, ec);
     if (ec) {
-      std::cerr << "Warning: failed to remove temporary directory " << path << ": " << ec.message() << "\n";
+      FAIL_CHECK("failed to remove temporary directory " << path << ": " << ec.message());
     }
   }
 };
 
-// RAII helper for a temporary file populated with content. The file lives inside a
-// per-instance temp_dir; the file is removed first, then the now-empty directory is
-// removed by the base destructor. Both steps use std::filesystem::remove (non-recursive).
 struct temp_file : temp_dir {
   std::filesystem::path file;
 
   explicit temp_file(std::string_view content) : file(path / "content.txt") { std::ofstream(file) << content; }
   ~temp_file()
   {
-    // Non-throwing cleanup: if the file was never created (silent ofstream failure) remove() is
-    // a no-op; any genuine failure is reported as a warning rather than propagated.
+    // If the file was never created (silent ofstream failure), remove() is a no-op via the ec overload.
     std::error_code ec;
     std::filesystem::remove(file, ec);
     if (ec) {
-      std::cerr << "Warning: failed to remove temporary file " << file << ": " << ec.message() << "\n";
+      FAIL_CHECK("failed to remove temporary file " << file << ": " << ec.message());
     }
   }
 };
 
-// RAII helper for a single symlink. The link is created in the ctor and removed in the dtor;
-// the target is not touched. Creation failure is reported via the public `ec` member rather than
-// thrown, so tests can SKIP cleanly when symlinks are unsupported (e.g. unprivileged Windows).
 struct temp_symlink {
   std::filesystem::path link;
   std::error_code ec;
@@ -138,12 +125,11 @@ struct temp_symlink {
   temp_symlink &operator=(temp_symlink const &) = delete;
   ~temp_symlink()
   {
-    // Non-throwing cleanup: if create_symlink failed in the ctor remove() is a no-op; any
-    // genuine failure is reported as a warning rather than propagated.
+    // If create_symlink failed in the ctor, remove() is a no-op via the ec overload.
     std::error_code ec;
     std::filesystem::remove(link, ec);
     if (ec) {
-      std::cerr << "Warning: failed to remove temporary symlink " << link << ": " << ec.message() << "\n";
+      FAIL_CHECK("failed to remove temporary symlink " << link << ": " << ec.message());
     }
   }
 };
@@ -385,9 +371,7 @@ TEST_CASE("algorithm aborts on read_error within a multi-stream input", "[polygo
     auto const result = algorithm(in);
     REQUIRE(not result.has_value());
     CHECK(result.error() == read_error{{.path = "<bad>", .ec = std::make_error_code(std::io_errc::stream)}});
-    // The second stream must not have been read: its read position remains at the start
     CHECK(good.tellg() == std::streampos(0));
-    // No output should have been produced
     CHECK(capture.out.str().empty());
   }
 
@@ -401,9 +385,7 @@ TEST_CASE("algorithm aborts on read_error within a multi-stream input", "[polygo
     };
     auto const result = algorithm(in);
     REQUIRE(not result.has_value());
-    // The error is tagged with the failing (second) stream's path, not the first
     CHECK(result.error() == read_error{{.path = "<bad>", .ec = std::make_error_code(std::io_errc::stream)}});
-    // Output produced from the first stream before the failure must be preserved
     CHECK(capture.out.str() == "* abc\n");
   }
 }
