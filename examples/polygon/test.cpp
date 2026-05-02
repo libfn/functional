@@ -94,8 +94,13 @@ struct temp_dir {
   temp_dir &operator=(temp_dir const &) = delete;
   ~temp_dir()
   {
+    // Non-throwing cleanup: failures (e.g. dir not empty due to leaked content) are reported
+    // as warnings rather than propagated, since destructors must not throw during unwinding.
     std::error_code ec;
     std::filesystem::remove(path, ec);
+    if (ec) {
+      std::cerr << "Warning: failed to remove temporary directory " << path << ": " << ec.message() << "\n";
+    }
   }
 };
 
@@ -108,8 +113,13 @@ struct temp_file : temp_dir {
   explicit temp_file(std::string_view content) : file(path / "content.txt") { std::ofstream(file) << content; }
   ~temp_file()
   {
+    // Non-throwing cleanup: if the file was never created (silent ofstream failure) remove() is
+    // a no-op; any genuine failure is reported as a warning rather than propagated.
     std::error_code ec;
     std::filesystem::remove(file, ec);
+    if (ec) {
+      std::cerr << "Warning: failed to remove temporary file " << file << ": " << ec.message() << "\n";
+    }
   }
 };
 
@@ -128,8 +138,13 @@ struct temp_symlink {
   temp_symlink &operator=(temp_symlink const &) = delete;
   ~temp_symlink()
   {
-    std::error_code dummy;
-    std::filesystem::remove(link, dummy);
+    // Non-throwing cleanup: if create_symlink failed in the ctor remove() is a no-op; any
+    // genuine failure is reported as a warning rather than propagated.
+    std::error_code ec;
+    std::filesystem::remove(link, ec);
+    if (ec) {
+      std::cerr << "Warning: failed to remove temporary symlink " << link << ": " << ec.message() << "\n";
+    }
   }
 };
 
