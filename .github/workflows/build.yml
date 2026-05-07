@@ -48,6 +48,7 @@ jobs:
           - "gcc:13"
           - "gcc:14"
           - "gcc:15"
+          - "gcc:16"
           - "clang:18"
           - "clang:19"
           - "clang:20"
