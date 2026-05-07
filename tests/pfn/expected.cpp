@@ -415,6 +415,40 @@ TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
     CHECK(b.error().v == 3 * helper::swapped * helper::swapped);
   }
 
+  SECTION("equality")
+  {
+#ifndef PFN_TEST_VALIDATION
+    constexpr bool extension = true;
+#else
+    constexpr bool extension = false;
+#endif
+
+    static_assert(unexpected<int>{1} == unexpected<int>{1});
+    static_assert(unexpected<int>{1} != unexpected<int>{2});
+
+    unexpected<helper> const a{3};
+    unexpected<helper> const b{3};
+    unexpected<helper> const c{4};
+    CHECK(a == b);
+    CHECK(a != c);
+    CHECK_FALSE(a == c);
+    CHECK_FALSE(a != b);
+
+    static_assert(noexcept(std::declval<helper const &>() == std::declval<helper const &>())); // prerequisite
+    static_assert(not extension
+                  || noexcept(std::declval<unexpected<int> const &>() == std::declval<unexpected<int> const &>()));
+    static_assert(
+        not extension
+        || noexcept(std::declval<unexpected<helper> const &>() == std::declval<unexpected<helper> const &>()));
+
+    struct E {
+      int v;
+      constexpr bool operator==(E const &o) const noexcept(false) { return v == o.v; }
+    };
+    static_assert(not noexcept(std::declval<E const &>() == std::declval<E const &>())); // prerequisite
+    static_assert(not noexcept(std::declval<unexpected<E> const &>() == std::declval<unexpected<E> const &>()));
+  }
+
   SECTION("constexpr")
   {
     constexpr auto fn = [](auto i) constexpr {

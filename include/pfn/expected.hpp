@@ -144,7 +144,9 @@ public:
     swap(e_, other.e_);
   }
 
-  template <class E2> constexpr friend bool operator==(unexpected const &x, unexpected<E2> const &y)
+  template <class E2>
+  constexpr friend bool operator==(unexpected const &x, unexpected<E2> const &y) //
+      noexcept(noexcept(static_cast<bool>(x.error() == y.error())))              // extension
   {
     return x.e_ == y.e_;
   }
