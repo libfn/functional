@@ -1051,6 +1051,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
     using E = helper_t<3>;  // may throw on move and copy
     using C = helper_t<4>;  // nothrow copy constructible
     using G = helper_t<33>; // nothrow copy constructible; throwing move constructible
+    using H = helper_t<40>; // nothrow copy/move constructible; throwing copy/move assignable
     static_assert(not std::is_nothrow_copy_constructible_v<M>);
     static_assert(std::is_nothrow_move_constructible_v<M>);
     static_assert(not std::is_nothrow_copy_constructible_v<E>);
@@ -1059,6 +1060,10 @@ TEST_CASE("expected non void", "[expected][polyfill]")
     static_assert(not std::is_nothrow_move_constructible_v<C>);
     static_assert(std::is_nothrow_copy_constructible_v<G>);
     static_assert(not std::is_nothrow_move_constructible_v<G>);
+    static_assert(std::is_nothrow_copy_constructible_v<H>);
+    static_assert(std::is_nothrow_move_constructible_v<H>);
+    static_assert(not std::is_nothrow_copy_assignable_v<H>);
+    static_assert(not std::is_nothrow_move_assignable_v<H>);
 
     SECTION("from rval")
     {
@@ -1088,6 +1093,22 @@ TEST_CASE("expected non void", "[expected][polyfill]")
           T a(std::in_place, 3);
           a = 5;
           CHECK(a.value().v == 5 * helper::from_rval);
+        }
+
+        { // the rvalue conversion-assignment operator propagates a throwing T::operator=
+          using T = expected<H, Error>;
+          static_assert(not std::is_nothrow_assignable_v<T &, H &&>);
+          T a(std::in_place, 7);
+          a = H(11);
+          CHECK(a.value().v == 11 * helper::from_rval);
+
+          try {
+            a = H({0.0});
+            FAIL();
+          } catch (std::runtime_error const &e) {
+            CHECK(std::strcmp(e.what(), "invalid input") == 0);
+            CHECK(a.value().v == 11 * helper::from_rval);
+          }
         }
       }
 
@@ -1401,6 +1422,22 @@ TEST_CASE("expected non void", "[expected][polyfill]")
           a = unexpected<int>(11);
           CHECK(a.error().v == 11 * G::from_rval);
         }
+
+        { // the rvalue conversion-assignment operator propagates a throwing E::operator=
+          using T = expected<int, H>;
+          static_assert(not std::is_nothrow_assignable_v<T &, unexpected<H> &&>);
+          T a(unexpect, 7);
+          a = unexpected<H>(11);
+          CHECK(a.error().v == 11 * helper::from_rval);
+
+          try {
+            a = unexpected<H>({0.0});
+            FAIL();
+          } catch (std::runtime_error const &e) {
+            CHECK(std::strcmp(e.what(), "invalid input") == 0);
+            CHECK(a.error().v == 11 * helper::from_rval);
+          }
+        }
       }
 
       SECTION("constexpr")
@@ -1491,6 +1528,24 @@ TEST_CASE("expected non void", "[expected][polyfill]")
           int const i = 5;
           a = i;
           CHECK(a.value().v == 5 * helper::from_rval);
+        }
+
+        { // the const-lvalue conversion-assignment operator propagates a throwing T::operator=
+          using T = expected<H, Error>;
+          static_assert(not std::is_nothrow_assignable_v<T &, H const &>);
+          T a(std::in_place, 7);
+          H const b(11);
+          a = b;
+          CHECK(a.value().v == 11 * helper::from_lval_const);
+
+          try {
+            H const c({0.0});
+            a = c;
+            FAIL();
+          } catch (std::runtime_error const &e) {
+            CHECK(std::strcmp(e.what(), "invalid input") == 0);
+            CHECK(a.value().v == 11 * helper::from_lval_const);
+          }
         }
       }
 
@@ -1833,6 +1888,24 @@ TEST_CASE("expected non void", "[expected][polyfill]")
           unexpected<int> const u(7);
           a = u;
           CHECK(a.error().v == 7 * G::from_rval);
+        }
+
+        { // the const-lvalue conversion-assignment operator propagates a throwing E::operator=
+          using T = expected<int, H>;
+          static_assert(not std::is_nothrow_assignable_v<T &, unexpected<H> const &>);
+          T a(unexpect, 7);
+          unexpected<H> const b(11);
+          a = b;
+          CHECK(a.error().v == 11 * helper::from_lval_const);
+
+          try {
+            unexpected<H> const c({0.0});
+            a = c;
+            FAIL();
+          } catch (std::runtime_error const &e) {
+            CHECK(std::strcmp(e.what(), "invalid input") == 0);
+            CHECK(a.error().v == 11 * helper::from_lval_const);
+          }
         }
       }
     }
