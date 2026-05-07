@@ -37,6 +37,13 @@
 #define ASSERT(...) assert((__VA_ARGS__) == true)
 #endif
 
+// This header is a polyfill for std::expected, tracking the C++ working draft
+// and changes planned for the future standard revisions. As a deliberate extension,
+// member functions whose `noexcept` specification is left unspecified by the
+// standard are given a `noexcept` clause derived from the properties of the
+// underlying types T, E and (where applicable) invocable arguments. Each such
+// clause is marked inline with a "// extension" trailing comment.
+
 namespace pfn {
 
 template <class E> class bad_expected_access;
@@ -699,7 +706,7 @@ public:
   constexpr T &&operator*() && noexcept { return ::std::move(*(this->operator->())); }
   constexpr explicit operator bool() const noexcept { return set_; }
   constexpr bool has_value() const noexcept { return set_; }
-  constexpr bool has_error() const noexcept { return !set_; }
+  constexpr bool has_error() const noexcept { return !set_; } // P3798
   constexpr T const &value() const &
   {
     static_assert(::std::is_copy_constructible_v<E>);
@@ -1266,7 +1273,7 @@ public:
   // [expected.void.obs], observers
   constexpr explicit operator bool() const noexcept { return set_; }
   constexpr bool has_value() const noexcept { return set_; }
-  constexpr bool has_error() const noexcept { return !set_; }
+  constexpr bool has_error() const noexcept { return !set_; } // P3798
   constexpr void operator*() const noexcept { ASSERT(set_); }
   constexpr void value() const &
   {
