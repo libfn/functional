@@ -3411,15 +3411,23 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
   SECTION("assignment")
   {
-    using M = helper_t<2>; // nothrow move constructible
-    using E = helper_t<3>; // may throw on move and copy
-    using C = helper_t<4>; // nothrow copy constructible
+    using M = helper_t<2>;  // nothrow move constructible
+    using E = helper_t<3>;  // may throw on move and copy
+    using C = helper_t<4>;  // nothrow copy constructible
+    using G = helper_t<33>; // nothrow copy constructible; throwing move constructible
+    using H = helper_t<40>; // nothrow copy/move constructible; throwing copy/move assignable
     static_assert(not std::is_nothrow_copy_constructible_v<M>);
     static_assert(std::is_nothrow_move_constructible_v<M>);
     static_assert(not std::is_nothrow_copy_constructible_v<E>);
     static_assert(not std::is_nothrow_move_constructible_v<E>);
     static_assert(std::is_nothrow_copy_constructible_v<C>);
     static_assert(not std::is_nothrow_move_constructible_v<C>);
+    static_assert(std::is_nothrow_copy_constructible_v<G>);
+    static_assert(not std::is_nothrow_move_constructible_v<G>);
+    static_assert(std::is_nothrow_copy_constructible_v<H>);
+    static_assert(std::is_nothrow_move_constructible_v<H>);
+    static_assert(not std::is_nothrow_copy_assignable_v<H>);
+    static_assert(not std::is_nothrow_move_assignable_v<H>);
 
     SECTION("from rval")
     {
@@ -3515,6 +3523,14 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 #endif
             }
           }
+
+          {
+            using T = expected<void, G>;
+            static_assert(not extension || std::is_nothrow_assignable_v<T &, unexpected<int> &&>);
+            T a(std::in_place);
+            a = unexpected<int>(11);
+            CHECK(a.error().v == 11);
+          }
         }
 
         SECTION("nothrow copy")
@@ -3604,6 +3620,30 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
         a = unexpected<helper>(7);
         CHECK(a.error().v == 7 * helper::from_rval);
+
+        {
+          using T = expected<void, G>;
+          static_assert(not extension || std::is_nothrow_assignable_v<T &, unexpected<int> &&>);
+          T a(unexpect, 0);
+          a = unexpected<int>(11);
+          CHECK(a.error().v == 11 * G::from_rval);
+        }
+
+        { // the rvalue conversion-assignment operator propagates a throwing E::operator=
+          using T = expected<void, H>;
+          static_assert(not std::is_nothrow_assignable_v<T &, unexpected<H> &&>);
+          T a(unexpect, 7);
+          a = unexpected<H>(11);
+          CHECK(a.error().v == 11 * helper::from_rval);
+
+          try {
+            a = unexpected<H>({0.0});
+            FAIL();
+          } catch (std::runtime_error const &e) {
+            CHECK(std::strcmp(e.what(), "invalid input") == 0);
+            CHECK(a.error().v == 11 * helper::from_rval);
+          }
+        }
       }
 
       SECTION("constexpr")
@@ -3758,6 +3798,15 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 #endif
             }
           }
+
+          {
+            using T = expected<void, G>;
+            static_assert(not extension || std::is_nothrow_assignable_v<T &, unexpected<int> const &>);
+            T a(std::in_place);
+            unexpected<int> const b(11);
+            a = b;
+            CHECK(a.error().v == 11);
+          }
         }
 
         SECTION("nothrow copy")
@@ -3840,6 +3889,33 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 #else
         CHECK((not a.has_value() && a.error().v == 7 * helper::from_lval_const));
 #endif
+
+        {
+          using T = expected<void, G>;
+          static_assert(not extension || std::is_nothrow_assignable_v<T &, unexpected<int> const &>);
+          T a(unexpect, 0);
+          unexpected<int> const u(7);
+          a = u;
+          CHECK(a.error().v == 7 * G::from_rval);
+        }
+
+        { // the const-lvalue conversion-assignment operator propagates a throwing E::operator=
+          using T = expected<void, H>;
+          static_assert(not std::is_nothrow_assignable_v<T &, unexpected<H> const &>);
+          T a(unexpect, 7);
+          unexpected<H> const b(11);
+          a = b;
+          CHECK(a.error().v == 11 * helper::from_lval_const);
+
+          try {
+            unexpected<H> const c({0.0});
+            a = c;
+            FAIL();
+          } catch (std::runtime_error const &e) {
+            CHECK(std::strcmp(e.what(), "invalid input") == 0);
+            CHECK(a.error().v == 11 * helper::from_lval_const);
+          }
+        }
       }
     }
 
