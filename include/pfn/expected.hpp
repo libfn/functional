@@ -148,7 +148,7 @@ public:
   constexpr friend bool operator==(unexpected const &x, unexpected<E2> const &y) //
       noexcept(noexcept(static_cast<bool>(x.error() == y.error())))              // extension
   {
-    return x.e_ == y.e_;
+    return x.error() == y.error();
   }
 
   constexpr friend void swap(unexpected &x, unexpected &y) noexcept(noexcept(x.swap(y)))

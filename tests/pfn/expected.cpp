@@ -426,6 +426,11 @@ TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
     static_assert(unexpected<int>{1} == unexpected<int>{1});
     static_assert(unexpected<int>{1} != unexpected<int>{2});
 
+    static_assert(unexpected<int>{1} == unexpected<long>{1L});    // heterogeneous
+    static_assert(unexpected<int>{1} != unexpected<long>{2L});    // heterogeneous
+    static_assert(unexpected<long>{1L} == unexpected<int>{1});    // heterogeneous, swapped
+    static_assert(unexpected<int>{0} == unexpected<bool>{false}); // heterogeneous, narrowing op==
+
     unexpected<helper> const a{3};
     unexpected<helper> const b{3};
     unexpected<helper> const c{4};
@@ -434,9 +439,19 @@ TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
     CHECK_FALSE(a == c);
     CHECK_FALSE(a != b);
 
+    unexpected<int> const d{3};
+    unexpected<long> const e{3L};
+    unexpected<long> const f{4L};
+    CHECK(d == e);
+    CHECK(d != f);
+    CHECK_FALSE(d == f);
+    CHECK_FALSE(d != e);
+
     static_assert(noexcept(std::declval<helper const &>() == std::declval<helper const &>())); // prerequisite
     static_assert(not extension
                   || noexcept(std::declval<unexpected<int> const &>() == std::declval<unexpected<int> const &>()));
+    static_assert(not extension
+                  || noexcept(std::declval<unexpected<int> const &>() == std::declval<unexpected<long> const &>()));
     static_assert(
         not extension
         || noexcept(std::declval<unexpected<helper> const &>() == std::declval<unexpected<helper> const &>()));
@@ -444,9 +459,12 @@ TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
     struct E {
       int v;
       constexpr bool operator==(E const &o) const noexcept(false) { return v == o.v; }
+      constexpr bool operator==(int o) const noexcept(false) { return v == o; }
     };
-    static_assert(not noexcept(std::declval<E const &>() == std::declval<E const &>())); // prerequisite
+    static_assert(not noexcept(std::declval<E const &>() == std::declval<E const &>()));   // prerequisite
+    static_assert(not noexcept(std::declval<E const &>() == std::declval<int const &>())); // prerequisite
     static_assert(not noexcept(std::declval<unexpected<E> const &>() == std::declval<unexpected<E> const &>()));
+    static_assert(not noexcept(std::declval<unexpected<E> const &>() == std::declval<unexpected<int> const &>()));
   }
 
   SECTION("constexpr")
