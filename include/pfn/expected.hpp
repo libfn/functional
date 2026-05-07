@@ -582,9 +582,8 @@ public:
   }
 
   template <class U = T>
-  constexpr expected &operator=(U &&s) //
-      noexcept(::std::is_nothrow_assignable_v<T, U> && ::std::is_nothrow_constructible_v<T, U>
-               && (::std::is_nothrow_move_constructible_v<T> || ::std::is_nothrow_move_constructible_v<E>)) // extension
+  constexpr expected &operator=(U &&s)                                                          //
+      noexcept(::std::is_nothrow_assignable_v<T, U> && ::std::is_nothrow_constructible_v<T, U>) // extension
     requires(_can_convert_assign<U>::value)
   {
     if (set_) {
@@ -598,8 +597,8 @@ public:
 
   template <class G>
   constexpr expected &operator=(unexpected<G> const &s) //
-      noexcept(::std::is_nothrow_assignable_v<E, G const &> && ::std::is_nothrow_constructible_v<E, G const &>
-               && (::std::is_nothrow_move_constructible_v<E> || ::std::is_nothrow_move_constructible_v<T>)) // extension
+      noexcept(::std::is_nothrow_assignable_v<E, G const &>
+               && ::std::is_nothrow_constructible_v<E, G const &>) // extension
     requires(::std::is_constructible_v<E, G const &> && ::std::is_assignable_v<E &, G const &>
              && (::std::is_nothrow_constructible_v<E, G const &> || ::std::is_nothrow_move_constructible_v<T>
                  || ::std::is_nothrow_move_constructible_v<E>))
@@ -614,9 +613,8 @@ public:
   }
 
   template <class G>
-  constexpr expected &operator=(unexpected<G> &&s) //
-      noexcept(::std::is_nothrow_assignable_v<E, G> && ::std::is_nothrow_constructible_v<E, G>
-               && (::std::is_nothrow_move_constructible_v<E> || ::std::is_nothrow_move_constructible_v<T>)) // extension
+  constexpr expected &operator=(unexpected<G> &&s)                                              //
+      noexcept(::std::is_nothrow_assignable_v<E, G> && ::std::is_nothrow_constructible_v<E, G>) // extension
     requires(::std::is_constructible_v<E, G> && ::std::is_assignable_v<E &, G>
              && (::std::is_nothrow_constructible_v<E, G> || ::std::is_nothrow_move_constructible_v<T>
                  || ::std::is_nothrow_move_constructible_v<E>))

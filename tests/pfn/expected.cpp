@@ -3,6 +3,7 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
+#include "catch2/catch_test_macros.hpp"
 #ifndef PFN_TEST_VALIDATION
 // TODO: Add death tests. Until then, empty definition to avoid false "no coverage" reports
 #define LIBFN_ASSERT(...)
@@ -1046,15 +1047,18 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
   SECTION("assignment")
   {
-    using M = helper_t<2>; // nothrow move constructible
-    using E = helper_t<3>; // may throw on move and copy
-    using C = helper_t<4>; // nothrow copy constructible
+    using M = helper_t<2>;  // nothrow move constructible
+    using E = helper_t<3>;  // may throw on move and copy
+    using C = helper_t<4>;  // nothrow copy constructible
+    using G = helper_t<33>; // nothrow copy constructible; throwing move constructible
     static_assert(not std::is_nothrow_copy_constructible_v<M>);
     static_assert(std::is_nothrow_move_constructible_v<M>);
     static_assert(not std::is_nothrow_copy_constructible_v<E>);
     static_assert(not std::is_nothrow_move_constructible_v<E>);
     static_assert(std::is_nothrow_copy_constructible_v<C>);
     static_assert(not std::is_nothrow_move_constructible_v<C>);
+    static_assert(std::is_nothrow_copy_constructible_v<G>);
+    static_assert(not std::is_nothrow_move_constructible_v<G>);
 
     SECTION("from rval")
     {
@@ -1075,6 +1079,14 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
           T a(std::in_place, 3);
           a = helper(5);
+          CHECK(a.value().v == 5 * helper::from_rval);
+        }
+
+        {
+          using T = expected<G, G>;
+          static_assert(not extension || std::is_nothrow_assignable_v<T &, int>);
+          T a(std::in_place, 3);
+          a = 5;
           CHECK(a.value().v == 5 * helper::from_rval);
         }
       }
@@ -1157,6 +1169,27 @@ TEST_CASE("expected non void", "[expected][polyfill]")
             } catch (std::runtime_error const &e) {
               CHECK(std::strcmp(e.what(), "invalid input") == 0);
               CHECK(a.value() == 4);
+            }
+          }
+
+          {
+            using T = expected<G, G>;
+            static_assert(not extension || std::is_nothrow_assignable_v<T &, unexpected<int> &&>);
+            T a(std::in_place, 0);
+            a = unexpected<int>(11);
+            CHECK(a.error().v == 11);
+
+            {
+              using T = expected<int, G>;
+              static_assert(not std::is_nothrow_assignable_v<T &, unexpected<G> &&>);
+              T a(std::in_place, 7);
+              try {
+                a = unexpected<G>({0.0});
+                FAIL();
+              } catch (std::runtime_error const &e) {
+                CHECK(std::strcmp(e.what(), "invalid input") == 0);
+                CHECK(a.value() == 7);
+              }
             }
           }
         }
@@ -1284,6 +1317,27 @@ TEST_CASE("expected non void", "[expected][polyfill]")
               CHECK(a.error() == Error::file_not_found);
             }
           }
+
+          {
+            using T = expected<G, G>;
+            static_assert(not extension || std::is_nothrow_assignable_v<T &, int>);
+            T a(unexpect, 0);
+            a = 5;
+            CHECK(a.value().v == 5);
+
+            { // the rvalue conversion-assignment operator propagates the underlying throw
+              using T = expected<G, Error>;
+              static_assert(not std::is_nothrow_assignable_v<T &, G &&>);
+              T a(unexpect, Error::file_not_found);
+              try {
+                a = G({0.0});
+                FAIL();
+              } catch (std::runtime_error const &e) {
+                CHECK(std::strcmp(e.what(), "invalid input") == 0);
+                CHECK(a.error() == Error::file_not_found);
+              }
+            }
+          }
         }
 
         SECTION("nothrow copy")
@@ -1339,6 +1393,14 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
         a = unexpected<helper>(7);
         CHECK(a.error().v == 7 * helper::from_rval);
+
+        {
+          using T = expected<G, G>;
+          static_assert(not extension || std::is_nothrow_assignable_v<T &, unexpected<int> &&>);
+          T a(unexpect, 0);
+          a = unexpected<int>(11);
+          CHECK(a.error().v == 11 * G::from_rval);
+        }
       }
 
       SECTION("constexpr")
@@ -1420,6 +1482,15 @@ TEST_CASE("expected non void", "[expected][polyfill]")
           helper const d(11);
           a = std::move(d);
           CHECK(a.value().v == 11 * helper::from_rval_const);
+        }
+
+        {
+          using T = expected<G, G>;
+          static_assert(not extension || std::is_nothrow_assignable_v<T &, int const &>);
+          T a(std::in_place, 3);
+          int const i = 5;
+          a = i;
+          CHECK(a.value().v == 5 * helper::from_rval);
         }
       }
 
@@ -1511,6 +1582,29 @@ TEST_CASE("expected non void", "[expected][polyfill]")
             } catch (std::runtime_error const &e) {
               CHECK(std::strcmp(e.what(), "invalid input") == 0);
               CHECK(a.value() == 4);
+            }
+          }
+
+          {
+            using T = expected<G, G>;
+            static_assert(not extension || std::is_nothrow_assignable_v<T &, unexpected<int> const &>);
+            T a(std::in_place, 0);
+            unexpected<int> const b(7);
+            a = b;
+            CHECK(a.error().v == 7);
+
+            {
+              using T = expected<helper, M>; // M used for throwing copy constructor
+              static_assert(not std::is_nothrow_assignable_v<T &, unexpected<M> const &>);
+              T a(std::in_place, 7);
+              try {
+                unexpected<M> const b({0.0});
+                a = b;
+                FAIL();
+              } catch (std::runtime_error const &e) {
+                CHECK(std::strcmp(e.what(), "invalid input") == 0);
+                CHECK(a.value().v == 7);
+              }
             }
           }
         }
@@ -1649,6 +1743,29 @@ TEST_CASE("expected non void", "[expected][polyfill]")
               CHECK(a.error() == Error::file_not_found);
             }
           }
+
+          {
+            using T = expected<G, G>;
+            static_assert(not extension || std::is_nothrow_assignable_v<T &, int const &>);
+            T a(unexpect, 0);
+            int const i = 5;
+            a = i;
+            CHECK(a.value().v == 5);
+
+            {
+              using T = expected<M, Error>; // M used for throwing copy constructor
+              static_assert(not std::is_nothrow_assignable_v<T &, M const &>);
+              T a(unexpect, Error::file_not_found);
+              try {
+                M const b({0.0});
+                a = b;
+                FAIL();
+              } catch (std::runtime_error const &e) {
+                CHECK(std::strcmp(e.what(), "invalid input") == 0);
+                CHECK(a.error() == Error::file_not_found);
+              }
+            }
+          }
         }
 
         SECTION("nothrow copy")
@@ -1708,6 +1825,15 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         unexpected<helper> const c(7);
         a = c;
         CHECK(a.error().v == 7 * helper::from_lval_const);
+
+        {
+          using T = expected<G, G>;
+          static_assert(not extension || std::is_nothrow_assignable_v<T &, unexpected<int> const &>);
+          T a(unexpect, 0);
+          unexpected<int> const u(7);
+          a = u;
+          CHECK(a.error().v == 7 * G::from_rval);
+        }
       }
     }
 
