@@ -8,6 +8,7 @@ RUN set -ex ;\
     cat /etc/os-release ;\
     /usr/local/bin/gcc --version
 
+ARG DEBIAN_VERSION=trixie
 FROM debian:${DEBIAN_VERSION}
 COPY --from=gcc /usr/local/ /usr/local/
 COPY --from=gcc /etc/ld.so.conf.d/ /etc/ld.so.conf.d/
