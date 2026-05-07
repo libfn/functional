@@ -1147,6 +1147,14 @@ TEST_CASE("expected non void", "[expected][polyfill]")
           CHECK(a.value().v == 5 * helper::from_rval);
         }
 
+        {
+          using T = expected<int, G>;
+          static_assert(not extension || std::is_nothrow_assignable_v<T &, int>);
+          T a(std::in_place, 3);
+          a = 5;
+          CHECK(a.value() == 5);
+        }
+
         { // the rvalue conversion-assignment operator propagates a throwing T::operator=
           using T = expected<H, Error>;
           static_assert(not std::is_nothrow_assignable_v<T &, H &&>);
@@ -1294,6 +1302,14 @@ TEST_CASE("expected non void", "[expected][polyfill]")
             T a(std::in_place, 4);
             a = unexpected<C>(5);
             CHECK(a.error().v == 5 * helper::from_rval);
+          }
+
+          {
+            using T = expected<G, int>;
+            static_assert(not extension || std::is_nothrow_assignable_v<T &, unexpected<int> &&>);
+            T a(std::in_place, 0);
+            a = unexpected<int>(11);
+            CHECK(a.error() == 11);
           }
 
           {
@@ -1745,6 +1761,15 @@ TEST_CASE("expected non void", "[expected][polyfill]")
             unexpected<C> const b(5);
             a = b;
             CHECK(a.error().v == 5 * helper::from_lval_const);
+          }
+
+          {
+            using T = expected<G, int>;
+            static_assert(not extension || std::is_nothrow_assignable_v<T &, unexpected<int> const &>);
+            T a(std::in_place, 0);
+            unexpected<int> const b(11);
+            a = b;
+            CHECK(a.error() == 11);
           }
 
           {
@@ -3618,6 +3643,14 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
           }
 
           {
+            using T = expected<void, int>;
+            static_assert(not extension || std::is_nothrow_assignable_v<T &, unexpected<int> &&>);
+            T a(std::in_place);
+            a = unexpected<int>(11);
+            CHECK(a.error() == 11);
+          }
+
+          {
             T a(std::in_place);
             try {
               a = unexpected<C>({0.0});
@@ -3890,6 +3923,15 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
             unexpected<C> const b(5);
             a = b;
             CHECK(a.error().v == 5 * helper::from_lval_const);
+          }
+
+          {
+            using T = expected<void, int>;
+            static_assert(not extension || std::is_nothrow_assignable_v<T &, unexpected<int> const &>);
+            T a(std::in_place);
+            unexpected<int> const b(11);
+            a = b;
+            CHECK(a.error() == 11);
           }
 
           {
