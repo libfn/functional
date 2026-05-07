@@ -36,6 +36,7 @@ jobs:
           - gcc:13
           - gcc:14
           - gcc:15
+          - gcc:16
           - clang:16
           - clang:17
           - clang:18
@@ -53,10 +54,20 @@ jobs:
           compiler=${{ matrix.compiler }}
           echo "COMPILER=${compiler%%:*}" >> $GITHUB_ENV
           echo "RELEASE=${compiler##*:}" >> $GITHUB_ENV
-
-      - name: Select Debian version
-        run: |
-          [[ $COMPILER == "clang" && $RELEASE -ge 21 ]] && echo "DEBIAN_VERSION=trixie" >> $GITHUB_ENV || echo "DEBIAN_VERSION=bookworm" >> $GITHUB_ENV
+          if [[ $COMPILER == "gcc" ]]; then
+            if [[ $RELEASE -ge 15 ]]; then
+              echo "DEBIAN_VERSION=trixie" >> $GITHUB_ENV
+            else
+              echo "DEBIAN_VERSION=bookworm" >> $GITHUB_ENV
+            fi
+          fi
+          if [[ $COMPILER == "clang" ]]; then
+            if [[ $RELEASE -ge 21 ]]; then
+              echo "DEBIAN_VERSION=trixie" >> $GITHUB_ENV
+            else
+              echo "DEBIAN_VERSION=bookworm" >> $GITHUB_ENV
+            fi
+          fi
 
       - uses: actions/checkout@v4
         with:
@@ -93,6 +104,7 @@ jobs:
           - gcc:13
           - gcc:14
           - gcc:15
+          - gcc:16
           - clang:16
           - clang:17
           - clang:18

@@ -1,7 +1,7 @@
-ARG DEBIAN_VERSION=bookworm
+ARG DEBIAN_VERSION=trixie
 FROM debian:${DEBIAN_VERSION}
 
-ARG CLANG_RELEASE=19
+ARG CLANG_RELEASE=22
 ENV CLANG_RELEASE=${CLANG_RELEASE}
 ENV DEBIAN_FRONTEND=noninteractive
 RUN set -ex ;\
@@ -32,7 +32,7 @@ ENV CXXFLAGS="-stdlib=libc++"
 ENV CMAKE_GENERATOR=Ninja
 ENV CMAKE_BUILD_TYPE=Debug
 
-ARG CATCH_RELEASE=3.7.1
+ARG CATCH_RELEASE=3.14.0
 WORKDIR /work
 RUN set -ex ;\
     DIST="https://github.com/catchorg/Catch2/archive/refs/tags/" ;\
