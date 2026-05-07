@@ -454,6 +454,11 @@ template <typename T> struct nothrow_swappable {
 template <typename T>
 concept is_swappable = requires { swap(std::declval<T &>(), std::declval<T &>()); };
 
+template <typename T>
+concept is_nothrow_swappable = requires {
+  { swap(std::declval<T &>(), std::declval<T &>()) } noexcept;
+};
+
 } // namespace
 
 TEST_CASE("expected non void", "[expected][polyfill]")
@@ -1886,13 +1891,15 @@ TEST_CASE("expected non void", "[expected][polyfill]")
       static_assert(not std::is_nothrow_move_constructible_v<B>);
 
       static_assert(is_swappable<expected<int, A>>);
+      static_assert(not is_nothrow_swappable<expected<int, A>>);
       static_assert(is_swappable<expected<A, int>>);
+      static_assert(not is_nothrow_swappable<expected<A, int>>);
       static_assert(not is_swappable<expected<A, B>>);
 
       SUCCEED();
     }
 
-    SECTION("nothrow-swappable non-nothrow-move-constructible")
+    SECTION("nothrow-swappable, no-nothrow-move-constructible")
     {
       struct A : nothrow_swappable<A> {
         A(A &&) noexcept(false) {}
@@ -1911,13 +1918,15 @@ TEST_CASE("expected non void", "[expected][polyfill]")
       static_assert(not std::is_nothrow_move_constructible_v<B>);
 
       static_assert(is_swappable<expected<int, A>>);
+      static_assert(not is_nothrow_swappable<expected<int, A>>);
       static_assert(is_swappable<expected<A, int>>);
+      static_assert(not is_nothrow_swappable<expected<A, int>>);
       static_assert(not is_swappable<expected<A, B>>);
 
       SUCCEED();
     }
 
-    SECTION("swappabla, non-nothrow-move-constructible")
+    SECTION("swappable, non-nothrow-move-constructible")
     {
       struct A : swappable<A> {
         A(A &&) noexcept(false) {}
@@ -1936,23 +1945,25 @@ TEST_CASE("expected non void", "[expected][polyfill]")
       static_assert(std::is_nothrow_move_constructible_v<B>);
 
       static_assert(is_swappable<expected<int, A>>);
+      static_assert(not is_nothrow_swappable<expected<int, A>>);
       static_assert(is_swappable<expected<A, int>>);
+      static_assert(not is_nothrow_swappable<expected<A, int>>);
 
       {
         using T = expected<A, B>;
         static_assert(is_swappable<T>);
-        static_assert(not noexcept(swap(std::declval<T &>(), std::declval<T &>())));
+        static_assert(not is_nothrow_swappable<T>);
       }
       {
         using T = expected<B, A>;
         static_assert(is_swappable<T>);
-        static_assert(not noexcept(swap(std::declval<T &>(), std::declval<T &>())));
+        static_assert(not is_nothrow_swappable<T>);
       }
 
       SUCCEED();
     }
 
-    SECTION("nothrow-swappabla, non-nothrow-move-constructible")
+    SECTION("nothrow-swappable, mixed-nothrow-move-constructible")
     {
       struct A : nothrow_swappable<A> {
         A(A &&) noexcept(false) {}
@@ -1971,23 +1982,25 @@ TEST_CASE("expected non void", "[expected][polyfill]")
       static_assert(std::is_nothrow_move_constructible_v<B>);
 
       static_assert(is_swappable<expected<int, A>>);
+      static_assert(not is_nothrow_swappable<expected<int, A>>);
       static_assert(is_swappable<expected<A, int>>);
+      static_assert(not is_nothrow_swappable<expected<A, int>>);
 
       {
         using T = expected<A, B>;
         static_assert(is_swappable<T>);
-        static_assert(not noexcept(swap(std::declval<T &>(), std::declval<T &>())));
+        static_assert(not is_nothrow_swappable<T>);
       }
       {
         using T = expected<B, A>;
         static_assert(is_swappable<T>);
-        static_assert(not noexcept(swap(std::declval<T &>(), std::declval<T &>())));
+        static_assert(not is_nothrow_swappable<T>);
       }
 
       SUCCEED();
     }
 
-    SECTION("nothrow-swappabla, nothrow-move-constructible")
+    SECTION("nothrow-swappable, nothrow-move-constructible")
     {
       struct A : nothrow_swappable<A> {
         A(A &&) noexcept(true) = default;
@@ -2006,17 +2019,56 @@ TEST_CASE("expected non void", "[expected][polyfill]")
       static_assert(std::is_nothrow_move_constructible_v<B>);
 
       static_assert(is_swappable<expected<int, A>>);
+      static_assert(is_nothrow_swappable<expected<int, A>>);
       static_assert(is_swappable<expected<A, int>>);
+      static_assert(is_nothrow_swappable<expected<A, int>>);
 
       {
         using T = expected<A, B>;
         static_assert(is_swappable<T>);
-        static_assert(noexcept(swap(std::declval<T &>(), std::declval<T &>())));
+        static_assert(is_nothrow_swappable<T>);
       }
       {
         using T = expected<B, A>;
         static_assert(is_swappable<T>);
-        static_assert(noexcept(swap(std::declval<T &>(), std::declval<T &>())));
+        static_assert(is_nothrow_swappable<T>);
+      }
+
+      SUCCEED();
+    }
+
+    SECTION("swappable, nothrow-move-constructible")
+    {
+      struct A : swappable<A> {
+        A(A &&) noexcept(true) = default;
+      };
+      static_assert(std::is_swappable_v<A>);
+      static_assert(not std::is_nothrow_swappable_v<A>);
+      static_assert(std::is_move_constructible_v<A>);
+      static_assert(std::is_nothrow_move_constructible_v<A>);
+
+      struct B : swappable<B> {
+        B(B &&) noexcept(true) = default;
+      };
+      static_assert(std::is_swappable_v<B>);
+      static_assert(not std::is_nothrow_swappable_v<B>);
+      static_assert(std::is_move_constructible_v<B>);
+      static_assert(std::is_nothrow_move_constructible_v<B>);
+
+      static_assert(is_swappable<expected<int, A>>);
+      static_assert(not is_nothrow_swappable<expected<int, A>>);
+      static_assert(is_swappable<expected<A, int>>);
+      static_assert(not is_nothrow_swappable<expected<A, int>>);
+
+      {
+        using T = expected<A, B>;
+        static_assert(is_swappable<T>);
+        static_assert(not is_nothrow_swappable<T>);
+      }
+      {
+        using T = expected<B, A>;
+        static_assert(is_swappable<T>);
+        static_assert(not is_nothrow_swappable<T>);
       }
 
       SUCCEED();
@@ -2353,7 +2405,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
     SECTION("error_or")
     {
       using T = expected<int, helper>;
-      SECTION("noexcept extension")
+      SECTION("noexcept")
       {
         static_assert(not noexcept(std::declval<T>().error_or(std::declval<int>())));
         static_assert(not extension || noexcept(std::declval<T>().error_or(std::declval<helper::list_t>())));
@@ -3765,6 +3817,7 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
       static_assert(not std::is_nothrow_move_constructible_v<A>);
 
       static_assert(is_swappable<expected<void, A>>);
+      static_assert(not is_nothrow_swappable<expected<void, A>>);
 
       SUCCEED();
     }
@@ -3780,11 +3833,12 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
       static_assert(not std::is_nothrow_move_constructible_v<A>);
 
       static_assert(is_swappable<expected<void, A>>);
+      static_assert(not is_nothrow_swappable<expected<void, A>>);
 
       SUCCEED();
     }
 
-    SECTION("swappabla, non-nothrow-move-constructible")
+    SECTION("swappable, non-nothrow-move-constructible")
     {
       struct A : swappable<A> {
         A(A &&) noexcept(false) {}
@@ -3795,26 +3849,12 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
       static_assert(not std::is_nothrow_move_constructible_v<A>);
 
       static_assert(is_swappable<expected<void, A>>);
+      static_assert(not is_nothrow_swappable<expected<void, A>>);
 
       SUCCEED();
     }
 
-    SECTION("nothrow-swappabla, non-nothrow-move-constructible")
-    {
-      struct A : nothrow_swappable<A> {
-        A(A &&) noexcept(false) {}
-      };
-      static_assert(std::is_swappable_v<A>);
-      static_assert(std::is_nothrow_swappable_v<A>);
-      static_assert(std::is_move_constructible_v<A>);
-      static_assert(not std::is_nothrow_move_constructible_v<A>);
-
-      static_assert(is_swappable<expected<void, A>>);
-
-      SUCCEED();
-    }
-
-    SECTION("nothrow-swappabla, nothrow-move-constructible")
+    SECTION("nothrow-swappable, nothrow-move-constructible")
     {
       struct A : nothrow_swappable<A> {
         A(A &&) noexcept(true) = default;
@@ -3825,6 +3865,23 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
       static_assert(std::is_nothrow_move_constructible_v<A>);
 
       static_assert(is_swappable<expected<void, A>>);
+      static_assert(is_nothrow_swappable<expected<void, A>>);
+
+      SUCCEED();
+    }
+
+    SECTION("swappable, nothrow-move-constructible")
+    {
+      struct A : swappable<A> {
+        A(A &&) noexcept(true) = default;
+      };
+      static_assert(std::is_swappable_v<A>);
+      static_assert(not std::is_nothrow_swappable_v<A>);
+      static_assert(std::is_move_constructible_v<A>);
+      static_assert(std::is_nothrow_move_constructible_v<A>);
+
+      static_assert(is_swappable<expected<void, A>>);
+      static_assert(not is_nothrow_swappable<expected<void, A>>);
 
       SUCCEED();
     }
@@ -4048,7 +4105,7 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
     SECTION("error_or")
     {
       using T = expected<void, helper>;
-      SECTION("noexcept extension")
+      SECTION("noexcept")
       {
         static_assert(not noexcept(std::declval<T>().error_or(std::declval<int>())));
         static_assert(not extension || noexcept(std::declval<T>().error_or(std::declval<helper::list_t>())));
