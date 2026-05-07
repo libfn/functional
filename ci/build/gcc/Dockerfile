@@ -1,5 +1,6 @@
-ARG GCC_RELEASE=14
-ARG GCC_DIST=${GCC_RELEASE}-bookworm
+ARG GCC_RELEASE=16
+ARG DEBIAN_VERSION=trixie
+ARG GCC_DIST=${GCC_RELEASE}-${DEBIAN_VERSION}
 FROM gcc:${GCC_DIST} AS gcc
 RUN set -ex ;\
     find /usr/local/ -type f ;\
@@ -7,7 +8,7 @@ RUN set -ex ;\
     cat /etc/os-release ;\
     /usr/local/bin/gcc --version
 
-FROM debian:bookworm
+FROM debian:${DEBIAN_VERSION}
 COPY --from=gcc /usr/local/ /usr/local/
 COPY --from=gcc /etc/ld.so.conf.d/ /etc/ld.so.conf.d/
 
