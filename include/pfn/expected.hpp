@@ -974,16 +974,6 @@ class expected<T, E> {
   template <class U, class G> using _can_move_convert = _can_convert_detail<U, G, U, G>;
   template <class U, class G> friend class expected;
 
-  template <class U>
-  using _can_convert = ::std::bool_constant<                            //
-      not ::std::is_same_v<::std::remove_cvref_t<U>, ::std::in_place_t> //
-      && not ::std::is_same_v<::std::remove_cvref_t<U>, unexpect_t>     // LWG4222
-      && not ::std::is_same_v<expected, ::std::remove_cvref_t<U>>       //
-      && not detail::_is_some_unexpected<::std::remove_cvref_t<U>>      //
-      && ::std::is_constructible_v<T, U>                                //
-      && (not ::std::is_same_v<bool, ::std::remove_cv_t<T>>             //
-          || not detail::_is_some_expected<::std::remove_cvref_t<U>>)>;
-
   template <typename Self, typename Fn>
   static constexpr auto _and_then(Self &&self, Fn &&fn) //
       noexcept(::std::is_nothrow_invocable_v<Fn> && ::std::is_nothrow_constructible_v<E, decltype(FWD(self).error())>)
