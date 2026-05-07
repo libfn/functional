@@ -45,7 +45,7 @@ ENV CXX=/usr/bin/g++
 ENV CMAKE_GENERATOR=Ninja
 ENV CMAKE_BUILD_TYPE=Debug
 
-ARG CATCH_RELEASE=3.7.1
+ARG CATCH_RELEASE=3.14.0
 WORKDIR /work
 RUN set -ex ;\
     DIST="https://github.com/catchorg/Catch2/archive/refs/tags/" ;\
