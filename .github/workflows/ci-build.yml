@@ -54,6 +54,9 @@ jobs:
           compiler=${{ matrix.compiler }}
           echo "COMPILER=${compiler%%:*}" >> $GITHUB_ENV
           echo "RELEASE=${compiler##*:}" >> $GITHUB_ENV
+
+      - name: Determine Debian version
+        run: |
           if [[ $COMPILER == "gcc" ]]; then
             if [[ $RELEASE -ge 15 ]]; then
               echo "DEBIAN_VERSION=trixie" >> $GITHUB_ENV
