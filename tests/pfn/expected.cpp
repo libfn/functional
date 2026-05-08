@@ -1144,6 +1144,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
           CHECK(a.value().v == 5 * helper::from_rval);
         }
 
+#ifndef _MSC_VER
         {
           using T = expected<G, G>;
           static_assert(not extension || std::is_nothrow_assignable_v<T &, int>);
@@ -1151,6 +1152,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
           a = 5;
           CHECK(a.value().v == 5 * helper::from_rval);
         }
+#endif
 
         {
           using T = expected<int, G>;
@@ -1259,11 +1261,13 @@ TEST_CASE("expected non void", "[expected][polyfill]")
           }
 
           {
+#ifndef _MSC_VER
             using T = expected<G, G>;
             static_assert(not extension || std::is_nothrow_assignable_v<T &, unexpected<int> &&>);
             T a(std::in_place, 0);
             a = unexpected<int>(11);
             CHECK(a.error().v == 11);
+#endif
 
             {
               using T = expected<int, G>;
@@ -1413,11 +1417,13 @@ TEST_CASE("expected non void", "[expected][polyfill]")
           }
 
           {
+#ifndef _MSC_VER
             using T = expected<G, G>;
             static_assert(not extension || std::is_nothrow_assignable_v<T &, int>);
             T a(unexpect, 0);
             a = 5;
             CHECK(a.value().v == 5);
+#endif
 
             { // the rvalue conversion-assignment operator propagates the underlying throw
               using T = expected<G, Error>;
@@ -1488,6 +1494,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         a = unexpected<helper>(7);
         CHECK(a.error().v == 7 * helper::from_rval);
 
+#ifndef _MSC_VER
         {
           using T = expected<G, G>;
           static_assert(not extension || std::is_nothrow_assignable_v<T &, unexpected<int> &&>);
@@ -1495,6 +1502,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
           a = unexpected<int>(11);
           CHECK(a.error().v == 11 * G::from_rval);
         }
+#endif
 
         { // the rvalue conversion-assignment operator propagates a throwing E::operator=
           using T = expected<int, H>;
@@ -1594,6 +1602,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
           CHECK(a.value().v == 11 * helper::from_rval_const);
         }
 
+#ifndef _MSC_VER
         {
           using T = expected<G, G>;
           static_assert(not extension || std::is_nothrow_assignable_v<T &, int const &>);
@@ -1602,6 +1611,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
           a = i;
           CHECK(a.value().v == 5 * helper::from_rval);
         }
+#endif
 
         { // the const-lvalue conversion-assignment operator propagates a throwing T::operator=
           using T = expected<H, Error>;
@@ -1714,12 +1724,14 @@ TEST_CASE("expected non void", "[expected][polyfill]")
           }
 
           {
+#ifndef _MSC_VER
             using T = expected<G, G>;
             static_assert(not extension || std::is_nothrow_assignable_v<T &, unexpected<int> const &>);
             T a(std::in_place, 0);
             unexpected<int> const b(7);
             a = b;
             CHECK(a.error().v == 7);
+#endif
 
             {
               using T = expected<helper, M>; // M used for throwing copy constructor
@@ -1882,12 +1894,14 @@ TEST_CASE("expected non void", "[expected][polyfill]")
           }
 
           {
+#ifndef _MSC_VER
             using T = expected<G, G>;
             static_assert(not extension || std::is_nothrow_assignable_v<T &, int const &>);
             T a(unexpect, 0);
             int const i = 5;
             a = i;
             CHECK(a.value().v == 5);
+#endif
 
             {
               using T = expected<M, Error>; // M used for throwing copy constructor
@@ -1963,6 +1977,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         a = c;
         CHECK(a.error().v == 7 * helper::from_lval_const);
 
+#ifndef _MSC_VER
         {
           using T = expected<G, G>;
           static_assert(not extension || std::is_nothrow_assignable_v<T &, unexpected<int> const &>);
@@ -1971,6 +1986,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
           a = u;
           CHECK(a.error().v == 7 * G::from_rval);
         }
+#endif
 
         { // the const-lvalue conversion-assignment operator propagates a throwing E::operator=
           using T = expected<int, H>;
@@ -3606,6 +3622,7 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
             }
           }
 
+#ifndef _MSC_VER
           {
             using T = expected<void, G>;
             static_assert(not extension || std::is_nothrow_assignable_v<T &, unexpected<int> &&>);
@@ -3613,6 +3630,7 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
             a = unexpected<int>(11);
             CHECK(a.error().v == 11);
           }
+#endif
         }
 
         SECTION("nothrow copy")
@@ -3713,7 +3731,9 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
         {
           using T = expected<void, G>;
+#ifndef _MSC_VER
           static_assert(not extension || std::is_nothrow_assignable_v<T &, unexpected<int> &&>);
+#endif
           T a(unexpect, 0);
           a = unexpected<int>(11);
           CHECK(a.error().v == 11 * G::from_rval);
@@ -3889,6 +3909,7 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
             }
           }
 
+#ifndef _MSC_VER
           {
             using T = expected<void, G>;
             static_assert(not extension || std::is_nothrow_assignable_v<T &, unexpected<int> const &>);
@@ -3897,6 +3918,7 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
             a = b;
             CHECK(a.error().v == 11);
           }
+#endif
         }
 
         SECTION("nothrow copy")
@@ -3991,7 +4013,9 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
         {
           using T = expected<void, G>;
+#ifndef _MSC_VER
           static_assert(not extension || std::is_nothrow_assignable_v<T &, unexpected<int> const &>);
+#endif
           T a(unexpect, 0);
           unexpected<int> const u(7);
           a = u;
