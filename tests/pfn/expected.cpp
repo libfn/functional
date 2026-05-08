@@ -426,10 +426,13 @@ TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
     static_assert(unexpected<int>{1} == unexpected<int>{1});
     static_assert(unexpected<int>{1} != unexpected<int>{2});
 
+#if !defined(PFN_TEST_VALIDATION) || !defined(_LIBCPP_VERSION) || _LIBCPP_VERSION >= 200000
+    // libc++ < 20 rejects heterogeneous comparisons in std::unexpected; fixed in 20
     static_assert(unexpected<int>{1} == unexpected<long>{1L});    // heterogeneous
     static_assert(unexpected<int>{1} != unexpected<long>{2L});    // heterogeneous
     static_assert(unexpected<long>{1L} == unexpected<int>{1});    // heterogeneous, swapped
     static_assert(unexpected<int>{0} == unexpected<bool>{false}); // heterogeneous, narrowing op==
+#endif
 
     unexpected<helper> const a{3};
     unexpected<helper> const b{3};
@@ -439,6 +442,7 @@ TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
     CHECK_FALSE(a == c);
     CHECK_FALSE(a != b);
 
+#if !defined(PFN_TEST_VALIDATION) || !defined(_LIBCPP_VERSION) || _LIBCPP_VERSION >= 200000
     unexpected<int> const d{3};
     unexpected<long> const e{3L};
     unexpected<long> const f{4L};
@@ -446,6 +450,7 @@ TEST_CASE("unexpected", "[expected][polyfill][unexpected]")
     CHECK(d != f);
     CHECK_FALSE(d == f);
     CHECK_FALSE(d != e);
+#endif
 
     static_assert(noexcept(std::declval<helper const &>() == std::declval<helper const &>())); // prerequisite
     static_assert(not extension
