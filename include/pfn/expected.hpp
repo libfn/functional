@@ -8,6 +8,7 @@
 
 #include <cassert>
 #include <concepts>
+#include <cstring>
 #include <exception>
 #include <functional>
 #include <initializer_list>
@@ -242,6 +243,37 @@ template <class T, class E> class expected {
       New tmp(::std::forward<Args>(args)...);
       ::std::destroy_at(::std::addressof(oldval));
       ::std::construct_at(::std::addressof(newval), std::move(tmp));
+    } else if constexpr (::std::is_trivially_copyable_v<Old>) {
+      // Workaround for https://github.com/llvm/llvm-project/issues/196520:
+      // clang on aarch64 sinks the snapshot load past the store-through-newval
+      // when Old's TBAA tag differs from New's, corrupting the strong-EG
+      // restoration on catch. A byte-buffer snapshot via std::memcpy is opaque
+      // to TBAA, and preserving *oldval in place across the try (no destroy_at)
+      // makes the catch a plain byte restore -- which for trivially-copyable
+      // (and therefore trivially-destructible) Old is observationally identical
+      // to the destroy-and-recreate branch below.
+      // (Old is also trivially-destructible -- implied by is_trivially_copyable_v
+      //  per [class.prop]/1 -- so skipping destroy_at is observationally identical
+      //  to the destroy-and-recreate branch below.)
+      if (not ::std::is_constant_evaluated()) {
+        alignas(Old) unsigned char _bytes[sizeof(Old)];
+        ::std::memcpy(_bytes, ::std::addressof(oldval), sizeof(Old));
+        try {
+          ::std::construct_at(::std::addressof(newval), ::std::forward<Args>(args)...);
+        } catch (...) {
+          ::std::memcpy(::std::addressof(oldval), _bytes, sizeof(Old));
+          throw;
+        }
+      } else {
+        Old tmp(std::move(oldval));
+        ::std::destroy_at(::std::addressof(oldval));
+        try {
+          ::std::construct_at(::std::addressof(newval), ::std::forward<Args>(args)...);
+        } catch (...) {
+          ::std::construct_at(::std::addressof(oldval), std::move(tmp));
+          throw;
+        }
+      }
     } else {
       Old tmp(std::move(oldval));
       ::std::destroy_at(::std::addressof(oldval));
