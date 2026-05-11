@@ -2754,8 +2754,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         {
           static_assert(T{std::in_place, {3.0}, 5}.value_or(c).v == 3 * 5 * from_rval);
           static_assert(T{unexpect, Error::unknown}.value_or(c).v == 7 * from_lval_const);
-          static_assert(T{unexpect, Error::unknown}.value_or(helper(helper_list_t{7.0}, 3)).v
-                        == 7 * 3 * from_rval);
+          static_assert(T{unexpect, Error::unknown}.value_or(helper(helper_list_t{7.0}, 3)).v == 7 * 3 * from_rval);
 
           SUCCEED();
         }
