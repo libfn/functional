@@ -265,6 +265,7 @@ template <class T, class E> class expected {
           throw;
         }
       } else {
+        // LCOV_EXCL_START constant-evaluated only; runtime branches are above and below
         Old tmp(std::move(oldval));
         ::std::destroy_at(::std::addressof(oldval));
         try {
@@ -273,6 +274,7 @@ template <class T, class E> class expected {
           ::std::construct_at(::std::addressof(oldval), std::move(tmp));
           throw;
         }
+        // LCOV_EXCL_STOP
       }
     } else {
       Old tmp(std::move(oldval));

@@ -2010,33 +2010,19 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
     SECTION("constexpr")
     {
-      using T = expected<helper, Error>;
-      constexpr T c{unexpect, Error::file_not_found};
-      constexpr T d{std::in_place, helper::list_t(), 5};
-
-      SECTION("from error")
+      SECTION("nothrow move")
       {
-        constexpr auto fn = [](T const &v) constexpr -> T {
-          T tmp{unexpect, Error::unknown};
-          tmp = v;
-          return tmp;
-        };
+        using T = expected<helper, Error>;
+        static_assert(std::is_nothrow_move_constructible_v<helper>);
 
-        constexpr T a = fn(c);
-        static_assert(a.error() == Error::file_not_found);
+        constexpr T c{unexpect, Error::file_not_found};
+        constexpr T d{std::in_place, helper::list_t(), 5};
 
-        constexpr T b = fn(d);
-        static_assert(b.value().v == 5 * helper::from_lval_const * helper::from_rval);
-
-        SUCCEED();
-      }
-
-      SECTION("from value")
-      {
+        SECTION("from error")
         {
-          constexpr auto fn = [](T const &v) constexpr -> T {
-            T tmp{std::in_place, helper::list_t(), 13};
-            tmp = v;
+          constexpr auto fn = [](auto &&v) constexpr -> T {
+            T tmp{unexpect, Error::unknown};
+            tmp = std::forward<decltype(v)>(v);
             return tmp;
           };
 
@@ -2045,6 +2031,86 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
           constexpr T b = fn(d);
           static_assert(b.value().v == 5 * helper::from_lval_const * helper::from_rval);
+
+          constexpr T e = fn(T{std::in_place, helper::list_t(), 7});
+          static_assert(e.value().v == 7 * helper::from_rval * helper::from_rval);
+
+          SUCCEED();
+        }
+
+        SECTION("from value")
+        {
+          {
+            constexpr auto fn = [](auto &&v) constexpr -> T {
+              T tmp{std::in_place, helper::list_t(), 13};
+              tmp = std::forward<decltype(v)>(v);
+              return tmp;
+            };
+
+            constexpr T a = fn(c);
+            static_assert(a.error() == Error::file_not_found);
+
+            constexpr T b = fn(d);
+            static_assert(b.value().v == 5 * helper::from_lval_const * helper::from_rval);
+
+            constexpr T e = fn(T{std::in_place, helper::list_t(), 7});
+            static_assert(e.value().v == 7 * helper::from_rval * helper::from_rval);
+
+            SUCCEED();
+          }
+        }
+      }
+
+      SECTION("no nothrow move")
+      {
+        // Not actually throwing here (that wouldn't be constexpr) but use type E
+        // which potentially could throw when move-constructed inside assignment.
+        static_assert(not std::is_nothrow_move_constructible_v<E>);
+
+        SECTION("from error")
+        {
+          using T = expected<E, Error>; // error->value: Old=Error, New=E
+          constexpr T c{unexpect, Error::file_not_found};
+          constexpr T d{std::in_place, helper::list_t(), 5};
+
+          constexpr auto fn = [](auto &&v) constexpr -> T {
+            T tmp{unexpect, Error::unknown};
+            tmp = std::forward<decltype(v)>(v);
+            return tmp;
+          };
+
+          constexpr T a = fn(c);
+          static_assert(a.error() == Error::file_not_found);
+
+          constexpr T b = fn(d);
+          static_assert(b.value().v == 5 * helper::from_lval_const * helper::from_rval);
+
+          constexpr T e = fn(T{std::in_place, helper::list_t(), 7});
+          static_assert(e.value().v == 7 * helper::from_rval * helper::from_rval);
+
+          SUCCEED();
+        }
+
+        SECTION("from value")
+        {
+          using T = expected<int, E>; // value->error: Old=int, New=E
+          constexpr T c{unexpect, helper::list_t(), 12};
+          constexpr T d{std::in_place, 42};
+
+          constexpr auto fn = [](auto &&v) constexpr -> T {
+            T tmp{std::in_place, 13};
+            tmp = std::forward<decltype(v)>(v);
+            return tmp;
+          };
+
+          constexpr T a = fn(c);
+          static_assert(a.error().v == 12 * E::from_lval_const * E::from_rval);
+
+          constexpr T b = fn(d);
+          static_assert(b.value() == 42);
+
+          constexpr T e = fn(T{unexpect, helper::list_t(), 3});
+          static_assert(e.error().v == 3 * helper::from_rval * helper::from_rval);
 
           SUCCEED();
         }
