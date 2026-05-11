@@ -97,6 +97,12 @@ constexpr bool _is_valid_unexpected = //
     && not _is_some_unexpected<T>     //
     && not ::std::is_const_v<T>       //
     && not ::std::is_volatile_v<T>;
+
+// Helper used as noexcept(...) operand where we want to evaluate both:
+// * noexcept of an expression itself (e.g. operator==) AND
+// * noexcept of the expression's implicit conversion to bool
+// May only be used in unevaluated contexts; any ODR-use will trigger a link error.
+constexpr bool _implicit_to_bool(bool) noexcept;
 } // namespace detail
 
 template <class E> class unexpected {
@@ -147,7 +153,7 @@ public:
 
   template <class E2>
   constexpr friend bool operator==(unexpected const &x, unexpected<E2> const &y) //
-      noexcept(noexcept(static_cast<bool>(x.error() == y.error())))              // extension
+      noexcept(noexcept(detail::_implicit_to_bool(x.error() == y.error())))      // extension
   {
     return x.error() == y.error();
   }
@@ -953,7 +959,7 @@ public:
   template <class T2, class E2>
     requires(not ::std::is_void_v<T2>)
   constexpr friend bool operator==(expected const &x, expected<T2, E2> const &y) //
-      noexcept(noexcept(static_cast<bool>(*x == *y)) && noexcept(static_cast<bool>(x.error() == y.error())))           // extension
+      noexcept(noexcept(detail::_implicit_to_bool(*x == *y)) && noexcept(detail::_implicit_to_bool(x.error() == y.error())))           // extension
     requires ( //
 requires {
       { *x == *y } -> std::convertible_to<bool>;
@@ -964,30 +970,36 @@ requires {
   {
     if (x.has_value() != y.has_value()) {
       return false;
-    } else if (x.has_value()) {
-      return *x == *y;
-    } else {
-      return x.error() == y.error();
     }
+    if (x.has_value()) {
+      return *x == *y;
+    }
+    return x.error() == y.error();
   }
   template <class T2>
     requires(not detail::_is_some_expected<T2>)
   constexpr friend bool operator==(expected const &x, const T2 &v) //
-      noexcept(noexcept(static_cast<bool>(*x == v)))               // extension
+      noexcept(noexcept(detail::_implicit_to_bool(*x == v)))       // extension
     requires requires {
       { *x == v } -> std::convertible_to<bool>;
     }
   {
-    return x.has_value() && static_cast<bool>(*x == v);
+    if (!x.has_value()) {
+      return false;
+    }
+    return *x == v;
   }
   template <class E2>
   constexpr friend bool operator==(expected const &x, unexpected<E2> const &e) //
-      noexcept(noexcept(static_cast<bool>(x.error() == e.error())))            // extension
+      noexcept(noexcept(detail::_implicit_to_bool(x.error() == e.error())))    // extension
     requires requires {
       { x.error() == e.error() } -> std::convertible_to<bool>;
     }
   {
-    return (not x.has_value()) && static_cast<bool>(x.error() == e.error());
+    if (x.has_value()) {
+      return false;
+    }
+    return x.error() == e.error();
   }
 
 private:
@@ -1487,27 +1499,30 @@ public:
   template <class T2, class E2>
     requires(::std::is_void_v<T2>)
   constexpr friend bool operator==(expected const &x, expected<T2, E2> const &y) //
-      noexcept(noexcept(static_cast<bool>((x.error() == y.error()))))            // extension
+      noexcept(noexcept(detail::_implicit_to_bool((x.error() == y.error()))))    // extension
     requires requires {
       { x.error() == y.error() } -> std::convertible_to<bool>;
     }
   {
     if (x.has_value() != y.has_value()) {
       return false;
-    } else if (x.has_value()) {
-      return true;
-    } else {
-      return x.error() == y.error();
     }
+    if (x.has_value()) {
+      return true;
+    }
+    return x.error() == y.error();
   }
   template <class E2>
   constexpr friend bool operator==(expected const &x, unexpected<E2> const &e) //
-      noexcept(noexcept(static_cast<bool>(x.error() == e.error())))            // extension
+      noexcept(noexcept(detail::_implicit_to_bool(x.error() == e.error())))    // extension
     requires requires {
       { x.error() == e.error() } -> std::convertible_to<bool>;
     }
   {
-    return (not x.has_value()) && static_cast<bool>(x.error() == e.error());
+    if (x.has_value()) {
+      return false;
+    }
+    return x.error() == e.error();
   }
 
 private:
