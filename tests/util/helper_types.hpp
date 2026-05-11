@@ -10,19 +10,21 @@
 #include <type_traits>
 #include <utility>
 
+// Use prime numbers to record Foo states in witness
+enum helper_witness {
+  from_lval = 53, //
+  from_lval_const = 59,
+  from_rval = 61,
+  from_rval_const = 67,
+  swapped = 97
+};
+
+using helper_list_t = std::initializer_list<double>;
+
 template <int V> struct helper_t {
   static inline int state = 0;
 
   int v = {};
-
-  // Use prime numbers to record Foo states in witness
-  enum {
-    from_lval = 53, //
-    from_lval_const = 59,
-    from_rval = 61,
-    from_rval_const = 67,
-    swapped = 97
-  };
 
   // No default constructor
   helper_t() = delete;
@@ -122,19 +124,17 @@ template <int V> struct helper_t {
     state += v;
   }
 
-  using list_t = std::initializer_list<double>;
-
-  helper_t(list_t list) noexcept(true) : v(init(list)) { state += v; }
+  helper_t(helper_list_t list) noexcept(true) : v(init(list)) { state += v; }
 
   // Potentially throwing constructor
-  constexpr helper_t(list_t list, std::integral auto... a) noexcept(true)
+  constexpr helper_t(helper_list_t list, std::integral auto... a) noexcept(true)
     requires(sizeof...(a) > 0)
       : v(init(list, a...)) //
   {
   }
 
   // ... and the actual exception being thrown
-  static constexpr int init(list_t l, auto &&...a) noexcept
+  static constexpr int init(helper_list_t l, auto &&...a) noexcept
   {
     double ret = (1 * ... * a);
     for (auto d : l) {
@@ -178,8 +178,8 @@ static_assert(not std::is_nothrow_move_assignable_v<helper_t<40>>);
 template <auto V> constexpr void swap(helper_t<V> &l, helper_t<V> &r)
 {
   std::swap(l.v, r.v);
-  l.v *= l.swapped;
-  r.v *= r.swapped;
+  l.v *= swapped;
+  r.v *= swapped;
 }
 
 using helper = helper_t<0>;
