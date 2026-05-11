@@ -3242,6 +3242,20 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         SUCCEED();
       };
 
+      SECTION("error state")
+      {
+        using T = expected<helper, int>;
+        T const t1{unexpect, 12};
+        helper const u1{12.0};
+        CHECK(not(t1 == u1));
+        CHECK((t1 != u1));
+
+        constexpr T t2{unexpect, 12};
+        constexpr helper u2{helper_list_t(), 3, 2, 2};
+        static_assert(not(t2 == u2));
+        static_assert(t2 != u2);
+      }
+
       SUCCEED();
     }
 
@@ -3274,6 +3288,21 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         static_assert(t1 != U{Error::file_not_found});
 
         SUCCEED();
+      }
+
+      SECTION("value state")
+      {
+        using T = expected<int, helper>;
+        using U = unexpected<helper>;
+        T const t1{std::in_place, 12};
+        U const u1{std::in_place, {12.0}};
+        CHECK(not(t1 == u1));
+        CHECK((t1 != u1));
+
+        constexpr T t2{std::in_place, 12};
+        constexpr U u2{std::in_place, helper_list_t(), 3, 2, 2};
+        static_assert(not(t2 == u2));
+        static_assert(t2 != u2);
       }
     }
   }
@@ -4990,6 +5019,21 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         static_assert(t1 != U{Error::file_not_found});
 
         SUCCEED();
+      }
+
+      SECTION("value state")
+      {
+        using T = expected<void, helper>;
+        using U = unexpected<helper>;
+        T const t1{std::in_place};
+        U const u1{std::in_place, {12.0}};
+        CHECK(not(t1 == u1));
+        CHECK((t1 != u1));
+
+        constexpr T t2{std::in_place};
+        constexpr U u2{std::in_place, helper_list_t(), 3, 2, 2};
+        static_assert(not(t2 == u2));
+        static_assert(t2 != u2);
       }
     }
   }
