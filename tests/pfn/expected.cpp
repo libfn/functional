@@ -787,6 +787,81 @@ TEST_CASE("expected non void", "[expected][polyfill]")
     }
   }
 
+  SECTION("from other expected")
+  {
+    SECTION("rval")
+    {
+      SECTION("value")
+      {
+        using T = expected<helper, Error>;
+        static_assert(std::is_constructible_v<T, expected<int, Error>>);
+        static_assert(std::is_constructible_v<T, expected<helper_list_t, Error>>);
+        static_assert(not std::is_nothrow_constructible_v<T, expected<int, Error>>);
+        static_assert(not extension || std::is_nothrow_constructible_v<T, expected<helper_list_t, Error>>);
+        static_assert(std::is_convertible_v<expected<int, Error>, T>);
+
+        constexpr expected<int, int> a{expected<bool, bool>{true}};
+        static_assert(a.value() == 1);
+
+        T b(expected<int, Error>(5));
+        CHECK(b.value().v == 5);
+      }
+
+      SECTION("error")
+      {
+        using T = expected<int, helper>;
+        static_assert(std::is_constructible_v<T, expected<double, helper>>);
+        static_assert(std::is_constructible_v<T, expected<double, int>>);
+        static_assert(not std::is_nothrow_constructible_v<T, expected<double, int>>);
+        static_assert(not extension || std::is_nothrow_constructible_v<T, expected<double, helper_list_t>>);
+        static_assert(std::is_convertible_v<expected<double, helper>, T>);
+
+        constexpr expected<int, int> a{expected<bool, bool>{unexpect, true}};
+        static_assert(a.error() == 1);
+
+        T b(expected<double, helper>(unexpect, 7));
+        CHECK(b.error().v == 7 * from_rval);
+      }
+    }
+
+    SECTION("lval const")
+    {
+      SECTION("value")
+      {
+        using T = expected<helper, Error>;
+        static_assert(std::is_constructible_v<T, expected<int, Error> const &>);
+        static_assert(not std::is_nothrow_constructible_v<T, expected<int, Error> const &>);
+        static_assert(not extension || std::is_nothrow_constructible_v<T, expected<helper_list_t, Error> const &>);
+        static_assert(std::is_convertible_v<expected<int, Error> const &, T>);
+
+        constexpr expected<bool, bool> v{true};
+        constexpr expected<int, int> a{v};
+        static_assert(a.value() == 1);
+
+        expected<int, Error> const w(11);
+        T b(w);
+        CHECK(b.value().v == 11);
+      }
+
+      SECTION("error")
+      {
+        using T = expected<int, helper>;
+        static_assert(std::is_constructible_v<T, expected<double, helper> const &>);
+        static_assert(not std::is_nothrow_constructible_v<T, expected<double, int> const &>);
+        static_assert(not extension || std::is_nothrow_constructible_v<T, expected<double, helper_list_t> const &>);
+        static_assert(std::is_convertible_v<expected<double, helper> const &, T>);
+
+        constexpr expected<bool, bool> e{unexpect, true};
+        constexpr expected<int, int> a{e};
+        static_assert(a.error() == 1);
+
+        expected<double, helper> const f(unexpect, 13);
+        T b(f);
+        CHECK(b.error().v == 13 * from_lval_const);
+      }
+    }
+  }
+
   SECTION("copy, move and dtor")
   {
     struct U {
@@ -2599,16 +2674,41 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         CHECK((b = std::move(a).value()).v == 13 * from_rval);
       }
 
+      SECTION("operators")
       {
-        T a = {17};
-        helper b{1};
-        CHECK(a);
-        CHECK((b = *a).v == 17 * from_lval);
-        CHECK((b = *std::as_const(a)).v == 17 * from_lval_const);
-        CHECK((b = *std::move(std::as_const(a))).v == 17 * from_rval_const);
-        CHECK((b = *std::move(a)).v == 17 * from_rval);
+        static_assert(std::is_same_v<decltype(std::declval<T &>().operator->()), helper *>);
+        static_assert(std::is_same_v<decltype(std::declval<T const &>().operator->()), helper const *>);
+        static_assert(noexcept(std::declval<T &>().operator->()));
+        static_assert(noexcept(std::declval<T const &>().operator->()));
+        static_assert(std::is_same_v<decltype(*std::declval<T &>()), helper &>);
+        static_assert(std::is_same_v<decltype(*std::declval<T const &>()), helper const &>);
+        static_assert(std::is_same_v<decltype(*std::declval<T &&>()), helper &&>);
+        static_assert(std::is_same_v<decltype(*std::declval<T const &&>()), helper const &&>);
+        static_assert(noexcept(*std::declval<T &>()));
+        static_assert(noexcept(*std::declval<T const &>()));
+        static_assert(noexcept(*std::declval<T &&>()));
+        static_assert(noexcept(*std::declval<T const &&>()));
+
+        {
+          T a = {17};
+          helper b{1};
+          CHECK(a);
+          CHECK((b = *a).v == 17 * from_lval);
+          CHECK((b = *std::as_const(a)).v == 17 * from_lval_const);
+          CHECK((b = *std::move(std::as_const(a))).v == 17 * from_rval_const);
+          CHECK((b = *std::move(a)).v == 17 * from_rval);
+        }
+
+        {
+          T a = {19};
+          CHECK(a->v == 19);
+          CHECK(std::as_const(a)->v == 19);
+          a->v = 23;
+          CHECK(a->v == 23);
+        }
       }
 
+      SECTION("throwing")
       {
         T a{unexpect, Error::file_not_found};
         CHECK(!a);
@@ -3435,6 +3535,81 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 #ifndef PFN_TEST_VALIDATION
       CHECK(not b.has_error());
 #endif
+    }
+  }
+
+  SECTION("from other expected")
+  {
+    SECTION("rval")
+    {
+      SECTION("value")
+      {
+        using T = expected<void, helper>;
+        static_assert(std::is_constructible_v<T, expected<void, int>>);
+        static_assert(not std::is_nothrow_constructible_v<T, expected<void, int>>);
+        static_assert(not extension || std::is_nothrow_constructible_v<T, expected<void, helper_list_t>>);
+        static_assert(std::is_convertible_v<expected<void, int>, T>);
+        static_assert(not std::is_constructible_v<T, expected<int, int>>);
+
+        constexpr expected<void, int> a{expected<void, bool>{}};
+        static_assert(a.has_value());
+
+        T b{expected<void, int>{}};
+        CHECK(b.has_value());
+      }
+
+      SECTION("error")
+      {
+        using T = expected<void, helper>;
+        static_assert(std::is_constructible_v<T, expected<void, int>>);
+        static_assert(not std::is_nothrow_constructible_v<T, expected<void, int>>);
+        static_assert(not extension || std::is_nothrow_constructible_v<T, expected<void, helper_list_t>>);
+        static_assert(std::is_convertible_v<expected<void, int>, T>);
+
+        constexpr expected<void, int> a{expected<void, bool>{unexpect, true}};
+        static_assert(a.error() == 1);
+
+        T b{expected<void, int>{unexpect, 5}};
+        CHECK(b.error().v == 5);
+      }
+    }
+
+    SECTION("lval const")
+    {
+      SECTION("value")
+      {
+        using T = expected<void, helper>;
+        static_assert(std::is_constructible_v<T, expected<void, int> const &>);
+        static_assert(not std::is_nothrow_constructible_v<T, expected<void, int> const &>);
+        static_assert(not extension || std::is_nothrow_constructible_v<T, expected<void, helper_list_t> const &>);
+        static_assert(std::is_convertible_v<expected<void, int> const &, T>);
+        static_assert(not std::is_constructible_v<T, expected<int, int> const &>);
+
+        constexpr expected<void, bool> v;
+        constexpr expected<void, int> a{v};
+        static_assert(a.has_value());
+
+        expected<void, int> const w;
+        T b{w};
+        CHECK(b.has_value());
+      }
+
+      SECTION("error")
+      {
+        using T = expected<void, helper>;
+        static_assert(std::is_constructible_v<T, expected<void, int> const &>);
+        static_assert(not std::is_nothrow_constructible_v<T, expected<void, int> const &>);
+        static_assert(not extension || std::is_nothrow_constructible_v<T, expected<void, helper_list_t> const &>);
+        static_assert(std::is_convertible_v<expected<void, int> const &, T>);
+
+        constexpr expected<void, bool> e{unexpect, true};
+        constexpr expected<void, int> a{e};
+        static_assert(a.error() == 1);
+
+        expected<void, int> const f{unexpect, 11};
+        T b{f};
+        CHECK(b.error().v == 11);
+      }
     }
   }
 
@@ -4533,8 +4708,25 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
       T a;
       static_assert(std::is_same_v<decltype(a.value()), void>);
-      SUCCEED();
 
+      SECTION("operators")
+      {
+        static_assert(std::is_same_v<decltype(*a), void>);
+        static_assert(std::is_same_v<decltype(*std::as_const(a)), void>);
+        static_assert(std::is_same_v<decltype(*std::move(a)), void>);
+        static_assert(std::is_same_v<decltype(*std::move(std::as_const(a))), void>);
+        static_assert(noexcept(*a));
+        static_assert(noexcept(*std::as_const(a)));
+        static_assert(noexcept(*std::move(a)));
+        static_assert(noexcept(*std::move(std::as_const(a))));
+        *a;
+        *std::as_const(a);
+        *std::move(a);
+        *std::move(std::as_const(a));
+        SUCCEED();
+      }
+
+      SECTION("throwing")
       {
         T a{unexpect, Error::file_not_found};
         CHECK(!a);

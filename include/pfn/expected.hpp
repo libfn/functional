@@ -1015,7 +1015,7 @@ template <class T, class E>
 class expected<T, E> {
   static_assert(detail::_is_valid_unexpected<E>);
 
-  template <class U, class G, class UF, class GF>
+  template <class U, class G, class GF>
   using _can_convert_detail = ::std::bool_constant<                           //
       ::std::is_void_v<U> && ::std::is_constructible_v<E, GF>                 //
       && not ::std::is_constructible_v<unexpected<E>, expected<U, G> &>       //
@@ -1023,8 +1023,8 @@ class expected<T, E> {
       && not ::std::is_constructible_v<unexpected<E>, expected<U, G> const &> //
       && not ::std::is_constructible_v<unexpected<E>, expected<U, G> const>>;
 
-  template <class U, class G> using _can_copy_convert = _can_convert_detail<U, G, U const &, G const &>;
-  template <class U, class G> using _can_move_convert = _can_convert_detail<U, G, U, G>;
+  template <class U, class G> using _can_copy_convert = _can_convert_detail<U, G, G const &>;
+  template <class U, class G> using _can_move_convert = _can_convert_detail<U, G, G>;
   template <class U, class G> friend class expected;
 
   template <typename Self, typename Fn>
