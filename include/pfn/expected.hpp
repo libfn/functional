@@ -8,6 +8,7 @@
 
 #include <cassert>
 #include <concepts>
+#include <cstring>
 #include <exception>
 #include <functional>
 #include <initializer_list>
@@ -36,6 +37,13 @@
 #else
 #define ASSERT(...) assert((__VA_ARGS__) == true)
 #endif
+
+// This header is a polyfill for std::expected, tracking the C++ working draft
+// and changes planned for the future standard revisions. As a deliberate extension,
+// member functions whose `noexcept` specification is left unspecified by the
+// standard are given a `noexcept` clause derived from the properties of the
+// underlying types T, E and (where applicable) invocable arguments. Each such
+// clause is marked inline with a "// extension" trailing comment.
 
 namespace pfn {
 
@@ -89,6 +97,12 @@ constexpr bool _is_valid_unexpected = //
     && not _is_some_unexpected<T>     //
     && not ::std::is_const_v<T>       //
     && not ::std::is_volatile_v<T>;
+
+// Helper used as noexcept(...) operand where we want to evaluate both:
+// * noexcept of an expression itself (e.g. operator==) AND
+// * noexcept of the expression's implicit conversion to bool
+// May only be used in unevaluated contexts; any ODR-use will trigger a link error.
+constexpr bool _implicit_to_bool(bool) noexcept;
 } // namespace detail
 
 template <class E> class unexpected {
@@ -137,9 +151,11 @@ public:
     swap(e_, other.e_);
   }
 
-  template <class E2> constexpr friend bool operator==(unexpected const &x, unexpected<E2> const &y)
+  template <class E2>
+  constexpr friend bool operator==(unexpected const &x, unexpected<E2> const &y) //
+      noexcept(noexcept(detail::_implicit_to_bool(x.error() == y.error())))      // extension
   {
-    return x.e_ == y.e_;
+    return x.error() == y.error();
   }
 
   constexpr friend void swap(unexpected &x, unexpected &y) noexcept(noexcept(x.swap(y)))
@@ -216,7 +232,7 @@ template <class T, class E> class expected {
       not ::std::is_same_v<expected, ::std::remove_cvref_t<U>>     //
       && not detail::_is_some_unexpected<::std::remove_cvref_t<U>> //
       && ::std::is_constructible_v<T, U>                           //
-      && ::std::is_assignable_v<T, U>                              //
+      && ::std::is_assignable_v<T &, U>                            //
       && (::std::is_nothrow_constructible_v<T, U>                  //
           || ::std::is_nothrow_move_constructible_v<T>             //
           || ::std::is_nothrow_move_constructible_v<E>)>;
@@ -233,6 +249,39 @@ template <class T, class E> class expected {
       New tmp(::std::forward<Args>(args)...);
       ::std::destroy_at(::std::addressof(oldval));
       ::std::construct_at(::std::addressof(newval), std::move(tmp));
+    } else if constexpr (::std::is_trivially_copyable_v<Old>) {
+      // Workaround for https://github.com/llvm/llvm-project/issues/196520:
+      // clang on aarch64 sinks the snapshot load past the store-through-newval
+      // when Old's TBAA tag differs from New's, corrupting the strong-EG
+      // restoration on catch. A byte-buffer snapshot via std::memcpy is opaque
+      // to TBAA, and preserving *oldval in place across the try (no destroy_at)
+      // makes the catch a plain byte restore -- which for trivially-copyable
+      // (and therefore trivially-destructible) Old is observationally identical
+      // to the destroy-and-recreate branch below.
+      // (Old is also trivially-destructible -- implied by is_trivially_copyable_v
+      //  per [class.prop]/1 -- so skipping destroy_at is observationally identical
+      //  to the destroy-and-recreate branch below.)
+      if (not ::std::is_constant_evaluated()) {
+        alignas(Old) unsigned char _bytes[sizeof(Old)];
+        ::std::memcpy(_bytes, ::std::addressof(oldval), sizeof(Old));
+        try {
+          ::std::construct_at(::std::addressof(newval), ::std::forward<Args>(args)...);
+        } catch (...) {
+          ::std::memcpy(::std::addressof(oldval), _bytes, sizeof(Old));
+          throw;
+        }
+      } else {
+        // LCOV_EXCL_START constant-evaluated only; runtime branches are above and below
+        Old tmp(std::move(oldval));
+        ::std::destroy_at(::std::addressof(oldval));
+        try {
+          ::std::construct_at(::std::addressof(newval), ::std::forward<Args>(args)...);
+        } catch (...) {
+          ::std::construct_at(::std::addressof(oldval), std::move(tmp));
+          throw;
+        }
+        // LCOV_EXCL_STOP
+      }
     } else {
       Old tmp(std::move(oldval));
       ::std::destroy_at(::std::addressof(oldval));
@@ -575,9 +624,8 @@ public:
   }
 
   template <class U = T>
-  constexpr expected &operator=(U &&s) //
-      noexcept(::std::is_nothrow_assignable_v<T, U> && ::std::is_nothrow_constructible_v<T, U>
-               && (::std::is_nothrow_move_constructible_v<T> || ::std::is_nothrow_move_constructible_v<E>)) // extension
+  constexpr expected &operator=(U &&s)                                                            //
+      noexcept(::std::is_nothrow_assignable_v<T &, U> && ::std::is_nothrow_constructible_v<T, U>) // extension
     requires(_can_convert_assign<U>::value)
   {
     if (set_) {
@@ -591,8 +639,8 @@ public:
 
   template <class G>
   constexpr expected &operator=(unexpected<G> const &s) //
-      noexcept(::std::is_nothrow_assignable_v<E, G const &> && ::std::is_nothrow_constructible_v<E, G const &>
-               && (::std::is_nothrow_move_constructible_v<E> || ::std::is_nothrow_move_constructible_v<T>)) // extension
+      noexcept(::std::is_nothrow_assignable_v<E &, G const &>
+               && ::std::is_nothrow_constructible_v<E, G const &>) // extension
     requires(::std::is_constructible_v<E, G const &> && ::std::is_assignable_v<E &, G const &>
              && (::std::is_nothrow_constructible_v<E, G const &> || ::std::is_nothrow_move_constructible_v<T>
                  || ::std::is_nothrow_move_constructible_v<E>))
@@ -607,9 +655,8 @@ public:
   }
 
   template <class G>
-  constexpr expected &operator=(unexpected<G> &&s) //
-      noexcept(::std::is_nothrow_assignable_v<E, G> && ::std::is_nothrow_constructible_v<E, G>
-               && (::std::is_nothrow_move_constructible_v<E> || ::std::is_nothrow_move_constructible_v<T>)) // extension
+  constexpr expected &operator=(unexpected<G> &&s)                                                //
+      noexcept(::std::is_nothrow_assignable_v<E &, G> && ::std::is_nothrow_constructible_v<E, G>) // extension
     requires(::std::is_constructible_v<E, G> && ::std::is_assignable_v<E &, G>
              && (::std::is_nothrow_constructible_v<E, G> || ::std::is_nothrow_move_constructible_v<T>
                  || ::std::is_nothrow_move_constructible_v<E>))
@@ -699,7 +746,7 @@ public:
   constexpr T &&operator*() && noexcept { return ::std::move(*(this->operator->())); }
   constexpr explicit operator bool() const noexcept { return set_; }
   constexpr bool has_value() const noexcept { return set_; }
-  constexpr bool has_error() const noexcept { return !set_; }
+  constexpr bool has_error() const noexcept { return !set_; } // P3798
   constexpr T const &value() const &
   {
     static_assert(::std::is_copy_constructible_v<E>);
@@ -912,7 +959,7 @@ public:
   template <class T2, class E2>
     requires(not ::std::is_void_v<T2>)
   constexpr friend bool operator==(expected const &x, expected<T2, E2> const &y) //
-      noexcept(noexcept(static_cast<bool>(*x == *y)) && noexcept(static_cast<bool>(x.error() == y.error())))           // extension
+      noexcept(noexcept(detail::_implicit_to_bool(*x == *y)) && noexcept(detail::_implicit_to_bool(x.error() == y.error())))           // extension
     requires ( //
 requires {
       { *x == *y } -> std::convertible_to<bool>;
@@ -923,30 +970,36 @@ requires {
   {
     if (x.has_value() != y.has_value()) {
       return false;
-    } else if (x.has_value()) {
-      return *x == *y;
-    } else {
-      return x.error() == y.error();
     }
+    if (x.has_value()) {
+      return *x == *y;
+    }
+    return x.error() == y.error();
   }
   template <class T2>
     requires(not detail::_is_some_expected<T2>)
   constexpr friend bool operator==(expected const &x, const T2 &v) //
-      noexcept(noexcept(static_cast<bool>(*x == v)))               // extension
+      noexcept(noexcept(detail::_implicit_to_bool(*x == v)))       // extension
     requires requires {
       { *x == v } -> std::convertible_to<bool>;
     }
   {
-    return x.has_value() && static_cast<bool>(*x == v);
+    if (!x.has_value()) {
+      return false;
+    }
+    return *x == v;
   }
   template <class E2>
   constexpr friend bool operator==(expected const &x, unexpected<E2> const &e) //
-      noexcept(noexcept(static_cast<bool>(x.error() == e.error())))            // extension
+      noexcept(noexcept(detail::_implicit_to_bool(x.error() == e.error())))    // extension
     requires requires {
       { x.error() == e.error() } -> std::convertible_to<bool>;
     }
   {
-    return (not x.has_value()) && static_cast<bool>(x.error() == e.error());
+    if (x.has_value()) {
+      return false;
+    }
+    return x.error() == e.error();
   }
 
 private:
@@ -973,16 +1026,6 @@ class expected<T, E> {
   template <class U, class G> using _can_copy_convert = _can_convert_detail<U, G, U const &, G const &>;
   template <class U, class G> using _can_move_convert = _can_convert_detail<U, G, U, G>;
   template <class U, class G> friend class expected;
-
-  template <class U>
-  using _can_convert = ::std::bool_constant<                            //
-      not ::std::is_same_v<::std::remove_cvref_t<U>, ::std::in_place_t> //
-      && not ::std::is_same_v<::std::remove_cvref_t<U>, unexpect_t>     // LWG4222
-      && not ::std::is_same_v<expected, ::std::remove_cvref_t<U>>       //
-      && not detail::_is_some_unexpected<::std::remove_cvref_t<U>>      //
-      && ::std::is_constructible_v<T, U>                                //
-      && (not ::std::is_same_v<bool, ::std::remove_cv_t<T>>             //
-          || not detail::_is_some_expected<::std::remove_cvref_t<U>>)>;
 
   template <typename Self, typename Fn>
   static constexpr auto _and_then(Self &&self, Fn &&fn) //
@@ -1203,7 +1246,7 @@ public:
 
   template <class G>
   constexpr expected &operator=(unexpected<G> const &s) //
-      noexcept(::std::is_nothrow_assignable_v<E, G const &>
+      noexcept(::std::is_nothrow_assignable_v<E &, G const &>
                && ::std::is_nothrow_constructible_v<E, G const &>) // extension
     requires(::std::is_constructible_v<E, G const &> && ::std::is_assignable_v<E &, G const &>)
   {
@@ -1218,8 +1261,8 @@ public:
   }
 
   template <class G>
-  constexpr expected &operator=(unexpected<G> &&s)                                              //
-      noexcept(::std::is_nothrow_assignable_v<E, G> && ::std::is_nothrow_constructible_v<E, G>) // extension
+  constexpr expected &operator=(unexpected<G> &&s)                                                //
+      noexcept(::std::is_nothrow_assignable_v<E &, G> && ::std::is_nothrow_constructible_v<E, G>) // extension
     requires(::std::is_constructible_v<E, G> && ::std::is_assignable_v<E &, G>)
   {
     if (set_) {
@@ -1276,7 +1319,7 @@ public:
   // [expected.void.obs], observers
   constexpr explicit operator bool() const noexcept { return set_; }
   constexpr bool has_value() const noexcept { return set_; }
-  constexpr bool has_error() const noexcept { return !set_; }
+  constexpr bool has_error() const noexcept { return !set_; } // P3798
   constexpr void operator*() const noexcept { ASSERT(set_); }
   constexpr void value() const &
   {
@@ -1456,27 +1499,30 @@ public:
   template <class T2, class E2>
     requires(::std::is_void_v<T2>)
   constexpr friend bool operator==(expected const &x, expected<T2, E2> const &y) //
-      noexcept(noexcept(static_cast<bool>((x.error() == y.error()))))            // extension
+      noexcept(noexcept(detail::_implicit_to_bool((x.error() == y.error()))))    // extension
     requires requires {
       { x.error() == y.error() } -> std::convertible_to<bool>;
     }
   {
     if (x.has_value() != y.has_value()) {
       return false;
-    } else if (x.has_value()) {
-      return true;
-    } else {
-      return x.error() == y.error();
     }
+    if (x.has_value()) {
+      return true;
+    }
+    return x.error() == y.error();
   }
   template <class E2>
   constexpr friend bool operator==(expected const &x, unexpected<E2> const &e) //
-      noexcept(noexcept(static_cast<bool>(x.error() == e.error())))            // extension
+      noexcept(noexcept(detail::_implicit_to_bool(x.error() == e.error())))    // extension
     requires requires {
       { x.error() == e.error() } -> std::convertible_to<bool>;
     }
   {
-    return (not x.has_value()) && static_cast<bool>(x.error() == e.error());
+    if (x.has_value()) {
+      return false;
+    }
+    return x.error() == e.error();
   }
 
 private:

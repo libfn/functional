@@ -1,6 +1,7 @@
 .idea/
 .idea_modules/
 .build*/
+.scratch*/
 dist*/
 result*
 .cache/
