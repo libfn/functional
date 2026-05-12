@@ -519,8 +519,8 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
 
   // transform not void, not sum
   template <typename Fn>
-          constexpr auto transform(Fn &&fn) & requires(not std::is_same_v<value_type, void>)
-      && (not some_sum<value_type>)
+  constexpr auto transform(Fn &&fn) &
+    requires(not std::is_same_v<value_type, void>) && (not some_sum<value_type>)
   {
     using new_value_type = detail::_invoke_result<Fn, value_type &>::type;
     using type = expected<new_value_type, error_type>;
@@ -551,7 +551,8 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
   }
 
   template <typename Fn>
-      constexpr auto transform(Fn &&fn) && requires(not std::is_same_v<value_type, void>) && (not some_sum<value_type>)
+  constexpr auto transform(Fn &&fn) &&
+    requires(not std::is_same_v<value_type, void>) && (not some_sum<value_type>)
   {
     using new_value_type = detail::_invoke_result<Fn, value_type &&>::type;
     using type = expected<new_value_type, error_type>;

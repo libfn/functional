@@ -34,10 +34,9 @@ template <typename T, typename Ret, typename... Args>
 }
 
 template <typename T, typename Fn, typename... Args>
-constexpr auto
-_is_type_invocable_result(Fn &&, Args &&...,
-                          std::type_identity<decltype(_invoke_type<T>(std::declval<Fn>(), std::declval<Args>()...))>
-                          = {}) -> std::true_type;
+constexpr auto _is_type_invocable_result(
+    Fn &&, Args &&..., std::type_identity<decltype(_invoke_type<T>(std::declval<Fn>(), std::declval<Args>()...))> = {})
+    -> std::true_type;
 template <typename T, typename Fn, typename... Args>
 constexpr auto _is_type_invocable_result(auto &&...) -> std::false_type;
 
@@ -74,8 +73,8 @@ concept _typelist_type_invocable = _is_tst_invocable<Fn, T &&>;
 template <typename T, typename Ret, typename Fn, typename... Args>
 constexpr auto _is_type_invocable_r_result(
     Fn &&, Args &&...,
-    std::type_identity<decltype(_invoke_type_r<T, Ret>(std::declval<Fn>(), std::declval<Args>()...))>
-    = {}) -> std::true_type;
+    std::type_identity<decltype(_invoke_type_r<T, Ret>(std::declval<Fn>(), std::declval<Args>()...))> = {})
+    -> std::true_type;
 template <typename T, typename Ret, typename Fn, typename... Args>
 constexpr auto _is_type_invocable_r_result(auto &&...) -> std::false_type;
 template <typename T, typename Ret, typename Fn, typename... Args> struct _is_type_invocable_r {

@@ -90,8 +90,8 @@ struct fail_t::apply final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] static constexpr auto operator()(some_optional auto &&v,
-                                                 auto &&fn) noexcept -> same_monadic_type_as<decltype(v)> auto
+  [[nodiscard]] static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept
+      -> same_monadic_type_as<decltype(v)> auto
     requires invocable_fail<decltype(fn), decltype(v)>
   {
     using type = std::remove_cvref_t<decltype(v)>;
