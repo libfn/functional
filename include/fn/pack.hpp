@@ -343,7 +343,7 @@ constexpr inline struct identity_t {
    * @param arg TODO
    * @return TODO
    */
-  template <typename Arg> [[nodiscard]] constexpr static auto operator()(Arg &&arg) -> decltype(arg)
+  template <typename Arg> [[nodiscard]] static constexpr auto operator()(Arg &&arg) -> decltype(arg)
   {
     return FWD(arg);
   }
@@ -359,7 +359,7 @@ constexpr inline struct identity_t {
    */
   template <typename Arg, typename... Args>
     requires(not some_sum<Arg>) && (not some_pack<Arg>)
-  [[nodiscard]] constexpr static auto operator()(Arg &&arg, Args &&...args)
+  [[nodiscard]] static constexpr auto operator()(Arg &&arg, Args &&...args)
   {
     return (::fn::pack{FWD(arg)} & ... & FWD(args));
   }
@@ -375,7 +375,7 @@ constexpr inline struct identity_t {
    */
   template <typename Arg, typename... Args>
     requires some_sum<Arg> || some_pack<Arg>
-  [[nodiscard]] constexpr static auto operator()(Arg &&arg, Args &&...args)
+  [[nodiscard]] static constexpr auto operator()(Arg &&arg, Args &&...args)
   {
     return (FWD(arg) & ... & FWD(args));
   }
