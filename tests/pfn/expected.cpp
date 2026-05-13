@@ -117,18 +117,18 @@ TEST_CASE("bad_expected_access", "[expected][polyfill][bad_expected_access]")
         CHECK(c.error().v == 13 * from_lval_const);
       }
 
-      SECTION("rval")
-      {
-        b.error().v = 17;
-        T c = std::move(b);
-        CHECK(c.error().v == 17 * from_rval);
-      }
-
       SECTION("rval cont")
       {
         b.error().v = 19;
         T c = std::move(std::as_const(b));
         CHECK(c.error().v == 19 * from_lval_const);
+      }
+
+      SECTION("rval")
+      {
+        b.error().v = 17;
+        T c = std::move(b);
+        CHECK(c.error().v == 17 * from_rval);
       }
     }
 
@@ -151,18 +151,18 @@ TEST_CASE("bad_expected_access", "[expected][polyfill][bad_expected_access]")
         CHECK(a.error().v == 13 * from_lval_const);
       }
 
-      SECTION("rval")
-      {
-        b.error().v = 17;
-        a = std::move(b);
-        CHECK(a.error().v == 17 * from_rval);
-      }
-
       SECTION("rval const")
       {
         b.error().v = 19;
         a = std::move(std::as_const(b));
         CHECK(a.error().v == 19 * from_lval_const);
+      }
+
+      SECTION("rval")
+      {
+        b.error().v = 17;
+        a = std::move(b);
+        CHECK(a.error().v == 17 * from_rval);
       }
     }
 
@@ -185,18 +185,18 @@ TEST_CASE("bad_expected_access", "[expected][polyfill][bad_expected_access]")
         CHECK(c.v == 13 * from_lval_const);
       }
 
-      SECTION("rval")
-      {
-        b.error().v = 17;
-        c = std::move(b).error();
-        CHECK(c.v == 17 * from_rval);
-      }
-
       SECTION("rval const")
       {
         b.error().v = 19;
         c = std::move(std::as_const(b)).error();
         CHECK(c.v == 19 * from_rval_const);
+      }
+
+      SECTION("rval")
+      {
+        b.error().v = 17;
+        c = std::move(b).error();
+        CHECK(c.v == 17 * from_rval);
       }
     }
 
@@ -526,6 +526,16 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 #else
   constexpr bool extension = false;
 #endif
+
+  SECTION("type aliases")
+  {
+    using T = expected<int, helper>;
+    static_assert(std::is_same_v<T::value_type, int>);
+    static_assert(std::is_same_v<T::error_type, helper>);
+    static_assert(std::is_same_v<T::unexpected_type, unexpected<helper>>);
+    static_assert(std::is_same_v<T::rebind<bool>, expected<bool, helper>>);
+    SUCCEED();
+  }
 
   SECTION("constructors")
   {
@@ -2678,8 +2688,12 @@ TEST_CASE("expected non void", "[expected][polyfill]")
       {
         static_assert(std::is_same_v<decltype(std::declval<T &>().operator->()), helper *>);
         static_assert(std::is_same_v<decltype(std::declval<T const &>().operator->()), helper const *>);
+        static_assert(std::is_same_v<decltype(std::declval<T &&>().operator->()), helper *>);
+        static_assert(std::is_same_v<decltype(std::declval<T const &&>().operator->()), helper const *>);
         static_assert(noexcept(std::declval<T &>().operator->()));
         static_assert(noexcept(std::declval<T const &>().operator->()));
+        static_assert(noexcept(std::declval<T &&>().operator->()));
+        static_assert(noexcept(std::declval<T const &&>().operator->()));
         static_assert(std::is_same_v<decltype(*std::declval<T &>()), helper &>);
         static_assert(std::is_same_v<decltype(*std::declval<T const &>()), helper const &>);
         static_assert(std::is_same_v<decltype(*std::declval<T &&>()), helper &&>);
@@ -2690,6 +2704,20 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         static_assert(noexcept(*std::declval<T const &&>()));
 
         {
+          static_assert([] {
+            T a{std::in_place, helper_list_t{}, 1};
+            a->v = 13;
+            return (                                    //
+                a->v == 13                              //
+                && std::as_const(a)->v == 13            //
+                && std::move(a)->v == 13                //
+                && std::move(std::as_const(a))->v == 13 //
+                && (*a).v == 13                         //
+                && (*std::as_const(a)).v == 13          //
+                && (*std::move(a)).v == 13              //
+                && (*std::move(std::as_const(a))).v == 13);
+          }());
+
           T a = {17};
           helper b{1};
           CHECK(a);
@@ -2697,14 +2725,6 @@ TEST_CASE("expected non void", "[expected][polyfill]")
           CHECK((b = *std::as_const(a)).v == 17 * from_lval_const);
           CHECK((b = *std::move(std::as_const(a))).v == 17 * from_rval_const);
           CHECK((b = *std::move(a)).v == 17 * from_rval);
-        }
-
-        {
-          T a = {19};
-          CHECK(a->v == 19);
-          CHECK(std::as_const(a)->v == 19);
-          a->v = 23;
-          CHECK(a->v == 23);
         }
       }
 
@@ -2746,6 +2766,14 @@ TEST_CASE("expected non void", "[expected][polyfill]")
     SECTION("error")
     {
       using T = expected<int, helper>;
+      static_assert(std::is_same_v<decltype(std::declval<T &>().error()), helper &>);
+      static_assert(std::is_same_v<decltype(std::declval<T const &>().error()), helper const &>);
+      static_assert(std::is_same_v<decltype(std::declval<T &&>().error()), helper &&>);
+      static_assert(std::is_same_v<decltype(std::declval<T const &&>().error()), helper const &&>);
+      static_assert(noexcept(std::declval<T &>().error()));
+      static_assert(noexcept(std::declval<T const &>().error()));
+      static_assert(noexcept(std::declval<T &&>().error()));
+      static_assert(noexcept(std::declval<T const &&>().error()));
 
       T a{unexpect, 17};
       CHECK(a.error().v == 17);
@@ -2961,6 +2989,21 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         }
       }
     }
+
+    SECTION("predicates")
+    {
+      using T = expected<int, helper>;
+      static_assert(std::is_same_v<decltype(std::declval<T const &>().operator bool()), bool>);
+      static_assert(std::is_same_v<decltype(std::declval<T const &>().has_value()), bool>);
+      static_assert(noexcept(std::declval<T const &>().operator bool()));
+      static_assert(noexcept(std::declval<T const &>().has_value()));
+#ifndef PFN_TEST_VALIDATION
+      static_assert(std::is_same_v<decltype(std::declval<T const &>().has_error()), bool>);
+      static_assert(noexcept(std::declval<T const &>().has_error()));
+#endif
+
+      SUCCEED();
+    }
   }
 
   SECTION("monadic functions")
@@ -3018,6 +3061,30 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         {
           static_assert(T{std::in_place, {3.0}, 5}.and_then(fn) == 3 * 3 * 5 * from_rval);
           static_assert(T{unexpect, Error::file_not_found}.and_then(fn).error() == Error::file_not_found);
+
+          SUCCEED();
+        }
+
+        SECTION("lval")
+        {
+          static_assert([&fn] {
+            T a{std::in_place, {3.0}, 5};
+            T b{unexpect, Error::file_not_found};
+            return a.and_then(fn).value() == 3 * 3 * 5 * from_lval //
+                   && b.and_then(fn).error() == Error::file_not_found;
+          }());
+
+          SUCCEED();
+        }
+
+        SECTION("rval const")
+        {
+          static_assert([&fn] {
+            T a{std::in_place, {3.0}, 5};
+            T b{unexpect, Error::file_not_found};
+            return std::move(std::as_const(a)).and_then(fn).value() == 3 * 3 * 5 * from_rval_const //
+                   && std::move(std::as_const(b)).and_then(fn).error() == Error::file_not_found;
+          }());
 
           SUCCEED();
         }
@@ -3090,6 +3157,30 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
           SUCCEED();
         }
+
+        SECTION("lval")
+        {
+          static_assert([&fn] {
+            T a{std::in_place, 13};
+            T b{unexpect, {3.0}, 5};
+            return a.or_else(fn).value() == 13 //
+                   && b.or_else(fn).value() == 3 * 3 * 5 * from_lval;
+          }());
+
+          SUCCEED();
+        }
+
+        SECTION("rval const")
+        {
+          static_assert([&fn] {
+            T a{std::in_place, 13};
+            T b{unexpect, {3.0}, 5};
+            return std::move(std::as_const(a)).or_else(fn).value() == 13 //
+                   && std::move(std::as_const(b)).or_else(fn).value() == 3 * 3 * 5 * from_rval_const;
+          }());
+
+          SUCCEED();
+        }
       }
 
       SECTION("move-only type")
@@ -3157,6 +3248,30 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
           SUCCEED();
         }
+
+        SECTION("lval")
+        {
+          static_assert([&fn] {
+            T a{std::in_place, {3.0}, 5};
+            T b{unexpect, Error::file_not_found};
+            return a.transform(fn).value() == 3 * 3 * 5 * from_lval //
+                   && b.transform(fn).error() == Error::file_not_found;
+          }());
+
+          SUCCEED();
+        }
+
+        SECTION("rval const")
+        {
+          static_assert([&fn] {
+            T a{std::in_place, {3.0}, 5};
+            T b{unexpect, Error::file_not_found};
+            return std::move(std::as_const(a)).transform(fn).value() == 3 * 3 * 5 * from_rval_const //
+                   && std::move(std::as_const(b)).transform(fn).error() == Error::file_not_found;
+          }());
+
+          SUCCEED();
+        }
       }
 
       SECTION("move-only type")
@@ -3219,6 +3334,30 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         {
           static_assert(T{unexpect, {3.0}, 5}.transform_error(fn).error() == 3 * 3 * 5 * from_rval);
           static_assert(T{std::in_place, 13}.transform_error(fn).value() == 13);
+
+          SUCCEED();
+        }
+
+        SECTION("lval")
+        {
+          static_assert([&fn] {
+            T a{std::in_place, 13};
+            T b{unexpect, {3.0}, 5};
+            return a.transform_error(fn).value() == 13 //
+                   && b.transform_error(fn).error() == 3 * 3 * 5 * from_lval;
+          }());
+
+          SUCCEED();
+        }
+
+        SECTION("rval const")
+        {
+          static_assert([&fn] {
+            T a{std::in_place, 13};
+            T b{unexpect, {3.0}, 5};
+            return std::move(std::as_const(a)).transform_error(fn).value() == 13 //
+                   && std::move(std::as_const(b)).transform_error(fn).error() == 3 * 3 * 5 * from_rval_const;
+          }());
 
           SUCCEED();
         }
@@ -3415,6 +3554,16 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 #else
   constexpr bool extension = false;
 #endif
+
+  SECTION("type aliases")
+  {
+    using T = expected<void, helper>;
+    static_assert(std::is_same_v<T::value_type, void>);
+    static_assert(std::is_same_v<T::error_type, helper>);
+    static_assert(std::is_same_v<T::unexpected_type, unexpected<helper>>);
+    static_assert(std::is_same_v<T::rebind<int>, expected<int, helper>>);
+    SUCCEED();
+  }
 
   SECTION("constructors")
   {
@@ -4764,13 +4913,20 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
     SECTION("error")
     {
       using T = expected<void, helper>;
+      static_assert(std::is_same_v<decltype(std::declval<T &>().error()), helper &>);
+      static_assert(std::is_same_v<decltype(std::declval<T const &>().error()), helper const &>);
+      static_assert(std::is_same_v<decltype(std::declval<T &&>().error()), helper &&>);
+      static_assert(std::is_same_v<decltype(std::declval<T const &&>().error()), helper const &&>);
+      static_assert(noexcept(std::declval<T &>().error()));
+      static_assert(noexcept(std::declval<T const &>().error()));
+      static_assert(noexcept(std::declval<T &&>().error()));
+      static_assert(noexcept(std::declval<T const &&>().error()));
 
       T a{unexpect, 17};
 #ifndef PFN_TEST_VALIDATION
       CHECK((a.has_error() && a.error().v == 17));
-#else
-      CHECK((not a.has_value() && a.error().v == 17));
 #endif
+      CHECK((not a.has_value() && a.error().v == 17));
       CHECK(std::as_const(a).error().v == 17);
       CHECK(std::move(std::as_const(a)).error().v == 17);
       CHECK(std::move(a).error().v == 17);
@@ -4883,6 +5039,21 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         }
       }
     }
+
+    SECTION("predicates")
+    {
+      using T = expected<void, helper>;
+      static_assert(std::is_same_v<decltype(std::declval<T const &>().operator bool()), bool>);
+      static_assert(std::is_same_v<decltype(std::declval<T const &>().has_value()), bool>);
+      static_assert(noexcept(std::declval<T const &>().operator bool()));
+      static_assert(noexcept(std::declval<T const &>().has_value()));
+#ifndef PFN_TEST_VALIDATION
+      static_assert(std::is_same_v<decltype(std::declval<T const &>().has_error()), bool>);
+      static_assert(noexcept(std::declval<T const &>().has_error()));
+#endif
+
+      SUCCEED();
+    }
   }
 
   SECTION("monadic functions")
@@ -4934,6 +5105,30 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         {
           static_assert(T{std::in_place}.and_then(fn) == 3);
           static_assert(T{unexpect, Error::file_not_found}.and_then(fn).error() == Error::file_not_found);
+
+          SUCCEED();
+        }
+
+        SECTION("lval")
+        {
+          static_assert([&fn] {
+            T a{std::in_place};
+            T b{unexpect, Error::file_not_found};
+            return a.and_then(fn).value() == 3 //
+                   && b.and_then(fn).error() == Error::file_not_found;
+          }());
+
+          SUCCEED();
+        }
+
+        SECTION("rval const")
+        {
+          static_assert([&fn] {
+            T a{std::in_place};
+            T b{unexpect, Error::file_not_found};
+            return std::move(std::as_const(a)).and_then(fn).value() == 3 //
+                   && std::move(std::as_const(b)).and_then(fn).error() == Error::file_not_found;
+          }());
 
           SUCCEED();
         }
@@ -4992,6 +5187,30 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         {
           static_assert(T{unexpect, {3.0}, 5}.or_else(fn).error() == 3 * 3 * 5 * from_rval);
           static_assert(T{std::in_place}.or_else(fn).has_value());
+
+          SUCCEED();
+        }
+
+        SECTION("lval")
+        {
+          static_assert([&fn] {
+            T a{std::in_place};
+            T b{unexpect, {3.0}, 5};
+            return a.or_else(fn).has_value() //
+                   && b.or_else(fn).error() == 3 * 3 * 5 * from_lval;
+          }());
+
+          SUCCEED();
+        }
+
+        SECTION("rval const")
+        {
+          static_assert([&fn] {
+            T a{std::in_place};
+            T b{unexpect, {3.0}, 5};
+            return std::move(std::as_const(a)).or_else(fn).has_value() //
+                   && std::move(std::as_const(b)).or_else(fn).error() == 3 * 3 * 5 * from_rval_const;
+          }());
 
           SUCCEED();
         }
@@ -5058,6 +5277,30 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
           SUCCEED();
         }
+
+        SECTION("lval")
+        {
+          static_assert([&fn] {
+            T a{std::in_place};
+            T b{unexpect, Error::file_not_found};
+            return a.transform(fn).value() == 3 //
+                   && b.transform(fn).error() == Error::file_not_found;
+          }());
+
+          SUCCEED();
+        }
+
+        SECTION("rval const")
+        {
+          static_assert([&fn] {
+            T a{std::in_place};
+            T b{unexpect, Error::file_not_found};
+            return std::move(std::as_const(a)).transform(fn).value() == 3 //
+                   && std::move(std::as_const(b)).transform(fn).error() == Error::file_not_found;
+          }());
+
+          SUCCEED();
+        }
       }
     }
 
@@ -5109,6 +5352,30 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         {
           static_assert(T{unexpect, {3.0}, 5}.transform_error(fn).error() == 3 * 3 * 5 * from_rval);
           static_assert(T{std::in_place}.transform_error(fn).has_value());
+
+          SUCCEED();
+        }
+
+        SECTION("lval")
+        {
+          static_assert([&fn] {
+            T a{std::in_place};
+            T b{unexpect, {3.0}, 5};
+            return a.transform_error(fn).has_value() //
+                   && b.transform_error(fn).error() == 3 * 3 * 5 * from_lval;
+          }());
+
+          SUCCEED();
+        }
+
+        SECTION("rval const")
+        {
+          static_assert([&fn] {
+            T a{std::in_place};
+            T b{unexpect, {3.0}, 5};
+            return std::move(std::as_const(a)).transform_error(fn).has_value() //
+                   && std::move(std::as_const(b)).transform_error(fn).error() == 3 * 3 * 5 * from_rval_const;
+          }());
 
           SUCCEED();
         }
