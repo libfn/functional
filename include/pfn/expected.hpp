@@ -228,53 +228,53 @@ template <class T, class E> union _storage_union_t {
 
   // Implements the reinit-expected helper from [expected.object.assign].
   template <typename New, typename Old, typename... Args>
-  static constexpr void _reinit(New &newval, Old &oldval, Args &&...args) //
+  static constexpr void _reinit(New *newp, Old *oldp, Args &&...args) //
       noexcept(::std::is_nothrow_constructible_v<New, Args...>)
   {
     if constexpr (::std::is_nothrow_constructible_v<New, Args...>) {
-      ::std::destroy_at(::std::addressof(oldval));
-      ::std::construct_at(::std::addressof(newval), ::std::forward<Args>(args)...);
+      ::std::destroy_at(oldp);
+      ::std::construct_at(newp, ::std::forward<Args>(args)...);
     } else if constexpr (::std::is_nothrow_move_constructible_v<New>) {
       New tmp(::std::forward<Args>(args)...);
-      ::std::destroy_at(::std::addressof(oldval));
-      ::std::construct_at(::std::addressof(newval), std::move(tmp));
+      ::std::destroy_at(oldp);
+      ::std::construct_at(newp, std::move(tmp));
     } else if constexpr (::std::is_trivially_copyable_v<Old>) {
       // Workaround for https://github.com/llvm/llvm-project/issues/196520:
-      // clang on aarch64 sinks the snapshot load past the store-through-newval
+      // clang on aarch64 sinks the snapshot load past the store-through-newp
       // when Old's TBAA tag differs from New's, corrupting the strong-EG
       // restoration on catch. A byte-buffer snapshot via std::memcpy is opaque
-      // to TBAA, and preserving *oldval in place across the try (no destroy_at)
+      // to TBAA, and preserving *oldp in place across the try (no destroy_at)
       // makes the catch a plain byte restore -- which for trivially-copyable
       // (and therefore trivially-destructible per [class.prop]/1). Old is
       // observationally identical to the destroy-and-recreate branch below.
       if (not ::std::is_constant_evaluated()) {
         alignas(Old) unsigned char _bytes[sizeof(Old)];
-        ::std::memcpy(_bytes, ::std::addressof(oldval), sizeof(Old));
+        ::std::memcpy(_bytes, oldp, sizeof(Old));
         try {
-          ::std::construct_at(::std::addressof(newval), ::std::forward<Args>(args)...);
+          ::std::construct_at(newp, ::std::forward<Args>(args)...);
         } catch (...) {
-          ::std::memcpy(::std::addressof(oldval), _bytes, sizeof(Old));
+          ::std::memcpy(oldp, _bytes, sizeof(Old));
           throw;
         }
       } else {
         // LCOV_EXCL_START constant-evaluated only; runtime branches are above and below
-        Old tmp(std::move(oldval));
-        ::std::destroy_at(::std::addressof(oldval));
+        Old tmp(std::move(*oldp));
+        ::std::destroy_at(oldp);
         try {
-          ::std::construct_at(::std::addressof(newval), ::std::forward<Args>(args)...);
+          ::std::construct_at(newp, ::std::forward<Args>(args)...);
         } catch (...) {
-          ::std::construct_at(::std::addressof(oldval), std::move(tmp));
+          ::std::construct_at(oldp, std::move(tmp));
           throw;
         }
         // LCOV_EXCL_STOP
       }
     } else {
-      Old tmp(std::move(oldval));
-      ::std::destroy_at(::std::addressof(oldval));
+      Old tmp(std::move(*oldp));
+      ::std::destroy_at(oldp);
       try {
-        ::std::construct_at(::std::addressof(newval), ::std::forward<Args>(args)...);
+        ::std::construct_at(newp, ::std::forward<Args>(args)...);
       } catch (...) {
-        ::std::construct_at(::std::addressof(oldval), std::move(tmp));
+        ::std::construct_at(oldp, std::move(tmp));
         throw;
       }
     }
@@ -322,23 +322,23 @@ template <class E> union _storage_union_t<void, E> {
 
   // [expected.void.assign] mandates direct construction (no temporary).
   template <typename New, typename Old, typename... Args>
-  static constexpr void _reinit(New &newval, Old &oldval, Args &&...args) //
+  static constexpr void _reinit(New *newp, Old *oldp, Args &&...args) //
       noexcept(::std::is_nothrow_constructible_v<New, Args...>)
   {
     if constexpr (::std::is_nothrow_constructible_v<New, Args...>) {
-      ::std::destroy_at(::std::addressof(oldval));
-      ::std::construct_at(::std::addressof(newval), ::std::forward<Args>(args)...);
+      ::std::destroy_at(oldp);
+      ::std::construct_at(newp, ::std::forward<Args>(args)...);
     } else {
-      // On exception the trivial `_dummy_t` oldval is reconstructed so the
+      // On exception the trivial `_dummy_t` *oldp is reconstructed so the
       // union always has an active member (required for constant evaluation).
       // If New is not nothrow-constructible then it's not _dummy_t, hence
-      // oldval must be _dummy_t.
-      static_assert(::std::is_same_v<std::remove_cvref_t<decltype(oldval)>, _dummy_t>);
-      ::std::destroy_at(::std::addressof(oldval));
+      // *oldp must be _dummy_t.
+      static_assert(::std::is_same_v<std::remove_cvref_t<decltype(*oldp)>, _dummy_t>);
+      ::std::destroy_at(oldp);
       try {
-        ::std::construct_at(::std::addressof(newval), ::std::forward<Args>(args)...);
+        ::std::construct_at(newp, ::std::forward<Args>(args)...);
       } catch (...) {
-        ::std::construct_at(::std::addressof(oldval));
+        ::std::construct_at(oldp);
         throw;
       }
     }
@@ -608,10 +608,10 @@ template <class T, class E> struct _storage {
     if (set_ && s.set_) {
       storage_.v_ = FWD(s).storage_.v_;
     } else if (set_) {
-      _storage_t::_reinit(storage_.e_, storage_.v_, FWD(s).storage_.e_);
+      _storage_t::_reinit(::std::addressof(storage_.e_), ::std::addressof(storage_.v_), FWD(s).storage_.e_);
       set_ = false;
     } else if (s.set_) {
-      _storage_t::_reinit(storage_.v_, storage_.e_, FWD(s).storage_.v_);
+      _storage_t::_reinit(::std::addressof(storage_.v_), ::std::addressof(storage_.e_), FWD(s).storage_.v_);
       set_ = true;
     } else {
       storage_.e_ = FWD(s).storage_.e_;
@@ -622,7 +622,7 @@ template <class T, class E> struct _storage {
     if (set_) {
       storage_.v_ = FWD(s);
     } else {
-      _storage_t::_reinit(storage_.v_, storage_.e_, FWD(s));
+      _storage_t::_reinit(::std::addressof(storage_.v_), ::std::addressof(storage_.e_), FWD(s));
       set_ = true;
     }
   }
@@ -631,7 +631,7 @@ template <class T, class E> struct _storage {
     if (not set_) {
       storage_.e_ = FWD(s).error();
     } else {
-      _storage_t::_reinit(storage_.e_, storage_.v_, FWD(s).error());
+      _storage_t::_reinit(::std::addressof(storage_.e_), ::std::addressof(storage_.v_), FWD(s).error());
       set_ = false;
     }
   }
