@@ -372,9 +372,16 @@ template <class T, class E> struct _storage {
   {
   }
 
-  // Leaves `storage_` with no active union member so the derived ctor
-  // body can placement-new the appropriate arm.
-  constexpr explicit _storage(bool s) noexcept : storage_(), set_(s) {}
+  constexpr explicit _storage(bool s, auto &&src) : storage_(), set_(s)
+  {
+    if (set_) {
+      if constexpr (::std::is_void_v<T>)
+        ::std::construct_at(::std::addressof(storage_.v_)); // LCOV_EXCL_LINE trivially constructible
+      else
+        ::std::construct_at(::std::addressof(storage_.v_), FWD(src).v_);
+    } else
+      ::std::construct_at(::std::addressof(storage_.e_), FWD(src).e_);
+  }
 
   constexpr _storage(_storage const &) = default;
   constexpr _storage(_storage &&) = default;
@@ -894,7 +901,7 @@ public:
     requires ::std::is_default_constructible_v<T>
       : _base(::std::in_place)
   {
-  }
+  } // LCOV_EXCL_LINE
 
   constexpr expected(expected const &) = delete;
   constexpr expected(expected const &s)                                                                //
@@ -906,14 +913,9 @@ public:
       noexcept(::std::is_nothrow_copy_constructible_v<T> && ::std::is_nothrow_copy_constructible_v<E>) // extension
     requires(::std::is_copy_constructible_v<T> && ::std::is_copy_constructible_v<E>
              && (not ::std::is_trivially_copy_constructible_v<T> || not ::std::is_trivially_copy_constructible_v<E>))
-      : _base(s.set_)
+      : _base(s.set_, FWD(s).storage_)
   {
-    if (set_)
-      ::std::construct_at(::std::addressof(storage_.v_), s.storage_.v_);
-    else
-      ::std::construct_at(::std::addressof(storage_.e_), s.storage_.e_);
   }
-
   constexpr expected(expected &&s)
     requires(::std::is_move_constructible_v<T> && ::std::is_move_constructible_v<E>
              && ::std::is_trivially_move_constructible_v<T> && ::std::is_trivially_move_constructible_v<E>)
@@ -922,12 +924,8 @@ public:
       noexcept(::std::is_nothrow_move_constructible_v<T> && ::std::is_nothrow_move_constructible_v<E>) // required
     requires(::std::is_move_constructible_v<T> && ::std::is_move_constructible_v<E>
              && (not ::std::is_trivially_move_constructible_v<T> || not ::std::is_trivially_move_constructible_v<E>))
-      : _base(s.set_)
+      : _base(s.set_, FWD(s).storage_)
   {
-    if (set_)
-      ::std::construct_at(::std::addressof(storage_.v_), ::std::move(s.storage_.v_));
-    else
-      ::std::construct_at(::std::addressof(storage_.e_), ::std::move(s.storage_.e_));
   }
 
   template <class U, class G>
@@ -936,25 +934,16 @@ public:
       noexcept(::std::is_nothrow_constructible_v<T, U const &>
                && ::std::is_nothrow_constructible_v<E, G const &>) // extension
     requires(_can_copy_convert<U, G>::value)
-      : _base(s.set_)
+      : _base(s.set_, FWD(s).storage_)
   {
-    if (set_)
-      ::std::construct_at(::std::addressof(storage_.v_), s.storage_.v_);
-    else
-      ::std::construct_at(::std::addressof(storage_.e_), s.storage_.e_);
   }
-
   template <class U, class G>
   constexpr explicit(not ::std::is_convertible_v<U, T> || not ::std::is_convertible_v<G, E>)
       expected(expected<U, G> &&s)                                                                 //
       noexcept(::std::is_nothrow_constructible_v<T, U> && ::std::is_nothrow_constructible_v<E, G>) // extension
     requires(_can_move_convert<U, G>::value)
-      : _base(s.set_)
+      : _base(s.set_, FWD(s).storage_)
   {
-    if (set_)
-      ::std::construct_at(::std::addressof(storage_.v_), ::std::move(s.storage_.v_));
-    else
-      ::std::construct_at(::std::addressof(storage_.e_), ::std::move(s.storage_.e_));
   }
 
   template <class U = ::std::remove_cv_t<T>>
@@ -1374,49 +1363,32 @@ public:
   constexpr expected(expected const &s)                                                            //
       noexcept(::std::is_nothrow_copy_constructible_v<E>)                                          // extension
     requires(::std::is_copy_constructible_v<E> && not ::std::is_trivially_copy_constructible_v<E>) //
-      : _base(s.set_)
+      : _base(s.set_, FWD(s).storage_)
   {
-    if (set_)
-      ::std::construct_at(::std::addressof(storage_.v_)); // LCOV_EXCL_LINE v_ is trivially constructible
-    else
-      ::std::construct_at(::std::addressof(storage_.e_), s.storage_.e_);
   }
-
   constexpr expected(expected &&s)                                                             //
     requires(::std::is_move_constructible_v<E> && ::std::is_trivially_move_constructible_v<E>) //
   = default;
   constexpr expected(expected &&s)                        //
       noexcept(::std::is_nothrow_move_constructible_v<E>) // required
     requires(::std::is_move_constructible_v<E> && not ::std::is_trivially_move_constructible_v<E>)
-      : _base(s.set_)
+      : _base(s.set_, FWD(s).storage_)
   {
-    if (set_)
-      ::std::construct_at(::std::addressof(storage_.v_)); // LCOV_EXCL_LINE v_ is trivially constructible
-    else
-      ::std::construct_at(::std::addressof(storage_.e_), ::std::move(s.storage_.e_));
   }
 
   template <class U, class G>
   constexpr explicit(not ::std::is_convertible_v<G const &, E>) expected(expected<U, G> const &s) //
       noexcept(::std::is_nothrow_constructible_v<E, G const &>)                                   // extension
     requires(_can_copy_convert<U, G>::value)
-      : _base(s.set_)
+      : _base(s.set_, FWD(s).storage_)
   {
-    if (set_)
-      ::std::construct_at(::std::addressof(storage_.v_)); // LCOV_EXCL_LINE v_ is trivially constructible
-    else
-      ::std::construct_at(::std::addressof(storage_.e_), s.storage_.e_);
   }
   template <class U, class G>
   constexpr explicit(not ::std::is_convertible_v<G, E>) expected(expected<U, G> &&s) //
       noexcept(::std::is_nothrow_constructible_v<E, G>)                              // extension
     requires(_can_move_convert<U, G>::value)
-      : _base(s.set_)
+      : _base(s.set_, FWD(s).storage_)
   {
-    if (set_)
-      ::std::construct_at(::std::addressof(storage_.v_)); // LCOV_EXCL_LINE v_ is trivially constructible
-    else
-      ::std::construct_at(::std::addressof(storage_.e_), ::std::move(s.storage_.e_));
   }
 
   template <class G>
