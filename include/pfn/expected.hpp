@@ -184,288 +184,54 @@ constexpr bool _is_valid_expected =                                   //
     && not _is_some_unexpected<::std::remove_cv_t<T>>                 //
     && detail::_is_valid_unexpected<E>;
 
-static constexpr struct _branch_t {
-  constexpr explicit _branch_t() noexcept = default;
-} _branch{};
+// Internal union wrapper for the value/error storage. Copy/move ctors
+// are defaulted iff both `T` and `E` are trivially copy/move-constructible;
+// otherwise deleted (callers placement-new the appropriate arm).
+// The in_place / unexpect ctors activate `v_` / `e_` respectively.
+template <class T, class E> union _storage_union_t {
+  using _value_t = T;
+  T v_;
+  E e_;
 
-struct _dummy_t final {
-  constexpr _dummy_t() noexcept = default;
-};
+  constexpr _storage_union_t(_storage_union_t const &) = delete;
+  constexpr _storage_union_t(_storage_union_t const &) //
+    requires(::std::is_trivially_copy_constructible_v<T> && ::std::is_trivially_copy_constructible_v<E>)
+  = default;
+  constexpr _storage_union_t(_storage_union_t &&) = delete;
+  constexpr _storage_union_t(_storage_union_t &&) //
+    requires(::std::is_trivially_move_constructible_v<T> && ::std::is_trivially_move_constructible_v<E>)
+  = default;
+  constexpr _storage_union_t &operator=(_storage_union_t const &) = delete;
+  constexpr _storage_union_t &operator=(_storage_union_t &&) = delete;
 
-// Shared storage base for ::pfn::expected. Members are public because the
-// inheritance is private; sibling-instantiation access goes through the
-// `template <class, class> friend class expected;` declaration on the derived.
-template <class T, class E> struct _storage {
-  using _storage_t = ::std::conditional_t<::std::is_same_v<T, void>, _dummy_t, T>;
-  union {
-    _storage_t v_;
-    E e_;
-  };
-  bool set_;
+  constexpr explicit _storage_union_t() noexcept {}
 
   template <class... Args>
-  constexpr explicit _storage(::std::in_place_t, Args &&...a) //
-      noexcept(::std::is_nothrow_constructible_v<_storage_t, Args...>)
-    requires ::std::is_constructible_v<_storage_t, Args...>
-      : v_(FWD(a)...), set_(true)
-  {
-  }
-  template <class U, class... Args>
-  constexpr explicit _storage(::std::in_place_t, ::std::initializer_list<U> il, Args &&...a) //
-      noexcept(::std::is_nothrow_constructible_v<_storage_t, ::std::initializer_list<U> &, Args...>)
-    requires ::std::is_constructible_v<_storage_t, ::std::initializer_list<U> &, Args...>
-      : v_(il, FWD(a)...), set_(true)
+  constexpr explicit _storage_union_t(::std::in_place_t, Args &&...a) //
+      noexcept(::std::is_nothrow_constructible_v<T, Args...>)
+    requires ::std::is_constructible_v<T, Args...>
+      : v_(FWD(a)...)
   {
   }
   template <class... Args>
-  constexpr explicit _storage(unexpect_t, Args &&...a) //
+  constexpr explicit _storage_union_t(unexpect_t, Args &&...a) //
       noexcept(::std::is_nothrow_constructible_v<E, Args...>)
     requires ::std::is_constructible_v<E, Args...>
-      : e_(FWD(a)...), set_(false)
-  {
-  }
-  template <class U, class... Args>
-  constexpr explicit _storage(unexpect_t, ::std::initializer_list<U> il, Args &&...a) //
-      noexcept(::std::is_nothrow_constructible_v<E, ::std::initializer_list<U> &, Args...>)
-    requires ::std::is_constructible_v<E, ::std::initializer_list<U> &, Args...>
-      : e_(il, FWD(a)...), set_(false)
+      : e_(FWD(a)...)
   {
   }
 
-  // Branch tag: initializes only `set_`, leaving the union uninitialized so
-  // the derived ctor body can placement-new into the active arm.
-  constexpr explicit _storage(_branch_t, bool s) noexcept : set_(s) {}
-
-  constexpr _storage(_storage const &) = default;
-  constexpr _storage(_storage &&) = default;
-  constexpr _storage &operator=(_storage const &) = default;
-  constexpr _storage &operator=(_storage &&) = default;
-
-  constexpr ~_storage() noexcept
-    requires(::std::is_trivially_destructible_v<_storage_t> && ::std::is_trivially_destructible_v<E>)
+  constexpr ~_storage_union_t() noexcept
+    requires(::std::is_trivially_destructible_v<T> && ::std::is_trivially_destructible_v<E>)
   = default;
-  constexpr ~_storage() //
-    requires(::std::is_trivially_destructible_v<_storage_t> && not ::std::is_trivially_destructible_v<E>)
-  {
-    if (not set_)
-      ::std::destroy_at(::std::addressof(e_));
-  }
-  constexpr ~_storage() //
-    requires(not ::std::is_trivially_destructible_v<_storage_t> && ::std::is_trivially_destructible_v<E>)
-  {
-    if (set_)
-      ::std::destroy_at(::std::addressof(v_));
-  }
-  constexpr ~_storage() //
-    requires(not ::std::is_trivially_destructible_v<_storage_t> && not ::std::is_trivially_destructible_v<E>)
-  {
-    if (set_)
-      ::std::destroy_at(::std::addressof(v_));
-    else
-      ::std::destroy_at(::std::addressof(e_));
-  }
+  constexpr ~_storage_union_t() noexcept {}
 
-  // [expected.object.obs], observers
-  constexpr _storage_t const *operator->() const noexcept
-    requires(not ::std::is_void_v<T>)
-  {
-    ASSERT(set_);
-    return ::std::addressof(v_);
-  }
-  constexpr _storage_t *operator->() noexcept
-    requires(not ::std::is_void_v<T>)
-  {
-    ASSERT(set_);
-    return ::std::addressof(v_);
-  }
-  constexpr _storage_t const &operator*() const & noexcept
-    requires(not ::std::is_void_v<T>)
-  {
-    return *(this->operator->());
-  }
-  constexpr _storage_t &operator*() & noexcept
-    requires(not ::std::is_void_v<T>)
-  {
-    return *(this->operator->());
-  }
-  constexpr _storage_t const &&operator*() const && noexcept
-    requires(not ::std::is_void_v<T>)
-  {
-    return ::std::move(*(this->operator->()));
-  }
-  constexpr _storage_t &&operator*() && noexcept
-    requires(not ::std::is_void_v<T>)
-  {
-    return ::std::move(*(this->operator->()));
-  }
-  constexpr void operator*() const & noexcept
-    requires(::std::is_void_v<T>)
-  {
-    ASSERT(set_);
-  }
-  constexpr void operator*() & noexcept
-    requires(::std::is_void_v<T>)
-  {
-    ASSERT(set_);
-  }
-  constexpr void operator*() const && noexcept
-    requires(::std::is_void_v<T>)
-  {
-    ASSERT(set_);
-  }
-  constexpr void operator*() && noexcept
-    requires(::std::is_void_v<T>)
-  {
-    ASSERT(set_);
-  }
-  constexpr explicit operator bool() const noexcept { return set_; }
-  constexpr bool has_value() const noexcept { return set_; }
-  constexpr bool has_error() const noexcept { return !set_; } // P3798
-  constexpr _storage_t const &value() const &
-    requires(not ::std::is_void_v<T>)
-  {
-    static_assert(::std::is_copy_constructible_v<E>);
-    if (not set_)
-      throw bad_expected_access<E>(e_);
-    return v_;
-  }
-  constexpr _storage_t &value() &
-    requires(not ::std::is_void_v<T>)
-  {
-    static_assert(::std::is_copy_constructible_v<E>);
-    if (not set_)
-      throw bad_expected_access<E>(::std::as_const(e_));
-    return v_;
-  }
-  constexpr _storage_t const &&value() const &&
-    requires(not ::std::is_void_v<T>)
-  {
-    static_assert(::std::is_copy_constructible_v<E>);
-    static_assert(::std::is_constructible_v<E, E const &&>);
-    if (not set_)
-      throw bad_expected_access<E>(::std::move(e_));
-    return ::std::move(v_);
-  }
-  constexpr _storage_t &&value() &&
-    requires(not ::std::is_void_v<T>)
-  {
-    static_assert(::std::is_copy_constructible_v<E>);
-    static_assert(::std::is_constructible_v<E, E &&>);
-    if (not set_)
-      throw bad_expected_access<E>(::std::move(e_));
-    return ::std::move(v_);
-  }
-  constexpr void value() const &
-    requires(::std::is_void_v<T>)
-  {
-    static_assert(::std::is_copy_constructible_v<E>);
-    if (not set_)
-      throw bad_expected_access<E>(e_);
-  }
-  constexpr void value() &&
-    requires(::std::is_void_v<T>)
-  {
-    static_assert(::std::is_copy_constructible_v<E>);
-    static_assert(::std::is_move_constructible_v<E>);
-    if (not set_)
-      throw bad_expected_access<E>(::std::move(e_));
-  }
-  constexpr E const &error() const & noexcept
-  {
-    ASSERT(not set_);
-    return e_;
-  }
-  constexpr E &error() & noexcept
-  {
-    ASSERT(not set_);
-    return e_;
-  }
-  constexpr E const &&error() const && noexcept
-  {
-    ASSERT(not set_);
-    return ::std::move(e_);
-  }
-  constexpr E &&error() && noexcept
-  {
-    ASSERT(not set_);
-    return ::std::move(e_);
-  }
-
-  template <class U>
-  constexpr T value_or(U &&v) const &                                                              //
-      noexcept(::std::is_nothrow_copy_constructible_v<T> && ::std::is_nothrow_convertible_v<U, T>) // extension
-    requires(not ::std::is_void_v<T>)
-  {
-    static_assert(::std::is_copy_constructible_v<T>);
-    static_assert(::std::is_convertible_v<U, T>);
-    return set_ ? v_ : static_cast<T>(FWD(v));
-  }
-  template <class U>
-  constexpr T value_or(U &&v) &&                                                                   //
-      noexcept(::std::is_nothrow_move_constructible_v<T> && ::std::is_nothrow_convertible_v<U, T>) // extension
-    requires(not ::std::is_void_v<T>)
-  {
-    static_assert(::std::is_move_constructible_v<T>);
-    static_assert(::std::is_convertible_v<U, T>);
-    return set_ ? ::std::move(v_) : static_cast<T>(FWD(v));
-  }
-
-  template <class G = E>
-  constexpr E error_or(G &&e) const &                                                              //
-      noexcept(::std::is_nothrow_copy_constructible_v<E> && ::std::is_nothrow_convertible_v<G, E>) // extension
-  {
-    static_assert(::std::is_copy_constructible_v<E>);
-    static_assert(::std::is_convertible_v<G, E>);
-    if (set_) {
-      return FWD(e);
-    }
-    return e_;
-  }
-  template <class G = E>
-  constexpr E error_or(G &&e) &&                                                                   //
-      noexcept(::std::is_nothrow_move_constructible_v<E> && ::std::is_nothrow_convertible_v<G, E>) // extension
-  {
-    static_assert(::std::is_move_constructible_v<E>);
-    static_assert(::std::is_convertible_v<G, E>);
-    if (set_) {
-      return FWD(e);
-    }
-    return ::std::move(e_);
-  }
-
-  // Internal value accessor used by monadic helpers; `value()` performs the
-  // access check via exception, this one assumes the precondition.
-  constexpr _storage_t const &_value() const & noexcept
-    requires(not ::std::is_void_v<T>)
-  {
-    ASSERT(set_);
-    return v_;
-  }
-  constexpr _storage_t &_value() & noexcept
-    requires(not ::std::is_void_v<T>)
-  {
-    ASSERT(set_);
-    return v_;
-  }
-  constexpr _storage_t const &&_value() const && noexcept
-    requires(not ::std::is_void_v<T>)
-  {
-    ASSERT(set_);
-    return ::std::move(v_);
-  }
-  constexpr _storage_t &&_value() && noexcept
-    requires(not ::std::is_void_v<T>)
-  {
-    ASSERT(set_);
-    return ::std::move(v_);
-  }
-
-  // [expected.object.assign]
+  // Implements the reinit-expected helper from [expected.object.assign].
   template <typename New, typename Old, typename... Args>
   static constexpr void _reinit(New &newval, Old &oldval, Args &&...args) //
       noexcept(::std::is_nothrow_constructible_v<New, Args...>)
   {
-    if constexpr (::std::is_void_v<T> || ::std::is_nothrow_constructible_v<New, Args...>) {
+    if constexpr (::std::is_nothrow_constructible_v<New, Args...>) {
       ::std::destroy_at(::std::addressof(oldval));
       ::std::construct_at(::std::addressof(newval), ::std::forward<Args>(args)...);
     } else if constexpr (::std::is_nothrow_move_constructible_v<New>) {
@@ -479,11 +245,8 @@ template <class T, class E> struct _storage {
       // restoration on catch. A byte-buffer snapshot via std::memcpy is opaque
       // to TBAA, and preserving *oldval in place across the try (no destroy_at)
       // makes the catch a plain byte restore -- which for trivially-copyable
-      // (and therefore trivially-destructible) Old is observationally identical
-      // to the destroy-and-recreate branch below.
-      // (Old is also trivially-destructible -- implied by is_trivially_copyable_v
-      //  per [class.prop]/1 -- so skipping destroy_at is observationally identical
-      //  to the destroy-and-recreate branch below.)
+      // (and therefore trivially-destructible per [class.prop]/1). Old is
+      // observationally identical to the destroy-and-recreate branch below.
       if (not ::std::is_constant_evaluated()) {
         alignas(Old) unsigned char _bytes[sizeof(Old)];
         ::std::memcpy(_bytes, ::std::addressof(oldval), sizeof(Old));
@@ -516,70 +279,387 @@ template <class T, class E> struct _storage {
       }
     }
   }
+};
 
-  // Body helper for the copy/move assignment operators; the public expected
-  // operator= overloads keep their constraints/noexcept clauses and just
-  // delegate here, forwarding `s` as lvalue or rvalue. For T=void the value
-  // side is `_dummy_t` whose destructor and default ctor are trivial; the
-  // cross-state transitions use direct construct_at, matching the
-  // [expected.void.assign] and [expected.object.assign] specification (no strong exception guarantee).
+// Void specialization: value state activates a trivial `_dummy_t v_`
+// placeholder so the union always has an active member (required by
+// constant evaluation). All `v_` operations are no-ops at runtime.
+template <class E> union _storage_union_t<void, E> {
+  struct _dummy_t final {
+    constexpr _dummy_t() noexcept = default;
+  };
+
+  using _value_t = _dummy_t;
+  _dummy_t v_;
+  E e_;
+
+  constexpr _storage_union_t(_storage_union_t const &) = delete;
+  constexpr _storage_union_t(_storage_union_t const &) //
+    requires(::std::is_trivially_copy_constructible_v<E>)
+  = default;
+  constexpr _storage_union_t(_storage_union_t &&) = delete;
+  constexpr _storage_union_t(_storage_union_t &&) //
+    requires(::std::is_trivially_move_constructible_v<E>)
+  = default;
+  constexpr _storage_union_t &operator=(_storage_union_t const &) = delete;
+  constexpr _storage_union_t &operator=(_storage_union_t &&) = delete;
+
+  constexpr explicit _storage_union_t() noexcept {}
+  constexpr explicit _storage_union_t(::std::in_place_t) noexcept : v_{} {}
+
+  template <class... Args>
+  constexpr explicit _storage_union_t(unexpect_t, Args &&...a) //
+      noexcept(::std::is_nothrow_constructible_v<E, Args...>)
+    requires ::std::is_constructible_v<E, Args...>
+      : e_(FWD(a)...)
+  {
+  }
+
+  constexpr ~_storage_union_t() noexcept
+    requires(::std::is_trivially_destructible_v<E>)
+  = default;
+  constexpr ~_storage_union_t() noexcept {}
+
+  // [expected.void.assign] mandates direct construction (no temporary).
+  template <typename New, typename Old, typename... Args>
+  static constexpr void _reinit(New &newval, Old &oldval, Args &&...args) //
+      noexcept(::std::is_nothrow_constructible_v<New, Args...>)
+  {
+    if constexpr (::std::is_nothrow_constructible_v<New, Args...>) {
+      ::std::destroy_at(::std::addressof(oldval));
+      ::std::construct_at(::std::addressof(newval), ::std::forward<Args>(args)...);
+    } else {
+      // On exception the trivial `_dummy_t` oldval is reconstructed so the
+      // union always has an active member (required for constant evaluation).
+      // If New is not nothrow-constructible then it's not _dummy_t, hence
+      // oldval must be _dummy_t.
+      static_assert(::std::is_same_v<std::remove_cvref_t<decltype(oldval)>, _dummy_t>);
+      ::std::destroy_at(::std::addressof(oldval));
+      try {
+        ::std::construct_at(::std::addressof(newval), ::std::forward<Args>(args)...);
+      } catch (...) {
+        ::std::construct_at(::std::addressof(oldval));
+        throw;
+      }
+    }
+  }
+};
+
+// Shared storage base for ::pfn::expected. Members are public because the
+// inheritance is private; sibling-instantiation access goes through the
+// `template <class, class> friend class expected;` declaration on the derived.
+template <class T, class E> struct _storage {
+  using _storage_t = _storage_union_t<T, E>;
+  // `T` for non-void, trivial `_dummy_t` for void; used as observer return
+  // type (void value-returning overloads are requires-disabled, so the
+  // placeholder is never observable) and in destructor constraints.
+  using _value_t = _storage_t::_value_t;
+  _storage_t storage_;
+  bool set_;
+
+  template <class... Args>
+  constexpr explicit _storage(::std::in_place_t, Args &&...a) //
+      noexcept(::std::is_nothrow_constructible_v<_storage_t, ::std::in_place_t, Args...>)
+    requires ::std::is_constructible_v<_storage_t, ::std::in_place_t, Args...>
+      : storage_(::std::in_place, FWD(a)...), set_(true)
+  {
+  }
+  template <class... Args>
+  constexpr explicit _storage(unexpect_t, Args &&...a) //
+      noexcept(::std::is_nothrow_constructible_v<E, Args...>)
+    requires ::std::is_constructible_v<E, Args...>
+      : storage_(unexpect, FWD(a)...), set_(false)
+  {
+  }
+
+  // Leaves `storage_` with no active union member so the derived ctor
+  // body can placement-new the appropriate arm.
+  constexpr explicit _storage(bool s) noexcept : storage_(), set_(s) {}
+
+  constexpr _storage(_storage const &) = default;
+  constexpr _storage(_storage &&) = default;
+  constexpr _storage &operator=(_storage const &) = delete;
+  constexpr _storage &operator=(_storage &&) = delete;
+
+  constexpr ~_storage() noexcept
+    requires(::std::is_trivially_destructible_v<_value_t> && ::std::is_trivially_destructible_v<E>)
+  = default;
+  constexpr ~_storage() //
+    requires(::std::is_trivially_destructible_v<_value_t> && not ::std::is_trivially_destructible_v<E>)
+  {
+    if (not set_)
+      ::std::destroy_at(::std::addressof(storage_.e_));
+  }
+  constexpr ~_storage() //
+    requires(not ::std::is_trivially_destructible_v<_value_t> && ::std::is_trivially_destructible_v<E>)
+  {
+    if (set_)
+      ::std::destroy_at(::std::addressof(storage_.v_));
+  }
+  constexpr ~_storage() //
+    requires(not ::std::is_trivially_destructible_v<_value_t> && not ::std::is_trivially_destructible_v<E>)
+  {
+    if (set_)
+      ::std::destroy_at(::std::addressof(storage_.v_));
+    else
+      ::std::destroy_at(::std::addressof(storage_.e_));
+  }
+
+  constexpr _value_t const *operator->() const noexcept
+    requires(not ::std::is_void_v<T>)
+  {
+    ASSERT(set_);
+    return ::std::addressof(storage_.v_);
+  }
+  constexpr _value_t *operator->() noexcept
+    requires(not ::std::is_void_v<T>)
+  {
+    ASSERT(set_);
+    return ::std::addressof(storage_.v_);
+  }
+  constexpr _value_t const &operator*() const & noexcept
+    requires(not ::std::is_void_v<T>)
+  {
+    return *(this->operator->());
+  }
+  constexpr _value_t &operator*() & noexcept
+    requires(not ::std::is_void_v<T>)
+  {
+    return *(this->operator->());
+  }
+  constexpr _value_t const &&operator*() const && noexcept
+    requires(not ::std::is_void_v<T>)
+  {
+    return ::std::move(*(this->operator->()));
+  }
+  constexpr _value_t &&operator*() && noexcept
+    requires(not ::std::is_void_v<T>)
+  {
+    return ::std::move(*(this->operator->()));
+  }
+  constexpr void operator*() const & noexcept
+    requires(::std::is_void_v<T>)
+  {
+    ASSERT(set_);
+  }
+  constexpr void operator*() & noexcept
+    requires(::std::is_void_v<T>)
+  {
+    ASSERT(set_);
+  }
+  constexpr void operator*() const && noexcept
+    requires(::std::is_void_v<T>)
+  {
+    ASSERT(set_);
+  }
+  constexpr void operator*() && noexcept
+    requires(::std::is_void_v<T>)
+  {
+    ASSERT(set_);
+  }
+  constexpr explicit operator bool() const noexcept { return set_; }
+  constexpr bool has_value() const noexcept { return set_; }
+  constexpr bool has_error() const noexcept { return !set_; } // P3798
+  constexpr _value_t const &value() const &
+    requires(not ::std::is_void_v<T>)
+  {
+    static_assert(::std::is_copy_constructible_v<E>);
+    if (not set_)
+      throw bad_expected_access<E>(storage_.e_);
+    return storage_.v_;
+  }
+  constexpr _value_t &value() &
+    requires(not ::std::is_void_v<T>)
+  {
+    static_assert(::std::is_copy_constructible_v<E>);
+    if (not set_)
+      throw bad_expected_access<E>(::std::as_const(storage_.e_));
+    return storage_.v_;
+  }
+  constexpr _value_t const &&value() const &&
+    requires(not ::std::is_void_v<T>)
+  {
+    static_assert(::std::is_copy_constructible_v<E>);
+    static_assert(::std::is_constructible_v<E, E const &&>);
+    if (not set_)
+      throw bad_expected_access<E>(::std::move(storage_.e_));
+    return ::std::move(storage_.v_);
+  }
+  constexpr _value_t &&value() &&
+    requires(not ::std::is_void_v<T>)
+  {
+    static_assert(::std::is_copy_constructible_v<E>);
+    static_assert(::std::is_constructible_v<E, E &&>);
+    if (not set_)
+      throw bad_expected_access<E>(::std::move(storage_.e_));
+    return ::std::move(storage_.v_);
+  }
+  constexpr void value() const &
+    requires(::std::is_void_v<T>)
+  {
+    static_assert(::std::is_copy_constructible_v<E>);
+    if (not set_)
+      throw bad_expected_access<E>(storage_.e_);
+  }
+  constexpr void value() &&
+    requires(::std::is_void_v<T>)
+  {
+    static_assert(::std::is_copy_constructible_v<E>);
+    static_assert(::std::is_move_constructible_v<E>);
+    if (not set_)
+      throw bad_expected_access<E>(::std::move(storage_.e_));
+  }
+  constexpr E const &error() const & noexcept
+  {
+    ASSERT(not set_);
+    return storage_.e_;
+  }
+  constexpr E &error() & noexcept
+  {
+    ASSERT(not set_);
+    return storage_.e_;
+  }
+  constexpr E const &&error() const && noexcept
+  {
+    ASSERT(not set_);
+    return ::std::move(storage_.e_);
+  }
+  constexpr E &&error() && noexcept
+  {
+    ASSERT(not set_);
+    return ::std::move(storage_.e_);
+  }
+
+  template <class U>
+  constexpr T value_or(U &&v) const &                                                              //
+      noexcept(::std::is_nothrow_copy_constructible_v<T> && ::std::is_nothrow_convertible_v<U, T>) // extension
+    requires(not ::std::is_void_v<T>)
+  {
+    static_assert(::std::is_copy_constructible_v<T>);
+    static_assert(::std::is_convertible_v<U, T>);
+    return set_ ? storage_.v_ : static_cast<T>(FWD(v));
+  }
+  template <class U>
+  constexpr T value_or(U &&v) &&                                                                   //
+      noexcept(::std::is_nothrow_move_constructible_v<T> && ::std::is_nothrow_convertible_v<U, T>) // extension
+    requires(not ::std::is_void_v<T>)
+  {
+    static_assert(::std::is_move_constructible_v<T>);
+    static_assert(::std::is_convertible_v<U, T>);
+    return set_ ? ::std::move(storage_.v_) : static_cast<T>(FWD(v));
+  }
+
+  template <class G = E>
+  constexpr E error_or(G &&e) const &                                                              //
+      noexcept(::std::is_nothrow_copy_constructible_v<E> && ::std::is_nothrow_convertible_v<G, E>) // extension
+  {
+    static_assert(::std::is_copy_constructible_v<E>);
+    static_assert(::std::is_convertible_v<G, E>);
+    if (set_) {
+      return FWD(e);
+    }
+    return storage_.e_;
+  }
+  template <class G = E>
+  constexpr E error_or(G &&e) &&                                                                   //
+      noexcept(::std::is_nothrow_move_constructible_v<E> && ::std::is_nothrow_convertible_v<G, E>) // extension
+  {
+    static_assert(::std::is_move_constructible_v<E>);
+    static_assert(::std::is_convertible_v<G, E>);
+    if (set_) {
+      return FWD(e);
+    }
+    return ::std::move(storage_.e_);
+  }
+
+  // Unchecked value accessor used by monadic helpers; `value()` throws,
+  // this asserts the precondition.
+  constexpr _value_t const &_value() const & noexcept
+    requires(not ::std::is_void_v<T>)
+  {
+    ASSERT(set_);
+    return storage_.v_;
+  }
+  constexpr _value_t &_value() & noexcept
+    requires(not ::std::is_void_v<T>)
+  {
+    ASSERT(set_);
+    return storage_.v_;
+  }
+  constexpr _value_t const &&_value() const && noexcept
+    requires(not ::std::is_void_v<T>)
+  {
+    ASSERT(set_);
+    return ::std::move(storage_.v_);
+  }
+  constexpr _value_t &&_value() && noexcept
+    requires(not ::std::is_void_v<T>)
+  {
+    ASSERT(set_);
+    return ::std::move(storage_.v_);
+  }
+
+  // Assignment body shared by the public expected operator= overloads,
+  // which keep their constraints/noexcept clauses and forward `s` here as
+  // lvalue or rvalue. For T=void all `storage_.v_` operations are no-ops
+  // at runtime (trivial `_dummy_t`) but still track the active union member.
   constexpr void _assign(auto &&s)
   {
     if (set_ && s.set_) {
-      v_ = FWD(s).v_;
+      storage_.v_ = FWD(s).storage_.v_;
     } else if (set_) {
-      _reinit(e_, v_, FWD(s).e_);
+      _storage_t::_reinit(storage_.e_, storage_.v_, FWD(s).storage_.e_);
       set_ = false;
     } else if (s.set_) {
-      _reinit(v_, e_, FWD(s).v_);
+      _storage_t::_reinit(storage_.v_, storage_.e_, FWD(s).storage_.v_);
       set_ = true;
     } else {
-      e_ = FWD(s).e_;
+      storage_.e_ = FWD(s).storage_.e_;
     }
   }
   template <class U> constexpr void _assign_value(U &&s)
   {
     if (set_) {
-      v_ = FWD(s);
+      storage_.v_ = FWD(s);
     } else {
-      _reinit(v_, e_, FWD(s));
+      _storage_t::_reinit(storage_.v_, storage_.e_, FWD(s));
       set_ = true;
     }
   }
   constexpr void _assign_unexpected(auto &&s)
   {
     if (not set_) {
-      e_ = FWD(s).error();
+      storage_.e_ = FWD(s).error();
     } else {
-      _reinit(e_, v_, FWD(s).error());
+      _storage_t::_reinit(storage_.e_, storage_.v_, FWD(s).error());
       set_ = false;
     }
   }
 
-  // [expected.object.swap] cross-state swap helper; lhs holds value, rhs holds error
-  static constexpr void _swap(_storage &lhs, _storage &rhs) //
-      noexcept(::std::is_nothrow_move_constructible_v<_storage_t> && ::std::is_nothrow_move_constructible_v<E>)
+  // Cross-state swap; lhs holds value, rhs holds error.
+  static constexpr void _swap_helper(_storage &lhs, _storage &rhs) //
+      noexcept(::std::is_nothrow_move_constructible_v<T> && ::std::is_nothrow_move_constructible_v<E>)
   {
     if constexpr (::std::is_nothrow_move_constructible_v<E>) {
-      E tmp(::std::move(rhs.e_));
-      ::std::destroy_at(::std::addressof(rhs.e_));
+      E tmp(::std::move(rhs.storage_.e_));
+      ::std::destroy_at(::std::addressof(rhs.storage_.e_));
       try {
-        ::std::construct_at(::std::addressof(rhs.v_), ::std::move(lhs.v_));
-        ::std::destroy_at(::std::addressof(lhs.v_));
-        ::std::construct_at(::std::addressof(lhs.e_), ::std::move(tmp));
+        ::std::construct_at(::std::addressof(rhs.storage_.v_), ::std::move(lhs.storage_.v_));
+        ::std::destroy_at(::std::addressof(lhs.storage_.v_));
+        ::std::construct_at(::std::addressof(lhs.storage_.e_), ::std::move(tmp));
       } catch (...) {
-        ::std::construct_at(::std::addressof(rhs.e_), ::std::move(tmp));
+        ::std::construct_at(::std::addressof(rhs.storage_.e_), ::std::move(tmp));
         throw;
       }
     } else {
-      _storage_t tmp(::std::move(lhs.v_));
-      ::std::destroy_at(::std::addressof(lhs.v_));
+      auto tmp(::std::move(lhs.storage_.v_));
+      ::std::destroy_at(::std::addressof(lhs.storage_.v_));
       try {
-        ::std::construct_at(::std::addressof(lhs.e_), ::std::move(rhs.e_));
-        ::std::destroy_at(::std::addressof(rhs.e_));
-        ::std::construct_at(::std::addressof(rhs.v_), ::std::move(tmp));
+        ::std::construct_at(::std::addressof(lhs.storage_.e_), ::std::move(rhs.storage_.e_));
+        ::std::destroy_at(::std::addressof(rhs.storage_.e_));
+        ::std::construct_at(::std::addressof(rhs.storage_.v_), ::std::move(tmp));
       } catch (...) {
-        ::std::construct_at(::std::addressof(lhs.v_), ::std::move(tmp));
+        ::std::construct_at(::std::addressof(lhs.storage_.v_), ::std::move(tmp));
         throw;
       }
     }
@@ -587,76 +667,69 @@ template <class T, class E> struct _storage {
     rhs.set_ = true;
   }
 
-  // [expected.object.swap] body helper; the public expected::swap keeps its
-  // constraints/noexcept clause and just delegates here.
   constexpr void _swap_with(_storage &rhs)
   {
     if (set_ == rhs.set_) {
       if (set_) {
         if constexpr (not ::std::is_void_v<T>) {
           using ::std::swap;
-          swap(v_, rhs.v_);
+          swap(storage_.v_, rhs.storage_.v_);
         }
       } else {
         using ::std::swap;
-        swap(e_, rhs.e_);
+        swap(storage_.e_, rhs.storage_.e_);
       }
     } else if constexpr (::std::is_void_v<T>) {
-      // Direct cross-state transition: only one E move, matching the
-      // [expected.void.swap] specification.
+      // [expected.void.swap] mandates a single E move on cross-state.
       if (set_) {
-        ::std::destroy_at(::std::addressof(v_));
-        ::std::construct_at(::std::addressof(e_), ::std::move(rhs.e_));
-        ::std::destroy_at(::std::addressof(rhs.e_));
-        ::std::construct_at(::std::addressof(rhs.v_));
+        ::std::destroy_at(::std::addressof(storage_.v_));
+        ::std::construct_at(::std::addressof(storage_.e_), ::std::move(rhs.storage_.e_));
+        ::std::destroy_at(::std::addressof(rhs.storage_.e_));
+        ::std::construct_at(::std::addressof(rhs.storage_.v_));
         set_ = false;
         rhs.set_ = true;
       } else {
         rhs._swap_with(*this);
       }
+    } else if (set_) {
+      _swap_helper(*this, rhs);
     } else {
-      if (set_) {
-        _swap(*this, rhs);
-      } else {
-        _swap(rhs, *this);
-      }
+      _swap_helper(rhs, *this);
     }
   }
 
-  // [expected.object.emplace], emplace
   template <class... Args>
-  constexpr _storage_t &emplace(Args &&...args) noexcept
+  constexpr _value_t &emplace(Args &&...args) noexcept
     requires(not ::std::is_void_v<T> && ::std::is_nothrow_constructible_v<T, Args...>)
   {
     if (set_) {
-      ::std::destroy_at(::std::addressof(v_));
+      ::std::destroy_at(::std::addressof(storage_.v_));
     } else {
-      ::std::destroy_at(::std::addressof(e_));
+      ::std::destroy_at(::std::addressof(storage_.e_));
       set_ = true;
     }
-    return *::std::construct_at(::std::addressof(v_), std::forward<Args>(args)...);
+    return *::std::construct_at(::std::addressof(storage_.v_), std::forward<Args>(args)...);
   }
 
   template <class U, class... Args>
-  constexpr _storage_t &emplace(::std::initializer_list<U> il, Args &&...args) noexcept
+  constexpr _value_t &emplace(::std::initializer_list<U> il, Args &&...args) noexcept
     requires(not ::std::is_void_v<T> && ::std::is_nothrow_constructible_v<T, ::std::initializer_list<U> &, Args...>)
   {
     if (set_) {
-      ::std::destroy_at(::std::addressof(v_));
+      ::std::destroy_at(::std::addressof(storage_.v_));
     } else {
-      ::std::destroy_at(::std::addressof(e_));
+      ::std::destroy_at(::std::addressof(storage_.e_));
       set_ = true;
     }
-    return *::std::construct_at(::std::addressof(v_), il, std::forward<Args>(args)...);
+    return *::std::construct_at(::std::addressof(storage_.v_), il, std::forward<Args>(args)...);
   }
 
-  // [expected.void.emplace], emplace
   constexpr void emplace() noexcept
     requires(::std::is_void_v<T>)
   {
     if (not set_) {
-      ::std::destroy_at(::std::addressof(e_));
-      ::std::construct_at(::std::addressof(v_));
+      ::std::destroy_at(::std::addressof(storage_.e_));
+      ::std::construct_at(::std::addressof(storage_.v_));
       set_ = true;
     }
   }
@@ -700,9 +773,8 @@ template <class T, class E> class expected : private detail::_storage<T, E> {
   // through the dependent base, and to document the inherited surface.
   using _base = detail::_storage<T, E>;
   using _base::_value;
-  using _base::e_;
   using _base::set_;
-  using _base::v_;
+  using _base::storage_;
 
   template <class U>
   using _can_convert = ::std::bool_constant<                            //
@@ -827,12 +899,12 @@ public:
       noexcept(::std::is_nothrow_copy_constructible_v<T> && ::std::is_nothrow_copy_constructible_v<E>) // extension
     requires(::std::is_copy_constructible_v<T> && ::std::is_copy_constructible_v<E>
              && (not ::std::is_trivially_copy_constructible_v<T> || not ::std::is_trivially_copy_constructible_v<E>))
-      : _base(detail::_branch, s.set_)
+      : _base(s.set_)
   {
     if (set_)
-      ::std::construct_at(::std::addressof(v_), s.v_);
+      ::std::construct_at(::std::addressof(storage_.v_), s.storage_.v_);
     else
-      ::std::construct_at(::std::addressof(e_), s.e_);
+      ::std::construct_at(::std::addressof(storage_.e_), s.storage_.e_);
   }
 
   constexpr expected(expected &&s)
@@ -843,12 +915,12 @@ public:
       noexcept(::std::is_nothrow_move_constructible_v<T> && ::std::is_nothrow_move_constructible_v<E>) // required
     requires(::std::is_move_constructible_v<T> && ::std::is_move_constructible_v<E>
              && (not ::std::is_trivially_move_constructible_v<T> || not ::std::is_trivially_move_constructible_v<E>))
-      : _base(detail::_branch, s.set_)
+      : _base(s.set_)
   {
     if (set_)
-      ::std::construct_at(::std::addressof(v_), ::std::move(s.v_));
+      ::std::construct_at(::std::addressof(storage_.v_), ::std::move(s.storage_.v_));
     else
-      ::std::construct_at(::std::addressof(e_), ::std::move(s.e_));
+      ::std::construct_at(::std::addressof(storage_.e_), ::std::move(s.storage_.e_));
   }
 
   template <class U, class G>
@@ -857,12 +929,12 @@ public:
       noexcept(::std::is_nothrow_constructible_v<T, U const &>
                && ::std::is_nothrow_constructible_v<E, G const &>) // extension
     requires(_can_copy_convert<U, G>::value)
-      : _base(detail::_branch, s.set_)
+      : _base(s.set_)
   {
     if (set_)
-      ::std::construct_at(::std::addressof(v_), s.v_);
+      ::std::construct_at(::std::addressof(storage_.v_), s.storage_.v_);
     else
-      ::std::construct_at(::std::addressof(e_), s.e_);
+      ::std::construct_at(::std::addressof(storage_.e_), s.storage_.e_);
   }
 
   template <class U, class G>
@@ -870,12 +942,12 @@ public:
       expected(expected<U, G> &&s)                                                                 //
       noexcept(::std::is_nothrow_constructible_v<T, U> && ::std::is_nothrow_constructible_v<E, G>) // extension
     requires(_can_move_convert<U, G>::value)
-      : _base(detail::_branch, s.set_)
+      : _base(s.set_)
   {
     if (set_)
-      ::std::construct_at(::std::addressof(v_), ::std::move(s.v_));
+      ::std::construct_at(::std::addressof(storage_.v_), ::std::move(s.storage_.v_));
     else
-      ::std::construct_at(::std::addressof(e_), ::std::move(s.e_));
+      ::std::construct_at(::std::addressof(storage_.e_), ::std::move(s.storage_.e_));
   }
 
   template <class U = ::std::remove_cv_t<T>>
@@ -1203,11 +1275,12 @@ class expected<T, E> : private detail::_storage<T, E> {
   template <class U, class G> friend class expected;
 
   // Bring the storage members into scope so unqualified lookup resolves them
-  // through the dependent base, and to document the inherited surface.
+  // through the dependent base, and to document the inherited surface. For
+  // T=void the storage union has only `e_`; the value state has no active
+  // member.
   using _base = detail::_storage<T, E>;
-  using _base::e_;
   using _base::set_;
-  using _base::v_;
+  using _base::storage_;
 
   template <typename Self, typename Fn>
   static constexpr auto _and_then(Self &&self, Fn &&fn) //
@@ -1291,19 +1364,15 @@ public:
   constexpr expected(expected const &)                                                         //
     requires(::std::is_copy_constructible_v<E> && ::std::is_trivially_copy_constructible_v<E>) //
   = default;
-  // Delegate to the in_place ctor of `_storage`, which default-initialises the
-  // value arm (`_dummy_t`) and sets `set_` to true; the body then switches to
-  // the error arm when the source holds an error.
   constexpr expected(expected const &s)                                                            //
       noexcept(::std::is_nothrow_copy_constructible_v<E>)                                          // extension
     requires(::std::is_copy_constructible_v<E> && not ::std::is_trivially_copy_constructible_v<E>) //
-      : _base(::std::in_place)
+      : _base(s.set_)
   {
-    if (not s.set_) {
-      ::std::destroy_at(::std::addressof(v_));
-      ::std::construct_at(::std::addressof(e_), s.e_);
-      set_ = false;
-    }
+    if (set_)
+      ::std::construct_at(::std::addressof(storage_.v_));
+    else
+      ::std::construct_at(::std::addressof(storage_.e_), s.storage_.e_);
   }
 
   constexpr expected(expected &&s)                                                             //
@@ -1312,38 +1381,35 @@ public:
   constexpr expected(expected &&s)                        //
       noexcept(::std::is_nothrow_move_constructible_v<E>) // required
     requires(::std::is_move_constructible_v<E> && not ::std::is_trivially_move_constructible_v<E>)
-      : _base(::std::in_place)
+      : _base(s.set_)
   {
-    if (not s.set_) {
-      ::std::destroy_at(::std::addressof(v_));
-      ::std::construct_at(::std::addressof(e_), ::std::move(s.e_));
-      set_ = false;
-    }
+    if (set_)
+      ::std::construct_at(::std::addressof(storage_.v_));
+    else
+      ::std::construct_at(::std::addressof(storage_.e_), ::std::move(s.storage_.e_));
   }
 
   template <class U, class G>
   constexpr explicit(not ::std::is_convertible_v<G const &, E>) expected(expected<U, G> const &s) //
       noexcept(::std::is_nothrow_constructible_v<E, G const &>)                                   // extension
     requires(_can_copy_convert<U, G>::value)
-      : _base(::std::in_place)
+      : _base(s.set_)
   {
-    if (not s.set_) {
-      ::std::destroy_at(::std::addressof(v_));
-      ::std::construct_at(::std::addressof(e_), s.e_);
-      set_ = false;
-    }
+    if (set_)
+      ::std::construct_at(::std::addressof(storage_.v_));
+    else
+      ::std::construct_at(::std::addressof(storage_.e_), s.storage_.e_);
   }
   template <class U, class G>
   constexpr explicit(not ::std::is_convertible_v<G, E>) expected(expected<U, G> &&s) //
       noexcept(::std::is_nothrow_constructible_v<E, G>)                              // extension
     requires(_can_move_convert<U, G>::value)
-      : _base(::std::in_place)
+      : _base(s.set_)
   {
-    if (not s.set_) {
-      ::std::destroy_at(::std::addressof(v_));
-      ::std::construct_at(::std::addressof(e_), ::std::move(s.e_));
-      set_ = false;
-    }
+    if (set_)
+      ::std::construct_at(::std::addressof(storage_.v_));
+    else
+      ::std::construct_at(::std::addressof(storage_.e_), ::std::move(s.storage_.e_));
   }
 
   template <class G>
