@@ -325,15 +325,15 @@ template <class E> union _storage_union_t<void, E> {
   static constexpr void _reinit(New *newp, Old *oldp, Args &&...args) //
       noexcept(::std::is_nothrow_constructible_v<New, Args...>)
   {
-    if constexpr (::std::is_nothrow_constructible_v<New, Args...>) {
+    if constexpr (::std::is_same_v<New, _dummy_t>) {
+      ::std::destroy_at(oldp);
+      ::std::construct_at(newp);
+    } else if constexpr (::std::is_nothrow_constructible_v<New, Args...>) {
       ::std::destroy_at(oldp);
       ::std::construct_at(newp, ::std::forward<Args>(args)...);
     } else {
       // On exception the trivial `_dummy_t` *oldp is reconstructed so the
       // union always has an active member (required for constant evaluation).
-      // If New is not nothrow-constructible then it's not _dummy_t, hence
-      // *oldp must be _dummy_t.
-      static_assert(::std::is_same_v<std::remove_cvref_t<decltype(*oldp)>, _dummy_t>);
       ::std::destroy_at(oldp);
       try {
         ::std::construct_at(newp, ::std::forward<Args>(args)...);
