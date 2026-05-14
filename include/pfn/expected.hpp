@@ -1370,7 +1370,7 @@ public:
       : _base(s.set_)
   {
     if (set_)
-      ::std::construct_at(::std::addressof(storage_.v_));
+      ::std::construct_at(::std::addressof(storage_.v_)); // LCOV_EXCL
     else
       ::std::construct_at(::std::addressof(storage_.e_), s.storage_.e_);
   }
@@ -1384,7 +1384,7 @@ public:
       : _base(s.set_)
   {
     if (set_)
-      ::std::construct_at(::std::addressof(storage_.v_));
+      ::std::construct_at(::std::addressof(storage_.v_)); // LCOV_EXCL
     else
       ::std::construct_at(::std::addressof(storage_.e_), ::std::move(s.storage_.e_));
   }
@@ -1396,7 +1396,7 @@ public:
       : _base(s.set_)
   {
     if (set_)
-      ::std::construct_at(::std::addressof(storage_.v_));
+      ::std::construct_at(::std::addressof(storage_.v_)); // LCOV_EXCL
     else
       ::std::construct_at(::std::addressof(storage_.e_), s.storage_.e_);
   }
@@ -1407,7 +1407,7 @@ public:
       : _base(s.set_)
   {
     if (set_)
-      ::std::construct_at(::std::addressof(storage_.v_));
+      ::std::construct_at(::std::addressof(storage_.v_)); // LCOV_EXCL
     else
       ::std::construct_at(::std::addressof(storage_.e_), ::std::move(s.storage_.e_));
   }
