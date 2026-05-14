@@ -681,9 +681,16 @@ template <class T, class E> struct _storage {
       }
     } else if constexpr (::std::is_void_v<T>) {
       // [expected.void.swap] mandates a single E move on cross-state.
+      // On exception from E's move, restore the `_dummy_t` value so the union
+      // always has an active member (required for constant evaluation).
       if (set_) {
         ::std::destroy_at(::std::addressof(storage_.v_));
-        ::std::construct_at(::std::addressof(storage_.e_), ::std::move(rhs.storage_.e_));
+        try {
+          ::std::construct_at(::std::addressof(storage_.e_), ::std::move(rhs.storage_.e_));
+        } catch (...) {
+          ::std::construct_at(::std::addressof(storage_.v_));
+          throw;
+        }
         ::std::destroy_at(::std::addressof(rhs.storage_.e_));
         ::std::construct_at(::std::addressof(rhs.storage_.v_));
         set_ = false;
@@ -1370,7 +1377,7 @@ public:
       : _base(s.set_)
   {
     if (set_)
-      ::std::construct_at(::std::addressof(storage_.v_)); // LCOV_EXCL
+      ::std::construct_at(::std::addressof(storage_.v_)); // LCOV_EXCL_LINE v_ is trivially constructible
     else
       ::std::construct_at(::std::addressof(storage_.e_), s.storage_.e_);
   }
@@ -1384,7 +1391,7 @@ public:
       : _base(s.set_)
   {
     if (set_)
-      ::std::construct_at(::std::addressof(storage_.v_)); // LCOV_EXCL
+      ::std::construct_at(::std::addressof(storage_.v_)); // LCOV_EXCL_LINE v_ is trivially constructible
     else
       ::std::construct_at(::std::addressof(storage_.e_), ::std::move(s.storage_.e_));
   }
@@ -1396,7 +1403,7 @@ public:
       : _base(s.set_)
   {
     if (set_)
-      ::std::construct_at(::std::addressof(storage_.v_)); // LCOV_EXCL
+      ::std::construct_at(::std::addressof(storage_.v_)); // LCOV_EXCL_LINE v_ is trivially constructible
     else
       ::std::construct_at(::std::addressof(storage_.e_), s.storage_.e_);
   }
@@ -1407,7 +1414,7 @@ public:
       : _base(s.set_)
   {
     if (set_)
-      ::std::construct_at(::std::addressof(storage_.v_)); // LCOV_EXCL
+      ::std::construct_at(::std::addressof(storage_.v_)); // LCOV_EXCL_LINE v_ is trivially constructible
     else
       ::std::construct_at(::std::addressof(storage_.e_), ::std::move(s.storage_.e_));
   }
