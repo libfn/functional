@@ -2672,6 +2672,11 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         CHECK(std::as_const(a).value().v == 11);
         CHECK(std::move(std::as_const(a)).value().v == 11);
         CHECK(std::move(a).value().v == 11);
+
+        static_assert(std::is_same_v<decltype(a.value()), helper &>);
+        static_assert(std::is_same_v<decltype(std::as_const(a).value()), helper const &>);
+        static_assert(std::is_same_v<decltype(std::move(a).value()), helper &&>);
+        static_assert(std::is_same_v<decltype(std::move(std::as_const(a)).value()), helper const &&>);
       }
 
       {
@@ -4857,6 +4862,19 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
       T a;
       static_assert(std::is_same_v<decltype(a.value()), void>);
+
+      {
+        T a;
+        a.value();
+        std::as_const(a).value();
+        std::move(std::as_const(a)).value();
+        std::move(a).value();
+
+        static_assert(std::is_same_v<decltype(a.value()), void>);
+        static_assert(std::is_same_v<decltype(std::as_const(a).value()), void>);
+        static_assert(std::is_same_v<decltype(std::move(a).value()), void>);
+        static_assert(std::is_same_v<decltype(std::move(std::as_const(a)).value()), void>);
+      }
 
       SECTION("operators")
       {
