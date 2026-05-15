@@ -53,7 +53,7 @@ template <typename T, typename... Ts> constexpr inline bool type_one_of = (... |
 #ifdef __clang__
 static constexpr std::string_view _normalized_name_anon{"(anonymous namespace)"};
 static constexpr std::string_view _normalized_name_prefix{"sortkey() [T = "};
-#elifdef __GNUC__
+#elif defined(__GNUC__)
 static constexpr std::string_view _normalized_name_anon{"{anonymous}"};
 static constexpr std::string_view _normalized_name_prefix{"sortkey() [with T = "};
 #endif
@@ -120,7 +120,7 @@ template <typename... Ts> struct normalized final {
   [[nodiscard]] static constexpr auto _indices() noexcept
   {
     std::array<std::string_view, sizeof...(Ts)> names{type_sortkey_v<Ts>...};
-    std::array<std::size_t, sizeof...(Ts)> indices;
+    std::array<std::size_t, sizeof...(Ts)> indices{};
     std::generate(indices.begin(), indices.end(), [n = 0]() mutable -> std::size_t { return n++; });
     auto const less = [v = &names](std::size_t i, std::size_t j) constexpr { return (*v)[i] < (*v)[j]; };
     std::sort(indices.begin(), indices.end(), less);

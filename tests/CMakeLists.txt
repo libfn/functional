@@ -129,10 +129,19 @@ set(TESTS_FN_SOURCES
     fn/value_or.cpp
 )
 
+set(TESTS_FN_SOURCES_CXX20
+    fn/detail/fwd_macro.cpp
+    fn/detail/meta.cpp
+)
+
 # Generate separate target for each individual test source
-# TODO add 20 when we are compatible with C++20
-foreach(mode 23)
+foreach(mode 23 20)
     foreach(source IN ITEMS ${TESTS_FN_SOURCES})
+        # Some fn files are not compatible with C++20 - see the list above.
+        if(mode EQUAL 20 AND NOT source IN_LIST TESTS_FN_SOURCES_CXX20)
+            continue()
+        endif()
+
         string(REGEX REPLACE "^(fn)/(detail|)/?([^\.]+)\.cpp$" "\\1_\\2\\3" root_name ${source})
         set(target "tests_${root_name}_cxx${mode}")
 
