@@ -170,11 +170,7 @@ private:
 
 template <class E> unexpected(E) -> unexpected<E>;
 
-template <class T, class E> class expected;
 namespace detail {
-template <typename> constexpr bool _is_some_expected = false;
-template <typename T, typename E> constexpr bool _is_some_expected<::pfn::expected<T, E>> = true;
-
 template <typename T, typename E>
 constexpr bool _is_valid_expected =                                   //
     not ::std::is_reference_v<T>                                      //
@@ -751,13 +747,17 @@ template <class T, class E> struct _storage {
 
 } // namespace detail
 
-// declare void specialization
-template <class T, class E>
-  requires ::std::is_void_v<T>
-class expected<T, E>;
+template <class T, class E> class expected;
+template <class E> class expected<void, E>;
+
+namespace detail {
+template <typename> constexpr bool _is_some_expected = false;
+template <typename T, typename E> constexpr bool _is_some_expected<::pfn::expected<T, E>> = true;
+} // namespace detail
 
 template <class T, class E> class expected : private detail::_storage<T, E> {
   static_assert(detail::_is_valid_expected<T, E>);
+  using _base = detail::_storage<T, E>;
 
   template <class U, class G, class UF, class GF>
   using _can_convert_detail = ::std::bool_constant<                           //
@@ -782,13 +782,6 @@ template <class T, class E> class expected : private detail::_storage<T, E> {
   template <class U, class G> using _can_copy_convert = _can_convert_detail<U, G, U const &, G const &>;
   template <class U, class G> using _can_move_convert = _can_convert_detail<U, G, U, G>;
   template <class U, class G> friend class expected;
-
-  // Bring the storage members into scope so unqualified lookup resolves them
-  // through the dependent base, and to document the inherited surface.
-  using _base = detail::_storage<T, E>;
-  using _base::_value;
-  using _base::set_;
-  using _base::storage_;
 
   template <class U>
   using _can_convert = ::std::bool_constant<                            //
@@ -1253,10 +1246,9 @@ requires {
   }
 };
 
-template <class T, class E>
-  requires ::std::is_void_v<T>
-class expected<T, E> : private detail::_storage<T, E> {
+template <class E> class expected<void, E> : private detail::_storage<void, E> {
   static_assert(detail::_is_valid_unexpected<E>);
+  using _base = detail::_storage<void, E>;
 
   template <class U, class G, class GF>
   using _can_convert_detail = ::std::bool_constant<                           //
@@ -1269,14 +1261,6 @@ class expected<T, E> : private detail::_storage<T, E> {
   template <class U, class G> using _can_copy_convert = _can_convert_detail<U, G, G const &>;
   template <class U, class G> using _can_move_convert = _can_convert_detail<U, G, G>;
   template <class U, class G> friend class expected;
-
-  // Bring the storage members into scope so unqualified lookup resolves them
-  // through the dependent base, and to document the inherited surface. For
-  // T=void the storage union has only `e_`; the value state has no active
-  // member.
-  using _base = detail::_storage<T, E>;
-  using _base::set_;
-  using _base::storage_;
 
   template <typename Self, typename Fn>
   static constexpr auto _and_then(Self &&self, Fn &&fn) //
@@ -1340,7 +1324,7 @@ class expected<T, E> : private detail::_storage<T, E> {
     using error_t = ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(FWD(self).error())>>;
     static_assert(detail::_is_valid_unexpected<error_t>);
     static_assert(::std::is_constructible_v<error_t, ::std::invoke_result_t<Fn, decltype(FWD(self).error())>>);
-    using result_t = expected<T, error_t>;
+    using result_t = expected<void, error_t>;
     if (not self.has_value()) {
       return result_t(unexpect, ::std::invoke(FWD(fn), FWD(self).error()));
     }
@@ -1348,7 +1332,7 @@ class expected<T, E> : private detail::_storage<T, E> {
   }
 
 public:
-  using value_type = T;
+  using value_type = void;
   using error_type = E;
   using unexpected_type = unexpected<E>;
 
