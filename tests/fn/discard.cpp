@@ -50,7 +50,7 @@ TEST_CASE("discard", "[discard][expected][expected_value]")
 
     WHEN("operand is error")
     {
-      operand_t a{std::unexpect, Error{"Not good"}};
+      operand_t a{::pfn::unexpect, Error{"Not good"}};
       a | discard();
 
       REQUIRE(a.error().what == "Not good");
@@ -67,7 +67,7 @@ TEST_CASE("discard", "[discard][expected][expected_value]")
 
     WHEN("operand is error")
     {
-      operand_t{std::unexpect, Error{"Not good"}} | discard();
+      operand_t{::pfn::unexpect, Error{"Not good"}} | discard();
       SUCCEED();
     }
   }
@@ -91,7 +91,7 @@ TEST_CASE("discard with pack", "[discard][expected][expected_value][pack]")
 
     WHEN("operand is error")
     {
-      operand_t b{std::unexpect, Error{"Pack error"}};
+      operand_t b{::pfn::unexpect, Error{"Pack error"}};
       b | discard();
 
       REQUIRE(b.error().what == "Pack error");
@@ -121,7 +121,7 @@ TEST_CASE("discard", "[discard][expected][expected_void]")
 
     WHEN("operand is error")
     {
-      operand_t a{std::unexpect, Error{"Not good"}};
+      operand_t a{::pfn::unexpect, Error{"Not good"}};
       a | discard();
 
       REQUIRE(a.error().what == "Not good");
@@ -138,7 +138,7 @@ TEST_CASE("discard", "[discard][expected][expected_void]")
 
     WHEN("operand is error")
     {
-      operand_t{std::unexpect, Error{"Not good"}} | discard();
+      operand_t{::pfn::unexpect, Error{"Not good"}} | discard();
       SUCCEED();
     }
   }
@@ -198,7 +198,7 @@ TEST_CASE("constexpr discard expected", "[discard][constexpr][expected]")
   using T = fn::expected<int, Error>;
 
   constexpr auto a = T{42};
-  constexpr auto b = T{std::unexpect, Error::ThresholdExceeded};
+  constexpr auto b = T{::pfn::unexpect, Error::ThresholdExceeded};
 
   constexpr auto test = [](T v) {
     v | discard();

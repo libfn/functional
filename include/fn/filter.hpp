@@ -89,7 +89,7 @@ struct filter_t::apply final {
     if (std::as_const(v).has_value()) {
       bool const keep = ::fn::invoke(FWD(pred), std::as_const(v).value());
       return (keep ? type{std::in_place, FWD(v).value()}
-                   : type{std::unexpect, ::fn::invoke(FWD(on_err), FWD(v).value())});
+                   : type{::pfn::unexpect, ::fn::invoke(FWD(on_err), FWD(v).value())});
     }
     return FWD(v);
   }
@@ -110,7 +110,7 @@ struct filter_t::apply final {
     if (std::as_const(v).has_value()) {
       bool const keep = ::fn::invoke(FWD(pred));
       return (keep ? type{std::in_place} //
-                   : type{std::unexpect, ::fn::invoke(FWD(on_err))});
+                   : type{::pfn::unexpect, ::fn::invoke(FWD(on_err))});
     }
     return FWD(v);
   }

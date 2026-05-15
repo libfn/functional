@@ -66,19 +66,19 @@ struct parameters {
       std::string_view const program_name = (args.size() >= 1 && !args[0].empty()) //
                                                 ? args[0]
                                                 : std::string_view{"<program>"};
-      return std::unexpected(too_few_parameters{program_name});
+      return ::pfn::unexpected(too_few_parameters{program_name});
     }
 
     parameters params;
     params.characters = args[1];
     if (params.characters.size() < 3) {
-      return std::unexpected(too_few_characters{});
+      return ::pfn::unexpected(too_few_characters{});
     }
     params.required = static_cast<unsigned char>(params.characters[0]);
 
     for (char c : params.characters) {
       if (static_cast<unsigned char>(c) > 0x7F) {
-        return std::unexpected(non_ascii_characters{});
+        return ::pfn::unexpected(non_ascii_characters{});
       }
     }
 
@@ -185,12 +185,12 @@ struct inputs {
           ec == std::errc::no_such_file_or_directory //
           || ec == std::errc::not_a_directory        //
           || type == std::filesystem::file_type::not_found) {
-        return std::unexpected(file_not_found{{.path = std::move(path), .ec = ec}});
+        return ::pfn::unexpected(file_not_found{{.path = std::move(path), .ec = ec}});
       }
       if (ec == std::errc::permission_denied) {
-        return std::unexpected(permission_denied{{.path = std::move(path), .ec = ec}});
+        return ::pfn::unexpected(permission_denied{{.path = std::move(path), .ec = ec}});
       }
-      return std::unexpected(
+      return ::pfn::unexpected(
           io_error{{.path = std::move(path), .ec = (ec ? ec : std::make_error_code(std::io_errc::stream))}});
     };
 
@@ -254,7 +254,7 @@ constexpr inline struct algorithm_t {
       if (source.in->eof() && !source.in->bad()) {
         continue;
       }
-      return std::unexpected(read_error{{.path = source.path, .ec = std::make_error_code(std::io_errc::stream)}});
+      return ::pfn::unexpected(read_error{{.path = source.path, .ec = std::make_error_code(std::io_errc::stream)}});
     }
 
     return 0;

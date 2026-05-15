@@ -69,7 +69,7 @@ TEST_CASE("transform", "[transform][expected][expected_value][pack]")
     }
     WHEN("operand is error")
     {
-      operand_t a{std::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, "Not good"};
       using T = decltype(a | transform(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a //
@@ -92,7 +92,7 @@ TEST_CASE("transform", "[transform][expected][expected_value][pack]")
     WHEN("operand is error")
     {
       constexpr auto wrong = [](auto...) -> int { throw 0; };
-      REQUIRE((operand_t{std::unexpect, Error{"Not good"}} | transform(wrong)).error().what == "Not good");
+      REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} | transform(wrong)).error().what == "Not good");
     }
   }
 
@@ -113,9 +113,9 @@ TEST_CASE("transform", "[transform][expected][expected_value][pack]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{std::unexpect, "Not good"} | transform(wrong));
+      using T = decltype(operand_t{::pfn::unexpect, "Not good"} | transform(wrong));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{std::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, "Not good"} //
                | transform(wrong))
                   .error()
                   .what
@@ -161,7 +161,7 @@ TEST_CASE("transform", "[transform][expected][expected_void]")
     }
     WHEN("operand is error")
     {
-      operand_t a{std::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, "Not good"};
       using T = decltype(a | transform(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a //
@@ -190,9 +190,9 @@ TEST_CASE("transform", "[transform][expected][expected_void]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{std::unexpect, "Not good"} | transform(wrong));
+      using T = decltype(operand_t{::pfn::unexpect, "Not good"} | transform(wrong));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{std::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, "Not good"} //
                | transform(wrong))
                   .error()
                   .what
@@ -381,7 +381,7 @@ TEST_CASE("constexpr transform expected", "[transform][constexpr][expected]")
     static_assert(r1.value() == 1);
     constexpr auto r2 = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
     static_assert(r2.value() == 2);
-    constexpr auto r3 = T{std::unexpect, Error::SomethingElse} | fn::transform(fn);
+    constexpr auto r3 = T{::pfn::unexpect, Error::SomethingElse} | fn::transform(fn);
     static_assert(r3.error() == Error::SomethingElse);
   }
 
@@ -395,7 +395,7 @@ TEST_CASE("constexpr transform expected", "[transform][constexpr][expected]")
     static_assert(r2.value() == false);
     constexpr auto r3 = T{2} | fn::transform(fn);
     static_assert(r3.value() == false);
-    constexpr auto r4 = T{std::unexpect, Error::SomethingElse} | fn::transform(fn);
+    constexpr auto r4 = T{::pfn::unexpect, Error::SomethingElse} | fn::transform(fn);
     static_assert(r4.error() == Error::SomethingElse);
   }
 
@@ -422,7 +422,7 @@ TEST_CASE("constexpr transform expected with sum", "[transform][constexpr][expec
     static_assert(r2.value() == fn::sum{3});
     constexpr auto r3 = T{Xint{4}} | fn::transform(fn);
     static_assert(r3.value() == fn::sum{4});
-    constexpr auto r4 = T{std::unexpect, Error::SomethingElse} | fn::transform(fn);
+    constexpr auto r4 = T{::pfn::unexpect, Error::SomethingElse} | fn::transform(fn);
     static_assert(r4.error() == Error::SomethingElse);
   }
 
@@ -437,7 +437,7 @@ TEST_CASE("constexpr transform expected with sum", "[transform][constexpr][expec
     static_assert(r2.value() == fn::sum{false});
     constexpr auto r3 = T{Xint{3}} | fn::transform(fn);
     static_assert(r3.value() == fn::sum{3});
-    constexpr auto r4 = T{std::unexpect, Error::SomethingElse} | fn::transform(fn);
+    constexpr auto r4 = T{::pfn::unexpect, Error::SomethingElse} | fn::transform(fn);
     static_assert(r4.error() == Error::SomethingElse);
   }
 

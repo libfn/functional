@@ -93,8 +93,7 @@ target_sources(include_fn INTERFACE
     FILES ${INCLUDE_FN_HEADERS})
 append_compilation_options(include_fn INTERFACE)
 target_include_directories(include_fn SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
-# TODO uncomment when include_pfn is ready
-# target_link_libraries(include_fn INTERFACE include_pfn)
+target_link_libraries(include_fn INTERFACE include_pfn)
 
 install(TARGETS include_fn
     FILE_SET include_fn_headers

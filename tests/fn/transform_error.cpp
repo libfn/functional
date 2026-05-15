@@ -64,7 +64,7 @@ TEST_CASE("transform_error", "[transform_error][expected]")
     }
     WHEN("operand is error")
     {
-      operand_t a{std::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, "Not good"};
       using T = decltype(a | transform_error(fnError));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a //
@@ -92,9 +92,9 @@ TEST_CASE("transform_error", "[transform_error][expected]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{std::unexpect, "Not good"} | transform_error(fnError));
+      using T = decltype(operand_t{::pfn::unexpect, "Not good"} | transform_error(fnError));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{std::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, "Not good"} //
                | transform_error(fnError))
                   .error()
                   .what
@@ -102,9 +102,9 @@ TEST_CASE("transform_error", "[transform_error][expected]")
 
       WHEN("change type")
       {
-        using T = decltype(operand_t{std::unexpect, "Not good"} | transform_error(fnXerror));
+        using T = decltype(operand_t{::pfn::unexpect, "Not good"} | transform_error(fnXerror));
         static_assert(std::is_same_v<T, fn::expected<int, Xerror>>);
-        REQUIRE((operand_t{std::unexpect, "Not good"} | transform_error(fnXerror)).error().value == 8);
+        REQUIRE((operand_t{::pfn::unexpect, "Not good"} | transform_error(fnXerror)).error().value == 8);
       }
     }
   }
@@ -136,11 +136,11 @@ TEST_CASE("constexpr transform_error expected", "[transform_error][constexpr][ex
     };
     constexpr auto r1 = T{0} | fn::transform_error(fn);
     static_assert(r1.value() == 0);
-    constexpr auto r2 = T{std::unexpect, Error::ThresholdExceeded} | fn::transform_error(fn);
+    constexpr auto r2 = T{::pfn::unexpect, Error::ThresholdExceeded} | fn::transform_error(fn);
     static_assert(r2.error() == Error::ThresholdExceeded);
-    constexpr auto r3 = T{std::unexpect, Error::SomethingElse} | fn::transform_error(fn);
+    constexpr auto r3 = T{::pfn::unexpect, Error::SomethingElse} | fn::transform_error(fn);
     static_assert(r3.error() == Error::SomethingElse);
-    constexpr auto r4 = T{std::unexpect, Error::Unknown} | fn::transform_error(fn);
+    constexpr auto r4 = T{::pfn::unexpect, Error::Unknown} | fn::transform_error(fn);
     static_assert(r4.error() == Error::SomethingElse);
   }
 
@@ -154,9 +154,9 @@ TEST_CASE("constexpr transform_error expected", "[transform_error][constexpr][ex
     constexpr auto r1 = T{0} | fn::transform_error(fn);
     static_assert(std::is_same_v<decltype(r1), fn::expected<int, UnrecoverableError> const>);
     static_assert(r1.value() == 0);
-    constexpr auto r2 = T{std::unexpect, Error::ThresholdExceeded} | fn::transform_error(fn);
+    constexpr auto r2 = T{::pfn::unexpect, Error::ThresholdExceeded} | fn::transform_error(fn);
     static_assert(r2.error() == UnrecoverableError{});
-    constexpr auto r3 = T{std::unexpect, Error::SomethingElse} | fn::transform_error(fn);
+    constexpr auto r3 = T{::pfn::unexpect, Error::SomethingElse} | fn::transform_error(fn);
     static_assert(r3.error() == UnrecoverableError{});
   }
 
@@ -172,10 +172,10 @@ TEST_CASE("constexpr transform_error expected with sum", "[transform_error][cons
   {
     constexpr auto fn = fn::overload{[](bool i) constexpr noexcept -> fn::sum<Error, bool> { return not i; },
                                      [](Error v) constexpr noexcept -> fn::sum<Error, bool> { return v; }};
-    constexpr auto r1 = T{std::unexpect, fn::sum{Error::SomethingElse}} | fn::transform_error(fn);
+    constexpr auto r1 = T{::pfn::unexpect, fn::sum{Error::SomethingElse}} | fn::transform_error(fn);
     static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::sum<Error, bool>> const>);
     static_assert(r1.error() == fn::sum{Error::SomethingElse});
-    constexpr auto r2 = T{std::unexpect, fn::sum{true}} | fn::transform_error(fn);
+    constexpr auto r2 = T{::pfn::unexpect, fn::sum{true}} | fn::transform_error(fn);
     static_assert(r2.error() == fn::sum{false});
     constexpr auto r3 = T{42} | fn::transform_error(fn);
     static_assert(r3.value() == 42);
@@ -185,10 +185,10 @@ TEST_CASE("constexpr transform_error expected with sum", "[transform_error][cons
   {
     constexpr auto fn = fn::overload{[](bool i) constexpr noexcept -> bool { return not i; },
                                      [](Error v) constexpr noexcept -> int { return static_cast<int>(v) + 1; }};
-    constexpr auto r1 = T{std::unexpect, fn::sum{Error::SomethingElse}} | fn::transform_error(fn);
+    constexpr auto r1 = T{::pfn::unexpect, fn::sum{Error::SomethingElse}} | fn::transform_error(fn);
     static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::sum<bool, int>> const>);
     static_assert(r1.error() == fn::sum{2});
-    constexpr auto r2 = T{std::unexpect, fn::sum{true}} | fn::transform_error(fn);
+    constexpr auto r2 = T{::pfn::unexpect, fn::sum{true}} | fn::transform_error(fn);
     static_assert(r2.error() == fn::sum{false});
     constexpr auto r3 = T{42} | fn::transform_error(fn);
     static_assert(r3.value() == 42);

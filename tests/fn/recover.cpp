@@ -66,7 +66,7 @@ TEST_CASE("recover", "[recover][expected][expected_value]")
     }
     WHEN("operand is error")
     {
-      operand_t a{std::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, "Not good"};
       using T = decltype(a | recover(fnError));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a | recover(fnError)).value() == 8);
@@ -83,9 +83,9 @@ TEST_CASE("recover", "[recover][expected][expected_value]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{std::unexpect, "Not good"} | recover(fnError));
+      using T = decltype(operand_t{::pfn::unexpect, "Not good"} | recover(fnError));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{std::unexpect, "Not good"} | recover(fnError)).value() == 8);
+      REQUIRE((operand_t{::pfn::unexpect, "Not good"} | recover(fnError)).value() == 8);
     }
   }
 }
@@ -128,7 +128,7 @@ TEST_CASE("recover", "[recover][expected][expected_void]")
     }
     WHEN("operand is error")
     {
-      operand_t a{std::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, "Not good"};
       using T = decltype(a | recover(fnError));
       static_assert(std::is_same_v<T, operand_t>);
       (a | recover(fnError)).value();
@@ -147,9 +147,9 @@ TEST_CASE("recover", "[recover][expected][expected_void]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{std::unexpect, "Not good"} | recover(fnError));
+      using T = decltype(operand_t{::pfn::unexpect, "Not good"} | recover(fnError));
       static_assert(std::is_same_v<T, operand_t>);
-      (operand_t{std::unexpect, "Not good"} | recover(fnError)).value();
+      (operand_t{::pfn::unexpect, "Not good"} | recover(fnError)).value();
       REQUIRE(count == 1);
     }
   }
@@ -223,9 +223,9 @@ TEST_CASE("constexpr recover expected", "[recover][constexpr][expected]")
   };
   constexpr auto r1 = T{2} | fn::recover(fn);
   static_assert(r1.value() == 2);
-  constexpr auto r2 = T{std::unexpect, Error::SomethingElse} | fn::recover(fn);
+  constexpr auto r2 = T{::pfn::unexpect, Error::SomethingElse} | fn::recover(fn);
   static_assert(r2.value() == 0);
-  constexpr auto r3 = T{std::unexpect, Error::ThresholdExceeded} | fn::recover(fn);
+  constexpr auto r3 = T{::pfn::unexpect, Error::ThresholdExceeded} | fn::recover(fn);
   static_assert(r3.value() == 1);
 
   SUCCEED();
@@ -244,11 +244,11 @@ TEST_CASE("constexpr recover expected with sum", "[recover][constexpr][expected]
                                    [](bool e) constexpr noexcept -> int { return (int)e; }};
   constexpr auto r1 = T{2} | fn::recover(fn);
   static_assert(r1.value() == 2);
-  constexpr auto r2 = T{std::unexpect, fn::sum{Error::SomethingElse}} | fn::recover(fn);
+  constexpr auto r2 = T{::pfn::unexpect, fn::sum{Error::SomethingElse}} | fn::recover(fn);
   static_assert(r2.value() == 0);
-  constexpr auto r3 = T{std::unexpect, fn::sum{true}} | fn::recover(fn);
+  constexpr auto r3 = T{::pfn::unexpect, fn::sum{true}} | fn::recover(fn);
   static_assert(r3.value() == 1);
-  constexpr auto r4 = T{std::unexpect, fn::sum{Error::ThresholdExceeded}} | fn::recover(fn);
+  constexpr auto r4 = T{::pfn::unexpect, fn::sum{Error::ThresholdExceeded}} | fn::recover(fn);
   static_assert(r4.value() == 1);
 
   SUCCEED();

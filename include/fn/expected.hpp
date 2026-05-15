@@ -6,11 +6,12 @@
 #ifndef INCLUDE_FN_EXPECTED
 #define INCLUDE_FN_EXPECTED
 
+#include "pfn/expected.hpp"
+
 #include <fn/pack.hpp>
 #include <fn/sum.hpp>
 
 #include <concepts>
-#include <expected>
 #include <type_traits>
 #include <utility>
 
@@ -29,13 +30,13 @@ concept some_expected_void = //
     some_expected<T>         //
     && std::is_same_v<void, typename std::remove_cvref_t<T>::value_type>;
 
-template <typename T, typename Err> struct expected final : std::expected<T, Err> {
-  using value_type = std::expected<T, Err>::value_type;
-  using error_type = std::expected<T, Err>::error_type;
-  using unexpected_type = std::unexpected<Err>;
+template <typename T, typename Err> struct expected final : ::pfn::expected<T, Err> {
+  using value_type = ::pfn::expected<T, Err>::value_type;
+  using error_type = ::pfn::expected<T, Err>::error_type;
+  using unexpected_type = ::pfn::unexpected<Err>;
   static_assert(not std::is_same_v<value_type, ::fn::sum<>>);
 
-  using std::expected<T, Err>::expected;
+  using ::pfn::expected<T, Err>::expected;
 
   // convert to graded monad
   auto sum_error() const & -> expected<value_type, sum<error_type>>
@@ -45,7 +46,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
     if (this->has_value())
       return type{std::in_place, this->value()};
     else
-      return type{std::unexpect, sum<error_type>(this->error())};
+      return type{::pfn::unexpect, sum<error_type>(this->error())};
   }
 
   auto sum_error() && -> expected<value_type, sum<error_type>>
@@ -55,7 +56,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
     if (this->has_value())
       return type{std::in_place, std::move(*this).value()};
     else
-      return type{std::unexpect, sum<error_type>(std::move(*this).error())};
+      return type{::pfn::unexpect, sum<error_type>(std::move(*this).error())};
   }
 
   auto sum_error() & -> decltype(auto)
@@ -89,7 +90,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
     if (this->has_value())
       return type{std::in_place, sum<value_type>(this->value())};
     else
-      return type{std::unexpect, this->error()};
+      return type{::pfn::unexpect, this->error()};
   }
 
   auto sum_value() && -> expected<sum<value_type>, error_type>
@@ -99,7 +100,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
     if (this->has_value())
       return type{std::in_place, sum<value_type>(std::move(*this).value())};
     else
-      return type{std::unexpect, std::move(*this).error()};
+      return type{::pfn::unexpect, std::move(*this).error()};
   }
 
   auto sum_value() & -> decltype(auto)
@@ -138,7 +139,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       if (this->has_value())
         return ::fn::detail::_invoke(FWD(fn), this->value());
       else
-        return type(std::unexpect, this->error());
+        return type(::pfn::unexpect, this->error());
     } else {
       using new_error_type = sum_for<error_type, typename type::error_type>;
       using new_type = ::fn::expected<typename type::value_type, new_error_type>;
@@ -150,10 +151,10 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
           else
             return new_type{std::in_place};
         else
-          return new_type{std::unexpect, std::move(t).error()};
+          return new_type{::pfn::unexpect, std::move(t).error()};
       } else {
         if constexpr (not std::is_same_v<error_type, sum<>>)
-          return new_type(std::unexpect, this->error());
+          return new_type(::pfn::unexpect, this->error());
         else
           std::unreachable();
       }
@@ -171,7 +172,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       if (this->has_value())
         return ::fn::detail::_invoke(FWD(fn), this->value());
       else
-        return type(std::unexpect, this->error());
+        return type(::pfn::unexpect, this->error());
     } else {
       using new_error_type = sum_for<error_type, typename type::error_type>;
       using new_type = ::fn::expected<typename type::value_type, new_error_type>;
@@ -183,10 +184,10 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
           else
             return new_type{std::in_place};
         else
-          return new_type{std::unexpect, std::move(t).error()};
+          return new_type{::pfn::unexpect, std::move(t).error()};
       } else {
         if constexpr (not std::is_same_v<error_type, sum<>>)
-          return new_type(std::unexpect, this->error());
+          return new_type(::pfn::unexpect, this->error());
         else
           std::unreachable();
       }
@@ -204,7 +205,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       if (this->has_value())
         return ::fn::detail::_invoke(FWD(fn), std::move(*this).value());
       else
-        return type(std::unexpect, std::move(*this).error());
+        return type(::pfn::unexpect, std::move(*this).error());
     } else {
       using new_error_type = sum_for<error_type, typename type::error_type>;
       using new_type = ::fn::expected<typename type::value_type, new_error_type>;
@@ -216,10 +217,10 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
           else
             return new_type{std::in_place};
         else
-          return new_type{std::unexpect, std::move(t).error()};
+          return new_type{::pfn::unexpect, std::move(t).error()};
       } else {
         if constexpr (not std::is_same_v<error_type, sum<>>)
-          return new_type(std::unexpect, std::move(*this).error());
+          return new_type(::pfn::unexpect, std::move(*this).error());
         else
           std::unreachable();
       }
@@ -237,7 +238,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       if (this->has_value())
         return ::fn::detail::_invoke(FWD(fn), std::move(*this).value());
       else
-        return type(std::unexpect, std::move(*this).error());
+        return type(::pfn::unexpect, std::move(*this).error());
     } else {
       using new_error_type = sum_for<error_type, typename type::error_type>;
       using new_type = ::fn::expected<typename type::value_type, new_error_type>;
@@ -249,10 +250,10 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
           else
             return new_type{std::in_place};
         else
-          return new_type{std::unexpect, std::move(t).error()};
+          return new_type{::pfn::unexpect, std::move(t).error()};
       } else {
         if constexpr (not std::is_same_v<error_type, sum<>>)
-          return new_type(std::unexpect, std::move(*this).error());
+          return new_type(::pfn::unexpect, std::move(*this).error());
         else
           std::unreachable();
       }
@@ -271,7 +272,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       if (this->has_value())
         return ::fn::detail::_invoke(FWD(fn));
       else
-        return type(std::unexpect, this->error());
+        return type(::pfn::unexpect, this->error());
     } else {
       using new_error_type = sum_for<error_type, typename type::error_type>;
       using new_type = ::fn::expected<typename type::value_type, new_error_type>;
@@ -283,10 +284,10 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
           else
             return new_type{std::in_place};
         else
-          return new_type{std::unexpect, std::move(t).error()};
+          return new_type{::pfn::unexpect, std::move(t).error()};
       } else {
         if constexpr (not std::is_same_v<error_type, sum<>>)
-          return new_type(std::unexpect, this->error());
+          return new_type(::pfn::unexpect, this->error());
         else
           std::unreachable();
       }
@@ -304,7 +305,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       if (this->has_value())
         return ::fn::detail::_invoke(FWD(fn));
       else
-        return type(std::unexpect, this->error());
+        return type(::pfn::unexpect, this->error());
     } else {
       using new_error_type = sum_for<error_type, typename type::error_type>;
       using new_type = ::fn::expected<typename type::value_type, new_error_type>;
@@ -316,10 +317,10 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
           else
             return new_type{std::in_place};
         else
-          return new_type{std::unexpect, std::move(t).error()};
+          return new_type{::pfn::unexpect, std::move(t).error()};
       } else {
         if constexpr (not std::is_same_v<error_type, sum<>>)
-          return new_type(std::unexpect, this->error());
+          return new_type(::pfn::unexpect, this->error());
         else
           std::unreachable();
       }
@@ -337,7 +338,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       if (this->has_value())
         return ::fn::detail::_invoke(FWD(fn));
       else
-        return type(std::unexpect, std::move(*this).error());
+        return type(::pfn::unexpect, std::move(*this).error());
     } else {
       using new_error_type = sum_for<error_type, typename type::error_type>;
       using new_type = ::fn::expected<typename type::value_type, new_error_type>;
@@ -349,10 +350,10 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
           else
             return new_type{std::in_place};
         else
-          return new_type{std::unexpect, std::move(t).error()};
+          return new_type{::pfn::unexpect, std::move(t).error()};
       } else {
         if constexpr (not std::is_same_v<error_type, sum<>>)
-          return new_type(std::unexpect, std::move(*this).error());
+          return new_type(::pfn::unexpect, std::move(*this).error());
         else
           std::unreachable();
       }
@@ -370,7 +371,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       if (this->has_value())
         return ::fn::detail::_invoke(FWD(fn));
       else
-        return type(std::unexpect, std::move(*this).error());
+        return type(::pfn::unexpect, std::move(*this).error());
     } else {
       using new_error_type = sum_for<error_type, typename type::error_type>;
       using new_type = ::fn::expected<typename type::value_type, new_error_type>;
@@ -382,10 +383,10 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
           else
             return new_type{std::in_place};
         else
-          return new_type{std::unexpect, std::move(t).error()};
+          return new_type{::pfn::unexpect, std::move(t).error()};
       } else {
         if constexpr (not std::is_same_v<error_type, sum<>>)
-          return new_type(std::unexpect, std::move(*this).error());
+          return new_type(::pfn::unexpect, std::move(*this).error());
         else
           std::unreachable();
       }
@@ -419,7 +420,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
         if (t.has_value())
           return new_type{std::in_place, std::move(t).value()};
         else
-          return new_type{std::unexpect, std::move(t).error()};
+          return new_type{::pfn::unexpect, std::move(t).error()};
       }
     }
   }
@@ -450,7 +451,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
         if (t.has_value())
           return new_type{std::in_place, std::move(t).value()};
         else
-          return new_type{std::unexpect, std::move(t).error()};
+          return new_type{::pfn::unexpect, std::move(t).error()};
       }
     }
   }
@@ -481,7 +482,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
         if (t.has_value())
           return new_type{std::in_place, std::move(t).value()};
         else
-          return new_type{std::unexpect, std::move(t).error()};
+          return new_type{::pfn::unexpect, std::move(t).error()};
       }
     }
   }
@@ -512,7 +513,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
         if (t.has_value())
           return new_type{std::in_place, std::move(t).value()};
         else
-          return new_type{std::unexpect, std::move(t).error()};
+          return new_type{::pfn::unexpect, std::move(t).error()};
       }
     }
   }
@@ -531,7 +532,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       } else
         return type(std::in_place, ::fn::detail::_invoke(FWD(fn), this->value()));
     else
-      return type(std::unexpect, this->error());
+      return type(::pfn::unexpect, this->error());
   }
 
   template <typename Fn>
@@ -547,7 +548,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       } else
         return type(std::in_place, ::fn::detail::_invoke(FWD(fn), this->value()));
     else
-      return type(std::unexpect, this->error());
+      return type(::pfn::unexpect, this->error());
   }
 
   template <typename Fn>
@@ -563,7 +564,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       } else
         return type(std::in_place, ::fn::detail::_invoke(FWD(fn), std::move(*this).value()));
     else
-      return type(std::unexpect, std::move(*this).error());
+      return type(::pfn::unexpect, std::move(*this).error());
   }
 
   template <typename Fn>
@@ -579,7 +580,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       } else
         return type(std::in_place, ::fn::detail::_invoke(FWD(fn), std::move(*this).value()));
     else
-      return type(std::unexpect, std::move(*this).error());
+      return type(::pfn::unexpect, std::move(*this).error());
   }
 
   // transform sum
@@ -596,7 +597,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       } else
         return type(std::in_place, this->value().transform(FWD(fn)));
     else
-      return type(std::unexpect, this->error());
+      return type(::pfn::unexpect, this->error());
   }
 
   template <typename Fn>
@@ -612,7 +613,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       } else
         return type(std::in_place, this->value().transform(FWD(fn)));
     else
-      return type(std::unexpect, this->error());
+      return type(::pfn::unexpect, this->error());
   }
 
   template <typename Fn>
@@ -628,7 +629,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       } else
         return type(std::in_place, std::move(*this).value().transform(FWD(fn)));
     else
-      return type(std::unexpect, std::move(*this).error());
+      return type(::pfn::unexpect, std::move(*this).error());
   }
 
   template <typename Fn>
@@ -644,7 +645,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       } else
         return type(std::in_place, std::move(*this).value().transform(FWD(fn)));
     else
-      return type(std::unexpect, std::move(*this).error());
+      return type(::pfn::unexpect, std::move(*this).error());
   }
 
   // transform void
@@ -661,7 +662,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       } else
         return type(std::in_place, ::fn::detail::_invoke(FWD(fn)));
     else
-      return type(std::unexpect, this->error());
+      return type(::pfn::unexpect, this->error());
   }
 
   template <typename Fn>
@@ -677,7 +678,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       } else
         return type(std::in_place, ::fn::detail::_invoke(FWD(fn)));
     else
-      return type(std::unexpect, this->error());
+      return type(::pfn::unexpect, this->error());
   }
 
   template <typename Fn>
@@ -693,7 +694,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       } else
         return type(std::in_place, ::fn::detail::_invoke(FWD(fn)));
     else
-      return type(std::unexpect, std::move(*this).error());
+      return type(::pfn::unexpect, std::move(*this).error());
   }
 
   template <typename Fn>
@@ -709,7 +710,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       } else
         return type(std::in_place, ::fn::detail::_invoke(FWD(fn)));
     else
-      return type(std::unexpect, std::move(*this).error());
+      return type(::pfn::unexpect, std::move(*this).error());
   }
 
   // transform_error not sum
@@ -725,7 +726,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       else
         return type();
     else
-      return type(std::unexpect, ::fn::detail::_invoke(FWD(fn), this->error()));
+      return type(::pfn::unexpect, ::fn::detail::_invoke(FWD(fn), this->error()));
   }
 
   template <typename Fn>
@@ -740,7 +741,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       else
         return type();
     else
-      return type(std::unexpect, ::fn::detail::_invoke(FWD(fn), this->error()));
+      return type(::pfn::unexpect, ::fn::detail::_invoke(FWD(fn), this->error()));
   }
 
   template <typename Fn>
@@ -755,7 +756,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       else
         return type();
     else
-      return type(std::unexpect, ::fn::detail::_invoke(FWD(fn), std::move(*this).error()));
+      return type(::pfn::unexpect, ::fn::detail::_invoke(FWD(fn), std::move(*this).error()));
   }
 
   template <typename Fn>
@@ -770,7 +771,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       else
         return type();
     else
-      return type(std::unexpect, ::fn::detail::_invoke(FWD(fn), std::move(*this).error()));
+      return type(::pfn::unexpect, ::fn::detail::_invoke(FWD(fn), std::move(*this).error()));
   }
 
   // transform_error sum
@@ -786,7 +787,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       else
         return type();
     else
-      return type(std::unexpect, this->error().transform(FWD(fn)));
+      return type(::pfn::unexpect, this->error().transform(FWD(fn)));
   }
 
   template <typename Fn>
@@ -801,7 +802,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       else
         return type();
     else
-      return type(std::unexpect, this->error().transform(FWD(fn)));
+      return type(::pfn::unexpect, this->error().transform(FWD(fn)));
   }
 
   template <typename Fn>
@@ -816,7 +817,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       else
         return type();
     else
-      return type(std::unexpect, std::move(*this).error().transform(FWD(fn)));
+      return type(::pfn::unexpect, std::move(*this).error().transform(FWD(fn)));
   }
 
   template <typename Fn>
@@ -831,7 +832,7 @@ template <typename T, typename Err> struct expected final : std::expected<T, Err
       else
         return type();
     else
-      return type(std::unexpect, std::move(*this).error().transform(FWD(fn)));
+      return type(::pfn::unexpect, std::move(*this).error().transform(FWD(fn)));
   }
 };
 
@@ -852,9 +853,9 @@ template <typename Lh, typename Rh>
   if (lh.has_value() && rh.has_value())
     return type{std::in_place, FWD(rh).value()};
   else if (not lh.has_value())
-    return type{std::unexpect, FWD(lh).error()};
+    return type{::pfn::unexpect, FWD(lh).error()};
   else
-    return type{std::unexpect, FWD(rh).error()};
+    return type{::pfn::unexpect, FWD(rh).error()};
 }
 
 template <typename Lh, typename Rh>
@@ -873,12 +874,12 @@ template <typename Lh, typename Rh>
     return type{std::in_place, FWD(rh).value()};
   else if (not lh.has_value()) {
     if constexpr (not std::is_same_v<typename std::remove_cvref_t<Lh>::error_type, sum<>>)
-      return type{std::unexpect, new_error_type{FWD(lh).error()}};
+      return type{::pfn::unexpect, new_error_type{FWD(lh).error()}};
     else
       std::unreachable();
   } else {
     if constexpr (not std::is_same_v<typename std::remove_cvref_t<Rh>::error_type, sum<>>)
-      return type{std::unexpect, new_error_type{FWD(rh).error()}};
+      return type{::pfn::unexpect, new_error_type{FWD(rh).error()}};
     else
       std::unreachable();
   }
@@ -895,9 +896,9 @@ template <typename Lh, typename Rh>
   if (lh.has_value() && rh.has_value())
     return type{std::in_place, FWD(lh).value()};
   else if (not lh.has_value())
-    return type{std::unexpect, FWD(lh).error()};
+    return type{::pfn::unexpect, FWD(lh).error()};
   else
-    return type{std::unexpect, FWD(rh).error()};
+    return type{::pfn::unexpect, FWD(rh).error()};
 }
 
 template <typename Lh, typename Rh>
@@ -916,12 +917,12 @@ template <typename Lh, typename Rh>
     return type{std::in_place, FWD(lh).value()};
   else if (not lh.has_value()) {
     if constexpr (not std::is_same_v<typename std::remove_cvref_t<Lh>::error_type, sum<>>)
-      return type{std::unexpect, new_error_type{FWD(lh).error()}};
+      return type{::pfn::unexpect, new_error_type{FWD(lh).error()}};
     else
       std::unreachable();
   } else {
     if constexpr (not std::is_same_v<typename std::remove_cvref_t<Rh>::error_type, sum<>>)
-      return type{std::unexpect, new_error_type{FWD(rh).error()}};
+      return type{::pfn::unexpect, new_error_type{FWD(rh).error()}};
     else
       std::unreachable();
   }
@@ -937,9 +938,9 @@ template <typename Lh, typename Rh>
   if (lh.has_value() && rh.has_value())
     return type{std::in_place};
   else if (not lh.has_value())
-    return type{std::unexpect, FWD(lh).error()};
+    return type{::pfn::unexpect, FWD(lh).error()};
   else
-    return type{std::unexpect, FWD(rh).error()};
+    return type{::pfn::unexpect, FWD(rh).error()};
 }
 
 template <typename Lh, typename Rh>
@@ -957,12 +958,12 @@ template <typename Lh, typename Rh>
     return type{std::in_place};
   else if (not lh.has_value()) {
     if constexpr (not std::is_same_v<typename std::remove_cvref_t<Lh>::error_type, sum<>>)
-      return type{std::unexpect, new_error_type{FWD(lh).error()}};
+      return type{::pfn::unexpect, new_error_type{FWD(lh).error()}};
     else
       std::unreachable();
   } else {
     if constexpr (not std::is_same_v<typename std::remove_cvref_t<Rh>::error_type, sum<>>)
-      return type{std::unexpect, new_error_type{FWD(rh).error()}};
+      return type{::pfn::unexpect, new_error_type{FWD(rh).error()}};
     else
       std::unreachable();
   }
@@ -982,7 +983,7 @@ template <typename Lh, typename Rh>
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
 {
   using error_type = std::remove_cvref_t<Lh>::error_type;
-  static constexpr auto efn = [](auto &&v) { return std::unexpected<error_type>(FWD(v).error()); };
+  static constexpr auto efn = [](auto &&v) { return ::pfn::unexpected<error_type>(FWD(v).error()); };
   return ::fn::detail::_join<detail::template _expected_type<error_type>::template type>(FWD(lh), FWD(rh), efn);
 }
 
@@ -998,7 +999,7 @@ template <typename Lh, typename Rh>
       = sum_for<typename std::remove_cvref_t<Lh>::error_type, typename std::remove_cvref_t<Rh>::error_type>;
   static constexpr auto efn = [](auto &&v) {
     if constexpr (not std::is_same_v<typename std::remove_cvref_t<decltype(v)>::error_type, sum<>>) {
-      return std::unexpected<new_error_type>(FWD(v).error());
+      return ::pfn::unexpected<new_error_type>(FWD(v).error());
     } else {
       std::unreachable();
     }
