@@ -11,6 +11,8 @@ include(CompilationOptions)
 # Pls keep the filenames sorted
 set(INCLUDE_PFN_HEADERS
     pfn/expected.hpp
+    pfn/functional.hpp
+    pfn/utility.hpp
 )
 
 add_library(include_pfn INTERFACE)

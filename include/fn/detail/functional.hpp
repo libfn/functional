@@ -9,6 +9,7 @@
 #include <fn/detail/fwd.hpp>
 #include <fn/detail/fwd_macro.hpp>
 #include <fn/detail/meta.hpp>
+#include <pfn/functional.hpp>
 
 #include <functional>
 #include <type_traits>
@@ -99,7 +100,7 @@ template <typename Ret, typename Fn, typename... Args>
   requires(not(... || (_some_pack<Args> || _some_sum<Args>))) && ::std::is_invocable_r_v<Ret, Fn, Args...>
 [[nodiscard]] constexpr auto invoke_r(Fn &&fn, Args &&...args) -> decltype(auto)
 {
-  return ::std::invoke_r<Ret>(FWD(fn), FWD(args)...);
+  return ::pfn::invoke_r<Ret>(FWD(fn), FWD(args)...);
 }
 
 template <typename Ret, typename Fn, typename Arg, typename... Args>

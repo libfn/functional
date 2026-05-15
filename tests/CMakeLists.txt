@@ -41,6 +41,8 @@ endforeach()
 
 set(TESTS_PFN_SOURCES
     pfn/expected.cpp
+    pfn/functional.cpp
+    pfn/utility.cpp
 )
 
 include(TargetGenerator)
@@ -132,6 +134,7 @@ set(TESTS_FN_SOURCES
 set(TESTS_FN_SOURCES_CXX20
     fn/detail/fwd_macro.cpp
     fn/detail/meta.cpp
+    fn/detail/variadic_union.cpp
 )
 
 # Generate separate target for each individual test source
