@@ -108,6 +108,7 @@ endforeach()
 set(TESTS_FN_SOURCES
     fn/detail/fwd_macro.cpp
     fn/detail/meta.cpp
+    fn/detail/pack_impl.cpp
     fn/detail/variadic_union.cpp
     fn/and_then.cpp
     fn/choice.cpp
@@ -134,6 +135,7 @@ set(TESTS_FN_SOURCES
 set(TESTS_FN_SOURCES_CXX20
     fn/detail/fwd_macro.cpp
     fn/detail/meta.cpp
+    fn/detail/pack_impl.cpp
     fn/detail/variadic_union.cpp
 )
 
