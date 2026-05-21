@@ -27,10 +27,3 @@ jobs:
       env:
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        args: >
-          -Dsonar.organization=libfn
-          -Dsonar.projectKey=libfn_functional
-          -Dsonar.sources=include,examples
-          -Dsonar.tests=tests
-          -Dsonar.cfamily.compile-commands=.build/compile_commands.json
