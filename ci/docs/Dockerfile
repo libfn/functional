@@ -85,7 +85,7 @@ RUN set -ex ;\
       openjdk-17-jdk graphviz  ;\
     apt-get clean
 
-ARG CATCH_RELEASE=3.7.1
+ARG CATCH_RELEASE=3.14.0
 WORKDIR /work
 RUN set -ex ;\
     DIST="https://github.com/catchorg/Catch2/archive/refs/tags/" ;\
