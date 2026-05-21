@@ -344,7 +344,7 @@ template <class E> union _storage_union_t<void, E> {
 // Shared storage base for ::pfn::expected. Members are public because the
 // inheritance is private; sibling-instantiation access goes through the
 // `template <class, class> friend class expected;` declaration on the derived.
-template <class T, class E, template <class X> class Se, template <class U, class G> class Ex> struct _storage {
+template <class T, class E, class Policy> struct _storage {
   using _storage_t = _storage_union_t<T, E>;
   // `T` for non-void, trivial `_dummy_t` for void; used as observer return
   // type (void value-returning overloads are requires-disabled, so the
@@ -512,26 +512,22 @@ template <class T, class E, template <class X> class Se, template <class U, clas
     if (not set_)
       throw bad_expected_access<E>(::std::move(storage_.e_));
   }
-  constexpr E const &error() const & noexcept
+  static constexpr auto &&_value(auto &&s) noexcept
+    requires(not ::std::is_void_v<T>)
   {
-    ASSERT(not set_);
-    return storage_.e_;
+    ASSERT(s.set_);
+    return FWD(s).storage_.v_;
   }
-  constexpr E &error() & noexcept
+
+  static constexpr auto &&_error(auto &&s) noexcept
   {
-    ASSERT(not set_);
-    return storage_.e_;
+    ASSERT(not s.set_);
+    return FWD(s).storage_.e_;
   }
-  constexpr E const &&error() const && noexcept
-  {
-    ASSERT(not set_);
-    return ::std::move(storage_.e_);
-  }
-  constexpr E &&error() && noexcept
-  {
-    ASSERT(not set_);
-    return ::std::move(storage_.e_);
-  }
+  constexpr E const &error() const & noexcept { return _error(*this); }
+  constexpr E &error() & noexcept { return _error(*this); }
+  constexpr E const &&error() const && noexcept { return _error(::std::move(*this)); }
+  constexpr E &&error() && noexcept { return _error(::std::move(*this)); }
 
   template <class U>
   constexpr T value_or(U &&v) const &                                                              //
@@ -577,103 +573,106 @@ template <class T, class E, template <class X> class Se, template <class U, clas
 
   template <typename Self, typename Fn>
   static constexpr auto _and_then(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(FWD(self)._value())>
-               && ::std::is_nothrow_constructible_v<E, decltype(FWD(self).error())>)
-    requires(not ::std::is_void_v<T> && ::std::is_invocable_v<Fn, decltype(FWD(self)._value())>
-             && ::std::is_constructible_v<E, decltype(FWD(self).error())>)
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(_storage::_value(FWD(self)))>
+               && ::std::is_nothrow_constructible_v<E, decltype(_storage::_error(FWD(self)))>)
+    requires(not ::std::is_void_v<T> && ::std::is_invocable_v<Fn, decltype(_storage::_value(FWD(self)))>
+             && ::std::is_constructible_v<E, decltype(_storage::_error(FWD(self)))>)
   {
-    using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(FWD(self)._value())>>;
-    static_assert(Se<result_t>::value);
+    using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(_storage::_value(FWD(self)))>>;
+    static_assert(Policy::template is_member<result_t>);
     static_assert(::std::is_same_v<typename result_t::error_type, typename ::std::remove_cvref_t<Self>::error_type>);
     if (self.has_value()) {
-      return ::std::invoke(FWD(fn), FWD(self)._value());
+      return ::std::invoke(FWD(fn), _storage::_value(FWD(self)));
     }
-    return result_t(unexpect, FWD(self).error());
+    return result_t(unexpect, _storage::_error(FWD(self)));
   }
 
   template <typename Self, typename Fn>
   static constexpr auto _and_then(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn> && ::std::is_nothrow_constructible_v<E, decltype(FWD(self).error())>)
+      noexcept(::std::is_nothrow_invocable_v<Fn>
+               && ::std::is_nothrow_constructible_v<E, decltype(_storage::_error(FWD(self)))>)
     requires(::std::is_void_v<T> && ::std::is_invocable_v<Fn>
-             && ::std::is_constructible_v<E, decltype(FWD(self).error())>)
+             && ::std::is_constructible_v<E, decltype(_storage::_error(FWD(self)))>)
   {
     using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn>>;
-    static_assert(Se<result_t>::value);
+    static_assert(Policy::template is_member<result_t>);
     static_assert(::std::is_same_v<typename result_t::error_type, typename ::std::remove_cvref_t<Self>::error_type>);
     if (self.has_value()) {
       return ::std::invoke(FWD(fn));
     }
-    return result_t(unexpect, FWD(self).error());
+    return result_t(unexpect, _storage::_error(FWD(self)));
   }
 
   template <typename Self, typename Fn>
   static constexpr auto _or_else(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(FWD(self).error())>
-               && ::std::is_nothrow_constructible_v<T, decltype(FWD(self)._value())>)
-    requires(not ::std::is_void_v<T> && ::std::is_invocable_v<Fn, decltype(FWD(self).error())>
-             && ::std::is_constructible_v<T, decltype(FWD(self)._value())>)
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(_storage::_error(FWD(self)))>
+               && ::std::is_nothrow_constructible_v<T, decltype(_storage::_value(FWD(self)))>)
+    requires(not ::std::is_void_v<T> && ::std::is_invocable_v<Fn, decltype(_storage::_error(FWD(self)))>
+             && ::std::is_constructible_v<T, decltype(_storage::_value(FWD(self)))>)
   {
-    using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(FWD(self).error())>>;
-    static_assert(Se<result_t>::value);
+    using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(_storage::_error(FWD(self)))>>;
+    static_assert(Policy::template is_member<result_t>);
     static_assert(::std::is_same_v<typename result_t::value_type, typename ::std::remove_cvref_t<Self>::value_type>);
     if (self.has_value()) {
-      return result_t(::std::in_place, FWD(self)._value());
+      return result_t(::std::in_place, _storage::_value(FWD(self)));
     }
-    return ::std::invoke(FWD(fn), FWD(self).error());
+    return ::std::invoke(FWD(fn), _storage::_error(FWD(self)));
   }
 
   template <typename Self, typename Fn>
   static constexpr auto _or_else(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(FWD(self).error())>)
-    requires(::std::is_void_v<T> && ::std::is_invocable_v<Fn, decltype(FWD(self).error())>)
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(_storage::_error(FWD(self)))>)
+    requires(::std::is_void_v<T> && ::std::is_invocable_v<Fn, decltype(_storage::_error(FWD(self)))>)
   {
-    using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(FWD(self).error())>>;
-    static_assert(Se<result_t>::value);
+    using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(_storage::_error(FWD(self)))>>;
+    static_assert(Policy::template is_member<result_t>);
     static_assert(::std::is_same_v<typename result_t::value_type, typename ::std::remove_cvref_t<Self>::value_type>);
     if (self.has_value()) {
       return result_t(::std::in_place);
     }
-    return ::std::invoke(FWD(fn), FWD(self).error());
+    return ::std::invoke(FWD(fn), _storage::_error(FWD(self)));
   }
 
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(FWD(self)._value())>
-               && ::std::is_nothrow_constructible_v<E, decltype(FWD(self).error())>
-               && (::std::is_void_v<::std::invoke_result_t<Fn, decltype(FWD(self)._value())>>
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(_storage::_value(FWD(self)))>
+               && ::std::is_nothrow_constructible_v<E, decltype(_storage::_error(FWD(self)))>
+               && (::std::is_void_v<::std::invoke_result_t<Fn, decltype(_storage::_value(FWD(self)))>>
                    || ::std::is_nothrow_constructible_v<
-                       ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(FWD(self)._value())>>,
-                       ::std::invoke_result_t<Fn, decltype(FWD(self)._value())>>))
-    requires(not ::std::is_void_v<T> && ::std::is_invocable_v<Fn, decltype(FWD(self)._value())>
-             && ::std::is_constructible_v<E, decltype(FWD(self).error())>)
+                       ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(_storage::_value(FWD(self)))>>,
+                       ::std::invoke_result_t<Fn, decltype(_storage::_value(FWD(self)))>>))
+    requires(not ::std::is_void_v<T> && ::std::is_invocable_v<Fn, decltype(_storage::_value(FWD(self)))>
+             && ::std::is_constructible_v<E, decltype(_storage::_error(FWD(self)))>)
   {
-    using value_t = ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(FWD(self)._value())>>;
+    using value_t = ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(_storage::_value(FWD(self)))>>;
     static_assert(detail::_is_valid_expected<value_t, E>);
-    using result_t = Ex<value_t, E>;
+    using result_t = typename Policy::template type<value_t, E>;
     if (self.has_value()) {
       if constexpr (not ::std::is_void_v<value_t>) {
-        static_assert(::std::is_constructible_v<value_t, ::std::invoke_result_t<Fn, decltype(FWD(self)._value())>>);
-        return result_t(::std::in_place, ::std::invoke(FWD(fn), FWD(self)._value()));
+        static_assert(
+            ::std::is_constructible_v<value_t, ::std::invoke_result_t<Fn, decltype(_storage::_value(FWD(self)))>>);
+        return result_t(::std::in_place, ::std::invoke(FWD(fn), _storage::_value(FWD(self))));
       } else {
-        ::std::invoke(FWD(fn), FWD(self)._value());
+        ::std::invoke(FWD(fn), _storage::_value(FWD(self)));
         return result_t(::std::in_place);
       }
     }
-    return result_t(unexpect, FWD(self).error());
+    return result_t(unexpect, _storage::_error(FWD(self)));
   }
 
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn> && ::std::is_nothrow_constructible_v<E, decltype(FWD(self).error())>
+      noexcept(::std::is_nothrow_invocable_v<Fn>
+               && ::std::is_nothrow_constructible_v<E, decltype(_storage::_error(FWD(self)))>
                && (::std::is_void_v<::std::invoke_result_t<Fn>>
                    || ::std::is_nothrow_constructible_v<::std::remove_cv_t<::std::invoke_result_t<Fn>>,
                                                         ::std::invoke_result_t<Fn>>))
     requires(::std::is_void_v<T> && ::std::is_invocable_v<Fn>
-             && ::std::is_constructible_v<E, decltype(FWD(self).error())>)
+             && ::std::is_constructible_v<E, decltype(_storage::_error(FWD(self)))>)
   {
     using value_t = ::std::remove_cv_t<::std::invoke_result_t<Fn>>;
     static_assert(detail::_is_valid_expected<value_t, E>);
-    using result_t = Ex<value_t, E>;
+    using result_t = typename Policy::template type<value_t, E>;
     if (self.has_value()) {
       if constexpr (not ::std::is_void_v<value_t>) {
         static_assert(::std::is_constructible_v<value_t, ::std::invoke_result_t<Fn>>);
@@ -683,72 +682,47 @@ template <class T, class E, template <class X> class Se, template <class U, clas
         return result_t(::std::in_place);
       }
     }
-    return result_t(unexpect, FWD(self).error());
+    return result_t(unexpect, _storage::_error(FWD(self)));
   }
 
   template <typename Self, typename Fn>
   static constexpr auto _transform_error(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(FWD(self).error())>
-               && ::std::is_nothrow_constructible_v<T, decltype(FWD(self)._value())>
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(_storage::_error(FWD(self)))>
+               && ::std::is_nothrow_constructible_v<T, decltype(_storage::_value(FWD(self)))>
                && ::std::is_nothrow_constructible_v<
-                   ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(FWD(self).error())>>,
-                   ::std::invoke_result_t<Fn, decltype(FWD(self).error())>>)
-    requires(not ::std::is_void_v<T> && ::std::is_invocable_v<Fn, decltype(FWD(self).error())>
-             && ::std::is_constructible_v<T, decltype(FWD(self)._value())>)
+                   ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(_storage::_error(FWD(self)))>>,
+                   ::std::invoke_result_t<Fn, decltype(_storage::_error(FWD(self)))>>)
+    requires(not ::std::is_void_v<T> && ::std::is_invocable_v<Fn, decltype(_storage::_error(FWD(self)))>
+             && ::std::is_constructible_v<T, decltype(_storage::_value(FWD(self)))>)
   {
-    using error_t = ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(FWD(self).error())>>;
+    using error_t = ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(_storage::_error(FWD(self)))>>;
     static_assert(detail::_is_valid_unexpected<error_t>);
-    static_assert(::std::is_constructible_v<error_t, ::std::invoke_result_t<Fn, decltype(FWD(self).error())>>);
-    using result_t = Ex<T, error_t>;
+    static_assert(
+        ::std::is_constructible_v<error_t, ::std::invoke_result_t<Fn, decltype(_storage::_error(FWD(self)))>>);
+    using result_t = typename Policy::template type<T, error_t>;
     if (not self.has_value()) {
-      return result_t(unexpect, ::std::invoke(FWD(fn), FWD(self).error()));
+      return result_t(unexpect, ::std::invoke(FWD(fn), _storage::_error(FWD(self))));
     }
-    return result_t(::std::in_place, FWD(self)._value());
+    return result_t(::std::in_place, _storage::_value(FWD(self)));
   }
 
   template <typename Self, typename Fn>
   static constexpr auto _transform_error(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(FWD(self).error())>
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(_storage::_error(FWD(self)))>
                && ::std::is_nothrow_constructible_v<
-                   ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(FWD(self).error())>>,
-                   ::std::invoke_result_t<Fn, decltype(FWD(self).error())>>)
-    requires(::std::is_void_v<T> && ::std::is_invocable_v<Fn, decltype(FWD(self).error())>)
+                   ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(_storage::_error(FWD(self)))>>,
+                   ::std::invoke_result_t<Fn, decltype(_storage::_error(FWD(self)))>>)
+    requires(::std::is_void_v<T> && ::std::is_invocable_v<Fn, decltype(_storage::_error(FWD(self)))>)
   {
-    using error_t = ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(FWD(self).error())>>;
+    using error_t = ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(_storage::_error(FWD(self)))>>;
     static_assert(detail::_is_valid_unexpected<error_t>);
-    static_assert(::std::is_constructible_v<error_t, ::std::invoke_result_t<Fn, decltype(FWD(self).error())>>);
-    using result_t = Ex<void, error_t>;
+    static_assert(
+        ::std::is_constructible_v<error_t, ::std::invoke_result_t<Fn, decltype(_storage::_error(FWD(self)))>>);
+    using result_t = typename Policy::template type<void, error_t>;
     if (not self.has_value()) {
-      return result_t(unexpect, ::std::invoke(FWD(fn), FWD(self).error()));
+      return result_t(unexpect, ::std::invoke(FWD(fn), _storage::_error(FWD(self))));
     }
     return result_t(::std::in_place);
-  }
-
-  // Unchecked value accessor used by monadic helpers; `value()` throws,
-  // this asserts the precondition.
-  constexpr _value_t const &_value() const & noexcept
-    requires(not ::std::is_void_v<T>)
-  {
-    ASSERT(set_);
-    return storage_.v_;
-  }
-  constexpr _value_t &_value() & noexcept
-    requires(not ::std::is_void_v<T>)
-  {
-    ASSERT(set_);
-    return storage_.v_;
-  }
-  constexpr _value_t const &&_value() const && noexcept
-    requires(not ::std::is_void_v<T>)
-  {
-    ASSERT(set_);
-    return ::std::move(storage_.v_);
-  }
-  constexpr _value_t &&_value() && noexcept
-    requires(not ::std::is_void_v<T>)
-  {
-    ASSERT(set_);
-    return ::std::move(storage_.v_);
   }
 
   // Assignment body shared by the public expected operator= overloads,
@@ -903,15 +877,16 @@ namespace detail {
 template <typename> constexpr bool _is_some_expected = false;
 template <typename T, typename E> constexpr bool _is_some_expected<::pfn::expected<T, E>> = true;
 
-template <typename T> struct is_some {
-  static constexpr bool value = _is_some_expected<T>;
+struct expected_policy {
+  template <class U, class G> using type = ::pfn::expected<U, G>;
+  template <class X> static constexpr bool is_member = _is_some_expected<X>;
 };
 
 } // namespace detail
 
-template <class T, class E> class expected : private detail::_storage<T, E, detail::is_some, ::pfn::expected> {
+template <class T, class E> class expected : private detail::_storage<T, E, detail::expected_policy> {
   static_assert(detail::_is_valid_expected<T, E>);
-  using _base = detail::_storage<T, E, detail::is_some, ::pfn::expected>;
+  using _base = detail::_storage<T, E, detail::expected_policy>;
 
   template <class U, class G, class UF, class GF>
   using _can_convert_detail = ::std::bool_constant<                           //
@@ -936,6 +911,7 @@ template <class T, class E> class expected : private detail::_storage<T, E, deta
   template <class U, class G> using _can_copy_convert = _can_convert_detail<U, G, U const &, G const &>;
   template <class U, class G> using _can_move_convert = _can_convert_detail<U, G, U, G>;
   template <class U, class G> friend class expected;
+  // `_storage::_value(Self&&)` reaches `storage_` through the private base.
   friend _base;
 
   template <class U>
@@ -1323,9 +1299,9 @@ requires {
   }
 };
 
-template <class E> class expected<void, E> : private detail::_storage<void, E, detail::is_some, ::pfn::expected> {
+template <class E> class expected<void, E> : private detail::_storage<void, E, detail::expected_policy> {
   static_assert(detail::_is_valid_unexpected<E>);
-  using _base = detail::_storage<void, E, detail::is_some, ::pfn::expected>;
+  using _base = detail::_storage<void, E, detail::expected_policy>;
 
 public:
   using value_type = void;
@@ -1344,6 +1320,8 @@ public:
   template <class U, class G> using _can_copy_convert = _can_convert_detail<U, G, G const &>;
   template <class U, class G> using _can_move_convert = _can_convert_detail<U, G, G>;
   template <class U, class G> friend class expected;
+  // `_storage::_error(Self&&)` reaches `storage_` through the private base.
+  friend _base;
 
   // [expected.void.cons], constructors
   constexpr expected() noexcept : _base(::std::in_place) {}
