@@ -37,7 +37,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN set -ex ;\
     apt-get update ;\
     apt-get install -y --no-install-recommends \
-      ca-certificates gpg gpg-agent wget vim curl jq \
+      ca-certificates gnupg wget vim curl jq \
       cmake ninja-build binutils libc6-dev git ;\
     apt-get clean
 
