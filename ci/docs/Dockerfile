@@ -80,12 +80,12 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN set -ex ;\
     apt-get update ;\
     apt-get install -y --no-install-recommends \
-      ca-certificates gpg gpg-agent wget vim curl jq \
+      ca-certificates gnupg unzip wget vim curl jq \
       cmake ninja-build binutils libc6-dev git \
       openjdk-17-jdk graphviz  ;\
     apt-get clean
 
-ARG CATCH_RELEASE=3.7.1
+ARG CATCH_RELEASE=3.14.0
 WORKDIR /work
 RUN set -ex ;\
     DIST="https://github.com/catchorg/Catch2/archive/refs/tags/" ;\
