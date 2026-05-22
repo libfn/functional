@@ -33,10 +33,8 @@ jobs:
         cd .build
         cmake -DCOVERAGE=ON ..
         COMPILER=$( grep -iE "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
-        FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ env.CMAKE_BUILD_TYPE }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
         printf "C++ compiler path: %s\n" "$COMPILER"
         $COMPILER --version
-        printf "C++ compilation options: %s\n" "$FLAGS"
         printf "gcov version: %s\n" "$( $GCOV --version | head -1 )"
         cmake --build . --target tests -- -j$(nproc)
 
@@ -51,3 +49,7 @@ jobs:
       env:
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        args: >
+          -Dsonar.cfamily.gcov.reportsPath=.build
+          -Dsonar.cfamily.compile-commands=.build/compile_commands.json
