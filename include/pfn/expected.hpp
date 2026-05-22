@@ -1303,12 +1303,6 @@ template <class E> class expected<void, E> : private detail::_storage<void, E, d
   static_assert(detail::_is_valid_unexpected<E>);
   using _base = detail::_storage<void, E, detail::expected_policy>;
 
-public:
-  using value_type = void;
-  using error_type = E;
-  using unexpected_type = unexpected<E>;
-
-  template <class U> using rebind = expected<U, error_type>;
   template <class U, class G, class GF>
   using _can_convert_detail = ::std::bool_constant<                           //
       ::std::is_void_v<U> && ::std::is_constructible_v<E, GF>                 //
@@ -1322,6 +1316,13 @@ public:
   template <class U, class G> friend class expected;
   // `_storage::_error(Self&&)` reaches `storage_` through the private base.
   friend _base;
+
+public:
+  using value_type = void;
+  using error_type = E;
+  using unexpected_type = unexpected<E>;
+
+  template <class U> using rebind = expected<U, error_type>;
 
   // [expected.void.cons], constructors
   constexpr expected() noexcept : _base(::std::in_place) {}

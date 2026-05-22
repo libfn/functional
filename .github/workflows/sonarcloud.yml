@@ -53,3 +53,4 @@ jobs:
         args: >
           -Dsonar.cfamily.gcov.reportsPath=.build
           -Dsonar.cfamily.compile-commands=.build/compile_commands.json
+          -Dsonar.cpd.skip=true
