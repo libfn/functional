@@ -46,7 +46,8 @@ ENV VENV=/venv
 ENV PATH=${VENV}/bin:${PATH}
 RUN set -ex ;\
     python3 -m venv ${VENV}  ;\
-    pip --no-cache-dir install -r requirements.txt
+    pip --no-cache-dir install -r /requirements.txt ;\
+    rm -rf /requirements.txt
 
 ENV CC=/usr/bin/gcc
 ENV CXX=/usr/bin/g++
