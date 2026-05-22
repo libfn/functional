@@ -75,7 +75,7 @@ function(append_compilation_options)
                     -fno-unit-at-a-time
                     -fno-unroll-loops
                 )
-                add_code_coverage_to_target("${target}" PRIVATE)
+                add_code_coverage_to_target(${Options_NAME} PRIVATE)
             endif()
         endif()
     endif()
