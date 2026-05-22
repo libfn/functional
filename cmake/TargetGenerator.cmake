@@ -26,5 +26,5 @@ function(create_target_for_file)
         add_executable(${Generator_NAME} ${Generator_SOURCE})
     endif()
 
-    target_link_libraries(${Generator_NAME} ${Generator_DEPENDENCIES})
+    target_link_libraries(${Generator_NAME} PRIVATE ${Generator_DEPENDENCIES})
 endfunction()

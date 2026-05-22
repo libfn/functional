@@ -11,5 +11,6 @@ result*
 *.iws
 *.swp
 *.swo
+*.gcov
 *~
 ~$*.doc
