@@ -37,9 +37,17 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN set -ex ;\
     apt-get update ;\
     apt-get install -y --no-install-recommends \
-      ca-certificates gpg gpg-agent wget vim curl jq \
+      ca-certificates gnupg unzip wget vim curl jq python3-venv python3-pip \
       cmake ninja-build binutils libc6-dev git ;\
     apt-get clean
+
+COPY requirements.txt /requirements.txt
+ENV VENV=/venv
+ENV PATH=${VENV}/bin:${PATH}
+RUN set -ex ;\
+    python3 -m venv ${VENV}  ;\
+    pip --no-cache-dir install -r /requirements.txt ;\
+    rm -rf /requirements.txt
 
 ENV CC=/usr/bin/gcc
 ENV CXX=/usr/bin/g++
