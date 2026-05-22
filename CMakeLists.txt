@@ -46,12 +46,15 @@ add_custom_target(cxx23)
 add_subdirectory(include)
 
 if(TESTS)
+    # Phony targets for tests and examples
+    add_custom_target(tests)
+    add_custom_target(examples)
+
     include(Catch2)
     enable_testing()
     add_subdirectory(tests)
+    add_subdirectory(examples)
 endif()
-
-add_subdirectory(examples)
 
 install(FILES README.md LICENSE.md
     DESTINATION share/doc/functional)

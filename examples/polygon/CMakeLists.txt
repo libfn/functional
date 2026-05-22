@@ -18,6 +18,7 @@ foreach(mode 23)
     target_link_libraries("${target}" include_fn)
     append_compilation_options("${target}" WARNINGS)
     add_dependencies("cxx${mode}" "${target}")
+    add_dependencies("examples" "${target}")
     set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
     target_compile_definitions("${target}" PRIVATE LIBFN_MODE=${mode})
 
@@ -36,6 +37,9 @@ foreach(mode 23)
     target_link_libraries("${target}" include_fn Catch2::Catch2WithMain)
     append_compilation_options("${target}" WARNINGS OPTIMIZATION)
     add_dependencies("cxx${mode}" "${target}")
+    add_dependencies("examples" "${target}")
+# Not a real test target, so we don't want it to be a dependency of the "tests" phony target
+#     add_dependencies("tests" "${target}")
     set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
     target_compile_definitions("${target}" PRIVATE LIBFN_MODE=${mode})
 
