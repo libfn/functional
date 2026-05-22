@@ -57,8 +57,9 @@ foreach(mode 20 23)
             SOURCE "${source}"
             DEPENDENCIES include_pfn tests_util Catch2::Catch2WithMain
         )
-        append_compilation_options("${target}" WARNINGS OPTIMIZATION)
+        append_compilation_options("${target}" WARNINGS OPTIMIZATION TESTS)
         add_dependencies("cxx${mode}" "${target}")
+        add_dependencies("tests" "${target}")
         set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
         target_compile_definitions("${target}" PRIVATE LIBFN_MODE=${mode})
 
@@ -81,8 +82,9 @@ foreach(mode 20 23)
                 SOURCE "${source}"
                 DEPENDENCIES include_pfn tests_util Catch2::Catch2WithMain
             )
-            append_compilation_options("${target}" WARNINGS OPTIMIZATION)
+            append_compilation_options("${target}" WARNINGS OPTIMIZATION TESTS)
             add_dependencies("cxx${mode}" "${target}")
+            add_dependencies("tests" "${target}")
             set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
             target_compile_definitions("${target}" PRIVATE LIBFN_MODE=${mode} PFN_TEST_VALIDATION)
 
@@ -141,8 +143,9 @@ foreach(mode 23)
             SOURCE "${source}"
             DEPENDENCIES include_fn tests_util Catch2::Catch2WithMain
         )
-        append_compilation_options("${target}" WARNINGS OPTIMIZATION)
+        append_compilation_options("${target}" WARNINGS OPTIMIZATION TESTS)
         add_dependencies("cxx${mode}" "${target}")
+        add_dependencies("tests" "${target}")
         set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
         target_compile_definitions("${target}" PRIVATE LIBFN_MODE=${mode})
 

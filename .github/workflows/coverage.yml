@@ -54,31 +54,27 @@ jobs:
         $CXX -std=c++2b $CXXFLAGS -Wall $FILE -o $OUT
         $OUT
 
-    - name: Prepare build
+    - name: Build with coverage instrumentation and compilation database
       shell: bash
       env:
         CMAKE_GENERATOR: Ninja
         CMAKE_BUILD_TYPE: Debug
-        COVERAGE_OPTS: >-
-          -g --coverage -fprofile-abs-path -fprofile-update=atomic -funreachable-traps
-          -fno-early-inlining -fno-aggressive-loop-optimizations
-          -fno-peephole -fno-unit-at-a-time -fno-unroll-loops
       run: |
         mkdir .build
         cd .build
-        cmake -DCMAKE_C_FLAGS="$COVERAGE_OPTS" -DCMAKE_CXX_FLAGS="$COVERAGE_OPTS" ..
+        cmake -DCOVERAGE=ON ..
         COMPILER=$( grep -iE "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
-        FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ matrix.configuration }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
+        FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ env.CMAKE_BUILD_TYPE }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
         printf "C++ compiler path: %s\n" "$COMPILER"
         $COMPILER --version
         printf "C++ compilation options: %s\n" "$FLAGS"
         printf "gcov version: %s\n" "$( $GCOV --version | head -1 )"
+        cmake --build . --target tests -- -j$(nproc)
 
-    - name: Run coverage target
+    - name: Generate coverage data with gcov
       shell: bash
       run: |
         cd .build
-        cmake --build .
         ctest -L 'tests_p?fn' -j1 # generate .gcda files
         $GCOV -pbc -r -s $( realpath .. ) $( find tests -type f -name '*.gcno' ) # generate .gcov files
 

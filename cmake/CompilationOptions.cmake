@@ -10,7 +10,7 @@
 
 
 function(append_compilation_options)
-    set(options WARNINGS OPTIMIZATION INTERFACE)
+    set(options WARNINGS OPTIMIZATION INTERFACE TESTS)
     set(Options_NAME ${ARGV0})
     cmake_parse_arguments(Options "${options}" "" "" ${ARGN})
 
@@ -59,6 +59,24 @@ function(append_compilation_options)
             endif()
 
             target_compile_options(${Options_NAME} INTERFACE -Wno-missing-braces)
+        endif()
+
+        if(Options_TESTS)
+            target_compile_options(${Options_NAME} PRIVATE -fno-omit-frame-pointer)
+
+            if(COVERAGE)
+                target_compile_options(${Options_NAME} PRIVATE
+                    -funreachable-traps
+                    -fno-inline-small-functions
+                    -fno-default-inline
+                    -fno-early-inlining
+                    -fno-aggressive-loop-optimizations
+                    -fno-peephole
+                    -fno-unit-at-a-time
+                    -fno-unroll-loops
+                )
+                add_code_coverage_to_target("${target}" PRIVATE)
+            endif()
         endif()
     endif()
 endfunction()
