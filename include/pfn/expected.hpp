@@ -579,7 +579,7 @@ template <class T, class E, class Policy> struct _storage {
              && ::std::is_constructible_v<E, decltype(_storage::_error(FWD(self)))>)
   {
     using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(_storage::_value(FWD(self)))>>;
-    static_assert(Policy::template is_member<result_t>);
+    static_assert(Policy::template is_specialization<result_t>);
     static_assert(::std::is_same_v<typename result_t::error_type, typename ::std::remove_cvref_t<Self>::error_type>);
     if (self.has_value()) {
       return ::std::invoke(FWD(fn), _storage::_value(FWD(self)));
@@ -595,7 +595,7 @@ template <class T, class E, class Policy> struct _storage {
              && ::std::is_constructible_v<E, decltype(_storage::_error(FWD(self)))>)
   {
     using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn>>;
-    static_assert(Policy::template is_member<result_t>);
+    static_assert(Policy::template is_specialization<result_t>);
     static_assert(::std::is_same_v<typename result_t::error_type, typename ::std::remove_cvref_t<Self>::error_type>);
     if (self.has_value()) {
       return ::std::invoke(FWD(fn));
@@ -611,7 +611,7 @@ template <class T, class E, class Policy> struct _storage {
              && ::std::is_constructible_v<T, decltype(_storage::_value(FWD(self)))>)
   {
     using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(_storage::_error(FWD(self)))>>;
-    static_assert(Policy::template is_member<result_t>);
+    static_assert(Policy::template is_specialization<result_t>);
     static_assert(::std::is_same_v<typename result_t::value_type, typename ::std::remove_cvref_t<Self>::value_type>);
     if (self.has_value()) {
       return result_t(::std::in_place, _storage::_value(FWD(self)));
@@ -625,7 +625,7 @@ template <class T, class E, class Policy> struct _storage {
     requires(::std::is_void_v<T> && ::std::is_invocable_v<Fn, decltype(_storage::_error(FWD(self)))>)
   {
     using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(_storage::_error(FWD(self)))>>;
-    static_assert(Policy::template is_member<result_t>);
+    static_assert(Policy::template is_specialization<result_t>);
     static_assert(::std::is_same_v<typename result_t::value_type, typename ::std::remove_cvref_t<Self>::value_type>);
     if (self.has_value()) {
       return result_t(::std::in_place);
@@ -879,7 +879,7 @@ template <typename T, typename E> constexpr bool _is_some_expected<::pfn::expect
 
 struct expected_policy {
   template <class U, class G> using type = ::pfn::expected<U, G>;
-  template <class X> static constexpr bool is_member = _is_some_expected<X>;
+  template <class X> static constexpr bool is_specialization = _is_some_expected<X>;
 };
 
 } // namespace detail
