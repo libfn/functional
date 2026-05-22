@@ -455,7 +455,8 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
 
     WHEN("error to error")
     {
-      constexpr auto fn = [](Error) -> fn::expected<Xint, std::string> { return ::pfn::unexpected<std::string>("Boo"); };
+      constexpr auto fn
+          = [](Error) -> fn::expected<Xint, std::string> { return ::pfn::unexpected<std::string>("Boo"); };
       static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::expected<fn::sum<Xint, int>, std::string>>);
       CHECK(s.or_else(fn).error() == "Boo");
       CHECK(std::as_const(s).or_else(fn).error() == "Boo");
@@ -1366,7 +1367,8 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
                 == fn::sum{true});
           CHECK((Lh{::pfn::unexpect, fn::sum{FileNotFound}} & Rh{fn::sum{12}}).error() == fn::sum{FileNotFound});
           CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{::pfn::unexpect, 13}).error() == fn::sum{13});
-          CHECK((Lh{::pfn::unexpect, fn::sum{FileNotFound}} & Rh{::pfn::unexpect, 13}).error() == fn::sum{FileNotFound});
+          CHECK((Lh{::pfn::unexpect, fn::sum{FileNotFound}} & Rh{::pfn::unexpect, 13}).error()
+                == fn::sum{FileNotFound});
         }
       }
 
@@ -1405,7 +1407,8 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
                 == fn::sum{true});
           CHECK((Lh{::pfn::unexpect, fn::sum{FileNotFound}} & Rh{12}).error() == fn::sum{FileNotFound});
           CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{::pfn::unexpect, 13}).error() == fn::sum{13});
-          CHECK((Lh{::pfn::unexpect, fn::sum{FileNotFound}} & Rh{::pfn::unexpect, 13}).error() == fn::sum{FileNotFound});
+          CHECK((Lh{::pfn::unexpect, fn::sum{FileNotFound}} & Rh{::pfn::unexpect, 13}).error()
+                == fn::sum{FileNotFound});
         }
       }
 
@@ -1444,7 +1447,8 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
                 == fn::sum{true});
           CHECK((Lh{::pfn::unexpect, fn::sum{FileNotFound}} & Rh{fn::sum{12}}).error() == fn::sum{FileNotFound});
           CHECK((Lh{fn::pack{0.5, 3}} & Rh{::pfn::unexpect, 13}).error() == fn::sum{13});
-          CHECK((Lh{::pfn::unexpect, fn::sum{FileNotFound}} & Rh{::pfn::unexpect, 13}).error() == fn::sum{FileNotFound});
+          CHECK((Lh{::pfn::unexpect, fn::sum{FileNotFound}} & Rh{::pfn::unexpect, 13}).error()
+                == fn::sum{FileNotFound});
         }
       }
     }
@@ -1675,7 +1679,8 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
                 == fn::sum{true});
           CHECK((Lh{::pfn::unexpect, FileNotFound} & Rh{fn::sum{12}}).error() == fn::sum{FileNotFound});
           CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{::pfn::unexpect, fn::sum{13}}).error() == fn::sum{13});
-          CHECK((Lh{::pfn::unexpect, FileNotFound} & Rh{::pfn::unexpect, fn::sum{13}}).error() == fn::sum{FileNotFound});
+          CHECK((Lh{::pfn::unexpect, FileNotFound} & Rh{::pfn::unexpect, fn::sum{13}}).error()
+                == fn::sum{FileNotFound});
         }
       }
 
@@ -1714,7 +1719,8 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
                 == fn::sum{true});
           CHECK((Lh{::pfn::unexpect, FileNotFound} & Rh{12}).error() == fn::sum{FileNotFound});
           CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{::pfn::unexpect, fn::sum{13}}).error() == fn::sum{13});
-          CHECK((Lh{::pfn::unexpect, FileNotFound} & Rh{::pfn::unexpect, fn::sum{13}}).error() == fn::sum{FileNotFound});
+          CHECK((Lh{::pfn::unexpect, FileNotFound} & Rh{::pfn::unexpect, fn::sum{13}}).error()
+                == fn::sum{FileNotFound});
         }
       }
 
@@ -1753,7 +1759,8 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
                 == fn::sum{true});
           CHECK((Lh{::pfn::unexpect, FileNotFound} & Rh{fn::sum{12}}).error() == fn::sum{FileNotFound});
           CHECK((Lh{fn::pack{0.5, 3}} & Rh{::pfn::unexpect, fn::sum{13}}).error() == fn::sum{13});
-          CHECK((Lh{::pfn::unexpect, FileNotFound} & Rh{::pfn::unexpect, fn::sum{13}}).error() == fn::sum{FileNotFound});
+          CHECK((Lh{::pfn::unexpect, FileNotFound} & Rh{::pfn::unexpect, fn::sum{13}}).error()
+                == fn::sum{FileNotFound});
         }
       }
     }
@@ -1853,8 +1860,9 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
         CHECK((Lh{std::in_place, fn::pack<double, bool>{0.5, true}} & Rh{})
                   .transform([](double d, bool b) constexpr -> bool { return d == 0.5 && b; })
                   .value());
-        CHECK((Lh{std::in_place, fn::pack<double, bool>{0.5, true}} & Rh{::pfn::unexpect, fn::sum{FileNotFound}}).error()
-              == fn::sum{FileNotFound});
+        CHECK(
+            (Lh{std::in_place, fn::pack<double, bool>{0.5, true}} & Rh{::pfn::unexpect, fn::sum{FileNotFound}}).error()
+            == fn::sum{FileNotFound});
         CHECK((Lh{::pfn::unexpect, fn::sum{13}} & Rh{}).error() == fn::sum{13});
         CHECK((Lh{::pfn::unexpect, fn::sum{13}} & Rh{::pfn::unexpect, fn::sum{FileNotFound}}).error() == fn::sum{13});
       }
@@ -2254,18 +2262,19 @@ TEST_CASE("expected sum support or_else", "[expected][sum][or_else]")
               .error()
           == FileNotFound);
 
-    CHECK(std::move(s)
-              .or_else( //
-                  fn::overload([](int &) -> fn::expected<void, Error> { throw 0; },
-                               [](int const &) -> fn::expected<void, Error> { throw 0; },
-                               [](int &&) -> fn::expected<void, Error> { return ::pfn::unexpected<Error>{FileNotFound}; },
-                               [](int const &&) -> fn::expected<void, Error> { throw 0; },
-                               [](std::string_view &) -> fn::expected<void, Error> { throw 0; },
-                               [](std::string_view const &) -> fn::expected<void, Error> { throw 0; },
-                               [](std::string_view &&) -> fn::expected<void, Error> { throw 0; },
-                               [](std::string_view const &&) -> fn::expected<void, Error> { throw 0; }))
-              .error()
-          == FileNotFound);
+    CHECK(
+        std::move(s)
+            .or_else( //
+                fn::overload([](int &) -> fn::expected<void, Error> { throw 0; },
+                             [](int const &) -> fn::expected<void, Error> { throw 0; },
+                             [](int &&) -> fn::expected<void, Error> { return ::pfn::unexpected<Error>{FileNotFound}; },
+                             [](int const &&) -> fn::expected<void, Error> { throw 0; },
+                             [](std::string_view &) -> fn::expected<void, Error> { throw 0; },
+                             [](std::string_view const &) -> fn::expected<void, Error> { throw 0; },
+                             [](std::string_view &&) -> fn::expected<void, Error> { throw 0; },
+                             [](std::string_view const &&) -> fn::expected<void, Error> { throw 0; }))
+            .error()
+        == FileNotFound);
 
     WHEN("value")
     {
@@ -2289,15 +2298,15 @@ TEST_CASE("expected sum support or_else", "[expected][sum][or_else]")
 
     WHEN("constexpr")
     {
-      constexpr auto fn
-          = fn::overload([](int &) -> fn::expected<void, Error> { throw 0; },
-                         [](int const &) -> fn::expected<void, Error> { return ::pfn::unexpected<Error>{FileNotFound}; },
-                         [](int &&) -> fn::expected<void, Error> { throw 0; },
-                         [](int const &&) -> fn::expected<void, Error> { throw 0; },
-                         [](std::string_view &) -> fn::expected<void, Error> { throw 0; },
-                         [](std::string_view const &) -> fn::expected<void, Error> { throw 0; },
-                         [](std::string_view &&) -> fn::expected<void, Error> { throw 0; },
-                         [](std::string_view const &&) -> fn::expected<void, Error> { throw 0; });
+      constexpr auto fn = fn::overload(
+          [](int &) -> fn::expected<void, Error> { throw 0; },
+          [](int const &) -> fn::expected<void, Error> { return ::pfn::unexpected<Error>{FileNotFound}; },
+          [](int &&) -> fn::expected<void, Error> { throw 0; },
+          [](int const &&) -> fn::expected<void, Error> { throw 0; },
+          [](std::string_view &) -> fn::expected<void, Error> { throw 0; },
+          [](std::string_view const &) -> fn::expected<void, Error> { throw 0; },
+          [](std::string_view &&) -> fn::expected<void, Error> { throw 0; },
+          [](std::string_view const &&) -> fn::expected<void, Error> { throw 0; });
       constexpr fn::expected<void, fn::sum<int, std::string_view>> a{::pfn::unexpect, fn::sum{42}};
       static_assert(std::is_same_v<decltype(a.or_else(fn)), fn::expected<void, Error>>);
       static_assert(a.or_else(fn).error() == FileNotFound);

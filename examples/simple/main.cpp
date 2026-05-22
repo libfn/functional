@@ -235,7 +235,7 @@ TEST_CASE("Demo expected", "[expected][pack][and_then][discard][transform_error]
       | fn::inspect_error([](Error) noexcept { CHECK(false); }) //
       | fn::discard();
 
-  fn::expected<int, Error>{::pfn::unexpected<Error>{"discarded"}}                     //
+  fn::expected<int, Error>{::pfn::unexpected<Error>{"discarded"}}                   //
       | fn::inspect([](int) noexcept { CHECK(false); })                             //
       | fn::inspect_error([](Error e) noexcept { REQUIRE(e.what == "discarded"); }) //
       | fn::discard();
