@@ -48,13 +48,17 @@ function(append_compilation_options)
             if(CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND CMAKE_BUILD_TYPE STREQUAL "Debug")
                 target_compile_options(${Options_NAME} PRIVATE -O0 -fsanitize=address -static-libasan -fno-omit-frame-pointer)
                 target_link_options(${Options_NAME} PRIVATE -fsanitize=address)
+
+                if (NOT CMAKE_CXX_COMPILER_ID MATCHES "(Apple)?Clang")
+                    target_compile_options(${Options_NAME} PRIVATE -funreachable-traps)
+                endif()
             else()
                 target_compile_options(${Options_NAME} PRIVATE $<IF:$<CONFIG:Debug>,-O0 -fno-omit-frame-pointer,-O2>)
             endif()
         endif()
 
         if(Options_INTERFACE)
-            if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+            if (NOT CMAKE_CXX_COMPILER_ID MATCHES "(Apple)?Clang")
                 target_compile_options(${Options_NAME} INTERFACE -Wno-non-template-friend)
             endif()
 
@@ -65,8 +69,9 @@ function(append_compilation_options)
             target_compile_options(${Options_NAME} PRIVATE -fno-omit-frame-pointer)
 
             if(COVERAGE)
+                add_code_coverage_to_target(${Options_NAME} PRIVATE)
+
                 target_compile_options(${Options_NAME} PRIVATE
-                    -funreachable-traps
                     -fno-inline-small-functions
                     -fno-default-inline
                     -fno-early-inlining
@@ -75,7 +80,10 @@ function(append_compilation_options)
                     -fno-unit-at-a-time
                     -fno-unroll-loops
                 )
-                add_code_coverage_to_target(${Options_NAME} PRIVATE)
+
+                if (NOT CMAKE_CXX_COMPILER_ID MATCHES "(Apple)?Clang")
+                    target_compile_options(${Options_NAME} PRIVATE -funreachable-traps)
+                endif()
             endif()
         endif()
     endif()
