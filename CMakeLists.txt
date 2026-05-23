@@ -12,13 +12,24 @@ option(DISABLE_CCACHE_DETECTION "Do not use ccache as CMAKE_CXX_COMPILER_LAUNCHE
 option(COVERAGE "Enable coverage report." OFF)
 option(DOCS     "Generate documentation." OFF)
 option(TESTS    "Enable unit tests and examples." ON)
+if(NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(_sanitizers_default ON)
+else()
+    set(_sanitizers_default OFF)
+endif()
+option(SANITIZERS "Enable sanitizers (Debug builds only)." ${_sanitizers_default})
+unset(_sanitizers_default)
 
 if(DOCS AND (NOT TESTS))
-    message(FATAL_ERROR "TESTS must be set if DOCS is set")
+    message(FATAL_ERROR "DOCS=ON requires TESTS=ON")
 endif()
 
 if(COVERAGE AND (NOT TESTS))
-    message(FATAL_ERROR "TESTS must be set if COVERAGE is set")
+    message(FATAL_ERROR "COVERAGE=ON requires TESTS=ON")
+endif()
+
+if(SANITIZERS AND CMAKE_BUILD_TYPE AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    message(FATAL_ERROR "SANITIZERS=ON requires CMAKE_BUILD_TYPE=Debug (got '${CMAKE_BUILD_TYPE}')"|)
 endif()
 
 if(COVERAGE)
