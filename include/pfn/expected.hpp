@@ -435,13 +435,8 @@ template <class T, class E, class Policy> struct _storage {
       ::std::construct_at(::std::addressof(storage_.e_), FWD(src).e_);
   }
 
-  // [expected.object.cons] and [expected.void.cons]
-  constexpr _storage()                                                              //
-      noexcept(::std::is_void_v<T> || ::std::is_nothrow_default_constructible_v<T>) // extension
-    requires(::std::is_void_v<T> || ::std::is_default_constructible_v<T>)
-      : _storage(::std::in_place)
-  {
-  }
+  // The wrapper's default, value (U&&) and unexpected<G> converting ctors forward directly to the
+  // in_place / unexpect overloads below, so no dedicated overloads for those are provided here.
   template <class... Args>
   constexpr explicit _storage(::std::in_place_t /*ignored*/, Args &&...a) //
       noexcept(::std::is_nothrow_constructible_v<_storage_t, ::std::in_place_t, Args...>)
@@ -471,28 +466,6 @@ template <class T, class E, class Policy> struct _storage {
   {
   }
 
-  template <class U = ::std::remove_cv_t<T>>
-  constexpr explicit(not ::std::is_convertible_v<U, T>) _storage(U &&v) //
-      noexcept(::std::is_nothrow_constructible_v<T, U>)                 // extension
-    requires(_can_convert<U>::value)
-      : _storage(::std::in_place, FWD(v))
-  {
-  }
-  template <class G>
-  constexpr explicit(!::std::is_convertible_v<G const &, E>) _storage(unexpected<G> const &g) //
-      noexcept(::std::is_nothrow_constructible_v<E, G const &>)                               // extension
-    requires(::std::is_constructible_v<E, G const &>)
-      : _storage(unexpect, ::std::forward<G const &>(g.error()))
-  {
-  }
-  template <class G>
-  constexpr explicit(!::std::is_convertible_v<G, E>) _storage(unexpected<G> &&g) //
-      noexcept(::std::is_nothrow_constructible_v<E, G>)                          // extension
-    requires(::std::is_constructible_v<E, G>)
-      : _storage(unexpect, ::std::forward<G>(g.error()))
-  {
-  }
-
   // `add_lvalue_reference_t<add_const_t<U>>` keeps the explicit-specifier
   // and noexcept substitution well-formed when U=void (yields `void const`).
   template <class U, class G>
@@ -518,38 +491,9 @@ template <class T, class E, class Policy> struct _storage {
   {
   }
 
-  // [expected.object.assign], converting assignment from sibling classes
-  template <class U = T>
-  constexpr typename Policy::template type<T, E> &operator=(U &&s) //
-      noexcept(::std::is_nothrow_assignable_v<_value_t &, U>
-               && ::std::is_nothrow_constructible_v<_value_t, U>) // extension
-    requires(_can_convert_assign<U>::value)
-  {
-    this->_assign_value(FWD(s));
-    return static_cast<typename Policy::template type<T, E> &>(*this);
-  }
-  // [expected.object.assign] and [expected.void.assign], converting assignment from unexpected
-  template <class G>
-  constexpr typename Policy::template type<T, E> &operator=(unexpected<G> const &s) //
-      noexcept(::std::is_nothrow_assignable_v<E &, G const &>
-               && ::std::is_nothrow_constructible_v<E, G const &>) // extension
-    requires(::std::is_constructible_v<E, G const &> && ::std::is_assignable_v<E &, G const &>
-             && (::std::is_nothrow_constructible_v<E, G const &> || ::std::is_nothrow_move_constructible_v<_value_t>
-                 || ::std::is_nothrow_move_constructible_v<E>))
-  {
-    this->_assign_unexpected(s);
-    return static_cast<typename Policy::template type<T, E> &>(*this);
-  }
-  template <class G>
-  constexpr typename Policy::template type<T, E> &operator=(unexpected<G> &&s)                    //
-      noexcept(::std::is_nothrow_assignable_v<E &, G> && ::std::is_nothrow_constructible_v<E, G>) // extension
-    requires(::std::is_constructible_v<E, G> && ::std::is_assignable_v<E &, G>
-             && (::std::is_nothrow_constructible_v<E, G> || ::std::is_nothrow_move_constructible_v<_value_t>
-                 || ::std::is_nothrow_move_constructible_v<E>))
-  {
-    this->_assign_unexpected(::std::move(s));
-    return static_cast<typename Policy::template type<T, E> &>(*this);
-  }
+  // [expected.object.assign] and [expected.void.assign]: the converting `operator=(U&&)` and
+  // `operator=(unexpected<G>...)` overloads are implemented directly in the wrappers (which call
+  // `_assign_value` / `_assign_unexpected` below), so no dedicated overloads are provided here.
   template <class... Args>
   constexpr _value_t &emplace(Args &&...args) noexcept
     requires(not ::std::is_void_v<T> && ::std::is_nothrow_constructible_v<T, Args...>)
@@ -1137,8 +1081,85 @@ public:
 
   template <class U> using rebind = expected<U, error_type>;
 
-  // [expected.object.cons], constructors; default, value, converting, unexpected, in_place and unexpect are inherited.
-  using _base::_base;
+  // [expected.object.cons] constructors. Not `using _base::_base;` due to a clang-16 bug where inherited constructors
+  // with `requires` clauses referencing the base's dependent template parameters fail constraint substitution.
+  constexpr expected()                                       //
+      noexcept(::std::is_nothrow_default_constructible_v<T>) // extension
+    requires ::std::is_default_constructible_v<T>
+      : _base(::std::in_place)
+  {
+  } // LCOV_EXCL_LINE
+
+  template <class U, class G>
+  constexpr explicit(not ::std::is_convertible_v<U const &, T> || not ::std::is_convertible_v<G const &, E>)
+      expected(expected<U, G> const &s) //
+      noexcept(::std::is_nothrow_constructible_v<T, U const &>
+               && ::std::is_nothrow_constructible_v<E, G const &>) // extension
+    requires(_base::template _can_copy_convert<U, G>::value)
+      : _base(s)
+  {
+  }
+  template <class U, class G>
+  constexpr explicit(not ::std::is_convertible_v<U, T> || not ::std::is_convertible_v<G, E>)
+      expected(expected<U, G> &&s)                                                                 //
+      noexcept(::std::is_nothrow_constructible_v<T, U> && ::std::is_nothrow_constructible_v<E, G>) // extension
+    requires(_base::template _can_move_convert<U, G>::value)
+      : _base(::std::move(s))
+  {
+  }
+
+  template <class U = ::std::remove_cv_t<T>>
+  constexpr explicit(not ::std::is_convertible_v<U, T>) expected(U &&v) //
+      noexcept(::std::is_nothrow_constructible_v<T, U>)                 // extension
+    requires(_base::template _can_convert<U>::value)
+      : _base(::std::in_place, FWD(v))
+  {
+  }
+
+  template <class G>
+  constexpr explicit(!::std::is_convertible_v<G const &, E>) expected(unexpected<G> const &g) //
+      noexcept(::std::is_nothrow_constructible_v<E, G const &>)                               // extension
+    requires(::std::is_constructible_v<E, G const &>)
+      : _base(unexpect, ::std::forward<G const &>(g.error()))
+  {
+  }
+
+  template <class G>
+  constexpr explicit(!::std::is_convertible_v<G, E>) expected(unexpected<G> &&g) //
+      noexcept(::std::is_nothrow_constructible_v<E, G>)                          // extension
+    requires(::std::is_constructible_v<E, G>)
+      : _base(unexpect, ::std::forward<G>(g.error()))
+  {
+  }
+
+  template <class... Args>
+  constexpr explicit expected(::std::in_place_t, Args &&...a) //
+      noexcept(::std::is_nothrow_constructible_v<T, Args...>) // extension
+    requires ::std::is_constructible_v<T, Args...>
+      : _base(::std::in_place, FWD(a)...)
+  {
+  }
+  template <class U, class... Args>
+  constexpr explicit expected(::std::in_place_t, ::std::initializer_list<U> il, Args &&...a) //
+      noexcept(::std::is_nothrow_constructible_v<T, ::std::initializer_list<U> &, Args...>)  // extension
+    requires ::std::is_constructible_v<T, ::std::initializer_list<U> &, Args...>
+      : _base(::std::in_place, il, FWD(a)...)
+  {
+  }
+  template <class... Args>
+  constexpr explicit expected(unexpect_t, Args &&...a)        //
+      noexcept(::std::is_nothrow_constructible_v<E, Args...>) // extension
+    requires ::std::is_constructible_v<E, Args...>
+      : _base(unexpect, FWD(a)...)
+  {
+  }
+  template <class U, class... Args>
+  constexpr explicit expected(unexpect_t, ::std::initializer_list<U> il, Args &&...a)       //
+      noexcept(::std::is_nothrow_constructible_v<E, ::std::initializer_list<U> &, Args...>) // extension
+    requires ::std::is_constructible_v<E, ::std::initializer_list<U> &, Args...>
+      : _base(unexpect, il, FWD(a)...)
+  {
+  }
 
   constexpr expected(expected const &) = delete;
   constexpr expected(expected const &s)                                                                //
@@ -1168,9 +1189,37 @@ public:
   // [expected.object.dtor]
   constexpr ~expected() = default;
 
-  // [expected.object.assign], assignment; copy/move bodies delegate to _storage
-  // helpers. Converting overloads (from `U&&` and from `unexpected<G>`) are inherited.
-  using _base::operator=;
+  // [expected.object.assign], assignment. Forwarding instead of `using _base::operator=;` to avoid an MSVC overload
+  // resolution ambiguity where the deleted `_storage` copy/move assignment ops are considered as candidates.
+  template <class U = T>
+  constexpr expected &operator=(U &&s)                                                            //
+      noexcept(::std::is_nothrow_assignable_v<T &, U> && ::std::is_nothrow_constructible_v<T, U>) // extension
+    requires(_base::template _can_convert_assign<U>::value)
+  {
+    this->_assign_value(FWD(s));
+    return *this;
+  }
+  template <class G>
+  constexpr expected &operator=(unexpected<G> const &s) //
+      noexcept(::std::is_nothrow_assignable_v<E &, G const &>
+               && ::std::is_nothrow_constructible_v<E, G const &>) // extension
+    requires(::std::is_constructible_v<E, G const &> && ::std::is_assignable_v<E &, G const &>
+             && (::std::is_nothrow_constructible_v<E, G const &> || ::std::is_nothrow_move_constructible_v<T>
+                 || ::std::is_nothrow_move_constructible_v<E>))
+  {
+    this->_assign_unexpected(s);
+    return *this;
+  }
+  template <class G>
+  constexpr expected &operator=(unexpected<G> &&s)                                                //
+      noexcept(::std::is_nothrow_assignable_v<E &, G> && ::std::is_nothrow_constructible_v<E, G>) // extension
+    requires(::std::is_constructible_v<E, G> && ::std::is_assignable_v<E &, G>
+             && (::std::is_nothrow_constructible_v<E, G> || ::std::is_nothrow_move_constructible_v<T>
+                 || ::std::is_nothrow_move_constructible_v<E>))
+  {
+    this->_assign_unexpected(::std::move(s));
+    return *this;
+  }
 
   constexpr expected &operator=(expected const &) = delete;
   constexpr expected &operator=(expected const &s) //
@@ -1356,8 +1405,57 @@ public:
 
   template <class U> using rebind = expected<U, error_type>;
 
-  // [expected.void.cons], constructors; default, converting, unexpected, in_place and unexpect overloads are inherited.
-  using _base::_base;
+  // [expected.void.cons], constructors. Not `using _base::_base;` due to a clang-16 bug where inherited constructors
+  // with `requires` clauses referencing the base's dependent template parameters fail constraint substitution.
+  constexpr expected() noexcept : _base(::std::in_place) {} // LCOV_EXCL_LINE
+
+  template <class U, class G>
+  constexpr explicit(not ::std::is_convertible_v<G const &, E>) expected(expected<U, G> const &s) //
+      noexcept(::std::is_nothrow_constructible_v<E, G const &>)                                   // extension
+    requires(_base::template _can_copy_convert<U, G>::value)
+      : _base(s)
+  {
+  }
+  template <class U, class G>
+  constexpr explicit(not ::std::is_convertible_v<G, E>) expected(expected<U, G> &&s) //
+      noexcept(::std::is_nothrow_constructible_v<E, G>)                              // extension
+    requires(_base::template _can_move_convert<U, G>::value)
+      : _base(::std::move(s))
+  {
+  }
+
+  template <class G>
+  constexpr explicit(!::std::is_convertible_v<G const &, E>) expected(unexpected<G> const &g) //
+      noexcept(::std::is_nothrow_constructible_v<E, G const &>)                               // extension
+    requires(::std::is_constructible_v<E, G const &>)
+      : _base(unexpect, ::std::forward<G const &>(g.error()))
+  {
+  }
+
+  template <class G>
+  constexpr explicit(!::std::is_convertible_v<G, E>) expected(unexpected<G> &&g) //
+      noexcept(::std::is_nothrow_constructible_v<E, G>)                          // extension
+    requires(::std::is_constructible_v<E, G>)
+      : _base(unexpect, ::std::forward<G>(g.error()))
+  {
+  }
+
+  constexpr explicit expected(::std::in_place_t) noexcept : _base(::std::in_place) {}
+
+  template <class... Args>
+  constexpr explicit expected(unexpect_t, Args &&...a)        //
+      noexcept(::std::is_nothrow_constructible_v<E, Args...>) // extension
+    requires ::std::is_constructible_v<E, Args...>
+      : _base(unexpect, FWD(a)...)
+  {
+  }
+  template <class U, class... Args>
+  constexpr explicit expected(unexpect_t, ::std::initializer_list<U> il, Args &&...a)       //
+      noexcept(::std::is_nothrow_constructible_v<E, ::std::initializer_list<U> &, Args...>) // extension
+    requires ::std::is_constructible_v<E, ::std::initializer_list<U> &, Args...>
+      : _base(unexpect, il, FWD(a)...)
+  {
+  }
 
   constexpr expected(expected const &) = delete;
   constexpr expected(expected const &)                                                         //
@@ -1382,9 +1480,25 @@ public:
   // [expected.void.dtor]
   constexpr ~expected() = default;
 
-  // [expected.void.assign], assignment; copy/move bodies delegate to _storage
-  // helpers. Converting overloads from `unexpected<G>` are inherited.
-  using _base::operator=;
+  // [expected.void.assign], assignment. Not `using _base::operator=;` to avoid an MSVC overload resolution ambiguity
+  // where the deleted `_storage` copy/move assignment ops are considered as candidates.
+  template <class G>
+  constexpr expected &operator=(unexpected<G> const &s) //
+      noexcept(::std::is_nothrow_assignable_v<E &, G const &>
+               && ::std::is_nothrow_constructible_v<E, G const &>) // extension
+    requires(::std::is_constructible_v<E, G const &> && ::std::is_assignable_v<E &, G const &>)
+  {
+    this->_assign_unexpected(s);
+    return *this;
+  }
+  template <class G>
+  constexpr expected &operator=(unexpected<G> &&s)                                                //
+      noexcept(::std::is_nothrow_assignable_v<E &, G> && ::std::is_nothrow_constructible_v<E, G>) // extension
+    requires(::std::is_constructible_v<E, G> && ::std::is_assignable_v<E &, G>)
+  {
+    this->_assign_unexpected(::std::move(s));
+    return *this;
+  }
 
   constexpr expected &operator=(expected const &) = delete;
   constexpr expected &operator=(expected const &s)                                                  //
