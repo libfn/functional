@@ -535,22 +535,22 @@ template <class T, class E, class Policy> struct _storage {
   constexpr _storage &operator=(_storage const &) = delete;
   constexpr _storage &operator=(_storage &&) = delete;
 
-  constexpr ~_storage() noexcept //
+  constexpr ~_storage() //
     requires(::std::is_trivially_destructible_v<_value_t> && ::std::is_trivially_destructible_v<E>)
   = default;
-  constexpr ~_storage() noexcept //
+  constexpr ~_storage() //
     requires(::std::is_trivially_destructible_v<_value_t> && not ::std::is_trivially_destructible_v<E>)
   {
     if (not set_)
       ::std::destroy_at(::std::addressof(storage_.e_));
   }
-  constexpr ~_storage() noexcept //
+  constexpr ~_storage() //
     requires(not ::std::is_trivially_destructible_v<_value_t> && ::std::is_trivially_destructible_v<E>)
   {
     if (set_)
       ::std::destroy_at(::std::addressof(storage_.v_));
   }
-  constexpr ~_storage() noexcept //
+  constexpr ~_storage() //
     requires(not ::std::is_trivially_destructible_v<_value_t> && not ::std::is_trivially_destructible_v<E>)
   {
     if (set_)
