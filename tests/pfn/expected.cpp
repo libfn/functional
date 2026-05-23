@@ -809,6 +809,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         static_assert(not std::is_nothrow_constructible_v<T, expected<int, Error>>);
         static_assert(not extension || std::is_nothrow_constructible_v<T, expected<helper_list_t, Error>>);
         static_assert(std::is_convertible_v<expected<int, Error>, T>);
+        static_assert(not std::is_constructible_v<T, expected<void, Error>>);
 
         constexpr expected<int, int> a{expected<bool, bool>{true}};
         static_assert(a.value() == 1);
@@ -825,6 +826,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         static_assert(not std::is_nothrow_constructible_v<T, expected<double, int>>);
         static_assert(not extension || std::is_nothrow_constructible_v<T, expected<double, helper_list_t>>);
         static_assert(std::is_convertible_v<expected<double, helper>, T>);
+        static_assert(not std::is_constructible_v<T, expected<void, helper>>);
 
         constexpr expected<int, int> a{expected<bool, bool>{unexpect, true}};
         static_assert(a.error() == 1);
@@ -843,6 +845,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         static_assert(not std::is_nothrow_constructible_v<T, expected<int, Error> const &>);
         static_assert(not extension || std::is_nothrow_constructible_v<T, expected<helper_list_t, Error> const &>);
         static_assert(std::is_convertible_v<expected<int, Error> const &, T>);
+        static_assert(not std::is_constructible_v<T, expected<void, Error> const &>);
 
         constexpr expected<bool, bool> v{true};
         constexpr expected<int, int> a{v};
@@ -860,6 +863,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         static_assert(not std::is_nothrow_constructible_v<T, expected<double, int> const &>);
         static_assert(not extension || std::is_nothrow_constructible_v<T, expected<double, helper_list_t> const &>);
         static_assert(std::is_convertible_v<expected<double, helper> const &, T>);
+        static_assert(not std::is_constructible_v<T, expected<void, helper> const &>);
 
         constexpr expected<bool, bool> e{unexpect, true};
         constexpr expected<int, int> a{e};
@@ -3694,17 +3698,18 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
   SECTION("from other expected")
   {
+    using T = expected<void, helper>;
+
     SECTION("rval")
     {
+      static_assert(std::is_constructible_v<T, expected<void, int>>);
+      static_assert(not std::is_nothrow_constructible_v<T, expected<void, int>>);
+      static_assert(not extension || std::is_nothrow_constructible_v<T, expected<void, helper_list_t>>);
+      static_assert(std::is_convertible_v<expected<void, int>, T>);
+      static_assert(not std::is_constructible_v<T, expected<int, helper>>);
+
       SECTION("value")
       {
-        using T = expected<void, helper>;
-        static_assert(std::is_constructible_v<T, expected<void, int>>);
-        static_assert(not std::is_nothrow_constructible_v<T, expected<void, int>>);
-        static_assert(not extension || std::is_nothrow_constructible_v<T, expected<void, helper_list_t>>);
-        static_assert(std::is_convertible_v<expected<void, int>, T>);
-        static_assert(not std::is_constructible_v<T, expected<int, int>>);
-
         constexpr expected<void, int> a{expected<void, bool>{}};
         static_assert(a.has_value());
 
@@ -3714,12 +3719,6 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
       SECTION("error")
       {
-        using T = expected<void, helper>;
-        static_assert(std::is_constructible_v<T, expected<void, int>>);
-        static_assert(not std::is_nothrow_constructible_v<T, expected<void, int>>);
-        static_assert(not extension || std::is_nothrow_constructible_v<T, expected<void, helper_list_t>>);
-        static_assert(std::is_convertible_v<expected<void, int>, T>);
-
         constexpr expected<void, int> a{expected<void, bool>{unexpect, true}};
         static_assert(a.error() == 1);
 
@@ -3730,15 +3729,14 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
     SECTION("lval const")
     {
+      static_assert(std::is_constructible_v<T, expected<void, int> const &>);
+      static_assert(not std::is_nothrow_constructible_v<T, expected<void, int> const &>);
+      static_assert(not extension || std::is_nothrow_constructible_v<T, expected<void, helper_list_t> const &>);
+      static_assert(std::is_convertible_v<expected<void, int> const &, T>);
+      static_assert(not std::is_constructible_v<T, expected<int, int> const &>);
+
       SECTION("value")
       {
-        using T = expected<void, helper>;
-        static_assert(std::is_constructible_v<T, expected<void, int> const &>);
-        static_assert(not std::is_nothrow_constructible_v<T, expected<void, int> const &>);
-        static_assert(not extension || std::is_nothrow_constructible_v<T, expected<void, helper_list_t> const &>);
-        static_assert(std::is_convertible_v<expected<void, int> const &, T>);
-        static_assert(not std::is_constructible_v<T, expected<int, int> const &>);
-
         constexpr expected<void, bool> v;
         constexpr expected<void, int> a{v};
         static_assert(a.has_value());
@@ -3750,12 +3748,6 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
       SECTION("error")
       {
-        using T = expected<void, helper>;
-        static_assert(std::is_constructible_v<T, expected<void, int> const &>);
-        static_assert(not std::is_nothrow_constructible_v<T, expected<void, int> const &>);
-        static_assert(not extension || std::is_nothrow_constructible_v<T, expected<void, helper_list_t> const &>);
-        static_assert(std::is_convertible_v<expected<void, int> const &, T>);
-
         constexpr expected<void, bool> e{unexpect, true};
         constexpr expected<void, int> a{e};
         static_assert(a.error() == 1);
