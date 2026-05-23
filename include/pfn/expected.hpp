@@ -1081,14 +1081,13 @@ public:
 
   template <class U> using rebind = expected<U, error_type>;
 
-  // [expected.object.cons] constructors. Not `using _base::_base;` due to a clang-16 bug where inherited constructors
-  // with `requires` clauses referencing the base's dependent template parameters fail constraint substitution.
+  // [expected.object.cons] constructors. Not `using _base::_base;` to avoid a clang-16 bug.
   constexpr expected()                                       //
       noexcept(::std::is_nothrow_default_constructible_v<T>) // extension
     requires ::std::is_default_constructible_v<T>
       : _base(::std::in_place)
   {
-  } // LCOV_EXCL_LINE
+  }
 
   template <class U, class G>
   constexpr explicit(not ::std::is_convertible_v<U const &, T> || not ::std::is_convertible_v<G const &, E>)
@@ -1107,7 +1106,6 @@ public:
       : _base(::std::move(s))
   {
   }
-
   template <class U = ::std::remove_cv_t<T>>
   constexpr explicit(not ::std::is_convertible_v<U, T>) expected(U &&v) //
       noexcept(::std::is_nothrow_constructible_v<T, U>)                 // extension
@@ -1115,7 +1113,6 @@ public:
       : _base(::std::in_place, FWD(v))
   {
   }
-
   template <class G>
   constexpr explicit(!::std::is_convertible_v<G const &, E>) expected(unexpected<G> const &g) //
       noexcept(::std::is_nothrow_constructible_v<E, G const &>)                               // extension
@@ -1123,7 +1120,6 @@ public:
       : _base(unexpect, ::std::forward<G const &>(g.error()))
   {
   }
-
   template <class G>
   constexpr explicit(!::std::is_convertible_v<G, E>) expected(unexpected<G> &&g) //
       noexcept(::std::is_nothrow_constructible_v<E, G>)                          // extension
@@ -1189,8 +1185,7 @@ public:
   // [expected.object.dtor]
   constexpr ~expected() = default;
 
-  // [expected.object.assign], assignment. Forwarding instead of `using _base::operator=;` to avoid an MSVC overload
-  // resolution ambiguity where the deleted `_storage` copy/move assignment ops are considered as candidates.
+  // [expected.void.assign], assignment. Not `using _base::operator=;` to avoid an MSVC bug.
   template <class U = T>
   constexpr expected &operator=(U &&s)                                                            //
       noexcept(::std::is_nothrow_assignable_v<T &, U> && ::std::is_nothrow_constructible_v<T, U>) // extension
@@ -1405,9 +1400,8 @@ public:
 
   template <class U> using rebind = expected<U, error_type>;
 
-  // [expected.void.cons], constructors. Not `using _base::_base;` due to a clang-16 bug where inherited constructors
-  // with `requires` clauses referencing the base's dependent template parameters fail constraint substitution.
-  constexpr expected() noexcept : _base(::std::in_place) {} // LCOV_EXCL_LINE
+  // [expected.void.cons], constructors. Not `using _base::_base;` to avoid a clang-16 bug.
+  constexpr expected() noexcept : _base(::std::in_place) {}
 
   template <class U, class G>
   constexpr explicit(not ::std::is_convertible_v<G const &, E>) expected(expected<U, G> const &s) //
@@ -1423,7 +1417,6 @@ public:
       : _base(::std::move(s))
   {
   }
-
   template <class G>
   constexpr explicit(!::std::is_convertible_v<G const &, E>) expected(unexpected<G> const &g) //
       noexcept(::std::is_nothrow_constructible_v<E, G const &>)                               // extension
@@ -1431,7 +1424,6 @@ public:
       : _base(unexpect, ::std::forward<G const &>(g.error()))
   {
   }
-
   template <class G>
   constexpr explicit(!::std::is_convertible_v<G, E>) expected(unexpected<G> &&g) //
       noexcept(::std::is_nothrow_constructible_v<E, G>)                          // extension
@@ -1480,8 +1472,7 @@ public:
   // [expected.void.dtor]
   constexpr ~expected() = default;
 
-  // [expected.void.assign], assignment. Not `using _base::operator=;` to avoid an MSVC overload resolution ambiguity
-  // where the deleted `_storage` copy/move assignment ops are considered as candidates.
+  // [expected.void.assign], assignment. Not `using _base::operator=;` to avoid an MSVC bug.
   template <class G>
   constexpr expected &operator=(unexpected<G> const &s) //
       noexcept(::std::is_nothrow_assignable_v<E &, G const &>
