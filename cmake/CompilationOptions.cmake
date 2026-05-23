@@ -45,11 +45,15 @@ function(append_compilation_options)
         endif()
 
         if(Options_OPTIMIZATION)
-            # GCC 16.1 constexpr evaluator is incompatible with UBSan instrumentation in libstdc++
-            if(CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 16)
-                set(sanitizers address,leak)
+            # GCC constexpr evaluator is incompatible with UBSan instrumentation in libstdc++
+            if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+                set(sanitizers address)
             else()
-                set(sanitizers address,undefined,leak)
+                set(sanitizers address,undefined)
+            endif()
+            # LeakSanitizer is not supported on Darwin
+            if(NOT APPLE)
+                string(APPEND sanitizers ",leak")
             endif()
 
             target_compile_options(${Options_NAME} PRIVATE
@@ -60,11 +64,31 @@ function(append_compilation_options)
                 $<$<NOT:$<CONFIG:Debug>>:-O2>
             )
 
+            # Statically link the sanitizer runtimes that match ${sanitizers} above.
+            # Apple's clang ships sanitizer runtimes as dylibs only, so skip there.
+            # Clang only recognises the umbrella -static-libsan; GCC has per-sanitizer flags.
+            set(static_san_flags)
+            if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+                if(sanitizers MATCHES "address")
+                    list(APPEND static_san_flags -static-libasan)
+                endif()
+                if(sanitizers MATCHES "leak")
+                    list(APPEND static_san_flags -static-liblsan)
+                endif()
+                if(sanitizers MATCHES "undefined")
+                    list(APPEND static_san_flags -static-libubsan)
+                endif()
+            elseif(NOT APPLE)
+                list(APPEND static_san_flags -static-libsan)
+            endif()
+
             target_link_options(${Options_NAME} PRIVATE
                 $<$<CONFIG:Debug>:-fsanitize=${sanitizers}>
+                "$<$<CONFIG:Debug>:${static_san_flags}>"
             )
 
             unset(sanitizers)
+            unset(static_san_flags)
         endif()
 
         if(Options_INTERFACE)
