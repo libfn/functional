@@ -17,7 +17,8 @@ RUN set -ex ;\
       | tee /etc/apt/sources.list.d/llvm.list ;\
     apt-get update ;\
     apt-get install -t llvm-toolchain-${CODENAME}-${CLANG_RELEASE} -y --no-install-recommends \
-      clang++-${CLANG_RELEASE} clang-${CLANG_RELEASE} libc++-${CLANG_RELEASE}-dev libc++abi-${CLANG_RELEASE}-dev ;\
+      clang++-${CLANG_RELEASE} clang-${CLANG_RELEASE} libc++-${CLANG_RELEASE}-dev \
+      libc++abi-${CLANG_RELEASE}-dev libclang-rt-${CLANG_RELEASE}-dev valgrind ;\
     apt-get clean
 
 RUN set -ex ;\
