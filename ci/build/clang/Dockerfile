@@ -8,7 +8,7 @@ RUN set -ex ;\
     apt-get update ;\
     apt-get install -y --no-install-recommends \
       ca-certificates gnupg unzip wget vim curl jq python3-venv python3-pip \
-      cmake ninja-build binutils libc6-dev git ;\
+      cmake ninja-build binutils libc6-dev git valgrind ;\
     CODENAME=$( . /etc/os-release && echo $VERSION_CODENAME ) ;\
     wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /etc/apt/keyrings/llvm.gpg ;\
     printf "%s\n%s\n" \
@@ -18,7 +18,7 @@ RUN set -ex ;\
     apt-get update ;\
     apt-get install -t llvm-toolchain-${CODENAME}-${CLANG_RELEASE} -y --no-install-recommends \
       clang++-${CLANG_RELEASE} clang-${CLANG_RELEASE} libc++-${CLANG_RELEASE}-dev \
-      libc++abi-${CLANG_RELEASE}-dev libclang-rt-${CLANG_RELEASE}-dev valgrind ;\
+      libc++abi-${CLANG_RELEASE}-dev libclang-rt-${CLANG_RELEASE}-dev ;\
     apt-get clean
 
 RUN set -ex ;\

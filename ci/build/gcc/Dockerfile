@@ -38,7 +38,7 @@ RUN set -ex ;\
     apt-get update ;\
     apt-get install -y --no-install-recommends \
       ca-certificates gnupg unzip wget vim curl jq python3-venv python3-pip \
-      cmake ninja-build binutils libc6-dev git ;\
+      cmake ninja-build binutils libc6-dev git valgrind ;\
     apt-get clean
 
 COPY requirements.txt /requirements.txt
