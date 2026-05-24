@@ -8,7 +8,7 @@ project(functional VERSION 0.0.1 LANGUAGES C CXX)
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
 # Symlink compile_commands.json as a relative path to the source root, for tools that expect it there.
-if(CMAKE_EXPORT_COMPILE_COMMANDS AND NOT PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
+if(CMAKE_EXPORT_COMPILE_COMMANDS AND PROJECT_IS_TOP_LEVEL AND NOT PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
     file(RELATIVE_PATH symlink_target "${PROJECT_SOURCE_DIR}" "${PROJECT_BINARY_DIR}/compile_commands.json")
     file(CREATE_LINK
         "${symlink_target}"
