@@ -1,0 +1,72 @@
+name: sonarcloud-pr-scan
+
+# Runs after `sonarcloud.yml` completes on a pull_request event. Because this
+# workflow is triggered by `workflow_run`, it executes in the context of the
+# base repository's default branch and has access to repository secrets,
+# including SONAR_TOKEN. This is the only way to analyse pull requests opened
+# from forks, which otherwise do not receive secrets.
+#
+# This workflow does not check out or execute any code from the pull request
+# beyond what `SonarSource/sonarqube-scan-action` reads. The source tree is
+# restored to the exact commit that was built by the triggering workflow.
+
+on:
+  workflow_run:
+    workflows: ["sonarcloud"]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+  checks: write
+  statuses: write
+
+jobs:
+  scan:
+    if: >
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on:
+      group: runners-intel
+    container: libfn.azurecr.io/ci-build-gcc:15
+
+    steps:
+    - name: Check out pull request head
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.workflow_run.head_sha }}
+        fetch-depth: 0  # Full history for blame info
+
+    - name: Download SonarCloud inputs artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: sonarcloud-pr-inputs
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        run-id: ${{ github.event.workflow_run.id }}
+        path: .
+
+    - name: Restore build outputs and pull request metadata
+      id: pr
+      shell: bash
+      run: |
+        tar -xzf sonar-inputs.tar.gz
+        rm -f sonar-inputs.tar.gz
+        echo "number=$(cat .sonar-pr/number)"     >> "$GITHUB_OUTPUT"
+        echo "head_sha=$(cat .sonar-pr/head_sha)" >> "$GITHUB_OUTPUT"
+        echo "head_ref=$(cat .sonar-pr/head_ref)" >> "$GITHUB_OUTPUT"
+        echo "base_ref=$(cat .sonar-pr/base_ref)" >> "$GITHUB_OUTPUT"
+
+    - name: Run SonarScanner
+      uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995 # v8.1.0
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        args: >
+          -Dsonar.cfamily.gcov.reportsPath=.build
+          -Dsonar.cfamily.compile-commands=.build/compile_commands.json
+          -Dsonar.scm.revision=${{ steps.pr.outputs.head_sha }}
+          -Dsonar.pullrequest.key=${{ steps.pr.outputs.number }}
+          -Dsonar.pullrequest.branch=${{ steps.pr.outputs.head_ref }}
+          -Dsonar.pullrequest.base=${{ steps.pr.outputs.base_ref }}
