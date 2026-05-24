@@ -34,7 +34,7 @@ if(PROJECT_IS_TOP_LEVEL)
     option(LIBFN_DOCS     "Generate documentation." OFF)
 elseif(LIBFN_COVERAGE OR LIBFN_DOCS)
     # e.g. accidentaly set in cache by a parent project. Names were chosen to be specific but ¯\_(ツ)_/¯
-    message(FATAL_ERROR "LIBFN_COVERAGE=ON and LIBFN_DOCS=ON are only supported when functional is top level.")
+    message(FATAL_ERROR "LIBFN_COVERAGE and LIBFN_DOCS are only supported when functional is top level.")
 endif()
 
 # We want to allow tests even when our project is not a top level, e.g. for troubleshooting.
