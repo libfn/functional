@@ -30,7 +30,7 @@ jobs:
       run: |
         mkdir .build
         cd .build
-        cmake -DCOVERAGE=ON ..
+        cmake -DLIBFN_COVERAGE=ON ..
         COMPILER=$( grep -iE "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
         printf "C++ compiler path: %s\n" "$COMPILER"
         $COMPILER --version
