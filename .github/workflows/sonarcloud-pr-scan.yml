@@ -51,23 +51,42 @@ jobs:
       env:
         ARCHIVE: ${{ runner.temp }}/sonar-artifact/sonar-inputs.tar.gz
       run: |
-        list=$(tar -tzf "$ARCHIVE")
-        if printf '%s\n' "$list" | grep -qE '(^/|(^|/)\.\.(/|$))'; then
-          printf '::error::Unsafe path traversal in artifact:\n%s\n' "$list" >&2
+        list=$(tar -tvzf "$ARCHIVE")
+        bad_type=$(printf '%s\n' "$list" | grep -vE '^[-d]' || true)
+        if [ -n "$bad_type" ]; then
+          printf '::error::Disallowed entry types in artifact:\n%s\n' "$bad_type" >&2
           exit 1
         fi
-        bad=$(printf '%s\n' "$list" | grep -vE '^(\.build|\.sonar-pr)(/|$)' || true)
+        names=$(printf '%s\n' "$list" | awk '{print $NF}')
+        if printf '%s\n' "$names" | grep -qE '(^/|(^|/)\.\.(/|$))'; then
+          printf '::error::Unsafe path traversal in artifact:\n%s\n' "$names" >&2
+          exit 1
+        fi
+        bad=$(printf '%s\n' "$names" | grep -vE '^(\.build|\.sonar-pr)(/|$)' || true)
         if [ -n "$bad" ]; then
           printf '::error::Unexpected entries in artifact:\n%s\n' "$bad" >&2
           exit 1
         fi
         tar -xzf "$ARCHIVE" -C "${RUNNER_TEMP}/sonar-artifact" .sonar-pr
         META="${RUNNER_TEMP}/sonar-artifact/.sonar-pr"
+        read_field() {
+          local name=$1 pattern=$2 value
+          IFS= read -r value < "$META/$name" || true
+          if ! printf '%s' "$value" | grep -qE "$pattern"; then
+            printf '::error::Invalid %s in artifact metadata\n' "$name" >&2
+            return 1
+          fi
+          printf '%s' "$value"
+        }
+        number=$(read_field number   '^[0-9]+$')                 || exit 1
+        head_sha=$(read_field head_sha '^[0-9a-f]{40}$')         || exit 1
+        head_ref=$(read_field head_ref '^[A-Za-z0-9._/-]+$')     || exit 1
+        base_ref=$(read_field base_ref '^[A-Za-z0-9._/-]+$')     || exit 1
         {
-          echo "number=$(cat "$META/number")"
-          echo "head_sha=$(cat "$META/head_sha")"
-          echo "head_ref=$(cat "$META/head_ref")"
-          echo "base_ref=$(cat "$META/base_ref")"
+          echo "number=$number"
+          echo "head_sha=$head_sha"
+          echo "head_ref=$head_ref"
+          echo "base_ref=$base_ref"
         } >> "$GITHUB_OUTPUT"
 
     - name: Check out pull request head
