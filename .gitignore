@@ -16,3 +16,4 @@ result*
 *.gcov
 *~
 ~$*.doc
+CMakeUserPresets.json
