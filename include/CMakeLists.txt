@@ -30,6 +30,11 @@ include(TargetGenerator)
 
 # Generate sentinel target for each individual header, as a basic sanity check
 foreach(mode 20 23)
+    if(${mode} EQUAL 23 AND DISABLE_CXX23)
+        message(STATUS "C++23 support is disabled, skipping include_pfn sentinel targets for C++23")
+        continue()
+    endif()
+
     foreach(source IN ITEMS ${INCLUDE_PFN_HEADERS})
         string(REGEX REPLACE "^(pfn)/(detail|)/?([^\.]+)\.hpp$" "\\1_\\2\\3" root_name ${source})
         set(target "sentinel_${root_name}_cxx${mode}")
