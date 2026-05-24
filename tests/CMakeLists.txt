@@ -12,7 +12,9 @@ set(TESTS_UTIL_SOURCES
 
 add_library(tests_util INTERFACE ${TESTS_UTIL_SOURCES})
 target_include_directories(tests_util INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(tests_util INTERFACE include_fn)
+if(NOT DISABLE_CXX23)
+    target_link_libraries(tests_util INTERFACE include_fn)
+endif()
 
 # Generate sentinel target for each individual header, as a basic sanity check
 foreach(mode 23)
