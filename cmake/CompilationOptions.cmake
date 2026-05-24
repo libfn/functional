@@ -51,7 +51,7 @@ function(append_compilation_options)
                 $<$<NOT:$<CONFIG:Debug>>:-O2>
             )
 
-            if(SANITIZERS)
+            if(LIBFN_SANITIZERS)
                 # GCC constexpr evaluator is incompatible with UBSan instrumentation in libstdc++
                 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
                     set(sanitizers address)
@@ -109,7 +109,7 @@ function(append_compilation_options)
             # -Wno-redundant-move: want `std::move(std::as_const(x))` to be compiled without warnings in unit tests.
             target_compile_options(${Options_NAME} PRIVATE -Wno-redundant-move)
 
-            if(COVERAGE)
+            if(LIBFN_COVERAGE)
                 add_code_coverage_to_target(${Options_NAME} PRIVATE)
 
                 # Some options may be redundant, but that's OK.
