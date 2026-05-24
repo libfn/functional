@@ -5,16 +5,22 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Pls keep the filenames sorted
-set(TESTS_UTIL_SOURCES
-    util/static_check.hpp
+set(TESTS_UTIL_HEADERS
     util/helper_types.hpp
 )
 
-add_library(tests_util INTERFACE ${TESTS_UTIL_SOURCES})
-target_include_directories(tests_util INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+add_library(tests_util INTERFACE)
 if(NOT DISABLE_CXX23)
     target_link_libraries(tests_util INTERFACE include_fn)
+    list(APPEND TESTS_UTIL_HEADERS
+        util/static_check.hpp
+    )
 endif()
+target_sources(tests_util INTERFACE
+    FILE_SET tests_util_headers
+    TYPE HEADERS
+    FILES ${TESTS_UTIL_HEADERS})
+target_include_directories(tests_util INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Generate sentinel target for each individual header, as a basic sanity check
 foreach(mode 23)
@@ -23,7 +29,7 @@ foreach(mode 23)
         continue()
     endif()
 
-    foreach(source IN ITEMS ${TESTS_UTIL_SOURCES})
+    foreach(source IN ITEMS ${TESTS_UTIL_HEADERS})
         string(REGEX REPLACE "^(util)/([^\.]+)\.hpp$" "\\1_\\2" root_name ${source})
         set(target "sentinel_${root_name}_cxx${mode}")
 
