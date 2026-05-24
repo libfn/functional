@@ -8,14 +8,19 @@ project(functional VERSION 0.0.1 LANGUAGES C CXX)
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
 # Symlink compile_commands.json as a relative path to the source root, for tools that expect it there.
-if(CMAKE_EXPORT_COMPILE_COMMANDS)
+if(CMAKE_EXPORT_COMPILE_COMMANDS AND NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
     file(RELATIVE_PATH symlink_target "${CMAKE_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/compile_commands.json")
     file(CREATE_LINK
         "${symlink_target}"
         "${CMAKE_SOURCE_DIR}/compile_commands.json"
+        RESULT symlink_result
         SYMBOLIC
     )
+    if(NOT symlink_result EQUAL 0)
+        message(WARNING "Could not create compile_commands.json symlink: ${symlink_result}")
+    endif()
     unset(symlink_target)
+    unset(symlink_result)
 endif()
 
 option(DISABLE_FETCH_CONTENT "Do not use FetchContent for dependencies." OFF)
@@ -40,7 +45,7 @@ if(COVERAGE AND (NOT TESTS))
 endif()
 
 if(SANITIZERS AND CMAKE_BUILD_TYPE AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-    message(FATAL_ERROR "SANITIZERS=ON requires CMAKE_BUILD_TYPE=Debug (got '${CMAKE_BUILD_TYPE}')"|)
+    message(FATAL_ERROR "SANITIZERS=ON requires CMAKE_BUILD_TYPE=Debug (got '${CMAKE_BUILD_TYPE}')")
 endif()
 
 if(COVERAGE)
