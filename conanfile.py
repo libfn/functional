@@ -48,6 +48,8 @@ class FunctionalConan(ConanFile):
             check_min_cppstd(self, 23)
 
     def package_id(self):
+        # Intentional: header-only library, so all files are identical regardless of options. package_info() runs
+        # at consume time with the consumer's options, so the conditional fn component exposure works correctly.
         self.info.clear()
 
     def package(self):
