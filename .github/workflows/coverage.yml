@@ -23,8 +23,6 @@ jobs:
     runs-on:
       group: runners-intel
     container: libfn.azurecr.io/ci-build-gcc:15
-    strategy:
-      fail-fast: false
     env:
       CC: /usr/local/bin/gcc
       CXX: /usr/local/bin/g++
@@ -83,4 +81,4 @@ jobs:
         disable_search: false
         verbose: true
         plugin: noop
-        token: ${{ secrets.CODECOV_TOKEN }}
+        token: ${{ secrets.CODECOV_TOKEN || '' }}

@@ -5,14 +5,13 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   sonarcloud:
     runs-on:
       group: runners-intel
     container: libfn.azurecr.io/ci-build-gcc:15
-    strategy:
-      fail-fast: false
     env:
       CC: /usr/local/bin/gcc
       CXX: /usr/local/bin/g++
@@ -44,7 +43,13 @@ jobs:
         ctest -L 'tests_(p?fn)' -j1 # generate .gcda files
         $GCOV -pbc -r -s $(realpath ..) $(find tests -type f -name '*.gcno') # generate .gcov files
 
+    # Pull requests opened from forks do not receive repository secrets, so
+    # the SonarScanner cannot run here. For those events, package the build
+    # outputs and PR metadata into an artifact and hand off to the companion
+    # `sonarcloud-pr-scan` workflow (triggered via `workflow_run`), which
+    # runs in the base repository context and has access to SONAR_TOKEN.
     - name: Run SonarScanner
+      if: github.event_name != 'pull_request'
       uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995 # v8.1.0
       env:
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -53,3 +58,31 @@ jobs:
         args: >
           -Dsonar.cfamily.gcov.reportsPath=.build
           -Dsonar.cfamily.compile-commands=.build/compile_commands.json
+
+    - name: Package SonarCloud inputs for downstream analysis
+      if: github.event_name == 'pull_request'
+      shell: bash
+      env:
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+      run: |
+        mkdir -p .sonar-pr
+        printf "%s\n" "$PR_NUMBER"   > .sonar-pr/number
+        printf "%s\n" "$PR_HEAD_SHA" > .sonar-pr/head_sha
+        printf "%s\n" "$PR_HEAD_REF" > .sonar-pr/head_ref
+        printf "%s\n" "$PR_BASE_REF" > .sonar-pr/base_ref
+        tar -czf sonar-inputs.tar.gz \
+          .build/compile_commands.json \
+          $(find .build -name '*.gcov' -print) \
+          .sonar-pr
+
+    - name: Upload SonarCloud inputs (pull requests only)
+      if: github.event_name == 'pull_request'
+      uses: actions/upload-artifact@v4
+      with:
+        name: sonarcloud-pr-inputs
+        path: sonar-inputs.tar.gz
+        retention-days: 1
+        if-no-files-found: error
