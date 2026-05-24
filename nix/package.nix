@@ -22,6 +22,7 @@ stdenv.mkDerivation {
     "^cmake.*"
     "README.md"
     "LICENSE.md"
+    "VERSION"
   ];
 
   nativeBuildInputs = [ cmake ninja ccache clang-tools_18 ];
