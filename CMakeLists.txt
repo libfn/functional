@@ -5,7 +5,16 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "Export compile commands for clangd.")
 endif()
 
-project(functional VERSION 0.0.1 LANGUAGES C CXX)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" libfn_version)
+string(STRIP "${libfn_version}" libfn_version)
+string(REGEX MATCH "^[0-9.]+" libfn_version_numeric "${libfn_version}")
+
+project(functional VERSION ${libfn_version_numeric} LANGUAGES CXX)
+
+unset(libfn_version_numeric)
+# LIBFN_PROJECT_VERSION preserves the full version string, including any text suffixes.
+set(LIBFN_PROJECT_VERSION "${libfn_version}")
+unset(libfn_version)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
@@ -104,5 +113,5 @@ if(LIBFN_TESTS)
     add_subdirectory(examples)
 endif()
 
-install(FILES README.md LICENSE.md
+install(FILES README.md LICENSE.md VERSION
     DESTINATION share/doc/functional)

@@ -30,16 +30,11 @@ class FunctionalConan(ConanFile):
         "disable_cxx23": False,
     }
 
+    exports = "VERSION"
     exports_sources = "include/*", "LICENSE.md", "README.md"
 
     def set_version(self):
-        # Keep the version in a single place: the root CMakeLists.txt project() call.
-        cmake_text = load(self, os.path.join(self.recipe_folder, "CMakeLists.txt"))
-        import re
-        match = re.search(r"project\s*\(\s*\S+\s+VERSION\s+([0-9.]+)", cmake_text)
-        if not match:
-            raise Exception("Could not parse project version from CMakeLists.txt")
-        self.version = match.group(1)
+        self.version = load(self, os.path.join(self.recipe_folder, "VERSION")).strip()
 
     def layout(self):
         basic_layout(self)
