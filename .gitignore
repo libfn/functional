@@ -1,6 +1,8 @@
 .idea/
 .idea_modules/
 .build*/
+build/
+/compile_commands.json
 .scratch*/
 dist*/
 result*

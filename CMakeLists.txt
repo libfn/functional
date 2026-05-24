@@ -7,6 +7,17 @@ project(functional VERSION 0.0.1 LANGUAGES C CXX)
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
+# Symlink compile_commands.json as a relative path to the source root, for tools that expect it there.
+if(CMAKE_EXPORT_COMPILE_COMMANDS)
+    file(RELATIVE_PATH symlink_target "${CMAKE_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/compile_commands.json")
+    file(CREATE_LINK
+        "${symlink_target}"
+        "${CMAKE_SOURCE_DIR}/compile_commands.json"
+        SYMBOLIC
+    )
+    unset(symlink_target)
+endif()
+
 option(DISABLE_FETCH_CONTENT "Do not use FetchContent for dependencies." OFF)
 option(DISABLE_CCACHE_DETECTION "Do not use ccache as CMAKE_CXX_COMPILER_LAUNCHER." OFF)
 option(COVERAGE "Enable coverage report." OFF)
