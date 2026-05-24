@@ -85,24 +85,31 @@ set(INCLUDE_FN_HEADERS
     fn/value_or.hpp
 )
 
-add_library(include_fn INTERFACE)
-set_property(TARGET include_fn PROPERTY CXX_STANDARD 23)
-target_sources(include_fn INTERFACE
-    FILE_SET include_fn_headers
-    TYPE HEADERS
-    FILES ${INCLUDE_FN_HEADERS})
-append_compilation_options(include_fn INTERFACE)
-target_include_directories(include_fn SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
-# TODO uncomment when include_pfn is ready
-# target_link_libraries(include_fn INTERFACE include_pfn)
+if(NOT DISABLE_CXX23)
+    add_library(include_fn INTERFACE)
+    set_property(TARGET include_fn PROPERTY CXX_STANDARD 23)
+    target_sources(include_fn INTERFACE
+        FILE_SET include_fn_headers
+        TYPE HEADERS
+        FILES ${INCLUDE_FN_HEADERS})
+    append_compilation_options(include_fn INTERFACE)
+    target_include_directories(include_fn SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+    # TODO uncomment when include_pfn is ready
+    # target_link_libraries(include_fn INTERFACE include_pfn)
 
-install(TARGETS include_fn
-    FILE_SET include_fn_headers
-    DESTINATION include)
+    install(TARGETS include_fn
+        FILE_SET include_fn_headers
+        DESTINATION include)
+endif()
 
 # Generate sentinel target for each individual header, as a basic sanity check
 # TODO add 20 when we are compatible with C++20
 foreach(mode 23)
+    if(${mode} EQUAL 23 AND DISABLE_CXX23)
+        message(STATUS "C++23 support is disabled, skipping include_fn sentinel targets for C++23")
+        continue()
+    endif()
+
     foreach(source IN ITEMS ${INCLUDE_FN_HEADERS})
         string(REGEX REPLACE "^(fn)/(detail|)/?([^\.]+)\.hpp$" "\\1_\\2\\3" root_name ${source})
         set(target "sentinel_${root_name}_cxx${mode}")

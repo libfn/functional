@@ -27,6 +27,7 @@ endif()
 
 option(DISABLE_FETCH_CONTENT "Do not use FetchContent for dependencies." OFF)
 option(DISABLE_CCACHE_DETECTION "Do not use ccache as CMAKE_CXX_COMPILER_LAUNCHER." OFF)
+option(DISABLE_CXX23 "Disable C++23 support." OFF)
 
 # Docs and coverage options are only relevant for top level builds.
 if(PROJECT_IS_TOP_LEVEL)
@@ -85,7 +86,10 @@ endif()
 
 # Phony targets for all supported C++ versions
 add_custom_target(cxx20)
-add_custom_target(cxx23)
+
+if(NOT DISABLE_CXX23)
+    add_custom_target(cxx23)
+endif()
 
 add_subdirectory(include)
 

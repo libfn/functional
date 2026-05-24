@@ -69,7 +69,7 @@ jobs:
       run: |
         mkdir .build
         cd .build
-        cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ..
+        cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ${{ matrix.mode == 'cxx20' && '-DDISABLE_CXX23=ON' || '' }} ..
         COMPILER=$( grep -iE "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
         FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ matrix.configuration }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
         printf "C++ compiler path: %s\n" "$COMPILER"
@@ -139,7 +139,7 @@ jobs:
           export CXX="$(brew --prefix llvm@${{ matrix.clangrelease }})/bin/clang++"
           export CC="$(brew --prefix llvm@${{ matrix.clangrelease }})/bin/clang"
         fi
-        cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ..
+        cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ${{ matrix.mode == 'cxx20' && '-DDISABLE_CXX23=ON' || '' }} ..
         COMPILER=$( grep -iE "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
         FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ matrix.configuration }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
         printf "C++ compiler path: %s\n" "$COMPILER"
@@ -183,7 +183,7 @@ jobs:
         run: |
           mkdir .build
           cd .build
-          cmake -G "${{ matrix.compiler }}" -A x64 ..
+          cmake -G "${{ matrix.compiler }}" -A x64 -DDISABLE_CXX23=ON ..
           LINKER=$( grep -iE "^CMAKE_LINKER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
           FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ matrix.configuration }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
           printf "C++ linker path: %s\n" "$LINKER"

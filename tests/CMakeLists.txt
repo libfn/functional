@@ -9,13 +9,18 @@ set(TESTS_UTIL_SOURCES
     util/static_check.hpp
     util/helper_types.hpp
 )
+
 add_library(tests_util INTERFACE ${TESTS_UTIL_SOURCES})
-set_property(TARGET tests_util PROPERTY CXX_STANDARD 23)
 target_include_directories(tests_util INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(tests_util INTERFACE include_fn)
 
 # Generate sentinel target for each individual header, as a basic sanity check
 foreach(mode 23)
+    if(${mode} EQUAL 23 AND DISABLE_CXX23)
+        message(STATUS "C++23 support is disabled, skipping tests_util sentinel targets for C++23")
+        continue()
+    endif()
+
     foreach(source IN ITEMS ${TESTS_UTIL_SOURCES})
         string(REGEX REPLACE "^(util)/([^\.]+)\.hpp$" "\\1_\\2" root_name ${source})
         set(target "sentinel_${root_name}_cxx${mode}")
@@ -48,6 +53,11 @@ include(CompilationOptions)
 
 # Generate separate target for each individual test source
 foreach(mode 20 23)
+    if(${mode} EQUAL 23 AND DISABLE_CXX23)
+        message(STATUS "C++23 support is disabled, skipping tests_pfn targets for C++23")
+        continue()
+    endif()
+
     foreach(source IN ITEMS ${TESTS_PFN_SOURCES})
         string(REGEX REPLACE "^(pfn)/(detail|)/?([^\.]+)\.cpp$" "\\1_\\2\\3" root_name ${source})
         set(target "tests_${root_name}_cxx${mode}")
@@ -74,7 +84,7 @@ foreach(mode 20 23)
 
         # pfn tests have a "validation" mode, where the unit tests intended for polyfill
         # are run against the "real" thing. This validates the tests.
-        if (mode EQUAL 23)
+        if (${mode} EQUAL 23)
             set(target "tests_${root_name}_validation_cxx${mode}")
 
             create_target_for_file(
@@ -134,6 +144,11 @@ set(TESTS_FN_SOURCES
 # Generate separate target for each individual test source
 # TODO add 20 when we are compatible with C++20
 foreach(mode 23)
+    if(${mode} EQUAL 23 AND DISABLE_CXX23)
+        message(STATUS "C++23 support is disabled, skipping tests_fn targets for C++23")
+        continue()
+    endif()
+
     foreach(source IN ITEMS ${TESTS_FN_SOURCES})
         string(REGEX REPLACE "^(fn)/(detail|)/?([^\.]+)\.cpp$" "\\1_\\2\\3" root_name ${source})
         set(target "tests_${root_name}_cxx${mode}")
