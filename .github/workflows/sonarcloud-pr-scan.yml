@@ -1,14 +1,16 @@
 name: sonarcloud-pr-scan
 
-# Runs after `sonarcloud.yml` completes on a pull_request event. Because this
-# workflow is triggered by `workflow_run`, it executes in the context of the
-# base repository's default branch and has access to repository secrets,
-# including SONAR_TOKEN. This is the only way to analyse pull requests opened
-# from forks, which otherwise do not receive secrets.
+# Runs after `sonarcloud.yml` completes on a pull_request event. Because this workflow is triggered by
+# `workflow_run`, it executes in the context of the base repository's default branch and has access to
+# repository secrets, including SONAR_TOKEN. This allows us to analyse pull requests opened from forks,
+# which otherwise do not receive secrets.
 #
-# This workflow does not check out or execute any code from the pull request
-# beyond what `SonarSource/sonarqube-scan-action` reads. The source tree is
-# restored to the exact commit that was built by the triggering workflow.
+# The pull request head SHA is read from the artifact (written there by the triggering workflow from
+# `github.event.pull_request.head.sha`) and used as the single source of truth for both the source
+# checkout and the SonarCloud revision. Inside this workflow, `github.event.workflow_run.head_sha`
+# is not suitable for either purpose because for `pull_request` events it is the synthetic merge commit
+# SHA (`refs/pull/N/merge` rather than `refs/pull/N/head`), which is unreachable on the head branch
+# and so is unsuitable for SCM status updates or PR decoration.
 
 on:
   workflow_run:
@@ -32,30 +34,57 @@ jobs:
     container: libfn.azurecr.io/ci-build-gcc:15
 
     steps:
-    - name: Check out pull request head
-      uses: actions/checkout@v4
-      with:
-        ref: ${{ github.event.workflow_run.head_sha }}
-        fetch-depth: 0  # Full history for blame info
-
+    # Download the artifact outside the workspace so the subsequent checkout does not wipe it.
     - name: Download SonarCloud inputs artifact
       uses: actions/download-artifact@v4
       with:
         name: sonarcloud-pr-inputs
         github-token: ${{ secrets.GITHUB_TOKEN }}
         run-id: ${{ github.event.workflow_run.id }}
-        path: .
+        path: ${{ runner.temp }}/sonar-artifact
 
-    - name: Restore build outputs and pull request metadata
+    - name: Validate artifact and read pull request metadata
+      # The artifact is a tarball containing the build outputs and a `.sonar-pr` directory with PR metadata
+      # Validate the tarball contents before extracting to prevent path traversal etc. security issues.
       id: pr
       shell: bash
+      env:
+        ARCHIVE: ${{ runner.temp }}/sonar-artifact/sonar-inputs.tar.gz
       run: |
-        tar -xzf sonar-inputs.tar.gz
-        rm -f sonar-inputs.tar.gz
-        echo "number=$(cat .sonar-pr/number)"     >> "$GITHUB_OUTPUT"
-        echo "head_sha=$(cat .sonar-pr/head_sha)" >> "$GITHUB_OUTPUT"
-        echo "head_ref=$(cat .sonar-pr/head_ref)" >> "$GITHUB_OUTPUT"
-        echo "base_ref=$(cat .sonar-pr/base_ref)" >> "$GITHUB_OUTPUT"
+        list=$(tar -tzf "$ARCHIVE")
+        if printf '%s\n' "$list" | grep -qE '(^/|(^|/)\.\.(/|$))'; then
+          printf '::error::Unsafe path traversal in artifact:\n%s\n' "$list" >&2
+          exit 1
+        fi
+        bad=$(printf '%s\n' "$list" | grep -vE '^(\.build|\.sonar-pr)(/|$)' || true)
+        if [ -n "$bad" ]; then
+          printf '::error::Unexpected entries in artifact:\n%s\n' "$bad" >&2
+          exit 1
+        fi
+        tar -xzf "$ARCHIVE" -C "${RUNNER_TEMP}/sonar-artifact" .sonar-pr
+        META="${RUNNER_TEMP}/sonar-artifact/.sonar-pr"
+        {
+          echo "number=$(cat "$META/number")"
+          echo "head_sha=$(cat "$META/head_sha")"
+          echo "head_ref=$(cat "$META/head_ref")"
+          echo "base_ref=$(cat "$META/base_ref")"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Check out pull request head
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ steps.pr.outputs.head_sha }}
+        fetch-depth: 0  # Full history for blame info
+
+    - name: Restore build outputs from artifact
+      shell: bash
+      env:
+        ARCHIVE: ${{ runner.temp }}/sonar-artifact/sonar-inputs.tar.gz
+      run: |
+        # Refuse to merge into anything the checkout might have produced.
+        rm -rf .build
+        tar -xzf "$ARCHIVE" .build
+        rm -f "$ARCHIVE"
 
     - name: Run SonarScanner
       uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995 # v8.1.0
