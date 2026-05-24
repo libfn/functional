@@ -71,11 +71,12 @@ class FunctionalConan(ConanFile):
         self.cpp_info.set_property("cmake_target_name", "functional::functional")
 
         # fn: the main C++23 component (headers under include/fn/).
-        fn = self.cpp_info.components["fn"]
-        fn.set_property("cmake_target_name", "functional::fn")
-        fn.bindirs = []
-        fn.libdirs = []
-        fn.includedirs = ["include"]
+        if not self.options.disable_cxx23:
+            fn = self.cpp_info.components["fn"]
+            fn.set_property("cmake_target_name", "functional::fn")
+            fn.bindirs = []
+            fn.libdirs = []
+            fn.includedirs = ["include"]
 
         # pfn: the C++20 component (headers under include/pfn/).
         pfn = self.cpp_info.components["pfn"]
