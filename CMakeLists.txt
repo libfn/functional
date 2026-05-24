@@ -9,7 +9,7 @@ file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" libfn_version)
 string(STRIP "${libfn_version}" libfn_version)
 string(REGEX MATCH "^[0-9.]+" libfn_version_numeric "${libfn_version}")
 
-project(functional VERSION ${libfn_version_numeric} LANGUAGES CXX)
+project(functional VERSION ${libfn_version_numeric} LANGUAGES C CXX)
 
 unset(libfn_version_numeric)
 # LIBFN_PROJECT_VERSION preserves the full version string, including any text suffixes.
