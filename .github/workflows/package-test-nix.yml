@@ -46,6 +46,8 @@ jobs:
 
     - name: nix package test (disable_cxx23=False)
       run: nix -L build './test_package#consumer'
+        --override-input libfn "git+file://$(pwd)?rev=${{ github.sha }}"
 
     - name: nix package test (disable_cxx23=True)
       run: nix -L build './test_package#consumer-no-cxx23'
+        --override-input libfn "git+file://$(pwd)?rev=${{ github.sha }}"

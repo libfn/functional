@@ -3,7 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
-    libfn.url = "path:..";
+    libfn.url = "github:libfn/functional";
     libfn.inputs.nixpkgs.follows = "nixpkgs";
   };
 
