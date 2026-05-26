@@ -17,7 +17,7 @@
         "type": "indirect"
       }
     },
-    "functional": {
+    "libfn": {
       "inputs": {
         "flake-parts": "flake-parts",
         "nixpkgs": [
@@ -67,7 +67,7 @@
     },
     "root": {
       "inputs": {
-        "functional": "functional",
+        "libfn": "libfn",
         "nixpkgs": "nixpkgs"
       }
     }

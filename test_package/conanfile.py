@@ -5,7 +5,7 @@ from conan.tools.build import can_run
 from conan.tools.cmake import CMake, CMakeToolchain, cmake_layout
 
 
-class FunctionalTestConan(ConanFile):
+class LibfnTestConan(ConanFile):
     settings = "os", "arch", "compiler", "build_type"
     generators = "CMakeDeps", "VirtualRunEnv"
     test_type = "explicit"
@@ -19,7 +19,7 @@ class FunctionalTestConan(ConanFile):
     def generate(self):
         tc = CMakeToolchain(self)
         # Forward the option so the test CMakeLists knows which components to consume.
-        tc.cache_variables["TEST_DISABLE_CXX23"] = bool(self.dependencies["functional"].options.disable_cxx23)
+        tc.cache_variables["TEST_DISABLE_CXX23"] = bool(self.dependencies["libfn"].options.disable_cxx23)
         tc.generate()
 
     def build(self):
@@ -33,5 +33,5 @@ class FunctionalTestConan(ConanFile):
         # pfn is always available.
         self.run(os.path.join(self.cpp.build.bindir, "pfn_quine"), env="conanrun")
         # fn is only available when disable_cxx23 is False.
-        if not self.dependencies["functional"].options.disable_cxx23:
+        if not self.dependencies["libfn"].options.disable_cxx23:
             self.run(os.path.join(self.cpp.build.bindir, "fn_quine"), env="conanrun")

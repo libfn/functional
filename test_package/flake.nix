@@ -1,13 +1,13 @@
 {
-  description = "Consumer-side integration tests for the functional library";
+  description = "Consumer-side integration tests for the libfn library";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
-    functional.url = "path:..";
-    functional.inputs.nixpkgs.follows = "nixpkgs";
+    libfn.url = "path:..";
+    libfn.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, functional }:
+  outputs = { self, nixpkgs, libfn }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" "x86_64-darwin" ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
@@ -15,15 +15,15 @@
       packages = forAllSystems (system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-          libfn = functional.packages.${system}.default;
+          libfnPkg = libfn.packages.${system}.default;
         in {
           consumer = pkgs.callPackage ./consumer.nix {
             stdenv = pkgs.gcc14Stdenv;
-            functional = libfn;
+            libfn = libfnPkg;
           };
           consumer-no-cxx23 = pkgs.callPackage ./consumer.nix {
             stdenv = pkgs.gcc14Stdenv;
-            functional = libfn.override { disableCxx23 = true; };
+            libfn = libfnPkg.override { disableCxx23 = true; };
             disableCxx23 = true;
           };
         });

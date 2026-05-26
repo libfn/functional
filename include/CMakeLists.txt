@@ -26,7 +26,7 @@ target_include_directories(include_pfn SYSTEM INTERFACE
 set_target_properties(include_pfn PROPERTIES EXPORT_NAME pfn)
 
 install(TARGETS include_pfn
-    EXPORT functionalTargets
+    EXPORT libfnTargets
     FILE_SET include_pfn_headers
     DESTINATION include)
 
@@ -110,7 +110,7 @@ if(NOT DISABLE_CXX23)
     # target_link_libraries(include_fn INTERFACE include_pfn)
 
     install(TARGETS include_fn
-        EXPORT functionalTargets
+        EXPORT libfnTargets
         FILE_SET include_fn_headers
         DESTINATION include)
 endif()

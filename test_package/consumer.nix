@@ -2,12 +2,12 @@
 , stdenv
 , cmake
 , ninja
-, functional
+, libfn
 , disableCxx23 ? false
 }:
 
 stdenv.mkDerivation {
-  name = "functional-test-consumer${lib.optionalString disableCxx23 "-no-cxx23"}";
+  name = "libfn-test-consumer${lib.optionalString disableCxx23 "-no-cxx23"}";
 
   src = lib.sourceByRegex ./. [
     "CMakeLists.txt"
@@ -15,7 +15,7 @@ stdenv.mkDerivation {
   ];
 
   nativeBuildInputs = [ cmake ninja ];
-  buildInputs = [ functional ];
+  buildInputs = [ libfn ];
 
   cmakeFlags = lib.optional disableCxx23 "-DTEST_DISABLE_CXX23=ON";
 

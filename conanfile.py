@@ -6,8 +6,8 @@ from conan.tools.files import copy, load
 from conan.tools.layout import basic_layout
 
 
-class FunctionalConan(ConanFile):
-    name = "functional"
+class LibfnConan(ConanFile):
+    name = "libfn"
     license = "ISC"
     author = "Bronek Kozicki, Alex Kremer, Gašper Ažman"
     url = "https://github.com/libfn/functional"
@@ -67,22 +67,22 @@ class FunctionalConan(ConanFile):
         )
 
     def package_info(self):
-        # find_package(functional) -> functional::functional aggregate target,
-        # plus functional::fn and functional::pfn component targets.
-        self.cpp_info.set_property("cmake_file_name", "functional")
-        self.cpp_info.set_property("cmake_target_name", "functional::functional")
+        # find_package(libfn) -> libfn::libfn aggregate target,
+        # plus libfn::fn and libfn::pfn component targets.
+        self.cpp_info.set_property("cmake_file_name", "libfn")
+        self.cpp_info.set_property("cmake_target_name", "libfn::libfn")
 
         # fn: the main C++23 component (headers under include/fn/).
         if not self.options.disable_cxx23:
             fn = self.cpp_info.components["fn"]
-            fn.set_property("cmake_target_name", "functional::fn")
+            fn.set_property("cmake_target_name", "libfn::fn")
             fn.bindirs = []
             fn.libdirs = []
             fn.includedirs = ["include"]
 
         # pfn: the C++20 component (headers under include/pfn/).
         pfn = self.cpp_info.components["pfn"]
-        pfn.set_property("cmake_target_name", "functional::pfn")
+        pfn.set_property("cmake_target_name", "libfn::pfn")
         pfn.bindirs = []
         pfn.libdirs = []
         pfn.includedirs = ["include"]

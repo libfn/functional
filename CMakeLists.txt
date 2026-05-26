@@ -9,7 +9,7 @@ file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" libfn_version)
 string(STRIP "${libfn_version}" libfn_version)
 string(REGEX MATCH "^[0-9.]+" libfn_version_numeric "${libfn_version}")
 
-project(functional VERSION ${libfn_version_numeric} LANGUAGES C CXX)
+project(libfn VERSION ${libfn_version_numeric} LANGUAGES C CXX)
 
 unset(libfn_version_numeric)
 # LIBFN_PROJECT_VERSION preserves the full version string, including any text suffixes.
@@ -44,7 +44,7 @@ if(PROJECT_IS_TOP_LEVEL)
     option(LIBFN_DOCS     "Generate documentation." OFF)
 elseif(LIBFN_COVERAGE OR LIBFN_DOCS)
     # e.g. accidentaly set in cache by a parent project. Names were chosen to be specific but ¯\_(ツ)_/¯
-    message(FATAL_ERROR "LIBFN_COVERAGE and LIBFN_DOCS are only supported when functional is top level.")
+    message(FATAL_ERROR "LIBFN_COVERAGE and LIBFN_DOCS are only supported when libfn is top level.")
 endif()
 
 # We want to allow tests even when our project is not a top level, e.g. for troubleshooting.
@@ -114,27 +114,27 @@ if(LIBFN_TESTS)
 endif()
 
 install(FILES README.md LICENSE.md VERSION
-    DESTINATION share/doc/functional)
+    DESTINATION share/doc/libfn)
 
 include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
 
 configure_package_config_file(
-    "${PROJECT_SOURCE_DIR}/cmake/functionalConfig.cmake.in"
-    "${PROJECT_BINARY_DIR}/functionalConfig.cmake"
-    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/functional)
+    "${PROJECT_SOURCE_DIR}/cmake/libfnConfig.cmake.in"
+    "${PROJECT_BINARY_DIR}/libfnConfig.cmake"
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/libfn)
 
 write_basic_package_version_file(
-    "${PROJECT_BINARY_DIR}/functionalConfigVersion.cmake"
+    "${PROJECT_BINARY_DIR}/libfnConfigVersion.cmake"
     VERSION ${PROJECT_VERSION}
     COMPATIBILITY SameMajorVersion)
 
-install(EXPORT functionalTargets
-    NAMESPACE functional::
-    FILE functionalTargets.cmake
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/functional)
+install(EXPORT libfnTargets
+    NAMESPACE libfn::
+    FILE libfnTargets.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/libfn)
 
 install(FILES
-    "${PROJECT_BINARY_DIR}/functionalConfig.cmake"
-    "${PROJECT_BINARY_DIR}/functionalConfigVersion.cmake"
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/functional)
+    "${PROJECT_BINARY_DIR}/libfnConfig.cmake"
+    "${PROJECT_BINARY_DIR}/libfnConfigVersion.cmake"
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/libfn)
