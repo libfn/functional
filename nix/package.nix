@@ -3,9 +3,10 @@
 , stdenv
 , cmake
 , ccache
-, clang-tools_18
+, llvmPackages_21
 , ninja
 , enableTests ? true
+, disableCxx23 ? false
 }:
 
 let
@@ -25,11 +26,12 @@ stdenv.mkDerivation {
     "VERSION"
   ];
 
-  nativeBuildInputs = [ cmake ninja ccache clang-tools_18 ];
+  nativeBuildInputs = [ cmake ninja ccache llvmPackages_21.clang-tools ];
   buildInputs = [ catch2_local ];
   checkInputs = [ ];
 
   doCheck = enableTests;
   cmakeFlags = [ "-DDISABLE_CCACHE_DETECTION=On" "-DDISABLE_FETCH_CONTENT=On" ]
-    ++ lib.optional (!enableTests) "-DLIBFN_TESTS=OFF";
+    ++ lib.optional (!enableTests) "-DLIBFN_TESTS=OFF"
+    ++ lib.optional disableCxx23 "-DDISABLE_CXX23=ON";
 }

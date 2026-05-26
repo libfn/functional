@@ -206,14 +206,16 @@ jobs:
         compiler:
           - gcc
           - clang
+    container: nixos/nix:2.28.7
     steps:
-    - uses: actions/checkout@v4
+    - name: Setup Nix
+      run: |
+        mkdir -p /etc/nix
+        echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf
+        echo "sandbox = false" >> /etc/nix/nix.conf
+        echo "access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}" >> /etc/nix/nix.conf
 
-    - name: Install Nix
-      uses: cachix/install-nix-action@v30
-      with:
-        extra_nix_config: |
-          access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+    - uses: actions/checkout@v4
 
     - name: Build and test
       run: nix -L build '.#${{matrix.compiler}}'

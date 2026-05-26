@@ -17,6 +17,23 @@
         "type": "indirect"
       }
     },
+    "functional": {
+      "inputs": {
+        "flake-parts": "flake-parts",
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "path": "..",
+        "type": "path"
+      },
+      "original": {
+        "path": "..",
+        "type": "path"
+      },
+      "parent": []
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1779467186,
@@ -50,7 +67,7 @@
     },
     "root": {
       "inputs": {
-        "flake-parts": "flake-parts",
+        "functional": "functional",
         "nixpkgs": "nixpkgs"
       }
     }

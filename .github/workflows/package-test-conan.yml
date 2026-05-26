@@ -1,11 +1,11 @@
-name: test-package
+name: package-test-conan
 
 on:
   push:
     branches:
       - main
     paths:
-      - '.github/workflows/test-package.yml'
+      - '.github/workflows/package-test-conan.yml'
       - 'conanfile.py'
       - 'test_package/**'
       - 'include/**'
@@ -14,7 +14,7 @@ on:
     branches:
       - main
     paths:
-      - '.github/workflows/test-package.yml'
+      - '.github/workflows/package-test-conan.yml'
       - 'conanfile.py'
       - 'test_package/**'
       - 'include/**'

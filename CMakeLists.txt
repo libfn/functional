@@ -115,3 +115,26 @@ endif()
 
 install(FILES README.md LICENSE.md VERSION
     DESTINATION share/doc/functional)
+
+include(CMakePackageConfigHelpers)
+include(GNUInstallDirs)
+
+configure_package_config_file(
+    "${PROJECT_SOURCE_DIR}/cmake/functionalConfig.cmake.in"
+    "${PROJECT_BINARY_DIR}/functionalConfig.cmake"
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/functional)
+
+write_basic_package_version_file(
+    "${PROJECT_BINARY_DIR}/functionalConfigVersion.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion)
+
+install(EXPORT functionalTargets
+    NAMESPACE functional::
+    FILE functionalTargets.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/functional)
+
+install(FILES
+    "${PROJECT_BINARY_DIR}/functionalConfig.cmake"
+    "${PROJECT_BINARY_DIR}/functionalConfigVersion.cmake"
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/functional)

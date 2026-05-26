@@ -2,7 +2,7 @@
   description = "Functional programming in C++";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
   };
 
   outputs = inputs@{ flake-parts, ... }:
@@ -12,9 +12,9 @@
       ];
       perSystem = { config, self', inputs', pkgs, system, ... }: {
         packages = {
-          default = pkgs.callPackage ./nix/package.nix { stdenv = pkgs.gcc13Stdenv; };
-          clang = pkgs.callPackage ./nix/package.nix { stdenv = pkgs.llvmPackages_18.libcxxStdenv; };
-          gcc = pkgs.callPackage ./nix/package.nix { stdenv = pkgs.gcc13Stdenv; };
+          default = pkgs.callPackage ./nix/package.nix { stdenv = pkgs.gcc14Stdenv; };
+          clang = pkgs.callPackage ./nix/package.nix { stdenv = pkgs.llvmPackages_21.libcxxStdenv; };
+          gcc = pkgs.callPackage ./nix/package.nix { stdenv = pkgs.gcc14Stdenv; };
         }
         // pkgs.lib.optionalAttrs (system != "x86_64-linux") {
           crossIntel = pkgs.pkgsCross.gnu64.callPackage ./nix/package.nix {
@@ -27,10 +27,10 @@
         };
         checks = config.packages // {
           clang = config.packages.default.override {
-            stdenv = pkgs.llvmPackages_18.stdenv;
+            stdenv = pkgs.llvmPackages_21.stdenv;
           };
           gcc = config.packages.default.override {
-            stdenv = pkgs.gcc13Stdenv;
+            stdenv = pkgs.gcc14Stdenv;
           };
         };
       };

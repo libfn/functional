@@ -1,0 +1,51 @@
+name: package-test-nix
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/package-test-nix.yml'
+      - 'test_package/**'
+      - 'include/**'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'nix/**'
+      - 'flake.nix'
+      - 'flake.lock'
+      - 'VERSION'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/package-test-nix.yml'
+      - 'test_package/**'
+      - 'include/**'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'nix/**'
+      - 'flake.nix'
+      - 'flake.lock'
+      - 'VERSION'
+  workflow_dispatch:
+
+jobs:
+  test_nix:
+    runs-on:
+      group: runners-intel
+    container: nixos/nix:2.28.7
+    steps:
+    - name: Setup Nix
+      run: |
+        mkdir -p /etc/nix
+        echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf
+        echo "sandbox = false" >> /etc/nix/nix.conf
+        echo "access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}" >> /etc/nix/nix.conf
+
+    - uses: actions/checkout@v4
+
+    - name: nix package test (disable_cxx23=False)
+      run: nix -L build './test_package#consumer'
+
+    - name: nix package test (disable_cxx23=True)
+      run: nix -L build './test_package#consumer-no-cxx23'

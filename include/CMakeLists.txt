@@ -20,9 +20,13 @@ target_sources(include_pfn INTERFACE
     TYPE HEADERS
     FILES ${INCLUDE_PFN_HEADERS})
 append_compilation_options(include_pfn INTERFACE)
-target_include_directories(include_pfn SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(include_pfn SYSTEM INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:include>)
+set_target_properties(include_pfn PROPERTIES EXPORT_NAME pfn)
 
 install(TARGETS include_pfn
+    EXPORT functionalTargets
     FILE_SET include_pfn_headers
     DESTINATION include)
 
@@ -98,11 +102,15 @@ if(NOT DISABLE_CXX23)
         TYPE HEADERS
         FILES ${INCLUDE_FN_HEADERS})
     append_compilation_options(include_fn INTERFACE)
-    target_include_directories(include_fn SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_include_directories(include_fn SYSTEM INTERFACE
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<INSTALL_INTERFACE:include>)
+    set_target_properties(include_fn PROPERTIES EXPORT_NAME fn)
     # TODO uncomment when include_pfn is ready
     # target_link_libraries(include_fn INTERFACE include_pfn)
 
     install(TARGETS include_fn
+        EXPORT functionalTargets
         FILE_SET include_fn_headers
         DESTINATION include)
 endif()
