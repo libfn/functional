@@ -24,6 +24,7 @@ target_include_directories(include_pfn SYSTEM INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:include>)
 set_target_properties(include_pfn PROPERTIES EXPORT_NAME pfn)
+target_compile_features(include_pfn INTERFACE cxx_std_20)
 
 install(TARGETS include_pfn
     EXPORT libfnTargets
@@ -108,6 +109,7 @@ if(NOT DISABLE_CXX23)
     set_target_properties(include_fn PROPERTIES EXPORT_NAME fn)
     # TODO uncomment when include_pfn is ready
     # target_link_libraries(include_fn INTERFACE include_pfn)
+    target_compile_features(include_fn INTERFACE cxx_std_23)
 
     install(TARGETS include_fn
         EXPORT libfnTargets
