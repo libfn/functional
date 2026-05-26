@@ -33,17 +33,14 @@ jobs:
   test_nix:
     runs-on:
       group: runners-intel
-    container: nixos/nix:2.28.7
-    steps:
-    - name: Setup Nix
-      run: |
-        mkdir -p /lib64
-        ln -sf $(find /nix/store -maxdepth 1 -name '*glibc*' -type d | head -1)/lib/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2
-        mkdir -p /etc/nix
-        echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf
-        echo "sandbox = false" >> /etc/nix/nix.conf
-        echo "access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}" >> /etc/nix/nix.conf
 
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: cachix/install-nix-action@v30
+      with:
+        extra_nix_config: |
+          access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
 
     - uses: actions/checkout@v4
 
