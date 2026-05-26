@@ -51,7 +51,7 @@ endif()
 option(LIBFN_TESTS    "Enable unit tests and examples." ON)
 
 # Do not enable sanitizers by default when our project is not a top level or when it is not Debug.
-if(NOT PROJECT_IS_TOP_LEVEL)
+if(NOT PROJECT_IS_TOP_LEVEL OR CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
     set(sanitizers_default OFF)
 elseif(NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(sanitizers_default ON)
