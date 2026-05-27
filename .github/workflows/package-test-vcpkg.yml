@@ -1,0 +1,75 @@
+name: package-test-vcpkg
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/package-test-vcpkg.yml'
+      - 'ports/**'
+      - 'test_package/**'
+      - 'include/**'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'VERSION'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/package-test-vcpkg.yml'
+      - 'ports/**'
+      - 'test_package/**'
+      - 'include/**'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'VERSION'
+  workflow_dispatch:
+
+jobs:
+  test_vcpkg:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install libfn (C++23 enabled)
+      env:
+        VCPKG_LIBFN_SOURCE_PATH: ${{ github.workspace }}
+      run: $VCPKG_INSTALLATION_ROOT/vcpkg install libfn
+        --overlay-ports=ports
+        --triplet x64-linux
+
+    - name: Test C++23 packaging
+      run: |
+        cmake -B .build-cxx23 test_package \
+          -DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake \
+          -DVCPKG_TARGET_TRIPLET=x64-linux
+        cmake --build .build-cxx23
+        .build-cxx23/pfn_quine
+        .build-cxx23/fn_quine
+
+    - name: Install libfn (C++23 disabled)
+      env:
+        VCPKG_LIBFN_SOURCE_PATH: ${{ github.workspace }}
+      run: $VCPKG_INSTALLATION_ROOT/vcpkg install "libfn[disable-cxx23]"
+        --overlay-ports=ports
+        --triplet x64-linux
+
+    - name: Test C++20 packaging
+      run: |
+        cmake -B .build-cxx20 test_package \
+          -DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake \
+          -DVCPKG_TARGET_TRIPLET=x64-linux \
+          -DTEST_DISABLE_CXX23=ON
+        cmake --build .build-cxx20
+        .build-cxx20/pfn_quine
+
+    - name: Test C++20 packaging with C++23 compiler
+      run: |
+        cmake -B .build-cxx20-std23 test_package \
+          -DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake \
+          -DVCPKG_TARGET_TRIPLET=x64-linux \
+          -DTEST_DISABLE_CXX23=ON \
+          -DCMAKE_CXX_STANDARD=23
+        cmake --build .build-cxx20-std23
+        .build-cxx20-std23/pfn_quine
