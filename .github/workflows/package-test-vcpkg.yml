@@ -27,7 +27,8 @@ on:
 
 jobs:
   test_vcpkg:
-    runs-on: ubuntu-latest
+    runs-on:
+      group: runners-intel
 
     steps:
     - uses: actions/checkout@v4
@@ -47,6 +48,10 @@ jobs:
         cmake --build .build-cxx23
         .build-cxx23/pfn_quine
         .build-cxx23/fn_quine
+
+    - name: Uninstall libfn before re-installing with C++23 disabled
+      run: $VCPKG_INSTALLATION_ROOT/vcpkg remove libfn
+        --triplet x64-linux
 
     - name: Install libfn (C++23 disabled)
       env:
