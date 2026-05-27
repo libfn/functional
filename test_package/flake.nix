@@ -26,6 +26,12 @@
             libfn = libfnPkg.override { disableCxx23 = true; };
             disableCxx23 = true;
           };
+          consumer-no-cxx23-std23 = pkgs.callPackage ./consumer.nix {
+            stdenv = pkgs.gcc14Stdenv;
+            libfn = libfnPkg.override { disableCxx23 = true; };
+            disableCxx23 = true;
+            cxxStd = 23;
+          };
         });
     };
 }

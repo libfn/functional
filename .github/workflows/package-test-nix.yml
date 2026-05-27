@@ -36,16 +36,23 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.sha }}
 
-    - uses: cachix/install-nix-action@v30
+    - name: Install Nix
+      uses: cachix/install-nix-action@v30
       with:
         extra_nix_config: |
           access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
 
-    - name: nix package test (disable_cxx23=False)
+    - name: Test C++23 packaging
       run: nix -L build './test_package#consumer'
         --override-input libfn "git+file://$(pwd)?rev=${{ github.sha }}&shallow=1"
 
-    - name: nix package test (disable_cxx23=True)
+    - name: Test C++20 packaging
       run: nix -L build './test_package#consumer-no-cxx23'
+        --override-input libfn "git+file://$(pwd)?rev=${{ github.sha }}&shallow=1"
+
+    - name: Test C++20 packaging with C++23 compiler
+      run: nix -L build './test_package#consumer-no-cxx23-std23'
         --override-input libfn "git+file://$(pwd)?rev=${{ github.sha }}&shallow=1"

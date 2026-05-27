@@ -34,11 +34,11 @@ jobs:
         conan profile detect
         echo "tools.cmake.cmaketoolchain:generator=Ninja" >> ~/.conan2/global.conf
 
-    - name: conan create — C++23 (disable_cxx23=False)
+    - name: Test C++23 packaging
       run: conan create . --build=missing -o "&:disable_cxx23=False" -s "compiler.cppstd=23"
 
-    - name: conan create — C++20 (disable_cxx23=True)
+    - name: Test C++20 packaging
       run: conan create . --build=missing -o "&:disable_cxx23=True" -s "compiler.cppstd=20"
 
-    - name: conan create — C++20 (disable_cxx23=True, cppstd=23)
+    - name: Test C++20 packaging with C++23 compiler
       run: conan create . --build=missing -o "&:disable_cxx23=True" -s "compiler.cppstd=23"

@@ -4,6 +4,7 @@
 , ninja
 , libfn
 , disableCxx23 ? false
+, cxxStd ? null
 }:
 
 stdenv.mkDerivation {
@@ -17,7 +18,8 @@ stdenv.mkDerivation {
   nativeBuildInputs = [ cmake ninja ];
   buildInputs = [ libfn ];
 
-  cmakeFlags = lib.optional disableCxx23 "-DTEST_DISABLE_CXX23=ON";
+  cmakeFlags = lib.optional disableCxx23 "-DTEST_DISABLE_CXX23=ON"
+    ++ lib.optional (cxxStd != null) "-DCMAKE_CXX_STANDARD=${toString cxxStd}";
 
   doCheck = true;
   checkPhase = ''

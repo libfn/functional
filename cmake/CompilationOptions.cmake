@@ -25,7 +25,7 @@ function(append_compilation_options)
             $<$<CXX_COMPILER_ID:GNU>:-Wno-non-template-friend>
             $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wno-missing-braces>)
 
-            # This will disable `unexpected` in global namespace from eh.h
+        # This will disable `unexpected` in global namespace from eh.h
         target_compile_definitions(${Options_NAME} INTERFACE
             $<$<CXX_COMPILER_ID:MSVC>:_HAS_CXX23>)
     endif()
