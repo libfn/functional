@@ -25,7 +25,12 @@ function(append_compilation_options)
             $<$<CXX_COMPILER_ID:GNU>:-Wno-non-template-friend>
             $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wno-missing-braces>)
 
-        # This will disable `unexpected` in global namespace from eh.h
+        # MSVC's <eh.h> declares a global `unexpected` clashing with the std::expected
+        # and std::unexpected vocabulary used by libfn; it can be suppressed by _HAS_CXX23
+        # (MSVC STL's internal C++23-mode switch). Must be INTERFACE rather than a
+        # header-local #define because <eh.h> may be transitively included before any
+        # libfn header. MSVC consumers are therefore pinned to the C++23 STL header
+        # surface even when targeting /std:c++20.
         target_compile_definitions(${Options_NAME} INTERFACE
             $<$<CXX_COMPILER_ID:MSVC>:_HAS_CXX23>)
     endif()
