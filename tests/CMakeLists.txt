@@ -4,23 +4,33 @@ project(tests)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# tests_util: stdlib-only helpers, usable from any C++20+ test.
 # Pls keep the filenames sorted
 set(TESTS_UTIL_HEADERS
     util/helper_types.hpp
 )
 
 add_library(tests_util INTERFACE)
-if(NOT DISABLE_CXX23)
-    target_link_libraries(tests_util INTERFACE include_fn)
-    list(APPEND TESTS_UTIL_HEADERS
-        util/static_check.hpp
-    )
-endif()
 target_sources(tests_util INTERFACE
     FILE_SET tests_util_headers
     TYPE HEADERS
     FILES ${TESTS_UTIL_HEADERS})
 target_include_directories(tests_util INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+
+# tests_util_fn: fn/-based helpers. Kept separate so include_fn's cxx_std_23
+# requirement is not propagated to C++20 pfn tests via tests_util.
+set(TESTS_UTIL_FN_HEADERS "")
+if(NOT DISABLE_CXX23)
+    list(APPEND TESTS_UTIL_FN_HEADERS
+        util/static_check.hpp
+    )
+    add_library(tests_util_fn INTERFACE)
+    target_link_libraries(tests_util_fn INTERFACE tests_util include_fn)
+    target_sources(tests_util_fn INTERFACE
+        FILE_SET tests_util_fn_headers
+        TYPE HEADERS
+        FILES ${TESTS_UTIL_FN_HEADERS})
+endif()
 
 # Generate sentinel target for each individual header, as a basic sanity check
 foreach(mode 23)
@@ -29,7 +39,12 @@ foreach(mode 23)
         continue()
     endif()
 
-    foreach(source IN ITEMS ${TESTS_UTIL_HEADERS})
+    foreach(source IN ITEMS ${TESTS_UTIL_HEADERS} ${TESTS_UTIL_FN_HEADERS})
+        if(source IN_LIST TESTS_UTIL_FN_HEADERS)
+            set(util_dep tests_util_fn)
+        else()
+            set(util_dep tests_util)
+        endif()
         string(REGEX REPLACE "^(util)/([^\.]+)\.hpp$" "\\1_\\2" root_name ${source})
         set(target "sentinel_${root_name}_cxx${mode}")
 
@@ -38,7 +53,7 @@ foreach(mode 23)
             SOURCE "${source}"
             NEW_SOURCE "#include <${source}>\nint main() {}\n"
             SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
-            DEPENDENCIES include_fn tests_util
+            DEPENDENCIES ${util_dep}
         )
         append_compilation_options("${target}" WARNINGS)
         add_dependencies("cxx${mode}" "${target}")
@@ -47,6 +62,7 @@ foreach(mode 23)
 
         unset(target)
         unset(root_name)
+        unset(util_dep)
     endforeach()
 endforeach()
 
@@ -164,7 +180,7 @@ foreach(mode 23)
         create_target_for_file(
             NAME "${target}"
             SOURCE "${source}"
-            DEPENDENCIES include_fn tests_util Catch2::Catch2WithMain
+            DEPENDENCIES tests_util_fn Catch2::Catch2WithMain
         )
         append_compilation_options("${target}" WARNINGS OPTIMIZATION TESTS)
         add_dependencies("cxx${mode}" "${target}")
