@@ -42,12 +42,10 @@ jobs:
         extra_nix_config: |
           access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
 
-    - uses: actions/checkout@v4
-
     - name: nix package test (disable_cxx23=False)
       run: nix -L build './test_package#consumer'
-        --override-input libfn "git+file://$(pwd)?rev=${{ github.sha }}"
+        --override-input libfn "git+file://$(pwd)?rev=${{ github.sha }}&shallow=1"
 
     - name: nix package test (disable_cxx23=True)
       run: nix -L build './test_package#consumer-no-cxx23'
-        --override-input libfn "git+file://$(pwd)?rev=${{ github.sha }}"
+        --override-input libfn "git+file://$(pwd)?rev=${{ github.sha }}&shallow=1"
