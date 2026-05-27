@@ -100,6 +100,8 @@ if(NOT DISABLE_CXX23)
     add_custom_target(cxx23)
 endif()
 
+include(GNUInstallDirs)
+
 add_subdirectory(include)
 
 if(LIBFN_TESTS)
@@ -114,10 +116,9 @@ if(LIBFN_TESTS)
 endif()
 
 install(FILES README.md LICENSE.md VERSION
-    DESTINATION share/doc/libfn)
+    DESTINATION ${CMAKE_INSTALL_DOCDIR})
 
 include(CMakePackageConfigHelpers)
-include(GNUInstallDirs)
 
 configure_package_config_file(
     "${PROJECT_SOURCE_DIR}/cmake/libfnConfig.cmake.in"

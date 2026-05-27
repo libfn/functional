@@ -22,14 +22,14 @@ target_sources(include_pfn INTERFACE
 append_compilation_options(include_pfn INTERFACE)
 target_include_directories(include_pfn SYSTEM INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-    $<INSTALL_INTERFACE:include>)
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 set_target_properties(include_pfn PROPERTIES EXPORT_NAME pfn)
 target_compile_features(include_pfn INTERFACE cxx_std_20)
 
 install(TARGETS include_pfn
     EXPORT libfnTargets
     FILE_SET include_pfn_headers
-    DESTINATION include)
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 include(TargetGenerator)
 
@@ -105,7 +105,7 @@ if(NOT DISABLE_CXX23)
     append_compilation_options(include_fn INTERFACE)
     target_include_directories(include_fn SYSTEM INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-        $<INSTALL_INTERFACE:include>)
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
     set_target_properties(include_fn PROPERTIES EXPORT_NAME fn)
     # TODO uncomment when include_pfn is ready
     # target_link_libraries(include_fn INTERFACE include_pfn)
@@ -114,7 +114,7 @@ if(NOT DISABLE_CXX23)
     install(TARGETS include_fn
         EXPORT libfnTargets
         FILE_SET include_fn_headers
-        DESTINATION include)
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 endif()
 
 # Generate sentinel target for each individual header, as a basic sanity check
