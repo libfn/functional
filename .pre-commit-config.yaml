@@ -33,3 +33,11 @@ repos:
   hooks:
   - id: clang-format
     types_or: [c++, c]
+- repo: local
+  hooks:
+  - id: sync-vcpkg-version
+    name: sync vcpkg.json with VERSION
+    entry: scripts/sync_vcpkg_version.py
+    language: python
+    files: ^(VERSION|ports/libfn/vcpkg\.json)$
+    pass_filenames: false

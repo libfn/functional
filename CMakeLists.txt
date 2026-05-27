@@ -7,7 +7,11 @@ endif()
 
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" libfn_version)
 string(STRIP "${libfn_version}" libfn_version)
-string(REGEX MATCH "^[0-9.]+" libfn_version_numeric "${libfn_version}")
+if(NOT libfn_version MATCHES "^([0-9]+)\\.([0-9]+)\\.([0-9]+)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$")
+    message(FATAL_ERROR
+        "VERSION must be SemVer 2.0.0 (MAJOR.MINOR.PATCH[-prerelease][+build]); got '${libfn_version}'")
+endif()
+set(libfn_version_numeric "${CMAKE_MATCH_1}.${CMAKE_MATCH_2}.${CMAKE_MATCH_3}")
 
 project(libfn VERSION ${libfn_version_numeric} LANGUAGES C CXX)
 

@@ -1,12 +1,18 @@
 {
   "name": "libfn",
-  "version": "0.0.1",
+  "version-semver": "0.0.1",
   "description": "Functional programming in C++",
   "homepage": "https://github.com/libfn/functional",
   "license": "ISC",
   "dependencies": [
-    { "name": "vcpkg-cmake", "host": true },
-    { "name": "vcpkg-cmake-config", "host": true }
+    {
+      "name": "vcpkg-cmake",
+      "host": true
+    },
+    {
+      "name": "vcpkg-cmake-config",
+      "host": true
+    }
   ],
   "features": {
     "disable-cxx23": {
