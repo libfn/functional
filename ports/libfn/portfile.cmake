@@ -3,13 +3,11 @@ set(VCPKG_BUILD_TYPE release)
 if(DEFINED ENV{VCPKG_LIBFN_SOURCE_PATH})
     set(SOURCE_PATH "$ENV{VCPKG_LIBFN_SOURCE_PATH}")
 else()
-    vcpkg_from_github(
-        OUT_SOURCE_PATH SOURCE_PATH
-        REPO libfn/functional
-        REF "v${VERSION}"
-        SHA512 0
-        HEAD_REF main
-    )
+    # TODO replace with vcpkg_from_github(... REF "v${VERSION}" SHA512 <pinned>)
+    # once the first release is tagged. Until then this port is overlay-only.
+    message(FATAL_ERROR
+        "VCPKG_LIBFN_SOURCE_PATH must point to a libfn source checkout. "
+        "Fetching by tag from GitHub is not yet supported (no tagged release).")
 endif()
 
 set(DISABLE_CXX23 OFF)
