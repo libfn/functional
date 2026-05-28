@@ -1,6 +1,5 @@
 ARG GCC_RELEASE=15
-ARG DEBIAN_VERSION=trixie
-ARG GCC_DIST=${GCC_RELEASE}-${DEBIAN_VERSION}
+ARG GCC_DIST=${GCC_RELEASE}-trixie
 FROM gcc:${GCC_DIST} AS upstream
 RUN set -ex ;\
     find /usr/local/ -type f ;\
@@ -8,8 +7,7 @@ RUN set -ex ;\
     cat /etc/os-release ;\
     /usr/local/bin/gcc --version
 
-ARG DEBIAN_VERSION=trixie
-FROM debian:${DEBIAN_VERSION} AS build
+FROM debian:trixie AS build
 ARG DOXYGEN_RELEASE
 ARG ZNAI_RELEASE
 
@@ -47,8 +45,7 @@ RUN set -ex ;\
     mv znai_tmp/dist /opt/znai ;\
     rm -rf ${FILE} znai_tmp
 
-ARG DEBIAN_VERSION=trixie
-FROM debian:${DEBIAN_VERSION}
+FROM debian:trixie
 COPY --from=upstream /usr/local/ /usr/local/
 COPY --from=upstream /etc/ld.so.conf.d/ /etc/ld.so.conf.d/
 COPY --from=build /usr/local/ /usr/local/
@@ -87,7 +84,7 @@ RUN set -ex ;\
     apt-get install -y --no-install-recommends \
       ca-certificates gnupg unzip wget vim curl jq \
       cmake ninja-build binutils libc6-dev git \
-      openjdk-17-jdk graphviz  ;\
+      openjdk-21-jdk graphviz  ;\
     apt-get clean
 
 ARG CATCH_RELEASE
