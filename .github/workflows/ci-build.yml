@@ -31,7 +31,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        compiler:
+        image:
           - gcc:12
           - gcc:13
           - gcc:14
@@ -44,6 +44,8 @@ jobs:
           - clang:20
           - clang:21
           - clang:22
+          - clang-libstdcxx:21
+          - clang-libstdcxx:22
         platform:
           - linux/amd64
           - linux/arm64
@@ -51,9 +53,11 @@ jobs:
     steps:
       - name: Prepare
         run: |
-          compiler=${{ matrix.compiler }}
-          echo "COMPILER=${compiler%%:*}" >> $GITHUB_ENV
-          echo "RELEASE=${compiler##*:}" >> $GITHUB_ENV
+          image=${{ matrix.image }}
+          name=${image%%:*}
+          echo "IMAGE=${name}" >> $GITHUB_ENV
+          echo "RELEASE=${image##*:}" >> $GITHUB_ENV
+          echo "COMPILER=${name%%-*}" >> $GITHUB_ENV
 
       - name: Determine Debian version
         run: |
@@ -79,7 +83,7 @@ jobs:
       - uses: ./.github/actions/build-ci-image
         with:
           platform: ${{ matrix.platform }}
-          image: ${{ env.REGISTRY_IMAGE_ROOT }}-${{ env.COMPILER }}
+          image: ${{ env.REGISTRY_IMAGE_ROOT }}-${{ env.IMAGE }}
           tags: |
             type=raw,value=${{ env.RELEASE }}
             type=sha,prefix=${{ env.RELEASE }}-sha-
@@ -90,9 +94,11 @@ jobs:
             GCC_RELEASE=${{ env.RELEASE }}
             CLANG_RELEASE=${{ env.RELEASE }}
             DEBIAN_VERSION=${{ env.DEBIAN_VERSION }}
-          context: "ci/build/${{ env.COMPILER }}"
-          title: "build-${{ env.COMPILER}}-${{ env.RELEASE }}"
+          context: "ci/build"
+          file: "${{ env.COMPILER }}/Dockerfile"
+          title: "build-${{ env.IMAGE }}-${{ env.RELEASE }}"
           push: ${{ github.ref_type == 'branch' && github.ref_name == 'main' }}
+          target: ${{ env.IMAGE }}
 
   merge:
     if: ${{ github.repository == 'libfn/functional' && github.ref_type == 'branch' && github.ref_name == 'main' }}
@@ -102,7 +108,7 @@ jobs:
       - build
     strategy:
       matrix:
-        compiler:
+        image:
           - gcc:12
           - gcc:13
           - gcc:14
@@ -115,13 +121,15 @@ jobs:
           - clang:20
           - clang:21
           - clang:22
+          - clang-libstdcxx:21
+          - clang-libstdcxx:22
 
     steps:
       - name: Prepare
         run: |
-          compiler=${{ matrix.compiler }}
-          echo "COMPILER=${compiler%%:*}" >> $GITHUB_ENV
-          echo "RELEASE=${compiler##*:}" >> $GITHUB_ENV
+          image=${{ matrix.image }}
+          echo "IMAGE=${image%%:*}" >> $GITHUB_ENV
+          echo "RELEASE=${image##*:}" >> $GITHUB_ENV
 
       - uses: actions/checkout@v4
         with:
@@ -129,11 +137,11 @@ jobs:
 
       - uses: ./.github/actions/merge-ci-images
         with:
-          image: ${{ env.REGISTRY_IMAGE_ROOT }}-${{ env.COMPILER }}
+          image: ${{ env.REGISTRY_IMAGE_ROOT }}-${{ env.IMAGE }}
           tags: |
             type=raw,value=${{ env.RELEASE }}
             type=sha,prefix=${{ env.RELEASE }}-sha-
           registry: libfn.azurecr.io
           username: ${{ secrets.AZURECR_NAME }}
           password: ${{ secrets.AZURECR_PASS }}
-          title: "build-${{ env.COMPILER}}-${{ env.RELEASE }}"
+          title: "build-${{ env.IMAGE }}-${{ env.RELEASE }}"
