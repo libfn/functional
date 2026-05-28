@@ -5,28 +5,23 @@ description: Merge CI images built for different platforms into a single multi-a
 
 inputs:
   image:
-    default: null
     required: true
-    type: string
+    description: The name of the image to build, e.g. "libfn.azurecr.io/ci-build-gcc".
   tags:
-    default: null
     required: true
+    description: The tags to apply to the image, e.g. "16".
   registry:
-    default: "docker.io"
     required: true
-    type: string
+    description: The registry to push the image to, e.g. "docker.io" or "libfn.azurecr.io".
   username:
-    default: null
     required: true
-    type: string
+    description: The username for the registry.
   password:
-    default: null
     required: true
-    type: string
+    description: The password or token for the registry.
   title:
-    default: null
     required: true
-    type: string
+    description: A title to include in the image metadata, e.g. "build-gcc-16".
 
 runs:
   using: composite

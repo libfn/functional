@@ -1,7 +1,7 @@
 ARG GCC_RELEASE=16
 ARG DEBIAN_VERSION=trixie
 ARG GCC_DIST=${GCC_RELEASE}-${DEBIAN_VERSION}
-FROM gcc:${GCC_DIST} AS gcc
+FROM gcc:${GCC_DIST} AS upstream
 RUN set -ex ;\
     find /usr/local/ -type f ;\
     cat /etc/ld.so.conf.d/* ;\
@@ -9,9 +9,9 @@ RUN set -ex ;\
     /usr/local/bin/gcc --version
 
 ARG DEBIAN_VERSION=trixie
-FROM debian:${DEBIAN_VERSION}
-COPY --from=gcc /usr/local/ /usr/local/
-COPY --from=gcc /etc/ld.so.conf.d/ /etc/ld.so.conf.d/
+FROM debian:${DEBIAN_VERSION} AS base
+COPY --from=upstream /usr/local/ /usr/local/
+COPY --from=upstream /etc/ld.so.conf.d/ /etc/ld.so.conf.d/
 
 WORKDIR /root
 RUN set -ex ;\
@@ -33,7 +33,7 @@ RUN set -ex ;\
     update-alternatives --auto cc ;\
     update-alternatives --auto gcc
 
-ENV DEBIAN_FRONTEND=noninteractive
+ARG DEBIAN_FRONTEND=noninteractive
 RUN set -ex ;\
     apt-get update ;\
     apt-get install -y --no-install-recommends \
@@ -41,7 +41,7 @@ RUN set -ex ;\
       cmake ninja-build binutils libc6-dev git valgrind ;\
     apt-get clean
 
-COPY requirements.txt /requirements.txt
+COPY gcc/requirements.txt /requirements.txt
 ENV VENV=/venv
 ENV PATH=${VENV}/bin:${PATH}
 RUN set -ex ;\
@@ -54,21 +54,23 @@ ENV CXX=/usr/bin/g++
 ENV CMAKE_GENERATOR=Ninja
 ENV CMAKE_BUILD_TYPE=Debug
 
-ARG CATCH_RELEASE=3.14.0
-WORKDIR /work
-RUN set -ex ;\
-    DIST="https://github.com/catchorg/Catch2/archive/refs/tags/" ;\
-    FILE="v${CATCH_RELEASE}.tar.gz" ;\
-    wget ${DIST}/${FILE} ;\
-    tar -xzf ${FILE} ;\
-    cd Catch2-${CATCH_RELEASE} ;\
-    cmake -B build -S . \
-      -DCMAKE_BUILD_TYPE=Release \
-      -DBUILD_TESTING=OFF \
-      -DCATCH_DEVELOPMENT_BUILD=ON \
-      -DCATCH_BUILD_TESTING=OFF ;\
-    cmake --build build/ --target install ;\
-    cd /work ;\
-    rm -rf ${FILE} Catch2-${CATCH_RELEASE}
+# ---- Build Catch2 with libstdc++ as `gcc` target ----
 
+FROM base AS gcc
+ARG CATCH_RELEASE
+WORKDIR /work
+COPY build-catch.sh /work/build-catch.sh
+RUN set -ex ;\
+    sh /work/build-catch.sh ;\
+    rm /work/build-catch.sh
 ENV CMAKE_FIND_CATCH2=1
+
+# ---- Bazel + system gcc as `gcc-bazel` target ----
+
+FROM base AS gcc-bazel
+ARG BAZEL_RELEASE
+WORKDIR /work
+COPY fetch-bazel.sh /work/fetch-bazel.sh
+RUN set -ex ;\
+    sh /work/fetch-bazel.sh ;\
+    rm /work/fetch-bazel.sh
