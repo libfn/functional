@@ -14,6 +14,7 @@ on:
       - '.github/actions/merge-ci-images/**'
       - '.github/workflows/ci-docs.yml'
       - 'ci/docs/**'
+      - 'ci/build-catch.sh'
   workflow_dispatch:
 
 env:
@@ -54,7 +55,8 @@ jobs:
             DOXYGEN_RELEASE=${{ env.DOXYGEN_RELEASE }}
             ZNAI_RELEASE=${{ env.ZNAI_RELEASE }}
             CATCH_RELEASE=${{ env.CATCH_RELEASE }}
-          context: "ci/docs"
+          context: "ci"
+          file: "docs/Dockerfile"
           title: "docs"
           push: ${{ github.ref_type == 'branch' && github.ref_name == 'main' }}
 

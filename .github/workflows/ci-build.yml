@@ -13,7 +13,10 @@ on:
       - '.github/actions/build-ci-image/**'
       - '.github/actions/merge-ci-images/**'
       - '.github/workflows/ci-build.yml'
-      - 'ci/build/**'
+      - 'ci/gcc/**'
+      - 'ci/clang/**'
+      - 'ci/build-catch.sh'
+      - 'ci/fetch-bazel.sh'
   workflow_dispatch:
 
 env:
@@ -100,7 +103,7 @@ jobs:
             DEBIAN_VERSION=${{ env.DEBIAN_VERSION }}
             CATCH_RELEASE=${{ env.CATCH_RELEASE }}
             BAZEL_RELEASE=${{ env.BAZEL_RELEASE }}
-          context: "ci/build"
+          context: "ci"
           file: "${{ env.COMPILER }}/Dockerfile"
           title: "build-${{ env.IMAGE }}-${{ env.RELEASE }}"
           push: ${{ github.ref_type == 'branch' && github.ref_name == 'main' }}
