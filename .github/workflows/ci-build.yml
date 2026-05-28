@@ -13,7 +13,10 @@ on:
       - '.github/actions/build-ci-image/**'
       - '.github/actions/merge-ci-images/**'
       - '.github/workflows/ci-build.yml'
-      - 'ci/build/**'
+      - 'ci/gcc/**'
+      - 'ci/clang/**'
+      - 'ci/build-catch.sh'
+      - 'ci/fetch-bazel.sh'
   workflow_dispatch:
 
 env:
@@ -22,6 +25,8 @@ env:
   # Also see https://learn.microsoft.com/en-gb/azure/container-registry/
   # and https://docs.docker.com/build/ci/github-actions/push-multi-registries/
   REGISTRY_IMAGE_ROOT: libfn.azurecr.io/ci-build
+  CATCH_RELEASE: 3.14.0
+  BAZEL_RELEASE: 8.7.0
 
 jobs:
   build:
@@ -96,7 +101,9 @@ jobs:
             GCC_RELEASE=${{ env.RELEASE }}
             CLANG_RELEASE=${{ env.RELEASE }}
             DEBIAN_VERSION=${{ env.DEBIAN_VERSION }}
-          context: "ci/build"
+            CATCH_RELEASE=${{ env.CATCH_RELEASE }}
+            BAZEL_RELEASE=${{ env.BAZEL_RELEASE }}
+          context: "ci"
           file: "${{ env.COMPILER }}/Dockerfile"
           title: "build-${{ env.IMAGE }}-${{ env.RELEASE }}"
           push: ${{ github.ref_type == 'branch' && github.ref_name == 'main' }}

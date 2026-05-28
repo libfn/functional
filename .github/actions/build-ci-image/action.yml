@@ -9,7 +9,7 @@ inputs:
     description: The target platform(s) for the image, e.g. "linux/amd64", "linux/arm64".
   context:
     required: true
-    description: Path within the repo used as the build context (a subdir of the default Git context), e.g. "ci/build".
+    description: Path within the repo used as the build context (a subdir of the default Git context), e.g. "ci".
   file:
     default: Dockerfile
     required: false

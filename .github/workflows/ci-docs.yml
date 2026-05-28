@@ -14,10 +14,14 @@ on:
       - '.github/actions/merge-ci-images/**'
       - '.github/workflows/ci-docs.yml'
       - 'ci/docs/**'
+      - 'ci/build-catch.sh'
   workflow_dispatch:
 
 env:
   REGISTRY_IMAGE: libfn.azurecr.io/ci-docs
+  DOXYGEN_RELEASE: 1.12.0
+  ZNAI_RELEASE: 1.73
+  CATCH_RELEASE: 3.14.0
 
 jobs:
   build:
@@ -47,7 +51,12 @@ jobs:
           registry: libfn.azurecr.io
           username: ${{ secrets.AZURECR_NAME }}
           password: ${{ secrets.AZURECR_PASS }}
-          context: "ci/docs"
+          build_args: |
+            DOXYGEN_RELEASE=${{ env.DOXYGEN_RELEASE }}
+            ZNAI_RELEASE=${{ env.ZNAI_RELEASE }}
+            CATCH_RELEASE=${{ env.CATCH_RELEASE }}
+          context: "ci"
+          file: "docs/Dockerfile"
           title: "docs"
           push: ${{ github.ref_type == 'branch' && github.ref_name == 'main' }}
 

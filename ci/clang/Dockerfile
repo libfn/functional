@@ -1,10 +1,10 @@
 ARG DEBIAN_VERSION=trixie
 FROM debian:${DEBIAN_VERSION} AS base
 
-ARG CLANG_RELEASE=22
-ENV CLANG_RELEASE=${CLANG_RELEASE}
-ENV DEBIAN_FRONTEND=noninteractive
+ARG CLANG_RELEASE
+ARG DEBIAN_FRONTEND=noninteractive
 RUN set -ex ;\
+    : "${CLANG_RELEASE:?CLANG_RELEASE is not set}" ;\
     apt-get update ;\
     apt-get install -y --no-install-recommends \
       ca-certificates gnupg unzip wget vim curl jq python3-venv python3-pip \
@@ -43,7 +43,7 @@ ENV CMAKE_BUILD_TYPE=Debug
 # ---- Build Catch2 with libc++ as `clang` target ----
 
 FROM base AS clang
-ARG CATCH_RELEASE=3.14.0
+ARG CATCH_RELEASE
 
 WORKDIR /work
 COPY build-catch.sh /work/build-catch.sh
@@ -56,8 +56,8 @@ ENV CMAKE_FIND_CATCH2=1
 # ---- Build Catch2 with libstdc++ based on gcc-14, as `clang-libstdcxx` target ----
 
 FROM base AS clang-libstdcxx
-ARG CATCH_RELEASE=3.14.0
-
+ARG CATCH_RELEASE
+ARG DEBIAN_FRONTEND=noninteractive
 RUN set -ex ;\
     apt-get update ;\
     apt-get install -y --no-install-recommends libstdc++-14-dev ;\
@@ -74,8 +74,8 @@ ENV CMAKE_FIND_CATCH2=1
 # ---- Bazel + system clang as `clang-bazel` target ----
 
 FROM base AS clang-bazel
-ARG BAZEL_RELEASE=7.7.1
-
+ARG BAZEL_RELEASE
+ARG DEBIAN_FRONTEND=noninteractive
 # Install libstdc++ so clang libstdc++ (i.e. default) Bazel builds work; base has only libc++
 RUN set -ex ;\
     apt-get update ;\

@@ -33,7 +33,7 @@ RUN set -ex ;\
     update-alternatives --auto cc ;\
     update-alternatives --auto gcc
 
-ENV DEBIAN_FRONTEND=noninteractive
+ARG DEBIAN_FRONTEND=noninteractive
 RUN set -ex ;\
     apt-get update ;\
     apt-get install -y --no-install-recommends \
@@ -57,7 +57,7 @@ ENV CMAKE_BUILD_TYPE=Debug
 # ---- Build Catch2 with libstdc++ as `gcc` target ----
 
 FROM base AS gcc
-ARG CATCH_RELEASE=3.14.0
+ARG CATCH_RELEASE
 WORKDIR /work
 COPY build-catch.sh /work/build-catch.sh
 RUN set -ex ;\
@@ -68,7 +68,7 @@ ENV CMAKE_FIND_CATCH2=1
 # ---- Bazel + system gcc as `gcc-bazel` target ----
 
 FROM base AS gcc-bazel
-ARG BAZEL_RELEASE=7.7.1
+ARG BAZEL_RELEASE
 WORKDIR /work
 COPY fetch-bazel.sh /work/fetch-bazel.sh
 RUN set -ex ;\
