@@ -17,7 +17,7 @@ import re
 import sys
 
 SEMVER_RE = re.compile(
-    r"^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$"
+    r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
 )
 # The version string inside the module(...) directive (not a bazel_dep version).
 MODULE_VERSION_RE = re.compile(r'(module\([^()]*?version\s*=\s*)"[^"]*"', re.DOTALL)
