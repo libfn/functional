@@ -1,0 +1,7 @@
+module(name = "libfn_test_package")
+
+bazel_dep(name = "libfn")
+local_path_override(
+    module_name = "libfn",
+    path = "..",
+)

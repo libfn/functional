@@ -35,9 +35,9 @@ repos:
     types_or: [c++, c]
 - repo: local
   hooks:
-  - id: sync-vcpkg-version
-    name: sync vcpkg.json with VERSION
-    entry: scripts/sync_vcpkg_version.py
+  - id: sync-versions
+    name: sync packaging versions with VERSION
+    entry: scripts/sync_versions.py
     language: python
-    files: ^(VERSION|ports/libfn/vcpkg\.json)$
+    files: ^(VERSION|ports/libfn/vcpkg\.json|MODULE\.bazel)$
     pass_filenames: false

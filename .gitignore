@@ -17,3 +17,6 @@ result*
 *~
 ~$*.doc
 CMakeUserPresets.json
+bazel-*
+MODULE.bazel.lock
+.bazelversion

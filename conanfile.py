@@ -79,6 +79,8 @@ class LibfnConan(ConanFile):
             fn.bindirs = []
             fn.libdirs = []
             fn.includedirs = ["include"]
+            # TODO uncomment once fn is reimplemented in terms of pfn.
+            # fn.requires = ["pfn"]
 
         # pfn: the C++20 component (headers under include/pfn/).
         pfn = self.cpp_info.components["pfn"]
