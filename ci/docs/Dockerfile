@@ -8,8 +8,8 @@ RUN set -ex ;\
     /usr/local/bin/gcc --version
 
 FROM debian:bookworm AS build
-ARG DOXYGEN_RELEASE=1.12.0
-ARG ZNAI_RELEASE=1.73
+ARG DOXYGEN_RELEASE
+ARG ZNAI_RELEASE
 
 ENV CMAKE_GENERATOR=Ninja
 ENV CMAKE_BUILD_TYPE=Debug
@@ -85,7 +85,7 @@ RUN set -ex ;\
       openjdk-17-jdk graphviz  ;\
     apt-get clean
 
-ARG CATCH_RELEASE=3.14.0
+ARG CATCH_RELEASE
 WORKDIR /work
 RUN set -ex ;\
     DIST="https://github.com/catchorg/Catch2/archive/refs/tags/" ;\
