@@ -37,6 +37,7 @@ jobs:
           - gcc:14
           - gcc:15
           - gcc:16
+          - gcc-bazel:16
           - clang:16
           - clang:17
           - clang:18
@@ -46,6 +47,7 @@ jobs:
           - clang:22
           - clang-libstdcxx:21
           - clang-libstdcxx:22
+          - clang-bazel:22
         platform:
           - linux/amd64
           - linux/arm64
@@ -114,6 +116,7 @@ jobs:
           - gcc:14
           - gcc:15
           - gcc:16
+          - gcc-bazel:16
           - clang:16
           - clang:17
           - clang:18
@@ -123,6 +126,7 @@ jobs:
           - clang:22
           - clang-libstdcxx:21
           - clang-libstdcxx:22
+          - clang-bazel:22
 
     steps:
       - name: Prepare

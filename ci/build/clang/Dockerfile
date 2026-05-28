@@ -70,3 +70,20 @@ RUN set -ex ;\
     sh /work/build-catch.sh ;\
     rm /work/build-catch.sh
 ENV CMAKE_FIND_CATCH2=1
+
+# ---- Bazel + system clang as `clang-bazel` target ----
+
+FROM base AS clang-bazel
+ARG BAZEL_RELEASE=7.7.1
+
+# Install libstdc++ so clang libstdc++ (i.e. default) Bazel builds work; base has only libc++
+RUN set -ex ;\
+    apt-get update ;\
+    apt-get install -y --no-install-recommends libstdc++-14-dev ;\
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /work
+COPY fetch-bazel.sh /work/fetch-bazel.sh
+RUN set -ex ;\
+    sh /work/fetch-bazel.sh ;\
+    rm /work/fetch-bazel.sh

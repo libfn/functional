@@ -9,7 +9,7 @@ RUN set -ex ;\
     /usr/local/bin/gcc --version
 
 ARG DEBIAN_VERSION=trixie
-FROM debian:${DEBIAN_VERSION} AS gcc
+FROM debian:${DEBIAN_VERSION} AS base
 COPY --from=upstream /usr/local/ /usr/local/
 COPY --from=upstream /etc/ld.so.conf.d/ /etc/ld.so.conf.d/
 
@@ -54,6 +54,9 @@ ENV CXX=/usr/bin/g++
 ENV CMAKE_GENERATOR=Ninja
 ENV CMAKE_BUILD_TYPE=Debug
 
+# ---- Build Catch2 with libstdc++ as `gcc` target ----
+
+FROM base AS gcc
 ARG CATCH_RELEASE=3.14.0
 WORKDIR /work
 COPY build-catch.sh /work/build-catch.sh
@@ -61,3 +64,13 @@ RUN set -ex ;\
     sh /work/build-catch.sh ;\
     rm /work/build-catch.sh
 ENV CMAKE_FIND_CATCH2=1
+
+# ---- Bazel + system gcc as `gcc-bazel` target ----
+
+FROM base AS gcc-bazel
+ARG BAZEL_RELEASE=7.7.1
+WORKDIR /work
+COPY fetch-bazel.sh /work/fetch-bazel.sh
+RUN set -ex ;\
+    sh /work/fetch-bazel.sh ;\
+    rm /work/fetch-bazel.sh
