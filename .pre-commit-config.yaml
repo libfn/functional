@@ -37,7 +37,7 @@ repos:
   hooks:
   - id: sync-versions
     name: sync packaging versions with VERSION
-    entry: scripts/sync_versions.py
+    entry: python scripts/sync_versions.py
     language: python
     files: ^(VERSION|ports/libfn/vcpkg\.json|MODULE\.bazel)$
     pass_filenames: false
