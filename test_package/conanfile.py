@@ -18,8 +18,6 @@ class LibfnTestConan(ConanFile):
 
     def generate(self):
         tc = CMakeToolchain(self)
-        # Forward the option so the test CMakeLists knows which components to consume.
-        tc.cache_variables["TEST_DISABLE_CXX23"] = bool(self.dependencies["libfn"].options.disable_cxx23)
         tc.generate()
 
     def build(self):

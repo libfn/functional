@@ -8,8 +8,8 @@ add_executable(pfn_quine src/pfn_quine.cpp)
 target_link_libraries(pfn_quine PRIVATE libfn::pfn)
 target_compile_features(pfn_quine PRIVATE cxx_std_20)
 
-# fn is only exposed when the recipe was built without disable_cxx23.
-if(NOT TEST_DISABLE_CXX23)
+# fn_quine needs libfn::fn, not provided when libfn is built with disable_cxx23.
+if(TARGET libfn::fn)
     add_executable(fn_quine src/fn_quine.cpp)
     target_link_libraries(fn_quine PRIVATE libfn::fn)
     target_compile_features(fn_quine PRIVATE cxx_std_23)

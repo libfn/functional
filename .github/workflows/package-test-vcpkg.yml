@@ -64,8 +64,7 @@ jobs:
       run: |
         cmake -B .build-cxx20 test_package \
           -DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake \
-          -DVCPKG_TARGET_TRIPLET=x64-linux \
-          -DTEST_DISABLE_CXX23=ON
+          -DVCPKG_TARGET_TRIPLET=x64-linux
         cmake --build .build-cxx20
         .build-cxx20/pfn_quine
 
@@ -74,7 +73,6 @@ jobs:
         cmake -B .build-cxx20-std23 test_package \
           -DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake \
           -DVCPKG_TARGET_TRIPLET=x64-linux \
-          -DTEST_DISABLE_CXX23=ON \
           -DCMAKE_CXX_STANDARD=23
         cmake --build .build-cxx20-std23
         .build-cxx20-std23/pfn_quine
