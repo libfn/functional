@@ -7,7 +7,9 @@ endif()
 
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" libfn_version)
 string(STRIP "${libfn_version}" libfn_version)
-if(NOT libfn_version MATCHES "^([0-9]+)\\.([0-9]+)\\.([0-9]+)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$")
+# SemVer 2.0.0. CMake's regex flavor (no non-capturing groups, max 9 capture groups) can't byte-match
+# the canonical semver.org regex used by scripts/sync_versions.py; this is the closest feasible form.
+if(NOT libfn_version MATCHES "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$")
     message(FATAL_ERROR
         "VERSION must be SemVer 2.0.0 (MAJOR.MINOR.PATCH[-prerelease][+build]); got '${libfn_version}'")
 endif()
@@ -128,6 +130,13 @@ configure_package_config_file(
     "${PROJECT_SOURCE_DIR}/cmake/libfnConfig.cmake.in"
     "${PROJECT_BINARY_DIR}/libfnConfig.cmake"
     INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/libfn)
+
+# Force a switch from SameMinorVersion to SameMajorVersion compatibility mode before the 1.x release.
+if(NOT PROJECT_VERSION_MAJOR EQUAL 0)
+    message(FATAL_ERROR
+        "COMPATIBILITY SameMinorVersion assumes a 0.x version line; PROJECT_VERSION_MAJOR is "
+        "${PROJECT_VERSION_MAJOR}. Revisit the find_package version-compatibility policy before 1.x.")
+endif()
 
 write_basic_package_version_file(
     "${PROJECT_BINARY_DIR}/libfnConfigVersion.cmake"
