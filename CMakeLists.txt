@@ -132,7 +132,7 @@ configure_package_config_file(
 write_basic_package_version_file(
     "${PROJECT_BINARY_DIR}/libfnConfigVersion.cmake"
     VERSION ${PROJECT_VERSION}
-    COMPATIBILITY SameMajorVersion)
+    COMPATIBILITY SameMinorVersion)
 
 install(EXPORT libfnTargets
     NAMESPACE libfn::
