@@ -39,11 +39,11 @@ function(append_compilation_options)
             # disable C4244: 'initializing': conversion from '_Ty' to '_Ty', possible loss of data
             # disable C4101: 'e': unreferenced local variable
             target_compile_options(${Options_NAME} PRIVATE /W4 /wd4456 /wd4244 /wd4101)
-        elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        elseif(CMAKE_CXX_COMPILER_ID MATCHES "(GNU|(Apple)?Clang)")
             target_compile_options(${Options_NAME} PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
             # Allow __COUNTER__ in Catch2 which is not a C++ preprocessor feature.
-            if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19)
+            if(CMAKE_CXX_COMPILER_ID MATCHES "(Apple)?Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19)
                 target_compile_options(${Options_NAME} PRIVATE -Wno-c2y-extensions)
             endif()
         endif()
@@ -56,7 +56,7 @@ function(append_compilation_options)
             endif()
 
             target_compile_options(${Options_NAME} PRIVATE $<IF:$<CONFIG:Debug>,/Od,/O2>)
-        elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        elseif(CMAKE_CXX_COMPILER_ID MATCHES "(GNU|(Apple)?Clang)")
             target_compile_options(${Options_NAME} PRIVATE
                 $<$<CONFIG:Debug>:-O0>
                 $<$<CONFIG:Debug>:-fno-omit-frame-pointer>
@@ -109,7 +109,7 @@ function(append_compilation_options)
     endif()
 
     if(Options_TESTS)
-        if(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        if(CMAKE_CXX_COMPILER_ID MATCHES "(GNU|(Apple)?Clang)")
             target_compile_options(${Options_NAME} PRIVATE -fno-omit-frame-pointer)
 
             # -Wno-redundant-move: want `std::move(std::as_const(x))` to be compiled without warnings in unit tests.
