@@ -16,3 +16,7 @@ result*
 *.gcov
 *~
 ~$*.doc
+CMakeUserPresets.json
+bazel-*
+MODULE.bazel.lock
+.bazelversion

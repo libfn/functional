@@ -33,3 +33,11 @@ repos:
   hooks:
   - id: clang-format
     types_or: [c++, c]
+- repo: local
+  hooks:
+  - id: sync-versions
+    name: sync packaging versions with VERSION
+    entry: python scripts/sync_versions.py
+    language: python
+    files: ^(VERSION|ports/libfn/vcpkg\.json|MODULE\.bazel)$
+    pass_filenames: false

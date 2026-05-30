@@ -1,0 +1,58 @@
+name: package-test-nix
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/package-test-nix.yml'
+      - 'test_package/**'
+      - 'include/**'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'nix/**'
+      - 'flake.nix'
+      - 'flake.lock'
+      - 'VERSION'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/package-test-nix.yml'
+      - 'test_package/**'
+      - 'include/**'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'nix/**'
+      - 'flake.nix'
+      - 'flake.lock'
+      - 'VERSION'
+  workflow_dispatch:
+
+jobs:
+  test_nix:
+    runs-on:
+      group: runners-intel
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.sha }}
+
+    - name: Install Nix
+      uses: cachix/install-nix-action@v30
+      with:
+        extra_nix_config: |
+          access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+
+    - name: Test C++23 packaging
+      run: nix -L build './test_package#consumer'
+        --override-input libfn "git+file://$(pwd)?rev=${{ github.sha }}&shallow=1"
+
+    - name: Test C++20 packaging
+      run: nix -L build './test_package#consumer-no-cxx23'
+        --override-input libfn "git+file://$(pwd)?rev=${{ github.sha }}&shallow=1"
+
+    - name: Test C++20 packaging with C++23 compiler
+      run: nix -L build './test_package#consumer-no-cxx23-std23'
+        --override-input libfn "git+file://$(pwd)?rev=${{ github.sha }}&shallow=1"

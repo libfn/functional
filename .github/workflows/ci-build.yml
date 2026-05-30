@@ -62,24 +62,24 @@ jobs:
         run: |
           image=${{ matrix.image }}
           name=${image%%:*}
-          echo "IMAGE=${name}" >> $GITHUB_ENV
-          echo "RELEASE=${image##*:}" >> $GITHUB_ENV
-          echo "COMPILER=${name%%-*}" >> $GITHUB_ENV
+          echo "IMAGE=${name}" >> "${GITHUB_ENV}"
+          echo "RELEASE=${image##*:}" >> "${GITHUB_ENV}"
+          echo "COMPILER=${name%%-*}" >> "${GITHUB_ENV}"
 
       - name: Determine Debian version
         run: |
           if [[ $COMPILER == "gcc" ]]; then
             if [[ $RELEASE -ge 15 ]]; then
-              echo "DEBIAN_VERSION=trixie" >> $GITHUB_ENV
+              echo "DEBIAN_VERSION=trixie" >> "${GITHUB_ENV}"
             else
-              echo "DEBIAN_VERSION=bookworm" >> $GITHUB_ENV
+              echo "DEBIAN_VERSION=bookworm" >> "${GITHUB_ENV}"
             fi
           fi
           if [[ $COMPILER == "clang" ]]; then
             if [[ $RELEASE -ge 21 ]]; then
-              echo "DEBIAN_VERSION=trixie" >> $GITHUB_ENV
+              echo "DEBIAN_VERSION=trixie" >> "${GITHUB_ENV}"
             else
-              echo "DEBIAN_VERSION=bookworm" >> $GITHUB_ENV
+              echo "DEBIAN_VERSION=bookworm" >> "${GITHUB_ENV}"
             fi
           fi
 
@@ -139,8 +139,8 @@ jobs:
       - name: Prepare
         run: |
           image=${{ matrix.image }}
-          echo "IMAGE=${image%%:*}" >> $GITHUB_ENV
-          echo "RELEASE=${image##*:}" >> $GITHUB_ENV
+          echo "IMAGE=${image%%:*}" >> "${GITHUB_ENV}"
+          echo "RELEASE=${image##*:}" >> "${GITHUB_ENV}"
 
       - uses: actions/checkout@v4
         with:

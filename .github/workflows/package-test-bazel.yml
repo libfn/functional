@@ -1,0 +1,57 @@
+name: package-test-bazel
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/package-test-bazel.yml'
+      - 'MODULE.bazel'
+      - 'BUILD.bazel'
+      - 'test_package/**'
+      - 'include/**'
+      - 'VERSION'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/package-test-bazel.yml'
+      - 'MODULE.bazel'
+      - 'BUILD.bazel'
+      - 'test_package/**'
+      - 'include/**'
+      - 'VERSION'
+  workflow_dispatch:
+
+env:
+  BAZEL_RELEASE: 8.7.0
+
+jobs:
+  test_bazel:
+    runs-on:
+      group: runners-intel
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - ci-build-gcc-bazel:16
+          - ci-build-clang-bazel:22
+    container: libfn.azurecr.io/${{ matrix.image }}
+    defaults:
+      run:
+        working-directory: test_package
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set Bazel version
+      run: |
+        echo "USE_BAZEL_VERSION=${{ env.BAZEL_RELEASE }}" >> "${GITHUB_ENV}"
+
+    - name: Test C++23 packaging
+      run: |
+        bazel run --cxxopt=-std=c++23 //:pfn_quine
+        bazel run --cxxopt=-std=c++23 //:fn_quine
+
+    - name: Test C++20 packaging
+      run: |
+        bazel run --cxxopt=-std=c++20 //:pfn_quine
