@@ -6,11 +6,13 @@ set(libfn_VERSION_FULL "@LIBFN_PROJECT_VERSION@")
 include("${CMAKE_CURRENT_LIST_DIR}/libfnTargets.cmake")
 
 # pfn is always installed
+set(libfn_pfn_FOUND FALSE)
 if(TARGET libfn::pfn)
     set(libfn_pfn_FOUND TRUE)
 endif()
 
 # fn is only installed when the library was built without DISABLE_CXX23
+set(libfn_fn_FOUND FALSE)
 if(TARGET libfn::fn)
     set(libfn_fn_FOUND TRUE)
 endif()
