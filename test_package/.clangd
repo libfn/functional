@@ -1,0 +1,21 @@
+# Compile flag relative paths resolve from the source file's CWD, which is `test_package/src`.
+# Hence ../../include rather than ../include, as the location of this .clangd might imply.
+CompileFlags:
+  Add: [-Wall, -Wextra, -Wpedantic, -Wno-missing-braces, -Wno-c2y-extensions, -isystem../../include]
+  Remove: -W*
+  Compiler: clang++
+  CompilationDatabase: None
+Diagnostics:
+  ClangTidy:
+    Add: [bugprone*, readability*, performance*]
+    Remove: [readability-static-accessed-through-instance, readability-magic-numbers, readability-identifier-length]
+---
+If:
+  PathMatch: src/fn_.*\.cpp
+CompileFlags:
+  Add: [-std=c++23]
+---
+If:
+  PathMatch: src/pfn_.*\.cpp
+CompileFlags:
+  Add: [-std=c++20]

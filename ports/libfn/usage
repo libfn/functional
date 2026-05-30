@@ -1,0 +1,8 @@
+libfn provides CMake targets:
+
+    find_package(libfn CONFIG REQUIRED)
+    target_link_libraries(main PRIVATE libfn::pfn)  # C++20 compatible polyfills
+    target_link_libraries(main PRIVATE libfn::fn)   # C++23 required (default)
+
+To disable C++23 features and expose only C++20 compatible components, install with:
+    vcpkg install "libfn[disable-cxx23]"
