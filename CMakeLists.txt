@@ -18,7 +18,7 @@ set(libfn_version_numeric "${CMAKE_MATCH_1}.${CMAKE_MATCH_2}.${CMAKE_MATCH_3}")
 project(libfn VERSION ${libfn_version_numeric} LANGUAGES C CXX)
 
 unset(libfn_version_numeric)
-# LIBFN_PROJECT_VERSION preserves the full version string, including any text suffixes.
+# Preserve the full SemVer (prerelease/build suffixes that PROJECT_VERSION strips).
 set(LIBFN_PROJECT_VERSION "${libfn_version}")
 unset(libfn_version)
 

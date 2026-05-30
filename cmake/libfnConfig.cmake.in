@@ -1,5 +1,8 @@
 @PACKAGE_INIT@
 
+# Full SemVer including any prerelease/build suffix that find_package cannot use.
+set(libfn_VERSION_FULL "@LIBFN_PROJECT_VERSION@")
+
 include("${CMAKE_CURRENT_LIST_DIR}/libfnTargets.cmake")
 
 # pfn is always installed
