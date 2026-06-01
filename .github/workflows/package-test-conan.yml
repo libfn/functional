@@ -26,6 +26,17 @@ jobs:
     runs-on:
       group: runners-intel
     container: libfn.azurecr.io/ci-build-gcc:15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: cxx23
+            options: '-o "&:disable_cxx23=False" -s "compiler.cppstd=23"'
+          - name: cxx20
+            options: '-o "&:disable_cxx23=True" -s "compiler.cppstd=20"'
+          - name: cxx20-std23
+            options: '-o "&:disable_cxx23=True" -s "compiler.cppstd=23"'
+
     steps:
     - uses: actions/checkout@v4
 
@@ -34,11 +45,5 @@ jobs:
         conan profile detect
         echo "tools.cmake.cmaketoolchain:generator=Ninja" >> ~/.conan2/global.conf
 
-    - name: Test C++23 packaging
-      run: conan create . --build=missing -o "&:disable_cxx23=False" -s "compiler.cppstd=23"
-
-    - name: Test C++20 packaging
-      run: conan create . --build=missing -o "&:disable_cxx23=True" -s "compiler.cppstd=20"
-
-    - name: Test C++20 packaging with C++23 compiler
-      run: conan create . --build=missing -o "&:disable_cxx23=True" -s "compiler.cppstd=23"
+    - name: Test ${{ matrix.name }} packaging
+      run: conan create . --build=missing ${{ matrix.options }}
