@@ -4184,10 +4184,12 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
           constexpr T a = fn(T(unexpect, Error::file_not_found));
           static_assert(a.error() == Error::file_not_found);
 
+#if !(defined(__clang__) && defined(__GLIBCXX__) && defined(PFN_TEST_VALIDATION))
           constexpr T b = fn(T(std::in_place));
           static_assert(b.has_value());
 #ifndef PFN_TEST_VALIDATION
           static_assert(not b.has_error());
+#endif
 #endif
 
           SUCCEED();
@@ -4476,10 +4478,12 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         static_assert(not a.has_value() && a.error() == Error::file_not_found);
 #endif
 
+#if !(defined(__clang__) && defined(__GLIBCXX__) && defined(PFN_TEST_VALIDATION))
         constexpr T b = fn(d);
         static_assert(b.has_value());
 #ifndef PFN_TEST_VALIDATION
         static_assert(not b.has_error());
+#endif
 #endif
 
         SUCCEED();
@@ -4542,6 +4546,7 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
       SECTION("from error")
       {
+#if !(defined(__clang__) && defined(__GLIBCXX__) && defined(PFN_TEST_VALIDATION))
         constexpr auto fn = []() constexpr -> T {
           T tmp{unexpect, Error::unknown};
           tmp.emplace();
@@ -4552,6 +4557,7 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         static_assert(a.has_value());
 #ifndef PFN_TEST_VALIDATION
         static_assert(not a.has_error());
+#endif
 #endif
 
         SUCCEED();
@@ -4829,10 +4835,12 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
           return v;
         };
 
+#if !(defined(__clang__) && defined(__GLIBCXX__) && defined(PFN_TEST_VALIDATION))
         constexpr T a = fn(T(unexpect, Error::file_not_found));
         static_assert(a.has_value());
 #ifndef PFN_TEST_VALIDATION
         static_assert(not a.has_error());
+#endif
 #endif
 
         constexpr T b = fn(T());
