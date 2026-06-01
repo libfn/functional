@@ -63,6 +63,13 @@ jobs:
             compiler: "clang:16"
           - mode: cxx23
             compiler: "clang:17"
+        include:
+          - mode: all
+            configuration: Debug
+            compiler: "gcc:14"
+          - mode: all
+            configuration: Release
+            compiler: "gcc:14"
     container: libfn.azurecr.io/ci-build-${{ matrix.compiler }}
     steps:
     - uses: actions/checkout@v4
@@ -79,6 +86,7 @@ jobs:
         printf "C++ compilation options: %s\n" "$FLAGS"
 
     - name: Build and test ${{ matrix.mode }}
+      if: matrix.mode != 'all'
       run: |
         cd .build
         cmake --build . --target ${{ matrix.mode }}
@@ -86,10 +94,9 @@ jobs:
 
     # Build and test all for one arbitrary configuration
     - name: Build and test all
-      if: ${{ matrix.compiler == 'gcc:14' && matrix.mode == 'cxx23' }}
+      if: matrix.mode == 'all'
       run: |
         cd .build
-        cmake --build . --target clean
         cmake --build .
         ctest --output-on-failure
 
@@ -126,6 +133,17 @@ jobs:
           - mode: cxx23
             compiler: appleclang
             osver: 14
+        include:
+          - mode: all
+            configuration: Debug
+            compiler: appleclang
+            osver: 15
+            clangrelease: NA
+          - mode: all
+            configuration: Release
+            compiler: appleclang
+            osver: 15
+            clangrelease: NA
     steps:
     - uses: actions/checkout@v4
 
@@ -149,6 +167,7 @@ jobs:
         printf "C++ compilation options: %s\n" "$FLAGS"
 
     - name: Build and test ${{ matrix.mode }}
+      if: matrix.mode != 'all'
       run: |
         cd .build
         cmake --build . --target ${{ matrix.mode }}
@@ -156,10 +175,9 @@ jobs:
 
     # Build and test all for one arbitrary configuration
     - name: Build and test all
-      if: ${{ matrix.compiler == 'appleclang' && matrix.osver == '15' && matrix.mode == 'cxx23' }}
+      if: matrix.mode == 'all'
       run: |
         cd .build
-        cmake --build . --target clean
         cmake --build .
         ctest --output-on-failure
 
