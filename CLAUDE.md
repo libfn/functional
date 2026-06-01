@@ -17,6 +17,10 @@ Conventions for AI agents in this repo (you are the primary reader — keep this
 - Comment only where the *why* is non-obvious (constraint/invariant/workaround/surprise); don't restate code; no boilerplate docstrings.
 - Don't create `.md`/summary/planning files unless asked.
 
+## Tooling
+
+- Recommended: `clangd-lsp@claude-plugins-official` for symbol navigation + post-edit diagnostics on C++. Requires a populated `compile_commands.json` (re-run CMake configure if clangd reports spurious errors in template-heavy headers).
+
 ## Memory
 
 - Keep memory current as facts change.
