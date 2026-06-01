@@ -54,6 +54,8 @@ jobs:
           - "clang:20"
           - "clang:21"
           - "clang:22"
+          - "clang-libstdcxx:21"
+          - "clang-libstdcxx:22"
         exclude:
           - mode: cxx23
             compiler: "gcc:12"
