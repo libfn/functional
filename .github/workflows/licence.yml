@@ -39,9 +39,9 @@ jobs:
     runs-on:
       group: runners-arm64
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-    - uses: fossas/fossa-action@v1
+    - uses: fossas/fossa-action@ff70fe9fe17cbd2040648f1c45e8ec4e4884dcf3 # v1.9.0
       with:
         api-key: ${{ secrets.FOSSA_API_KEY }}
 
@@ -52,7 +52,7 @@ jobs:
     env:
       LICENCE_FILE: LICENSE.md
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       with:
         sparse-checkout: .
         fetch-depth: 0
