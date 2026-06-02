@@ -4184,6 +4184,7 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
           constexpr T a = fn(T(unexpect, Error::file_not_found));
           static_assert(a.error() == Error::file_not_found);
 
+// clang+libstdc++: constexpr eval can't track std::expected's _M_unex across error->value transition
 #if !(defined(__clang__) && defined(__GLIBCXX__) && defined(PFN_TEST_VALIDATION))
           constexpr T b = fn(T(std::in_place));
           static_assert(b.has_value());
@@ -4478,6 +4479,7 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         static_assert(not a.has_value() && a.error() == Error::file_not_found);
 #endif
 
+// clang+libstdc++: constexpr eval can't track std::expected's _M_unex across error->value transition
 #if !(defined(__clang__) && defined(__GLIBCXX__) && defined(PFN_TEST_VALIDATION))
         constexpr T b = fn(d);
         static_assert(b.has_value());
@@ -4546,6 +4548,7 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
       SECTION("from error")
       {
+// clang+libstdc++: constexpr eval can't track std::expected's _M_unex across error->value transition
 #if !(defined(__clang__) && defined(__GLIBCXX__) && defined(PFN_TEST_VALIDATION))
         constexpr auto fn = []() constexpr -> T {
           T tmp{unexpect, Error::unknown};
@@ -4835,6 +4838,7 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
           return v;
         };
 
+// clang+libstdc++: constexpr eval can't track std::expected's _M_unex across error->value transition
 #if !(defined(__clang__) && defined(__GLIBCXX__) && defined(PFN_TEST_VALIDATION))
         constexpr T a = fn(T(unexpect, Error::file_not_found));
         static_assert(a.has_value());
