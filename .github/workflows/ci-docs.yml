@@ -19,6 +19,8 @@ on:
 
 env:
   REGISTRY_IMAGE: libfn.azurecr.io/ci-docs
+  DEBIAN_VERSION: trixie
+  JAVA_VERSION: openjdk-21-jdk
   DOXYGEN_RELEASE: 1.12.0
   ZNAI_RELEASE: 1.73
   CATCH_RELEASE: 3.14.0
@@ -36,7 +38,7 @@ jobs:
           - linux/arm64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           sparse-checkout: .github
 
@@ -52,6 +54,8 @@ jobs:
           username: ${{ secrets.AZURECR_NAME }}
           password: ${{ secrets.AZURECR_PASS }}
           build_args: |
+            DEBIAN_VERSION=${{ env.DEBIAN_VERSION }}
+            JAVA_VERSION=${{ env.JAVA_VERSION }}
             DOXYGEN_RELEASE=${{ env.DOXYGEN_RELEASE }}
             ZNAI_RELEASE=${{ env.ZNAI_RELEASE }}
             CATCH_RELEASE=${{ env.CATCH_RELEASE }}
@@ -68,7 +72,7 @@ jobs:
       - build
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           sparse-checkout: .github
 

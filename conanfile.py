@@ -1,7 +1,6 @@
 import os
 
 from conan import ConanFile
-from conan.tools.build import check_min_cppstd
 from conan.tools.files import copy, load
 from conan.tools.layout import basic_layout
 
@@ -18,7 +17,6 @@ class LibfnConan(ConanFile):
     topics = ("functional", "header-only", "monadic", "expected", "optional", "cpp23")
 
     package_type = "header-library"
-    settings = "os", "arch", "compiler", "build_type"
     no_copy_source = True
 
     options = {
@@ -38,14 +36,6 @@ class LibfnConan(ConanFile):
 
     def layout(self):
         basic_layout(self)
-
-    def validate(self):
-        if self.options.disable_cxx23:
-            # Only pfn (C++20-compatible polyfills) is available in this mode.
-            check_min_cppstd(self, 20)
-        else:
-            # fn (the main component) requires C++23.
-            check_min_cppstd(self, 23)
 
     def package_id(self):
         # Intentional: header-only library, so all files are identical regardless of options. package_info() runs

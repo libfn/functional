@@ -4,7 +4,7 @@ This is for working *on* libfn; to *use* the library, see the [README](README.md
 
 ## Development environment
 
-Building and testing libfn needs a recent C++23 toolchain (the monadic `std::optional`/`std::expected` of ISO/IEC 14882:2023). The recommended compilers are [gcc 13][gcc-standard-support] and [clang 18][clang-standard-support]; if your OS does not ship one recent enough, use the [devcontainer] or [Nix][nix] (see [nix/README.md][nixmd]).
+Building and testing libfn needs a recent C++23 toolchain (the monadic `std::optional`/`std::expected` of ISO/IEC 14882:2023). The minimum recommended compilers are [gcc 13][gcc-standard-support] and [clang 18][clang-standard-support]; if your OS does not ship one recent enough, use the [devcontainer] or [Nix][nix] (see [nix/README.md][nixmd]).
 
 ## Building locally
 
@@ -49,6 +49,22 @@ pre-commit run --all-files
 ```
 
 If a hook modifies files (e.g. clang-format, or the version sync above), the commit is aborted — re-stage the changes and commit again.
+
+## GitHub Actions workflow pitfalls
+
+A few conventions for files under `.github/workflows/`:
+
+* **Don't pin `ref:` on `actions/checkout` without a reason.** The default already pins to `github.sha` for `push`, `pull_request`, and `workflow_dispatch`, so `ref: ${{ github.sha }}` is redundant in the common case. If you do need it (e.g. so the working tree matches a downstream nix input's `?rev=${{ github.sha }}`), leave a comment saying so.
+
+* **Pin actions to a commit SHA, not a tag.** `uses: owner/repo@v1` is a supply-chain trust decision — whoever can move the tag can execute code in your workflow. Pin the SHA with a trailing version comment (e.g. `actions/checkout@34e1148… # v4.3.1`); Dependabot keeps it current and `zizmor` enforces it via pre-commit.
+
+* **One concern per job; matrix-ify variations.** Don't pack several install/build/test sequences into one job, especially if they need an inter-step cleanup (`vcpkg remove`, `cmake --build . --target clean`). Each variation should be its own matrix entry; gate per-variation steps with `if: matrix.name == 'X'` when needed.
+
+* **The "build everything" run gets its own matrix slot.** If one combination should run a superset of the per-mode targets, add it via `matrix.include` (e.g. `mode: all`) and gate the mode-specific step with `if: matrix.mode != 'all'`. Avoid the build → clean → rebuild dance inside a single job.
+
+* **Multi-line `run:` uses `|` and `\`.** The plain-scalar form (`run: cmd` followed by indented continuation lines) folds into one shell line, which is awkward to copy from a diff into a terminal. The literal-block form (`run: |` + lines ending in `\`) reads and pastes as a shell snippet.
+
+* **Insecure shell inside `run:` blocks.** `actionlint` runs `shellcheck` via pre-commit on every `run:` block if `shellcheck` is on `$PATH`; without it the check is silently skipped. Install `shellcheck` to avoid surprises when CI runs against your PR.
 
 <!-- link references -->
 [clang-standard-support]: https://clang.llvm.org/cxx_status.html

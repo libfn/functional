@@ -18,7 +18,7 @@ jobs:
       GCOV: /usr/local/bin/gcov
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       with:
         fetch-depth: 0  # Full history for blame info
 
@@ -35,13 +35,14 @@ jobs:
         printf "C++ compiler path: %s\n" "$COMPILER"
         $COMPILER --version
         printf "gcov version: %s\n" "$( $GCOV --version | head -1 )"
-        cmake --build . --target tests -- -j$(nproc)
+        cmake --build . --target tests -- -j"$(nproc)"
 
     - name: Generate coverage data with gcov
       run: |
         cd .build
         ctest -L 'tests_(p?fn)' -j1 # generate .gcda files
-        $GCOV -pbc -r -s $(realpath ..) $(find tests -type f -name '*.gcno') # generate .gcov files
+        # shellcheck disable=SC2046  # find emits one path per result; intentional word-splitting into gcov arg list
+        $GCOV -pbc -r -s "$(realpath ..)" $(find tests -type f -name '*.gcno') # generate .gcov files
 
     # Pull requests opened from forks do not receive repository secrets, so
     # the SonarScanner cannot run here. For those events, package the build
@@ -73,6 +74,7 @@ jobs:
         printf "%s\n" "$PR_HEAD_SHA" > .sonar-pr/head_sha
         printf "%s\n" "$PR_HEAD_REF" > .sonar-pr/head_ref
         printf "%s\n" "$PR_BASE_REF" > .sonar-pr/base_ref
+        # shellcheck disable=SC2046  # find emits one path per result; intentional word-splitting into tar arg list
         tar -czf sonar-inputs.tar.gz \
           .build/compile_commands.json \
           $(find .build -name '*.gcov' -print) \
@@ -80,7 +82,7 @@ jobs:
 
     - name: Upload SonarCloud inputs (pull requests only)
       if: github.event_name == 'pull_request'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
         name: sonarcloud-pr-inputs
         path: sonar-inputs.tar.gz

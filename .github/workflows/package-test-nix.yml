@@ -33,26 +33,27 @@ jobs:
   test_nix:
     runs-on:
       group: runners-intel
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: cxx23
+            target: consumer
+          - name: cxx20
+            target: consumer-no-cxx23
+          - name: cxx20-std23
+            target: consumer-no-cxx23-std23
 
     steps:
-    - uses: actions/checkout@v4
-      with:
-        ref: ${{ github.sha }}
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
     - name: Install Nix
-      uses: cachix/install-nix-action@v30
+      uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
       with:
         extra_nix_config: |
           access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
 
-    - name: Test C++23 packaging
-      run: nix -L build './test_package#consumer'
-        --override-input libfn "git+file://$(pwd)?rev=${{ github.sha }}&shallow=1"
-
-    - name: Test C++20 packaging
-      run: nix -L build './test_package#consumer-no-cxx23'
-        --override-input libfn "git+file://$(pwd)?rev=${{ github.sha }}&shallow=1"
-
-    - name: Test C++20 packaging with C++23 compiler
-      run: nix -L build './test_package#consumer-no-cxx23-std23'
-        --override-input libfn "git+file://$(pwd)?rev=${{ github.sha }}&shallow=1"
+    - name: Test ${{ matrix.name }} packaging
+      run: |
+        nix -L build './test_package#${{ matrix.target }}' \
+          --override-input libfn "git+file://$(pwd)?rev=${{ github.sha }}&shallow=1"

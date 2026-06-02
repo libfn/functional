@@ -62,9 +62,11 @@ jobs:
         run: |
           image=${{ matrix.image }}
           name=${image%%:*}
-          echo "IMAGE=${name}" >> "${GITHUB_ENV}"
-          echo "RELEASE=${image##*:}" >> "${GITHUB_ENV}"
-          echo "COMPILER=${name%%-*}" >> "${GITHUB_ENV}"
+          {
+            echo "IMAGE=${name}"
+            echo "RELEASE=${image##*:}"
+            echo "COMPILER=${name%%-*}"
+          } >> "${GITHUB_ENV}"
 
       - name: Determine Debian version
         run: |
@@ -83,7 +85,7 @@ jobs:
             fi
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           sparse-checkout: .github
 
@@ -142,7 +144,7 @@ jobs:
           echo "IMAGE=${image%%:*}" >> "${GITHUB_ENV}"
           echo "RELEASE=${image##*:}" >> "${GITHUB_ENV}"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           sparse-checkout: .github
 

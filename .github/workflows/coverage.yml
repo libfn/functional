@@ -29,7 +29,7 @@ jobs:
       GCOV: /usr/local/bin/gcov
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
     - name: Verify compiler compatibility
       env:
@@ -47,9 +47,10 @@ jobs:
         printf "CXX=%s\nCXXFLAGS=%s\n" "$CXX" "$CXXFLAGS"
         $CXX --version | head -1
         FILE=$(mktemp --tmpdir XXXXXX.cpp)
-        printf "$SOURCE\n" > $FILE
+        printf '%s\n' "$SOURCE" > "$FILE"
         OUT=$(mktemp --tmpdir  XXXXXX)
-        $CXX -std=c++2b $CXXFLAGS -Wall $FILE -o $OUT
+        # shellcheck disable=SC2086  # $CXXFLAGS may carry multiple flags; word-splitting intentional
+        $CXX -std=c++2b $CXXFLAGS -Wall "$FILE" -o "$OUT"
         $OUT
 
     - name: Build with coverage instrumentation and compilation database
@@ -65,17 +66,18 @@ jobs:
         printf "C++ compiler path: %s\n" "$COMPILER"
         $COMPILER --version
         printf "gcov version: %s\n" "$( $GCOV --version | head -1 )"
-        cmake --build . --target tests -- -j$(nproc)
+        cmake --build . --target tests -- -j"$(nproc)"
 
     - name: Generate coverage data with gcov
       shell: bash
       run: |
         cd .build
         ctest -L 'tests_p?fn' -j1 # generate .gcda files
-        $GCOV -pbc -r -s $( realpath .. ) $( find tests -type f -name '*.gcno' ) # generate .gcov files
+        # shellcheck disable=SC2046  # find emits one path per result; intentional word-splitting into gcov arg list
+        $GCOV -pbc -r -s "$(realpath ..)" $(find tests -type f -name '*.gcno') # generate .gcov files
 
     - name: Upload .gcov files
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4.6.0
       with:
         fail_ci_if_error: true
         disable_search: false
