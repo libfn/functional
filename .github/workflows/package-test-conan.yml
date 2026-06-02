@@ -31,11 +31,14 @@ jobs:
       matrix:
         include:
           - name: cxx23
-            options: '-o "&:disable_cxx23=False" -s "compiler.cppstd=23"'
+            disable_cxx23: 'False'
+            cppstd: '23'
           - name: cxx20
-            options: '-o "&:disable_cxx23=True" -s "compiler.cppstd=20"'
+            disable_cxx23: 'True'
+            cppstd: '20'
           - name: cxx20-std23
-            options: '-o "&:disable_cxx23=True" -s "compiler.cppstd=23"'
+            disable_cxx23: 'True'
+            cppstd: '23'
 
     steps:
     - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -46,4 +49,7 @@ jobs:
         echo "tools.cmake.cmaketoolchain:generator=Ninja" >> ~/.conan2/global.conf
 
     - name: Test ${{ matrix.name }} packaging
-      run: conan create . --build=missing ${{ matrix.options }}
+      run: |
+        conan create . --build=missing \
+          -o "&:disable_cxx23=${{ matrix.disable_cxx23 }}" \
+          -s "compiler.cppstd=${{ matrix.cppstd }}"
