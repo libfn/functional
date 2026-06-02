@@ -26,9 +26,7 @@ function(append_compilation_options)
 
         # MSVC's <eh.h> declares a global `unexpected` that shadows the std::expected/std::unexpected
         # vocabulary used by libfn; _HAS_CXX23 (MSVC STL's C++23-mode switch) drops the legacy declaration.
-        # REQUIRED: without it tests/pfn/expected.cpp fails to compile on MSVC /std:c++20
-        # (C4430 "int assumed" on `unexpected`). Must be INTERFACE because <eh.h> may be included
-        # before any libfn header. (Redundant once MSVC builds use /std:c++23, where _HAS_CXX23 is auto-on.)
+        # Must be INTERFACE because <eh.h> may be included before any libfn header.
         target_compile_definitions(${Options_NAME} INTERFACE
             $<$<CXX_COMPILER_ID:MSVC>:_HAS_CXX23>)
     endif()
@@ -58,9 +56,8 @@ function(append_compilation_options)
             target_compile_options(${Options_NAME} PRIVATE $<IF:$<CONFIG:Debug>,/Od,/O2>)
         elseif(CMAKE_CXX_COMPILER_ID MATCHES "(GNU|(Apple)?Clang)")
             target_compile_options(${Options_NAME} PRIVATE
-                $<$<CONFIG:Debug>:-O0>
+                $<IF:$<CONFIG:Debug>,-O0,-O2>
                 $<$<CONFIG:Debug>:-fno-omit-frame-pointer>
-                $<$<NOT:$<CONFIG:Debug>>:-O2>
             )
 
             if(LIBFN_SANITIZERS)
