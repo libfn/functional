@@ -50,14 +50,14 @@ jobs:
       env:
         VCPKG_LIBFN_SOURCE_PATH: ${{ github.workspace }}
       run: |
-        $VCPKG_INSTALLATION_ROOT/vcpkg install "${{ matrix.install_spec }}" \
+        "$VCPKG_INSTALLATION_ROOT/vcpkg" install "${{ matrix.install_spec }}" \
           --overlay-ports=ports \
           --triplet x64-linux
 
     - name: Configure and build ${{ matrix.name }}
       run: |
         cmake -B .build test_package \
-          -DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake \
+          "-DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" \
           -DVCPKG_TARGET_TRIPLET=x64-linux ${{ matrix.cmake_extra }}
         cmake --build .build
 

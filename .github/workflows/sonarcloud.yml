@@ -35,13 +35,14 @@ jobs:
         printf "C++ compiler path: %s\n" "$COMPILER"
         $COMPILER --version
         printf "gcov version: %s\n" "$( $GCOV --version | head -1 )"
-        cmake --build . --target tests -- -j$(nproc)
+        cmake --build . --target tests -- -j"$(nproc)"
 
     - name: Generate coverage data with gcov
       run: |
         cd .build
         ctest -L 'tests_(p?fn)' -j1 # generate .gcda files
-        $GCOV -pbc -r -s $(realpath ..) $(find tests -type f -name '*.gcno') # generate .gcov files
+        # shellcheck disable=SC2046  # find emits one path per result; intentional word-splitting into gcov arg list
+        $GCOV -pbc -r -s "$(realpath ..)" $(find tests -type f -name '*.gcno') # generate .gcov files
 
     # Pull requests opened from forks do not receive repository secrets, so
     # the SonarScanner cannot run here. For those events, package the build
@@ -73,6 +74,7 @@ jobs:
         printf "%s\n" "$PR_HEAD_SHA" > .sonar-pr/head_sha
         printf "%s\n" "$PR_HEAD_REF" > .sonar-pr/head_ref
         printf "%s\n" "$PR_BASE_REF" > .sonar-pr/base_ref
+        # shellcheck disable=SC2046  # find emits one path per result; intentional word-splitting into tar arg list
         tar -czf sonar-inputs.tar.gz \
           .build/compile_commands.json \
           $(find .build -name '*.gcov' -print) \

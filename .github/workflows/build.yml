@@ -152,12 +152,14 @@ jobs:
         mkdir .build
         cd .build
         if [[ "${{ matrix.compiler }}" == "appleclang" ]]; then
-          export CXX="$(which clang++)"
-          export CC="$(which clang)"
+          CXX="$(which clang++)"
+          CC="$(which clang)"
+          export CXX CC
         fi
         if [[ "${{ matrix.compiler }}" == "clang" ]]; then
-          export CXX="$(brew --prefix llvm@${{ matrix.clangrelease }})/bin/clang++"
-          export CC="$(brew --prefix llvm@${{ matrix.clangrelease }})/bin/clang"
+          CXX="$(brew --prefix llvm@${{ matrix.clangrelease }})/bin/clang++"
+          CC="$(brew --prefix llvm@${{ matrix.clangrelease }})/bin/clang"
+          export CXX CC
         fi
         cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ${{ matrix.mode == 'cxx20' && '-DDISABLE_CXX23=ON' || '' }} ..
         COMPILER=$( grep -iE "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )

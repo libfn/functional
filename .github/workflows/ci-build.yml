@@ -62,9 +62,11 @@ jobs:
         run: |
           image=${{ matrix.image }}
           name=${image%%:*}
-          echo "IMAGE=${name}" >> "${GITHUB_ENV}"
-          echo "RELEASE=${image##*:}" >> "${GITHUB_ENV}"
-          echo "COMPILER=${name%%-*}" >> "${GITHUB_ENV}"
+          {
+            echo "IMAGE=${name}"
+            echo "RELEASE=${image##*:}"
+            echo "COMPILER=${name%%-*}"
+          } >> "${GITHUB_ENV}"
 
       - name: Determine Debian version
         run: |
