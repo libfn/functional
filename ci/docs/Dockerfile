@@ -1,5 +1,6 @@
 ARG GCC_RELEASE=15
-ARG GCC_DIST=${GCC_RELEASE}-trixie
+ARG DEBIAN_VERSION=trixie
+ARG GCC_DIST=${GCC_RELEASE}-${DEBIAN_VERSION}
 FROM gcc:${GCC_DIST} AS upstream
 RUN set -ex ;\
     find /usr/local/ -type f ;\
@@ -7,12 +8,11 @@ RUN set -ex ;\
     cat /etc/os-release ;\
     /usr/local/bin/gcc --version
 
-FROM debian:trixie AS build
+ARG DEBIAN_VERSION=trixie
+FROM debian:${DEBIAN_VERSION} AS build
 ARG DOXYGEN_RELEASE
 ARG ZNAI_RELEASE
 
-ENV CMAKE_GENERATOR=Ninja
-ENV CMAKE_BUILD_TYPE=Debug
 ARG DEBIAN_FRONTEND=noninteractive
 WORKDIR /work
 RUN set -ex ;\
@@ -22,6 +22,7 @@ RUN set -ex ;\
       python3 bison flex libiconv-hook-dev unzip ;\
     apt-get clean
 
+ENV CMAKE_GENERATOR=Ninja
 RUN set -ex ;\
     : "${DOXYGEN_RELEASE:?DOXYGEN_RELEASE is not set}" ;\
     DIST="https://www.doxygen.nl/files" ;\
@@ -45,7 +46,8 @@ RUN set -ex ;\
     mv znai_tmp/dist /opt/znai ;\
     rm -rf ${FILE} znai_tmp
 
-FROM debian:trixie
+ARG DEBIAN_VERSION=trixie
+FROM debian:${DEBIAN_VERSION}
 COPY --from=upstream /usr/local/ /usr/local/
 COPY --from=upstream /etc/ld.so.conf.d/ /etc/ld.so.conf.d/
 COPY --from=build /usr/local/ /usr/local/
@@ -73,20 +75,20 @@ RUN set -ex ;\
     update-alternatives --auto cc ;\
     update-alternatives --auto gcc
 
-ENV PATH=${PATH}:/opt/znai
-ENV CC=/usr/bin/gcc
-ENV CXX=/usr/bin/g++
-ENV CMAKE_GENERATOR=Ninja
-ENV CMAKE_BUILD_TYPE=Debug
+ARG JAVA_VERSION=openjdk-21-jdk
 ARG DEBIAN_FRONTEND=noninteractive
 RUN set -ex ;\
     apt-get update ;\
     apt-get install -y --no-install-recommends \
       ca-certificates gnupg unzip wget vim curl jq \
       cmake ninja-build binutils libc6-dev git \
-      openjdk-21-jdk graphviz  ;\
+      ${JAVA_VERSION} graphviz  ;\
     apt-get clean
 
+ENV CC=/usr/bin/gcc
+ENV CXX=/usr/bin/g++
+ENV CMAKE_GENERATOR=Ninja
+ENV CMAKE_BUILD_TYPE=Debug
 ARG CATCH_RELEASE
 WORKDIR /work
 COPY build-catch.sh /work/build-catch.sh
@@ -94,3 +96,4 @@ RUN set -ex ;\
     sh /work/build-catch.sh ;\
     rm /work/build-catch.sh
 ENV CMAKE_FIND_CATCH2=1
+ENV PATH=${PATH}:/opt/znai
