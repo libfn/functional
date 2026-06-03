@@ -52,18 +52,17 @@ function(append_compilation_options)
             # GCC's constexpr evaluator is incompatible with UBSan instrumentation in libstdc++, so GCC stays on
             # address (+leak). Clang/AppleClang gets address,undefined (+leak on non-Darwin).
             # Static-link the runtimes: GCC needs per-sanitizer flags; Clang takes the umbrella -static-libsan.
-            # On macOS the sanitizer runtimes ship as dylibs only, so skip the static link there.
-            # GCC on macOS is filtered out by the precondition in CMakeLists.txt (libasan link path issues).
+            # On macOS we support only AppleClang and libclang_rt is bundled as dylib, so no static-link flag.
             target_compile_options(${Options_NAME} PRIVATE
                 $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>>:-fsanitize=address,leak>
                 $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:Clang,AppleClang>,$<NOT:$<PLATFORM_ID:Darwin>>>:-fsanitize=address,undefined,leak>
-                $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:Clang,AppleClang>,$<PLATFORM_ID:Darwin>>:-fsanitize=address,undefined>
+                $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:AppleClang>,$<PLATFORM_ID:Darwin>>:-fsanitize=address,undefined>
                 $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>,$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,14>>:-funreachable-traps>
             )
             target_link_options(${Options_NAME} PRIVATE
                 $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>>:-fsanitize=address,leak>
                 $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:Clang,AppleClang>,$<NOT:$<PLATFORM_ID:Darwin>>>:-fsanitize=address,undefined,leak>
-                $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:Clang,AppleClang>,$<PLATFORM_ID:Darwin>>:-fsanitize=address,undefined>
+                $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:AppleClang>,$<PLATFORM_ID:Darwin>>:-fsanitize=address,undefined>
                 $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>>:-static-libasan;-static-liblsan>
                 $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:Clang,AppleClang>,$<NOT:$<PLATFORM_ID:Darwin>>>:-static-libsan>
             )
