@@ -102,6 +102,9 @@ jobs:
 
   macos:
     runs-on: macos-${{ matrix.compiler.osver }}
+    env:
+      # Silence clang -Woverriding-deployment-version warnings.
+      MACOSX_DEPLOYMENT_TARGET: ${{ matrix.compiler.osver }}.0
     strategy:
       fail-fast: false
       matrix:
