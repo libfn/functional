@@ -32,107 +32,71 @@ function(append_compilation_options)
     endif()
 
     if(Options_WARNINGS)
-        if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-            # disable C4456: declaration of 'b' hides previous local declaration
-            # disable C4244: 'initializing': conversion from '_Ty' to '_Ty', possible loss of data
-            # disable C4101: 'e': unreferenced local variable
-            target_compile_options(${Options_NAME} PRIVATE /W4 /wd4456 /wd4244 /wd4101)
-        elseif(CMAKE_CXX_COMPILER_ID MATCHES "(GNU|(Apple)?Clang)")
-            target_compile_options(${Options_NAME} PRIVATE -Wall -Wextra -Wpedantic -Werror)
-
-            # Allow __COUNTER__ in Catch2 which is not a C++ preprocessor feature.
-            if(CMAKE_CXX_COMPILER_ID MATCHES "(Apple)?Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19)
-                target_compile_options(${Options_NAME} PRIVATE -Wno-c2y-extensions)
-            endif()
-        endif()
+        # MSVC: disable C4456 (decl hides previous local), C4244 (narrowing _Ty→_Ty), C4101 (unref local var).
+        # Clang ≥19: -Wno-c2y-extensions allows Catch2's use of __COUNTER__ (not a C++ preprocessor feature).
+        target_compile_options(${Options_NAME} PRIVATE
+            $<$<CXX_COMPILER_ID:MSVC>:/W4>
+            $<$<CXX_COMPILER_ID:MSVC>:/wd4456>
+            $<$<CXX_COMPILER_ID:MSVC>:/wd4244>
+            $<$<CXX_COMPILER_ID:MSVC>:/wd4101>
+            $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wall>
+            $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wextra>
+            $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wpedantic>
+            $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Werror>
+            $<$<AND:$<CXX_COMPILER_ID:Clang,AppleClang>,$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,19>>:-Wno-c2y-extensions>
+        )
     endif()
 
     if(Options_OPTIMIZATION)
-        if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-            if(LIBFN_SANITIZERS)
-                message(FATAL_ERROR "LIBFN_SANITIZERS=ON is not supported with MSVC")
-            endif()
+        target_compile_options(${Options_NAME} PRIVATE
+            $<$<CXX_COMPILER_ID:MSVC>:$<IF:$<CONFIG:Debug>,/Od,/O2>>
+            $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:$<IF:$<CONFIG:Debug>,-O0,-O2>>
+            $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU,Clang,AppleClang>>:-fno-omit-frame-pointer>
+        )
 
-            target_compile_options(${Options_NAME} PRIVATE $<IF:$<CONFIG:Debug>,/Od,/O2>)
-        elseif(CMAKE_CXX_COMPILER_ID MATCHES "(GNU|(Apple)?Clang)")
+        if(LIBFN_SANITIZERS)
+            # GCC's constexpr evaluator is incompatible with UBSan instrumentation in libstdc++, so GCC stays on
+            # address (+leak). Clang/AppleClang gets address,undefined (+leak on non-Darwin).
+            # Static-link the runtimes: GCC needs per-sanitizer flags; Clang takes the umbrella -static-libsan.
+            # On macOS we support only AppleClang and libclang_rt is bundled as dylib, so no static-link flag.
             target_compile_options(${Options_NAME} PRIVATE
-                $<IF:$<CONFIG:Debug>,-O0,-O2>
-                $<$<CONFIG:Debug>:-fno-omit-frame-pointer>
+                $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>>:-fsanitize=address,leak>
+                $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:Clang,AppleClang>,$<NOT:$<PLATFORM_ID:Darwin>>>:-fsanitize=address,undefined,leak>
+                $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:AppleClang>,$<PLATFORM_ID:Darwin>>:-fsanitize=address,undefined>
+                $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>,$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,14>>:-funreachable-traps>
             )
-
-            if(LIBFN_SANITIZERS)
-                # GCC constexpr evaluator is incompatible with UBSan instrumentation in libstdc++
-                if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-                    set(sanitizers address)
-                else()
-                    set(sanitizers address,undefined)
-                endif()
-                # LeakSanitizer is not supported on Darwin
-                if(NOT APPLE)
-                    string(APPEND sanitizers ",leak")
-                endif()
-
-                # Statically link the sanitizer runtimes that match ${sanitizers} above.
-                # Apple's clang ships sanitizer runtimes as dylibs only, so skip there.
-                # Clang only recognises the umbrella -static-libsan; GCC has per-sanitizer flags.
-                set(static_san_flags)
-                if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-                    if(sanitizers MATCHES "address")
-                        list(APPEND static_san_flags -static-libasan)
-                    endif()
-                    if(sanitizers MATCHES "leak")
-                        list(APPEND static_san_flags -static-liblsan)
-                    endif()
-                    if(sanitizers MATCHES "undefined")
-                        list(APPEND static_san_flags -static-libubsan)
-                    endif()
-                elseif(NOT APPLE)
-                    list(APPEND static_san_flags -static-libsan)
-                endif()
-
-                target_compile_options(${Options_NAME} PRIVATE
-                    $<$<CONFIG:Debug>:-fsanitize=${sanitizers}>
-                    $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>,$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,14>>:-funreachable-traps>
-                )
-                target_link_options(${Options_NAME} PRIVATE
-                    $<$<CONFIG:Debug>:-fsanitize=${sanitizers}>
-                    "$<$<CONFIG:Debug>:${static_san_flags}>"
-                )
-
-                unset(sanitizers)
-                unset(static_san_flags)
-            endif()
+            target_link_options(${Options_NAME} PRIVATE
+                $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>>:-fsanitize=address,leak>
+                $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:Clang,AppleClang>,$<NOT:$<PLATFORM_ID:Darwin>>>:-fsanitize=address,undefined,leak>
+                $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:AppleClang>,$<PLATFORM_ID:Darwin>>:-fsanitize=address,undefined>
+                $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>>:-static-libasan>
+                $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>>:-static-liblsan>
+                $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:Clang,AppleClang>,$<NOT:$<PLATFORM_ID:Darwin>>>:-static-libsan>
+            )
         endif()
     endif()
 
     if(Options_TESTS)
-        if(CMAKE_CXX_COMPILER_ID MATCHES "(GNU|(Apple)?Clang)")
-            target_compile_options(${Options_NAME} PRIVATE -fno-omit-frame-pointer)
+        # -Wno-redundant-move: allow std::move(std::as_const(x)) without warning in unit tests.
+        target_compile_options(${Options_NAME} PRIVATE
+            $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-fno-omit-frame-pointer>
+            $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wno-redundant-move>
+        )
 
-            # -Wno-redundant-move: want `std::move(std::as_const(x))` to be compiled without warnings in unit tests.
-            target_compile_options(${Options_NAME} PRIVATE -Wno-redundant-move)
+        if(LIBFN_COVERAGE)
+            add_code_coverage_to_target(${Options_NAME} PRIVATE)
 
-            if(LIBFN_COVERAGE)
-                add_code_coverage_to_target(${Options_NAME} PRIVATE)
-
-                # Some options may be redundant, but that's OK.
-                target_compile_options(${Options_NAME} PRIVATE -O0)
-
-                if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-                    target_compile_options(${Options_NAME} PRIVATE
-                        -fno-inline-small-functions
-                        -fno-default-inline
-                        -fno-early-inlining
-                        -fno-aggressive-loop-optimizations
-                        -fno-peephole
-                        -fno-unroll-loops
-                    )
-
-                    if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 14)
-                        target_compile_options(${Options_NAME} PRIVATE -funreachable-traps)
-                    endif()
-                endif()
-            endif()
+            # Some options may be redundant, but that's OK.
+            target_compile_options(${Options_NAME} PRIVATE
+                $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-O0>
+                $<$<CXX_COMPILER_ID:GNU>:-fno-inline-small-functions>
+                $<$<CXX_COMPILER_ID:GNU>:-fno-default-inline>
+                $<$<CXX_COMPILER_ID:GNU>:-fno-early-inlining>
+                $<$<CXX_COMPILER_ID:GNU>:-fno-aggressive-loop-optimizations>
+                $<$<CXX_COMPILER_ID:GNU>:-fno-peephole>
+                $<$<CXX_COMPILER_ID:GNU>:-fno-unroll-loops>
+                $<$<AND:$<CXX_COMPILER_ID:GNU>,$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,14>>:-funreachable-traps>
+            )
         endif()
     endif()
 endfunction()
