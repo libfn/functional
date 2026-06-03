@@ -29,50 +29,41 @@ jobs:
   test_vcpkg:
     runs-on:
       group: runners-intel
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: cxx23
+            install_spec: libfn
+            cmake_extra: ""
+          - name: cxx20
+            install_spec: "libfn[disable-cxx23]"
+            cmake_extra: ""
+          - name: cxx20-std23
+            install_spec: "libfn[disable-cxx23]"
+            cmake_extra: "-DCMAKE_CXX_STANDARD=23"
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
-    - name: Install libfn (C++23 enabled)
+    - name: Install libfn
       env:
         VCPKG_LIBFN_SOURCE_PATH: ${{ github.workspace }}
-      run: $VCPKG_INSTALLATION_ROOT/vcpkg install libfn
-        --overlay-ports=ports
-        --triplet x64-linux
-
-    - name: Test C++23 packaging
       run: |
-        cmake -B .build-cxx23 test_package \
-          -DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake \
-          -DVCPKG_TARGET_TRIPLET=x64-linux
-        cmake --build .build-cxx23
-        .build-cxx23/pfn_quine
-        .build-cxx23/fn_quine
+        "$VCPKG_INSTALLATION_ROOT/vcpkg" install "${{ matrix.install_spec }}" \
+          --overlay-ports=ports \
+          --triplet x64-linux
 
-    - name: Uninstall libfn before re-installing with C++23 disabled
-      run: $VCPKG_INSTALLATION_ROOT/vcpkg remove libfn
-        --triplet x64-linux
-
-    - name: Install libfn (C++23 disabled)
-      env:
-        VCPKG_LIBFN_SOURCE_PATH: ${{ github.workspace }}
-      run: $VCPKG_INSTALLATION_ROOT/vcpkg install "libfn[disable-cxx23]"
-        --overlay-ports=ports
-        --triplet x64-linux
-
-    - name: Test C++20 packaging
+    - name: Configure and build ${{ matrix.name }}
       run: |
-        cmake -B .build-cxx20 test_package \
-          -DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake \
-          -DVCPKG_TARGET_TRIPLET=x64-linux
-        cmake --build .build-cxx20
-        .build-cxx20/pfn_quine
+        cmake -B .build test_package \
+          "-DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" \
+          -DVCPKG_TARGET_TRIPLET=x64-linux ${{ matrix.cmake_extra }}
+        cmake --build .build
 
-    - name: Test C++20 packaging with C++23 compiler
-      run: |
-        cmake -B .build-cxx20-std23 test_package \
-          -DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake \
-          -DVCPKG_TARGET_TRIPLET=x64-linux \
-          -DCMAKE_CXX_STANDARD=23
-        cmake --build .build-cxx20-std23
-        .build-cxx20-std23/pfn_quine
+    - name: Run pfn_quine
+      run: .build/pfn_quine
+
+    - name: Run fn_quine
+      if: matrix.name == 'cxx23'
+      run: .build/fn_quine

@@ -9,9 +9,6 @@
 , disableCxx23 ? false
 }:
 
-let
-  catch2_local = pkgs.callPackage ./catch2_3.nix { inherit stdenv; };
-in
 stdenv.mkDerivation {
   name = "libfn";
 
@@ -27,7 +24,8 @@ stdenv.mkDerivation {
   ];
 
   nativeBuildInputs = [ cmake ninja ccache llvmPackages_21.clang-tools ];
-  buildInputs = [ catch2_local ];
+  # Rebuild catch2_3 with the consumer's stdenv so its stdlib ABI matches libfn's.
+  buildInputs = [ (pkgs.catch2_3.override { inherit stdenv; }) ];
   checkInputs = [ ];
 
   doCheck = enableTests;

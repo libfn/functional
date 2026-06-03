@@ -69,9 +69,9 @@ ENV CMAKE_FIND_CATCH2=1
 
 FROM base AS gcc-bazel
 ARG BAZEL_RELEASE
-ENV USE_BAZEL_FALLBACK_VERSION="warn:${BAZEL_RELEASE}"
 WORKDIR /work
 COPY fetch-bazel.sh /work/fetch-bazel.sh
 RUN set -ex ;\
     sh /work/fetch-bazel.sh ;\
     rm /work/fetch-bazel.sh
+ENV USE_BAZEL_FALLBACK_VERSION="warn:${BAZEL_RELEASE}"

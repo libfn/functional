@@ -39,9 +39,9 @@ jobs:
     runs-on:
       group: runners-arm64
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
-    - uses: fossas/fossa-action@v1
+    - uses: fossas/fossa-action@ff70fe9fe17cbd2040648f1c45e8ec4e4884dcf3 # v1.9.0
       with:
         api-key: ${{ secrets.FOSSA_API_KEY }}
 
@@ -52,7 +52,7 @@ jobs:
     env:
       LICENCE_FILE: LICENSE.md
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         sparse-checkout: .
         fetch-depth: 0
@@ -60,7 +60,7 @@ jobs:
     - name: Compare licence file
       id: assert
       run:
-        git diff --exit-code origin/${{ github.base_ref }} -- ${LICENCE_FILE}
+        git diff --exit-code origin/${{ github.base_ref }} -- "${LICENCE_FILE}"
 
     - name: What happened?
       if: failure() && steps.assert.outcome == 'failure'
