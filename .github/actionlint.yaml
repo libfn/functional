@@ -1,0 +1,9 @@
+# Custom self-hosted runner labels — WarpBuild cloud runners.
+self-hosted-runner:
+  labels:
+    - warp-ubuntu-latest-arm64-2x
+    - warp-ubuntu-latest-x64-4x
+    - warp-macos-14-arm64-6x
+    - warp-macos-15-arm64-6x
+    - warp-macos-26-arm64-6x
+    - warp-windows-latest-x64-4x

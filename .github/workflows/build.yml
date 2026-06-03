@@ -31,8 +31,7 @@ on:
 jobs:
   linux:
     timeout-minutes: 10
-    runs-on:
-      group: runners-arm64
+    runs-on: warp-ubuntu-latest-arm64-2x
     strategy:
       fail-fast: false
       matrix:
@@ -103,11 +102,12 @@ jobs:
 
   macos:
     timeout-minutes: 10
-    runs-on: macos-${{ matrix.compiler.osver }}
+    runs-on: warp-macos-${{ matrix.compiler.osver }}-arm64-6x
     env:
       # Silence clang -Woverriding-deployment-version warnings.
       MACOSX_DEPLOYMENT_TARGET: ${{ matrix.compiler.osver }}.0
     strategy:
+      max-parallel: 10
       fail-fast: false
       matrix:
         mode:
@@ -211,7 +211,7 @@ jobs:
             - Release
           vs:
             - generator: "Visual Studio 17 2022"
-              runner: "windows-2022"
+              runner: "warp-windows-latest-x64-4x"
             - generator: "Visual Studio 18 2026"
               runner: "windows-2025-vs2026"
 
@@ -239,8 +239,7 @@ jobs:
 
   nixos:
     timeout-minutes: 10
-    runs-on:
-      group: runners-intel
+    runs-on: warp-ubuntu-latest-x64-4x
     strategy:
       fail-fast: false
       matrix:
