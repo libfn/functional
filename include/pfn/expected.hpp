@@ -199,7 +199,20 @@ template <class T, class E> union _storage_union_t {
   T v_;
   E e_;
 
-  constexpr explicit _storage_union_t() noexcept {} // Warning, uinitialized union
+  // Runtime-dispatch ctor: chooses which member to construct based on `s`.
+  // The union always exits a constructor with exactly one active member, so no
+  // "uninitialized union" intermediate state is observable to the optimizer.
+  // The outer _storage(bool, S&&) ctor constrains S to be a _storage_union_t.
+  template <typename S>
+  constexpr _storage_union_t(bool s, S &&src) //
+      noexcept(::std::is_nothrow_constructible_v<T, decltype(FWD(src).v_)>
+               && ::std::is_nothrow_constructible_v<E, decltype(FWD(src).e_)>)
+  {
+    if (s)
+      ::std::construct_at(::std::addressof(v_), FWD(src).v_);
+    else
+      ::std::construct_at(::std::addressof(e_), FWD(src).e_);
+  }
 
   constexpr _storage_union_t(_storage_union_t const &) = delete;
   constexpr _storage_union_t(_storage_union_t const &) //
@@ -297,7 +310,19 @@ template <class E> union _storage_union_t<void, E> {
   _dummy_t v_;
   E e_;
 
-  constexpr explicit _storage_union_t() noexcept {} // Warning, uinitialized union
+  // Runtime-dispatch ctor: chooses which member to construct based on `s`.
+  // The union always exits a constructor with exactly one active member, so no
+  // "uninitialized union" intermediate state is observable to the optimizer.
+  // The outer _storage(bool, S&&) ctor constrains S to be a _storage_union_t.
+  template <typename S>
+  constexpr _storage_union_t(bool s, S &&src) //
+      noexcept(::std::is_nothrow_constructible_v<E, decltype(FWD(src).e_)>)
+  {
+    if (s)
+      ::std::construct_at(::std::addressof(v_));
+    else
+      ::std::construct_at(::std::addressof(e_), FWD(src).e_);
+  }
 
   constexpr _storage_union_t(_storage_union_t const &) = delete;
   constexpr _storage_union_t(_storage_union_t const &) //
@@ -420,19 +445,15 @@ template <class T, class E, class Policy> struct _storage {
           || ::std::is_nothrow_move_constructible_v<E>)>;
 
   // Shared construction helper used by both the converting copy/move ctors
-  // and same-type non-trivial copy/move ctors
+  // and same-type non-trivial copy/move ctors. Delegates the union's
+  // member selection to _storage_union_t(bool, S&&), so storage_ is fully
+  // constructed by exactly one constructor call (no default-uninitialized
+  // intermediate state).
   template <typename S>
   constexpr explicit _storage(bool s, S &&src)
     requires(_is_storage_union<std::remove_cvref_t<S>>)
-      : storage_(), set_(s)
+      : storage_(s, FWD(src)), set_(s)
   {
-    if (set_) {
-      if constexpr (::std::is_void_v<T>)
-        ::std::construct_at(::std::addressof(storage_.v_)); // LCOV_EXCL_LINE trivially constructible
-      else
-        ::std::construct_at(::std::addressof(storage_.v_), FWD(src).v_);
-    } else
-      ::std::construct_at(::std::addressof(storage_.e_), FWD(src).e_);
   }
 
   // The wrapper's default, value (U&&) and unexpected<G> converting ctors forward directly to the
