@@ -101,7 +101,7 @@ jobs:
         ctest --output-on-failure
 
   macos:
-    runs-on: macos-${{ matrix.osver }}
+    runs-on: macos-${{ matrix.compiler.osver }}
     strategy:
       fail-fast: false
       matrix:
@@ -112,45 +112,34 @@ jobs:
           - Debug
           - Release
         compiler:
-          - appleclang
-          - clang
-        osver:
-          - 14
-          - 15
-          - 26
-        clangrelease:
-          - NA
-          - 18
-          - 20
-        exclude:
-          - compiler: clang
+          - name: appleclang
             osver: 14
-          - compiler: clang
+          - name: appleclang
             osver: 15
-            clangrelease: 20
-          - compiler: clang
+          - name: appleclang
             osver: 26
-            clangrelease: 18
-          - compiler: clang
-            clangrelease: NA
-          - compiler: appleclang
-            clangrelease: 18
-          - compiler: appleclang
-            clangrelease: 20
+          - name: clang
+            osver: 15
+            release: 18
+          - name: clang
+            osver: 26
+            release: 20
+        exclude:
           - mode: cxx23
-            compiler: appleclang
-            osver: 14
+            compiler:
+              name: appleclang
+              osver: 14
         include:
           - mode: all
             configuration: Debug
-            compiler: appleclang
-            osver: 15
-            clangrelease: NA
+            compiler:
+              name: appleclang
+              osver: 15
           - mode: all
             configuration: Release
-            compiler: appleclang
-            osver: 15
-            clangrelease: NA
+            compiler:
+              name: appleclang
+              osver: 15
     steps:
     - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
@@ -158,14 +147,14 @@ jobs:
       run: |
         mkdir .build
         cd .build
-        if [[ "${{ matrix.compiler }}" == "appleclang" ]]; then
+        if [[ "${{ matrix.compiler.name }}" == "appleclang" ]]; then
           CXX="$(which clang++)"
           CC="$(which clang)"
           export CXX CC
         fi
-        if [[ "${{ matrix.compiler }}" == "clang" ]]; then
-          CXX="$(brew --prefix llvm@${{ matrix.clangrelease }})/bin/clang++"
-          CC="$(brew --prefix llvm@${{ matrix.clangrelease }})/bin/clang"
+        if [[ "${{ matrix.compiler.name }}" == "clang" ]]; then
+          CXX="$(brew --prefix llvm@${{ matrix.compiler.release }})/bin/clang++"
+          CC="$(brew --prefix llvm@${{ matrix.compiler.release }})/bin/clang"
           export CXX CC
         fi
         cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ${{ matrix.mode == 'cxx20' && '-DDISABLE_CXX23=ON' || '' }} ..
