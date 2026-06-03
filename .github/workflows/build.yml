@@ -107,7 +107,7 @@ jobs:
       # Silence clang -Woverriding-deployment-version warnings.
       MACOSX_DEPLOYMENT_TARGET: ${{ matrix.compiler.osver }}.0
     strategy:
-      max-parallel: 5
+      max-parallel: 10
       fail-fast: false
       matrix:
         mode:
