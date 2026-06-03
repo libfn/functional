@@ -57,7 +57,10 @@ endif()
 option(LIBFN_TESTS    "Enable unit tests and examples." ON)
 
 # Do not enable sanitizers by default when our project is not a top level or when it is not Debug.
-if(NOT PROJECT_IS_TOP_LEVEL OR CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+# Also off by default for MSVC (unsupported) and Homebrew GCC on macOS (libasan link path issues).
+if(NOT PROJECT_IS_TOP_LEVEL
+        OR CMAKE_CXX_COMPILER_ID MATCHES "MSVC"
+        OR (CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND APPLE))
     set(sanitizers_default OFF)
 elseif(NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(sanitizers_default ON)
@@ -81,6 +84,10 @@ endif()
 
 if(LIBFN_SANITIZERS AND CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
     message(FATAL_ERROR "LIBFN_SANITIZERS=ON is not supported with MSVC")
+endif()
+
+if(LIBFN_SANITIZERS AND CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND APPLE)
+    message(FATAL_ERROR "LIBFN_SANITIZERS=ON is not supported with GCC on macOS")
 endif()
 
 if(PROJECT_IS_TOP_LEVEL)
