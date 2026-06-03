@@ -49,10 +49,6 @@ function(append_compilation_options)
 
     if(Options_OPTIMIZATION)
         if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-            if(LIBFN_SANITIZERS)
-                message(FATAL_ERROR "LIBFN_SANITIZERS=ON is not supported with MSVC")
-            endif()
-
             target_compile_options(${Options_NAME} PRIVATE $<IF:$<CONFIG:Debug>,/Od,/O2>)
         elseif(CMAKE_CXX_COMPILER_ID MATCHES "(GNU|(Apple)?Clang)")
             target_compile_options(${Options_NAME} PRIVATE
