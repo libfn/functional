@@ -121,15 +121,22 @@ jobs:
         clangrelease:
           - NA
           - 18
+          - 20
         exclude:
           - compiler: clang
             osver: 14
           - compiler: clang
+            osver: 15
+            clangrelease: 20
+          - compiler: clang
             osver: 26
+            clangrelease: 18
           - compiler: clang
             clangrelease: NA
           - compiler: appleclang
             clangrelease: 18
+          - compiler: appleclang
+            clangrelease: 20
           - mode: cxx23
             compiler: appleclang
             osver: 14
