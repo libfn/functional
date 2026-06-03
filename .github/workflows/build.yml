@@ -31,8 +31,7 @@ on:
 jobs:
   linux:
     timeout-minutes: 10
-    runs-on:
-      group: runners-arm64
+    runs-on: warp-ubuntu-latest-arm64-4x
     strategy:
       fail-fast: false
       matrix:
@@ -239,8 +238,7 @@ jobs:
 
   nixos:
     timeout-minutes: 10
-    runs-on:
-      group: runners-intel
+    runs-on: warp-ubuntu-latest-x64-4x
     strategy:
       fail-fast: false
       matrix:
