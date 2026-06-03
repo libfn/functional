@@ -35,8 +35,14 @@ function(append_compilation_options)
         # MSVC: disable C4456 (decl hides previous local), C4244 (narrowing _Ty→_Ty), C4101 (unref local var).
         # Clang ≥19: -Wno-c2y-extensions allows Catch2's use of __COUNTER__ (not a C++ preprocessor feature).
         target_compile_options(${Options_NAME} PRIVATE
-            $<$<CXX_COMPILER_ID:MSVC>:/W4;/wd4456;/wd4244;/wd4101>
-            $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wall;-Wextra;-Wpedantic;-Werror>
+            $<$<CXX_COMPILER_ID:MSVC>:/W4>
+            $<$<CXX_COMPILER_ID:MSVC>:/wd4456>
+            $<$<CXX_COMPILER_ID:MSVC>:/wd4244>
+            $<$<CXX_COMPILER_ID:MSVC>:/wd4101>
+            $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wall>
+            $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wextra>
+            $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wpedantic>
+            $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Werror>
             $<$<AND:$<CXX_COMPILER_ID:Clang,AppleClang>,$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,19>>:-Wno-c2y-extensions>
         )
     endif()
@@ -63,7 +69,8 @@ function(append_compilation_options)
                 $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>>:-fsanitize=address,leak>
                 $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:Clang,AppleClang>,$<NOT:$<PLATFORM_ID:Darwin>>>:-fsanitize=address,undefined,leak>
                 $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:AppleClang>,$<PLATFORM_ID:Darwin>>:-fsanitize=address,undefined>
-                $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>>:-static-libasan;-static-liblsan>
+                $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>>:-static-libasan>
+                $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>>:-static-liblsan>
                 $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:Clang,AppleClang>,$<NOT:$<PLATFORM_ID:Darwin>>>:-static-libsan>
             )
         endif()
@@ -72,7 +79,8 @@ function(append_compilation_options)
     if(Options_TESTS)
         # -Wno-redundant-move: allow std::move(std::as_const(x)) without warning in unit tests.
         target_compile_options(${Options_NAME} PRIVATE
-            $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-fno-omit-frame-pointer;-Wno-redundant-move>
+            $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-fno-omit-frame-pointer>
+            $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wno-redundant-move>
         )
 
         if(LIBFN_COVERAGE)
@@ -81,7 +89,12 @@ function(append_compilation_options)
             # Some options may be redundant, but that's OK.
             target_compile_options(${Options_NAME} PRIVATE
                 $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-O0>
-                $<$<CXX_COMPILER_ID:GNU>:-fno-inline-small-functions;-fno-default-inline;-fno-early-inlining;-fno-aggressive-loop-optimizations;-fno-peephole;-fno-unroll-loops>
+                $<$<CXX_COMPILER_ID:GNU>:-fno-inline-small-functions>
+                $<$<CXX_COMPILER_ID:GNU>:-fno-default-inline>
+                $<$<CXX_COMPILER_ID:GNU>:-fno-early-inlining>
+                $<$<CXX_COMPILER_ID:GNU>:-fno-aggressive-loop-optimizations>
+                $<$<CXX_COMPILER_ID:GNU>:-fno-peephole>
+                $<$<CXX_COMPILER_ID:GNU>:-fno-unroll-loops>
                 $<$<AND:$<CXX_COMPILER_ID:GNU>,$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,14>>:-funreachable-traps>
             )
         endif()
