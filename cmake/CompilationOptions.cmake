@@ -51,8 +51,8 @@ function(append_compilation_options)
         if(LIBFN_SANITIZERS)
             # GCC's constexpr evaluator is incompatible with UBSan instrumentation in libstdc++, so GCC stays on
             # address-only (+leak on non-Darwin). Clang/AppleClang gets address,undefined (+leak on non-Darwin).
-            # Static-link the runtimes: GCC needs per-sanitizer flags; Clang takes the umbrella -static-libsan;
-            # Apple's clang ships sanitizer runtimes as dylibs only, so skip the static link there.
+            # Static-link the runtimes: GCC needs per-sanitizer flags; Clang takes the umbrella -static-libsan.
+            # On MacOS the sanitizer runtimes ship as dylibs only, so skip the static link there.
             target_compile_options(${Options_NAME} PRIVATE
                 $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>,$<NOT:$<PLATFORM_ID:Darwin>>>:-fsanitize=address,leak>
                 $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>,$<PLATFORM_ID:Darwin>>:-fsanitize=address>
@@ -66,7 +66,6 @@ function(append_compilation_options)
                 $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:Clang,AppleClang>,$<NOT:$<PLATFORM_ID:Darwin>>>:-fsanitize=address,undefined,leak>
                 $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:Clang,AppleClang>,$<PLATFORM_ID:Darwin>>:-fsanitize=address,undefined>
                 $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>,$<NOT:$<PLATFORM_ID:Darwin>>>:-static-libasan;-static-liblsan>
-                $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>,$<PLATFORM_ID:Darwin>>:-static-libasan>
                 $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:Clang,AppleClang>,$<NOT:$<PLATFORM_ID:Darwin>>>:-static-libsan>
             )
         endif()
