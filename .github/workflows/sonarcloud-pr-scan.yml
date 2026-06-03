@@ -36,7 +36,7 @@ jobs:
     steps:
     # Download the artifact outside the workspace so the subsequent checkout does not wipe it.
     - name: Download SonarCloud inputs artifact
-      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
         name: sonarcloud-pr-inputs
         github-token: ${{ secrets.GITHUB_TOKEN }}
