@@ -13,6 +13,5 @@ cc_library(
     name = "fn",
     hdrs = glob(["include/fn/**/*.hpp"]),
     includes = ["include"],
-    # TODO uncomment once fn is reimplemented in terms of pfn.
-    # deps = [":pfn"],
+    deps = [":pfn"],
 )
