@@ -31,7 +31,7 @@ on:
 jobs:
   linux:
     timeout-minutes: 10
-    runs-on: warp-ubuntu-latest-arm64-4x
+    runs-on: warp-ubuntu-latest-arm64-2x
     strategy:
       fail-fast: false
       matrix:
@@ -107,6 +107,7 @@ jobs:
       # Silence clang -Woverriding-deployment-version warnings.
       MACOSX_DEPLOYMENT_TARGET: ${{ matrix.compiler.osver }}.0
     strategy:
+      max-parallel: 5
       fail-fast: false
       matrix:
         mode:
