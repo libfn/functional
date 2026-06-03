@@ -30,6 +30,7 @@ on:
 
 jobs:
   linux:
+    timeout-minutes: 10
     runs-on:
       group: runners-arm64
     strategy:
@@ -101,6 +102,7 @@ jobs:
         ctest --output-on-failure
 
   macos:
+    timeout-minutes: 10
     runs-on: macos-${{ matrix.compiler.osver }}
     env:
       # Silence clang -Woverriding-deployment-version warnings.
@@ -197,6 +199,7 @@ jobs:
         ctest --output-on-failure
 
   windows:
+      timeout-minutes: 10
       runs-on: ${{ matrix.vs.runner }}
       strategy:
         fail-fast: false
@@ -235,6 +238,7 @@ jobs:
           ctest -L ${{ matrix.mode }} -C ${{ matrix.configuration }} --output-on-failure
 
   nixos:
+    timeout-minutes: 10
     runs-on:
       group: runners-intel
     strategy:
