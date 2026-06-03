@@ -1,6 +1,4 @@
 # Custom self-hosted runner labels — WarpBuild cloud runners.
-# actionlint doesn't ship these in its built-in list and would otherwise warn
-# "label is unknown" on every runs-on that uses them.
 self-hosted-runner:
   labels:
     - warp-ubuntu-latest-arm64-4x
