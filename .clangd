@@ -1,6 +1,6 @@
 CompileFlags:
   Add: [-Wall, -Wextra, -Wpedantic, -Wno-missing-braces, -Wno-c2y-extensions]
-  Remove: -W*
+  Remove: [-W*, -funreachable-traps]
   Compiler: clang++
 Diagnostics:
   ClangTidy:
