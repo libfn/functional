@@ -201,8 +201,8 @@ template <class T, class E> union _storage_union_t {
 
   template <typename S>
   constexpr explicit _storage_union_t(bool s, S &&src) //
-      noexcept(::std::is_nothrow_constructible_v<T, decltype(FWD(src).v_)>
-               && ::std::is_nothrow_constructible_v<E, decltype(FWD(src).e_)>)
+      noexcept(::std::is_nothrow_constructible_v<T, decltype((FWD(src).v_))>
+               && ::std::is_nothrow_constructible_v<E, decltype((FWD(src).e_))>)
   {
     if (s)
       ::std::construct_at(::std::addressof(v_), FWD(src).v_);
@@ -308,7 +308,7 @@ template <class E> union _storage_union_t<void, E> {
 
   template <typename S>
   constexpr explicit _storage_union_t(bool s, S &&src) //
-      noexcept(::std::is_nothrow_constructible_v<E, decltype(FWD(src).e_)>)
+      noexcept(::std::is_nothrow_constructible_v<E, decltype((FWD(src).e_))>)
   {
     if (s)
       ::std::construct_at(::std::addressof(v_));
