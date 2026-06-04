@@ -4,23 +4,23 @@
 // or copy at https://opensource.org/licenses/ISC
 
 #include "catch2/catch_test_macros.hpp"
-#ifndef PFN_TEST_VALIDATION
-// TODO: Add death tests. Until then, empty definition to avoid false "no coverage" reports
+
+#ifndef PFN_TEST_NESTED
+
+// TODO : Add death tests.Until then, empty definition to avoid false "no coverage" reports
 #define LIBFN_ASSERT(...)
 #include <pfn/expected.hpp>
+
 using pfn::bad_expected_access;
 using pfn::expected;
 using pfn::unexpect;
 using pfn::unexpect_t;
 using pfn::unexpected;
-#else
-#include <expected>
-using std::bad_expected_access;
-using std::expected;
-using std::unexpect;
-using std::unexpect_t;
-using std::unexpected;
+
 #endif
+// When nested via PFN_TEST_NESTED (e.g expected_validation.cpp), the wrapper TU
+// already includes the necessary header(s) and brings the relevant aliases into the
+// global namespace to select right set of types expected as the subject under test.
 
 #include <util/helper_types.hpp>
 

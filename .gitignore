@@ -10,6 +10,7 @@ result*
 .devcontainer/
 .venv/
 .vscode/
+.claude*/
 *.iws
 *.swp
 *.swo
