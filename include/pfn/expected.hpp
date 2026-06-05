@@ -1181,7 +1181,7 @@ public:
       : _base(s.set_, FWD(s).storage_)
   {
   }
-  constexpr expected(expected &&s)
+  constexpr expected(expected &&s) noexcept
     requires(::std::is_move_constructible_v<T> && ::std::is_move_constructible_v<E>
              && ::std::is_trivially_move_constructible_v<T> && ::std::is_trivially_move_constructible_v<E>)
   = default;
@@ -1239,7 +1239,7 @@ public:
     return *this;
   }
 
-  constexpr expected &operator=(expected &&s) //
+  constexpr expected &operator=(expected &&s) // NOSONAR cpp:S5018 standard mandated `noexcept` spec.
       noexcept(::std::is_nothrow_move_assignable_v<T> && ::std::is_nothrow_move_constructible_v<T>
                && ::std::is_nothrow_move_assignable_v<E> && ::std::is_nothrow_move_constructible_v<E>) // required
     requires(::std::is_move_constructible_v<T> && ::std::is_move_assignable_v<T> && ::std::is_move_constructible_v<E>
@@ -1254,9 +1254,9 @@ public:
   using _base::emplace;
 
   // [expected.object.swap], swap; body delegates to _storage helper
-  constexpr void
-  swap(expected &rhs) noexcept(::std::is_nothrow_move_constructible_v<T> && ::std::is_nothrow_swappable_v<T>
-                               && ::std::is_nothrow_move_constructible_v<E> && ::std::is_nothrow_swappable_v<E>)
+  constexpr void swap(expected &rhs) // NOSONAR cpp:S5018 standard mandated `noexcept` spec.
+      noexcept(::std::is_nothrow_move_constructible_v<T> && ::std::is_nothrow_swappable_v<T>
+               && ::std::is_nothrow_move_constructible_v<E> && ::std::is_nothrow_swappable_v<E>)
     requires(::std::is_swappable_v<T> && ::std::is_swappable_v<E> && ::std::is_move_constructible_v<T>
              && ::std::is_move_constructible_v<E>
              && (::std::is_nothrow_move_constructible_v<T> || ::std::is_nothrow_move_constructible_v<E>))
@@ -1470,7 +1470,7 @@ public:
       : _base(s.set_, FWD(s).storage_)
   {
   }
-  constexpr expected(expected &&s)                                                             //
+  constexpr expected(expected &&s) noexcept                                                    //
     requires(::std::is_move_constructible_v<E> && ::std::is_trivially_move_constructible_v<E>) //
   = default;
   constexpr expected(expected &&s)                        //
@@ -1511,7 +1511,7 @@ public:
     return *this;
   }
 
-  constexpr expected &operator=(expected &&s)                                                       //
+  constexpr expected &operator=(expected &&s) // NOSONAR cpp:S5018 standard mandated `noexcept` spec.
       noexcept(::std::is_nothrow_move_assignable_v<E> && ::std::is_nothrow_move_constructible_v<E>) // required
     requires(::std::is_move_constructible_v<E> && ::std::is_move_assignable_v<E>)
   {
@@ -1523,7 +1523,7 @@ public:
   using _base::emplace;
 
   // [expected.void.swap], swap; body delegates to _storage helper
-  constexpr void swap(expected &rhs) //
+  constexpr void swap(expected &rhs) // NOSONAR cpp:S5018 standard mandated `noexcept` spec.
       noexcept(::std::is_nothrow_move_constructible_v<E> && ::std::is_nothrow_swappable_v<E>)
     requires(::std::is_swappable_v<E> && ::std::is_move_constructible_v<E>)
   {
