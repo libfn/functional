@@ -1118,7 +1118,7 @@ public:
   {
   }
   template <class U = ::std::remove_cv_t<T>>
-  constexpr explicit(not ::std::is_convertible_v<U, T>) expected(U &&v) //
+  constexpr explicit(not ::std::is_convertible_v<U, T>) expected(U &&v) // NOSONAR cpp:S6458 _can_convert excludes self
       noexcept(::std::is_nothrow_constructible_v<T, U>)                 // extension
     requires(_base::template _can_convert<U>::value)
       : _base(::std::in_place, FWD(v))

@@ -35,6 +35,13 @@ using pfn::unexpected;
 
 enum Error { unknown = 1, file_not_found = 5 };
 
+struct greedy_t {
+  greedy_t() = delete;
+  greedy_t(greedy_t const &) = delete;
+  greedy_t(greedy_t &&) = delete;
+  template <class U> constexpr greedy_t(U &&) noexcept {}
+};
+
 TEST_CASE("bad_expected_access", "[expected][polyfill][bad_expected_access]")
 {
   std::string const e1 = "bad access to expected";
@@ -720,6 +727,14 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
       T const c(helper(13));
       CHECK(c.value().v == 13 * from_rval);
+
+      using H = expected<greedy_t, Error>;
+      static_assert(not std::is_copy_constructible_v<H>);
+      static_assert(not std::is_move_constructible_v<H>);
+      static_assert(not std::is_constructible_v<H, H &>);
+      static_assert(not std::is_constructible_v<H, H const &>);
+      static_assert(not std::is_constructible_v<H, H &&>);
+      static_assert(not std::is_constructible_v<H, H const &&>);
     }
 
     SECTION("from unexpected rval")
