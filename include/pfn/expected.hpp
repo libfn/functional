@@ -1128,7 +1128,7 @@ public:
   constexpr explicit(!::std::is_convertible_v<G const &, E>) expected(unexpected<G> const &g) //
       noexcept(::std::is_nothrow_constructible_v<E, G const &>)                               // extension
     requires(::std::is_constructible_v<E, G const &>)
-      : _base(unexpect, ::std::forward<G const &>(g.error()))
+      : _base(unexpect, ::std::forward<G const &>(g.error())) // NOSONAR cpp:S6031 forward<GF> per the standard
   {
   }
   template <class G>
@@ -1432,7 +1432,7 @@ public:
   constexpr explicit(!::std::is_convertible_v<G const &, E>) expected(unexpected<G> const &g) //
       noexcept(::std::is_nothrow_constructible_v<E, G const &>)                               // extension
     requires(::std::is_constructible_v<E, G const &>)
-      : _base(unexpect, ::std::forward<G const &>(g.error()))
+      : _base(unexpect, ::std::forward<G const &>(g.error())) // NOSONAR cpp:S6031 forward<GF> per the standard
   {
   }
   template <class G>
