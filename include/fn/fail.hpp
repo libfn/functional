@@ -60,9 +60,9 @@ struct fail_t::apply final {
   {
     using type = std::remove_cvref_t<decltype(v)>;
     if (v.has_value()) {
-      return type{std::unexpect, ::fn::invoke(FWD(fn), FWD(v).value())};
+      return type{::pfn::unexpect, ::fn::invoke(FWD(fn), FWD(v).value())};
     }
-    return type{std::unexpect, FWD(v).error()};
+    return type{::pfn::unexpect, FWD(v).error()};
   }
 
   /**
@@ -78,9 +78,9 @@ struct fail_t::apply final {
   {
     using type = std::remove_cvref_t<decltype(v)>;
     if (v.has_value()) {
-      return type{std::unexpect, ::fn::invoke(FWD(fn))};
+      return type{::pfn::unexpect, ::fn::invoke(FWD(fn))};
     }
-    return type{std::unexpect, FWD(v).error()};
+    return type{::pfn::unexpect, FWD(v).error()};
   }
 
   /**

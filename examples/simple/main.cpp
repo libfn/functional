@@ -83,7 +83,7 @@ TEST_CASE("Minimal expected", "[expected][and_then]")
   }
   {
     // example-expected-and_then-error
-    fn::expected<double, Error> ex = std::unexpected<Error>{"Not good"};
+    fn::expected<double, Error> ex = ::pfn::unexpected<Error>{"Not good"};
 
     auto oops = ex
       | fn::and_then([](auto&& v) -> fn::expected<unsigned, Error> {
@@ -139,14 +139,14 @@ TEST_CASE("Demo expected", "[expected][pack][and_then][discard][transform_error]
       if (std::from_chars(str.begin(), end, tmp).ptr == end) {
         return {tmp};
       }
-      return std::unexpected<Error>{"Failed to parse " + std::string(str)};
+      return ::pfn::unexpected<Error>{"Failed to parse " + std::string(str)};
     };
 
     // Immovable operations must be captured as lvalues, and functor will store
     // reference to them rather than make a copy
     constexpr auto fn1 = [j = ImmovableValue{-1}](int i) noexcept -> fn::expected<double, Error> {
       if (i < j.value) {
-        return std::unexpected<Error>{"Too small"};
+        return ::pfn::unexpected<Error>{"Too small"};
       }
       return {i + 0.5};
     };
@@ -199,12 +199,12 @@ TEST_CASE("Demo expected", "[expected][pack][and_then][discard][transform_error]
       if (std::from_chars(str.begin(), end, tmp).ptr == end) {
         return {tmp};
       }
-      return std::unexpected<Error>{"Failed to parse " + std::string(str)};
+      return ::pfn::unexpected<Error>{"Failed to parse " + std::string(str)};
     };
 
     constexpr auto parse_twelve = [](std::string str) noexcept -> fn::expected<double, Error> {
       if (str != "12")
-        return std::unexpected<Error>{"Not 12"};
+        return ::pfn::unexpected<Error>{"Not 12"};
       return {12.};
     };
 
@@ -235,7 +235,7 @@ TEST_CASE("Demo expected", "[expected][pack][and_then][discard][transform_error]
       | fn::inspect_error([](Error) noexcept { CHECK(false); }) //
       | fn::discard();
 
-  fn::expected<int, Error>{std::unexpected<Error>{"discarded"}}                     //
+  fn::expected<int, Error>{::pfn::unexpected<Error>{"discarded"}}                   //
       | fn::inspect([](int) noexcept { CHECK(false); })                             //
       | fn::inspect_error([](Error e) noexcept { REQUIRE(e.what == "discarded"); }) //
       | fn::discard();
@@ -506,7 +506,7 @@ TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform
       if constexpr (std::is_same_v<std::decay_t<decltype(v)>, T>) {
         return {FWD(v)};
       } else
-        return std::unexpected<InputError>{InvalidType};
+        return ::pfn::unexpected<InputError>{InvalidType};
     });
   };
 
@@ -523,7 +523,7 @@ TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform
                 else if (configuration == "test")
                   return type{std::in_place, fn::sum{fn::pack{std::type_identity<ConfigTest>{}, std::move(test_name)}}};
                 else
-                  return type{std::unexpect, InvalidConfiguration};
+                  return type{::pfn::unexpect, InvalidConfiguration};
               })(configuration, test_name)                            //
             & convert(std::in_place_type<std::string_view>, hostname) //
             & convert(std::in_place_type<long>, port)                 //
@@ -550,24 +550,24 @@ TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform
                    || config.hostname.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789.")
                           != std::string_view::npos
                    || config.hostname.find("..") != std::string_view::npos)
-                 return std::unexpected<ConfigError>(InvalidHostname);
+                 return ::pfn::unexpected<ConfigError>(InvalidHostname);
                else if (config.port < 1 || config.port > 0xffff)
-                 return std::unexpected<ConfigError>(InvalidPort);
+                 return ::pfn::unexpected<ConfigError>(InvalidPort);
                else if (config.filename.size() < 1 || config.filename.size() > 254)
-                 return std::unexpected<ConfigError>(InvalidFilename);
+                 return ::pfn::unexpected<ConfigError>(InvalidFilename);
                else if (config.threshold < 0 || config.threshold > 1)
-                 return std::unexpected<ConfigError>(InvalidThreshold);
+                 return ::pfn::unexpected<ConfigError>(InvalidThreshold);
 
                if constexpr (std::is_same_v<std::remove_cvref_t<decltype(config)>, ConfigTest>) {
                  if (config.test_name != "foo")
-                   return std::unexpected<ConfigError>(InvalidTest);
+                   return ::pfn::unexpected<ConfigError>(InvalidTest);
                }
 
                return FWD(config);
              })
            | fn::and_then([](auto const &config) -> fn::expected<int, NetworkError> {
                if (config.port < 1024)
-                 return std::unexpected<NetworkError>(ConnectError);
+                 return ::pfn::unexpected<NetworkError>(ConnectError);
                if constexpr (std::is_same_v<decltype(config), ConfigProd const &>)
                  return {0x50eda7a}; // dummy result
                else

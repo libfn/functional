@@ -122,6 +122,7 @@ set(TESTS_FN_SOURCES
     fn/concepts.cpp
     fn/discard.cpp
     fn/expected.cpp
+    fn/expected_polyfill.cpp
     fn/fail.cpp
     fn/filter.cpp
     fn/functional.cpp

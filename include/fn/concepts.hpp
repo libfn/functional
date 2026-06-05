@@ -76,7 +76,7 @@ concept same_monadic_type_as = same_kind<T, U> && same_value_kind<T, U>;
  */
 template <class T>
 concept convertible_to_unexpected
-    = requires { static_cast<std::unexpected<std::remove_cvref_t<T>>>(std::declval<T>()); };
+    = requires { static_cast<::pfn::unexpected<std::remove_cvref_t<T>>>(std::declval<T>()); };
 
 /**
  * @brief TODO

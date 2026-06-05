@@ -77,7 +77,7 @@ TEST_CASE("fail", "[fail][expected][expected_value][pack]")
     }
     WHEN("operand is error")
     {
-      operand_t a{std::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, "Not good"};
       using T = decltype(a | fail(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a //
@@ -113,7 +113,7 @@ TEST_CASE("fail", "[fail][expected][expected_value][pack]")
     WHEN("operand is error")
     {
       constexpr auto wrong = [](auto...) -> Error { throw 0; };
-      REQUIRE((operand_t{std::unexpect, Error{"Not good"}} | fail(wrong)).error().what == "Not good");
+      REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} | fail(wrong)).error().what == "Not good");
     }
   }
 
@@ -127,9 +127,9 @@ TEST_CASE("fail", "[fail][expected][expected_value][pack]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{std::unexpect, "Not good"} | fail(wrong));
+      using T = decltype(operand_t{::pfn::unexpect, "Not good"} | fail(wrong));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{std::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, "Not good"} //
                | fail(wrong))
                   .error()
                   .what
@@ -181,7 +181,7 @@ TEST_CASE("fail", "[fail][expected][expected_void]")
     }
     WHEN("operand is error")
     {
-      operand_t a{std::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, "Not good"};
       using T = decltype(a | fail(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a //
@@ -202,9 +202,9 @@ TEST_CASE("fail", "[fail][expected][expected_void]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{std::unexpect, "Not good"} | fail(wrong));
+      using T = decltype(operand_t{::pfn::unexpect, "Not good"} | fail(wrong));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{std::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, "Not good"} //
                | fail(wrong))
                   .error()
                   .what
@@ -351,7 +351,7 @@ TEST_CASE("constexpr fail expected with sum", "[fail][constexpr][expected][sum]"
   static_assert(r2.error() == Error::SomethingElse);
   constexpr auto r3 = T{3} | fn::fail(fn);
   static_assert(r3.error() == Error::ThresholdExceeded);
-  constexpr auto r4 = T{std::unexpect, Error::Reserved} | fn::fail(fn);
+  constexpr auto r4 = T{::pfn::unexpect, Error::Reserved} | fn::fail(fn);
   static_assert(r4.error() == Error::Reserved);
 
   SUCCEED();

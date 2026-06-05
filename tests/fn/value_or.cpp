@@ -35,7 +35,7 @@ TEST_CASE("value_or", "[value_or][expected][expected_value]")
     }
     WHEN("operand is error")
     {
-      operand_t a{std::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, "Not good"};
       using T = decltype(a | value_or(3));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a | value_or(3)).value() == 3);
@@ -52,9 +52,9 @@ TEST_CASE("value_or", "[value_or][expected][expected_value]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{std::unexpect, "Not good"} | value_or(3));
+      using T = decltype(operand_t{::pfn::unexpect, "Not good"} | value_or(3));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{std::unexpect, "Not good"} | value_or(3)).value() == 3);
+      REQUIRE((operand_t{::pfn::unexpect, "Not good"} | value_or(3)).value() == 3);
     }
   }
 }
@@ -107,7 +107,7 @@ TEST_CASE("constexpr value_or expected", "[value_or][constexpr][expected]")
 
   constexpr auto r1 = T{2} | fn::value_or(3);
   static_assert(r1.value() == 2);
-  constexpr auto r2 = T{std::unexpect, Error::SomethingElse} | fn::value_or(3);
+  constexpr auto r2 = T{::pfn::unexpect, Error::SomethingElse} | fn::value_or(3);
   static_assert(r2.value() == 3);
 
   SUCCEED();

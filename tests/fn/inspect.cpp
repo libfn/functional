@@ -70,7 +70,7 @@ TEST_CASE("inspect expected", "[inspect][expected][expected_value][pack]")
     }
     WHEN("operand is error")
     {
-      operand_t a{std::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, "Not good"};
       using T = decltype(a | inspect(wrong));
       static_assert(std::is_same_v<T, operand_t &>);
       REQUIRE((a //
@@ -108,7 +108,7 @@ TEST_CASE("inspect expected", "[inspect][expected][expected_value][pack]")
     WHEN("operand is error")
     {
       using operand_t = fn::expected<fn::pack<int, double>, Error>;
-      operand_t a{std::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, "Not good"};
       constexpr auto wrong = [](auto...) { throw 0; };
       using T = decltype(a | inspect(wrong));
       static_assert(std::is_same_v<T, operand_t &>);
@@ -131,9 +131,9 @@ TEST_CASE("inspect expected", "[inspect][expected][expected_value][pack]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{std::unexpect, "Not good"} | inspect(wrong));
+      using T = decltype(operand_t{::pfn::unexpect, "Not good"} | inspect(wrong));
       static_assert(std::is_same_v<T, operand_t &&>);
-      REQUIRE((operand_t{std::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, "Not good"} //
                | inspect(wrong))
                   .error()
                   .what
@@ -180,7 +180,7 @@ TEST_CASE("inspect void expected", "[inspect][expected][expected_void]")
     }
     WHEN("operand is error")
     {
-      operand_t a{std::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, "Not good"};
       using T = decltype(a | inspect(wrong));
       static_assert(std::is_same_v<T, operand_t &>);
       REQUIRE((a //
@@ -202,9 +202,9 @@ TEST_CASE("inspect void expected", "[inspect][expected][expected_void]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{std::unexpect, "Not good"} | inspect(wrong));
+      using T = decltype(operand_t{::pfn::unexpect, "Not good"} | inspect(wrong));
       static_assert(std::is_same_v<T, operand_t &&>);
-      REQUIRE((operand_t{std::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, "Not good"} //
                | inspect(wrong))
                   .error()
                   .what
@@ -383,7 +383,7 @@ TEST_CASE("constexpr inspect expected", "[inspect][constexpr][expected]")
   constexpr auto fn = [](int) constexpr noexcept -> void {};
   constexpr auto r1 = T{0} | fn::inspect(fn);
   static_assert(r1.value() == 0);
-  constexpr auto r2 = T{std::unexpect, Error::SomethingElse} | fn::inspect(fn);
+  constexpr auto r2 = T{::pfn::unexpect, Error::SomethingElse} | fn::inspect(fn);
   static_assert(r2.error() == Error::SomethingElse);
 
   SUCCEED();
@@ -401,7 +401,7 @@ TEST_CASE("constexpr inspect expected with sum", "[inspect][constexpr][expected]
   };
   constexpr auto r12 = T{0} | fn::inspect(fn2);
   static_assert(r12.value() == fn::sum{0});
-  constexpr auto r2 = T{std::unexpect, Error::SomethingElse} | fn::inspect(fn1);
+  constexpr auto r2 = T{::pfn::unexpect, Error::SomethingElse} | fn::inspect(fn1);
   static_assert(r2.error() == Error::SomethingElse);
 
   SUCCEED();

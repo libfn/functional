@@ -107,8 +107,7 @@ if(NOT DISABLE_CXX23)
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
     set_target_properties(include_fn PROPERTIES EXPORT_NAME fn)
-    # TODO uncomment once fn is reimplemented in terms of pfn.
-    # target_link_libraries(include_fn INTERFACE include_pfn)
+    target_link_libraries(include_fn INTERFACE include_pfn)
     target_compile_features(include_fn INTERFACE cxx_std_23)
 
     install(TARGETS include_fn

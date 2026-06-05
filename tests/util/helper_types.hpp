@@ -183,3 +183,92 @@ template <auto V> constexpr void swap(helper_t<V> &l, helper_t<V> &r)
 }
 
 using helper = helper_t<0>;
+
+// Move-only counterpart to helper_t: copy construction/assignment are deleted;
+// the move operations are witnessed by a prime factor and parameterized by V with
+// the same scheme as helper_t (V in [3,5) throws on move-construct, V in [40,41)
+// throws on move-assign, V < 8 throws on the value constructor).
+template <int V> struct helper_move_only_t {
+  int v = {};
+
+  helper_move_only_t() = delete;
+  constexpr ~helper_move_only_t() noexcept {};
+
+  helper_move_only_t(helper_move_only_t const &) = delete;
+  helper_move_only_t &operator=(helper_move_only_t const &) = delete;
+
+  constexpr helper_move_only_t(helper_move_only_t &&o) noexcept(V < 3 || V >= 5) : v(o.v)
+  {
+    v *= from_rval;
+    if constexpr (V >= 3 && V < 5) {
+      if (v == 0)
+        throw std::runtime_error("invalid input");
+    }
+  }
+  constexpr helper_move_only_t(helper_move_only_t const &&o) noexcept : v(o.v) { v *= from_rval_const; }
+
+  constexpr helper_move_only_t &operator=(helper_move_only_t &&o) noexcept(V < 40 || V >= 41)
+  {
+    if constexpr (V >= 40 && V < 41) {
+      if (o.v == 0)
+        throw std::runtime_error("invalid input");
+    }
+    v = o.v;
+    v *= from_rval;
+    return *this;
+  }
+
+  helper_move_only_t(std::integral auto... a) noexcept(V >= 8)
+    requires(sizeof...(a) > 0) // intentionally implicit when sizeof...(a) == 1
+      : v((1 * ... * a))
+  {
+    if constexpr (V < 8) {
+      if (v == 0)
+        throw std::runtime_error("invalid input");
+    }
+  }
+
+  constexpr bool operator==(helper_move_only_t const &) const noexcept = default;
+};
+
+static_assert(not std::is_copy_constructible_v<helper_move_only_t<0>>);
+static_assert(std::is_move_constructible_v<helper_move_only_t<0>>);
+static_assert(std::is_nothrow_move_constructible_v<helper_move_only_t<0>>);
+static_assert(not std::is_nothrow_move_constructible_v<helper_move_only_t<3>>); // throwing move ctor
+static_assert(not std::is_copy_assignable_v<helper_move_only_t<0>>);
+static_assert(std::is_move_assignable_v<helper_move_only_t<0>>);
+static_assert(not std::is_nothrow_move_assignable_v<helper_move_only_t<40>>); // throwing move assign
+
+// Non-copyable AND non-movable: can only be constructed in place (from a value)
+// and observed; V < 8 makes the value constructor throw on a zero result.
+template <int V> struct helper_immovable_t {
+  int v = {};
+
+  helper_immovable_t() = delete;
+  constexpr ~helper_immovable_t() noexcept {};
+
+  helper_immovable_t(helper_immovable_t const &) = delete;
+  helper_immovable_t(helper_immovable_t &&) = delete;
+  helper_immovable_t &operator=(helper_immovable_t const &) = delete;
+  helper_immovable_t &operator=(helper_immovable_t &&) = delete;
+
+  helper_immovable_t(std::integral auto... a) noexcept(V >= 8)
+    requires(sizeof...(a) > 0) // intentionally implicit when sizeof...(a) == 1
+      : v((1 * ... * a))
+  {
+    if constexpr (V < 8) {
+      if (v == 0)
+        throw std::runtime_error("invalid input");
+    }
+  }
+
+  constexpr bool operator==(helper_immovable_t const &) const noexcept = default;
+};
+
+static_assert(not std::is_copy_constructible_v<helper_immovable_t<0>>);
+static_assert(not std::is_move_constructible_v<helper_immovable_t<0>>);
+static_assert(not std::is_copy_assignable_v<helper_immovable_t<0>>);
+static_assert(not std::is_move_assignable_v<helper_immovable_t<0>>);
+
+using helper_move_only = helper_move_only_t<0>;
+using helper_immovable = helper_immovable_t<0>;
