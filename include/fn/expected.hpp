@@ -132,12 +132,8 @@ template <typename T, typename E> struct _storage : ::pfn::detail::_storage<T, E
 #if defined(__clang__) && __clang_major__ <= 18
           // clang 15-18 miscompile the prvalue return below for three of the four Self ref-qualifier
           // instantiations (&, const &, const &&) at -O1/-O2: the value-state result is observed with
-          // set_ == false (storage-poison). Naming the local and returning it by name dodges the buggy
-          // mandatory copy-elision lowering. Fixed in clang-19; gcc unaffected — both take the prvalue
-          // path, which keeps guaranteed elision and so also supports a non-movable error type (whereas
-          // this workaround requires `type` be move-constructible).
-          type result{::std::in_place};
-          return result;
+          // set_ == false (storage-poison). The workaround dodges the buggy mandatory copy-elision.
+          return ::std::move(type{::std::in_place});
 #else
           return type{::std::in_place};
 #endif
