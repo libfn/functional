@@ -70,6 +70,7 @@ endforeach()
 
 set(TESTS_PFN_SOURCES
     pfn/expected.cpp
+    pfn/expected_validation.cpp
 )
 
 include(TargetGenerator)
@@ -105,33 +106,6 @@ foreach(mode 20 23)
         set_property(TEST "${target}" PROPERTY LABELS tests_pfn "cxx${mode}" "${root_name}")
 
         unset(target)
-
-        # pfn tests have a "validation" mode, where the unit tests intended for polyfill
-        # are run against the "real" thing. This validates the tests.
-        if (${mode} EQUAL 23)
-            set(target "tests_${root_name}_validation_cxx${mode}")
-
-            create_target_for_file(
-                NAME "${target}"
-                SOURCE "${source}"
-                DEPENDENCIES include_pfn tests_util Catch2::Catch2WithMain
-            )
-            append_compilation_options("${target}" WARNINGS OPTIMIZATION TESTS)
-            add_dependencies("cxx${mode}" "${target}")
-            add_dependencies("tests" "${target}")
-            set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
-            target_compile_definitions("${target}" PRIVATE LIBFN_MODE=${mode} PFN_TEST_VALIDATION)
-
-            add_test(
-                NAME "${target}"
-                COMMAND "${target}" -r console
-                WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-            )
-            set_property(TEST "${target}" PROPERTY LABELS tests_pfn "cxx${mode}" "${root_name}")
-
-            unset(target)
-        endif()
-
         unset(root_name)
     endforeach()
 endforeach()
