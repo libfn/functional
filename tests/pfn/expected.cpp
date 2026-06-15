@@ -1269,6 +1269,17 @@ TEST_CASE("expected non void", "[expected][polyfill]")
     static_assert(not std::is_nothrow_copy_assignable_v<H>);
     static_assert(not std::is_nothrow_move_assignable_v<H>);
 
+    SECTION("default template parameter")
+    {
+      struct E {
+        E() = default;
+        E(E const &) = delete;
+        E &operator=(E const &) = delete;
+      };
+      static_assert(requires(expected<int, E> &e) { e = {}; });
+      SUCCEED();
+    }
+
     SECTION("from rval")
     {
       SECTION("value to value")
@@ -2922,6 +2933,19 @@ TEST_CASE("expected non void", "[expected][polyfill]")
       static_assert(not extension || noexcept(std::declval<T>().value_or(std::declval<helper_list_t>())));
       static_assert(not noexcept(std::declval<T &>().value_or(std::declval<int>())));
       static_assert(not extension || noexcept(std::declval<T &>().value_or(std::declval<helper_list_t>())));
+
+      SECTION("default template parameter")
+      {
+        // std::expected's value_or gained the `= remove_cv_t<T>` default late: libstdc++ in GCC 15,
+        // libc++ in LLVM 22. Older implementations don't have this default, so we can't test it there.
+#if !defined(PFN_TEST_VALIDATION) || (defined(_LIBCPP_VERSION) && _LIBCPP_VERSION >= 220000)                           \
+    || (defined(__GLIBCXX__) && _GLIBCXX_RELEASE >= 15)
+        using D = expected<int, Error>;
+        static_assert(requires(D &e) { e.value_or({}); });             // const & overload
+        static_assert(requires(D &&e) { std::move(e).value_or({}); }); // && overload
+#endif
+        SUCCEED();
+      }
 
 #ifndef _MSC_VER
       SECTION("value")

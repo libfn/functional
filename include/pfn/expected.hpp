@@ -693,7 +693,7 @@ template <class T, class E, class Policy> struct _storage {
   constexpr E const &&error() const && noexcept { return _error(::std::move(*this)); }
   constexpr E &&error() && noexcept { return _error(::std::move(*this)); }
 
-  template <class U>
+  template <class U = ::std::remove_cv_t<T>>
   constexpr T value_or(U &&v) const &                                                              //
       noexcept(::std::is_nothrow_copy_constructible_v<T> && ::std::is_nothrow_convertible_v<U, T>) // extension
     requires(not ::std::is_void_v<T>)
@@ -702,7 +702,7 @@ template <class T, class E, class Policy> struct _storage {
     static_assert(::std::is_convertible_v<U, T>);
     return set_ ? storage_.v_ : static_cast<T>(FWD(v));
   }
-  template <class U>
+  template <class U = ::std::remove_cv_t<T>>
   constexpr T value_or(U &&v) &&                                                                   //
       noexcept(::std::is_nothrow_move_constructible_v<T> && ::std::is_nothrow_convertible_v<U, T>) // extension
     requires(not ::std::is_void_v<T>)
@@ -1197,7 +1197,7 @@ public:
   constexpr ~expected() = default;
 
   // [expected.void.assign], assignment. Not `using _base::operator=;` to avoid an MSVC bug.
-  template <class U = T>
+  template <class U = ::std::remove_cv_t<T>>
   constexpr expected &operator=(U &&s)                                                            //
       noexcept(::std::is_nothrow_assignable_v<T &, U> && ::std::is_nothrow_constructible_v<T, U>) // extension
     requires(_base::template _can_convert_assign<U>::value)
