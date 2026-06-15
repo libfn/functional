@@ -2807,6 +2807,14 @@ TEST_CASE("expected non void", "[expected][polyfill]")
       static_assert(not noexcept(std::declval<T &>().value_or(std::declval<int>())));
       static_assert(not extension || noexcept(std::declval<T &>().value_or(std::declval<helper_list_t>())));
 
+      SECTION("default template parameter")
+      {
+        using D = expected<int, Error>;
+        static_assert(requires(D &e) { e.value_or({}); });             // const & overload
+        static_assert(requires(D &&e) { std::move(e).value_or({}); }); // && overload
+        SUCCEED();
+      }
+
 #ifndef _MSC_VER
       SECTION("value")
       {
