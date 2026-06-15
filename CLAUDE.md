@@ -14,8 +14,13 @@ Conventions for AI agents in this repo (you are the primary reader — keep this
 
 ## Code
 
-- Comment only where the *why* is non-obvious (constraint/invariant/workaround/surprise); don't restate code; no boilerplate docstrings.
+- Default to no comment; assume the reader reads the surrounding code. Comment only where the *why* stays non-obvious despite that context (constraint/invariant/workaround/surprise); never restate code; no boilerplate docstrings.
+- Routing: *unusual code* → comment; *ordinary code, noteworthy change* → commit body; *both obvious* → neither. "Context" = the surrounding code the reader sees, not why-the-change (→ commit).
 - Don't create `.md`/summary/planning files unless asked.
+
+## Tests
+
+- Add each check to the existing `TEST_CASE`/`SECTION` (or file) covering that member/behaviour, matching local idiom — not the nearest spot or a catch-all. A check in the right named section is self-documenting.
 
 ## Tooling
 
