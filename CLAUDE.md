@@ -15,6 +15,7 @@ Conventions for AI agents in this repo (you are the primary reader — keep this
 ## Code
 
 - Comment only where the *why* is non-obvious (constraint/invariant/workaround/surprise); don't restate code; no boilerplate docstrings.
+- Routing an explanation: *unusual code* → in-source comment; *ordinary code but the change has historical context* → commit description; *both obvious* → neither. (A polyfill matching the spec is obvious by definition.)
 - Don't create `.md`/summary/planning files unless asked.
 
 ## Tooling
