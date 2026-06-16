@@ -71,6 +71,8 @@ endforeach()
 set(TESTS_PFN_SOURCES
     pfn/expected.cpp
     pfn/expected_validation.cpp
+    pfn/functional.cpp
+    pfn/utility.cpp
 )
 
 include(TargetGenerator)
@@ -116,6 +118,7 @@ endforeach()
 set(TESTS_FN_SOURCES
     fn/detail/fwd_macro.cpp
     fn/detail/meta.cpp
+    fn/detail/pack_impl.cpp
     fn/detail/traits.cpp
     fn/detail/variadic_union.cpp
     fn/and_then.cpp
@@ -141,15 +144,26 @@ set(TESTS_FN_SOURCES
     fn/value_or.cpp
 )
 
+set(TESTS_FN_SOURCES_CXX20
+    fn/detail/fwd_macro.cpp
+    fn/detail/meta.cpp
+    fn/detail/pack_impl.cpp
+    fn/detail/variadic_union.cpp
+)
+
 # Generate separate target for each individual test source
-# TODO add 20 when we are compatible with C++20
-foreach(mode 23)
+foreach(mode 20 23)
     if(${mode} EQUAL 23 AND DISABLE_CXX23)
         message(STATUS "C++23 support is disabled, skipping tests_fn targets for C++23")
         continue()
     endif()
 
     foreach(source IN ITEMS ${TESTS_FN_SOURCES})
+        # Some fn files are not compatible with C++20 - see the list above.
+        if(mode EQUAL 20 AND NOT source IN_LIST TESTS_FN_SOURCES_CXX20)
+            continue()
+        endif()
+
         string(REGEX REPLACE "^(fn)/(detail|)/?([^\.]+)\.cpp$" "\\1_\\2\\3" root_name ${source})
         set(target "tests_${root_name}_cxx${mode}")
 

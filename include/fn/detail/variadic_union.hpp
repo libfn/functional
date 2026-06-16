@@ -8,6 +8,8 @@
 
 #include <fn/detail/functional.hpp>
 #include <fn/detail/fwd_macro.hpp>
+#include <pfn/functional.hpp>
+#include <pfn/utility.hpp>
 
 #include <type_traits>
 
@@ -30,7 +32,7 @@ template <typename T, typename... Args>
 template <typename T, typename Ret, typename... Args>
 [[nodiscard]] constexpr auto _invoke_type_r(auto &&fn, Args &&...args) -> decltype(auto)
 {
-  return ::std::invoke_r<Ret>(FWD(fn), std::in_place_type<T>, FWD(args)...);
+  return ::pfn::invoke_r<Ret>(FWD(fn), std::in_place_type<T>, FWD(args)...);
 }
 
 template <typename T, typename Fn, typename... Args>
@@ -312,7 +314,7 @@ template <typename R, typename U, typename Fn, typename... Args>
 {
   if (index == 0)
     return static_cast<R>(_invoke(FWD(fn), FWD(v).v0, FWD(args)...));
-  std::unreachable();
+  pfn::unreachable();
 }
 
 template <typename R, typename U, typename Fn>
@@ -323,7 +325,7 @@ template <typename R, typename U, typename Fn>
 {
   if (index == 0)
     return static_cast<R>(_invoke_type<typename U::t0>(FWD(fn), FWD(v).v0));
-  std::unreachable();
+  pfn::unreachable();
 }
 
 template <typename R, typename U, typename Fn, typename... Args>
@@ -334,7 +336,7 @@ constexpr void invoke_variadic_union(some_variadic_union auto &&v, std::size_t i
 {
   if (index == 0)
     return (void)_invoke(FWD(fn), FWD(v).v0, FWD(args)...);
-  std::unreachable();
+  pfn::unreachable();
 }
 
 template <typename R, typename U, typename Fn>
@@ -345,7 +347,7 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, std::siz
 {
   if (index == 0)
     return (void)_invoke_type<typename U::t0>(FWD(fn), FWD(v).v0);
-  std::unreachable();
+  pfn::unreachable();
 }
 
 template <typename R, typename U, typename Fn, typename... Args>
@@ -359,7 +361,7 @@ template <typename R, typename U, typename Fn, typename... Args>
     return static_cast<R>(_invoke(FWD(fn), FWD(v).v0, FWD(args)...));
   else if (index == 1)
     return static_cast<R>(_invoke(FWD(fn), FWD(v).v1, FWD(args)...));
-  std::unreachable();
+  pfn::unreachable();
 }
 
 template <typename R, typename U, typename Fn>
@@ -372,7 +374,7 @@ template <typename R, typename U, typename Fn>
     return static_cast<R>(_invoke_type<typename U::t0>(FWD(fn), FWD(v).v0));
   else if (index == 1)
     return static_cast<R>(_invoke_type<typename U::t1>(FWD(fn), FWD(v).v1));
-  std::unreachable();
+  pfn::unreachable();
 }
 
 template <typename R, typename U, typename Fn, typename... Args>
@@ -385,7 +387,7 @@ constexpr void invoke_variadic_union(some_variadic_union auto &&v, std::size_t i
     return (void)_invoke(FWD(fn), FWD(v).v0, FWD(args)...);
   else if (index == 1)
     return (void)_invoke(FWD(fn), FWD(v).v1, FWD(args)...);
-  std::unreachable();
+  pfn::unreachable();
 }
 
 template <typename R, typename U, typename Fn>
@@ -398,7 +400,7 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, std::siz
     return (void)_invoke_type<typename U::t0>(FWD(fn), FWD(v).v0);
   else if (index == 1)
     return (void)_invoke_type<typename U::t1>(FWD(fn), FWD(v).v1);
-  std::unreachable();
+  pfn::unreachable();
 }
 
 template <typename R, typename U, typename Fn, typename... Args>
@@ -414,7 +416,7 @@ template <typename R, typename U, typename Fn, typename... Args>
     return static_cast<R>(_invoke(FWD(fn), FWD(v).v1, FWD(args)...));
   else if (index == 2)
     return static_cast<R>(_invoke(FWD(fn), FWD(v).v2, FWD(args)...));
-  std::unreachable();
+  pfn::unreachable();
 }
 
 template <typename R, typename U, typename Fn>
@@ -429,7 +431,7 @@ template <typename R, typename U, typename Fn>
     return static_cast<R>(_invoke_type<typename U::t1>(FWD(fn), FWD(v).v1));
   else if (index == 2)
     return static_cast<R>(_invoke_type<typename U::t2>(FWD(fn), FWD(v).v2));
-  std::unreachable();
+  pfn::unreachable();
 }
 
 template <typename R, typename U, typename Fn, typename... Args>
@@ -444,7 +446,7 @@ constexpr void invoke_variadic_union(some_variadic_union auto &&v, std::size_t i
     return (void)_invoke(FWD(fn), FWD(v).v1, FWD(args)...);
   else if (index == 2)
     return (void)_invoke(FWD(fn), FWD(v).v2, FWD(args)...);
-  std::unreachable();
+  pfn::unreachable();
 }
 
 template <typename R, typename U, typename Fn>
@@ -459,7 +461,7 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, std::siz
     return (void)_invoke_type<typename U::t1>(FWD(fn), FWD(v).v1);
   else if (index == 2)
     return (void)_invoke_type<typename U::t2>(FWD(fn), FWD(v).v2);
-  std::unreachable();
+  pfn::unreachable();
 }
 
 template <typename R, typename U, typename Fn, typename... Args>
@@ -477,7 +479,7 @@ template <typename R, typename U, typename Fn, typename... Args>
     return static_cast<R>(_invoke(FWD(fn), FWD(v).v2, FWD(args)...));
   else if (index == 3)
     return static_cast<R>(_invoke(FWD(fn), FWD(v).v3, FWD(args)...));
-  std::unreachable();
+  pfn::unreachable();
 }
 
 template <typename R, typename U, typename Fn>
@@ -494,7 +496,7 @@ template <typename R, typename U, typename Fn>
     return static_cast<R>(_invoke_type<typename U::t2>(FWD(fn), FWD(v).v2));
   else if (index == 3)
     return static_cast<R>(_invoke_type<typename U::t3>(FWD(fn), FWD(v).v3));
-  std::unreachable();
+  pfn::unreachable();
 }
 
 template <typename R, typename U, typename Fn, typename... Args>
@@ -511,7 +513,7 @@ constexpr void invoke_variadic_union(some_variadic_union auto &&v, std::size_t i
     return (void)_invoke(FWD(fn), FWD(v).v2, FWD(args)...);
   else if (index == 3)
     return (void)_invoke(FWD(fn), FWD(v).v3, FWD(args)...);
-  std::unreachable();
+  pfn::unreachable();
 }
 
 template <typename R, typename U, typename Fn>
@@ -528,7 +530,7 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, std::siz
     return (void)_invoke_type<typename U::t2>(FWD(fn), FWD(v).v2);
   else if (index == 3)
     return (void)_invoke_type<typename U::t3>(FWD(fn), FWD(v).v3);
-  std::unreachable();
+  pfn::unreachable();
 }
 
 template <typename R, typename U, typename Fn, typename... Args>
