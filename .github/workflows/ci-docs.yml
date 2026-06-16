@@ -14,10 +14,16 @@ on:
       - '.github/actions/merge-ci-images/**'
       - '.github/workflows/ci-docs.yml'
       - 'ci/docs/**'
+      - 'ci/build-catch.sh'
   workflow_dispatch:
 
 env:
   REGISTRY_IMAGE: libfn.azurecr.io/ci-docs
+  DEBIAN_VERSION: trixie
+  JAVA_VERSION: openjdk-21-jdk
+  DOXYGEN_RELEASE: 1.12.0
+  ZNAI_RELEASE: 1.73
+  CATCH_RELEASE: 3.14.0
 
 jobs:
   build:
@@ -32,7 +38,7 @@ jobs:
           - linux/arm64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           sparse-checkout: .github
 
@@ -47,7 +53,14 @@ jobs:
           registry: libfn.azurecr.io
           username: ${{ secrets.AZURECR_NAME }}
           password: ${{ secrets.AZURECR_PASS }}
-          context: "ci/docs"
+          build_args: |
+            DEBIAN_VERSION=${{ env.DEBIAN_VERSION }}
+            JAVA_VERSION=${{ env.JAVA_VERSION }}
+            DOXYGEN_RELEASE=${{ env.DOXYGEN_RELEASE }}
+            ZNAI_RELEASE=${{ env.ZNAI_RELEASE }}
+            CATCH_RELEASE=${{ env.CATCH_RELEASE }}
+          context: "ci"
+          file: "docs/Dockerfile"
           title: "docs"
           push: ${{ github.ref_type == 'branch' && github.ref_name == 'main' }}
 
@@ -59,7 +72,7 @@ jobs:
       - build
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           sparse-checkout: .github
 

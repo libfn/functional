@@ -30,8 +30,8 @@ on:
 
 jobs:
   linux:
-    runs-on:
-      group: runners-arm64
+    timeout-minutes: 10
+    runs-on: warp-ubuntu-latest-arm64-2x
     strategy:
       fail-fast: false
       matrix:
@@ -54,6 +54,8 @@ jobs:
           - "clang:20"
           - "clang:21"
           - "clang:22"
+          - "clang-libstdcxx:21"
+          - "clang-libstdcxx:22"
         exclude:
           - mode: cxx23
             compiler: "gcc:12"
@@ -61,15 +63,22 @@ jobs:
             compiler: "clang:16"
           - mode: cxx23
             compiler: "clang:17"
+        include:
+          - mode: all
+            configuration: Debug
+            compiler: "gcc:14"
+          - mode: all
+            configuration: Release
+            compiler: "gcc:14"
     container: libfn.azurecr.io/ci-build-${{ matrix.compiler }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
     - name: Prepare build
       run: |
         mkdir .build
         cd .build
-        cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ..
+        cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ${{ matrix.mode == 'cxx20' && '-DDISABLE_CXX23=ON' || '' }} ..
         COMPILER=$( grep -iE "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
         FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ matrix.configuration }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
         printf "C++ compiler path: %s\n" "$COMPILER"
@@ -77,6 +86,7 @@ jobs:
         printf "C++ compilation options: %s\n" "$FLAGS"
 
     - name: Build and test ${{ matrix.mode }}
+      if: matrix.mode != 'all'
       run: |
         cd .build
         cmake --build . --target ${{ matrix.mode }}
@@ -84,16 +94,20 @@ jobs:
 
     # Build and test all for one arbitrary configuration
     - name: Build and test all
-      if: ${{ matrix.compiler == 'gcc:14' && matrix.mode == 'cxx23' }}
+      if: matrix.mode == 'all'
       run: |
         cd .build
-        cmake --build . --target clean
         cmake --build .
         ctest --output-on-failure
 
   macos:
-    runs-on: macos-${{ matrix.osver }}
+    timeout-minutes: 10
+    runs-on: warp-macos-${{ matrix.compiler.osver }}-arm64-6x
+    env:
+      # Silence clang -Woverriding-deployment-version warnings.
+      MACOSX_DEPLOYMENT_TARGET: ${{ matrix.compiler.osver }}.0
     strategy:
+      max-parallel: 10
       fail-fast: false
       matrix:
         mode:
@@ -103,43 +117,66 @@ jobs:
           - Debug
           - Release
         compiler:
-          - appleclang
-          - clang
-        osver:
-          - 14
-          - 15
-          - 26
-        clangrelease:
-          - NA
-          - 18
-        exclude:
-          - compiler: clang
+          - name: appleclang
             osver: 14
-          - compiler: clang
+          - name: appleclang
+            osver: 15
+          - name: appleclang
             osver: 26
-          - compiler: clang
-            clangrelease: NA
-          - compiler: appleclang
-            clangrelease: 18
+          - name: clang
+            osver: 15
+            release: 18
+          - name: clang
+            osver: 26
+            release: 20
+          - name: gcc
+            osver: 26
+            release: 13
+          - name: gcc
+            osver: 26
+            release: 14
+          - name: gcc
+            osver: 26
+            release: 15
+        exclude:
           - mode: cxx23
-            compiler: appleclang
-            osver: 14
+            compiler:
+              name: appleclang
+              osver: 14
+        include:
+          - mode: all
+            configuration: Debug
+            compiler:
+              name: appleclang
+              osver: 15
+          - mode: all
+            configuration: Release
+            compiler:
+              name: appleclang
+              osver: 15
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
     - name: Prepare build
       run: |
         mkdir .build
         cd .build
-        if [[ "${{ matrix.compiler }}" == "appleclang" ]]; then
-          export CXX="$(which clang++)"
-          export CC="$(which clang)"
+        if [[ "${{ matrix.compiler.name }}" == "appleclang" ]]; then
+          CXX="$(which clang++)"
+          CC="$(which clang)"
+          export CXX CC
         fi
-        if [[ "${{ matrix.compiler }}" == "clang" ]]; then
-          export CXX="$(brew --prefix llvm@${{ matrix.clangrelease }})/bin/clang++"
-          export CC="$(brew --prefix llvm@${{ matrix.clangrelease }})/bin/clang"
+        if [[ "${{ matrix.compiler.name }}" == "clang" ]]; then
+          CXX="$(brew --prefix llvm@${{ matrix.compiler.release }})/bin/clang++"
+          CC="$(brew --prefix llvm@${{ matrix.compiler.release }})/bin/clang"
+          export CXX CC
         fi
-        cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ..
+        if [[ "${{ matrix.compiler.name }}" == "gcc" ]]; then
+          CXX="$(brew --prefix gcc@${{ matrix.compiler.release }})/bin/g++-${{ matrix.compiler.release }}"
+          CC="$(brew --prefix gcc@${{ matrix.compiler.release }})/bin/gcc-${{ matrix.compiler.release }}"
+          export CXX CC
+        fi
+        cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ${{ matrix.mode == 'cxx20' && '-DDISABLE_CXX23=ON' || '' }} ..
         COMPILER=$( grep -iE "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
         FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ matrix.configuration }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
         printf "C++ compiler path: %s\n" "$COMPILER"
@@ -147,6 +184,7 @@ jobs:
         printf "C++ compilation options: %s\n" "$FLAGS"
 
     - name: Build and test ${{ matrix.mode }}
+      if: matrix.mode != 'all'
       run: |
         cd .build
         cmake --build . --target ${{ matrix.mode }}
@@ -154,15 +192,15 @@ jobs:
 
     # Build and test all for one arbitrary configuration
     - name: Build and test all
-      if: ${{ matrix.compiler == 'appleclang' && matrix.osver == '15' && matrix.mode == 'cxx23' }}
+      if: matrix.mode == 'all'
       run: |
         cd .build
-        cmake --build . --target clean
         cmake --build .
         ctest --output-on-failure
 
   windows:
-      runs-on: windows-${{ matrix.osver }}
+      timeout-minutes: 10
+      runs-on: ${{ matrix.vs.runner }}
       strategy:
         fail-fast: false
         matrix:
@@ -171,19 +209,21 @@ jobs:
           configuration:
             - Debug
             - Release
-          compiler:
-            - "Visual Studio 17 2022"
-          osver:
-            - 2025
+          vs:
+            - generator: "Visual Studio 17 2022"
+              runner: "warp-windows-latest-x64-4x"
+            - generator: "Visual Studio 18 2026"
+              runner: "windows-2025-vs2026"
+
       steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Prepare build
         shell: bash
         run: |
           mkdir .build
           cd .build
-          cmake -G "${{ matrix.compiler }}" -A x64 ..
+          cmake -G "${{ matrix.vs.generator }}" -A x64 -DDISABLE_CXX23=ON ..
           LINKER=$( grep -iE "^CMAKE_LINKER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
           FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ matrix.configuration }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
           printf "C++ linker path: %s\n" "$LINKER"
@@ -198,8 +238,8 @@ jobs:
           ctest -L ${{ matrix.mode }} -C ${{ matrix.configuration }} --output-on-failure
 
   nixos:
-    runs-on:
-      group: runners-intel
+    timeout-minutes: 10
+    runs-on: warp-ubuntu-latest-x64-4x
     strategy:
       fail-fast: false
       matrix:
@@ -207,10 +247,10 @@ jobs:
           - gcc
           - clang
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
     - name: Install Nix
-      uses: cachix/install-nix-action@v30
+      uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31.10.6
       with:
         extra_nix_config: |
           access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}

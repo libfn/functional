@@ -13,6 +13,7 @@ on:
       - 'CMakeLists.txt'
       - 'cmake/**'
       - '*.md'
+      - 'VERSION'
   workflow_dispatch:
 
 permissions:
@@ -26,7 +27,7 @@ jobs:
       group: runners-arm64
     container: libfn.azurecr.io/ci-docs:latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       # Guardrail to ensure that we do not update docs after a bad merge
       - name: Build and run tests
@@ -34,7 +35,7 @@ jobs:
         run: |
           mkdir .build
           cd .build
-          cmake -DDOCS=On ..
+          cmake -DLIBFN_DOCS=On ..
           cmake --build .
           ctest
 
@@ -45,16 +46,16 @@ jobs:
           cmake --build . --target export_docs
 
       - name: Setup Pages
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: ./.build/docs
           name: docs-develop
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
         with:
           artifact_name: docs-develop

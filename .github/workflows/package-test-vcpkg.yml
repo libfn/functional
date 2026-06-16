@@ -1,0 +1,69 @@
+name: package-test-vcpkg
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/package-test-vcpkg.yml'
+      - 'ports/**'
+      - 'test_package/**'
+      - 'include/**'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'VERSION'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/package-test-vcpkg.yml'
+      - 'ports/**'
+      - 'test_package/**'
+      - 'include/**'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'VERSION'
+  workflow_dispatch:
+
+jobs:
+  test_vcpkg:
+    runs-on:
+      group: runners-intel
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: cxx23
+            install_spec: libfn
+            cmake_extra: ""
+          - name: cxx20
+            install_spec: "libfn[disable-cxx23]"
+            cmake_extra: ""
+          - name: cxx20-std23
+            install_spec: "libfn[disable-cxx23]"
+            cmake_extra: "-DCMAKE_CXX_STANDARD=23"
+
+    steps:
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+    - name: Install libfn
+      env:
+        VCPKG_LIBFN_SOURCE_PATH: ${{ github.workspace }}
+      run: |
+        "$VCPKG_INSTALLATION_ROOT/vcpkg" install "${{ matrix.install_spec }}" \
+          --overlay-ports=ports \
+          --triplet x64-linux
+
+    - name: Configure and build ${{ matrix.name }}
+      run: |
+        cmake -B .build test_package \
+          "-DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" \
+          -DVCPKG_TARGET_TRIPLET=x64-linux ${{ matrix.cmake_extra }}
+        cmake --build .build
+
+    - name: Run pfn_quine
+      run: .build/pfn_quine
+
+    - name: Run fn_quine
+      if: matrix.name == 'cxx23'
+      run: .build/fn_quine

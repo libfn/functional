@@ -4,23 +4,23 @@
 // or copy at https://opensource.org/licenses/ISC
 
 #include "catch2/catch_test_macros.hpp"
-#ifndef PFN_TEST_VALIDATION
-// TODO: Add death tests. Until then, empty definition to avoid false "no coverage" reports
+
+#ifndef PFN_TEST_NESTED
+
+// TODO : Add death tests.Until then, empty definition to avoid false "no coverage" reports
 #define LIBFN_ASSERT(...)
 #include <pfn/expected.hpp>
+
 using pfn::bad_expected_access;
 using pfn::expected;
 using pfn::unexpect;
 using pfn::unexpect_t;
 using pfn::unexpected;
-#else
-#include <expected>
-using std::bad_expected_access;
-using std::expected;
-using std::unexpect;
-using std::unexpect_t;
-using std::unexpected;
+
 #endif
+// When nested via PFN_TEST_NESTED (e.g expected_validation.cpp), the wrapper TU
+// already includes the necessary header(s) and brings the relevant aliases into the
+// global namespace to select right set of types expected as the subject under test.
 
 #include <util/helper_types.hpp>
 
@@ -809,6 +809,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         static_assert(not std::is_nothrow_constructible_v<T, expected<int, Error>>);
         static_assert(not extension || std::is_nothrow_constructible_v<T, expected<helper_list_t, Error>>);
         static_assert(std::is_convertible_v<expected<int, Error>, T>);
+        static_assert(not std::is_constructible_v<T, expected<void, Error>>);
 
         constexpr expected<int, int> a{expected<bool, bool>{true}};
         static_assert(a.value() == 1);
@@ -825,6 +826,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         static_assert(not std::is_nothrow_constructible_v<T, expected<double, int>>);
         static_assert(not extension || std::is_nothrow_constructible_v<T, expected<double, helper_list_t>>);
         static_assert(std::is_convertible_v<expected<double, helper>, T>);
+        static_assert(not std::is_constructible_v<T, expected<void, helper>>);
 
         constexpr expected<int, int> a{expected<bool, bool>{unexpect, true}};
         static_assert(a.error() == 1);
@@ -843,6 +845,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         static_assert(not std::is_nothrow_constructible_v<T, expected<int, Error> const &>);
         static_assert(not extension || std::is_nothrow_constructible_v<T, expected<helper_list_t, Error> const &>);
         static_assert(std::is_convertible_v<expected<int, Error> const &, T>);
+        static_assert(not std::is_constructible_v<T, expected<void, Error> const &>);
 
         constexpr expected<bool, bool> v{true};
         constexpr expected<int, int> a{v};
@@ -860,6 +863,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         static_assert(not std::is_nothrow_constructible_v<T, expected<double, int> const &>);
         static_assert(not extension || std::is_nothrow_constructible_v<T, expected<double, helper_list_t> const &>);
         static_assert(std::is_convertible_v<expected<double, helper> const &, T>);
+        static_assert(not std::is_constructible_v<T, expected<void, helper> const &>);
 
         constexpr expected<bool, bool> e{unexpect, true};
         constexpr expected<int, int> a{e};
@@ -1206,6 +1210,17 @@ TEST_CASE("expected non void", "[expected][polyfill]")
     static_assert(std::is_nothrow_move_constructible_v<H>);
     static_assert(not std::is_nothrow_copy_assignable_v<H>);
     static_assert(not std::is_nothrow_move_assignable_v<H>);
+
+    SECTION("default template parameter")
+    {
+      struct E {
+        E() = default;
+        E(E const &) = delete;
+        E &operator=(E const &) = delete;
+      };
+      static_assert(requires(expected<int, E> &e) { e = {}; });
+      SUCCEED();
+    }
 
     SECTION("from rval")
     {
@@ -2803,6 +2818,19 @@ TEST_CASE("expected non void", "[expected][polyfill]")
       static_assert(not noexcept(std::declval<T &>().value_or(std::declval<int>())));
       static_assert(not extension || noexcept(std::declval<T &>().value_or(std::declval<helper_list_t>())));
 
+      SECTION("default template parameter")
+      {
+        // std::expected's value_or gained the `= remove_cv_t<T>` default late: libstdc++ in GCC 15,
+        // libc++ in LLVM 22. Older implementations don't have this default, so we can't test it there.
+#if !defined(PFN_TEST_VALIDATION) || (defined(_LIBCPP_VERSION) && _LIBCPP_VERSION >= 220000)                           \
+    || (defined(__GLIBCXX__) && _GLIBCXX_RELEASE >= 15)
+        using D = expected<int, Error>;
+        static_assert(requires(D &e) { e.value_or({}); });             // const & overload
+        static_assert(requires(D &&e) { std::move(e).value_or({}); }); // && overload
+#endif
+        SUCCEED();
+      }
+
 #ifndef _MSC_VER
       SECTION("value")
       {
@@ -3694,17 +3722,18 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
   SECTION("from other expected")
   {
+    using T = expected<void, helper>;
+
     SECTION("rval")
     {
+      static_assert(std::is_constructible_v<T, expected<void, int>>);
+      static_assert(not std::is_nothrow_constructible_v<T, expected<void, int>>);
+      static_assert(not extension || std::is_nothrow_constructible_v<T, expected<void, helper_list_t>>);
+      static_assert(std::is_convertible_v<expected<void, int>, T>);
+      static_assert(not std::is_constructible_v<T, expected<int, helper>>);
+
       SECTION("value")
       {
-        using T = expected<void, helper>;
-        static_assert(std::is_constructible_v<T, expected<void, int>>);
-        static_assert(not std::is_nothrow_constructible_v<T, expected<void, int>>);
-        static_assert(not extension || std::is_nothrow_constructible_v<T, expected<void, helper_list_t>>);
-        static_assert(std::is_convertible_v<expected<void, int>, T>);
-        static_assert(not std::is_constructible_v<T, expected<int, int>>);
-
         constexpr expected<void, int> a{expected<void, bool>{}};
         static_assert(a.has_value());
 
@@ -3714,12 +3743,6 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
       SECTION("error")
       {
-        using T = expected<void, helper>;
-        static_assert(std::is_constructible_v<T, expected<void, int>>);
-        static_assert(not std::is_nothrow_constructible_v<T, expected<void, int>>);
-        static_assert(not extension || std::is_nothrow_constructible_v<T, expected<void, helper_list_t>>);
-        static_assert(std::is_convertible_v<expected<void, int>, T>);
-
         constexpr expected<void, int> a{expected<void, bool>{unexpect, true}};
         static_assert(a.error() == 1);
 
@@ -3730,15 +3753,14 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
     SECTION("lval const")
     {
+      static_assert(std::is_constructible_v<T, expected<void, int> const &>);
+      static_assert(not std::is_nothrow_constructible_v<T, expected<void, int> const &>);
+      static_assert(not extension || std::is_nothrow_constructible_v<T, expected<void, helper_list_t> const &>);
+      static_assert(std::is_convertible_v<expected<void, int> const &, T>);
+      static_assert(not std::is_constructible_v<T, expected<int, int> const &>);
+
       SECTION("value")
       {
-        using T = expected<void, helper>;
-        static_assert(std::is_constructible_v<T, expected<void, int> const &>);
-        static_assert(not std::is_nothrow_constructible_v<T, expected<void, int> const &>);
-        static_assert(not extension || std::is_nothrow_constructible_v<T, expected<void, helper_list_t> const &>);
-        static_assert(std::is_convertible_v<expected<void, int> const &, T>);
-        static_assert(not std::is_constructible_v<T, expected<int, int> const &>);
-
         constexpr expected<void, bool> v;
         constexpr expected<void, int> a{v};
         static_assert(a.has_value());
@@ -3750,12 +3772,6 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
       SECTION("error")
       {
-        using T = expected<void, helper>;
-        static_assert(std::is_constructible_v<T, expected<void, int> const &>);
-        static_assert(not std::is_nothrow_constructible_v<T, expected<void, int> const &>);
-        static_assert(not extension || std::is_nothrow_constructible_v<T, expected<void, helper_list_t> const &>);
-        static_assert(std::is_convertible_v<expected<void, int> const &, T>);
-
         constexpr expected<void, bool> e{unexpect, true};
         constexpr expected<void, int> a{e};
         static_assert(a.error() == 1);
@@ -4192,10 +4208,13 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
           constexpr T a = fn(T(unexpect, Error::file_not_found));
           static_assert(a.error() == Error::file_not_found);
 
+// clang+libstdc++: constexpr eval can't track std::expected's _M_unex across error->value transition
+#if !(defined(__clang__) && defined(__GLIBCXX__) && defined(PFN_TEST_VALIDATION))
           constexpr T b = fn(T(std::in_place));
           static_assert(b.has_value());
 #ifndef PFN_TEST_VALIDATION
           static_assert(not b.has_error());
+#endif
 #endif
 
           SUCCEED();
@@ -4484,10 +4503,13 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         static_assert(not a.has_value() && a.error() == Error::file_not_found);
 #endif
 
+// clang+libstdc++: constexpr eval can't track std::expected's _M_unex across error->value transition
+#if !(defined(__clang__) && defined(__GLIBCXX__) && defined(PFN_TEST_VALIDATION))
         constexpr T b = fn(d);
         static_assert(b.has_value());
 #ifndef PFN_TEST_VALIDATION
         static_assert(not b.has_error());
+#endif
 #endif
 
         SUCCEED();
@@ -4550,6 +4572,8 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
       SECTION("from error")
       {
+// clang+libstdc++: constexpr eval can't track std::expected's _M_unex across error->value transition
+#if !(defined(__clang__) && defined(__GLIBCXX__) && defined(PFN_TEST_VALIDATION))
         constexpr auto fn = []() constexpr -> T {
           T tmp{unexpect, Error::unknown};
           tmp.emplace();
@@ -4560,6 +4584,7 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         static_assert(a.has_value());
 #ifndef PFN_TEST_VALIDATION
         static_assert(not a.has_error());
+#endif
 #endif
 
         SUCCEED();
@@ -4837,10 +4862,13 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
           return v;
         };
 
+// clang+libstdc++: constexpr eval can't track std::expected's _M_unex across error->value transition
+#if !(defined(__clang__) && defined(__GLIBCXX__) && defined(PFN_TEST_VALIDATION))
         constexpr T a = fn(T(unexpect, Error::file_not_found));
         static_assert(a.has_value());
 #ifndef PFN_TEST_VALIDATION
         static_assert(not a.has_error());
+#endif
 #endif
 
         constexpr T b = fn(T());

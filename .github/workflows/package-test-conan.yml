@@ -1,0 +1,55 @@
+name: package-test-conan
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/package-test-conan.yml'
+      - 'conanfile.py'
+      - 'test_package/**'
+      - 'include/**'
+      - 'VERSION'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/package-test-conan.yml'
+      - 'conanfile.py'
+      - 'test_package/**'
+      - 'include/**'
+      - 'VERSION'
+  workflow_dispatch:
+
+jobs:
+  test_conan:
+    runs-on:
+      group: runners-intel
+    container: libfn.azurecr.io/ci-build-gcc:15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: cxx23
+            disable_cxx23: 'False'
+            cppstd: '23'
+          - name: cxx20
+            disable_cxx23: 'True'
+            cppstd: '20'
+          - name: cxx20-std23
+            disable_cxx23: 'True'
+            cppstd: '23'
+
+    steps:
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+    - name: Detect Conan profile
+      run: |
+        conan profile detect
+        echo "tools.cmake.cmaketoolchain:generator=Ninja" >> ~/.conan2/global.conf
+
+    - name: Test ${{ matrix.name }} packaging
+      run: |
+        conan create . --build=missing \
+          -o "&:disable_cxx23=${{ matrix.disable_cxx23 }}" \
+          -s "compiler.cppstd=${{ matrix.cppstd }}"

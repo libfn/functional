@@ -52,7 +52,7 @@ template <typename T, typename Fn, typename... Args>
 constexpr auto _invoke_type_result_result(Fn &&, Args &&...)
     -> std::type_identity<decltype(_invoke_type<T>(std::declval<Fn>(), std::declval<Args>()...))>;
 template <typename T, typename Fn, typename... Args>
-constexpr auto _invoke_result_result(auto &&...) -> std::type_identity<void>;
+constexpr auto _invoke_type_result_result(auto &&...) -> std::type_identity<void>;
 
 template <typename T, typename Fn, typename... Args> struct _invoke_type_result {
   using type = decltype(_invoke_type_result_result<T, Fn, Args...>(std::declval<Fn>(), std::declval<Args>()...))::type;

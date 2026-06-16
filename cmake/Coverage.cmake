@@ -19,10 +19,6 @@ set(GCOVR_ADDITIONAL_ARGS
 setup_target_for_coverage_gcovr(
     NAME coverage
     FORMAT ${CODE_COVERAGE_FORMAT}
-    EXECUTABLE ${CODE_COVERAGE_TEST}
-    EXECUTABLE_ARGS ${CODE_COVERAGE_TEST_ARGS}
     EXCLUDE "tests" "examples"
-    DEPENDENCIES all
+    DEPENDENCIES tests
 )
-
-append_coverage_compiler_flags()

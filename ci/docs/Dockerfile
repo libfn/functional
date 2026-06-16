@@ -1,19 +1,19 @@
-ARG GCC_RELEASE=14
-ARG GCC_DIST=${GCC_RELEASE}-bookworm
-FROM gcc:${GCC_DIST} AS gcc
+ARG GCC_RELEASE=15
+ARG DEBIAN_VERSION=trixie
+ARG GCC_DIST=${GCC_RELEASE}-${DEBIAN_VERSION}
+FROM gcc:${GCC_DIST} AS upstream
 RUN set -ex ;\
     find /usr/local/ -type f ;\
     cat /etc/ld.so.conf.d/* ;\
     cat /etc/os-release ;\
     /usr/local/bin/gcc --version
 
-FROM debian:bookworm AS build
-ARG DOXYGEN_RELEASE=1.12.0
-ARG ZNAI_RELEASE=1.73
+ARG DEBIAN_VERSION=trixie
+FROM debian:${DEBIAN_VERSION} AS build
+ARG DOXYGEN_RELEASE
+ARG ZNAI_RELEASE
 
-ENV CMAKE_GENERATOR=Ninja
-ENV CMAKE_BUILD_TYPE=Debug
-ENV DEBIAN_FRONTEND=noninteractive
+ARG DEBIAN_FRONTEND=noninteractive
 WORKDIR /work
 RUN set -ex ;\
     apt-get update ;\
@@ -22,7 +22,9 @@ RUN set -ex ;\
       python3 bison flex libiconv-hook-dev unzip ;\
     apt-get clean
 
+ENV CMAKE_GENERATOR=Ninja
 RUN set -ex ;\
+    : "${DOXYGEN_RELEASE:?DOXYGEN_RELEASE is not set}" ;\
     DIST="https://www.doxygen.nl/files" ;\
     FILE="doxygen-${DOXYGEN_RELEASE}.src.tar.gz" ;\
     wget ${DIST}/${FILE} ;\
@@ -36,6 +38,7 @@ RUN set -ex ;\
     rm -rf ${FILE} doxygen-${DOXYGEN_RELEASE}
 
 RUN set -ex ;\
+    : "${ZNAI_RELEASE:?ZNAI_RELEASE is not set}" ;\
     DIST="https://repo.maven.apache.org/maven2/org/testingisdocumenting/znai/znai-dist" ;\
     FILE=znai-dist-${ZNAI_RELEASE}-znai.zip ;\
     wget ${DIST}/${ZNAI_RELEASE}/${FILE} ;\
@@ -43,9 +46,10 @@ RUN set -ex ;\
     mv znai_tmp/dist /opt/znai ;\
     rm -rf ${FILE} znai_tmp
 
-FROM debian:bookworm
-COPY --from=gcc /usr/local/ /usr/local/
-COPY --from=gcc /etc/ld.so.conf.d/ /etc/ld.so.conf.d/
+ARG DEBIAN_VERSION=trixie
+FROM debian:${DEBIAN_VERSION}
+COPY --from=upstream /usr/local/ /usr/local/
+COPY --from=upstream /etc/ld.so.conf.d/ /etc/ld.so.conf.d/
 COPY --from=build /usr/local/ /usr/local/
 COPY --from=build /opt/znai /opt/znai
 
@@ -71,35 +75,25 @@ RUN set -ex ;\
     update-alternatives --auto cc ;\
     update-alternatives --auto gcc
 
-ENV PATH=${PATH}:/opt/znai
+ARG JAVA_VERSION=openjdk-21-jdk
+ARG DEBIAN_FRONTEND=noninteractive
+RUN set -ex ;\
+    apt-get update ;\
+    apt-get install -y --no-install-recommends \
+      ca-certificates gnupg unzip wget vim curl jq \
+      cmake ninja-build binutils libc6-dev git \
+      ${JAVA_VERSION} graphviz  ;\
+    apt-get clean
+
 ENV CC=/usr/bin/gcc
 ENV CXX=/usr/bin/g++
 ENV CMAKE_GENERATOR=Ninja
 ENV CMAKE_BUILD_TYPE=Debug
-ENV DEBIAN_FRONTEND=noninteractive
-RUN set -ex ;\
-    apt-get update ;\
-    apt-get install -y --no-install-recommends \
-      ca-certificates gpg gpg-agent wget vim curl jq \
-      cmake ninja-build binutils libc6-dev git \
-      openjdk-17-jdk graphviz  ;\
-    apt-get clean
-
-ARG CATCH_RELEASE=3.7.1
+ARG CATCH_RELEASE
 WORKDIR /work
+COPY build-catch.sh /work/build-catch.sh
 RUN set -ex ;\
-    DIST="https://github.com/catchorg/Catch2/archive/refs/tags/" ;\
-    FILE="v${CATCH_RELEASE}.tar.gz" ;\
-    wget ${DIST}/${FILE} ;\
-    tar -xzf ${FILE} ;\
-    cd Catch2-${CATCH_RELEASE} ;\
-    cmake -B build -S . \
-      -DCMAKE_BUILD_TYPE=Release \
-      -DBUILD_TESTING=OFF \
-      -DCATCH_DEVELOPMENT_BUILD=ON \
-      -DCATCH_BUILD_TESTING=OFF ;\
-    cmake --build build/ --target install ;\
-    cd /work ;\
-    rm -rf ${FILE} Catch2-${CATCH_RELEASE}
-
+    sh /work/build-catch.sh ;\
+    rm /work/build-catch.sh
 ENV CMAKE_FIND_CATCH2=1
+ENV PATH=${PATH}:/opt/znai

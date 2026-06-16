@@ -12,12 +12,18 @@ set(EXAMPLES_POLYGON_SOURCES
 
 # TODO add 20 when we are compatible with C++20
 foreach(mode 23)
+    if(${mode} EQUAL 23 AND DISABLE_CXX23)
+        message(STATUS "C++23 support is disabled, skipping examples_polygon targets for C++23")
+        continue()
+    endif()
+
     set(target "examples_polygon_cxx${mode}")
 
     add_executable("${target}" ${EXAMPLES_POLYGON_SOURCES})
     target_link_libraries("${target}" include_fn)
     append_compilation_options("${target}" WARNINGS)
     add_dependencies("cxx${mode}" "${target}")
+    add_dependencies("examples" "${target}")
     set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
     target_compile_definitions("${target}" PRIVATE LIBFN_MODE=${mode})
 
@@ -30,12 +36,20 @@ set(TESTS_EXAMPLES_POLYGON_SOURCES
 )
 
 foreach(mode 23)
+    if(${mode} EQUAL 23 AND DISABLE_CXX23)
+        message(STATUS "C++23 support is disabled, skipping tests_examples_polygon targets for C++23")
+        continue()
+    endif()
+
     set(target "tests_examples_polygon_cxx${mode}")
 
     add_executable("${target}" ${TESTS_EXAMPLES_POLYGON_SOURCES})
     target_link_libraries("${target}" include_fn Catch2::Catch2WithMain)
     append_compilation_options("${target}" WARNINGS OPTIMIZATION)
     add_dependencies("cxx${mode}" "${target}")
+    add_dependencies("examples" "${target}")
+# Not a real test target, so we don't want it to be a dependency of the "tests" phony target
+#     add_dependencies("tests" "${target}")
     set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
     target_compile_definitions("${target}" PRIVATE LIBFN_MODE=${mode})
 
