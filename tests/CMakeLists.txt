@@ -116,6 +116,7 @@ endforeach()
 
 # Pls keep the filenames sorted
 set(TESTS_FN_SOURCES
+    fn/detail/functional.cpp
     fn/detail/fwd_macro.cpp
     fn/detail/meta.cpp
     fn/detail/pack_impl.cpp
@@ -145,9 +146,11 @@ set(TESTS_FN_SOURCES
 )
 
 set(TESTS_FN_SOURCES_CXX20
+    fn/detail/functional.cpp
     fn/detail/fwd_macro.cpp
     fn/detail/meta.cpp
     fn/detail/pack_impl.cpp
+    fn/detail/traits.cpp
     fn/detail/variadic_union.cpp
 )
 
