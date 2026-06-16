@@ -116,6 +116,7 @@ endforeach()
 set(TESTS_FN_SOURCES
     fn/detail/fwd_macro.cpp
     fn/detail/meta.cpp
+    fn/detail/traits.cpp
     fn/detail/variadic_union.cpp
     fn/and_then.cpp
     fn/choice.cpp
