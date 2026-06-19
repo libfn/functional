@@ -6,8 +6,8 @@
 #ifndef TESTS_UTIL_STATIC_CHECK
 #define TESTS_UTIL_STATIC_CHECK
 
-#include <fn/concepts.hpp>
-#include <fn/functor.hpp>
+#include <fn/functional.hpp>
+#include <fn/monadic.hpp>
 
 #include <type_traits>
 

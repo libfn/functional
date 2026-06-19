@@ -19,17 +19,6 @@ namespace fn {
  * @brief TODO
  *
  * @tparam Functor TODO
- * @tparam V TODO
- * @tparam Args TODO
- */
-template <typename Functor, typename V, typename... Args>
-concept monadic_invocable //
-    = some_monadic_type<V> && ::std::invocable<typename Functor::apply, V, Args...>;
-
-/**
- * @brief TODO
- *
- * @tparam Functor TODO
  * @tparam Args TODO
  */
 template <typename Functor, typename... Args> struct functor final {

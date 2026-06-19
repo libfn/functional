@@ -8,6 +8,7 @@
 
 #include <fn/choice.hpp>
 #include <fn/expected.hpp>
+#include <fn/monadic.hpp>
 #include <fn/optional.hpp>
 #include <fn/sum.hpp>
 
@@ -15,14 +16,6 @@
 #include <type_traits>
 
 namespace fn {
-
-/**
- * @brief TODO
- *
- * @tparam T TODO
- */
-template <typename T>
-concept some_monadic_type = some_expected<T> || some_optional<T> || some_choice<T>;
 
 /**
  * @brief TODO

@@ -86,6 +86,7 @@ set(INCLUDE_FN_HEADERS
     fn/fwd.hpp
     fn/inspect_error.hpp
     fn/inspect.hpp
+    fn/monadic.hpp
     fn/optional.hpp
     fn/or_else.hpp
     fn/pack.hpp
