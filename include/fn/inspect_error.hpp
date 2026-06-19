@@ -56,7 +56,7 @@ struct inspect_error_t::apply final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] static constexpr auto operator()(some_expected auto &&v, auto &&fn) noexcept -> decltype(v)
+  [[nodiscard]] constexpr auto operator()(some_expected auto &&v, auto &&fn) const noexcept -> decltype(v)
     requires invocable_inspect_error<decltype(fn), decltype(v)>
   {
     if (not v.has_value()) {
@@ -72,7 +72,7 @@ struct inspect_error_t::apply final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept -> decltype(v)
+  [[nodiscard]] constexpr auto operator()(some_optional auto &&v, auto &&fn) const noexcept -> decltype(v)
     requires invocable_inspect_error<decltype(fn), decltype(v)>
   {
     if (not v.has_value()) {
@@ -82,7 +82,7 @@ struct inspect_error_t::apply final {
   }
 
   // No support for choice since there's no error to operate on
-  static auto operator()(some_choice auto &&v, auto &&...args) noexcept = delete;
+  auto operator()(some_choice auto &&v, auto &&...args) const noexcept = delete;
 };
 
 } // namespace fn

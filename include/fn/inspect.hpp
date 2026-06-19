@@ -58,7 +58,7 @@ struct inspect_t::apply final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] static constexpr auto operator()(some_expected_non_void auto &&v, auto &&fn) noexcept -> decltype(v)
+  [[nodiscard]] constexpr auto operator()(some_expected_non_void auto &&v, auto &&fn) const noexcept -> decltype(v)
     requires invocable_inspect<decltype(fn), decltype(v)>
   {
     if (v.has_value()) {
@@ -74,7 +74,7 @@ struct inspect_t::apply final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] static constexpr auto operator()(some_expected_void auto &&v, auto &&fn) noexcept -> decltype(v)
+  [[nodiscard]] constexpr auto operator()(some_expected_void auto &&v, auto &&fn) const noexcept -> decltype(v)
     requires invocable_inspect<decltype(fn), decltype(v)>
   {
     if (v.has_value()) {
@@ -90,7 +90,7 @@ struct inspect_t::apply final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept -> decltype(v)
+  [[nodiscard]] constexpr auto operator()(some_optional auto &&v, auto &&fn) const noexcept -> decltype(v)
     requires invocable_inspect<decltype(fn), decltype(v)>
   {
     if (v.has_value()) {
@@ -106,7 +106,7 @@ struct inspect_t::apply final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] static constexpr auto operator()(some_choice auto &&v, auto &&fn) noexcept -> decltype(v)
+  [[nodiscard]] constexpr auto operator()(some_choice auto &&v, auto &&fn) const noexcept -> decltype(v)
     requires invocable_inspect<decltype(fn), decltype(v)>
   {
     ::fn::invoke(FWD(fn), std::as_const(v).value()); // side-effects only

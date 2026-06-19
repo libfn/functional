@@ -81,7 +81,7 @@ struct filter_t::apply final {
    * @param on_err TODO
    * @return TODO
    */
-  [[nodiscard]] static constexpr auto operator()(some_expected_non_void auto &&v, auto &&pred, auto &&on_err) noexcept
+  [[nodiscard]] constexpr auto operator()(some_expected_non_void auto &&v, auto &&pred, auto &&on_err) const noexcept
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_filter<decltype(pred), decltype(on_err), decltype(v)>
   {
@@ -102,7 +102,7 @@ struct filter_t::apply final {
    * @param on_err TODO
    * @return TODO
    */
-  [[nodiscard]] static constexpr auto operator()(some_expected_void auto &&v, auto &&pred, auto &&on_err) noexcept
+  [[nodiscard]] constexpr auto operator()(some_expected_void auto &&v, auto &&pred, auto &&on_err) const noexcept
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_filter<decltype(pred), decltype(on_err), decltype(v)>
   {
@@ -122,7 +122,7 @@ struct filter_t::apply final {
    * @param pred TODO
    * @return TODO
    */
-  [[nodiscard]] static constexpr auto operator()(some_optional auto &&v, auto &&pred) noexcept
+  [[nodiscard]] constexpr auto operator()(some_optional auto &&v, auto &&pred) const noexcept
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_filter<decltype(pred), void, decltype(v)>
   {
@@ -136,7 +136,7 @@ struct filter_t::apply final {
   }
 
   // No support for choice since there's no error to operate on
-  static auto operator()(some_choice auto &&v, auto &&...args) noexcept = delete;
+  auto operator()(some_choice auto &&v, auto &&...args) const noexcept = delete;
 };
 
 } // namespace fn

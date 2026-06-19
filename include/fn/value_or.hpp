@@ -52,7 +52,7 @@ struct value_or_t::apply final {
    * @param args TODO
    * @return TODO
    */
-  [[nodiscard]] static constexpr auto operator()(some_monadic_type auto &&v, auto &&...args) noexcept //
+  [[nodiscard]] constexpr auto operator()(some_monadic_type auto &&v, auto &&...args) const noexcept //
       -> same_value_kind<decltype(v)> auto
     requires invocable_value_or<decltype(v), decltype(args)...>
   {
@@ -61,7 +61,7 @@ struct value_or_t::apply final {
   }
 
   // No support for choice since there's no error to recover from
-  static auto operator()(some_choice auto &&v, auto &&...args) noexcept = delete;
+  auto operator()(some_choice auto &&v, auto &&...args) const noexcept = delete;
 };
 
 } // namespace fn

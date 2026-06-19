@@ -56,7 +56,7 @@ struct transform_error_t::apply final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] static constexpr auto operator()(some_expected auto &&v, auto &&fn) noexcept
+  [[nodiscard]] constexpr auto operator()(some_expected auto &&v, auto &&fn) const noexcept
       -> same_value_kind<decltype(v)> auto
     requires invocable_transform_error<decltype(fn), decltype(v)>
   {
@@ -64,10 +64,10 @@ struct transform_error_t::apply final {
   }
 
   // No support for optional since there's no error state to operate on
-  static auto operator()(some_optional auto &&v, auto &&...args) noexcept = delete;
+  auto operator()(some_optional auto &&v, auto &&...args) const noexcept = delete;
 
   // No support for choice since there's no error to operate on
-  static auto operator()(some_choice auto &&v, auto &&...args) noexcept = delete;
+  auto operator()(some_choice auto &&v, auto &&...args) const noexcept = delete;
 };
 
 } // namespace fn
