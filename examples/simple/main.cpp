@@ -452,19 +452,18 @@ TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform
   auto fn = [&ss](auto const &v) {
     return parse(v)
            // Example use of transform to collapse several types ...
-           | fn::transform(fn::overload([](long const &i) -> double { return static_cast<double>(i); },
+           | fn::transform(fn::overload{[](long const &i) -> double { return static_cast<double>(i); },
                                         [](double const &i) -> double { return static_cast<double>(i); },
                                         [](std::nullopt_t const &) { return nullptr; }, //
-                                        [](auto &i) { return FWD(i); }))
+                                        [](auto &i) { return FWD(i); }})
            // ... and add a new type
-           | fn::transform(fn::overload(
-               [](double v) -> fn::sum<double, int> {
-                 if (std::ceil(v) == v && v >= -2e9 && v <= 2e9) {
-                   return {static_cast<int>(v)};
-                 }
-                 return {FWD(v)};
-               },
-               [](auto &i) -> auto { return FWD(i); }))
+           | fn::transform(fn::overload{[](double v) -> fn::sum<double, int> {
+                                          if (std::ceil(v) == v && v >= -2e9 && v <= 2e9) {
+                                            return {static_cast<int>(v)};
+                                          }
+                                          return {FWD(v)};
+                                        },
+                                        [](auto &i) -> auto { return FWD(i); }})
            | fn::inspect(fn::overload{[&](std::nullptr_t const &) { ss << "nullptr" << ','; }, //
                                       [&](bool const &v) { ss << v << ','; },                  //
                                       [&](int const &v) { ss << v << ','; },                   //

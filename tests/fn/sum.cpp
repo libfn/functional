@@ -308,34 +308,34 @@ TEST_CASE("sum basic functionality tests", "[sum]")
 
     WHEN("value only")
     {
-      static_assert(std::is_same_v<bool, decltype(a.invoke(fn::overload([](auto) -> bool { throw 1; },
-                                                                        [](int) -> bool { return true; })))>);
+      static_assert(std::is_same_v<bool, decltype(a.invoke(fn::overload{[](auto) -> bool { throw 1; },
+                                                                        [](int) -> bool { return true; }}))>);
 
-      CHECK(a.invoke(fn::overload([](auto) -> bool { throw 1; }, [](int &) -> bool { return true; },
+      CHECK(a.invoke(fn::overload{[](auto) -> bool { throw 1; }, [](int &) -> bool { return true; },
                                   [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
-                                  [](int const &&) -> bool { throw 0; })));
-      CHECK(std::as_const(a).invoke(fn::overload(
+                                  [](int const &&) -> bool { throw 0; }}));
+      CHECK(std::as_const(a).invoke(fn::overload{
           [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { return true; },
-          [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; })));
+          [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; }}));
       CHECK(std::move(std::as_const(a))
-                .invoke(fn::overload([](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
+                .invoke(fn::overload{[](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
                                      [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
-                                     [](int const &&) -> bool { return true; })));
-      CHECK(std::move(a).invoke(fn::overload([](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
+                                     [](int const &&) -> bool { return true; }}));
+      CHECK(std::move(a).invoke(fn::overload{[](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
                                              [](int const &) -> bool { throw 0; }, [](int &&) -> bool { return true; },
-                                             [](int const &&) -> bool { throw 0; })));
+                                             [](int const &&) -> bool { throw 0; }}));
 
       WHEN("constexpr")
       {
         constexpr sum<int> a{std::in_place_type<int>, 42};
-        static_assert(a.invoke(fn::overload(
+        static_assert(a.invoke(fn::overload{
             [](auto) -> std::false_type { return {}; }, //
             [](int &) -> std::false_type { return {}; }, [](int const &) -> std::true_type { return {}; },
-            [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::false_type { return {}; })));
-        static_assert(std::move(a).invoke(fn::overload(
+            [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::false_type { return {}; }}));
+        static_assert(std::move(a).invoke(fn::overload{
             [](auto) -> std::false_type { return {}; }, //
             [](int &) -> std::false_type { return {}; }, [](int const &) -> std::false_type { return {}; },
-            [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::true_type { return {}; })));
+            [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::true_type { return {}; }}));
       }
     }
 
@@ -343,50 +343,50 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     {
       static_assert(std::is_same_v<bool, decltype(a.invoke([](int, int) -> bool { return true; }, 12))>);
 
-      CHECK(a.invoke(fn::overload(                                             //
-                         [](auto const &...) -> bool { throw 1; },             //
-                         [](int &, std::monostate) -> bool { return true; },   //
-                         [](int const &, std::monostate) -> bool { throw 0; }, //
-                         [](int &&, std::monostate) -> bool { throw 0; },      //
-                         [](int const &&, std::monostate) -> bool { throw 0; }),
+      CHECK(a.invoke(fn::overload{                                                      //
+                                  [](auto const &...) -> bool { throw 1; },             //
+                                  [](int &, std::monostate) -> bool { return true; },   //
+                                  [](int const &, std::monostate) -> bool { throw 0; }, //
+                                  [](int &&, std::monostate) -> bool { throw 0; },      //
+                                  [](int const &&, std::monostate) -> bool { throw 0; }},
                      std::monostate{}));
-      CHECK(std::as_const(a).invoke(fn::overload(                                                 //
-                                        [](auto const &...) -> bool { throw 1; },                 //
-                                        [](int &, std::monostate) -> bool { throw 0; },           //
-                                        [](int const &, std::monostate) -> bool { return true; }, //
-                                        [](int &&, std::monostate) -> bool { throw 0; },          //
-                                        [](int const &&, std::monostate) -> bool { throw 0; }),
+      CHECK(std::as_const(a).invoke(fn::overload{                                                          //
+                                                 [](auto const &...) -> bool { throw 1; },                 //
+                                                 [](int &, std::monostate) -> bool { throw 0; },           //
+                                                 [](int const &, std::monostate) -> bool { return true; }, //
+                                                 [](int &&, std::monostate) -> bool { throw 0; },          //
+                                                 [](int const &&, std::monostate) -> bool { throw 0; }},
                                     std::monostate{}));
       CHECK(std::move(std::as_const(a))
-                .invoke(fn::overload(                                             //
-                            [](auto const &...) -> bool { throw 1; },             //
-                            [](int &, std::monostate) -> bool { throw 0; },       //
-                            [](int const &, std::monostate) -> bool { throw 0; }, //
-                            [](int &&, std::monostate) -> bool { throw 0; },      //
-                            [](int const &&, std::monostate) -> bool { return true; }),
+                .invoke(fn::overload{                                                      //
+                                     [](auto const &...) -> bool { throw 1; },             //
+                                     [](int &, std::monostate) -> bool { throw 0; },       //
+                                     [](int const &, std::monostate) -> bool { throw 0; }, //
+                                     [](int &&, std::monostate) -> bool { throw 0; },      //
+                                     [](int const &&, std::monostate) -> bool { return true; }},
                         std::monostate{}));
-      CHECK(std::move(a).invoke(fn::overload(                                             //
-                                    [](auto const &...) -> bool { throw 1; },             //
-                                    [](int &, std::monostate) -> bool { throw 0; },       //
-                                    [](int const &, std::monostate) -> bool { throw 0; }, //
-                                    [](int &&, std::monostate) -> bool { return true; },  //
-                                    [](int const &&, std::monostate) -> bool { throw 0; }),
+      CHECK(std::move(a).invoke(fn::overload{                                                      //
+                                             [](auto const &...) -> bool { throw 1; },             //
+                                             [](int &, std::monostate) -> bool { throw 0; },       //
+                                             [](int const &, std::monostate) -> bool { throw 0; }, //
+                                             [](int &&, std::monostate) -> bool { return true; },  //
+                                             [](int const &&, std::monostate) -> bool { throw 0; }},
                                 std::monostate{}));
 
       WHEN("constexpr")
       {
         constexpr sum<int> a{std::in_place_type<int>, 42};
-        static_assert(a.invoke(fn::overload([](auto...) -> bool { return false; }, //
+        static_assert(a.invoke(fn::overload{[](auto...) -> bool { return false; }, //
                                             [](int &, std::monostate) -> bool { return false; },
                                             [](int const &, std::monostate) -> bool { return true; },
                                             [](int &&, std::monostate) -> bool { return false; },
-                                            [](int const &&, std::monostate) -> bool { return false; }),
+                                            [](int const &&, std::monostate) -> bool { return false; }},
                                std::monostate{}));
-        static_assert(std::move(a).invoke(fn::overload([](auto...) -> bool { return false; }, //
+        static_assert(std::move(a).invoke(fn::overload{[](auto...) -> bool { return false; }, //
                                                        [](int &, std::monostate) -> bool { return false; },
                                                        [](int const &, std::monostate) -> bool { return false; },
                                                        [](int &&, std::monostate) -> bool { return false; },
-                                                       [](int const &&, std::monostate) -> bool { return true; }),
+                                                       [](int const &&, std::monostate) -> bool { return true; }},
                                           std::monostate{}));
         static_assert(fn::invoke([](int i, std::monostate) -> bool { return i == 42; }, a, std::monostate{}));
 
@@ -402,37 +402,37 @@ TEST_CASE("sum basic functionality tests", "[sum]")
 
     WHEN("value only")
     {
-      static_assert(std::is_same_v<bool, decltype(a.template invoke_r<bool>(fn::overload(
-                                             [](auto) -> bool { throw 1; }, [](int) -> bool { return true; })))>);
+      static_assert(std::is_same_v<bool, decltype(a.template invoke_r<bool>(fn::overload{
+                                             [](auto) -> bool { throw 1; }, [](int) -> bool { return true; }}))>);
       static_assert(
-          std::is_same_v<int, decltype(a.template invoke_r<int>(fn::overload([](auto) -> bool { throw 1; }, //
-                                                                             [](int) -> int { return true; })))>);
+          std::is_same_v<int, decltype(a.template invoke_r<int>(fn::overload{[](auto) -> bool { throw 1; }, //
+                                                                             [](int) -> int { return true; }}))>);
 
-      CHECK(a.template invoke_r<bool>(fn::overload(
+      CHECK(a.template invoke_r<bool>(fn::overload{
           [](auto) -> bool { throw 1; }, [](int &) -> bool { return true; }, [](int const &) -> bool { throw 0; },
-          [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; })));
-      CHECK(std::as_const(a).template invoke_r<bool>(fn::overload(
+          [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; }}));
+      CHECK(std::as_const(a).template invoke_r<bool>(fn::overload{
           [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { return true; },
-          [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; })));
+          [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; }}));
       CHECK(std::move(std::as_const(a))
-                .template invoke_r<bool>(fn::overload(
+                .template invoke_r<bool>(fn::overload{
                     [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
-                    [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { return true; })));
-      CHECK(std::move(a).template invoke_r<bool>(fn::overload(
+                    [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { return true; }}));
+      CHECK(std::move(a).template invoke_r<bool>(fn::overload{
           [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
-          [](int &&) -> bool { return true; }, [](int const &&) -> bool { throw 0; })));
+          [](int &&) -> bool { return true; }, [](int const &&) -> bool { throw 0; }}));
 
       WHEN("constexpr")
       {
         constexpr sum<int> a{std::in_place_type<int>, 42};
-        static_assert(a.template invoke_r<bool>(fn::overload(
+        static_assert(a.template invoke_r<bool>(fn::overload{
             [](auto) -> std::false_type { return {}; }, //
             [](int &) -> std::false_type { return {}; }, [](int const &) -> std::true_type { return {}; },
-            [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::false_type { return {}; })));
-        static_assert(std::move(a).template invoke_r<bool>(fn::overload(
+            [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::false_type { return {}; }}));
+        static_assert(std::move(a).template invoke_r<bool>(fn::overload{
             [](auto) -> std::false_type { return {}; }, //
             [](int &) -> std::false_type { return {}; }, [](int const &) -> std::false_type { return {}; },
-            [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::true_type { return {}; })));
+            [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::true_type { return {}; }}));
         static_assert(
             fn::invoke_r<bool>([](int, std::monostate) -> std::true_type { return {}; }, a, std::monostate{}));
       }
@@ -440,57 +440,58 @@ TEST_CASE("sum basic functionality tests", "[sum]")
 
     WHEN("extra arguments")
     {
-      static_assert(std::is_same_v<bool, decltype(a.template invoke_r<bool>(fn::overload(
-                                             [](auto) -> bool { throw 1; }, [](int) -> bool { return true; })))>);
+      static_assert(std::is_same_v<bool, decltype(a.template invoke_r<bool>(fn::overload{
+                                             [](auto) -> bool { throw 1; }, [](int) -> bool { return true; }}))>);
       static_assert(
-          std::is_same_v<int, decltype(a.template invoke_r<int>(fn::overload([](auto) -> bool { throw 1; }, //
-                                                                             [](int) -> int { return true; })))>);
-      CHECK(a.template invoke_r<bool>(fn::overload(                                             //
-                                          [](auto const &...) -> bool { throw 1; },             //
-                                          [](int &, std::monostate) -> bool { return true; },   //
-                                          [](int const &, std::monostate) -> bool { throw 0; }, //
-                                          [](int &&, std::monostate) -> bool { throw 0; },      //
-                                          [](int const &&, std::monostate) -> bool { throw 0; }),
+          std::is_same_v<int, decltype(a.template invoke_r<int>(fn::overload{[](auto) -> bool { throw 1; }, //
+                                                                             [](int) -> int { return true; }}))>);
+      CHECK(a.template invoke_r<bool>(fn::overload{                                                      //
+                                                   [](auto const &...) -> bool { throw 1; },             //
+                                                   [](int &, std::monostate) -> bool { return true; },   //
+                                                   [](int const &, std::monostate) -> bool { throw 0; }, //
+                                                   [](int &&, std::monostate) -> bool { throw 0; },      //
+                                                   [](int const &&, std::monostate) -> bool { throw 0; }},
                                       std::monostate{}));
-      CHECK(std::as_const(a).template invoke_r<bool>(fn::overload(                                                 //
-                                                         [](auto const &...) -> bool { throw 1; },                 //
-                                                         [](int &, std::monostate) -> bool { throw 0; },           //
-                                                         [](int const &, std::monostate) -> bool { return true; }, //
-                                                         [](int &&, std::monostate) -> bool { throw 0; },          //
-                                                         [](int const &&, std::monostate) -> bool { throw 0; }),
-                                                     std::monostate{}));
+      CHECK(std::as_const(a).template invoke_r<bool>(
+          fn::overload{                                                          //
+                       [](auto const &...) -> bool { throw 1; },                 //
+                       [](int &, std::monostate) -> bool { throw 0; },           //
+                       [](int const &, std::monostate) -> bool { return true; }, //
+                       [](int &&, std::monostate) -> bool { throw 0; },          //
+                       [](int const &&, std::monostate) -> bool { throw 0; }},
+          std::monostate{}));
       CHECK(std::move(std::as_const(a))
-                .template invoke_r<bool>(fn::overload(                                             //
-                                             [](auto const &...) -> bool { throw 1; },             //
-                                             [](int &, std::monostate) -> bool { throw 0; },       //
-                                             [](int const &, std::monostate) -> bool { throw 0; }, //
-                                             [](int &&, std::monostate) -> bool { throw 0; },      //
-                                             [](int const &&, std::monostate) -> bool { return true; }),
+                .template invoke_r<bool>(fn::overload{                                                      //
+                                                      [](auto const &...) -> bool { throw 1; },             //
+                                                      [](int &, std::monostate) -> bool { throw 0; },       //
+                                                      [](int const &, std::monostate) -> bool { throw 0; }, //
+                                                      [](int &&, std::monostate) -> bool { throw 0; },      //
+                                                      [](int const &&, std::monostate) -> bool { return true; }},
                                          std::monostate{}));
-      CHECK(std::move(a).template invoke_r<bool>(fn::overload(                                             //
-                                                     [](auto const &...) -> bool { throw 1; },             //
-                                                     [](int &, std::monostate) -> bool { throw 0; },       //
-                                                     [](int const &, std::monostate) -> bool { throw 0; }, //
-                                                     [](int &&, std::monostate) -> bool { return true; },  //
-                                                     [](int const &&, std::monostate) -> bool { throw 0; }),
+      CHECK(std::move(a).template invoke_r<bool>(fn::overload{                                                      //
+                                                              [](auto const &...) -> bool { throw 1; },             //
+                                                              [](int &, std::monostate) -> bool { throw 0; },       //
+                                                              [](int const &, std::monostate) -> bool { throw 0; }, //
+                                                              [](int &&, std::monostate) -> bool { return true; },  //
+                                                              [](int const &&, std::monostate) -> bool { throw 0; }},
                                                  std::monostate{}));
 
       WHEN("constexpr")
       {
         constexpr sum<int> a{std::in_place_type<int>, 42};
         static_assert(
-            a.template invoke_r<bool>(fn::overload([](auto...) -> std::false_type { return {}; }, //
+            a.template invoke_r<bool>(fn::overload{[](auto...) -> std::false_type { return {}; }, //
                                                    [](int &, std::monostate) -> std::false_type { return {}; },
                                                    [](int const &, std::monostate) -> std::true_type { return {}; },
                                                    [](int &&, std::monostate) -> std::false_type { return {}; },
-                                                   [](int const &&, std::monostate) -> std::false_type { return {}; }),
+                                                   [](int const &&, std::monostate) -> std::false_type { return {}; }},
                                       std::monostate{}));
         static_assert(std::move(a).template invoke_r<bool>(
-            fn::overload([](auto...) -> std::false_type { return {}; }, //
+            fn::overload{[](auto...) -> std::false_type { return {}; }, //
                          [](int &, std::monostate) -> std::false_type { return {}; },
                          [](int const &, std::monostate) -> std::false_type { return {}; },
                          [](int &&, std::monostate) -> std::false_type { return {}; },
-                         [](int const &&, std::monostate) -> std::true_type { return {}; }),
+                         [](int const &&, std::monostate) -> std::true_type { return {}; }},
             std::monostate{}));
 
         constexpr auto fn = [](auto &&...a) { return (0 + ... + static_cast<int>(a)); };
@@ -618,31 +619,31 @@ TEST_CASE("sum transform", "[sum][transform]")
   CHECK(a.data.v0 == 0.5);
 
   static_assert(type{0.5}.transform(fn1) == sum{std::size_t{8}});
-  CHECK(a.transform(      //
-            fn::overload( //
-                [](auto) -> int { throw 1; }, [](double &i) -> bool { return i == 0.5; },
-                [](double const &) -> bool { throw 0; }, [](double &&) -> bool { throw 0; },
-                [](double const &&) -> bool { throw 0; }))
+  CHECK(a.transform(     //
+            fn::overload{//
+                         [](auto) -> int { throw 1; }, [](double &i) -> bool { return i == 0.5; },
+                         [](double const &) -> bool { throw 0; }, [](double &&) -> bool { throw 0; },
+                         [](double const &&) -> bool { throw 0; }})
         == sum<bool, int>{true});
   CHECK(std::as_const(a).transform( //
-            fn::overload(           //
-                [](auto) -> int { throw 1; }, [](double &) -> bool { throw 0; },
-                [](double const &i) -> bool { return i == 0.5; }, [](double &&) -> bool { throw 0; },
-                [](double const &&) -> bool { throw 0; }))
+            fn::overload{           //
+                         [](auto) -> int { throw 1; }, [](double &) -> bool { throw 0; },
+                         [](double const &i) -> bool { return i == 0.5; }, [](double &&) -> bool { throw 0; },
+                         [](double const &&) -> bool { throw 0; }})
         == sum<bool, int>{true});
   CHECK(std::move(std::as_const(a))
-            .transform(       //
-                fn::overload( //
-                    [](auto) -> int { throw 1; }, [](double &) -> bool { throw 0; },
-                    [](double const &) -> bool { throw 0; }, [](double &&) -> bool { throw 0; },
-                    [](double const &&i) -> bool { return i == 0.5; }))
+            .transform(      //
+                fn::overload{//
+                             [](auto) -> int { throw 1; }, [](double &) -> bool { throw 0; },
+                             [](double const &) -> bool { throw 0; }, [](double &&) -> bool { throw 0; },
+                             [](double const &&i) -> bool { return i == 0.5; }})
         == sum<bool, int>{true});
-  CHECK(
-      std::move(a).transform( //
-          fn::overload(       //
-              [](auto) -> int { throw 1; }, [](double &) -> bool { throw 0; }, [](double const &) -> bool { throw 0; },
-              [](double &&i) -> bool { return i == 0.5; }, [](double const &&) -> bool { throw 0; }))
-      == sum<bool, int>{true});
+  CHECK(std::move(a).transform( //
+            fn::overload{       //
+                         [](auto) -> int { throw 1; }, [](double &) -> bool { throw 0; },
+                         [](double const &) -> bool { throw 0; }, [](double &&i) -> bool { return i == 0.5; },
+                         [](double const &&) -> bool { throw 0; }})
+        == sum<bool, int>{true});
 }
 
 namespace {
@@ -681,23 +682,26 @@ TEST_CASE("sum functions", "[sum][invoke]")
   CHECK(a.data.v0 == 42);
 
   CHECK(a.invoke(fn1) == 4);
-  CHECK(a.invoke(   //
-      fn::overload( //
-          [](auto) -> bool { throw 1; }, [](int &i) -> bool { return i == 42; }, [](int const &) -> bool { throw 0; },
-          [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; })));
+  CHECK(a.invoke(  //
+      fn::overload{//
+                   [](auto) -> bool { throw 1; }, [](int &i) -> bool { return i == 42; },
+                   [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
+                   [](int const &&) -> bool { throw 0; }}));
   CHECK(std::as_const(a).invoke( //
-      fn::overload(              //
-          [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &i) -> bool { return i == 42; },
-          [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; })));
+      fn::overload{              //
+                   [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
+                   [](int const &i) -> bool { return i == 42; }, [](int &&) -> bool { throw 0; },
+                   [](int const &&) -> bool { throw 0; }}));
   CHECK(std::move(std::as_const(a))
-            .invoke(          //
-                fn::overload( //
-                    [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
-                    [](int &&) -> bool { throw 0; }, [](int const &&i) -> bool { return i == 42; })));
+            .invoke(         //
+                fn::overload{//
+                             [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
+                             [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
+                             [](int const &&i) -> bool { return i == 42; }}));
   CHECK(std::move(a).invoke( //
-      fn::overload(          //
-          [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
-          [](int &&i) -> bool { return i == 42; }, [](int const &&) -> bool { throw 0; })));
+      fn::overload{          //
+                   [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
+                   [](int &&i) -> bool { return i == 42; }, [](int const &&) -> bool { throw 0; }}));
 }
 
 TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
@@ -924,7 +928,7 @@ TEST_CASE("sum", "[sum][has_value][get_ptr]")
 
   constexpr auto fn1 = [](auto) {};
   constexpr auto fn2 = [](auto...) {};
-  constexpr auto fn3 = overload([](int &) {}, [](double &) {});
+  constexpr auto fn3 = overload{[](int &) {}, [](double &) {}};
 
   constexpr sum<std::array<int, 3>> a{std::in_place_type<std::array<int, 3>>, 3, 14, 15};
   static_assert(a.index == 0);

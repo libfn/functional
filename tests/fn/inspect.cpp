@@ -367,7 +367,7 @@ TEST_CASE("inspect choice", "[inspect][choice]")
 
   int value = 0;
   auto fnValue
-      = fn::overload([&value](int const &i) { value += i; }, [&value](Value const &i) { value += (i.value / 2); });
+      = fn::overload{[&value](int const &i) { value += i; }, [&value](Value const &i) { value += (i.value / 2); }};
 
   operand_t a{12};
   using T = decltype(a | inspect(fnValue));
