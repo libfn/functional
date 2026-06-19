@@ -9,6 +9,7 @@
 #include <catch2/catch_all.hpp>
 
 #include <utility>
+#include <variant>
 
 namespace {
 enum Error { Unknown, FileNotFound };
