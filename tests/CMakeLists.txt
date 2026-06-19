@@ -32,6 +32,13 @@ if(NOT DISABLE_CXX23)
         FILES ${TESTS_UTIL_FN_HEADERS})
 endif()
 
+# tests_util_fn_cxx20: fn include path without include_fn's cxx_std_23, so the
+# C++20-compatible fn subset compiles as actual C++20 and builds even when
+# DISABLE_CXX23 drops include_fn. include_pfn already exposes include/ (which
+# contains fn/) at cxx_std_20.
+add_library(tests_util_fn_cxx20 INTERFACE)
+target_link_libraries(tests_util_fn_cxx20 INTERFACE tests_util include_pfn)
+
 # Generate sentinel target for each individual header, as a basic sanity check
 foreach(mode 23)
     if(${mode} EQUAL 23 AND DISABLE_CXX23)
@@ -170,10 +177,16 @@ foreach(mode 20 23)
         string(REGEX REPLACE "^(fn)/(detail|)/?([^\.]+)\.cpp$" "\\1_\\2\\3" root_name ${source})
         set(target "tests_${root_name}_cxx${mode}")
 
+        if(mode EQUAL 20)
+            set(util_dep tests_util_fn_cxx20)
+        else()
+            set(util_dep tests_util_fn)
+        endif()
+
         create_target_for_file(
             NAME "${target}"
             SOURCE "${source}"
-            DEPENDENCIES tests_util_fn Catch2::Catch2WithMain
+            DEPENDENCIES ${util_dep} Catch2::Catch2WithMain
         )
         append_compilation_options("${target}" WARNINGS OPTIMIZATION TESTS)
         add_dependencies("cxx${mode}" "${target}")
