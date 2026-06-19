@@ -135,8 +135,8 @@ TEST_CASE("Demo expected", "[expected][pack][and_then][discard][transform_error]
 
     constexpr auto parse = [](std::string_view str) noexcept -> fn::expected<int, Error> {
       int tmp = {};
-      char const *end = str.begin() + str.size();
-      if (std::from_chars(str.begin(), end, tmp).ptr == end) {
+      char const *end = str.data() + str.size();
+      if (std::from_chars(str.data(), end, tmp).ptr == end) {
         return {tmp};
       }
       return ::pfn::unexpected<Error>{"Failed to parse " + std::string(str)};
@@ -195,8 +195,8 @@ TEST_CASE("Demo expected", "[expected][pack][and_then][discard][transform_error]
 
     constexpr auto parse = [](std::string_view str) noexcept -> fn::expected<int, Error> {
       int tmp = {};
-      char const *end = str.begin() + str.size();
-      if (std::from_chars(str.begin(), end, tmp).ptr == end) {
+      char const *end = str.data() + str.size();
+      if (std::from_chars(str.data(), end, tmp).ptr == end) {
         return {tmp};
       }
       return ::pfn::unexpected<Error>{"Failed to parse " + std::string(str)};
@@ -307,8 +307,8 @@ TEST_CASE("Demo optional", "[optional][pack][and_then][discard][or_else][inspect
 
     constexpr auto parse = [](std::string_view str) noexcept -> fn::optional<int> {
       int tmp = {};
-      char const *end = str.begin() + str.size();
-      if (std::from_chars(str.begin(), end, tmp).ptr == end) {
+      char const *end = str.data() + str.size();
+      if (std::from_chars(str.data(), end, tmp).ptr == end) {
         return {tmp};
       }
       return {};
@@ -358,8 +358,8 @@ TEST_CASE("Demo optional", "[optional][pack][and_then][discard][or_else][inspect
 
     constexpr auto parse = [](std::string_view str) noexcept -> fn::optional<int> {
       int tmp = {};
-      char const *end = str.begin() + str.size();
-      if (std::from_chars(str.begin(), end, tmp).ptr == end) {
+      char const *end = str.data() + str.size();
+      if (std::from_chars(str.data(), end, tmp).ptr == end) {
         return {tmp};
       }
       return {};
