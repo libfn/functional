@@ -7,6 +7,7 @@
 #define INCLUDE_FN_EXPECTED
 
 #include <pfn/expected.hpp>
+#include <pfn/utility.hpp>
 
 #include <fn/fwd.hpp>
 #include <fn/pack.hpp>
@@ -74,7 +75,7 @@ template <typename T, typename E> struct _storage : ::pfn::detail::_storage<T, E
         if constexpr (not ::std::is_same_v<E, sum<>>)
           return new_type(::pfn::unexpect, _pfn_base::_error(FWD(self)));
         else
-          ::std::unreachable();
+          ::pfn::unreachable();
       }
     }
   }
@@ -109,7 +110,7 @@ template <typename T, typename E> struct _storage : ::pfn::detail::_storage<T, E
         if constexpr (not ::std::is_same_v<E, sum<>>)
           return new_type(::pfn::unexpect, _pfn_base::_error(FWD(self)));
         else
-          ::std::unreachable();
+          ::pfn::unreachable();
       }
     }
   }
@@ -1027,7 +1028,7 @@ template <typename Lh, typename Rh>
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
 {
   using error_type = std::remove_cvref_t<Lh>::error_type;
-  static constexpr auto efn = [](auto &&v) { return ::pfn::unexpected<error_type>(FWD(v).error()); };
+  constexpr auto efn = [](auto &&v) { return ::pfn::unexpected<error_type>(FWD(v).error()); };
   return ::fn::detail::_join<detail::template _expected_type<error_type>::template type>(FWD(lh), FWD(rh), efn);
 }
 
@@ -1041,7 +1042,7 @@ template <typename Lh, typename Rh>
 {
   using new_error_type
       = sum_for<typename std::remove_cvref_t<Lh>::error_type, typename std::remove_cvref_t<Rh>::error_type>;
-  static constexpr auto efn = [](auto &&v) {
+  constexpr auto efn = [](auto &&v) {
     if constexpr (not std::is_same_v<typename std::remove_cvref_t<decltype(v)>::error_type, sum<>>) {
       return ::pfn::unexpected<new_error_type>(FWD(v).error());
     } else {

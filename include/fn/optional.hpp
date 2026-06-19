@@ -323,7 +323,7 @@ template <class T> optional(T) -> optional<T>;
 
 template <some_optional Lh, some_optional Rh> [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
 {
-  static constexpr auto efn = [](auto const &) { return std::nullopt; };
+  constexpr auto efn = [](auto const &) { return std::nullopt; };
   return ::fn::detail::_join<fn::optional>(FWD(lh), FWD(rh), efn);
 }
 
