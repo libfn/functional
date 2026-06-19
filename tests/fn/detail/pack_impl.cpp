@@ -77,8 +77,8 @@ TEST_CASE("pack_impl _swap_invoke", "[pack_impl][swap_invoke]")
   // _swap_invoke calls fn(args..., elements...)
   static_assert(P::_swap_invoke(p, [](int i, double d) { return i + d; }) == 2.5);
   static_assert(P::_swap_invoke(p, [](int prefix, int i, double d) { return prefix + i + d; }, 100) == 102.5);
-  static_assert(P::_swap_invoke(p, [](char const *tag, int i, double d) { return tag[0] == 'x' && i == 2 && d == 0.5; },
-                                "x"));
+  static_assert(
+      P::_swap_invoke(p, [](char const *tag, int i, double d) { return tag[0] == 'x' && i == 2 && d == 0.5; }, "x"));
   static_assert(std::same_as<decltype(P::_swap_invoke(p, [](int, double) -> long { return 0; })), long>);
 
   // const lvalue propagation: elements are passed as const lvalue references when pack is const
@@ -86,7 +86,10 @@ TEST_CASE("pack_impl _swap_invoke", "[pack_impl][swap_invoke]")
 
   // mutable access via non-const pack
   P pm{3, 4.0};
-  P::_swap_invoke(pm, [](int &i, double &d) { i = 5; d = 6.0; });
+  P::_swap_invoke(pm, [](int &i, double &d) {
+    i = 5;
+    d = 6.0;
+  });
   CHECK(P::_invoke(pm, [](int i, double) { return i; }) == 5);
   CHECK(P::_invoke(pm, [](int, double d) { return d; }) == 6.0);
 
@@ -114,7 +117,10 @@ TEST_CASE("pack_impl _invoke", "[pack_impl][invoke]")
 
   // mutable access via non-const pack
   P pm{3, 4.0};
-  P::_invoke(pm, [](int &i, double &d) { i = 5; d = 6.0; });
+  P::_invoke(pm, [](int &i, double &d) {
+    i = 5;
+    d = 6.0;
+  });
   CHECK(P::_invoke(pm, [](int i, double) { return i; }) == 5);
   CHECK(P::_invoke(pm, [](int, double d) { return d; }) == 6.0);
 

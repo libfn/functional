@@ -77,7 +77,10 @@ TEST_CASE("invoke_r implicit conversion to R", "[functional][polyfill][invoke_r]
 TEST_CASE("invoke_r void R discards", "[functional][polyfill][invoke_r]")
 {
   int side = 0;
-  auto const fn = [&side](int n) { side += n; return side; };
+  auto const fn = [&side](int n) {
+    side += n;
+    return side;
+  };
 
   static_assert(std::is_same_v<void, decltype(invoke_r<void>(fn, 1))>);
   invoke_r<void>(fn, 5);
