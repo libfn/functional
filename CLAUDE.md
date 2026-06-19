@@ -18,6 +18,7 @@ Conventions for AI agents in this repo (you are the primary reader — keep this
 - Routing: *unusual code* → comment; *ordinary code, noteworthy change* → commit body; *both obvious* → neither. "Context" = the surrounding code the reader sees, not why-the-change (→ commit).
 - Don't create `.md`/summary/planning files unless asked.
 - A new file's copyright-comment year is the year it's added to the codebase — the current year; if unsure, infer it from the latest commit's date.
+- In `include/` headers, anchor the standard library as `::std::`, never bare `std::` — a user's `fn::std` would otherwise win lookup inside namespace `fn`. Not needed in test files. (Migration in progress; new/edited header code must conform.)
 
 ## Layering
 
