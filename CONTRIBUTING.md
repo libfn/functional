@@ -8,7 +8,7 @@ Building and testing libfn needs a recent C++23 toolchain (the monadic `std::opt
 
 ## Building locally
 
-`fn` (`include/fn`) requires C++23; `pfn` (`include/pfn`) targets C++20. The CMake option `DISABLE_CXX23` builds only the C++20-compatible `pfn` subset. For a quick check of a single example without the full CMake/Catch2 setup:
+`pfn` (`include/pfn`) targets C++20; `fn` (`include/fn`) is being migrated from C++23 to C++20. The CMake option `DISABLE_CXX23` builds the C++20-compatible subset — all of `pfn` plus the `fn` headers migrated so far. `fn` is not yet supported on MSVC (its type-ordering parses GCC/Clang-specific `__PRETTY_FUNCTION__`), so MSVC builds only `pfn`. For a quick check of a single example without the full CMake/Catch2 setup:
 
 ```bash
 g++ -std=c++23 -Iinclude examples/polygon/main.cpp -o /tmp/polygon

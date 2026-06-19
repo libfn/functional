@@ -158,6 +158,12 @@ foreach(mode 20 23)
             continue()
         endif()
 
+        # fn is not yet MSVC-compatible: meta.hpp derives type ordering from
+        # GCC/Clang-specific __PRETTY_FUNCTION__. MSVC builds only pfn for now.
+        if(MSVC)
+            continue()
+        endif()
+
         string(REGEX REPLACE "^(fn)/(detail|)/?([^\.]+)\.cpp$" "\\1_\\2\\3" root_name ${source})
         set(target "tests_${root_name}_cxx${mode}")
 
