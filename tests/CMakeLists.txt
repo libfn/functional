@@ -159,8 +159,15 @@ set(TESTS_FN_SOURCES_CXX20
     fn/detail/pack_impl.cpp
     fn/detail/traits.cpp
     fn/detail/variadic_union.cpp
+    fn/choice.cpp
+    fn/concepts.cpp
     fn/expected.cpp
+    fn/functional.cpp
+    fn/functor.cpp
     fn/optional.cpp
+    fn/pack.cpp
+    fn/sum.cpp
+    fn/utility.cpp
 )
 
 # Generate separate target for each individual test source

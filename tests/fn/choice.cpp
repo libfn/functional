@@ -657,7 +657,7 @@ TEST_CASE("choice transform", "[choice][transform]")
       CHECK(a.data.v0 == 0.5);
       WHEN("value only")
       {
-        static_assert(type{0.5}.transform(fn1) == choice{8uz});
+        static_assert(type{0.5}.transform(fn1) == choice{std::size_t{8}});
         CHECK(a.transform(      //
                   fn::overload( //
                       [](auto) -> int { throw 1; }, [](double &i) -> bool { return i == 0.5; },
@@ -693,7 +693,7 @@ TEST_CASE("choice transform", "[choice][transform]")
 
       WHEN("value only")
       {
-        static_assert(type{42}.transform(fn1) == choice{4uz});
+        static_assert(type{42}.transform(fn1) == choice{std::size_t{4}});
         CHECK(a.transform(      //
                   fn::overload( //
                       [](auto) -> bool { throw 1; }, [](int &i) -> bool { return i == 42; },
