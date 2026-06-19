@@ -19,7 +19,15 @@ namespace fn::detail {
 template <std::size_t, typename...> struct select_nth;
 template <std::size_t N> struct select_nth<N>; // Intentionally incomplete type
 
-#if __has_builtin(__type_pack_element)
+// MSVC has no __type_pack_element and its preprocessor rejects __has_builtin, so gate _MSC_VER first.
+#if defined(_MSC_VER)
+#define FN_DETAIL_HAS_TYPE_PACK_ELEMENT 0
+#elif __has_builtin(__type_pack_element)
+#define FN_DETAIL_HAS_TYPE_PACK_ELEMENT 1
+#else
+#define FN_DETAIL_HAS_TYPE_PACK_ELEMENT 0
+#endif
+#if FN_DETAIL_HAS_TYPE_PACK_ELEMENT
 template <std::size_t N, typename... Ts>
   requires(sizeof...(Ts) > 0)
 struct select_nth<N, Ts...> {
@@ -34,6 +42,7 @@ struct select_nth<N, Ts...> {
   using type = std::tuple_element_t<N, std::tuple<Ts...>>;
 };
 #endif
+#undef FN_DETAIL_HAS_TYPE_PACK_ELEMENT
 
 template <std::size_t N, typename... Ts> using select_nth_t = select_nth<N, Ts...>::type;
 
@@ -45,15 +54,17 @@ template <typename... Ts> struct _indexed_type_list : _indexed_type<Ts>... {
   constexpr _indexed_type_list(std::size_t i = 0) : _indexed_type<Ts>{i++}... {}
 };
 template <typename T, typename... Ts>
-  requires(... || __is_same_as(Ts, T))
+  requires(... || ::std::is_same_v<Ts, T>)
 constexpr inline std::size_t type_index = static_cast<_indexed_type<T> const &>(_indexed_type_list<Ts...>()).index;
 
-template <typename T, typename... Ts> constexpr inline bool type_one_of = (... || __is_same_as(Ts, T));
+template <typename T, typename... Ts> constexpr inline bool type_one_of = (... || ::std::is_same_v<Ts, T>);
+
+#if defined(__clang__) || defined(__GNUC__)
 
 #ifdef __clang__
 static constexpr std::string_view _normalized_name_anon{"(anonymous namespace)"};
 static constexpr std::string_view _normalized_name_prefix{"sortkey() [T = "};
-#elif defined(__GNUC__)
+#else
 static constexpr std::string_view _normalized_name_anon{"{anonymous}"};
 static constexpr std::string_view _normalized_name_prefix{"sortkey() [with T = "};
 #endif
@@ -106,6 +117,27 @@ template <typename T> [[nodiscard]] static constexpr auto _make_sortkey()
   return _normalized_name<std::to_array(__BASE_FILE__), std::to_array(__PRETTY_FUNCTION__)>::value;
 }
 } // namespace sortkey
+
+#elif defined(_MSC_VER)
+
+namespace sortkey {
+// MSVC __FUNCSIG__ is "auto __cdecl fn::detail::sortkey::_make_sortkey<TYPE>(void)"; the type is the
+// balanced substring between "_make_sortkey<" and the trailing ">(void)". Only used as a stable per-type
+// ordering key (no anon/TU rewriting like the GCC/Clang path), so a view into __FUNCSIG__ suffices.
+template <typename T> [[nodiscard]] static constexpr auto _make_sortkey() -> ::std::string_view
+{
+  ::std::string_view const sv{__FUNCSIG__};
+  constexpr ::std::string_view prefix{"_make_sortkey<"};
+  ::std::size_t const b = sv.find(prefix) + prefix.size();
+  ::std::size_t const e = sv.rfind(">(void)");
+  return sv.substr(b, e - b);
+}
+} // namespace sortkey
+
+#else
+#error "fn/detail/meta.hpp: type ordering needs __PRETTY_FUNCTION__ (GCC/Clang) or __FUNCSIG__ (MSVC)"
+#endif
+
 template <typename T> constexpr inline std::string_view type_sortkey_v = sortkey::_make_sortkey<T>();
 
 // NOTE Normalized order of types - order based on type_sortkey_v
