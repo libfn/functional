@@ -17,6 +17,7 @@ Conventions for AI agents in this repo (you are the primary reader — keep this
 - Default to no comment; assume the reader reads the surrounding code. Comment only where the *why* stays non-obvious despite that context (constraint/invariant/workaround/surprise); never restate code; no boilerplate docstrings.
 - Routing: *unusual code* → comment; *ordinary code, noteworthy change* → commit body; *both obvious* → neither. "Context" = the surrounding code the reader sees, not why-the-change (→ commit).
 - Don't create `.md`/summary/planning files unless asked.
+- A new file's copyright-comment year is the year it's added to the codebase — the current year; if unsure, infer it from the latest commit's date.
 
 ## Layering
 
@@ -25,7 +26,7 @@ Three header layers; each may depend only on those below it:
 - `include/fn/detail` — may use `pfn`, never `fn`
 - `include/pfn` — base (standalone C++23 polyfill)
 
-To make an `fn/detail` file depend on something that currently lives in `fn` (a forward decl, trait, or small helper), hoist that implementation detail down into `fn/detail` and consume it there — never include upward from `detail` to `fn`.
+To make an `fn/detail` file depend on something that currently lives in `fn` (a forward decl, trait, or small helper), hoist it — never include upward from `detail` to `fn`. The hoist: move the implementation into `fn/detail/X.hpp` as `fn::detail::_name` (no doxygen — detail headers aren't user-facing), and leave `fn/X.hpp` a thin public wrapper re-exporting it as `fn::name`. Pattern: `fn/functional.hpp` over `fn/detail/functional.hpp`, `fn/monadic.hpp` over `fn/detail/monadic.hpp`.
 
 ## Tests
 
