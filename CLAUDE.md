@@ -28,6 +28,10 @@ Three header layers; each may depend only on those below it:
 
 To make an `fn/detail` file depend on something that currently lives in `fn` (a forward decl, trait, or small helper), hoist it — never include upward from `detail` to `fn`. The hoist: move the implementation into `fn/detail/X.hpp` as `fn::detail::_name` (no doxygen — detail headers aren't user-facing), and leave `fn/X.hpp` a thin public wrapper re-exporting it as `fn::name`. Pattern: `fn/functional.hpp` over `fn/detail/functional.hpp`, `fn/monadic.hpp` over `fn/detail/monadic.hpp`.
 
+## C++20
+
+`include/fn` compiles as C++23 today but the goal is full C++20 compatibility (the `cxx20` lane tracks progress; not there yet). In `include/`, prefer C++20 and strip C++23-only features in favour of C++20 equivalents — e.g. `static operator()` (P1169) → `const` member; a `static constexpr` local in a constexpr function → non-static; `std::unreachable` → `pfn::unreachable`; `0uz` → `std::size_t{0}`.
+
 ## Tests
 
 - Add each check to the existing `TEST_CASE`/`SECTION` (or file) covering that member/behaviour, matching local idiom — not the nearest spot or a catch-all. A check in the right named section is self-documenting.
