@@ -18,6 +18,15 @@ Conventions for AI agents in this repo (you are the primary reader — keep this
 - Routing: *unusual code* → comment; *ordinary code, noteworthy change* → commit body; *both obvious* → neither. "Context" = the surrounding code the reader sees, not why-the-change (→ commit).
 - Don't create `.md`/summary/planning files unless asked.
 
+## Layering
+
+Three header layers; each may depend only on those below it:
+- `include/fn` — may use `fn/detail` and `pfn`
+- `include/fn/detail` — may use `pfn`, never `fn`
+- `include/pfn` — base (standalone C++23 polyfill)
+
+To make an `fn/detail` file depend on something that currently lives in `fn` (a forward decl, trait, or small helper), hoist that implementation detail down into `fn/detail` and consume it there — never include upward from `detail` to `fn`.
+
 ## Tests
 
 - Add each check to the existing `TEST_CASE`/`SECTION` (or file) covering that member/behaviour, matching local idiom — not the nearest spot or a catch-all. A check in the right named section is self-documenting.
