@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Bronek Kozicki
+// Copyright (c) 2026 Bronek Kozicki
 //
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
@@ -6,9 +6,7 @@
 #ifndef INCLUDE_FN_MONADIC
 #define INCLUDE_FN_MONADIC
 
-#include <fn/fwd.hpp>
-
-#include <concepts>
+#include <fn/detail/monadic.hpp>
 
 namespace fn {
 
@@ -18,7 +16,7 @@ namespace fn {
  * @tparam T TODO
  */
 template <typename T>
-concept some_monadic_type = detail::_some_expected<T> || detail::_some_optional<T> || detail::_some_choice<T>;
+concept some_monadic_type = detail::_some_monadic_type<T>;
 
 /**
  * @brief TODO
@@ -28,7 +26,7 @@ concept some_monadic_type = detail::_some_expected<T> || detail::_some_optional<
  * @tparam Args TODO
  */
 template <typename Functor, typename V, typename... Args>
-concept monadic_invocable = some_monadic_type<V> && ::std::invocable<typename Functor::apply, V, Args...>;
+concept monadic_invocable = detail::_monadic_invocable<Functor, V, Args...>;
 
 } // namespace fn
 

@@ -71,6 +71,7 @@ set(INCLUDE_FN_HEADERS
     fn/detail/fwd_macro.hpp
     fn/detail/fwd.hpp
     fn/detail/meta.hpp
+    fn/detail/monadic.hpp
     fn/detail/pack_impl.hpp
     fn/detail/traits.hpp
     fn/detail/variadic_union.hpp
