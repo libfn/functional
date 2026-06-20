@@ -4,7 +4,8 @@ Conventions for AI agents in this repo (you are the primary reader — keep this
 
 ## CI
 
-- Red CI is top priority — fix before other work; a failed build masks failures behind it. Check CI state with the user, especially when starting new work.
+- Red CI is top priority — fix before other work; a failed build masks failures behind it. Check CI state when starting new work: via `gh` if it's available here, else ask the user.
+- `gh` is **optional**. When `GH_TOKEN` is set you may use it read-only — `gh run list` / `gh run view <id> --log-failed` (repo `libfn/functional`). If the user wants to enable it, offer to help; the security model is fixed: a RAM-only `GH_TOKEN` env var injected at launch holding a short-lived, read-only **fine-grained** PAT — never `gh auth login` (persists the token to disk). PAT scope: single repo, read-only — Actions:Read (runs/logs), optionally Pull-requests/Issues:Read, Metadata:Read (auto); shortest expiry.
 
 ## Commits
 
