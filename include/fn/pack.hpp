@@ -301,7 +301,11 @@ template <typename T, typename... Args>
 
 namespace detail {
 
-template <template <typename> typename Tpl> [[nodiscard]] constexpr auto _join(auto &&lh, auto &&rh, auto &&efn)
+template <template <typename> typename Tpl>
+[[nodiscard]] constexpr auto _join(auto &&lh, auto &&rh, auto &&efn)
+    -> Tpl<decltype(::fn::detail::_fold_detail::fold<typename ::std::remove_cvref_t<decltype(lh)>::value_type,
+                                                     typename ::std::remove_cvref_t<decltype(rh)>::value_type>(
+        FWD(lh).value(), FWD(rh).value()))>
 {
   using Lh = ::std::remove_cvref_t<decltype(lh)>::value_type;
   using Rh = ::std::remove_cvref_t<decltype(rh)>::value_type;
