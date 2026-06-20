@@ -22,9 +22,9 @@ namespace fn {
 template <typename Fn, typename V>
 concept invocable_inspect_error //
     = (some_expected<V> && requires(Fn &&fn, V &&v) {
-        { ::fn::invoke(FWD(fn), std::as_const(v).error()) } -> std::same_as<void>;
+        { ::fn::invoke(FWD(fn), ::std::as_const(v).error()) } -> ::std::same_as<void>;
       }) || (some_optional<V> && requires(Fn &&fn) {
-        { ::fn::invoke(FWD(fn)) } -> std::same_as<void>;
+        { ::fn::invoke(FWD(fn)) } -> ::std::same_as<void>;
       });
 
 /**
@@ -60,7 +60,7 @@ struct inspect_error_t::apply final {
     requires invocable_inspect_error<decltype(fn), decltype(v)>
   {
     if (not v.has_value()) {
-      ::fn::invoke(FWD(fn), std::as_const(v).error()); // side-effects only
+      ::fn::invoke(FWD(fn), ::std::as_const(v).error()); // side-effects only
     }
     return FWD(v);
   }

@@ -24,7 +24,7 @@ concept invocable_or_else //
           ::fn::invoke(FWD(fn), FWD(v).error())
         } -> same_value_kind<V>;
       }) || (some_expected<V> //
-         && some_sum<typename std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
+         && some_sum<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
         {
           ::fn::invoke(FWD(fn), FWD(v).error())
         } -> some_expected;
@@ -33,7 +33,7 @@ concept invocable_or_else //
           ::fn::invoke(FWD(fn))
         } -> same_value_kind<V>;
       }) || (some_optional<V>  //
-         && some_sum<typename std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
+         && some_sum<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
         {
           ::fn::invoke(FWD(fn))
         } -> some_optional;

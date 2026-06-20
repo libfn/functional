@@ -23,11 +23,13 @@ namespace fn {
 template <typename Fn, typename V>
 concept invocable_recover //
     = (some_expected_non_void<V> && requires(Fn &&fn, V &&v) {
-        { ::fn::invoke(FWD(fn), FWD(v).error()) } -> std::convertible_to<typename std::remove_cvref_t<V>::value_type>;
+        {
+          ::fn::invoke(FWD(fn), FWD(v).error())
+        } -> ::std::convertible_to<typename ::std::remove_cvref_t<V>::value_type>;
       }) || (some_expected_void<V> && requires(Fn &&fn, V &&v) {
-        { ::fn::invoke(FWD(fn), FWD(v).error()) } -> std::same_as<void>;
+        { ::fn::invoke(FWD(fn), FWD(v).error()) } -> ::std::same_as<void>;
       }) || (some_optional<V> && requires(Fn &&fn, V &&v) {
-        { ::fn::invoke(FWD(fn)) } -> std::convertible_to<typename std::remove_cvref_t<V>::value_type>;
+        { ::fn::invoke(FWD(fn)) } -> ::std::convertible_to<typename ::std::remove_cvref_t<V>::value_type>;
       });
 
 /**
@@ -63,11 +65,11 @@ struct recover_t::apply final {
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_recover<decltype(fn), decltype(v)>
   {
-    using type = std::remove_cvref_t<decltype(v)>;
+    using type = ::std::remove_cvref_t<decltype(v)>;
     if (v.has_value()) {
-      return type{std::in_place, FWD(v).value()};
+      return type{::std::in_place, FWD(v).value()};
     }
-    return type{std::in_place, ::fn::invoke(FWD(fn), FWD(v).error())};
+    return type{::std::in_place, ::fn::invoke(FWD(fn), FWD(v).error())};
   }
 
   /**
@@ -81,12 +83,12 @@ struct recover_t::apply final {
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_recover<decltype(fn), decltype(v)>
   {
-    using type = std::remove_cvref_t<decltype(v)>;
+    using type = ::std::remove_cvref_t<decltype(v)>;
     if (v.has_value()) {
-      return type{std::in_place};
+      return type{::std::in_place};
     }
     ::fn::invoke(FWD(fn), FWD(v).error()); // side-effects only
-    return type{std::in_place};
+    return type{::std::in_place};
   }
 
   /**
@@ -100,11 +102,11 @@ struct recover_t::apply final {
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_recover<decltype(fn), decltype(v)>
   {
-    using type = std::remove_cvref_t<decltype(v)>;
+    using type = ::std::remove_cvref_t<decltype(v)>;
     if (v.has_value()) {
-      return type{std::in_place, FWD(v).value()};
+      return type{::std::in_place, FWD(v).value()};
     }
-    return type{std::in_place, ::fn::invoke(FWD(fn))};
+    return type{::std::in_place, ::fn::invoke(FWD(fn))};
   }
 
   // No support for choice since there's no error to recover from

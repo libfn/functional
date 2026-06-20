@@ -24,15 +24,15 @@ namespace fn {
 template <typename Pred, typename Err, typename V>
 concept invocable_filter //
     = (some_expected_non_void<V> && requires(Pred &&pred, Err &&on_err, V &&v) {
-        { ::fn::invoke(FWD(pred), std::as_const(v).value()) } -> convertible_to_bool;
+        { ::fn::invoke(FWD(pred), ::std::as_const(v).value()) } -> convertible_to_bool;
         {
           ::fn::invoke(FWD(on_err), FWD(v).value())
-        } -> std::convertible_to<typename std::remove_cvref_t<V>::error_type>;
+        } -> ::std::convertible_to<typename ::std::remove_cvref_t<V>::error_type>;
       }) || (some_expected_void<V> && requires(Pred &&pred, Err &&on_err, V &&v) {
         { ::fn::invoke(FWD(pred)) } -> convertible_to_bool;
-        { ::fn::invoke(FWD(on_err)) } -> std::convertible_to<typename std::remove_cvref_t<V>::error_type>;
-      }) || (some_optional<V> && std::same_as<Err, void> && requires(Pred &&pred, V &&v) {
-        { ::fn::invoke(FWD(pred), std::as_const(v).value()) } -> convertible_to_bool;
+        { ::fn::invoke(FWD(on_err)) } -> ::std::convertible_to<typename ::std::remove_cvref_t<V>::error_type>;
+      }) || (some_optional<V> && ::std::same_as<Err, void> && requires(Pred &&pred, V &&v) {
+        { ::fn::invoke(FWD(pred), ::std::as_const(v).value()) } -> convertible_to_bool;
       });
 
 /**
@@ -85,10 +85,10 @@ struct filter_t::apply final {
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_filter<decltype(pred), decltype(on_err), decltype(v)>
   {
-    using type = std::remove_cvref_t<decltype(v)>;
-    if (std::as_const(v).has_value()) {
-      bool const keep = ::fn::invoke(FWD(pred), std::as_const(v).value());
-      return (keep ? type{std::in_place, FWD(v).value()}
+    using type = ::std::remove_cvref_t<decltype(v)>;
+    if (::std::as_const(v).has_value()) {
+      bool const keep = ::fn::invoke(FWD(pred), ::std::as_const(v).value());
+      return (keep ? type{::std::in_place, FWD(v).value()}
                    : type{::pfn::unexpect, ::fn::invoke(FWD(on_err), FWD(v).value())});
     }
     return FWD(v);
@@ -106,10 +106,10 @@ struct filter_t::apply final {
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_filter<decltype(pred), decltype(on_err), decltype(v)>
   {
-    using type = std::remove_cvref_t<decltype(v)>;
-    if (std::as_const(v).has_value()) {
+    using type = ::std::remove_cvref_t<decltype(v)>;
+    if (::std::as_const(v).has_value()) {
       bool const keep = ::fn::invoke(FWD(pred));
-      return (keep ? type{std::in_place} //
+      return (keep ? type{::std::in_place} //
                    : type{::pfn::unexpect, ::fn::invoke(FWD(on_err))});
     }
     return FWD(v);
@@ -126,11 +126,11 @@ struct filter_t::apply final {
       -> same_monadic_type_as<decltype(v)> auto
     requires invocable_filter<decltype(pred), void, decltype(v)>
   {
-    using type = std::remove_cvref_t<decltype(v)>;
-    if (std::as_const(v).has_value()) {
-      bool const keep = ::fn::invoke(FWD(pred), std::as_const(v).value());
-      return (keep ? type{std::in_place, FWD(v).value()} //
-                   : type{std::nullopt});
+    using type = ::std::remove_cvref_t<decltype(v)>;
+    if (::std::as_const(v).has_value()) {
+      bool const keep = ::fn::invoke(FWD(pred), ::std::as_const(v).value());
+      return (keep ? type{::std::in_place, FWD(v).value()} //
+                   : type{::std::nullopt});
     }
     return FWD(v);
   }

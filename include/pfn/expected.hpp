@@ -71,7 +71,7 @@ public:
 // [expected.bad], primary template
 template <class E> class bad_expected_access : public bad_expected_access<void> {
 public:
-  explicit bad_expected_access(E e) : e_(std::move(e)) {}
+  explicit bad_expected_access(E e) : e_(::std::move(e)) {}
   [[nodiscard]] char const *what() const noexcept override { return bad_expected_access<void>::what(); };
   E &error() & noexcept { return e_; }
   E const &error() const & noexcept { return e_; }
@@ -252,7 +252,7 @@ template <class T, class E> union _storage_union_t {
     } else if constexpr (::std::is_nothrow_move_constructible_v<New>) {
       New tmp(::std::forward<Args>(args)...);
       ::std::destroy_at(oldp);
-      ::std::construct_at(newp, std::move(tmp));
+      ::std::construct_at(newp, ::std::move(tmp));
     } else if constexpr (::std::is_trivially_copyable_v<Old>) {
       // Workaround for https://github.com/llvm/llvm-project/issues/196520:
       // clang on aarch64 sinks the snapshot load past the store-through-newp
@@ -273,23 +273,23 @@ template <class T, class E> union _storage_union_t {
         }
       } else {
         // LCOV_EXCL_START constant-evaluated only; runtime branches are above and below
-        Old tmp(std::move(*oldp));
+        Old tmp(::std::move(*oldp));
         ::std::destroy_at(oldp);
         try {
           ::std::construct_at(newp, ::std::forward<Args>(args)...);
         } catch (...) {
-          ::std::construct_at(oldp, std::move(tmp));
+          ::std::construct_at(oldp, ::std::move(tmp));
           throw;
         }
         // LCOV_EXCL_STOP
       }
     } else {
-      Old tmp(std::move(*oldp));
+      Old tmp(::std::move(*oldp));
       ::std::destroy_at(oldp);
       try {
         ::std::construct_at(newp, ::std::forward<Args>(args)...);
       } catch (...) {
-        ::std::construct_at(oldp, std::move(tmp));
+        ::std::construct_at(oldp, ::std::move(tmp));
         throw;
       }
     }
@@ -441,7 +441,7 @@ template <class T, class E, class Policy> struct _storage {
   // member selection to _storage_union_t(bool, S&&), based on first parameter.
   template <typename S>
   constexpr explicit _storage(bool s, S &&src)
-    requires(_is_storage_union<std::remove_cvref_t<S>>)
+    requires(_is_storage_union<::std::remove_cvref_t<S>>)
       : storage_(s, FWD(src)), set_(s)
   {
   }
@@ -515,7 +515,7 @@ template <class T, class E, class Policy> struct _storage {
       ::std::destroy_at(::std::addressof(storage_.e_));
       set_ = true;
     }
-    return *::std::construct_at(::std::addressof(storage_.v_), std::forward<Args>(args)...);
+    return *::std::construct_at(::std::addressof(storage_.v_), ::std::forward<Args>(args)...);
   }
 
   template <class U, class... Args>
@@ -528,7 +528,7 @@ template <class T, class E, class Policy> struct _storage {
       ::std::destroy_at(::std::addressof(storage_.e_));
       set_ = true;
     }
-    return *::std::construct_at(::std::addressof(storage_.v_), il, std::forward<Args>(args)...);
+    return *::std::construct_at(::std::addressof(storage_.v_), il, ::std::forward<Args>(args)...);
   }
 
   constexpr void emplace() noexcept

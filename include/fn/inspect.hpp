@@ -23,13 +23,13 @@ namespace fn {
 template <typename Fn, typename V>
 concept invocable_inspect //
     = (some_expected_non_void<V> && requires(Fn &&fn, V &&v) {
-        { ::fn::invoke(FWD(fn), std::as_const(v).value()) } -> std::same_as<void>;
+        { ::fn::invoke(FWD(fn), ::std::as_const(v).value()) } -> ::std::same_as<void>;
       }) || (some_expected_void<V> && requires(Fn &&fn) {
-        { ::fn::invoke(FWD(fn)) } -> std::same_as<void>;
+        { ::fn::invoke(FWD(fn)) } -> ::std::same_as<void>;
       }) || (some_optional<V> && requires(Fn &&fn, V &&v) {
-        { ::fn::invoke(FWD(fn), std::as_const(v).value()) } -> std::same_as<void>;
+        { ::fn::invoke(FWD(fn), ::std::as_const(v).value()) } -> ::std::same_as<void>;
       }) || (some_choice<V> && requires(Fn &&fn, V &&v) {
-        { ::fn::invoke(FWD(fn), std::as_const(v).value()) } -> std::same_as<void>;
+        { ::fn::invoke(FWD(fn), ::std::as_const(v).value()) } -> ::std::same_as<void>;
       });
 
 /**
@@ -62,7 +62,7 @@ struct inspect_t::apply final {
     requires invocable_inspect<decltype(fn), decltype(v)>
   {
     if (v.has_value()) {
-      ::fn::invoke(FWD(fn), std::as_const(v).value()); // side-effects only
+      ::fn::invoke(FWD(fn), ::std::as_const(v).value()); // side-effects only
     }
     return FWD(v);
   }
@@ -94,7 +94,7 @@ struct inspect_t::apply final {
     requires invocable_inspect<decltype(fn), decltype(v)>
   {
     if (v.has_value()) {
-      ::fn::invoke(FWD(fn), std::as_const(v).value()); // side-effects only
+      ::fn::invoke(FWD(fn), ::std::as_const(v).value()); // side-effects only
     }
     return FWD(v);
   }
@@ -109,7 +109,7 @@ struct inspect_t::apply final {
   [[nodiscard]] constexpr auto operator()(some_choice auto &&v, auto &&fn) const noexcept -> decltype(v)
     requires invocable_inspect<decltype(fn), decltype(v)>
   {
-    ::fn::invoke(FWD(fn), std::as_const(v).value()); // side-effects only
+    ::fn::invoke(FWD(fn), ::std::as_const(v).value()); // side-effects only
     return FWD(v);
   }
 };

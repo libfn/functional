@@ -21,10 +21,10 @@ namespace _fold_detail {
 template <typename L, typename R> [[nodiscard]] constexpr auto _fold(auto &&l, auto &&r)
 {
   if constexpr (_some_pack<L>) {
-    return FWD(l).append(std::in_place_type_t<R>{}, FWD(r));
+    return FWD(l).append(::std::in_place_type_t<R>{}, FWD(r));
   } else {
     if constexpr (_some_pack<R>) {
-      return ::fn::pack<L>{FWD(l)}.append(std::in_place_type_t<R>{}, FWD(r));
+      return ::fn::pack<L>{FWD(l)}.append(::std::in_place_type_t<R>{}, FWD(r));
     } else {
       return ::fn::pack<L, R>{FWD(l), FWD(r)};
     }
@@ -35,9 +35,9 @@ template <typename Lh, typename Rh>
   requires _some_sum<Lh> && _some_sum<Rh>
 [[nodiscard]] constexpr auto fold(auto &&lv, auto &&rv)
 {
-  return FWD(lv)._transform([&rv]<typename L>(std::in_place_type_t<L>, auto &&l) {
+  return FWD(lv)._transform([&rv]<typename L>(::std::in_place_type_t<L>, auto &&l) {
     return FWD(rv)._transform(
-        [&l]<typename R>(std::in_place_type_t<R>, auto &&r) { return _fold<L, R>(FWD(l), FWD(r)); });
+        [&l]<typename R>(::std::in_place_type_t<R>, auto &&r) { return _fold<L, R>(FWD(l), FWD(r)); });
   });
 }
 
@@ -46,7 +46,7 @@ template <typename Lh, typename Rh>
 [[nodiscard]] constexpr auto fold(auto &&lv, auto &&rv)
 {
   return FWD(lv)._transform(
-      [&rv]<typename L>(std::in_place_type_t<L>, auto &&l) { return _fold<L, Rh>(FWD(l), FWD(rv)); });
+      [&rv]<typename L>(::std::in_place_type_t<L>, auto &&l) { return _fold<L, Rh>(FWD(l), FWD(rv)); });
 }
 
 template <typename Lh, typename Rh>
@@ -54,7 +54,7 @@ template <typename Lh, typename Rh>
 [[nodiscard]] constexpr auto fold(auto &&lv, auto &&rv)
 {
   return FWD(rv)._transform(
-      [&lv]<typename R>(std::in_place_type_t<R>, auto &&r) { return _fold<Lh, R>(FWD(lv), FWD(r)); });
+      [&lv]<typename R>(::std::in_place_type_t<R>, auto &&r) { return _fold<Lh, R>(FWD(lv), FWD(r)); });
 }
 
 template <typename Lh, typename Rh>
@@ -129,36 +129,36 @@ template <typename Ret, typename Fn, typename Arg, typename Arg0, typename... Ar
 // invoke_result
 template <typename Fn, typename... Args>
 constexpr auto _invoke_result_result(Fn &&, Args &&...)
-    -> std::type_identity<decltype(_invoke_detail::invoke(std::declval<Fn>(), std::declval<Args>()...))>;
-template <typename Fn, typename... Args> constexpr auto _invoke_result_result(auto &&...) -> std::type_identity<void>;
+    -> ::std::type_identity<decltype(_invoke_detail::invoke(::std::declval<Fn>(), ::std::declval<Args>()...))>;
+template <typename Fn, typename... Args> constexpr auto _invoke_result_result(auto &&...) -> ::std::type_identity<void>;
 
 template <typename Fn, typename... Args> struct _invoke_result {
-  using type = decltype(_invoke_result_result<Fn, Args...>(std::declval<Fn>(), std::declval<Args>()...))::type;
+  using type = decltype(_invoke_result_result<Fn, Args...>(::std::declval<Fn>(), ::std::declval<Args>()...))::type;
 };
 
 // is_invocable
 template <typename Fn, typename... Args>
 constexpr auto _is_invocable_result(Fn &&, Args &&...,
-                                    std::type_identity<decltype(::fn::detail::_invoke_detail::invoke<Fn, Args...>(
-                                        std::declval<Fn>(), std::declval<Args>()...))> = {}) -> std::true_type;
-template <typename Fn, typename... Args> constexpr auto _is_invocable_result(auto &&...) -> std::false_type;
+                                    ::std::type_identity<decltype(::fn::detail::_invoke_detail::invoke<Fn, Args...>(
+                                        ::std::declval<Fn>(), ::std::declval<Args>()...))> = {}) -> ::std::true_type;
+template <typename Fn, typename... Args> constexpr auto _is_invocable_result(auto &&...) -> ::std::false_type;
 
 template <typename Fn, typename... Args> struct _is_invocable {
   static constexpr bool value
-      = decltype(_is_invocable_result<Fn, Args...>(std::declval<Fn>(), std::declval<Args>()...))::value;
+      = decltype(_is_invocable_result<Fn, Args...>(::std::declval<Fn>(), ::std::declval<Args>()...))::value;
 };
 
 // is_invocable_r
 template <typename Ret, typename Fn, typename... Args>
 constexpr auto _is_invocable_r_result(
     Fn &&, Args &&...,
-    std::type_identity<decltype(_invoke_detail::invoke_r<Ret>(std::declval<Fn>(), std::declval<Args>()...))> = {})
-    -> std::true_type;
+    ::std::type_identity<decltype(_invoke_detail::invoke_r<Ret>(::std::declval<Fn>(), ::std::declval<Args>()...))> = {})
+    -> ::std::true_type;
 template <typename Ret, typename Fn, typename... Args>
-constexpr auto _is_invocable_r_result(auto &&...) -> std::false_type;
+constexpr auto _is_invocable_r_result(auto &&...) -> ::std::false_type;
 template <typename Ret, typename Fn, typename... Args> struct _is_invocable_r {
   static constexpr bool value
-      = decltype(_is_invocable_r_result<Ret, Fn, Args...>(std::declval<Fn>(), std::declval<Args>()...))::value;
+      = decltype(_is_invocable_r_result<Ret, Fn, Args...>(::std::declval<Fn>(), ::std::declval<Args>()...))::value;
 };
 
 // is_nothrow_invocable and is_nothrow_invocable_v

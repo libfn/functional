@@ -20,8 +20,8 @@ namespace fn {
  */
 template <typename V, typename... Args>
 concept invocable_value_or //
-    = (some_expected_non_void<V> && std::is_constructible_v<typename std::remove_cvref_t<V>::value_type, Args...>)
-      || (some_optional<V> && std::is_constructible_v<typename std::remove_cvref_t<V>::value_type, Args...>);
+    = (some_expected_non_void<V> && ::std::is_constructible_v<typename ::std::remove_cvref_t<V>::value_type, Args...>)
+      || (some_optional<V> && ::std::is_constructible_v<typename ::std::remove_cvref_t<V>::value_type, Args...>);
 
 /**
  * @brief TODO
@@ -56,8 +56,8 @@ struct value_or_t::apply final {
       -> same_value_kind<decltype(v)> auto
     requires invocable_value_or<decltype(v), decltype(args)...>
   {
-    using type = std::remove_cvref_t<decltype(v)>;
-    return FWD(v).or_else([&](auto &&...) -> type { return type{std::in_place, args...}; });
+    using type = ::std::remove_cvref_t<decltype(v)>;
+    return FWD(v).or_else([&](auto &&...) -> type { return type{::std::in_place, args...}; });
   }
 
   // No support for choice since there's no error to recover from

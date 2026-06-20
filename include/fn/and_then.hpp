@@ -29,7 +29,7 @@ concept invocable_and_then //
           ::fn::invoke(FWD(fn), FWD(v).value())
         } -> same_kind<V>;
       }) || (some_expected_non_void<V> //
-         && some_sum<typename std::remove_cvref_t<V>::error_type> && requires(Fn &&fn, V &&v) {
+         && some_sum<typename ::std::remove_cvref_t<V>::error_type> && requires(Fn &&fn, V &&v) {
         {
           ::fn::invoke(FWD(fn), FWD(v).value())
         } -> some_expected;
@@ -38,7 +38,7 @@ concept invocable_and_then //
           ::fn::invoke(FWD(fn))
         } -> same_kind<V>;
       }) || (some_expected_void<V> //
-         && some_sum<typename std::remove_cvref_t<V>::error_type> && requires(Fn &&fn, V &&v) {
+         && some_sum<typename ::std::remove_cvref_t<V>::error_type> && requires(Fn &&fn, V &&v) {
         {
           ::fn::invoke(FWD(fn))
         } -> some_expected;

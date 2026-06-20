@@ -28,9 +28,9 @@ namespace fn {
 template <typename T, typename U>
 concept same_kind
     = (some_expected<T> && some_expected<U>
-       && std::same_as<typename std::remove_cvref_t<T>::error_type, typename std::remove_cvref_t<U>::error_type>)
-      || (some_expected<T> && some_sum<typename std::remove_cvref_t<T>::error_type> //
-          && some_expected<U> && some_sum<typename std::remove_cvref_t<U>::error_type>)
+       && ::std::same_as<typename ::std::remove_cvref_t<T>::error_type, typename ::std::remove_cvref_t<U>::error_type>)
+      || (some_expected<T> && some_sum<typename ::std::remove_cvref_t<T>::error_type> //
+          && some_expected<U> && some_sum<typename ::std::remove_cvref_t<U>::error_type>)
       || (some_optional<T> && some_optional<U>) //
       || (some_choice<T> && some_choice<U>);
 
@@ -44,13 +44,14 @@ concept same_kind
 template <typename T, typename U>
 concept same_value_kind
     = (some_expected<T> && some_expected<U>
-       && std::same_as<typename std::remove_cvref_t<T>::value_type, typename std::remove_cvref_t<U>::value_type>)
-      || (some_expected<T> && some_sum<typename std::remove_cvref_t<T>::value_type> //
-          && some_expected<U> && some_sum<typename std::remove_cvref_t<U>::value_type>)
+       && ::std::same_as<typename ::std::remove_cvref_t<T>::value_type, typename ::std::remove_cvref_t<U>::value_type>)
+      || (some_expected<T> && some_sum<typename ::std::remove_cvref_t<T>::value_type> //
+          && some_expected<U> && some_sum<typename ::std::remove_cvref_t<U>::value_type>)
       || (some_optional<T> && some_optional<U>
-          && std::same_as<typename std::remove_cvref_t<U>::value_type, typename std::remove_cvref_t<T>::value_type>) //
-      || (some_optional<T> && some_sum<typename std::remove_cvref_t<T>::value_type>                                  //
-          && some_optional<U> && some_sum<typename std::remove_cvref_t<U>::value_type>)
+          && ::std::same_as<typename ::std::remove_cvref_t<U>::value_type,
+                            typename ::std::remove_cvref_t<T>::value_type>)           //
+      || (some_optional<T> && some_sum<typename ::std::remove_cvref_t<T>::value_type> //
+          && some_optional<U> && some_sum<typename ::std::remove_cvref_t<U>::value_type>)
       || (some_choice<T> && some_choice<U>);
 
 /**
@@ -69,7 +70,7 @@ concept same_monadic_type_as = same_kind<T, U> && same_value_kind<T, U>;
  */
 template <class T>
 concept convertible_to_unexpected
-    = requires { static_cast<::pfn::unexpected<std::remove_cvref_t<T>>>(std::declval<T>()); };
+    = requires { static_cast<::pfn::unexpected<::std::remove_cvref_t<T>>>(::std::declval<T>()); };
 
 /**
  * @brief TODO
@@ -78,9 +79,9 @@ concept convertible_to_unexpected
  * @tparam E TODO
  */
 template <class T, typename E>
-concept convertible_to_expected
-    = (not std::same_as<T, void> && requires { static_cast<expected<std::remove_cvref_t<T>, E>>(std::declval<T>()); })
-      || (std::same_as<T, void>);
+concept convertible_to_expected = (not ::std::same_as<T, void> && requires {
+                                    static_cast<expected<::std::remove_cvref_t<T>, E>>(::std::declval<T>());
+                                  }) || (::std::same_as<T, void>);
 
 /**
  * @brief TODO
@@ -88,7 +89,7 @@ concept convertible_to_expected
  * @tparam T TODO
  */
 template <class T>
-concept convertible_to_optional = requires { static_cast<optional<std::remove_cvref_t<T>>>(std::declval<T>()); };
+concept convertible_to_optional = requires { static_cast<optional<::std::remove_cvref_t<T>>>(::std::declval<T>()); };
 
 /**
  * @brief TODO
@@ -96,7 +97,7 @@ concept convertible_to_optional = requires { static_cast<optional<std::remove_cv
  * @tparam T TODO
  */
 template <class T>
-concept convertible_to_choice = requires { static_cast<choice<std::remove_cvref_t<T>>>(std::declval<T>()); };
+concept convertible_to_choice = requires { static_cast<choice<::std::remove_cvref_t<T>>>(::std::declval<T>()); };
 
 /**
  * @brief TODO
@@ -104,7 +105,7 @@ concept convertible_to_choice = requires { static_cast<choice<std::remove_cvref_
  * @tparam T TODO
  */
 template <class T>
-concept convertible_to_bool = requires { static_cast<bool>(std::declval<T>()); };
+concept convertible_to_bool = requires { static_cast<bool>(::std::declval<T>()); };
 
 } // namespace fn
 

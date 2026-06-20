@@ -26,24 +26,24 @@ namespace fn {
 template <typename Fn, typename V>
 concept invocable_transform //
     = (some_expected_non_void<V>//
-           && (not some_sum<typename std::remove_cvref_t<V>::value_type>) && requires(Fn &&fn, V &&v) {
+           && (not some_sum<typename ::std::remove_cvref_t<V>::value_type>) && requires(Fn &&fn, V &&v) {
         {
           ::fn::invoke(FWD(fn), FWD(v).value())
-        } -> convertible_to_expected<typename std::remove_cvref_t<decltype(v)>::error_type>;
-      }) || (some_expected<V> && some_sum<typename std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
+        } -> convertible_to_expected<typename ::std::remove_cvref_t<decltype(v)>::error_type>;
+      }) || (some_expected<V> && some_sum<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
         {
           FWD(v).value().transform(FWD(fn))
-        } -> convertible_to_expected<typename std::remove_cvref_t<decltype(v)>::error_type>;
+        } -> convertible_to_expected<typename ::std::remove_cvref_t<decltype(v)>::error_type>;
       }) || (some_expected_void<V> && requires(Fn &&fn, V &&v) {
         {
           ::fn::invoke(FWD(fn))
-        } -> convertible_to_expected<typename std::remove_cvref_t<decltype(v)>::error_type>;
+        } -> convertible_to_expected<typename ::std::remove_cvref_t<decltype(v)>::error_type>;
       }) || (some_optional<V> //
-            && (not some_sum<typename std::remove_cvref_t<V>::value_type>) && requires(Fn &&fn, V &&v) {
+            && (not some_sum<typename ::std::remove_cvref_t<V>::value_type>) && requires(Fn &&fn, V &&v) {
         {
           ::fn::invoke(FWD(fn), FWD(v).value())
         } -> convertible_to_optional;
-      }) || (some_optional<V> && some_sum<typename std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
+      }) || (some_optional<V> && some_sum<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
         {
           FWD(v).value().transform(FWD(fn))
         } -> convertible_to_optional;

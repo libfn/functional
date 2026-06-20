@@ -28,8 +28,8 @@ template <typename Functor, typename... Args> struct functor final {
   using data_t = pack<as_value_t<Args>...>;
   data_t data;
 
-  static_assert(std::is_empty_v<functor_type> && std::is_empty_v<functor_apply>
-                && std::is_default_constructible_v<functor_type> && std::is_default_constructible_v<functor_apply>);
+  static_assert(::std::is_empty_v<functor_type> && ::std::is_empty_v<functor_apply>
+                && ::std::is_default_constructible_v<functor_type> && ::std::is_default_constructible_v<functor_apply>);
 
   /**
    * @brief TODO
@@ -39,7 +39,7 @@ template <typename Functor, typename... Args> struct functor final {
    * @return TODO
    */
   [[nodiscard]] constexpr friend auto operator|(some_monadic_type auto &&v, auto &&self) noexcept -> decltype(auto)
-    requires std::same_as<std::remove_cvref_t<decltype(self)>, functor>
+    requires ::std::same_as<::std::remove_cvref_t<decltype(self)>, functor>
              && monadic_invocable<functor_type, decltype(v), Args...>
   {
     return data_t::_swap_invoke(FWD(self).data, functor_apply{}, FWD(v));
