@@ -2,6 +2,10 @@
 
 Conventions for AI agents in this repo (you are the primary reader — keep this terse).
 
+## CI
+
+- Red CI is top priority — fix before other work; a failed build masks failures behind it. Check CI state with the user, especially when starting new work.
+
 ## Commits
 
 - Trailer `Assisted-by: Claude:<exact session model id>` (Linux-kernel convention), e.g. `claude-opus-4-8`. No `Co-Authored-By:`.
@@ -10,7 +14,7 @@ Conventions for AI agents in this repo (you are the primary reader — keep this
 
 ## Git state
 
-- The user may switch branch between prompts and forget. Run read-only git (`status`, `log -1`, `branch`) freely, especially when starting work, to catch it; `git diff` can be large, use judiciously.
+- Starting work, orient first: `git status -sb` (branch, dirty state, ahead/behind origin) + `git log --oneline -5`. Catches silent branch switches; unpushed commits await the user's push. Read-only git is free; `git diff` can be large — use judiciously.
 
 ## Code
 
