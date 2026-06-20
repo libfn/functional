@@ -49,10 +49,19 @@ template <typename Fn, typename Self, template <typename...> typename Tpl, typen
 struct _typelist_select_invoke_result<Fn, Self, Tpl<Ts...>, Args...> {
   using T0 = select_nth_t<0, Ts...>;
   using R0 = ::fn::detail::_invoke_result<Fn, apply_const_lvalue_t<Self, T0>, Args...>::type;
-  static_assert((...
-                 && ::std::is_same_v<
-                     R0, typename ::fn::detail::_invoke_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>));
-  using type = R0;
+  static constexpr bool type_found
+      = (...
+         && ::std::is_same_v<R0,
+                             typename ::fn::detail::_invoke_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>);
+  // TODO: remove the _MSC_VER guard. This is temporarily needed because MSVC
+  // pack elements have deduced-auto invoke returns (not yet fixed); _invoke_result gives
+  // distinct unknown-type per instantiation, making type_found spuriously false — skip until
+  // _invoke_detail::invoke overloads gain explicit return types (see functional.hpp)
+#ifndef _MSC_VER
+  static_assert(not(... && ::fn::detail::_is_invocable<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::value)
+                || type_found);
+#endif
+  using type = ::std::conditional_t<type_found, R0, void>;
 };
 
 struct _collapsing_sum_tag final {};
