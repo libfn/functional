@@ -44,7 +44,7 @@ template <typename... Ts> struct pack : detail::pack_impl<std::index_sequence_fo
   template <typename T>
   [[nodiscard]] constexpr auto append(std::in_place_type_t<T>, auto &&...args) & noexcept -> append_type<T>
     requires std::is_constructible_v<T, decltype(args)...>
-             && requires { static_cast<append_type<T>>(_impl::template _append<T>(*this, FWD(args)...)); }
+             && requires { append_type<T>{_impl::template _append<T>(*this, FWD(args)...)}; }
   {
     return {_impl::template _append<T>(*this, FWD(args)...)};
   }
@@ -59,7 +59,7 @@ template <typename... Ts> struct pack : detail::pack_impl<std::index_sequence_fo
   template <typename T>
   [[nodiscard]] constexpr auto append(std::in_place_type_t<T>, auto &&...args) const & noexcept -> append_type<T>
     requires std::is_constructible_v<T, decltype(args)...>
-             && requires { static_cast<append_type<T>>(_impl::template _append<T>(*this, FWD(args)...)); }
+             && requires { append_type<T>{_impl::template _append<T>(*this, FWD(args)...)}; }
   {
     return {_impl::template _append<T>(*this, FWD(args)...)};
   }
@@ -74,7 +74,7 @@ template <typename... Ts> struct pack : detail::pack_impl<std::index_sequence_fo
   template <typename T>
   [[nodiscard]] constexpr auto append(std::in_place_type_t<T>, auto &&...args) && noexcept -> append_type<T>
     requires std::is_constructible_v<T, decltype(args)...>
-             && requires { static_cast<append_type<T>>(_impl::template _append<T>(std::move(*this), FWD(args)...)); }
+             && requires { append_type<T>{_impl::template _append<T>(std::move(*this), FWD(args)...)}; }
   {
     return {_impl::template _append<T>(std::move(*this), FWD(args)...)};
   }
@@ -89,7 +89,7 @@ template <typename... Ts> struct pack : detail::pack_impl<std::index_sequence_fo
   template <typename T>
   [[nodiscard]] constexpr auto append(std::in_place_type_t<T>, auto &&...args) const && noexcept -> append_type<T>
     requires std::is_constructible_v<T, decltype(args)...>
-             && requires { static_cast<append_type<T>>(_impl::template _append<T>(std::move(*this), FWD(args)...)); }
+             && requires { append_type<T>{_impl::template _append<T>(std::move(*this), FWD(args)...)}; }
   {
     return {_impl::template _append<T>(std::move(*this), FWD(args)...)};
   }
@@ -103,7 +103,7 @@ template <typename... Ts> struct pack : detail::pack_impl<std::index_sequence_fo
    */
   template <typename Arg>
   [[nodiscard]] constexpr auto append(Arg &&arg) & noexcept -> append_type<Arg>
-    requires requires { static_cast<append_type<Arg>>(_impl::template _append<Arg>(*this, FWD(arg))); }
+    requires requires { append_type<Arg>{_impl::template _append<Arg>(*this, FWD(arg))}; }
   {
     return {_impl::template _append<Arg>(*this, FWD(arg))};
   }
@@ -117,7 +117,7 @@ template <typename... Ts> struct pack : detail::pack_impl<std::index_sequence_fo
    */
   template <typename Arg>
   [[nodiscard]] constexpr auto append(Arg &&arg) const & noexcept -> append_type<Arg>
-    requires requires { static_cast<append_type<Arg>>(_impl::template _append<Arg>(*this, FWD(arg))); }
+    requires requires { append_type<Arg>{_impl::template _append<Arg>(*this, FWD(arg))}; }
   {
     return {_impl::template _append<Arg>(*this, FWD(arg))};
   }
@@ -131,7 +131,7 @@ template <typename... Ts> struct pack : detail::pack_impl<std::index_sequence_fo
    */
   template <typename Arg>
   [[nodiscard]] constexpr auto append(Arg &&arg) && noexcept -> append_type<Arg>
-    requires requires { static_cast<append_type<Arg>>(_impl::template _append<Arg>(std::move(*this), FWD(arg))); }
+    requires requires { append_type<Arg>{_impl::template _append<Arg>(std::move(*this), FWD(arg))}; }
   {
     return {_impl::template _append<Arg>(std::move(*this), FWD(arg))};
   }
@@ -145,7 +145,7 @@ template <typename... Ts> struct pack : detail::pack_impl<std::index_sequence_fo
    */
   template <typename Arg>
   [[nodiscard]] constexpr auto append(Arg &&arg) const && noexcept -> append_type<Arg>
-    requires requires { static_cast<append_type<Arg>>(_impl::template _append<Arg>(std::move(*this), FWD(arg))); }
+    requires requires { append_type<Arg>{_impl::template _append<Arg>(std::move(*this), FWD(arg))}; }
   {
     return {_impl::template _append<Arg>(std::move(*this), FWD(arg))};
   }
