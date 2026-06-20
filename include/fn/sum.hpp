@@ -186,13 +186,17 @@ struct sum<Ts...> {
     return detail::invoke_type_variadic_union<Ret, data_t>(::std::move(*this).data, ::std::move(*this).index, FWD(fn));
   }
 
-  template <typename Fn> [[nodiscard]] constexpr auto _transform(Fn &&fn) const & noexcept
+  template <typename Fn>
+  [[nodiscard]] constexpr auto _transform(Fn &&fn) const & noexcept ->
+      typename detail::_sum_invoke_type_result<detail::_collapsing_sum_tag, decltype(fn), sum const &>::type
   {
     using type = detail::_sum_invoke_type_result<detail::_collapsing_sum_tag, decltype(fn), sum const &>::type;
     return detail::invoke_type_variadic_union<type, data_t>(this->data, index, FWD(fn));
   }
 
-  template <typename Fn> [[nodiscard]] constexpr auto _transform(Fn &&fn) && noexcept
+  template <typename Fn>
+  [[nodiscard]] constexpr auto _transform(Fn &&fn) && noexcept ->
+      typename detail::_sum_invoke_type_result<detail::_collapsing_sum_tag, decltype(fn), sum &&>::type
   {
     using type = detail::_sum_invoke_type_result<detail::_collapsing_sum_tag, decltype(fn), sum &&>::type;
     return detail::invoke_type_variadic_union<type, data_t>(::std::move(*this).data, index, FWD(fn));
@@ -389,7 +393,8 @@ struct sum<Ts...> {
    * @return TODO
    */
   template <typename Fn, typename... Args>
-  [[nodiscard]] constexpr auto invoke(Fn &&fn, Args &&...args) & noexcept
+  [[nodiscard]] constexpr auto invoke(Fn &&fn, Args &&...args) & noexcept ->
+      typename detail::_sum_invoke_result<detail::_invoke_autodetect_tag, decltype(fn), sum &, Args &&...>::type
     requires typelist_invocable<Fn, sum &, Args &&...>
   {
     using type = detail::_sum_invoke_result<detail::_invoke_autodetect_tag, decltype(fn), sum &, Args &&...>::type;
@@ -406,7 +411,8 @@ struct sum<Ts...> {
    * @return TODO
    */
   template <typename Fn, typename... Args>
-  [[nodiscard]] constexpr auto invoke(Fn &&fn, Args &&...args) const & noexcept
+  [[nodiscard]] constexpr auto invoke(Fn &&fn, Args &&...args) const & noexcept ->
+      typename detail::_sum_invoke_result<detail::_invoke_autodetect_tag, decltype(fn), sum const &, Args &&...>::type
     requires typelist_invocable<Fn, sum const &, Args &&...>
   {
     using type
@@ -424,7 +430,8 @@ struct sum<Ts...> {
    * @return TODO
    */
   template <typename Fn, typename... Args>
-  [[nodiscard]] constexpr auto invoke(Fn &&fn, Args &&...args) && noexcept
+  [[nodiscard]] constexpr auto invoke(Fn &&fn, Args &&...args) && noexcept ->
+      typename detail::_sum_invoke_result<detail::_invoke_autodetect_tag, decltype(fn), sum &&, Args &&...>::type
     requires typelist_invocable<Fn, sum &&, Args &&...>
   {
     using type = detail::_sum_invoke_result<detail::_invoke_autodetect_tag, decltype(fn), sum &&, Args &&...>::type;
@@ -441,7 +448,8 @@ struct sum<Ts...> {
    * @return TODO
    */
   template <typename Fn, typename... Args>
-  [[nodiscard]] constexpr auto invoke(Fn &&fn, Args &&...args) const && noexcept
+  [[nodiscard]] constexpr auto invoke(Fn &&fn, Args &&...args) const && noexcept ->
+      typename detail::_sum_invoke_result<detail::_invoke_autodetect_tag, decltype(fn), sum const &&, Args &&...>::type
     requires typelist_invocable<Fn, sum const &&, Args &&...>
   {
     using type
@@ -460,7 +468,7 @@ struct sum<Ts...> {
    * @return TODO
    */
   template <typename Ret, typename Fn, typename... Args>
-  [[nodiscard]] constexpr auto invoke_r(Fn &&fn, Args &&...args) & noexcept
+  [[nodiscard]] constexpr auto invoke_r(Fn &&fn, Args &&...args) & noexcept -> Ret
     requires typelist_invocable_r<Ret, Fn, sum &, Args &&...>
   {
     using type = detail::_sum_invoke_result<Ret, decltype(fn), sum &, Args &&...>::type;
@@ -531,7 +539,8 @@ struct sum<Ts...> {
    * @return TODO
    */
   template <typename Fn, typename... Args>
-  [[nodiscard]] constexpr auto transform(Fn &&fn, Args &&...args) & noexcept
+  [[nodiscard]] constexpr auto transform(Fn &&fn, Args &&...args) & noexcept ->
+      typename detail::_sum_invoke_result<detail::_collapsing_sum_tag, decltype(fn), sum &, Args &&...>::type
     requires typelist_invocable<Fn, sum &, Args &&...>
   {
     using type = detail::_sum_invoke_result<detail::_collapsing_sum_tag, decltype(fn), sum &, Args &&...>::type;
@@ -548,7 +557,8 @@ struct sum<Ts...> {
    * @return TODO
    */
   template <typename Fn, typename... Args>
-  [[nodiscard]] constexpr auto transform(Fn &&fn, Args &&...args) const & noexcept
+  [[nodiscard]] constexpr auto transform(Fn &&fn, Args &&...args) const & noexcept ->
+      typename detail::_sum_invoke_result<detail::_collapsing_sum_tag, decltype(fn), sum const &, Args &&...>::type
     requires typelist_invocable<Fn, sum const &, Args &&...>
   {
     using type = detail::_sum_invoke_result<detail::_collapsing_sum_tag, decltype(fn), sum const &, Args &&...>::type;
@@ -565,7 +575,8 @@ struct sum<Ts...> {
    * @return TODO
    */
   template <typename Fn, typename... Args>
-  [[nodiscard]] constexpr auto transform(Fn &&fn, Args &&...args) && noexcept
+  [[nodiscard]] constexpr auto transform(Fn &&fn, Args &&...args) && noexcept ->
+      typename detail::_sum_invoke_result<detail::_collapsing_sum_tag, decltype(fn), sum &&, Args &&...>::type
     requires typelist_invocable<Fn, sum &&, Args &&...>
   {
     using type = detail::_sum_invoke_result<detail::_collapsing_sum_tag, decltype(fn), sum &&, Args &&...>::type;
@@ -582,7 +593,8 @@ struct sum<Ts...> {
    * @return TODO
    */
   template <typename Fn, typename... Args>
-  [[nodiscard]] constexpr auto transform(Fn &&fn, Args &&...args) const && noexcept
+  [[nodiscard]] constexpr auto transform(Fn &&fn, Args &&...args) const && noexcept ->
+      typename detail::_sum_invoke_result<detail::_collapsing_sum_tag, decltype(fn), sum const &&, Args &&...>::type
     requires typelist_invocable<Fn, sum const &&, Args &&...>
   {
     using type = detail::_sum_invoke_result<detail::_collapsing_sum_tag, decltype(fn), sum const &&, Args &&...>::type;
