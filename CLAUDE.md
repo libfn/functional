@@ -43,7 +43,8 @@ To make an `fn/detail` file depend on something that currently lives in `fn` (a 
 
 ## Tooling
 
-- Recommended: `clangd-lsp@claude-plugins-official` for symbol navigation + post-edit diagnostics on C++. Requires a populated `compile_commands.json` (re-run CMake configure if clangd reports spurious errors in template-heavy headers).
+- Use `clangd-lsp@claude-plugins-official` for C++ symbol navigation (go-to-def, find-refs) and post-edit diagnostics; prefer it over grep/whole-file reads where it fits — targeted lookups should cut context, not add it. Needs a populated `compile_commands.json`. Ask the user to populate it and offer help if it's unavailable/empty.
+- clangd reflects one local toolchain (P0960, libc++, …), not the CI matrix — a clean clangd buffer is NOT portability clearance; full `-Werror` builds + CI stay the authority (AppleClang/MSVC/gcc-12 gaps).
 
 ## Memory
 
