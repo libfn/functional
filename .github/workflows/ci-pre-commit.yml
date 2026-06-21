@@ -19,6 +19,7 @@ on:
 
 env:
   REGISTRY_IMAGE: libfn.azurecr.io/ci-pre-commit
+  NODE_RELEASE: 24
 
 jobs:
   build:
@@ -48,6 +49,8 @@ jobs:
           registry: libfn.azurecr.io
           username: ${{ secrets.AZURECR_NAME }}
           password: ${{ secrets.AZURECR_PASS }}
+          build_args: |
+            NODE_RELEASE=${{ env.NODE_RELEASE }}
           context: "ci"
           file: "pre-commit/Dockerfile"
           title: "pre-commit"
