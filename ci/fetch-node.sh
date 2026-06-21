@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -ex
 set -o pipefail
 : "${NODE_RELEASE:?NODE_RELEASE is not set}"

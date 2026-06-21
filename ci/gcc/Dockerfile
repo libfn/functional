@@ -42,7 +42,7 @@ RUN set -ex ;\
     apt-get install -y --no-install-recommends \
       ca-certificates gnupg unzip wget vim curl jq python3-venv python3-pip \
       cmake ninja-build binutils libc6-dev git valgrind ;\
-    sh /work/fetch-node.sh ;\
+    bash /work/fetch-node.sh ;\
     rm /work/fetch-node.sh ;\
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -66,7 +66,7 @@ ARG CATCH_RELEASE=3.14.0
 WORKDIR /work
 COPY build-catch.sh /work/build-catch.sh
 RUN set -ex ;\
-    sh /work/build-catch.sh ;\
+    bash /work/build-catch.sh ;\
     rm /work/build-catch.sh
 ENV CMAKE_FIND_CATCH2=1
 
@@ -77,6 +77,6 @@ ARG BAZEL_RELEASE=8.7.0
 WORKDIR /work
 COPY fetch-bazel.sh /work/fetch-bazel.sh
 RUN set -ex ;\
-    sh /work/fetch-bazel.sh ;\
+    bash /work/fetch-bazel.sh ;\
     rm /work/fetch-bazel.sh
 ENV USE_BAZEL_FALLBACK_VERSION="warn:${BAZEL_RELEASE}"

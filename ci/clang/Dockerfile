@@ -22,7 +22,7 @@ RUN set -ex ;\
     apt-get install -t llvm-toolchain-${CODENAME}-${CLANG_RELEASE} -y --no-install-recommends \
       clang++-${CLANG_RELEASE} clang-${CLANG_RELEASE} libc++-${CLANG_RELEASE}-dev \
       libc++abi-${CLANG_RELEASE}-dev libclang-rt-${CLANG_RELEASE}-dev ;\
-    sh /work/fetch-node.sh ;\
+    bash /work/fetch-node.sh ;\
     rm /work/fetch-node.sh ;\
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -54,7 +54,7 @@ WORKDIR /work
 COPY build-catch.sh /work/build-catch.sh
 ENV CXXFLAGS="-stdlib=libc++"
 RUN set -ex ;\
-    sh /work/build-catch.sh ;\
+    bash /work/build-catch.sh ;\
     rm /work/build-catch.sh
 ENV CMAKE_FIND_CATCH2=1
 
@@ -72,7 +72,7 @@ WORKDIR /work
 COPY build-catch.sh /work/build-catch.sh
 ENV CXXFLAGS="-stdlib=libstdc++"
 RUN set -ex ;\
-    sh /work/build-catch.sh ;\
+    bash /work/build-catch.sh ;\
     rm /work/build-catch.sh
 ENV CMAKE_FIND_CATCH2=1
 
@@ -90,6 +90,6 @@ RUN set -ex ;\
 WORKDIR /work
 COPY fetch-bazel.sh /work/fetch-bazel.sh
 RUN set -ex ;\
-    sh /work/fetch-bazel.sh ;\
+    bash /work/fetch-bazel.sh ;\
     rm /work/fetch-bazel.sh
 ENV USE_BAZEL_FALLBACK_VERSION="warn:${BAZEL_RELEASE}"

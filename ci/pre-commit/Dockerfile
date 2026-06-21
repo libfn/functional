@@ -11,7 +11,7 @@ RUN set -ex ;\
       python3 python3-pip python3-venv \
       ca-certificates wget vim git curl gpg ;\
     apt-get install -y --no-install-recommends -t trixie-backports shellcheck ;\
-    sh /work/fetch-node.sh ;\
+    bash /work/fetch-node.sh ;\
     rm /work/fetch-node.sh ;\
     apt-get clean && rm -rf /var/lib/apt/lists/*
 

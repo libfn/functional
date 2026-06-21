@@ -85,7 +85,7 @@ RUN set -ex ;\
       ca-certificates gnupg unzip wget vim curl jq \
       cmake ninja-build binutils libc6-dev git \
       ${JAVA_VERSION} graphviz  ;\
-    sh /work/fetch-node.sh ;\
+    bash /work/fetch-node.sh ;\
     rm /work/fetch-node.sh ;\
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -96,7 +96,7 @@ ENV CMAKE_BUILD_TYPE=Debug
 ARG CATCH_RELEASE=3.14.0
 COPY build-catch.sh /work/build-catch.sh
 RUN set -ex ;\
-    sh /work/build-catch.sh ;\
+    bash /work/build-catch.sh ;\
     rm /work/build-catch.sh
 ENV CMAKE_FIND_CATCH2=1
 ENV PATH=${PATH}:/opt/znai
