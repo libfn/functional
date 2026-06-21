@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Install bazelisk (pinned + checksum-verified) and pre-fetch the pinned Bazel
 # release so the test container can run Bazel. The system toolchain (CC/CXX) is
 # used, so no in-image MODULE.bazel file.

@@ -17,6 +17,7 @@ on:
       - 'ci/clang/**'
       - 'ci/build-catch.sh'
       - 'ci/fetch-bazel.sh'
+      - 'ci/fetch-node.sh'
   workflow_dispatch:
 
 env:
@@ -27,6 +28,7 @@ env:
   REGISTRY_IMAGE_ROOT: libfn.azurecr.io/ci-build
   CATCH_RELEASE: 3.14.0
   BAZEL_RELEASE: 8.7.0
+  NODE_RELEASE: 24
 
 jobs:
   build:
@@ -105,6 +107,7 @@ jobs:
             DEBIAN_VERSION=${{ env.DEBIAN_VERSION }}
             CATCH_RELEASE=${{ env.CATCH_RELEASE }}
             BAZEL_RELEASE=${{ env.BAZEL_RELEASE }}
+            NODE_RELEASE=${{ env.NODE_RELEASE }}
           context: "ci"
           file: "${{ env.COMPILER }}/Dockerfile"
           title: "build-${{ env.IMAGE }}-${{ env.RELEASE }}"
