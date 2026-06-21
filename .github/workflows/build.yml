@@ -31,7 +31,7 @@ on:
 jobs:
   linux:
     timeout-minutes: 10
-    runs-on: warp-ubuntu-latest-arm64-2x
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-2x' || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
@@ -102,7 +102,7 @@ jobs:
 
   macos:
     timeout-minutes: 10
-    runs-on: warp-macos-${{ matrix.compiler.osver }}-arm64-6x
+    runs-on: ${{ github.repository == 'libfn/functional' && format('warp-macos-{0}-arm64-6x', matrix.compiler.osver) || format('macos-{0}', matrix.compiler.osver) }}
     env:
       # Silence clang -Woverriding-deployment-version warnings.
       MACOSX_DEPLOYMENT_TARGET: ${{ matrix.compiler.osver }}.0
@@ -167,11 +167,17 @@ jobs:
           export CXX CC
         fi
         if [[ "${{ matrix.compiler.name }}" == "clang" ]]; then
+          if [[ ! -x "$(brew --prefix llvm@${{ matrix.compiler.release }})/bin/clang++" ]]; then
+            brew install llvm@${{ matrix.compiler.release }}
+          fi
           CXX="$(brew --prefix llvm@${{ matrix.compiler.release }})/bin/clang++"
           CC="$(brew --prefix llvm@${{ matrix.compiler.release }})/bin/clang"
           export CXX CC
         fi
         if [[ "${{ matrix.compiler.name }}" == "gcc" ]]; then
+          if [[ ! -x "$(brew --prefix gcc@${{ matrix.compiler.release }})/bin/g++-${{ matrix.compiler.release }}" ]]; then
+            brew install gcc@${{ matrix.compiler.release }}
+          fi
           CXX="$(brew --prefix gcc@${{ matrix.compiler.release }})/bin/g++-${{ matrix.compiler.release }}"
           CC="$(brew --prefix gcc@${{ matrix.compiler.release }})/bin/gcc-${{ matrix.compiler.release }}"
           export CXX CC
@@ -210,8 +216,9 @@ jobs:
             - Debug
             - Release
           vs:
+            # windows-2025-vs2026 is a GitHub-hosted label, so forks get VS 2026 too; only the VS 2022 runner differs (Warp vs hosted windows-2022).
             - generator: "Visual Studio 17 2022"
-              runner: "warp-windows-latest-x64-4x"
+              runner: ${{ github.repository == 'libfn/functional' && 'warp-windows-latest-x64-4x' || 'windows-2022' }}
             - generator: "Visual Studio 18 2026"
               runner: "windows-2025-vs2026"
 
@@ -239,7 +246,7 @@ jobs:
 
   nixos:
     timeout-minutes: 10
-    runs-on: warp-ubuntu-latest-x64-4x
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:

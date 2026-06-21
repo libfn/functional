@@ -20,8 +20,7 @@ on:
 
 jobs:
   coverage:
-    runs-on:
-      group: runners-intel
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
     container: libfn.azurecr.io/ci-build-gcc:15-sha-08b1133
     env:
       CC: /usr/local/bin/gcc
@@ -79,7 +78,7 @@ jobs:
     - name: Upload .gcov files
       uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
       with:
-        fail_ci_if_error: true
+        fail_ci_if_error: ${{ github.repository == 'libfn/functional' }}
         disable_search: false
         verbose: true
         plugin: noop

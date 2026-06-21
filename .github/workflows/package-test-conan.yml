@@ -23,8 +23,7 @@ on:
 
 jobs:
   test_conan:
-    runs-on:
-      group: runners-intel
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
     container: libfn.azurecr.io/ci-build-gcc:15-sha-08b1133
     strategy:
       fail-fast: false

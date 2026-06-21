@@ -35,9 +35,8 @@ on:
 
 jobs:
   licence-check:
-    if: ${{ github.event_name == 'push' || inputs.run_licence_check }}
-    runs-on:
-      group: runners-arm64
+    if: ${{ (github.event_name == 'push' || inputs.run_licence_check) && github.repository == 'libfn/functional' }}
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-2x' || 'ubuntu-latest' }}
     steps:
     - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
@@ -47,8 +46,7 @@ jobs:
 
   licence-unchanged:
     if: ${{ github.event_name == 'pull_request' }}
-    runs-on:
-      group: runners-arm64
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-2x' || 'ubuntu-latest' }}
     env:
       LICENCE_FILE: LICENSE.md
     steps:
