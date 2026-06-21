@@ -1,6 +1,8 @@
 #!/bin/bash
+set -e
 : "${NODE_RELEASE:?NODE_RELEASE is not set}"
 
+mkdir -p /etc/apt/keyrings
 curl --proto '=https' --tlsv1.2 -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | \
 	gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
 printf "%s\n%s\n" \
