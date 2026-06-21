@@ -6,6 +6,7 @@ ARG CLANG_RELEASE=22
 ARG DEBIAN_FRONTEND=noninteractive
 WORKDIR /work
 COPY fetch-node.sh /work/fetch-node.sh
+COPY clang/fetch-clang.sh /work/fetch-clang.sh
 RUN set -ex ;\
     : "${CLANG_RELEASE:?CLANG_RELEASE is not set}" ;\
     apt-get update ;\
@@ -13,15 +14,9 @@ RUN set -ex ;\
       ca-certificates gnupg unzip wget vim curl jq python3-venv python3-pip \
       cmake ninja-build binutils libc6-dev git valgrind ;\
     CODENAME=$( . /etc/os-release && echo $VERSION_CODENAME ) ;\
-    wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /etc/apt/keyrings/llvm.gpg ;\
-    printf "%s\n%s\n" \
-      "deb [signed-by=/etc/apt/keyrings/llvm.gpg] https://apt.llvm.org/${CODENAME}/ llvm-toolchain-${CODENAME}-${CLANG_RELEASE} main" \
-      "deb-src [signed-by=/etc/apt/keyrings/llvm.gpg] https://apt.llvm.org/${CODENAME}/ llvm-toolchain-${CODENAME}-${CLANG_RELEASE} main" \
-      | tee /etc/apt/sources.list.d/llvm.list ;\
-    apt-get update ;\
-    apt-get install -t llvm-toolchain-${CODENAME}-${CLANG_RELEASE} -y --no-install-recommends \
-      clang++-${CLANG_RELEASE} clang-${CLANG_RELEASE} libc++-${CLANG_RELEASE}-dev \
-      libc++abi-${CLANG_RELEASE}-dev libclang-rt-${CLANG_RELEASE}-dev ;\
+    export CODENAME ;\
+    bash /work/fetch-clang.sh ;\
+    rm /work/fetch-clang.sh ;\
     bash /work/fetch-node.sh ;\
     rm /work/fetch-node.sh ;\
     apt-get clean && rm -rf /var/lib/apt/lists/*
