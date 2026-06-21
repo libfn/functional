@@ -10,8 +10,8 @@ RUN set -ex ;\
 
 ARG DEBIAN_VERSION=trixie
 FROM debian:${DEBIAN_VERSION} AS build
-ARG DOXYGEN_RELEASE
-ARG ZNAI_RELEASE
+ARG DOXYGEN_RELEASE=1.12.0
+ARG ZNAI_RELEASE=1.73
 
 ARG DEBIAN_FRONTEND=noninteractive
 WORKDIR /work
@@ -53,7 +53,6 @@ COPY --from=upstream /etc/ld.so.conf.d/ /etc/ld.so.conf.d/
 COPY --from=build /usr/local/ /usr/local/
 COPY --from=build /opt/znai /opt/znai
 
-WORKDIR /root
 RUN set -ex ;\
     rm -rf /usr/local/lib/python3.11 ;\
     find /usr/local -type d -empty -exec rm -r {} + ;\
@@ -75,22 +74,26 @@ RUN set -ex ;\
     update-alternatives --auto cc ;\
     update-alternatives --auto gcc
 
+ARG NODE_RELEASE=24
 ARG JAVA_VERSION=openjdk-21-jdk
 ARG DEBIAN_FRONTEND=noninteractive
+WORKDIR /work
+COPY fetch-node.sh /work/fetch-node.sh
 RUN set -ex ;\
     apt-get update ;\
     apt-get install -y --no-install-recommends \
       ca-certificates gnupg unzip wget vim curl jq \
       cmake ninja-build binutils libc6-dev git \
       ${JAVA_VERSION} graphviz  ;\
-    apt-get clean
+    sh /work/fetch-node.sh ;\
+    rm /work/fetch-node.sh ;\
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 ENV CC=/usr/bin/gcc
 ENV CXX=/usr/bin/g++
 ENV CMAKE_GENERATOR=Ninja
 ENV CMAKE_BUILD_TYPE=Debug
-ARG CATCH_RELEASE
-WORKDIR /work
+ARG CATCH_RELEASE=3.14.0
 COPY build-catch.sh /work/build-catch.sh
 RUN set -ex ;\
     sh /work/build-catch.sh ;\

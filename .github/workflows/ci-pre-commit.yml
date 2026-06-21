@@ -47,7 +47,8 @@ jobs:
           registry: libfn.azurecr.io
           username: ${{ secrets.AZURECR_NAME }}
           password: ${{ secrets.AZURECR_PASS }}
-          context: "ci/pre-commit"
+          context: "ci"
+          file: "pre-commit/Dockerfile"
           title: "pre-commit"
           push: ${{ github.ref_type == 'branch' && github.ref_name == 'main' }}
 

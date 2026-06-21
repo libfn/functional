@@ -1,8 +1,11 @@
 ARG DEBIAN_VERSION=trixie
 FROM debian:${DEBIAN_VERSION} AS base
 
-ARG CLANG_RELEASE
+ARG NODE_RELEASE=24
+ARG CLANG_RELEASE=22
 ARG DEBIAN_FRONTEND=noninteractive
+WORKDIR /work
+COPY fetch-node.sh /work/fetch-node.sh
 RUN set -ex ;\
     : "${CLANG_RELEASE:?CLANG_RELEASE is not set}" ;\
     apt-get update ;\
@@ -19,6 +22,8 @@ RUN set -ex ;\
     apt-get install -t llvm-toolchain-${CODENAME}-${CLANG_RELEASE} -y --no-install-recommends \
       clang++-${CLANG_RELEASE} clang-${CLANG_RELEASE} libc++-${CLANG_RELEASE}-dev \
       libc++abi-${CLANG_RELEASE}-dev libclang-rt-${CLANG_RELEASE}-dev ;\
+    sh /work/fetch-node.sh ;\
+    rm /work/fetch-node.sh ;\
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN set -ex ;\
@@ -43,7 +48,7 @@ ENV CMAKE_BUILD_TYPE=Debug
 # ---- Build Catch2 with libc++ as `clang` target ----
 
 FROM base AS clang
-ARG CATCH_RELEASE
+ARG CATCH_RELEASE=3.14.0
 
 WORKDIR /work
 COPY build-catch.sh /work/build-catch.sh
@@ -56,7 +61,7 @@ ENV CMAKE_FIND_CATCH2=1
 # ---- Build Catch2 with libstdc++ based on gcc-14, as `clang-libstdcxx` target ----
 
 FROM base AS clang-libstdcxx
-ARG CATCH_RELEASE
+ARG CATCH_RELEASE=3.14.0
 ARG DEBIAN_FRONTEND=noninteractive
 RUN set -ex ;\
     apt-get update ;\
@@ -74,7 +79,7 @@ ENV CMAKE_FIND_CATCH2=1
 # ---- Bazel + system clang as `clang-bazel` target ----
 
 FROM base AS clang-bazel
-ARG BAZEL_RELEASE
+ARG BAZEL_RELEASE=8.7.0
 ARG DEBIAN_FRONTEND=noninteractive
 # Install libstdc++ so clang libstdc++ (i.e. default) Bazel builds work; base has only libc++
 RUN set -ex ;\
