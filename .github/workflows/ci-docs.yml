@@ -15,6 +15,7 @@ on:
       - '.github/workflows/ci-docs.yml'
       - 'ci/docs/**'
       - 'ci/build-catch.sh'
+      - 'ci/fetch-node.sh'
   workflow_dispatch:
 
 env:

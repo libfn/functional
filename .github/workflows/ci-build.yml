@@ -17,6 +17,7 @@ on:
       - 'ci/clang/**'
       - 'ci/build-catch.sh'
       - 'ci/fetch-bazel.sh'
+      - 'ci/fetch-node.sh'
   workflow_dispatch:
 
 env:
