@@ -101,11 +101,15 @@ jobs:
         ctest --output-on-failure
 
   macos:
-    timeout-minutes: 10
+    # Installing a toolchain via brew may need more than 10 minutes.
+    timeout-minutes: 30
     runs-on: ${{ github.repository == 'libfn/functional' && format('warp-macos-{0}-arm64-6x', matrix.compiler.osver) || format('macos-{0}', matrix.compiler.osver) }}
     env:
       # Silence clang -Woverriding-deployment-version warnings.
       MACOSX_DEPLOYMENT_TARGET: ${{ matrix.compiler.osver }}.0
+      # Skip the slow Homebrew auto-update/cleanup around the on-demand brew install.
+      HOMEBREW_NO_AUTO_UPDATE: 1
+      HOMEBREW_NO_INSTALL_CLEANUP: 1
     strategy:
       max-parallel: 10
       fail-fast: false
@@ -168,6 +172,7 @@ jobs:
         fi
         if [[ "${{ matrix.compiler.name }}" == "clang" ]]; then
           if ! brew list --versions llvm@${{ matrix.compiler.release }} >/dev/null 2>&1; then
+            brew update
             brew install llvm@${{ matrix.compiler.release }}
           fi
           CXX="$(brew --prefix llvm@${{ matrix.compiler.release }})/bin/clang++"
@@ -176,6 +181,7 @@ jobs:
         fi
         if [[ "${{ matrix.compiler.name }}" == "gcc" ]]; then
           if ! brew list --versions gcc@${{ matrix.compiler.release }} >/dev/null 2>&1; then
+            brew update
             brew install gcc@${{ matrix.compiler.release }}
           fi
           CXX="$(brew --prefix gcc@${{ matrix.compiler.release }})/bin/g++-${{ matrix.compiler.release }}"
