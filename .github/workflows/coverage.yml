@@ -22,7 +22,7 @@ jobs:
   coverage:
     runs-on:
       group: runners-intel
-    container: libfn.azurecr.io/ci-build-gcc:15
+    container: libfn.azurecr.io/ci-build-gcc:15-sha-08b1133
     env:
       CC: /usr/local/bin/gcc
       CXX: /usr/local/bin/g++

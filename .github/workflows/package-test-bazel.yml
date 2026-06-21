@@ -36,7 +36,7 @@ jobs:
         image:
           - ci-build-gcc-bazel:16
           - ci-build-clang-bazel:22
-    container: libfn.azurecr.io/${{ matrix.image }}
+    container: libfn.azurecr.io/${{ matrix.image }}-sha-08b1133
     defaults:
       run:
         working-directory: test_package

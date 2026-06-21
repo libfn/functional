@@ -13,7 +13,7 @@ jobs:
   checks:
     runs-on:
       group: runners-arm64
-    container: libfn.azurecr.io/ci-pre-commit:latest
+    container: libfn.azurecr.io/ci-pre-commit:sha-08b1133
 
     steps:
     - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
