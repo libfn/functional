@@ -6,4 +6,3 @@ self-hosted-runner:
     - warp-macos-14-arm64-6x
     - warp-macos-15-arm64-6x
     - warp-macos-26-arm64-6x
-    - warp-windows-latest-x64-4x

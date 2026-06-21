@@ -216,9 +216,9 @@ jobs:
             - Debug
             - Release
           vs:
-            # windows-2025-vs2026 is a GitHub-hosted label, so forks get VS 2026 too; only the VS 2022 runner differs (Warp vs hosted windows-2022).
+            # windows-2022 is required for the VS 2022 generator: windows-latest/windows-2025 resolve to the VS 2026 image
             - generator: "Visual Studio 17 2022"
-              runner: ${{ github.repository == 'libfn/functional' && 'warp-windows-latest-x64-4x' || 'windows-2022' }}
+              runner: "windows-2022"
             - generator: "Visual Studio 18 2026"
               runner: "windows-2025-vs2026"
 
