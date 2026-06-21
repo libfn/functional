@@ -1,5 +1,6 @@
-#!/bin/bash
-set -e
+#!/bin/sh
+set -ex
+set -o pipefail
 : "${NODE_RELEASE:?NODE_RELEASE is not set}"
 
 mkdir -p /etc/apt/keyrings
