@@ -2,6 +2,7 @@
 self-hosted-runner:
   labels:
     - warp-ubuntu-latest-arm64-2x
+    - warp-ubuntu-latest-arm64-4x
     - warp-ubuntu-latest-x64-4x
     - warp-macos-14-arm64-6x
     - warp-macos-15-arm64-6x

@@ -30,8 +30,7 @@ jobs:
       github.repository == 'libfn/functional' &&
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.conclusion == 'success'
-    runs-on:
-      group: runners-intel
+    runs-on: warp-ubuntu-latest-x64-4x
     container: libfn.azurecr.io/ci-build-gcc:15-sha-08b1133
 
     steps:
