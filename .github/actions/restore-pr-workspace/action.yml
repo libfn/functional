@@ -35,13 +35,15 @@ runs:
         # Fixed artifact contract: triggering workflows write PR metadata into `.pr-meta`.
         META_DIR: .pr-meta
       run: |
-        list=$(tar -tvzf "$ARCHIVE")
-        bad_type=$(printf '%s\n' "$list" | grep -vE '^[-d]' || true)
+        # Entry types come from the verbose listing (first column); names come from the name-only
+        # listing so paths with spaces are handled correctly and we do not parse `tar -v` formatting.
+        types=$(tar -tvzf "$ARCHIVE")
+        bad_type=$(printf '%s\n' "$types" | grep -vE '^[-d]' || true)
         if [ -n "$bad_type" ]; then
           printf '::error::Disallowed entry types in artifact:\n%s\n' "$bad_type" >&2
           exit 1
         fi
-        names=$(printf '%s\n' "$list" | awk '{print $NF}')
+        names=$(tar -tzf "$ARCHIVE")
         if printf '%s\n' "$names" | grep -qE '(^/|(^|/)\.\.(/|$))'; then
           printf '::error::Unsafe path traversal in artifact:\n%s\n' "$names" >&2
           exit 1
