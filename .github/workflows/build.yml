@@ -30,7 +30,7 @@ on:
 
 jobs:
   linux:
-    timeout-minutes: 10
+    timeout-minutes: 30
     runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-2x' || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
@@ -101,7 +101,6 @@ jobs:
         ctest --output-on-failure
 
   macos:
-    # Installing a toolchain via brew may need more than 10 minutes.
     timeout-minutes: 30
     runs-on: ${{ github.repository == 'libfn/functional' && format('warp-macos-{0}-arm64-6x', matrix.compiler.osver) || format('macos-{0}', matrix.compiler.osver) }}
     env:
@@ -211,7 +210,7 @@ jobs:
         ctest --output-on-failure
 
   windows:
-    timeout-minutes: 10
+    timeout-minutes: 30
     runs-on: ${{ matrix.vs.runner }}
     strategy:
       fail-fast: false
@@ -251,7 +250,7 @@ jobs:
         ctest -L ${{ matrix.mode }} -C ${{ matrix.configuration }} --output-on-failure
 
   nixos:
-    timeout-minutes: 10
+    timeout-minutes: 30
     runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
