@@ -81,5 +81,5 @@ jobs:
         fail_ci_if_error: ${{ github.repository == 'libfn/functional' }}
         disable_search: false
         verbose: true
-        plugin: noop
+        plugins: noop
         token: ${{ secrets.CODECOV_TOKEN || '' }}
