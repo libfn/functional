@@ -1,0 +1,98 @@
+name: restore-pr-workspace
+description: >
+  Validate a downstream-scan inputs artifact, read the pull request metadata it carries, check out the
+  pull request head and restore the `.build` outputs from the artifact into the workspace.
+
+inputs:
+  archive:
+    required: true
+    description: Path to the downloaded `*-inputs.tar.gz` artifact produced by the triggering workflow.
+
+outputs:
+  number:
+    description: Pull request number.
+    value: ${{ steps.pr.outputs.number }}
+  head_sha:
+    description: Pull request head commit SHA.
+    value: ${{ steps.pr.outputs.head_sha }}
+  head_ref:
+    description: Pull request head branch name.
+    value: ${{ steps.pr.outputs.head_ref }}
+  base_ref:
+    description: Pull request base branch name (empty when not recorded in the artifact).
+    value: ${{ steps.pr.outputs.base_ref }}
+
+runs:
+  using: composite
+  steps:
+    - name: Validate artifact and read pull request metadata
+      # The artifact is a tarball containing the `.build` outputs and a metadata directory with PR fields.
+      # Validate the tarball contents before extracting to prevent path traversal etc. security issues.
+      id: pr
+      shell: bash
+      env:
+        ARCHIVE: ${{ inputs.archive }}
+        # Fixed artifact contract: triggering workflows write PR metadata into `.pr-meta`.
+        META_DIR: .pr-meta
+      run: |
+        list=$(tar -tvzf "$ARCHIVE")
+        bad_type=$(printf '%s\n' "$list" | grep -vE '^[-d]' || true)
+        if [ -n "$bad_type" ]; then
+          printf '::error::Disallowed entry types in artifact:\n%s\n' "$bad_type" >&2
+          exit 1
+        fi
+        names=$(printf '%s\n' "$list" | awk '{print $NF}')
+        if printf '%s\n' "$names" | grep -qE '(^/|(^|/)\.\.(/|$))'; then
+          printf '::error::Unsafe path traversal in artifact:\n%s\n' "$names" >&2
+          exit 1
+        fi
+        bad=$(printf '%s\n' "$names" | grep -vE "^(\.build|${META_DIR//./\\.})(/|\$)" || true)
+        if [ -n "$bad" ]; then
+          printf '::error::Unexpected entries in artifact:\n%s\n' "$bad" >&2
+          exit 1
+        fi
+        EXTRACT_DIR=$(dirname "$ARCHIVE")
+        tar -xzf "$ARCHIVE" -C "$EXTRACT_DIR" "$META_DIR"
+        META="$EXTRACT_DIR/$META_DIR"
+        read_field() {
+          local name=$1 pattern=$2 value
+          IFS= read -r value < "$META/$name" || true
+          if ! printf '%s' "$value" | grep -qE "$pattern"; then
+            printf '::error::Invalid %s in artifact metadata\n' "$name" >&2
+            return 1
+          fi
+          printf '%s' "$value"
+        }
+        # Branch names are attacker-controlled (fork PRs) and are interpolated into the privileged
+        # downstream job, so accept a shell-safe subset of Git's refname grammar rather than mirroring
+        # it: Git also permits shell metacharacters (e.g. ; & $ ` ( ) ! ') which must not pass here.
+        ref='^[A-Za-z0-9._/+@-]+$'
+        number=$(read_field number   '^[0-9]+$')         || exit 1
+        head_sha=$(read_field head_sha '^[0-9a-f]{40}$') || exit 1
+        head_ref=$(read_field head_ref "$ref")           || exit 1
+        {
+          echo "number=$number"
+          echo "head_sha=$head_sha"
+          echo "head_ref=$head_ref"
+        } >> "$GITHUB_OUTPUT"
+        # base_ref is optional; only some triggering workflows record it.
+        if [ -f "$META/base_ref" ]; then
+          base_ref=$(read_field base_ref "$ref") || exit 1
+          echo "base_ref=$base_ref" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Check out pull request head
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      with:
+        ref: ${{ steps.pr.outputs.head_sha }}
+        fetch-depth: 0  # Full history for blame info
+
+    - name: Restore build outputs from artifact
+      shell: bash
+      env:
+        ARCHIVE: ${{ inputs.archive }}
+      run: |
+        # Refuse to merge into anything the checkout might have produced.
+        rm -rf .build
+        tar -xzf "$ARCHIVE" .build
+        rm -f "$ARCHIVE"

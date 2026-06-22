@@ -10,6 +10,7 @@ on:
     paths:
       - '.github/workflows/codecov.yml'
       - '.github/workflows/codecov-pr-scan.yml'
+      - '.github/actions/restore-pr-workspace/**'
       - 'include/**'
       - 'tests/**'
       - 'CMakeLists.txt'
@@ -94,14 +95,15 @@ jobs:
         PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
       run: |
-        mkdir -p .codecov-pr
-        printf "%s\n" "$PR_NUMBER"   > .codecov-pr/number
-        printf "%s\n" "$PR_HEAD_SHA" > .codecov-pr/head_sha
-        printf "%s\n" "$PR_HEAD_REF" > .codecov-pr/head_ref
+        # `.pr-meta` is the artifact contract consumed by the restore-pr-workspace action.
+        mkdir -p .pr-meta
+        printf "%s\n" "$PR_NUMBER"   > .pr-meta/number
+        printf "%s\n" "$PR_HEAD_SHA" > .pr-meta/head_sha
+        printf "%s\n" "$PR_HEAD_REF" > .pr-meta/head_ref
         # shellcheck disable=SC2046  # find emits one path per result; intentional word-splitting into tar arg list
         tar -czf codecov-inputs.tar.gz \
           $(find .build -name '*.gcov' -print) \
-          .codecov-pr
+          .pr-meta
 
     - name: Upload Codecov inputs (pull requests only)
       if: github.event_name == 'pull_request'
