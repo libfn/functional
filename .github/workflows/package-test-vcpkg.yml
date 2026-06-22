@@ -27,8 +27,7 @@ on:
 
 jobs:
   test_vcpkg:
-    runs-on:
-      group: runners-intel
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:

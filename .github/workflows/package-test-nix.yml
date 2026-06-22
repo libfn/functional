@@ -31,8 +31,7 @@ on:
 
 jobs:
   test_nix:
-    runs-on:
-      group: runners-intel
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:

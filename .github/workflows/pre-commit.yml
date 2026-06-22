@@ -11,8 +11,7 @@ on:
 
 jobs:
   checks:
-    runs-on:
-      group: runners-arm64
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-2x' || 'ubuntu-latest' }}
     container: libfn.azurecr.io/ci-pre-commit:sha-08b1133
 
     steps:

@@ -31,7 +31,7 @@ on:
 jobs:
   linux:
     timeout-minutes: 10
-    runs-on: warp-ubuntu-latest-arm64-2x
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-2x' || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
@@ -101,11 +101,15 @@ jobs:
         ctest --output-on-failure
 
   macos:
-    timeout-minutes: 10
-    runs-on: warp-macos-${{ matrix.compiler.osver }}-arm64-6x
+    # Installing a toolchain via brew may need more than 10 minutes.
+    timeout-minutes: 30
+    runs-on: ${{ github.repository == 'libfn/functional' && format('warp-macos-{0}-arm64-6x', matrix.compiler.osver) || format('macos-{0}', matrix.compiler.osver) }}
     env:
       # Silence clang -Woverriding-deployment-version warnings.
       MACOSX_DEPLOYMENT_TARGET: ${{ matrix.compiler.osver }}.0
+      # Skip the slow Homebrew auto-update/cleanup around the on-demand brew install.
+      HOMEBREW_NO_AUTO_UPDATE: 1
+      HOMEBREW_NO_INSTALL_CLEANUP: 1
     strategy:
       max-parallel: 10
       fail-fast: false
@@ -167,11 +171,19 @@ jobs:
           export CXX CC
         fi
         if [[ "${{ matrix.compiler.name }}" == "clang" ]]; then
+          if ! brew list --versions llvm@${{ matrix.compiler.release }} >/dev/null 2>&1; then
+            brew update
+            brew install llvm@${{ matrix.compiler.release }}
+          fi
           CXX="$(brew --prefix llvm@${{ matrix.compiler.release }})/bin/clang++"
           CC="$(brew --prefix llvm@${{ matrix.compiler.release }})/bin/clang"
           export CXX CC
         fi
         if [[ "${{ matrix.compiler.name }}" == "gcc" ]]; then
+          if ! brew list --versions gcc@${{ matrix.compiler.release }} >/dev/null 2>&1; then
+            brew update
+            brew install gcc@${{ matrix.compiler.release }}
+          fi
           CXX="$(brew --prefix gcc@${{ matrix.compiler.release }})/bin/g++-${{ matrix.compiler.release }}"
           CC="$(brew --prefix gcc@${{ matrix.compiler.release }})/bin/gcc-${{ matrix.compiler.release }}"
           export CXX CC
@@ -199,47 +211,48 @@ jobs:
         ctest --output-on-failure
 
   windows:
-      timeout-minutes: 10
-      runs-on: ${{ matrix.vs.runner }}
-      strategy:
-        fail-fast: false
-        matrix:
-          mode:
-            - cxx20
-          configuration:
-            - Debug
-            - Release
-          vs:
-            - generator: "Visual Studio 17 2022"
-              runner: "warp-windows-latest-x64-4x"
-            - generator: "Visual Studio 18 2026"
-              runner: "windows-2025-vs2026"
+    timeout-minutes: 10
+    runs-on: ${{ matrix.vs.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        mode:
+          - cxx20
+        configuration:
+          - Debug
+          - Release
+        vs:
+          # Pin explicit images: windows-2022 carries VS 2022, windows-2025-vs2026 carries VS 2026.
+          - generator: "Visual Studio 17 2022"
+            runner: "windows-2022"
+          - generator: "Visual Studio 18 2026"
+            runner: "windows-2025-vs2026"
 
-      steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+    steps:
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
-      - name: Prepare build
-        shell: bash
-        run: |
-          mkdir .build
-          cd .build
-          cmake -G "${{ matrix.vs.generator }}" -A x64 -DDISABLE_CXX23=ON ..
-          LINKER=$( grep -iE "^CMAKE_LINKER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
-          FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ matrix.configuration }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
-          printf "C++ linker path: %s\n" "$LINKER"
-          "$LINKER" . || true
-          printf "C++ compilation options: %s\n" "$FLAGS"
+    - name: Prepare build
+      shell: bash
+      run: |
+        mkdir .build
+        cd .build
+        cmake -G "${{ matrix.vs.generator }}" -A x64 -DDISABLE_CXX23=ON ..
+        LINKER=$( grep -iE "^CMAKE_LINKER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
+        FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ matrix.configuration }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
+        printf "C++ linker path: %s\n" "$LINKER"
+        "$LINKER" . || true
+        printf "C++ compilation options: %s\n" "$FLAGS"
 
-      - name: Build and test ${{ matrix.mode }}
-        shell: bash
-        run: |
-          cd .build
-          cmake --build . --target ${{ matrix.mode }} --config ${{ matrix.configuration }}
-          ctest -L ${{ matrix.mode }} -C ${{ matrix.configuration }} --output-on-failure
+    - name: Build and test ${{ matrix.mode }}
+      shell: bash
+      run: |
+        cd .build
+        cmake --build . --target ${{ matrix.mode }} --config ${{ matrix.configuration }}
+        ctest -L ${{ matrix.mode }} -C ${{ matrix.configuration }} --output-on-failure
 
   nixos:
     timeout-minutes: 10
-    runs-on: warp-ubuntu-latest-x64-4x
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:

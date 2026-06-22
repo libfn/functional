@@ -30,8 +30,7 @@ env:
 jobs:
   build:
     if: ${{ github.repository == 'libfn/functional' }}
-    runs-on:
-      group: ${{ matrix.platform == 'linux/arm64' && 'runners-arm64' || 'runners-intel' }}
+    runs-on: ${{ matrix.platform == 'linux/arm64' && 'warp-ubuntu-latest-arm64-4x' || 'warp-ubuntu-latest-x64-4x' }}
     strategy:
       fail-fast: false
       matrix:
@@ -69,8 +68,7 @@ jobs:
 
   merge:
     if: ${{ github.repository == 'libfn/functional' && github.ref_type == 'branch' && github.ref_name == 'main' }}
-    runs-on:
-      group: runners-intel
+    runs-on: warp-ubuntu-latest-x64-4x
     needs:
       - build
 

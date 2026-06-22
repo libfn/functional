@@ -10,7 +10,7 @@ Workflows for continuous integration:
 * `nix` - check build on [nix](https://nixos.org/) platform
 * `license` - license scan by [FOSSA](https://app.fossa.com/projects/git%2Bgithub.com%2Flibfn%2Ffunctional)
 * `pre-commit` - enforce rules defined in `.pre-commit-config.yaml`, including `clang-format`
-* `coverage` - submit unit tests coverage to [codecov.io](https://app.codecov.io/gh/libfn/functional)
+* `codecov` - submit unit tests coverage to [codecov.io](https://app.codecov.io/gh/libfn/functional)
 * `docs` - build this documentation site [libfn.org](https://libfn.org/)
 * `ci-...` - build [docker images](https://hub.docker.com/r/libfn) for continuous integration
 

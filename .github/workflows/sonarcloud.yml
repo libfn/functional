@@ -9,8 +9,7 @@ on:
 
 jobs:
   sonarcloud:
-    runs-on:
-      group: runners-intel
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
     container: libfn.azurecr.io/ci-build-gcc:15-sha-08b1133
     env:
       CC: /usr/local/bin/gcc
@@ -50,7 +49,7 @@ jobs:
     # `sonarcloud-pr-scan` workflow (triggered via `workflow_run`), which
     # runs in the base repository context and has access to SONAR_TOKEN.
     - name: Run SonarScanner
-      if: github.event_name != 'pull_request'
+      if: ${{ github.event_name != 'pull_request' && github.repository == 'libfn/functional' }}
       uses: SonarSource/sonarqube-scan-action@713881670b6b3676cda39549040e2d88c70d582e # v8.2.0
       env:
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -69,16 +68,17 @@ jobs:
         PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
         PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
       run: |
-        mkdir -p .sonar-pr
-        printf "%s\n" "$PR_NUMBER"   > .sonar-pr/number
-        printf "%s\n" "$PR_HEAD_SHA" > .sonar-pr/head_sha
-        printf "%s\n" "$PR_HEAD_REF" > .sonar-pr/head_ref
-        printf "%s\n" "$PR_BASE_REF" > .sonar-pr/base_ref
+        # `.pr-meta` is the artifact contract consumed by the restore-pr-workspace action.
+        mkdir -p .pr-meta
+        printf "%s\n" "$PR_NUMBER"   > .pr-meta/number
+        printf "%s\n" "$PR_HEAD_SHA" > .pr-meta/head_sha
+        printf "%s\n" "$PR_HEAD_REF" > .pr-meta/head_ref
+        printf "%s\n" "$PR_BASE_REF" > .pr-meta/base_ref
         # shellcheck disable=SC2046  # find emits one path per result; intentional word-splitting into tar arg list
         tar -czf sonar-inputs.tar.gz \
           .build/compile_commands.json \
           $(find .build -name '*.gcov' -print) \
-          .sonar-pr
+          .pr-meta
 
     - name: Upload SonarCloud inputs (pull requests only)
       if: github.event_name == 'pull_request'
