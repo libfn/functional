@@ -211,44 +211,44 @@ jobs:
         ctest --output-on-failure
 
   windows:
-      timeout-minutes: 10
-      runs-on: ${{ matrix.vs.runner }}
-      strategy:
-        fail-fast: false
-        matrix:
-          mode:
-            - cxx20
-          configuration:
-            - Debug
-            - Release
-          vs:
-            # windows-2022 is required for the VS 2022 generator: windows-latest/windows-2025 resolve to the VS 2026 image
-            - generator: "Visual Studio 17 2022"
-              runner: "windows-2022"
-            - generator: "Visual Studio 18 2026"
-              runner: "windows-2025-vs2026"
+    timeout-minutes: 10
+    runs-on: ${{ matrix.vs.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        mode:
+          - cxx20
+        configuration:
+          - Debug
+          - Release
+        vs:
+          # Pin explicit images: windows-2022 carries VS 2022, windows-2025-vs2026 carries VS 2026.
+          - generator: "Visual Studio 17 2022"
+            runner: "windows-2022"
+          - generator: "Visual Studio 18 2026"
+            runner: "windows-2025-vs2026"
 
-      steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+    steps:
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
-      - name: Prepare build
-        shell: bash
-        run: |
-          mkdir .build
-          cd .build
-          cmake -G "${{ matrix.vs.generator }}" -A x64 -DDISABLE_CXX23=ON ..
-          LINKER=$( grep -iE "^CMAKE_LINKER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
-          FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ matrix.configuration }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
-          printf "C++ linker path: %s\n" "$LINKER"
-          "$LINKER" . || true
-          printf "C++ compilation options: %s\n" "$FLAGS"
+    - name: Prepare build
+      shell: bash
+      run: |
+        mkdir .build
+        cd .build
+        cmake -G "${{ matrix.vs.generator }}" -A x64 -DDISABLE_CXX23=ON ..
+        LINKER=$( grep -iE "^CMAKE_LINKER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
+        FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ matrix.configuration }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
+        printf "C++ linker path: %s\n" "$LINKER"
+        "$LINKER" . || true
+        printf "C++ compilation options: %s\n" "$FLAGS"
 
-      - name: Build and test ${{ matrix.mode }}
-        shell: bash
-        run: |
-          cd .build
-          cmake --build . --target ${{ matrix.mode }} --config ${{ matrix.configuration }}
-          ctest -L ${{ matrix.mode }} -C ${{ matrix.configuration }} --output-on-failure
+    - name: Build and test ${{ matrix.mode }}
+      shell: bash
+      run: |
+        cd .build
+        cmake --build . --target ${{ matrix.mode }} --config ${{ matrix.configuration }}
+        ctest -L ${{ matrix.mode }} -C ${{ matrix.configuration }} --output-on-failure
 
   nixos:
     timeout-minutes: 10
