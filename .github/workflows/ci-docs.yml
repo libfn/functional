@@ -15,6 +15,7 @@ on:
       - '.github/workflows/ci-docs.yml'
       - 'ci/docs/**'
       - 'ci/build-catch.sh'
+      - 'ci/fetch-node.sh'
   workflow_dispatch:
 
 env:
@@ -24,12 +25,12 @@ env:
   DOXYGEN_RELEASE: 1.12.0
   ZNAI_RELEASE: 1.73
   CATCH_RELEASE: 3.14.0
+  NODE_RELEASE: 24
 
 jobs:
   build:
     if: ${{ github.repository == 'libfn/functional' }}
-    runs-on:
-      group: ${{ matrix.platform == 'linux/arm64' && 'runners-arm64' || 'runners-intel' }}
+    runs-on: ${{ matrix.platform == 'linux/arm64' && 'warp-ubuntu-latest-arm64-4x' || 'warp-ubuntu-latest-x64-4x' }}
     strategy:
       fail-fast: false
       matrix:
@@ -59,6 +60,7 @@ jobs:
             DOXYGEN_RELEASE=${{ env.DOXYGEN_RELEASE }}
             ZNAI_RELEASE=${{ env.ZNAI_RELEASE }}
             CATCH_RELEASE=${{ env.CATCH_RELEASE }}
+            NODE_RELEASE=${{ env.NODE_RELEASE }}
           context: "ci"
           file: "docs/Dockerfile"
           title: "docs"
@@ -66,8 +68,7 @@ jobs:
 
   merge:
     if: ${{ github.repository == 'libfn/functional' && github.ref_type == 'branch' && github.ref_name == 'main' }}
-    runs-on:
-      group: runners-intel
+    runs-on: warp-ubuntu-latest-x64-4x
     needs:
       - build
 

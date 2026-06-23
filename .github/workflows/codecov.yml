@@ -1,0 +1,52 @@
+name: codecov
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/codecov.yml'
+      - '.github/workflows/codecov-pr-scan.yml'
+      - '.github/actions/restore-pr-workspace/**'
+      - '.github/actions/collect-pr-workspace/**'
+      - 'include/**'
+      - 'tests/**'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - '.codecov.yml'
+  workflow_dispatch:
+
+  # examples/** not included in coverage paths intentionally, see also .codecov.yml
+
+jobs:
+  codecov:
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
+    container: libfn.azurecr.io/ci-build-gcc:15-sha-08b1133
+    env:
+      CC: /usr/local/bin/gcc
+      CXX: /usr/local/bin/g++
+      GCOV: /usr/local/bin/gcov
+
+    steps:
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+    - name: Build coverage and package pull request workspace
+      uses: ./.github/actions/collect-pr-workspace
+      with:
+        artifact-name: codecov-pr-inputs
+
+    # Non-PR events carry secrets and upload inline; PRs hand off via the artifact above. Not gated on
+    # CODECOV_TOKEN since tokenless uploads work but are throttled; a set token lifts the throttling.
+    - name: Upload .gcov files
+      if: ${{ github.event_name != 'pull_request' }}
+      uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+      with:
+        # Strict only when a token is set; a tokenless fork's throttled upload must not fail its CI.
+        fail_ci_if_error: ${{ secrets.CODECOV_TOKEN != '' }}
+        disable_search: false
+        verbose: true
+        plugins: noop
+        token: ${{ secrets.CODECOV_TOKEN }}

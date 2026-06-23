@@ -1,6 +1,7 @@
 .idea/
 .idea_modules/
 .build*/
+.pr-meta/
 build/
 /compile_commands.json
 .scratch*/

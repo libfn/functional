@@ -33,13 +33,18 @@ RUN set -ex ;\
     update-alternatives --auto cc ;\
     update-alternatives --auto gcc
 
+ARG NODE_RELEASE=24
 ARG DEBIAN_FRONTEND=noninteractive
+WORKDIR /work
+COPY fetch-node.sh /work/fetch-node.sh
 RUN set -ex ;\
     apt-get update ;\
     apt-get install -y --no-install-recommends \
       ca-certificates gnupg unzip wget vim curl jq python3-venv python3-pip \
       cmake ninja-build binutils libc6-dev git valgrind ;\
-    apt-get clean
+    bash /work/fetch-node.sh ;\
+    rm /work/fetch-node.sh ;\
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY gcc/requirements.txt /requirements.txt
 ENV VENV=/venv
@@ -57,21 +62,21 @@ ENV CMAKE_BUILD_TYPE=Debug
 # ---- Build Catch2 with libstdc++ as `gcc` target ----
 
 FROM base AS gcc
-ARG CATCH_RELEASE
+ARG CATCH_RELEASE=3.14.0
 WORKDIR /work
 COPY build-catch.sh /work/build-catch.sh
 RUN set -ex ;\
-    sh /work/build-catch.sh ;\
+    bash /work/build-catch.sh ;\
     rm /work/build-catch.sh
 ENV CMAKE_FIND_CATCH2=1
 
 # ---- Bazel + system gcc as `gcc-bazel` target ----
 
 FROM base AS gcc-bazel
-ARG BAZEL_RELEASE
+ARG BAZEL_RELEASE=8.7.0
 WORKDIR /work
 COPY fetch-bazel.sh /work/fetch-bazel.sh
 RUN set -ex ;\
-    sh /work/fetch-bazel.sh ;\
+    bash /work/fetch-bazel.sh ;\
     rm /work/fetch-bazel.sh
 ENV USE_BAZEL_FALLBACK_VERSION="warn:${BAZEL_RELEASE}"

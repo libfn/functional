@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -ex
 : "${CATCH_RELEASE:?CATCH_RELEASE is not set}"
 
