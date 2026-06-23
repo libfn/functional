@@ -95,6 +95,13 @@ runs:
         # String literals, not bare 0/1: a numeric 0 is falsy in GHA, so `cond && 0 || 1` is always 1.
         fetch-depth: ${{ inputs.full-history == 'true' && '0' || '1' }}
 
+    # The checkout above replaced `.github/actions` with the untrusted PR copy; remove it so no local
+    # `./` action (neither the PR's edited copy nor the base one) runs after restore. A later action
+    # will fail closed (action not found) instead of executing e.g. PR code in a secrets-bearing job.
+    - name: Remove checked-out local actions
+      shell: bash
+      run: rm -rf .github/actions
+
     - name: Restore build outputs from artifact
       shell: bash
       env:

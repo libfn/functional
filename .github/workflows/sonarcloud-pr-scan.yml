@@ -63,7 +63,7 @@ jobs:
         organization: ${{ vars.SONAR_ORGANIZATION }}
         project-key: ${{ vars.SONAR_PROJECT_KEY }}
 
-    # Checks out the untrusted PR head — no in-repo `./` action may run after this step.
+    # No local actions are available after this step, because restore-pr-workspace deletes `.github/actions`.
     - name: Restore pull request workspace
       id: pr
       if: ${{ env.SONAR_TOKEN != '' }}
