@@ -50,6 +50,14 @@ pre-commit run --all-files
 
 If a hook modifies files (e.g. clang-format, or the version sync above), the commit is aborted — re-stage the changes and commit again.
 
+## Running CI on a fork
+
+The `codecov` and `sonarcloud` workflows are fork-aware: they target the upstream `libfn` projects only when run from `libfn/functional`, and otherwise report against your own accounts. Set these in your fork (Settings → Secrets and variables → Actions):
+
+* **Codecov** works with no configuration — uploads are tokenless. They are heavily throttled, which a low-traffic fork will not notice; set the `CODECOV_TOKEN` *secret* to lift the throttle.
+
+* **SonarCloud** needs all three of: the `SONAR_TOKEN` *secret*, and the `SONAR_ORGANIZATION` and `SONAR_PROJECT_KEY` *repository variables*. Without the token the SonarCloud workflows no-op. With the token but a missing variable the scan fails fast with an error pointing back here, rather than silently analysing the upstream project.
+
 ## GitHub Actions workflow pitfalls
 
 A few conventions for files under `.github/workflows/`:

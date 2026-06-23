@@ -2,8 +2,9 @@ name: codecov-pr-scan
 
 # Runs after `codecov` completes on a pull_request event. Because this workflow is triggered by
 # `workflow_run`, it executes in the context of the base repository's default branch and has access to
-# repository secrets, including CODECOV_TOKEN. This allows us to upload coverage for pull requests
-# opened from forks, which otherwise do not receive secrets.
+# repository secrets, including CODECOV_TOKEN. This uploads coverage for every pull request, including
+# those opened from forks (which otherwise do not receive secrets); codecov accepts tokenless uploads,
+# so the upload is not gated on a token being present.
 
 on:
   workflow_run:
@@ -17,10 +18,9 @@ permissions:
 jobs:
   scan:
     if: >
-      github.repository == 'libfn/functional' &&
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.conclusion == 'success'
-    runs-on: warp-ubuntu-latest-x64-4x
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
     container: libfn.azurecr.io/ci-build-gcc:15-sha-08b1133
 
     steps:
@@ -33,8 +33,8 @@ jobs:
         run-id: ${{ github.event.workflow_run.id }}
         path: ${{ runner.temp }}/codecov-artifact
 
-    # Check out the base repository to obtain the local action, before it checks out the PR head itself.
-    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+    - name: Check out base repository actions
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         sparse-checkout: .github
 
@@ -42,9 +42,9 @@ jobs:
       id: pr
       uses: ./.github/actions/restore-pr-workspace
       with:
-        archive: ${{ runner.temp }}/codecov-artifact/codecov-inputs.tar.gz
+        archive: ${{ runner.temp }}/codecov-artifact/pr-workspace.tar.gz
 
-    - name: Upload .gcov files
+    - name: Run Codecov action
       uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
       with:
         fail_ci_if_error: true

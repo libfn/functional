@@ -11,6 +11,7 @@ on:
       - '.github/workflows/codecov.yml'
       - '.github/workflows/codecov-pr-scan.yml'
       - '.github/actions/restore-pr-workspace/**'
+      - '.github/actions/collect-pr-workspace/**'
       - 'include/**'
       - 'tests/**'
       - 'CMakeLists.txt'
@@ -32,53 +33,15 @@ jobs:
     steps:
     - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
-    - name: Verify compiler compatibility
-      env:
-        SOURCE: |
-          #include <optional>
-          #include <expected>
-          #include <cstdio>
-          int main() {
-            using type1=std::expected<int, const char*>;
-            using type2=std::optional<int>;
-            return type1{1}.and_then([](int i) -> type1 { std::puts("OK expected"); return {i-1}; }).value()
-              + type2{2}.and_then([](int i) -> type2 { std::puts("OK optional"); return {i-2}; }).value();
-          }
-      run: |
-        printf "CXX=%s\nCXXFLAGS=%s\n" "$CXX" "$CXXFLAGS"
-        $CXX --version | head -1
-        FILE=$(mktemp --tmpdir XXXXXX.cpp)
-        printf '%s\n' "$SOURCE" > "$FILE"
-        OUT=$(mktemp --tmpdir  XXXXXX)
-        # shellcheck disable=SC2086  # $CXXFLAGS may carry multiple flags; word-splitting intentional
-        $CXX -std=c++2b $CXXFLAGS -Wall "$FILE" -o "$OUT"
-        $OUT
+    - name: Build coverage and package pull request workspace
+      uses: ./.github/actions/collect-pr-workspace
+      with:
+        artifact-name: codecov-pr-inputs
 
-    - name: Build with coverage instrumentation and compilation database
-      shell: bash
-      env:
-        CMAKE_GENERATOR: Ninja
-        CMAKE_BUILD_TYPE: Debug
-      run: |
-        mkdir .build
-        cd .build
-        cmake -DLIBFN_COVERAGE=ON ..
-        COMPILER=$( grep -iE "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
-        printf "C++ compiler path: %s\n" "$COMPILER"
-        $COMPILER --version
-        printf "gcov version: %s\n" "$( $GCOV --version | head -1 )"
-        cmake --build . --target tests -- -j"$(nproc)"
-
-    - name: Generate coverage data with gcov
-      shell: bash
-      run: |
-        cd .build
-        ctest -L 'tests_p?fn' -j1 # generate .gcda files
-        # shellcheck disable=SC2046  # find emits one path per result; intentional word-splitting into gcov arg list
-        $GCOV -pbc -r -s "$(realpath ..)" $(find tests -type f -name '*.gcno') # generate .gcov files
-
+    # Non-PR events carry secrets and upload inline; PRs hand off via the artifact above. Not gated on
+    # CODECOV_TOKEN since tokenless uploads work but are throttled; a set token lifts the throttling.
     - name: Upload .gcov files
-      if: ${{ github.event_name != 'pull_request' && github.repository == 'libfn/functional' }}
+      if: ${{ github.event_name != 'pull_request' }}
       uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
       with:
         fail_ci_if_error: true
@@ -86,30 +49,3 @@ jobs:
         verbose: true
         plugins: noop
         token: ${{ secrets.CODECOV_TOKEN }}
-
-    - name: Package Codecov inputs for downstream upload
-      if: github.event_name == 'pull_request'
-      shell: bash
-      env:
-        PR_NUMBER: ${{ github.event.pull_request.number }}
-        PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
-      run: |
-        # `.pr-meta` is the artifact contract consumed by the restore-pr-workspace action.
-        mkdir -p .pr-meta
-        printf "%s\n" "$PR_NUMBER"   > .pr-meta/number
-        printf "%s\n" "$PR_HEAD_SHA" > .pr-meta/head_sha
-        printf "%s\n" "$PR_HEAD_REF" > .pr-meta/head_ref
-        # shellcheck disable=SC2046  # find emits one path per result; intentional word-splitting into tar arg list
-        tar -czf codecov-inputs.tar.gz \
-          $(find .build -name '*.gcov' -print) \
-          .pr-meta
-
-    - name: Upload Codecov inputs (pull requests only)
-      if: github.event_name == 'pull_request'
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-      with:
-        name: codecov-pr-inputs
-        path: codecov-inputs.tar.gz
-        retention-days: 1
-        if-no-files-found: error

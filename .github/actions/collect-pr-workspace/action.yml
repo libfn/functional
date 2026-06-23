@@ -1,0 +1,106 @@
+name: collect-pr-workspace
+description: >
+  Build the project with coverage instrumentation and a compilation database and generate gcov reports.
+  On `pull_request` events, package the `.build` outputs and PR metadata into the inputs artifact that
+  the companion `restore-pr-workspace` action reconstructs in the privileged downstream scan workflow.
+
+inputs:
+  artifact-name:
+    required: true
+    description: Name for the uploaded artifact carrying the packaged `.build` outputs and PR metadata.
+
+runs:
+  using: composite
+  steps:
+    # CC/CXX/GCOV come from the calling job's env (composite run steps share the job's env storage).
+    # Verify they point at recognised tools before the build, so a misconfigured fork fails fast here.
+    - name: Verify CC, CXX and GCOV
+      shell: bash
+      run: |
+        set -euo pipefail
+        status=0
+        verify() {
+          local var=$1; shift  # remaining args: accepted `--help` first-line fragments
+          local tool=${!var-}
+          if [ -z "$tool" ]; then
+            printf '::error::%s is not set\n' "$var" >&2
+            status=1; return
+          fi
+          local first
+          # Unquoted on purpose: GCOV may be a multi-word command such as `llvm-cov gcov`. A bad value
+          # is caught below by its --help output not matching, so no separate existence check is needed.
+          # shellcheck disable=SC2086
+          first=$($tool --help 2>&1 | head -1) || true
+          local want matched=
+          for want in "$@"; do
+            case $first in
+              *"$want"*) matched=1; break ;;
+            esac
+          done
+          if [ -z "$matched" ]; then
+            printf '::error::%s=%s is not a recognised tool (--help gave: %s)\n' "$var" "$tool" "$first" >&2
+            status=1; return
+          fi
+          printf '%s=%s ok: %s\n' "$var" "$tool" "$first"
+        }
+        verify CC   'Usage: gcc [options] file...' 'OVERVIEW: clang LLVM compiler'
+        verify CXX  'Usage: g++ [options] file...' 'OVERVIEW: clang LLVM compiler'
+        verify GCOV 'Usage: gcov [OPTION...] SOURCE|OBJ...' \
+                    'Usage: llvm-cov {export|gcov|report|show} [OPTION]...' \
+                    'OVERVIEW: LLVM code coverage tool'
+        exit "$status"
+
+    - name: Build with coverage instrumentation and compilation database
+      shell: bash
+      env:
+        CMAKE_GENERATOR: Ninja
+        CMAKE_BUILD_TYPE: Debug
+      run: |
+        mkdir .build
+        cd .build
+        cmake -DLIBFN_COVERAGE=ON ..
+        COMPILER=$( grep -iE "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
+        printf "C++ compiler path: %s\n" "$COMPILER"
+        $COMPILER --version
+        printf "gcov version: %s\n" "$( $GCOV --version | head -1 )"
+        cmake --build . --target tests -- -j"$(nproc)"
+
+    - name: Generate coverage data with gcov
+      shell: bash
+      run: |
+        cd .build
+        ctest -L 'tests_p?fn' -j1 # generate .gcda files
+        # shellcheck disable=SC2046  # find emits one path per result; intentional word-splitting into gcov arg list
+        $GCOV -pbc -r -s "$(realpath ..)" $(find tests -type f -name '*.gcno') # generate .gcov files
+
+    # Uniform artifact contract for both tools: always carry compile_commands.json and base_ref even
+    # though codecov ignores them, so restore-pr-workspace needs no per-tool branching.
+    - name: Package pull request workspace
+      if: github.event_name == 'pull_request'
+      shell: bash
+      env:
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+      run: |
+        # `.pr-meta` is the artifact contract consumed by the restore-pr-workspace action.
+        mkdir -p .pr-meta
+        printf "%s\n" "$PR_NUMBER"   > .pr-meta/number
+        printf "%s\n" "$PR_HEAD_SHA" > .pr-meta/head_sha
+        printf "%s\n" "$PR_HEAD_REF" > .pr-meta/head_ref
+        printf "%s\n" "$PR_BASE_REF" > .pr-meta/base_ref
+        # shellcheck disable=SC2046  # find emits one path per result; intentional word-splitting into tar arg list
+        tar -czf pr-workspace.tar.gz \
+          .build/compile_commands.json \
+          $(find .build -name '*.gcov' -print) \
+          .pr-meta
+
+    - name: Upload pull request workspace artifact
+      if: github.event_name == 'pull_request'
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: pr-workspace.tar.gz
+        retention-days: 1
+        if-no-files-found: error
