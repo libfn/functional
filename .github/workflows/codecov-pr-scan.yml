@@ -38,6 +38,7 @@ jobs:
       with:
         sparse-checkout: .github
 
+    # Checks out the untrusted PR head — no in-repo `./` action may run after this step.
     - name: Restore pull request workspace
       id: pr
       uses: ./.github/actions/restore-pr-workspace

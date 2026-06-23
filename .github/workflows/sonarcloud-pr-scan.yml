@@ -55,14 +55,6 @@ jobs:
       with:
         sparse-checkout: .github
 
-    - name: Restore pull request workspace
-      id: pr
-      if: ${{ env.SONAR_TOKEN != '' }}
-      uses: ./.github/actions/restore-pr-workspace
-      with:
-        archive: ${{ runner.temp }}/sonar-artifact/sonarcloud-pr-inputs.tar.gz
-        full-history: 'true'
-
     - name: Resolve SonarCloud project
       id: sonar
       if: ${{ env.SONAR_TOKEN != '' }}
@@ -71,13 +63,25 @@ jobs:
         organization: ${{ vars.SONAR_ORGANIZATION }}
         project-key: ${{ vars.SONAR_PROJECT_KEY }}
 
+    # Checks out the untrusted PR head — no in-repo `./` action may run after this step.
+    - name: Restore pull request workspace
+      id: pr
+      if: ${{ env.SONAR_TOKEN != '' }}
+      uses: ./.github/actions/restore-pr-workspace
+      with:
+        archive: ${{ runner.temp }}/sonar-artifact/sonarcloud-pr-inputs.tar.gz
+        full-history: 'true'
+
     - name: Run SonarQube scan action
       if: ${{ env.SONAR_TOKEN != '' }}
       uses: SonarSource/sonarqube-scan-action@713881670b6b3676cda39549040e2d88c70d582e # v8.2.0
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
+        # Pin the host via -D (highest precedence) so a PR-controlled sonar-project.properties cannot
+        # redirect SONAR_TOKEN to another host.
         args: >
+          -Dsonar.host.url=https://sonarcloud.io
           -Dsonar.organization=${{ steps.sonar.outputs.organization }}
           -Dsonar.projectKey=${{ steps.sonar.outputs.project-key }}
           -Dsonar.cfamily.gcov.reportsPath=.build
