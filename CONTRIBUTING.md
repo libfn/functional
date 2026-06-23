@@ -56,7 +56,7 @@ The `codecov` and `sonarcloud` workflows are fork-aware: they target the upstrea
 
 * **Codecov** works with no configuration — uploads are tokenless. They are heavily throttled, which a low-traffic fork will not notice; set the `CODECOV_TOKEN` *secret* to lift the throttle.
 
-* **SonarCloud** needs all three of: the `SONAR_TOKEN` *secret*, and the `SONAR_ORGANIZATION` and `SONAR_PROJECT_KEY` *repository variables*. Without the token the SonarCloud scan steps no-op — the build still runs, but no analysis is uploaded. With the token but a missing variable the scan fails fast with an error pointing back here, rather than silently analysing the upstream project.
+* **SonarCloud** needs all three of: the `SONAR_TOKEN` *secret*, and the `SONAR_ORGANIZATION` and `SONAR_PROJECT_KEY` *repository variables*. Without the token the SonarCloud scan steps no-op — the build still runs, but no analysis is uploaded. With the token set but a variable missing, no SonarCloud analysis is produced, and it never falls back to the upstream project (a misconfigured push fails fast with a pointer here).
 
 ## GitHub Actions workflow pitfalls
 
