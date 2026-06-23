@@ -60,7 +60,7 @@ jobs:
       if: ${{ env.SONAR_TOKEN != '' }}
       uses: ./.github/actions/restore-pr-workspace
       with:
-        archive: ${{ runner.temp }}/sonar-artifact/pr-workspace.tar.gz
+        archive: ${{ runner.temp }}/sonar-artifact/sonarcloud-pr-inputs.tar.gz
         full-history: 'true'
 
     - name: Resolve SonarCloud project

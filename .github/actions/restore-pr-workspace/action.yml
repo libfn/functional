@@ -6,7 +6,7 @@ description: >
 inputs:
   archive:
     required: true
-    description: Path to the downloaded `*-inputs.tar.gz` artifact produced by the triggering workflow.
+    description: Path to the downloaded inputs tarball (the `<artifact-name>.tar.gz` produced by the triggering workflow).
   full-history:
     default: 'false'
     description: >

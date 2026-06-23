@@ -42,7 +42,7 @@ jobs:
       id: pr
       uses: ./.github/actions/restore-pr-workspace
       with:
-        archive: ${{ runner.temp }}/codecov-artifact/pr-workspace.tar.gz
+        archive: ${{ runner.temp }}/codecov-artifact/codecov-pr-inputs.tar.gz
 
     - name: Run Codecov action
       uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
