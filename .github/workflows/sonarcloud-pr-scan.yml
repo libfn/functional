@@ -2,8 +2,8 @@ name: sonarcloud-pr-scan
 
 # Runs after `sonarcloud.yml` completes on a pull_request event. Because this workflow is triggered by
 # `workflow_run`, it executes in the context of the base repository's default branch and has access to
-# repository secrets, including SONAR_TOKEN. This allows us to analyse pull requests opened from forks,
-# which otherwise do not receive secrets.
+# repository secrets, including SONAR_TOKEN. This analyses every pull request, including those opened
+# from forks, which otherwise do not receive secrets.
 #
 # The pull request head SHA is read from the artifact (written there by the triggering workflow from
 # `github.event.pull_request.head.sha`) and used as the single source of truth for both the source
@@ -26,16 +26,22 @@ permissions:
 
 jobs:
   scan:
+    # A job-level `if` cannot read `secrets`, so a fork that has not configured SonarCloud is filtered
+    # out by the SONAR_PROJECT_KEY variable instead (the upstream repository always runs); SONAR_TOKEN
+    # still gates every step below.
     if: >
-      github.repository == 'libfn/functional' &&
       github.event.workflow_run.event == 'pull_request' &&
-      github.event.workflow_run.conclusion == 'success'
-    runs-on: warp-ubuntu-latest-x64-4x
+      github.event.workflow_run.conclusion == 'success' &&
+      (github.repository == 'libfn/functional' || vars.SONAR_PROJECT_KEY != '')
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
     container: libfn.azurecr.io/ci-build-gcc:15-sha-08b1133
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
     steps:
     # Download the artifact outside the workspace so the subsequent checkout does not wipe it.
     - name: Download SonarCloud inputs artifact
+      if: ${{ env.SONAR_TOKEN != '' }}
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
         name: sonarcloud-pr-inputs
@@ -43,24 +49,41 @@ jobs:
         run-id: ${{ github.event.workflow_run.id }}
         path: ${{ runner.temp }}/sonar-artifact
 
-    # Check out the base repository to obtain the local action, before it checks out the PR head itself.
-    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+    - name: Check out base repository actions
+      if: ${{ env.SONAR_TOKEN != '' }}
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         sparse-checkout: .github
 
+    - name: Resolve SonarCloud project
+      id: sonar
+      if: ${{ env.SONAR_TOKEN != '' }}
+      uses: ./.github/actions/resolve-sonar-project
+      with:
+        organization: ${{ vars.SONAR_ORGANIZATION }}
+        project-key: ${{ vars.SONAR_PROJECT_KEY }}
+
+    # No local actions are available after this step, because restore-pr-workspace deletes `.github/actions`.
     - name: Restore pull request workspace
       id: pr
+      if: ${{ env.SONAR_TOKEN != '' }}
       uses: ./.github/actions/restore-pr-workspace
       with:
-        archive: ${{ runner.temp }}/sonar-artifact/sonar-inputs.tar.gz
+        archive: ${{ runner.temp }}/sonar-artifact/sonarcloud-pr-inputs.tar.gz
+        full-history: 'true'
 
-    - name: Run SonarScanner
+    - name: Run SonarQube scan action
+      if: ${{ env.SONAR_TOKEN != '' }}
       uses: SonarSource/sonarqube-scan-action@713881670b6b3676cda39549040e2d88c70d582e # v8.2.0
       env:
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
+        # Pin the host via -D (highest precedence) so a PR-controlled sonar-project.properties cannot
+        # redirect SONAR_TOKEN to another host.
         args: >
+          -Dsonar.host.url=https://sonarcloud.io
+          -Dsonar.organization=${{ steps.sonar.outputs.organization }}
+          -Dsonar.projectKey=${{ steps.sonar.outputs.project-key }}
           -Dsonar.cfamily.gcov.reportsPath=.build
           -Dsonar.cfamily.compile-commands=.build/compile_commands.json
           -Dsonar.scm.revision=${{ steps.pr.outputs.head_sha }}

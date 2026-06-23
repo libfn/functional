@@ -6,7 +6,12 @@ description: >
 inputs:
   archive:
     required: true
-    description: Path to the downloaded `*-inputs.tar.gz` artifact produced by the triggering workflow.
+    description: Path to the downloaded inputs tarball (the `<artifact-name>.tar.gz` produced by the triggering workflow).
+  full-history:
+    default: 'false'
+    description: >
+      Check out the pull request head with full history (`fetch-depth: 0`) rather than a shallow clone.
+      Set `'true'` for SonarCloud, which needs git blame for SCM attribution and new-code detection.
 
 outputs:
   number:
@@ -87,7 +92,15 @@ runs:
       uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         ref: ${{ steps.pr.outputs.head_sha }}
-        fetch-depth: 0  # Full history for blame info
+        # String literals, not bare 0/1: a numeric 0 is falsy in GHA, so `cond && 0 || 1` is always 1.
+        fetch-depth: ${{ inputs.full-history == 'true' && '0' || '1' }}
+
+    # The checkout above replaced `.github/actions` with the untrusted PR copy; remove it so no local
+    # `./` action (neither the PR's edited copy nor the base one) runs after restore. A later action
+    # will fail closed (action not found) instead of executing e.g. PR code in a secrets-bearing job.
+    - name: Remove checked-out local actions
+      shell: bash
+      run: rm -rf .github/actions
 
     - name: Restore build outputs from artifact
       shell: bash
