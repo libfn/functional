@@ -6,6 +6,8 @@
 #ifndef INCLUDE_FN_PACK
 #define INCLUDE_FN_PACK
 
+#include <fn/detail/fwd_macro.hpp>
+#include <fn/detail/macro_deduced_return.hpp>
 #include <fn/detail/pack_impl.hpp>
 #include <fn/sum.hpp>
 
@@ -159,7 +161,8 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    * @return TODO
    */
   template <typename Fn>
-  [[nodiscard]] constexpr auto invoke(Fn &&fn, auto &&...args) & noexcept -> decltype(auto)
+  [[nodiscard]] constexpr auto invoke(Fn &&fn, auto &&...args) & noexcept
+      -> DEDUCED_RETURN(_impl::_invoke(*this, FWD(fn), FWD(args)...))
     requires requires { _impl::_invoke(*this, FWD(fn), FWD(args)...); }
   {
     return _impl::_invoke(*this, FWD(fn), FWD(args)...);
@@ -174,7 +177,8 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    * @return TODO
    */
   template <typename Fn>
-  [[nodiscard]] constexpr auto invoke(Fn &&fn, auto &&...args) const & noexcept -> decltype(auto)
+  [[nodiscard]] constexpr auto invoke(Fn &&fn, auto &&...args) const & noexcept
+      -> DEDUCED_RETURN(_impl::_invoke(*this, FWD(fn), FWD(args)...))
     requires requires { _impl::_invoke(*this, FWD(fn), FWD(args)...); }
   {
     return _impl::_invoke(*this, FWD(fn), FWD(args)...);
@@ -189,7 +193,8 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    * @return TODO
    */
   template <typename Fn>
-  [[nodiscard]] constexpr auto invoke(Fn &&fn, auto &&...args) && noexcept -> decltype(auto)
+  [[nodiscard]] constexpr auto invoke(Fn &&fn, auto &&...args) && noexcept
+      -> DEDUCED_RETURN(_impl::_invoke(::std::move(*this), FWD(fn), FWD(args)...))
     requires requires { _impl::_invoke(::std::move(*this), FWD(fn), FWD(args)...); }
   {
     return _impl::_invoke(::std::move(*this), FWD(fn), FWD(args)...);
@@ -204,7 +209,8 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    * @return TODO
    */
   template <typename Fn>
-  [[nodiscard]] constexpr auto invoke(Fn &&fn, auto &&...args) const && noexcept -> decltype(auto)
+  [[nodiscard]] constexpr auto invoke(Fn &&fn, auto &&...args) const && noexcept
+      -> DEDUCED_RETURN(_impl::_invoke(::std::move(*this), FWD(fn), FWD(args)...))
     requires requires { _impl::_invoke(::std::move(*this), FWD(fn), FWD(args)...); }
   {
     return _impl::_invoke(::std::move(*this), FWD(fn), FWD(args)...);

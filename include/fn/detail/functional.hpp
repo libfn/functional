@@ -8,6 +8,7 @@
 
 #include <fn/detail/fwd.hpp>
 #include <fn/detail/fwd_macro.hpp>
+#include <fn/detail/macro_deduced_return.hpp>
 #include <fn/detail/meta.hpp>
 #include <pfn/functional.hpp>
 
@@ -68,7 +69,7 @@ template <typename Lh, typename Rh>
 namespace _invoke_detail {
 template <typename Fn, typename... Args>
   requires(not(... || (_some_pack<Args> || _some_sum<Args>))) && ::std::is_invocable_v<Fn, Args...>
-[[nodiscard]] constexpr auto invoke(Fn &&fn, Args &&...args) -> decltype(auto)
+[[nodiscard]] constexpr auto invoke(Fn &&fn, Args &&...args) -> DEDUCED_RETURN(::std::invoke(FWD(fn), FWD(args)...))
 {
   return ::std::invoke(FWD(fn), FWD(args)...);
 }
@@ -77,8 +78,8 @@ template <typename Fn, typename Arg, typename... Args>
   requires(_some_pack<Arg> || _some_sum<Arg>)
           && ((sizeof...(Args) == 0) || (not(... || (_some_pack<Args> || _some_sum<Args>))))
           && requires(Fn &&fn, Arg &&arg, Args &&...args) { FWD(arg).invoke(FWD(fn), FWD(args)...); }
-[[nodiscard]] constexpr auto invoke(Fn &&fn, Arg &&arg, Args &&...args) -> decltype(auto)
-
+[[nodiscard]] constexpr auto invoke(Fn &&fn, Arg &&arg, Args &&...args)
+    -> DEDUCED_RETURN(FWD(arg).invoke(FWD(fn), FWD(args)...))
 {
   return FWD(arg).invoke(FWD(fn), FWD(args)...);
 }
@@ -89,16 +90,19 @@ template <typename Fn, typename Arg, typename Arg0, typename... Args>
                invoke<Fn, decltype(::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0))), Args...>(
                    FWD(fn), ::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0)), FWD(args)...);
              }
+// Deduced return: a trailing return type is substituted before constraints are checked, so an
+// explicit one would instantiate `fold` for non-viable candidates and static_assert (a `pack` of
+// rvalue refs). The body's `using type` alias is inlined only to dodge MSVC's body-local-alias leak.
 [[nodiscard]] constexpr auto invoke(Fn &&fn, Arg &&arg, Arg0 &&arg0, Args &&...args) -> decltype(auto)
 {
-  using type = decltype(::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0)));
-  return invoke<Fn, type, Args...>(FWD(fn), ::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0)),
-                                   FWD(args)...);
+  return invoke<Fn, decltype(::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0))), Args...>(
+      FWD(fn), ::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0)), FWD(args)...);
 }
 
 template <typename Ret, typename Fn, typename... Args>
   requires(not(... || (_some_pack<Args> || _some_sum<Args>))) && ::std::is_invocable_r_v<Ret, Fn, Args...>
-[[nodiscard]] constexpr auto invoke_r(Fn &&fn, Args &&...args) -> decltype(auto)
+[[nodiscard]] constexpr auto invoke_r(Fn &&fn, Args &&...args)
+    -> DEDUCED_RETURN(::pfn::invoke_r<Ret>(FWD(fn), FWD(args)...))
 {
   return ::pfn::invoke_r<Ret>(FWD(fn), FWD(args)...);
 }
@@ -107,7 +111,8 @@ template <typename Ret, typename Fn, typename Arg, typename... Args>
   requires(_some_pack<Arg> || _some_sum<Arg>)
           && ((sizeof...(Args) == 0) || (not(... || (_some_pack<Args> || _some_sum<Args>))))
           && requires(Fn &&fn, Arg &&arg, Args &&...args) { FWD(arg).template invoke_r<Ret>(FWD(fn), FWD(args)...); }
-[[nodiscard]] constexpr auto invoke_r(Fn &&fn, Arg &&arg, Args &&...args) -> decltype(auto)
+[[nodiscard]] constexpr auto invoke_r(Fn &&fn, Arg &&arg, Args &&...args)
+    -> DEDUCED_RETURN(FWD(arg).template invoke_r<Ret>(FWD(fn), FWD(args)...))
 {
   return FWD(arg).template invoke_r<Ret>(FWD(fn), FWD(args)...);
 }
@@ -118,11 +123,11 @@ template <typename Ret, typename Fn, typename Arg, typename Arg0, typename... Ar
                invoke_r<Ret, Fn, decltype(::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0))), Args...>(
                    FWD(fn), ::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0)), FWD(args)...);
              }
+// Same as the fold-recursing `invoke` above: deduced return, alias inlined.
 [[nodiscard]] constexpr auto invoke_r(Fn &&fn, Arg &&arg, Arg0 &&arg0, Args &&...args) -> decltype(auto)
 {
-  using type = decltype(::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0)));
-  return invoke_r<Ret, Fn, type, Args...>(FWD(fn), ::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0)),
-                                          FWD(args)...);
+  return invoke_r<Ret, Fn, decltype(::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0))), Args...>(
+      FWD(fn), ::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0)), FWD(args)...);
 }
 } // namespace _invoke_detail
 

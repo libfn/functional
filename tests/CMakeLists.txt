@@ -100,6 +100,7 @@ endforeach()
 set(TESTS_FN_SOURCES
     fn/detail/functional.cpp
     fn/detail/fwd_macro.cpp
+    fn/detail/macro_deduced_return.cpp
     fn/detail/meta.cpp
     fn/detail/pack_impl.cpp
     fn/detail/traits.cpp
@@ -130,6 +131,7 @@ set(TESTS_FN_SOURCES
 set(TESTS_FN_SOURCES_CXX20
     fn/detail/functional.cpp
     fn/detail/fwd_macro.cpp
+    fn/detail/macro_deduced_return.cpp
     fn/detail/meta.cpp
     fn/detail/pack_impl.cpp
     fn/detail/traits.cpp
