@@ -77,6 +77,8 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     // fundamentals, GCC/Clang before. Inherent and deliberately NOT unified (not even by C++26
     // std::type_order — an ABI-tied total order); see tests/fn/sum.cpp for the full rationale. This
     // one assert documents the divergence; the rest assert only platform-independent invariants.
+    // Spelling: choices/sums whose alternatives include a non-builtin have platform-specific order, so
+    // they are written choice_for<...>; pure-builtin ones keep a fixed choice<...>.
 #ifdef _MSC_VER
     static_assert(std::same_as<fn::choice_for<int, NonCopyable>, fn::choice<int, NonCopyable>>);
 #else

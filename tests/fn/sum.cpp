@@ -72,6 +72,8 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     // one assert documents the difference; every other ordering check below asserts only the
     // platform-independent guarantees (commutativity, uniqueness). Revisit once std::type_order
     // ships on all supported platforms.
+    // Spelling: sums whose alternatives include a non-builtin have platform-specific order, so they
+    // are written sum_for<...>; pure-builtin sums keep a fixed sum<...>.
 #ifdef _MSC_VER
     static_assert(std::same_as<fn::sum_for<int, NonCopyable>, fn::sum<int, NonCopyable>>);
 #else
