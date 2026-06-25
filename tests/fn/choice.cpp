@@ -40,7 +40,9 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
   WHEN("value")
   {
-    static_assert(std::same_as<fn::sum<NonCopyable, int>, typename choice<NonCopyable, int>::value_type>);
+    // _for aliases: a choice's value_type is the sum of its alternatives, but the canonical order is
+    // platform-specific (see WHEN("choice_for") below), so normalize both sides per platform.
+    static_assert(std::same_as<fn::sum_for<NonCopyable, int>, typename fn::choice_for<NonCopyable, int>::value_type>);
     static_assert(std::same_as<fn::sum<int>, typename choice<int>::value_type>);
 
     using type = fn::choice<bool, helper>;
@@ -70,9 +72,22 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     static_assert(std::same_as<fn::choice_for<int, int>, fn::choice<int>>);
     static_assert(std::same_as<fn::choice_for<int, bool>, fn::choice<bool, int>>);
     static_assert(std::same_as<fn::choice_for<bool, int>, fn::choice<bool, int>>);
+    // Canonical alternative order is platform/ABI-specific (derived from the compiler's type spelling
+    // — GCC/Clang __PRETTY_FUNCTION__ vs MSVC __FUNCSIG__): MSVC sorts class/struct types after the
+    // fundamentals, GCC/Clang before. Inherent and deliberately NOT unified (not even by C++26
+    // std::type_order — an ABI-tied total order); see tests/fn/sum.cpp for the full rationale. This
+    // one assert documents the divergence; the rest assert only platform-independent invariants.
+#ifdef _MSC_VER
+    static_assert(std::same_as<fn::choice_for<int, NonCopyable>, fn::choice<int, NonCopyable>>);
+#else
     static_assert(std::same_as<fn::choice_for<int, NonCopyable>, fn::choice<NonCopyable, int>>);
-    static_assert(std::same_as<fn::choice_for<NonCopyable, int>, fn::choice<NonCopyable, int>>);
-    static_assert(std::same_as<fn::choice_for<int, bool, NonCopyable>, fn::choice<NonCopyable, bool, int>>);
+#endif
+    static_assert(std::same_as<fn::choice_for<NonCopyable, int>, fn::choice_for<int, NonCopyable>>); // commutative
+    static_assert(
+        std::same_as<fn::choice_for<int, bool, NonCopyable>, fn::choice_for<NonCopyable, bool, int>>); // commutative
+    static_assert(
+        std::same_as<fn::choice_for<NonCopyable, int, NonCopyable>, fn::choice_for<int, NonCopyable>>); // unique
+    static_assert(fn::choice_for<int, bool, NonCopyable>::size == 3);
 
     static_assert(std::same_as<fn::choice_for<int, fn::sum<int>>, fn::choice<int>>);
     static_assert(std::same_as<fn::choice_for<int, fn::sum<bool>>, fn::choice<bool, int>>);
@@ -93,7 +108,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
   WHEN("invocable")
   {
-    using type = choice<TestType, int>;
+    using type = fn::choice_for<TestType, int>; // choice<...> order is platform-specific; choice_for normalizes
     static_assert(fn::typelist_invocable<decltype([](auto) {}), type &>);
     static_assert(fn::typelist_invocable<decltype([](auto &) {}), type &>);
     static_assert(fn::typelist_invocable<decltype([](auto const &) {}), type &>);
