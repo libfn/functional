@@ -161,7 +161,7 @@ template <typename T, typename E> struct _storage : ::pfn::detail::_storage<T, E
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn)
     requires(not ::std::is_void_v<T>) && (not some_sum<T>)
-            && ::fn::detail::_is_invocable<Fn, decltype(_pfn_base::_value(FWD(self)))>::value
+            && ::fn::detail::_is_invocable_if<not some_sum<T>, Fn, decltype(_pfn_base::_value(FWD(self)))>::value
             && ::std::is_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
   {
     using new_value_type = typename ::fn::detail::_invoke_result<Fn, decltype(_pfn_base::_value(FWD(self)))>::type;
@@ -213,7 +213,8 @@ template <typename T, typename E> struct _storage : ::pfn::detail::_storage<T, E
   // transform_error, error type is not a sum
   template <typename Self, typename Fn>
   static constexpr auto _transform_error(Self &&self, Fn &&fn)
-    requires(not some_sum<E>) && ::fn::detail::_is_invocable<Fn, decltype(_pfn_base::_error(FWD(self)))>::value
+    requires(not some_sum<E>)
+            && ::fn::detail::_is_invocable_if<not some_sum<E>, Fn, decltype(_pfn_base::_error(FWD(self)))>::value
   {
     using new_error_type = typename ::fn::detail::_invoke_result<Fn, decltype(_pfn_base::_error(FWD(self)))>::type;
     using type = ::fn::expected<T, new_error_type>;

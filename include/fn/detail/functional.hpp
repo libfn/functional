@@ -153,6 +153,13 @@ template <typename Fn, typename... Args> struct _is_invocable {
       = decltype(_is_invocable_result<Fn, Args...>(::std::declval<Fn>(), ::std::declval<Args>()...))::value;
 };
 
+// Partial-specialization gate around `_is_invocable`: MSVC doesn't short-circuit a requires-clause
+// `&&`, so a guarded `_is_invocable<Fn, sum>` conjunct gets instantiated even when an earlier guard
+// is already false, tripping sum's uniform-result static_assert; selecting the false_type primary
+// keeps the probe out of its reach (no-op on compilers that do short-circuit).
+template <bool Enable, typename Fn, typename... Args> struct _is_invocable_if : ::std::false_type {};
+template <typename Fn, typename... Args> struct _is_invocable_if<true, Fn, Args...> : _is_invocable<Fn, Args...> {};
+
 // is_invocable_r
 template <typename Ret, typename Fn, typename... Args>
 constexpr auto _is_invocable_r_result(

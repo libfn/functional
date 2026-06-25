@@ -53,14 +53,9 @@ struct _typelist_select_invoke_result<Fn, Self, Tpl<Ts...>, Args...> {
       = (...
          && ::std::is_same_v<R0,
                              typename ::fn::detail::_invoke_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>);
-  // TODO: remove the _MSC_VER guard. This is temporarily needed because MSVC
-  // pack elements have deduced-auto invoke returns (not yet fixed); _invoke_result gives
-  // distinct unknown-type per instantiation, making type_found spuriously false — skip until
-  // _invoke_detail::invoke overloads gain explicit return types (see functional.hpp)
-#ifndef _MSC_VER
+  // If every alternative is invocable here, they must all yield the same result type.
   static_assert(not(... && ::fn::detail::_is_invocable<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::value)
                 || type_found);
-#endif
   using type = ::std::conditional_t<type_found, R0, void>;
 };
 
