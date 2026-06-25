@@ -7,8 +7,8 @@
 #define INCLUDE_FN_DETAIL_FUNCTIONAL
 
 #include <fn/detail/fwd.hpp>
-#include <fn/detail/fwd_macro.hpp>
 #include <fn/detail/macro_deduced_return.hpp>
+#include <fn/detail/macro_fwd.hpp>
 #include <fn/detail/meta.hpp>
 #include <pfn/functional.hpp>
 

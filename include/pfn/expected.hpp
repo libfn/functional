@@ -22,7 +22,7 @@
 #undef FWD
 #endif
 
-// Also defined in fn/detail/fwd_macro.hpp but pfn/* headers are standalone
+// Also defined in fn/detail/macro_fwd.hpp but pfn/* headers are standalone
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 
 #ifdef ASSERT

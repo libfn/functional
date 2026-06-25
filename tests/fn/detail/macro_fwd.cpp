@@ -3,7 +3,7 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#include <fn/detail/fwd_macro.hpp>
+#include <fn/detail/macro_fwd.hpp>
 
 #include <catch2/catch_all.hpp>
 

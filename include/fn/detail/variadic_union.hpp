@@ -7,7 +7,7 @@
 #define INCLUDE_FN_DETAIL_VARIADIC_UNION
 
 #include <fn/detail/functional.hpp>
-#include <fn/detail/fwd_macro.hpp>
+#include <fn/detail/macro_fwd.hpp>
 #include <pfn/functional.hpp>
 #include <pfn/utility.hpp>
 

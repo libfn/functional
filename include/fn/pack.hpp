@@ -6,8 +6,8 @@
 #ifndef INCLUDE_FN_PACK
 #define INCLUDE_FN_PACK
 
-#include <fn/detail/fwd_macro.hpp>
 #include <fn/detail/macro_deduced_return.hpp>
+#include <fn/detail/macro_fwd.hpp>
 #include <fn/detail/pack_impl.hpp>
 #include <fn/sum.hpp>
 

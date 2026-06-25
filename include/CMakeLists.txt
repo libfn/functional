@@ -68,8 +68,9 @@ endforeach()
 # Pls keep the filenames sorted
 set(INCLUDE_FN_HEADERS
     fn/detail/functional.hpp
-    fn/detail/fwd_macro.hpp
     fn/detail/fwd.hpp
+    fn/detail/macro_deduced_return.hpp
+    fn/detail/macro_fwd.hpp
     fn/detail/meta.hpp
     fn/detail/monadic.hpp
     fn/detail/pack_impl.hpp

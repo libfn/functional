@@ -6,7 +6,7 @@
 #ifndef INCLUDE_FN_UTILITY
 #define INCLUDE_FN_UTILITY
 
-#include <fn/detail/fwd_macro.hpp>
+#include <fn/detail/macro_fwd.hpp>
 #include <fn/detail/traits.hpp>
 
 namespace fn {
