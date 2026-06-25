@@ -64,9 +64,24 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     static_assert(std::same_as<fn::sum_for<int, int>, fn::sum<int>>);
     static_assert(std::same_as<fn::sum_for<int, bool>, fn::sum<bool, int>>);
     static_assert(std::same_as<fn::sum_for<bool, int>, fn::sum<bool, int>>);
+    // A sum's canonical alternative order comes from each type's compiler spelling (GCC/Clang
+    // __PRETTY_FUNCTION__ vs MSVC __FUNCSIG__), so it is platform/ABI-specific: MSVC sorts
+    // class/struct types after the fundamentals, GCC/Clang before. This divergence is inherent and
+    // deliberately NOT unified — even C++26 std::type_order is an implementation-defined, ABI-tied
+    // total order, so there is no single cross-platform order; don't try to make them match. This
+    // one assert documents the difference; every other ordering check below asserts only the
+    // platform-independent guarantees (commutativity, uniqueness). Revisit once std::type_order
+    // ships on all supported platforms.
+#ifdef _MSC_VER
+    static_assert(std::same_as<fn::sum_for<int, NonCopyable>, fn::sum<int, NonCopyable>>);
+#else
     static_assert(std::same_as<fn::sum_for<int, NonCopyable>, fn::sum<NonCopyable, int>>);
-    static_assert(std::same_as<fn::sum_for<NonCopyable, int>, fn::sum<NonCopyable, int>>);
-    static_assert(std::same_as<fn::sum_for<int, bool, NonCopyable>, fn::sum<NonCopyable, bool, int>>);
+#endif
+    static_assert(std::same_as<fn::sum_for<NonCopyable, int>, fn::sum_for<int, NonCopyable>>); // commutative
+    static_assert(
+        std::same_as<fn::sum_for<int, bool, NonCopyable>, fn::sum_for<NonCopyable, bool, int>>); // commutative
+    static_assert(std::same_as<fn::sum_for<NonCopyable, int, NonCopyable>, fn::sum_for<int, NonCopyable>>); // unique
+    static_assert(fn::sum_for<int, bool, NonCopyable>::size == 3);
 
     static_assert(std::same_as<fn::sum_for<int, fn::sum<int>>, fn::sum<int>>);
     static_assert(std::same_as<fn::sum_for<int, fn::sum<bool>>, fn::sum<bool, int>>);
@@ -86,7 +101,7 @@ TEST_CASE("sum basic functionality tests", "[sum]")
 
   WHEN("invocable")
   {
-    using type = sum<TestType, int>;
+    using type = fn::sum_for<TestType, int>; // sum<...> order is platform-specific; sum_for normalizes per platform
     static_assert(fn::typelist_invocable<decltype([](auto) {}), type &>);
     static_assert(fn::typelist_invocable<decltype([](auto &) {}), type &>);
     static_assert(fn::typelist_invocable<decltype([](auto const &) {}), type &>);
@@ -713,9 +728,11 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
     static_assert(std::same_as<fn::sum_for<int>, fn::sum<int>>);
     static_assert(std::same_as<fn::sum_for<int, bool>, fn::sum<bool, int>>);
     static_assert(std::same_as<fn::sum_for<bool, int>, fn::sum<bool, int>>);
-    static_assert(std::same_as<fn::sum_for<int, NonCopyable>, fn::sum<NonCopyable, int>>);
-    static_assert(std::same_as<fn::sum_for<NonCopyable, int>, fn::sum<NonCopyable, int>>);
-    static_assert(std::same_as<fn::sum_for<int, bool, NonCopyable>, fn::sum<NonCopyable, bool, int>>);
+    // Canonical order is platform-specific by design (see the note in the WHEN("sum_for") block of
+    // the TEST_CASE above); assert only the platform-independent guarantees here.
+    static_assert(std::same_as<fn::sum_for<NonCopyable, int>, fn::sum_for<int, NonCopyable>>);
+    static_assert(std::same_as<fn::sum_for<int, bool, NonCopyable>, fn::sum_for<NonCopyable, bool, int>>);
+    static_assert(fn::sum_for<int, bool, NonCopyable>::size == 3);
   }
 
   WHEN("move and copy")
@@ -803,7 +820,7 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
 
     WHEN("mixed with other types")
     {
-      using T = sum<CopyOnly, double, int>;
+      using T = fn::sum_for<CopyOnly, double, int>; // sum_for: canonical order is platform-specific
       T a{std::in_place_type<CopyOnly>, 12};
       CHECK(a.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
 
@@ -854,7 +871,7 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
 
     WHEN("mixed with other types")
     {
-      using T = sum<MoveOnly, double, int>;
+      using T = fn::sum_for<MoveOnly, double, int>; // sum_for: canonical order is platform-specific
       T a{std::in_place_type<MoveOnly>, 12};
       CHECK(a.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
 
@@ -901,7 +918,7 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
 
     WHEN("mixed with other types")
     {
-      using T = sum<NonCopyable, double, int>;
+      using T = fn::sum_for<NonCopyable, double, int>; // sum_for: canonical order is platform-specific
       T a{std::in_place_type<NonCopyable>, 12};
       CHECK(a.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
 
