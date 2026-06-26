@@ -13,7 +13,7 @@ The purpose of this library is to exercise an approach to functional programming
 
 The approach is to take the existing `std` types in the C++ standard library (when appropriate) and extend them (via inheritance) with the facilities useful in writing functional style programs. Eventually, the proposed functionality will be (hopefully) folded into the existing `std` types and new `std` types will be added.
 
-This library requires a very modern implementation of the C++ library which implements monadic operations in `std::optional` and `std::expected`, as defined in ISO/IEC 14882:2023. Currently, such implementations are provided with [gcc 13][gcc-standard-support] and [clang 18][clang-standard-support], which are the recommended compilers for this project. A suggested approach to access the most recent version of the compiler (when it is not available in the operating system) is to use a [devcontainer] when working with this project. Alternatively take a look at [Nix][nix] and [nix/README.md][nixmd].
+This library requires a very modern implementation of the C++ library which implements monadic operations in `std::optional` and `std::expected`, as defined in ISO/IEC 14882:2023. Currently, such implementations are provided with [gcc 13][gcc-standard-support] and [clang 18][clang-standard-support], which are the recommended compilers for this project. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set up a recent enough toolchain when your OS does not ship one.
 
 ### Implementation note
 
@@ -38,7 +38,7 @@ Because the library is header-only, **use a single libfn version per binary**. M
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the development environment, building, testing, versioning, and the pre-commit workflow.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development environment, building, testing, the version-bump mechanics, and the pre-commit workflow.
 
 ## Acknowledgments
 
@@ -53,10 +53,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the development environment, building
 <!-- link references -->
 [clang-standard-support]: https://clang.llvm.org/cxx_status.html
 [gcc-standard-support]: https://gcc.gnu.org/projects/cxx-status.html
-[devcontainer]: https://github.com/libfn/devcontainer
 [standardized-type-ordering]: https://wg21.link/P2830
-[nix]: https://nixos.org
-[nixmd]: nix/README.md
 [gasper-functional-presentation]: https://youtu.be/Jhggz8rtHbk?si=T-3DXPcvgE_Y5cpH
 [parametrised-and-graded-monads]: https://arxiv.org/pdf/2001.10274.pdf
 [effect-systems]: https://www.doc.ic.ac.uk/~dorchard/publ/haskell14-effects.pdf
