@@ -186,7 +186,7 @@ TEST_CASE("filter member function", "[filter][expected][expected_value][member_f
     {
       WHEN("predicate returns true")
       {
-        operand_t a{std::in_place, 1};
+        operand_t a{std::in_place, Value{1}};
         using T = decltype(a | filter(predicate, onError));
         static_assert(std::is_same_v<T, operand_t>);
 
@@ -196,7 +196,7 @@ TEST_CASE("filter member function", "[filter][expected][expected_value][member_f
 
       WHEN("predicate returns false")
       {
-        operand_t a{std::in_place, 42};
+        operand_t a{std::in_place, Value{42}};
         using T = decltype(a | filter(predicate, onError));
         static_assert(std::is_same_v<T, operand_t>);
 
@@ -254,20 +254,20 @@ TEST_CASE("filter member function", "[filter][expected][expected_value][member_f
     {
       WHEN("predicate returns true")
       {
-        using T = decltype(operand_t{std::in_place, 1} | filter(predicate, onError));
+        using T = decltype(operand_t{std::in_place, Value{1}} | filter(predicate, onError));
         static_assert(std::is_same_v<T, operand_t>);
 
-        REQUIRE((operand_t{std::in_place, 1} | filter(predicate, onError)).value().v == 1);
-        REQUIRE((operand_t{std::in_place, 1} | filter(predicate, &Value::error_)).value().v == 1);
+        REQUIRE((operand_t{std::in_place, Value{1}} | filter(predicate, onError)).value().v == 1);
+        REQUIRE((operand_t{std::in_place, Value{1}} | filter(predicate, &Value::error_)).value().v == 1);
       }
 
       WHEN("predicate returns false")
       {
-        using T = decltype(operand_t{std::in_place, 42} | filter(predicate, onError));
+        using T = decltype(operand_t{std::in_place, Value{42}} | filter(predicate, onError));
         static_assert(std::is_same_v<T, operand_t>);
 
-        REQUIRE((operand_t{std::in_place, 42} | filter(predicate, onError)).error().what == "Got 42");
-        REQUIRE((operand_t{std::in_place, 42} | filter(predicate, &Value::error_)).error().what == "Got 42");
+        REQUIRE((operand_t{std::in_place, Value{42}} | filter(predicate, onError)).error().what == "Got 42");
+        REQUIRE((operand_t{std::in_place, Value{42}} | filter(predicate, &Value::error_)).error().what == "Got 42");
       }
     }
 
@@ -531,7 +531,7 @@ TEST_CASE("filter member function", "[filter][optional]")
     {
       WHEN("predicate returns true")
       {
-        operand_t a{1};
+        operand_t a{Value{1}};
         using T = decltype(a | filter(predicate));
         static_assert(std::is_same_v<T, operand_t>);
 
@@ -539,7 +539,7 @@ TEST_CASE("filter member function", "[filter][optional]")
       }
       WHEN("predicate returns false")
       {
-        operand_t a{42};
+        operand_t a{Value{42}};
         using T = decltype(a | filter(predicate));
         static_assert(std::is_same_v<T, operand_t>);
 
@@ -562,18 +562,18 @@ TEST_CASE("filter member function", "[filter][optional]")
     {
       WHEN("predicate returns true")
       {
-        using T = decltype(operand_t{1} | filter(predicate));
+        using T = decltype(operand_t{Value{1}} | filter(predicate));
         static_assert(std::is_same_v<T, operand_t>);
 
-        REQUIRE((operand_t{1} | filter(predicate)).value().v == 1);
+        REQUIRE((operand_t{Value{1}} | filter(predicate)).value().v == 1);
       }
 
       WHEN("predicate returns false")
       {
-        using T = decltype(operand_t{42} | filter(predicate));
+        using T = decltype(operand_t{Value{42}} | filter(predicate));
         static_assert(std::is_same_v<T, operand_t>);
 
-        REQUIRE(not(operand_t{42} | filter(predicate)).has_value());
+        REQUIRE(not(operand_t{Value{42}} | filter(predicate)).has_value());
       }
     }
 

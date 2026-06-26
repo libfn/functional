@@ -89,7 +89,7 @@ TEST_CASE("fail", "[fail][expected][expected_value][pack]")
     WHEN("calling member function")
     {
       using operand_t = fn::expected<Value, Error>;
-      operand_t a{std::in_place, 12};
+      operand_t a{std::in_place, Value{12}};
       using T = decltype(a | fail(&Value::fn));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a | fail(&Value::fn)).error().what == "Was 12");
@@ -138,9 +138,9 @@ TEST_CASE("fail", "[fail][expected][expected_value][pack]")
     WHEN("calling member function")
     {
       using operand_t = fn::expected<Value, Error>;
-      using T = decltype(operand_t{std::in_place, 12} | fail(&Value::fn));
+      using T = decltype(operand_t{std::in_place, Value{12}} | fail(&Value::fn));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{std::in_place, 12} | fail(&Value::fn)).error().what == "Was 12");
+      REQUIRE((operand_t{std::in_place, Value{12}} | fail(&Value::fn)).error().what == "Was 12");
     }
   }
 }
@@ -261,7 +261,7 @@ TEST_CASE("fail", "[fail][optional][pack]")
     WHEN("calling member function")
     {
       using operand_t = fn::optional<Value>;
-      operand_t a{std::in_place, 12};
+      operand_t a{std::in_place, Value{12}};
       using T = decltype(a | fail(&Value::finalize));
       static_assert(std::is_same_v<T, operand_t>);
       auto const before = Value::count;
@@ -313,10 +313,10 @@ TEST_CASE("fail", "[fail][optional][pack]")
     WHEN("calling member function")
     {
       using operand_t = fn::optional<Value>;
-      using T = decltype(operand_t{std::in_place, 12} | fail(&Value::finalize));
+      using T = decltype(operand_t{std::in_place, Value{12}} | fail(&Value::finalize));
       static_assert(std::is_same_v<T, operand_t>);
       auto const before = Value::count;
-      REQUIRE(not(operand_t{std::in_place, 12} | fail(&Value::finalize)).has_value());
+      REQUIRE(not(operand_t{std::in_place, Value{12}} | fail(&Value::finalize)).has_value());
       CHECK(Value::count == before + 12);
     }
   }

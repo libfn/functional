@@ -82,7 +82,7 @@ TEST_CASE("inspect expected", "[inspect][expected][expected_value][pack]")
     WHEN("calling member function")
     {
       using operand_t = fn::expected<Value, Error>;
-      operand_t a{std::in_place, 12};
+      operand_t a{std::in_place, Value{12}};
       using T = decltype(a | inspect(&Value::fn));
       static_assert(std::is_same_v<T, operand_t &>);
       auto const before = Value::count;
@@ -142,10 +142,10 @@ TEST_CASE("inspect expected", "[inspect][expected][expected_value][pack]")
     WHEN("calling member function")
     {
       using operand_t = fn::expected<Value, Error>;
-      using T = decltype(operand_t{std::in_place, 12} | inspect(&Value::fn));
+      using T = decltype(operand_t{std::in_place, Value{12}} | inspect(&Value::fn));
       static_assert(std::is_same_v<T, operand_t &&>);
       auto const before = Value::count;
-      REQUIRE((operand_t{std::in_place, 12} | inspect(&Value::fn)).value().value == 12);
+      REQUIRE((operand_t{std::in_place, Value{12}} | inspect(&Value::fn)).value().value == 12);
       CHECK(Value::count == before + 12);
     }
   }
@@ -256,7 +256,7 @@ TEST_CASE("inspect optional", "[inspect][optional][pack]")
     WHEN("calling member function")
     {
       using operand_t = fn::optional<Value>;
-      operand_t a{std::in_place, 12};
+      operand_t a{std::in_place, Value{12}};
       using T = decltype(a | inspect(&Value::fn));
       static_assert(std::is_same_v<T, operand_t &>);
       auto const before = Value::count;
@@ -310,10 +310,10 @@ TEST_CASE("inspect optional", "[inspect][optional][pack]")
     WHEN("calling member function")
     {
       using operand_t = fn::optional<Value>;
-      using T = decltype(operand_t{std::in_place, 12} | inspect(&Value::fn));
+      using T = decltype(operand_t{std::in_place, Value{12}} | inspect(&Value::fn));
       static_assert(std::is_same_v<T, operand_t &&>);
       auto const before = Value::count;
-      REQUIRE((operand_t{std::in_place, 12} | inspect(&Value::fn)).value().value == 12);
+      REQUIRE((operand_t{std::in_place, Value{12}} | inspect(&Value::fn)).value().value == 12);
       CHECK(Value::count == before + 12);
     }
   }
