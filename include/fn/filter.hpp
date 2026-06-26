@@ -81,11 +81,11 @@ struct filter_t::apply final {
    * @param on_err TODO
    * @return TODO
    */
-  [[nodiscard]] constexpr auto operator()(some_expected_non_void auto &&v, auto &&pred, auto &&on_err) const noexcept
-      -> same_monadic_type_as<decltype(v)> auto
-    requires invocable_filter<decltype(pred), decltype(on_err), decltype(v)>
+  template <some_expected_non_void V, typename Pred, typename OnErr>
+  [[nodiscard]] constexpr auto operator()(V &&v, Pred &&pred, OnErr &&on_err) const noexcept -> ::std::remove_cvref_t<V>
+    requires invocable_filter<Pred &&, OnErr &&, V &&>
   {
-    using type = ::std::remove_cvref_t<decltype(v)>;
+    using type = ::std::remove_cvref_t<V>;
     if (::std::as_const(v).has_value()) {
       bool const keep = ::fn::invoke(FWD(pred), ::std::as_const(v).value());
       return (keep ? type{::std::in_place, FWD(v).value()}
@@ -102,11 +102,11 @@ struct filter_t::apply final {
    * @param on_err TODO
    * @return TODO
    */
-  [[nodiscard]] constexpr auto operator()(some_expected_void auto &&v, auto &&pred, auto &&on_err) const noexcept
-      -> same_monadic_type_as<decltype(v)> auto
-    requires invocable_filter<decltype(pred), decltype(on_err), decltype(v)>
+  template <some_expected_void V, typename Pred, typename OnErr>
+  [[nodiscard]] constexpr auto operator()(V &&v, Pred &&pred, OnErr &&on_err) const noexcept -> ::std::remove_cvref_t<V>
+    requires invocable_filter<Pred &&, OnErr &&, V &&>
   {
-    using type = ::std::remove_cvref_t<decltype(v)>;
+    using type = ::std::remove_cvref_t<V>;
     if (::std::as_const(v).has_value()) {
       bool const keep = ::fn::invoke(FWD(pred));
       return (keep ? type{::std::in_place} //
@@ -122,11 +122,11 @@ struct filter_t::apply final {
    * @param pred TODO
    * @return TODO
    */
-  [[nodiscard]] constexpr auto operator()(some_optional auto &&v, auto &&pred) const noexcept
-      -> same_monadic_type_as<decltype(v)> auto
-    requires invocable_filter<decltype(pred), void, decltype(v)>
+  template <some_optional V, typename Pred>
+  [[nodiscard]] constexpr auto operator()(V &&v, Pred &&pred) const noexcept -> ::std::remove_cvref_t<V>
+    requires invocable_filter<Pred &&, void, V &&>
   {
-    using type = ::std::remove_cvref_t<decltype(v)>;
+    using type = ::std::remove_cvref_t<V>;
     if (::std::as_const(v).has_value()) {
       bool const keep = ::fn::invoke(FWD(pred), ::std::as_const(v).value());
       return (keep ? type{::std::in_place, FWD(v).value()} //
