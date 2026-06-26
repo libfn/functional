@@ -66,7 +66,7 @@ TEST_CASE("recover", "[recover][expected][expected_value]")
     }
     WHEN("operand is error")
     {
-      operand_t a{::pfn::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, Error{"Not good"}};
       using T = decltype(a | recover(fnError));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a | recover(fnError)).value() == 8);
@@ -83,9 +83,9 @@ TEST_CASE("recover", "[recover][expected][expected_value]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{::pfn::unexpect, "Not good"} | recover(fnError));
+      using T = decltype(operand_t{::pfn::unexpect, Error{"Not good"}} | recover(fnError));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{::pfn::unexpect, "Not good"} | recover(fnError)).value() == 8);
+      REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} | recover(fnError)).value() == 8);
     }
   }
 }
@@ -128,7 +128,7 @@ TEST_CASE("recover", "[recover][expected][expected_void]")
     }
     WHEN("operand is error")
     {
-      operand_t a{::pfn::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, Error{"Not good"}};
       using T = decltype(a | recover(fnError));
       static_assert(std::is_same_v<T, operand_t>);
       (a | recover(fnError)).value();
@@ -147,9 +147,9 @@ TEST_CASE("recover", "[recover][expected][expected_void]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{::pfn::unexpect, "Not good"} | recover(fnError));
+      using T = decltype(operand_t{::pfn::unexpect, Error{"Not good"}} | recover(fnError));
       static_assert(std::is_same_v<T, operand_t>);
-      (operand_t{::pfn::unexpect, "Not good"} | recover(fnError)).value();
+      (operand_t{::pfn::unexpect, Error{"Not good"}} | recover(fnError)).value();
       REQUIRE(count == 1);
     }
   }

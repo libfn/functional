@@ -62,7 +62,7 @@ TEST_CASE("inspect_error expected", "[inspect_error][expected]")
     }
     WHEN("operand is error")
     {
-      operand_t a{::pfn::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, Error{"Not good"}};
       using T = decltype(a | inspect_error(fnError));
       static_assert(std::is_same_v<T, operand_t &>);
       REQUIRE((a //
@@ -74,7 +74,7 @@ TEST_CASE("inspect_error expected", "[inspect_error][expected]")
     }
     WHEN("calling member function")
     {
-      operand_t a{::pfn::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, Error{"Not good"}};
       using T = decltype(a | inspect_error(&Error::finalize));
       static_assert(std::is_same_v<T, operand_t &>);
       auto const before = Error::count;
@@ -97,9 +97,9 @@ TEST_CASE("inspect_error expected", "[inspect_error][expected]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{::pfn::unexpect, "Not good"} | inspect_error(fnError));
+      using T = decltype(operand_t{::pfn::unexpect, Error{"Not good"}} | inspect_error(fnError));
       static_assert(std::is_same_v<T, operand_t &&>);
-      REQUIRE((operand_t{::pfn::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} //
                | inspect_error(fnError))
                   .error()
                   .what
@@ -108,10 +108,10 @@ TEST_CASE("inspect_error expected", "[inspect_error][expected]")
     }
     WHEN("calling member function")
     {
-      using T = decltype(operand_t{::pfn::unexpect, "Not good"} | inspect_error(&Error::finalize));
+      using T = decltype(operand_t{::pfn::unexpect, Error{"Not good"}} | inspect_error(&Error::finalize));
       static_assert(std::is_same_v<T, operand_t &&>);
       auto const before = Error::count;
-      REQUIRE((operand_t{::pfn::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} //
                | inspect_error(&Error::finalize))
                   .error()
                   .what

@@ -69,7 +69,7 @@ TEST_CASE("transform", "[transform][expected][expected_value][pack]")
     }
     WHEN("operand is error")
     {
-      operand_t a{::pfn::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, Error{"Not good"}};
       using T = decltype(a | transform(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a //
@@ -113,9 +113,9 @@ TEST_CASE("transform", "[transform][expected][expected_value][pack]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{::pfn::unexpect, "Not good"} | transform(wrong));
+      using T = decltype(operand_t{::pfn::unexpect, Error{"Not good"}} | transform(wrong));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{::pfn::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} //
                | transform(wrong))
                   .error()
                   .what
@@ -161,7 +161,7 @@ TEST_CASE("transform", "[transform][expected][expected_void]")
     }
     WHEN("operand is error")
     {
-      operand_t a{::pfn::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, Error{"Not good"}};
       using T = decltype(a | transform(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a //
@@ -190,9 +190,9 @@ TEST_CASE("transform", "[transform][expected][expected_void]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{::pfn::unexpect, "Not good"} | transform(wrong));
+      using T = decltype(operand_t{::pfn::unexpect, Error{"Not good"}} | transform(wrong));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{::pfn::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} //
                | transform(wrong))
                   .error()
                   .what

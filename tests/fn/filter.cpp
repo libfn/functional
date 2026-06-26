@@ -86,7 +86,7 @@ TEST_CASE("filter", "[filter][expected][expected_value]")
 
     WHEN("operand is error")
     {
-      operand_t a{::pfn::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, Error{"Not good"}};
       using T = decltype(a | filter(truePred, wrong));
       static_assert(std::is_same_v<T, operand_t>);
 
@@ -121,10 +121,10 @@ TEST_CASE("filter", "[filter][expected][expected_value]")
 
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{::pfn::unexpect, "Not good"} | filter(truePred, wrong));
+      using T = decltype(operand_t{::pfn::unexpect, Error{"Not good"}} | filter(truePred, wrong));
       static_assert(std::is_same_v<T, operand_t>);
 
-      REQUIRE((operand_t{::pfn::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} //
                | filter(truePred, wrong))
                   .error()
                   .what
@@ -236,7 +236,7 @@ TEST_CASE("filter member function", "[filter][expected][expected_value][member_f
 
     WHEN("operand is error")
     {
-      operand_t a{::pfn::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, Error{"Not good"}};
       using T = decltype(a | filter(predicate, wrong));
       static_assert(std::is_same_v<T, operand_t>);
 
@@ -273,10 +273,10 @@ TEST_CASE("filter member function", "[filter][expected][expected_value][member_f
 
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{::pfn::unexpect, "Not good"} | filter(predicate, wrong));
+      using T = decltype(operand_t{::pfn::unexpect, Error{"Not good"}} | filter(predicate, wrong));
       static_assert(std::is_same_v<T, operand_t>);
 
-      REQUIRE((operand_t{::pfn::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} //
                | filter(predicate, wrong))
                   .error()
                   .what
@@ -333,7 +333,7 @@ TEST_CASE("filter", "[filter][expected][expected_void]")
 
     WHEN("operand is error")
     {
-      operand_t a{::pfn::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, Error{"Not good"}};
       using T = decltype(a | filter(truePred, wrong));
       static_assert(std::is_same_v<T, operand_t>);
 
@@ -368,10 +368,10 @@ TEST_CASE("filter", "[filter][expected][expected_void]")
 
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{::pfn::unexpect, "Not good"} | filter(truePred, wrong));
+      using T = decltype(operand_t{::pfn::unexpect, Error{"Not good"}} | filter(truePred, wrong));
       static_assert(std::is_same_v<T, operand_t>);
 
-      REQUIRE((operand_t{::pfn::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} //
                | filter(truePred, wrong))
                   .error()
                   .what

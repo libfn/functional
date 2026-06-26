@@ -70,7 +70,7 @@ TEST_CASE("inspect expected", "[inspect][expected][expected_value][pack]")
     }
     WHEN("operand is error")
     {
-      operand_t a{::pfn::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, Error{"Not good"}};
       using T = decltype(a | inspect(wrong));
       static_assert(std::is_same_v<T, operand_t &>);
       REQUIRE((a //
@@ -108,7 +108,7 @@ TEST_CASE("inspect expected", "[inspect][expected][expected_value][pack]")
     WHEN("operand is error")
     {
       using operand_t = fn::expected<fn::pack<int, double>, Error>;
-      operand_t a{::pfn::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, Error{"Not good"}};
       constexpr auto wrong = [](auto...) { throw 0; };
       using T = decltype(a | inspect(wrong));
       static_assert(std::is_same_v<T, operand_t &>);
@@ -131,9 +131,9 @@ TEST_CASE("inspect expected", "[inspect][expected][expected_value][pack]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{::pfn::unexpect, "Not good"} | inspect(wrong));
+      using T = decltype(operand_t{::pfn::unexpect, Error{"Not good"}} | inspect(wrong));
       static_assert(std::is_same_v<T, operand_t &&>);
-      REQUIRE((operand_t{::pfn::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} //
                | inspect(wrong))
                   .error()
                   .what
@@ -180,7 +180,7 @@ TEST_CASE("inspect void expected", "[inspect][expected][expected_void]")
     }
     WHEN("operand is error")
     {
-      operand_t a{::pfn::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, Error{"Not good"}};
       using T = decltype(a | inspect(wrong));
       static_assert(std::is_same_v<T, operand_t &>);
       REQUIRE((a //
@@ -202,9 +202,9 @@ TEST_CASE("inspect void expected", "[inspect][expected][expected_void]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{::pfn::unexpect, "Not good"} | inspect(wrong));
+      using T = decltype(operand_t{::pfn::unexpect, Error{"Not good"}} | inspect(wrong));
       static_assert(std::is_same_v<T, operand_t &&>);
-      REQUIRE((operand_t{::pfn::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} //
                | inspect(wrong))
                   .error()
                   .what

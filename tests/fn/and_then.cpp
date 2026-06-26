@@ -339,7 +339,8 @@ TEST_CASE("and_then", "[and_then][expected][expected_value][pack]")
 
   constexpr auto fnValue = [](int i) -> operand_t { return {i + 1}; };
   constexpr auto wrong = [](int) -> operand_t { throw 0; };
-  constexpr auto fnFail = [](int i) -> operand_t { return ::pfn::unexpected<Error>("Got " + std::to_string(i)); };
+  constexpr auto fnFail
+      = [](int i) -> operand_t { return ::pfn::unexpected<Error>(Error{"Got " + std::to_string(i)}); };
   constexpr auto fnXabs = [](int i) -> fn::expected<Xint, Error> { return {{std::abs(8 - i)}}; };
 
   static_assert(is::invocable_with_any(fnValue));
@@ -387,7 +388,7 @@ TEST_CASE("and_then", "[and_then][expected][expected_value][pack]")
 
     WHEN("operand is error")
     {
-      operand_t a{::pfn::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, Error{"Not good"}};
       using T = decltype(a | and_then(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a //
@@ -411,7 +412,7 @@ TEST_CASE("and_then", "[and_then][expected][expected_value][pack]")
         WHEN("fail")
         {
           constexpr auto fnFail = [](int i, double d) constexpr -> fn::expected<int, Error> {
-            return ::pfn::unexpected<Error>("Got " + std::to_string(i) + " and " + std::to_string(d));
+            return ::pfn::unexpected<Error>(Error{"Got " + std::to_string(i) + " and " + std::to_string(d)});
           };
           using T = decltype(a | and_then(fnFail));
           static_assert(std::is_same_v<T, fn::expected<int, Error>>);
@@ -451,9 +452,9 @@ TEST_CASE("and_then", "[and_then][expected][expected_value][pack]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{::pfn::unexpect, "Not good"} | and_then(wrong));
+      using T = decltype(operand_t{::pfn::unexpect, Error{"Not good"}} | and_then(wrong));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{::pfn::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} //
                | and_then(wrong))
                   .error()
                   .what
@@ -478,7 +479,7 @@ TEST_CASE("and_then", "[and_then][expected][expected_void]")
   };
 
   constexpr auto wrong = []() -> operand_t { throw 0; };
-  auto fnFail = [&count]() -> operand_t { return ::pfn::unexpected<Error>("Got " + std::to_string(++count)); };
+  auto fnFail = [&count]() -> operand_t { return ::pfn::unexpected<Error>(Error{"Got " + std::to_string(++count)}); };
   auto fnXabs = [&count]() -> fn::expected<Xint, Error> { return {{++count}}; };
 
   static_assert(is::invocable_with_any(fnValue));
@@ -514,7 +515,7 @@ TEST_CASE("and_then", "[and_then][expected][expected_void]")
     }
     WHEN("operand is error")
     {
-      operand_t a{::pfn::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, Error{"Not good"}};
       using T = decltype(a | and_then(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a //
@@ -550,9 +551,9 @@ TEST_CASE("and_then", "[and_then][expected][expected_void]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{::pfn::unexpect, "Not good"} | and_then(wrong));
+      using T = decltype(operand_t{::pfn::unexpect, Error{"Not good"}} | and_then(wrong));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{::pfn::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} //
                | and_then(wrong))
                   .error()
                   .what
@@ -1018,9 +1019,9 @@ struct Value final {};
 template <typename T> constexpr auto fn_int = [](int) -> T { throw 0; };
 template <typename T> constexpr auto fn_generic = [](auto &&...) -> T { throw 0; };
 template <typename T> constexpr auto fn_int_lvalue = [](int &) -> T { throw 0; };
-template <typename T> constexpr auto fn_int_const_lvalue = [](int const &) -> T { throw 0; };
+template <typename T> [[maybe_unused]] constexpr auto fn_int_const_lvalue = [](int const &) -> T { throw 0; };
 template <typename T> constexpr auto fn_int_rvalue = [](int &&) -> T { throw 0; };
-template <typename T> constexpr auto fn_int_const_rvalue = [](int const &&) -> T { throw 0; };
+template <typename T> [[maybe_unused]] constexpr auto fn_int_const_rvalue = [](int const &&) -> T { throw 0; };
 
 } // namespace
 
