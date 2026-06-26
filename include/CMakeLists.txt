@@ -102,7 +102,7 @@ set(INCLUDE_FN_HEADERS
 
 if(NOT DISABLE_CXX23)
     add_library(include_fn INTERFACE)
-    set_property(TARGET include_fn PROPERTY CXX_STANDARD 23)
+    set_property(TARGET include_fn PROPERTY CXX_STANDARD 20)
     target_sources(include_fn INTERFACE
         FILE_SET include_fn_headers
         TYPE HEADERS
@@ -113,7 +113,7 @@ if(NOT DISABLE_CXX23)
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
     set_target_properties(include_fn PROPERTIES EXPORT_NAME fn)
     target_link_libraries(include_fn INTERFACE include_pfn)
-    target_compile_features(include_fn INTERFACE cxx_std_23)
+    target_compile_features(include_fn INTERFACE cxx_std_20)
 
     install(TARGETS include_fn
         EXPORT libfnTargets

@@ -405,18 +405,18 @@ TEST_CASE("constexpr transform expected", "[transform][constexpr][expected]")
 TEST_CASE("constexpr transform expected with sum", "[transform][constexpr][expected][sum]")
 {
   enum class Error { ThresholdExceeded, SomethingElse };
-  using T = fn::expected<fn::sum<Xint, int>, Error>;
+  using T = fn::expected<fn::sum_for<Xint, int>, Error>;
 
   WHEN("same value type")
   {
-    constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> fn::sum<Xint, int> {
+    constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> fn::sum_for<Xint, int> {
                                        if (i < 3)
                                          return {i + 1};
                                        return i;
                                      },
-                                     [](Xint v) constexpr noexcept -> fn::sum<Xint, int> { return v.value; }};
+                                     [](Xint v) constexpr noexcept -> fn::sum_for<Xint, int> { return v.value; }};
     constexpr auto r1 = T{0} | fn::transform(fn);
-    static_assert(std::is_same_v<decltype(r1), fn::expected<fn::sum<Xint, int>, Error> const>);
+    static_assert(std::is_same_v<decltype(r1), fn::expected<fn::sum_for<Xint, int>, Error> const>);
     static_assert(r1.value() == fn::sum{1});
     constexpr auto r2 = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
     static_assert(r2.value() == fn::sum{3});
@@ -486,18 +486,18 @@ TEST_CASE("constexpr transform optional", "[transform][constexpr][optional]")
 
 TEST_CASE("constexpr transform optional with sum", "[transform][constexpr][optional][sum]")
 {
-  using T = fn::optional<fn::sum<Xint, int>>;
+  using T = fn::optional<fn::sum_for<Xint, int>>;
 
   WHEN("same value type")
   {
-    constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> fn::sum<Xint, int> {
+    constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> fn::sum_for<Xint, int> {
                                        if (i < 3)
                                          return {i + 1};
                                        return i;
                                      },
-                                     [](Xint v) constexpr noexcept -> fn::sum<Xint, int> { return v.value; }};
+                                     [](Xint v) constexpr noexcept -> fn::sum_for<Xint, int> { return v.value; }};
     constexpr auto r1 = T{0} | fn::transform(fn);
-    static_assert(std::is_same_v<decltype(r1), fn::optional<fn::sum<Xint, int>> const>);
+    static_assert(std::is_same_v<decltype(r1), fn::optional<fn::sum_for<Xint, int>> const>);
     static_assert(r1.value() == fn::sum{1});
     constexpr auto r2 = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
     static_assert(r2.value() == fn::sum{3});

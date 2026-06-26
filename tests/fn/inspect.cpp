@@ -348,7 +348,7 @@ TEST_CASE("inspect choice", "[inspect][choice]")
     SUCCEED();
   }
 
-  using operand_t = fn::choice<Value, int>;
+  using operand_t = fn::choice_for<Value, int>;
   using is = monadic_static_check<inspect_t, operand_t>;
 
   static_assert(is::invocable_with_any([](auto) {}));

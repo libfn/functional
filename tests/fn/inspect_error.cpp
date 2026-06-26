@@ -22,7 +22,7 @@ struct Error final {
   static int count;
 
   operator std::string_view() const { return what; }
-  auto finalize() const & -> void { count += what.size(); }
+  auto finalize() const & -> void { count += static_cast<int>(what.size()); }
 };
 
 int Error::count = 0;
@@ -192,7 +192,7 @@ TEST_CASE("constexpr inspect_error expected", "[inspect_error][constexpr][expect
 TEST_CASE("constexpr inspect_error expected with sum", "[inspect_error][constexpr][expected][sum]")
 {
   enum class Error { ThresholdExceeded, SomethingElse };
-  using T = fn::expected<int, fn::sum<Error, bool>>;
+  using T = fn::expected<int, fn::sum_for<Error, bool>>;
   constexpr auto fn = fn::overload{[](Error) constexpr noexcept -> void {}, [](bool) constexpr noexcept -> void {}};
   constexpr auto r1 = T{0} | fn::inspect_error(fn);
   static_assert(r1.value() == 0);

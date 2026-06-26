@@ -607,7 +607,7 @@ TEST_CASE("constexpr filter expected", "[filter][constexpr][expected]")
 TEST_CASE("constexpr filter expected with sum", "[filter][constexpr][expected][sum]")
 {
   enum class Error { ThresholdExceeded, SomethingElse };
-  using T = fn::expected<fn::sum<Value, int>, Error>;
+  using T = fn::expected<fn::sum_for<Value, int>, Error>;
 
   constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> bool { return i < 3; },
                                    [](Value const &v) constexpr noexcept -> bool { return v.v >= 5; }};
@@ -641,7 +641,7 @@ TEST_CASE("constexpr filter optional", "[filter][constexpr][optional]")
 
 TEST_CASE("constexpr filter optional with sum", "[filter][constexpr][optional][sum]")
 {
-  using T = fn::optional<fn::sum<Value, int>>;
+  using T = fn::optional<fn::sum_for<Value, int>>;
 
   constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> bool { return i < 3; },
                                    [](Value const &v) constexpr noexcept -> bool { return v.v >= 5; }};

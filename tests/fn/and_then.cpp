@@ -798,7 +798,7 @@ TEST_CASE("constexpr and_then expected", "[and_then][constexpr][expected]")
 TEST_CASE("constexpr and_then expected with sum", "[and_then][constexpr][expected][sum]")
 {
   enum class Error { ThresholdExceeded, SomethingElse, UnexpectedType };
-  using T = fn::expected<fn::sum<Xint, int>, Error>;
+  using T = fn::expected<fn::sum_for<Xint, int>, Error>;
 
   WHEN("same value type")
   {
@@ -852,7 +852,7 @@ TEST_CASE("constexpr and_then graded monad", "[and_then][constexpr][expected][gr
     };
 
     constexpr auto r1 = T{0} | fn::and_then(fn1);
-    static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::sum<Error, int>> const>);
+    static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::sum_for<Error, int>> const>);
     static_assert(r1.value() == 1);
     constexpr auto r2 = r1 | fn::and_then(fn1);
     static_assert(r2.value() == 2);
@@ -878,7 +878,7 @@ TEST_CASE("constexpr and_then graded monad", "[and_then][constexpr][expected][gr
 
     constexpr auto fn3 = [](int i) -> fn::expected<int, int> { return {i + 1}; };
     constexpr auto r4 = r3 | fn::and_then(fn3);
-    static_assert(std::is_same_v<decltype(r4), fn::expected<int, fn::sum<Error, int>> const>);
+    static_assert(std::is_same_v<decltype(r4), fn::expected<int, fn::sum_for<Error, int>> const>);
     static_assert(r4.error() == fn::sum{Error::InvalidValue});
     constexpr auto r5 = T{2} | fn::and_then(fn3);
     static_assert(r5.value() == 3);
@@ -928,7 +928,7 @@ TEST_CASE("constexpr and_then optional", "[and_then][constexpr][optional]")
 
 TEST_CASE("constexpr and_then optional with sum", "[and_then][constexpr][optional][sum]")
 {
-  using T = fn::optional<fn::sum<Xint, int>>;
+  using T = fn::optional<fn::sum_for<Xint, int>>;
 
   WHEN("same value type")
   {

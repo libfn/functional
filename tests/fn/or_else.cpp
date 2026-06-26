@@ -24,7 +24,7 @@ struct Error final {
   template <typename T> auto fn() noexcept -> T { return {what.size()}; }
   template <typename T> auto finalize() noexcept -> T
   {
-    count += what.size();
+    count += static_cast<int>(what.size());
     return {};
   }
 };
@@ -387,14 +387,14 @@ TEST_CASE("constexpr or_else expected", "[or_else][constexpr][expected]")
 TEST_CASE("constexpr or_else expected with sum", "[or_else][constexpr][expected][sum]")
 {
   enum class Error { ThresholdExceeded, SomethingElse, UnexpectedType };
-  using T = fn::expected<int, fn::sum<Error, int>>;
+  using T = fn::expected<int, fn::sum_for<Error, int>>;
 
   WHEN("same error type")
   {
     constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> T {
                                        if (i < 3)
                                          return {i + 1};
-                                       return ::pfn::unexpected<fn::sum<Error, int>>{Error::ThresholdExceeded};
+                                       return ::pfn::unexpected<fn::sum_for<Error, int>>{Error::ThresholdExceeded};
                                      },
                                      [](Error v) constexpr noexcept -> T { return {static_cast<int>(v)}; }};
     constexpr auto r1 = T{::pfn::unexpect, 0} | fn::or_else(fn);

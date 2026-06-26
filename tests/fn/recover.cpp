@@ -31,7 +31,7 @@ TEST_CASE("recover", "[recover][expected][expected_value]")
   using operand_t = fn::expected<int, Error>;
   using is = monadic_static_check<recover_t, operand_t>;
 
-  constexpr auto fnError = [](Error e) -> int { return e.what.size(); };
+  constexpr auto fnError = [](Error e) -> int { return static_cast<int>(e.what.size()); };
   constexpr auto wrong = [](Error) -> int { throw 0; };
 
   static_assert(std::is_same_v<operand_t,
@@ -234,7 +234,7 @@ TEST_CASE("constexpr recover expected", "[recover][constexpr][expected]")
 TEST_CASE("constexpr recover expected with sum", "[recover][constexpr][expected][sum]")
 {
   enum class Error { ThresholdExceeded, SomethingElse };
-  using T = fn::expected<int, fn::sum<Error, bool>>;
+  using T = fn::expected<int, fn::sum_for<Error, bool>>;
 
   constexpr auto fn = fn::overload{[](Error e) constexpr noexcept -> int {
                                      if (e == Error::SomethingElse)

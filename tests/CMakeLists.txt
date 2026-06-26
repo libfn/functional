@@ -128,25 +128,6 @@ set(TESTS_FN_SOURCES
     fn/value_or.cpp
 )
 
-set(TESTS_FN_SOURCES_CXX20
-    fn/detail/functional.cpp
-    fn/detail/macro_deduced_return.cpp
-    fn/detail/macro_fwd.cpp
-    fn/detail/meta.cpp
-    fn/detail/pack_impl.cpp
-    fn/detail/traits.cpp
-    fn/detail/variadic_union.cpp
-    fn/choice.cpp
-    fn/concepts.cpp
-    fn/expected.cpp
-    fn/functional.cpp
-    fn/functor.cpp
-    fn/optional.cpp
-    fn/pack.cpp
-    fn/sum.cpp
-    fn/utility.cpp
-)
-
 # Generate separate target for each individual test source
 foreach(mode 20 23)
     if(${mode} EQUAL 23 AND DISABLE_CXX23)
@@ -155,14 +136,7 @@ foreach(mode 20 23)
     endif()
 
     foreach(source IN ITEMS ${TESTS_FN_SOURCES})
-        # Some fn files are not compatible with C++20 - see the list above.
-        if(mode EQUAL 20 AND NOT source IN_LIST TESTS_FN_SOURCES_CXX20)
-            continue()
-        endif()
-
-        # fn-on-MSVC port is in progress; for now MSVC attempts only the C++20
-        # fn test subset (TESTS_FN_SOURCES_CXX20) — the cxx23 lane and the
-        # remaining fn surface (choice, verbs, ...) are not MSVC-ready yet.
+        # Current releases of MSVC only support C++20
         if(MSVC AND NOT (mode EQUAL 20))
             continue()
         endif()
