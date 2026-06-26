@@ -55,12 +55,11 @@ struct value_or_t::apply final {
    */
   template <some_monadic_type V, typename... Args>
   [[nodiscard]] constexpr auto operator()(V &&v, Args &&...args) const noexcept //
-      -> same_value_kind<V &&> auto
+      -> ::std::remove_cvref_t<V>
     requires invocable_value_or<V &&, Args...>
   {
-    return FWD(v).or_else([&](auto &&...) -> ::std::remove_cvref_t<V> {
-      return ::std::remove_cvref_t<V>{::std::in_place, FWD(args)...};
-    });
+    using type = ::std::remove_cvref_t<V>;
+    return FWD(v).or_else([&](auto &&...) -> type { return type{::std::in_place, FWD(args)...}; });
   }
 
   // No support for choice since there's no error to recover from
