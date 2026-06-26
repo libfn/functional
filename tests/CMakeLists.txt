@@ -160,9 +160,10 @@ foreach(mode 20 23)
             continue()
         endif()
 
-        # fn is not yet MSVC-compatible: meta.hpp derives type ordering from
-        # GCC/Clang-specific __PRETTY_FUNCTION__. MSVC builds only pfn for now.
-        if(MSVC)
+        # fn-on-MSVC port is in progress; for now MSVC attempts only the C++20
+        # fn test subset (TESTS_FN_SOURCES_CXX20) — the cxx23 lane and the
+        # remaining fn surface (choice, verbs, ...) are not MSVC-ready yet.
+        if(MSVC AND NOT (mode EQUAL 20))
             continue()
         endif()
 
