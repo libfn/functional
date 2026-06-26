@@ -18,6 +18,9 @@ struct Xint {
   int value;
   constexpr bool operator==(Xint const &) const noexcept = default;
 };
+
+// Sums whose alternatives include a non-builtin (Error/Xint/std::string_view/fn::pack — any
+// class/struct/enum) have platform-specific order (see sum.cpp); pure-builtin sums keep `sum<...>`.
 } // namespace
 
 TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value][sum_error]")
@@ -213,26 +216,26 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
       fn::expected<int, fn::sum<Error>> s{12};
 
       constexpr auto fn1 = [](int) -> fn::expected<int, bool> { throw 0; };
-      static_assert(std::is_same_v<decltype(s.and_then(fn1)), fn::expected<int, fn::sum<Error, bool>>>);
+      static_assert(std::is_same_v<decltype(s.and_then(fn1)), fn::expected<int, fn::sum_for<Error, bool>>>);
       constexpr auto fn2 = [](int) -> fn::expected<int, Error> { throw 0; };
       static_assert(std::is_same_v<decltype(s.and_then(fn2)), fn::expected<int, fn::sum<Error>>>);
       constexpr auto fn3 = [](int) -> fn::expected<int, fn::sum<Error>> { throw 0; };
       static_assert(std::is_same_v<decltype(s.and_then(fn3)), fn::expected<int, fn::sum<Error>>>);
       constexpr auto fn4 = [](int) -> fn::expected<int, fn::sum<bool>> { throw 0; };
-      static_assert(std::is_same_v<decltype(s.and_then(fn4)), fn::expected<int, fn::sum<Error, bool>>>);
-      constexpr auto fn5 = [](int) -> fn::expected<int, fn::sum<Error, bool>> { throw 0; };
-      static_assert(std::is_same_v<decltype(s.and_then(fn5)), fn::expected<int, fn::sum<Error, bool>>>);
+      static_assert(std::is_same_v<decltype(s.and_then(fn4)), fn::expected<int, fn::sum_for<Error, bool>>>);
+      constexpr auto fn5 = [](int) -> fn::expected<int, fn::sum_for<Error, bool>> { throw 0; };
+      static_assert(std::is_same_v<decltype(s.and_then(fn5)), fn::expected<int, fn::sum_for<Error, bool>>>);
       constexpr auto fn6 = [](int) -> fn::expected<int, fn::sum<bool, int>> { throw 0; };
-      static_assert(std::is_same_v<decltype(s.and_then(fn6)), fn::expected<int, fn::sum<Error, bool, int>>>);
-      constexpr auto fn7 = [](int) -> fn::expected<int, fn::sum<Error, bool, int>> { throw 0; };
-      static_assert(std::is_same_v<decltype(s.and_then(fn7)), fn::expected<int, fn::sum<Error, bool, int>>>);
-      constexpr auto fn8 = [](int) -> fn::expected<Xint, fn::sum<Error, bool, int>> { throw 0; };
-      static_assert(std::is_same_v<decltype(s.and_then(fn8)), fn::expected<Xint, fn::sum<Error, bool, int>>>);
+      static_assert(std::is_same_v<decltype(s.and_then(fn6)), fn::expected<int, fn::sum_for<Error, bool, int>>>);
+      constexpr auto fn7 = [](int) -> fn::expected<int, fn::sum_for<Error, bool, int>> { throw 0; };
+      static_assert(std::is_same_v<decltype(s.and_then(fn7)), fn::expected<int, fn::sum_for<Error, bool, int>>>);
+      constexpr auto fn8 = [](int) -> fn::expected<Xint, fn::sum_for<Error, bool, int>> { throw 0; };
+      static_assert(std::is_same_v<decltype(s.and_then(fn8)), fn::expected<Xint, fn::sum_for<Error, bool, int>>>);
 
       WHEN("value to value")
       {
         constexpr auto fn = [](int i) -> fn::expected<int, bool> { return {i + 12}; };
-        static_assert(std::is_same_v<decltype(s.and_then(fn)), fn::expected<int, fn::sum<Error, bool>>>);
+        static_assert(std::is_same_v<decltype(s.and_then(fn)), fn::expected<int, fn::sum_for<Error, bool>>>);
         CHECK(s.and_then(fn).value() == 24);
         CHECK(std::as_const(s).and_then(fn).value() == 24);
         CHECK(std::move(std::as_const(s)).and_then(fn).value() == 24);
@@ -242,7 +245,7 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
       WHEN("value to error")
       {
         constexpr auto fn = [](int i) -> fn::expected<int, bool> { return ::pfn::unexpected<bool>(i >= 1); };
-        static_assert(std::is_same_v<decltype(s.and_then(fn)), fn::expected<int, fn::sum<Error, bool>>>);
+        static_assert(std::is_same_v<decltype(s.and_then(fn)), fn::expected<int, fn::sum_for<Error, bool>>>);
         CHECK(s.and_then(fn).error() == fn::sum{true});
         CHECK(std::as_const(s).and_then(fn).error() == fn::sum{true});
         CHECK(std::move(std::as_const(s)).and_then(fn).error() == fn::sum{true});
@@ -253,7 +256,7 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
       {
         fn::expected<int, fn::sum<Error>> s{::pfn::unexpect, fn::sum{FileNotFound}};
         constexpr auto fn = [](int) -> fn::expected<int, bool> { throw 0; };
-        static_assert(std::is_same_v<decltype(s.and_then(fn)), fn::expected<int, fn::sum<Error, bool>>>);
+        static_assert(std::is_same_v<decltype(s.and_then(fn)), fn::expected<int, fn::sum_for<Error, bool>>>);
         CHECK(s.and_then(fn).error() == fn::sum{FileNotFound});
         CHECK(s.and_then(fn).error() != fn::sum{false});
         CHECK(s.and_then(fn).error() != fn::sum{true});
@@ -268,24 +271,24 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
       fn::expected<void, fn::sum<Error>> s{};
 
       constexpr auto fn1 = []() -> fn::expected<int, bool> { throw 0; };
-      static_assert(std::is_same_v<decltype(s.and_then(fn1)), fn::expected<int, fn::sum<Error, bool>>>);
+      static_assert(std::is_same_v<decltype(s.and_then(fn1)), fn::expected<int, fn::sum_for<Error, bool>>>);
       constexpr auto fn2 = []() -> fn::expected<int, Error> { throw 0; };
       static_assert(std::is_same_v<decltype(s.and_then(fn2)), fn::expected<int, fn::sum<Error>>>);
       constexpr auto fn3 = []() -> fn::expected<int, fn::sum<Error>> { throw 0; };
       static_assert(std::is_same_v<decltype(s.and_then(fn3)), fn::expected<int, fn::sum<Error>>>);
       constexpr auto fn4 = []() -> fn::expected<int, fn::sum<bool>> { throw 0; };
-      static_assert(std::is_same_v<decltype(s.and_then(fn4)), fn::expected<int, fn::sum<Error, bool>>>);
-      constexpr auto fn5 = []() -> fn::expected<int, fn::sum<Error, bool>> { throw 0; };
-      static_assert(std::is_same_v<decltype(s.and_then(fn5)), fn::expected<int, fn::sum<Error, bool>>>);
+      static_assert(std::is_same_v<decltype(s.and_then(fn4)), fn::expected<int, fn::sum_for<Error, bool>>>);
+      constexpr auto fn5 = []() -> fn::expected<int, fn::sum_for<Error, bool>> { throw 0; };
+      static_assert(std::is_same_v<decltype(s.and_then(fn5)), fn::expected<int, fn::sum_for<Error, bool>>>);
       constexpr auto fn6 = []() -> fn::expected<int, fn::sum<bool, int>> { throw 0; };
-      static_assert(std::is_same_v<decltype(s.and_then(fn6)), fn::expected<int, fn::sum<Error, bool, int>>>);
-      constexpr auto fn7 = []() -> fn::expected<int, fn::sum<Error, bool, int>> { throw 0; };
-      static_assert(std::is_same_v<decltype(s.and_then(fn7)), fn::expected<int, fn::sum<Error, bool, int>>>);
+      static_assert(std::is_same_v<decltype(s.and_then(fn6)), fn::expected<int, fn::sum_for<Error, bool, int>>>);
+      constexpr auto fn7 = []() -> fn::expected<int, fn::sum_for<Error, bool, int>> { throw 0; };
+      static_assert(std::is_same_v<decltype(s.and_then(fn7)), fn::expected<int, fn::sum_for<Error, bool, int>>>);
 
       WHEN("value to value")
       {
         constexpr auto fn = []() -> fn::expected<int, bool> { return {12}; };
-        static_assert(std::is_same_v<decltype(s.and_then(fn)), fn::expected<int, fn::sum<Error, bool>>>);
+        static_assert(std::is_same_v<decltype(s.and_then(fn)), fn::expected<int, fn::sum_for<Error, bool>>>);
         CHECK(s.and_then(fn).value() == 12);
         CHECK(std::as_const(s).and_then(fn).value() == 12);
         CHECK(std::move(std::as_const(s)).and_then(fn).value() == 12);
@@ -295,7 +298,7 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
       WHEN("value to error")
       {
         constexpr auto fn = []() -> fn::expected<int, bool> { return ::pfn::unexpected<bool>(true); };
-        static_assert(std::is_same_v<decltype(s.and_then(fn)), fn::expected<int, fn::sum<Error, bool>>>);
+        static_assert(std::is_same_v<decltype(s.and_then(fn)), fn::expected<int, fn::sum_for<Error, bool>>>);
         CHECK(s.and_then(fn).error() == fn::sum{true});
         CHECK(std::as_const(s).and_then(fn).error() == fn::sum{true});
         CHECK(std::move(std::as_const(s)).and_then(fn).error() == fn::sum{true});
@@ -306,7 +309,7 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
       {
         fn::expected<void, fn::sum<Error>> s{::pfn::unexpect, fn::sum{FileNotFound}};
         constexpr auto fn = []() -> fn::expected<int, bool> { throw 0; };
-        static_assert(std::is_same_v<decltype(s.and_then(fn)), fn::expected<int, fn::sum<Error, bool>>>);
+        static_assert(std::is_same_v<decltype(s.and_then(fn)), fn::expected<int, fn::sum_for<Error, bool>>>);
         CHECK(s.and_then(fn).error() == fn::sum{FileNotFound});
         CHECK(s.and_then(fn).error() != fn::sum{false});
         CHECK(s.and_then(fn).error() != fn::sum{true});
@@ -321,24 +324,24 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
       fn::expected<int, fn::sum<Error>> s{12};
 
       constexpr auto fn1 = [](int) -> fn::expected<void, bool> { throw 0; };
-      static_assert(std::is_same_v<decltype(s.and_then(fn1)), fn::expected<void, fn::sum<Error, bool>>>);
+      static_assert(std::is_same_v<decltype(s.and_then(fn1)), fn::expected<void, fn::sum_for<Error, bool>>>);
       constexpr auto fn2 = [](int) -> fn::expected<void, Error> { throw 0; };
       static_assert(std::is_same_v<decltype(s.and_then(fn2)), fn::expected<void, fn::sum<Error>>>);
       constexpr auto fn3 = [](int) -> fn::expected<void, fn::sum<Error>> { throw 0; };
       static_assert(std::is_same_v<decltype(s.and_then(fn3)), fn::expected<void, fn::sum<Error>>>);
       constexpr auto fn4 = [](int) -> fn::expected<void, fn::sum<bool>> { throw 0; };
-      static_assert(std::is_same_v<decltype(s.and_then(fn4)), fn::expected<void, fn::sum<Error, bool>>>);
-      constexpr auto fn5 = [](int) -> fn::expected<void, fn::sum<Error, bool>> { throw 0; };
-      static_assert(std::is_same_v<decltype(s.and_then(fn5)), fn::expected<void, fn::sum<Error, bool>>>);
+      static_assert(std::is_same_v<decltype(s.and_then(fn4)), fn::expected<void, fn::sum_for<Error, bool>>>);
+      constexpr auto fn5 = [](int) -> fn::expected<void, fn::sum_for<Error, bool>> { throw 0; };
+      static_assert(std::is_same_v<decltype(s.and_then(fn5)), fn::expected<void, fn::sum_for<Error, bool>>>);
       constexpr auto fn6 = [](int) -> fn::expected<void, fn::sum<bool, int>> { throw 0; };
-      static_assert(std::is_same_v<decltype(s.and_then(fn6)), fn::expected<void, fn::sum<Error, bool, int>>>);
-      constexpr auto fn7 = [](int) -> fn::expected<void, fn::sum<Error, bool, int>> { throw 0; };
-      static_assert(std::is_same_v<decltype(s.and_then(fn7)), fn::expected<void, fn::sum<Error, bool, int>>>);
+      static_assert(std::is_same_v<decltype(s.and_then(fn6)), fn::expected<void, fn::sum_for<Error, bool, int>>>);
+      constexpr auto fn7 = [](int) -> fn::expected<void, fn::sum_for<Error, bool, int>> { throw 0; };
+      static_assert(std::is_same_v<decltype(s.and_then(fn7)), fn::expected<void, fn::sum_for<Error, bool, int>>>);
 
       WHEN("value to value")
       {
         constexpr auto fn = [](int) -> fn::expected<void, bool> { return {}; };
-        static_assert(std::is_same_v<decltype(s.and_then(fn)), fn::expected<void, fn::sum<Error, bool>>>);
+        static_assert(std::is_same_v<decltype(s.and_then(fn)), fn::expected<void, fn::sum_for<Error, bool>>>);
         CHECK(s.and_then(fn).has_value());
         CHECK(std::as_const(s).and_then(fn).has_value());
         CHECK(std::move(std::as_const(s)).and_then(fn).has_value());
@@ -348,7 +351,7 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
       WHEN("value to error")
       {
         constexpr auto fn = [](int i) -> fn::expected<void, bool> { return ::pfn::unexpected<bool>(i >= 1); };
-        static_assert(std::is_same_v<decltype(s.and_then(fn)), fn::expected<void, fn::sum<Error, bool>>>);
+        static_assert(std::is_same_v<decltype(s.and_then(fn)), fn::expected<void, fn::sum_for<Error, bool>>>);
         CHECK(s.and_then(fn).error() == fn::sum{true});
         CHECK(std::as_const(s).and_then(fn).error() == fn::sum{true});
         CHECK(std::move(std::as_const(s)).and_then(fn).error() == fn::sum{true});
@@ -359,7 +362,7 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
       {
         fn::expected<int, fn::sum<Error>> s{::pfn::unexpect, fn::sum{FileNotFound}};
         constexpr auto fn = [](int) -> fn::expected<void, bool> { throw 0; };
-        static_assert(std::is_same_v<decltype(s.and_then(fn)), fn::expected<void, fn::sum<Error, bool>>>);
+        static_assert(std::is_same_v<decltype(s.and_then(fn)), fn::expected<void, fn::sum_for<Error, bool>>>);
         CHECK(s.and_then(fn).error() == fn::sum{FileNotFound});
         CHECK(s.and_then(fn).error() != fn::sum{false});
         CHECK(s.and_then(fn).error() != fn::sum{true});
@@ -374,24 +377,24 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
       fn::expected<void, fn::sum<Error>> s{};
 
       constexpr auto fn1 = []() -> fn::expected<void, bool> { throw 0; };
-      static_assert(std::is_same_v<decltype(s.and_then(fn1)), fn::expected<void, fn::sum<Error, bool>>>);
+      static_assert(std::is_same_v<decltype(s.and_then(fn1)), fn::expected<void, fn::sum_for<Error, bool>>>);
       constexpr auto fn2 = []() -> fn::expected<void, Error> { throw 0; };
       static_assert(std::is_same_v<decltype(s.and_then(fn2)), fn::expected<void, fn::sum<Error>>>);
       constexpr auto fn3 = []() -> fn::expected<void, fn::sum<Error>> { throw 0; };
       static_assert(std::is_same_v<decltype(s.and_then(fn3)), fn::expected<void, fn::sum<Error>>>);
       constexpr auto fn4 = []() -> fn::expected<void, fn::sum<bool>> { throw 0; };
-      static_assert(std::is_same_v<decltype(s.and_then(fn4)), fn::expected<void, fn::sum<Error, bool>>>);
-      constexpr auto fn5 = []() -> fn::expected<void, fn::sum<Error, bool>> { throw 0; };
-      static_assert(std::is_same_v<decltype(s.and_then(fn5)), fn::expected<void, fn::sum<Error, bool>>>);
+      static_assert(std::is_same_v<decltype(s.and_then(fn4)), fn::expected<void, fn::sum_for<Error, bool>>>);
+      constexpr auto fn5 = []() -> fn::expected<void, fn::sum_for<Error, bool>> { throw 0; };
+      static_assert(std::is_same_v<decltype(s.and_then(fn5)), fn::expected<void, fn::sum_for<Error, bool>>>);
       constexpr auto fn6 = []() -> fn::expected<void, fn::sum<bool, int>> { throw 0; };
-      static_assert(std::is_same_v<decltype(s.and_then(fn6)), fn::expected<void, fn::sum<Error, bool, int>>>);
-      constexpr auto fn7 = []() -> fn::expected<void, fn::sum<Error, bool, int>> { throw 0; };
-      static_assert(std::is_same_v<decltype(s.and_then(fn7)), fn::expected<void, fn::sum<Error, bool, int>>>);
+      static_assert(std::is_same_v<decltype(s.and_then(fn6)), fn::expected<void, fn::sum_for<Error, bool, int>>>);
+      constexpr auto fn7 = []() -> fn::expected<void, fn::sum_for<Error, bool, int>> { throw 0; };
+      static_assert(std::is_same_v<decltype(s.and_then(fn7)), fn::expected<void, fn::sum_for<Error, bool, int>>>);
 
       WHEN("value to value")
       {
         constexpr auto fn = []() -> fn::expected<void, bool> { return {}; };
-        static_assert(std::is_same_v<decltype(s.and_then(fn)), fn::expected<void, fn::sum<Error, bool>>>);
+        static_assert(std::is_same_v<decltype(s.and_then(fn)), fn::expected<void, fn::sum_for<Error, bool>>>);
         CHECK(s.and_then(fn).has_value());
         CHECK(std::as_const(s).and_then(fn).has_value());
         CHECK(std::move(std::as_const(s)).and_then(fn).has_value());
@@ -401,7 +404,7 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
       WHEN("value to error")
       {
         constexpr auto fn = []() -> fn::expected<void, bool> { return ::pfn::unexpected<bool>(true); };
-        static_assert(std::is_same_v<decltype(s.and_then(fn)), fn::expected<void, fn::sum<Error, bool>>>);
+        static_assert(std::is_same_v<decltype(s.and_then(fn)), fn::expected<void, fn::sum_for<Error, bool>>>);
         CHECK(s.and_then(fn).error() == fn::sum{true});
         CHECK(std::as_const(s).and_then(fn).error() == fn::sum{true});
         CHECK(std::move(std::as_const(s)).and_then(fn).error() == fn::sum{true});
@@ -412,7 +415,7 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
       {
         fn::expected<void, fn::sum<Error>> s{::pfn::unexpect, fn::sum{FileNotFound}};
         constexpr auto fn = []() -> fn::expected<void, bool> { throw 0; };
-        static_assert(std::is_same_v<decltype(s.and_then(fn)), fn::expected<void, fn::sum<Error, bool>>>);
+        static_assert(std::is_same_v<decltype(s.and_then(fn)), fn::expected<void, fn::sum_for<Error, bool>>>);
         CHECK(s.and_then(fn).error() == fn::sum{FileNotFound});
         CHECK(s.and_then(fn).error() != fn::sum{false});
         CHECK(s.and_then(fn).error() != fn::sum{true});
@@ -428,26 +431,26 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     fn::expected<fn::sum<int>, Error> s{::pfn::unexpect, FileNotFound};
 
     constexpr auto fn1 = [](int) -> fn::expected<Xint, Error> { throw 0; };
-    static_assert(std::is_same_v<decltype(s.or_else(fn1)), fn::expected<fn::sum<Xint, int>, Error>>);
+    static_assert(std::is_same_v<decltype(s.or_else(fn1)), fn::expected<fn::sum_for<Xint, int>, Error>>);
     constexpr auto fn2 = [](int) -> fn::expected<int, Error> { throw 0; };
     static_assert(std::is_same_v<decltype(s.or_else(fn2)), fn::expected<fn::sum<int>, Error>>);
     constexpr auto fn3 = [](int) -> fn::expected<fn::sum<int>, Error> { throw 0; };
     static_assert(std::is_same_v<decltype(s.or_else(fn3)), fn::expected<fn::sum<int>, Error>>);
     constexpr auto fn4 = [](int) -> fn::expected<fn::sum<Xint>, Error> { throw 0; };
-    static_assert(std::is_same_v<decltype(s.or_else(fn4)), fn::expected<fn::sum<Xint, int>, Error>>);
-    constexpr auto fn5 = [](int) -> fn::expected<fn::sum<Xint, int>, Error> { throw 0; };
-    static_assert(std::is_same_v<decltype(s.or_else(fn5)), fn::expected<fn::sum<Xint, int>, Error>>);
-    constexpr auto fn6 = [](int) -> fn::expected<fn::sum<Xint, long>, Error> { throw 0; };
-    static_assert(std::is_same_v<decltype(s.or_else(fn6)), fn::expected<fn::sum<Xint, int, long>, Error>>);
-    constexpr auto fn7 = [](int) -> fn::expected<fn::sum<Xint, int, long>, Error> { throw 0; };
-    static_assert(std::is_same_v<decltype(s.or_else(fn7)), fn::expected<fn::sum<Xint, int, long>, Error>>);
-    constexpr auto fn8 = [](int) -> fn::expected<fn::sum<Xint, int, long>, std::string> { throw 0; };
-    static_assert(std::is_same_v<decltype(s.or_else(fn8)), fn::expected<fn::sum<Xint, int, long>, std::string>>);
+    static_assert(std::is_same_v<decltype(s.or_else(fn4)), fn::expected<fn::sum_for<Xint, int>, Error>>);
+    constexpr auto fn5 = [](int) -> fn::expected<fn::sum_for<Xint, int>, Error> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn5)), fn::expected<fn::sum_for<Xint, int>, Error>>);
+    constexpr auto fn6 = [](int) -> fn::expected<fn::sum_for<Xint, long>, Error> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn6)), fn::expected<fn::sum_for<Xint, int, long>, Error>>);
+    constexpr auto fn7 = [](int) -> fn::expected<fn::sum_for<Xint, int, long>, Error> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn7)), fn::expected<fn::sum_for<Xint, int, long>, Error>>);
+    constexpr auto fn8 = [](int) -> fn::expected<fn::sum_for<Xint, int, long>, std::string> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn8)), fn::expected<fn::sum_for<Xint, int, long>, std::string>>);
 
     WHEN("error to value")
     {
       constexpr auto fn = [](Error) -> fn::expected<Xint, std::string> { return {Xint{12}}; };
-      static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::expected<fn::sum<Xint, int>, std::string>>);
+      static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::expected<fn::sum_for<Xint, int>, std::string>>);
       CHECK(s.or_else(fn).value() == fn::sum{Xint{12}});
       CHECK(std::as_const(s).or_else(fn).value() == fn::sum{Xint{12}});
       CHECK(std::move(std::as_const(s)).or_else(fn).value() == fn::sum{Xint{12}});
@@ -458,7 +461,7 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     {
       constexpr auto fn
           = [](Error) -> fn::expected<Xint, std::string> { return ::pfn::unexpected<std::string>("Boo"); };
-      static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::expected<fn::sum<Xint, int>, std::string>>);
+      static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::expected<fn::sum_for<Xint, int>, std::string>>);
       CHECK(s.or_else(fn).error() == "Boo");
       CHECK(std::as_const(s).or_else(fn).error() == "Boo");
       CHECK(std::move(std::as_const(s)).or_else(fn).error() == "Boo");
@@ -469,7 +472,7 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     {
       fn::expected<fn::sum<int>, Error> s{fn::sum{12}};
       constexpr auto fn = [](int) -> fn::expected<Xint, std::string> { throw 0; };
-      static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::expected<fn::sum<Xint, int>, std::string>>);
+      static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::expected<fn::sum_for<Xint, int>, std::string>>);
       CHECK(s.or_else(fn).value() == fn::sum{12});
       CHECK(std::as_const(s).or_else(fn).value() == fn::sum{12});
       CHECK(std::move(std::as_const(s)).or_else(fn).value() == fn::sum{12});
@@ -494,7 +497,7 @@ TEST_CASE("graded monad constexpr and runtime", "[constexpr][and_then][or_else][
       };
 
       constexpr auto r1 = T{0}.and_then(fn1);
-      static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::sum<Error, int>> const>);
+      static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::sum_for<Error, int>> const>);
       static_assert(r1.value() == 1);
       constexpr auto r2 = r1.and_then(fn1);
       static_assert(r2.value() == 2);
@@ -524,11 +527,11 @@ TEST_CASE("graded monad constexpr and runtime", "[constexpr][and_then][or_else][
 
       constexpr auto fn3 = [](int i) -> fn::expected<int, int> { return {i + 1}; };
       constexpr auto r4 = r3.and_then(fn3);
-      static_assert(std::is_same_v<decltype(r4), fn::expected<int, fn::sum<Error, int>> const>);
+      static_assert(std::is_same_v<decltype(r4), fn::expected<int, fn::sum_for<Error, int>> const>);
       static_assert(r4.error() == fn::sum{Error::InvalidValue});
 
       constexpr auto r5 = T{2}.and_then(fn3);
-      static_assert(std::is_same_v<decltype(r5), fn::expected<int, fn::sum<Error, int>> const>);
+      static_assert(std::is_same_v<decltype(r5), fn::expected<int, fn::sum_for<Error, int>> const>);
       static_assert(r5.value() == 3);
 
       SUCCEED();
@@ -546,7 +549,7 @@ TEST_CASE("graded monad constexpr and runtime", "[constexpr][and_then][or_else][
       };
 
       auto const r1 = T{0}.and_then(fn1);
-      static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::sum<Error, int>> const>);
+      static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::sum_for<Error, int>> const>);
       CHECK(r1.value() == 1);
       auto const r2 = r1.and_then(fn1);
       CHECK(r2.value() == 2);
@@ -572,7 +575,7 @@ TEST_CASE("graded monad constexpr and runtime", "[constexpr][and_then][or_else][
 
       auto const fn3 = [](int i) -> fn::expected<int, int> { return {i + 1}; };
       auto const r4 = r3.and_then(fn3);
-      static_assert(std::is_same_v<decltype(r4), fn::expected<int, fn::sum<Error, int>> const>);
+      static_assert(std::is_same_v<decltype(r4), fn::expected<int, fn::sum_for<Error, int>> const>);
       CHECK(r4.error() == fn::sum{Error::InvalidValue});
       auto const r5 = T{2}.and_then(fn3);
       CHECK(r5.value() == 3);
@@ -1005,7 +1008,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
 
         WHEN("sum of packs on left")
         {
-          using Lh = fn::expected<fn::sum<fn::pack<double, bool>, fn::pack<double, int>>, Error>;
+          using Lh = fn::expected<fn::sum_for<fn::pack<double, bool>, fn::pack<double, int>>, Error>;
           static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
                                      fn::expected<fn::sum< //
                                                       fn::pack<double, bool, bool>, fn::pack<double, bool, int>,
@@ -1025,7 +1028,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
 
         WHEN("sum of packs on right")
         {
-          using Rh = fn::expected<fn::sum<fn::pack<double, bool>, fn::pack<double, int>>, Error>;
+          using Rh = fn::expected<fn::sum_for<fn::pack<double, bool>, fn::pack<double, int>>, Error>;
           static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
                                      fn::expected<fn::sum< //
                                                       fn::pack<double, double, bool>, fn::pack<double, double, int>,
@@ -1065,7 +1068,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
 
         WHEN("sum of packs on left")
         {
-          using Lh = fn::expected<fn::sum<fn::pack<double, bool>, fn::pack<double, int>>, Error>;
+          using Lh = fn::expected<fn::sum_for<fn::pack<double, bool>, fn::pack<double, int>>, Error>;
           static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
                                      fn::expected<fn::sum< //
                                                       fn::pack<double, bool, int>, fn::pack<double, int, int>>,
@@ -1154,21 +1157,21 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
 
       static_assert(std::same_as<decltype(std::declval<fn::expected<int, fn::sum<Error>>>()
                                           & std::declval<fn::expected<void, fn::sum<int>>>()),
-                                 fn::expected<int, fn::sum<Error, int>>>);
+                                 fn::expected<int, fn::sum_for<Error, int>>>);
 
       static_assert(std::same_as<decltype(std::declval<fn::expected<int, fn::sum<Error>>>()
                                           & std::declval<fn::expected<void, fn::sum<bool, int>>>()),
-                                 fn::expected<int, fn::sum<Error, bool, int>>>);
+                                 fn::expected<int, fn::sum_for<Error, bool, int>>>);
 
       static_assert(std::same_as<decltype(std::declval<fn::expected<int, fn::sum<bool, int>>>()
                                           & std::declval<fn::expected<void, fn::sum<Error>>>()),
-                                 fn::expected<int, fn::sum<Error, bool, int>>>);
+                                 fn::expected<int, fn::sum_for<Error, bool, int>>>);
 
       WHEN("value & void yield value")
       {
         static_assert(std::same_as<decltype(std::declval<fn::expected<int, fn::sum<Error>>>()
                                             & std::declval<fn::expected<void, int>>()),
-                                   fn::expected<int, fn::sum<Error, int>>>);
+                                   fn::expected<int, fn::sum_for<Error, int>>>);
 
         CHECK((fn::expected<int, fn::sum<Error>>{42} //
                & fn::expected<void, int>{})
@@ -1192,7 +1195,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
       {
         static_assert(std::same_as<decltype(std::declval<fn::expected<void, fn::sum<Error>>>()
                                             & std::declval<fn::expected<int, int>>()),
-                                   fn::expected<int, fn::sum<Error, int>>>);
+                                   fn::expected<int, fn::sum_for<Error, int>>>);
 
         CHECK((fn::expected<void, fn::sum<Error>>{} //
                & fn::expected<int, int>{12})
@@ -1216,7 +1219,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
       {
         static_assert(std::same_as<decltype(std::declval<fn::expected<void, fn::sum<Error>>>()
                                             & std::declval<fn::expected<void, int>>()),
-                                   fn::expected<void, fn::sum<Error, int>>>);
+                                   fn::expected<void, fn::sum_for<Error, int>>>);
 
         CHECK((fn::expected<void, fn::sum<Error>>{} //
                & fn::expected<void, int>{})
@@ -1239,7 +1242,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
       {
         static_assert(std::same_as<decltype(std::declval<fn::expected<int, fn::sum<Error>>>()
                                             & std::declval<fn::expected<double, int>>()),
-                                   fn::expected<fn::pack<int, double>, fn::sum<Error, int>>>);
+                                   fn::expected<fn::pack<int, double>, fn::sum_for<Error, int>>>);
 
         CHECK((fn::expected<double, fn::sum<Error>>{0.5} //
                & fn::expected<int, int>{12})
@@ -1263,7 +1266,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
       {
         static_assert(std::same_as<decltype(std::declval<fn::expected<fn::pack<double, bool>, fn::sum<Error>>>()
                                             & std::declval<fn::expected<int, int>>()),
-                                   fn::expected<fn::pack<double, bool, int>, fn::sum<Error, int>>>);
+                                   fn::expected<fn::pack<double, bool, int>, fn::sum_for<Error, int>>>);
 
         CHECK((fn::expected<fn::pack<double, bool>, fn::sum<Error>>{std::in_place, fn::pack<double, bool>{0.5, true}} //
                & fn::expected<int, int>{12})
@@ -1287,7 +1290,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
       {
         static_assert(std::same_as<decltype(std::declval<fn::expected<fn::pack<double, bool>, fn::sum<Error>>>()
                                             & std::declval<fn::expected<void, int>>()),
-                                   fn::expected<fn::pack<double, bool>, fn::sum<Error, int>>>);
+                                   fn::expected<fn::pack<double, bool>, fn::sum_for<Error, int>>>);
 
         CHECK((fn::expected<fn::pack<double, bool>, fn::sum<Error>>{std::in_place, fn::pack<double, bool>{0.5, true}} //
                & fn::expected<void, int>{})
@@ -1311,7 +1314,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
       {
         static_assert(std::same_as<decltype(std::declval<fn::expected<void, fn::sum<Error>>>()
                                             & std::declval<fn::expected<fn::pack<double, bool>, int>>()),
-                                   fn::expected<fn::pack<double, bool>, fn::sum<Error, int>>>);
+                                   fn::expected<fn::pack<double, bool>, fn::sum_for<Error, int>>>);
 
         CHECK((fn::expected<void, fn::sum<Error>>{} //
                & fn::expected<fn::pack<double, bool>, int>{std::in_place, fn::pack<double, bool>{0.5, true}})
@@ -1339,7 +1342,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
                                    fn::expected<fn::sum< //
                                                     fn::pack<double, bool>, fn::pack<double, int>, fn::pack<int, bool>,
                                                     fn::pack<int, int>>,
-                                                fn::sum<Error, int>>>);
+                                                fn::sum_for<Error, int>>>);
 
         CHECK((Lh{fn::sum{0.5}} & Rh{fn::sum{12}})
                   .transform([](auto i, auto j) constexpr -> bool {
@@ -1353,12 +1356,12 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
 
         WHEN("sum of packs on left")
         {
-          using Lh = fn::expected<fn::sum<fn::pack<double, bool>, fn::pack<double, int>>, fn::sum<Error>>;
+          using Lh = fn::expected<fn::sum_for<fn::pack<double, bool>, fn::pack<double, int>>, fn::sum<Error>>;
           static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
                                      fn::expected<fn::sum< //
                                                       fn::pack<double, bool, bool>, fn::pack<double, bool, int>,
                                                       fn::pack<double, int, bool>, fn::pack<double, int, int>>,
-                                                  fn::sum<Error, int>>>);
+                                                  fn::sum_for<Error, int>>>);
 
           CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{fn::sum{12}})
                     .transform([](auto i, auto j, auto k) constexpr -> bool {
@@ -1380,7 +1383,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
         static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
                                    fn::expected<fn::sum< //
                                                     fn::pack<double, int>, fn::pack<int, int>>,
-                                                fn::sum<Error, int>>>);
+                                                fn::sum_for<Error, int>>>);
 
         CHECK((Lh{fn::sum{0.5}} & Rh{12})
                   .transform([](auto i, auto j) constexpr -> bool {
@@ -1394,11 +1397,11 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
 
         WHEN("sum of packs on left")
         {
-          using Lh = fn::expected<fn::sum<fn::pack<double, bool>, fn::pack<double, int>>, fn::sum<Error>>;
+          using Lh = fn::expected<fn::sum_for<fn::pack<double, bool>, fn::pack<double, int>>, fn::sum<Error>>;
           static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
                                      fn::expected<fn::sum< //
                                                       fn::pack<double, bool, int>, fn::pack<double, int, int>>,
-                                                  fn::sum<Error, int>>>);
+                                                  fn::sum_for<Error, int>>>);
 
           CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{12})
                     .transform([](auto i, auto j, auto k) constexpr -> bool {
@@ -1420,7 +1423,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
         static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
                                    fn::expected<fn::sum< //
                                                     fn::pack<double, bool>, fn::pack<double, int>>,
-                                                fn::sum<Error, int>>>);
+                                                fn::sum_for<Error, int>>>);
 
         CHECK((Lh{0.5} & Rh{fn::sum{12}})
                   .transform([](auto i, auto j) constexpr -> bool {
@@ -1438,7 +1441,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
           static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
                                      fn::expected<fn::sum< //
                                                       fn::pack<double, int, bool>, fn::pack<double, int, int>>,
-                                                  fn::sum<Error, int>>>);
+                                                  fn::sum_for<Error, int>>>);
 
           CHECK((Lh{fn::pack{0.5, 3}} & Rh{fn::sum{12}})
                     .transform([](auto i, auto j, auto k) constexpr -> bool {
@@ -1466,21 +1469,21 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
 
       static_assert(std::same_as<decltype(std::declval<fn::expected<void, fn::sum<int>>>()
                                           & std::declval<fn::expected<int, fn::sum<Error>>>()),
-                                 fn::expected<int, fn::sum<Error, int>>>);
+                                 fn::expected<int, fn::sum_for<Error, int>>>);
 
       static_assert(std::same_as<decltype(std::declval<fn::expected<void, fn::sum<bool, int>>>()
                                           & std::declval<fn::expected<int, fn::sum<Error>>>()),
-                                 fn::expected<int, fn::sum<Error, bool, int>>>);
+                                 fn::expected<int, fn::sum_for<Error, bool, int>>>);
 
       static_assert(std::same_as<decltype(std::declval<fn::expected<int, fn::sum<bool, int>>>()
                                           & std::declval<fn::expected<void, fn::sum<Error>>>()),
-                                 fn::expected<int, fn::sum<Error, bool, int>>>);
+                                 fn::expected<int, fn::sum_for<Error, bool, int>>>);
 
       WHEN("value & void & yield value")
       {
         static_assert(std::same_as<decltype(std::declval<fn::expected<int, int>>()
                                             & std::declval<fn::expected<void, fn::sum<Error>>>()),
-                                   fn::expected<int, fn::sum<Error, int>>>);
+                                   fn::expected<int, fn::sum_for<Error, int>>>);
 
         CHECK((fn::expected<int, int>{12} //
                & fn::expected<void, fn::sum<Error>>{})
@@ -1504,7 +1507,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
       {
         static_assert(std::same_as<decltype(std::declval<fn::expected<void, int>>()
                                             & std::declval<fn::expected<int, fn::sum<Error>>>()),
-                                   fn::expected<int, fn::sum<Error, int>>>);
+                                   fn::expected<int, fn::sum_for<Error, int>>>);
 
         CHECK((fn::expected<void, int>{} //
                & fn::expected<int, fn::sum<Error>>{42})
@@ -1528,7 +1531,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
       {
         static_assert(std::same_as<decltype(std::declval<fn::expected<void, int>>()
                                             & std::declval<fn::expected<void, fn::sum<Error>>>()),
-                                   fn::expected<void, fn::sum<Error, int>>>);
+                                   fn::expected<void, fn::sum_for<Error, int>>>);
 
         CHECK((fn::expected<void, int>{} //
                & fn::expected<void, fn::sum<Error>>{})
@@ -1551,7 +1554,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
       {
         static_assert(std::same_as<decltype(std::declval<fn::expected<double, int>>()
                                             & std::declval<fn::expected<int, fn::sum<Error>>>()),
-                                   fn::expected<fn::pack<double, int>, fn::sum<Error, int>>>);
+                                   fn::expected<fn::pack<double, int>, fn::sum_for<Error, int>>>);
 
         CHECK((fn::expected<double, int>{0.5} //
                & fn::expected<int, fn::sum<Error>>{12})
@@ -1575,7 +1578,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
       {
         static_assert(std::same_as<decltype(std::declval<fn::expected<fn::pack<double, bool>, int>>()
                                             & std::declval<fn::expected<int, fn::sum<Error>>>()),
-                                   fn::expected<fn::pack<double, bool, int>, fn::sum<Error, int>>>);
+                                   fn::expected<fn::pack<double, bool, int>, fn::sum_for<Error, int>>>);
 
         CHECK((fn::expected<fn::pack<double, bool>, int>{std::in_place, fn::pack<double, bool>{0.5, true}} //
                & fn::expected<int, fn::sum<Error>>{12})
@@ -1599,7 +1602,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
       {
         static_assert(std::same_as<decltype(std::declval<fn::expected<fn::pack<double, bool>, int>>()
                                             & std::declval<fn::expected<void, fn::sum<Error>>>()),
-                                   fn::expected<fn::pack<double, bool>, fn::sum<Error, int>>>);
+                                   fn::expected<fn::pack<double, bool>, fn::sum_for<Error, int>>>);
 
         CHECK((fn::expected<fn::pack<double, bool>, int>{std::in_place, fn::pack<double, bool>{0.5, true}} //
                & fn::expected<void, fn::sum<Error>>{})
@@ -1623,7 +1626,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
       {
         static_assert(std::same_as<decltype(std::declval<fn::expected<void, int>>()
                                             & std::declval<fn::expected<fn::pack<double, bool>, fn::sum<Error>>>()),
-                                   fn::expected<fn::pack<double, bool>, fn::sum<Error, int>>>);
+                                   fn::expected<fn::pack<double, bool>, fn::sum_for<Error, int>>>);
 
         CHECK((fn::expected<void, int>{} //
                & fn::expected<fn::pack<double, bool>, fn::sum<Error>>{std::in_place, fn::pack<double, bool>{0.5, true}})
@@ -1651,7 +1654,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
                                    fn::expected<fn::sum< //
                                                     fn::pack<double, bool>, fn::pack<double, int>, fn::pack<int, bool>,
                                                     fn::pack<int, int>>,
-                                                fn::sum<Error, int>>>);
+                                                fn::sum_for<Error, int>>>);
 
         CHECK((Lh{fn::sum{0.5}} & Rh{fn::sum{12}})
                   .transform([](auto i, auto j) constexpr -> bool {
@@ -1665,12 +1668,12 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
 
         WHEN("sum of packs on left")
         {
-          using Lh = fn::expected<fn::sum<fn::pack<double, bool>, fn::pack<double, int>>, Error>;
+          using Lh = fn::expected<fn::sum_for<fn::pack<double, bool>, fn::pack<double, int>>, Error>;
           static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
                                      fn::expected<fn::sum< //
                                                       fn::pack<double, bool, bool>, fn::pack<double, bool, int>,
                                                       fn::pack<double, int, bool>, fn::pack<double, int, int>>,
-                                                  fn::sum<Error, int>>>);
+                                                  fn::sum_for<Error, int>>>);
 
           CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{fn::sum{12}})
                     .transform([](auto i, auto j, auto k) constexpr -> bool {
@@ -1692,7 +1695,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
         static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
                                    fn::expected<fn::sum< //
                                                     fn::pack<double, int>, fn::pack<int, int>>,
-                                                fn::sum<Error, int>>>);
+                                                fn::sum_for<Error, int>>>);
 
         CHECK((Lh{fn::sum{0.5}} & Rh{12})
                   .transform([](auto i, auto j) constexpr -> bool {
@@ -1706,11 +1709,11 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
 
         WHEN("sum of packs on left")
         {
-          using Lh = fn::expected<fn::sum<fn::pack<double, bool>, fn::pack<double, int>>, Error>;
+          using Lh = fn::expected<fn::sum_for<fn::pack<double, bool>, fn::pack<double, int>>, Error>;
           static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
                                      fn::expected<fn::sum< //
                                                       fn::pack<double, bool, int>, fn::pack<double, int, int>>,
-                                                  fn::sum<Error, int>>>);
+                                                  fn::sum_for<Error, int>>>);
 
           CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{12})
                     .transform([](auto i, auto j, auto k) constexpr -> bool {
@@ -1732,7 +1735,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
         static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
                                    fn::expected<fn::sum< //
                                                     fn::pack<double, bool>, fn::pack<double, int>>,
-                                                fn::sum<Error, int>>>);
+                                                fn::sum_for<Error, int>>>);
 
         CHECK((Lh{0.5} & Rh{fn::sum{12}})
                   .transform([](auto i, auto j) constexpr -> bool {
@@ -1750,7 +1753,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
           static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
                                      fn::expected<fn::sum< //
                                                       fn::pack<double, int, bool>, fn::pack<double, int, int>>,
-                                                  fn::sum<Error, int>>>);
+                                                  fn::sum_for<Error, int>>>);
 
           CHECK((Lh{fn::pack{0.5, 3}} & Rh{fn::sum{12}})
                     .transform([](auto i, auto j, auto k) constexpr -> bool {
@@ -1770,14 +1773,14 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
     {
       static_assert(std::same_as<decltype(std::declval<fn::expected<int, fn::sum<bool, int>>>()
                                           & std::declval<fn::expected<void, fn::sum<Error>>>()),
-                                 fn::expected<int, fn::sum<Error, bool, int>>>);
+                                 fn::expected<int, fn::sum_for<Error, bool, int>>>);
 
       WHEN("value & void & yield value")
       {
         using Lh = fn::expected<int, fn::sum<bool, int>>;
         using Rh = fn::expected<void, fn::sum<Error>>;
         static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
-                                   fn::expected<int, fn::sum<Error, bool, int>>>);
+                                   fn::expected<int, fn::sum_for<Error, bool, int>>>);
 
         CHECK((Lh{12} & Rh{}).value() == 12);
         CHECK((Lh{12} & Rh{::pfn::unexpect, fn::sum{FileNotFound}}).error() == fn::sum{FileNotFound});
@@ -1790,7 +1793,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
         using Lh = fn::expected<void, fn::sum<bool, int>>;
         using Rh = fn::expected<int, fn::sum<Error>>;
         static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
-                                   fn::expected<int, fn::sum<Error, bool, int>>>);
+                                   fn::expected<int, fn::sum_for<Error, bool, int>>>);
 
         CHECK((Lh{} & Rh{42}).value() == 42);
         CHECK((Lh{} & Rh{::pfn::unexpect, fn::sum{FileNotFound}}).error() == fn::sum{FileNotFound});
@@ -1803,7 +1806,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
         using Lh = fn::expected<void, fn::sum<bool, int>>;
         using Rh = fn::expected<void, fn::sum<Error>>;
         static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
-                                   fn::expected<void, fn::sum<Error, bool, int>>>);
+                                   fn::expected<void, fn::sum_for<Error, bool, int>>>);
 
         CHECK((Lh{} & Rh{}).has_value());
         CHECK((Lh{} & Rh{::pfn::unexpect, fn::sum{FileNotFound}}).error() == fn::sum{FileNotFound});
@@ -1816,7 +1819,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
         using Lh = fn::expected<double, fn::sum<bool, int>>;
         using Rh = fn::expected<int, fn::sum<Error>>;
         static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
-                                   fn::expected<fn::pack<double, int>, fn::sum<Error, bool, int>>>);
+                                   fn::expected<fn::pack<double, int>, fn::sum_for<Error, bool, int>>>);
 
         CHECK((Lh{0.5} & Rh{12})
                   .transform([](double d, int i) constexpr -> bool { return d == 0.5 && i == 12; })
@@ -1831,7 +1834,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
         using Lh = fn::expected<fn::pack<double, bool>, fn::sum<bool, int>>;
         using Rh = fn::expected<int, fn::sum<Error>>;
         static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
-                                   fn::expected<fn::pack<double, bool, int>, fn::sum<Error, bool, int>>>);
+                                   fn::expected<fn::pack<double, bool, int>, fn::sum_for<Error, bool, int>>>);
 
         CHECK((Lh{std::in_place, fn::pack<double, bool>{0.5, true}} //
                & Rh{12})
@@ -1856,7 +1859,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
         using Lh = fn::expected<fn::pack<double, bool>, fn::sum<bool, int>>;
         using Rh = fn::expected<void, fn::sum<Error>>;
         static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
-                                   fn::expected<fn::pack<double, bool>, fn::sum<Error, bool, int>>>);
+                                   fn::expected<fn::pack<double, bool>, fn::sum_for<Error, bool, int>>>);
 
         CHECK((Lh{std::in_place, fn::pack<double, bool>{0.5, true}} & Rh{})
                   .transform([](double d, bool b) constexpr -> bool { return d == 0.5 && b; })
@@ -1873,7 +1876,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
         using Lh = fn::expected<void, fn::sum<bool, int>>;
         using Rh = fn::expected<fn::pack<double, bool>, fn::sum<Error>>;
         static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
-                                   fn::expected<fn::pack<double, bool>, fn::sum<Error, bool, int>>>);
+                                   fn::expected<fn::pack<double, bool>, fn::sum_for<Error, bool, int>>>);
 
         CHECK((Lh{} & Rh{std::in_place, fn::pack<double, bool>{0.5, true}})
                   .transform([](double d, bool b) constexpr -> bool { return d == 0.5 && b; })
@@ -1892,7 +1895,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
                                    fn::expected<fn::sum< //
                                                     fn::pack<double, bool>, fn::pack<double, int>, fn::pack<int, bool>,
                                                     fn::pack<int, int>>,
-                                                fn::sum<Error, bool, int>>>);
+                                                fn::sum_for<Error, bool, int>>>);
 
         CHECK((Lh{fn::sum{0.5}} & Rh{fn::sum{12}})
                   .transform([](auto i, auto j) constexpr -> bool {
@@ -1907,12 +1910,12 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
 
         WHEN("sum of packs on left")
         {
-          using Lh = fn::expected<fn::sum<fn::pack<double, bool>, fn::pack<double, int>>, fn::sum<Error>>;
+          using Lh = fn::expected<fn::sum_for<fn::pack<double, bool>, fn::pack<double, int>>, fn::sum<Error>>;
           static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
                                      fn::expected<fn::sum< //
                                                       fn::pack<double, bool, bool>, fn::pack<double, bool, int>,
                                                       fn::pack<double, int, bool>, fn::pack<double, int, int>>,
-                                                  fn::sum<Error, bool, int>>>);
+                                                  fn::sum_for<Error, bool, int>>>);
 
           CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{fn::sum{12}})
                     .transform([](auto i, auto j, auto k) constexpr -> bool {
@@ -1940,7 +1943,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
         static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
                                    fn::expected<fn::sum< //
                                                     fn::pack<double, int>, fn::pack<int, int>>,
-                                                fn::sum<Error, bool, int>>>);
+                                                fn::sum_for<Error, bool, int>>>);
 
         CHECK((Lh{fn::sum{0.5}} & Rh{12})
                   .transform([](auto i, auto j) constexpr -> bool {
@@ -1954,11 +1957,11 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
 
         WHEN("sum of packs on left")
         {
-          using Lh = fn::expected<fn::sum<fn::pack<double, bool>, fn::pack<double, int>>, fn::sum<Error>>;
+          using Lh = fn::expected<fn::sum_for<fn::pack<double, bool>, fn::pack<double, int>>, fn::sum<Error>>;
           static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
                                      fn::expected<fn::sum< //
                                                       fn::pack<double, bool, int>, fn::pack<double, int, int>>,
-                                                  fn::sum<Error, bool, int>>>);
+                                                  fn::sum_for<Error, bool, int>>>);
 
           CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{12})
                     .transform([](auto i, auto j, auto k) constexpr -> bool {
@@ -1986,7 +1989,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
         static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
                                    fn::expected<fn::sum< //
                                                     fn::pack<double, bool>, fn::pack<double, int>>,
-                                                fn::sum<Error, bool, int>>>);
+                                                fn::sum_for<Error, bool, int>>>);
 
         CHECK((Lh{0.5} & Rh{fn::sum{12}})
                   .transform([](auto i, auto j) constexpr -> bool {
@@ -2004,7 +2007,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
           static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
                                      fn::expected<fn::sum< //
                                                       fn::pack<double, int, bool>, fn::pack<double, int, int>>,
-                                                  fn::sum<Error, bool, int>>>);
+                                                  fn::sum_for<Error, bool, int>>>);
 
           CHECK((Lh{fn::pack{0.5, 3}} & Rh{fn::sum{12}})
                     .transform([](auto i, auto j, auto k) constexpr -> bool {
@@ -2032,7 +2035,7 @@ TEST_CASE("expected sum support and_then", "[expected][sum][and_then]")
 {
   WHEN("value")
   {
-    fn::expected<fn::sum<int, std::string_view>, Error> s{fn::sum{12}};
+    fn::expected<fn::sum_for<int, std::string_view>, Error> s{fn::sum{12}};
 
     CHECK(s.and_then( //
                fn::overload{[](int &i) -> fn::expected<bool, Error> { return i == 12; },
@@ -2084,7 +2087,7 @@ TEST_CASE("expected sum support and_then", "[expected][sum][and_then]")
 
   WHEN("error")
   {
-    fn::expected<fn::sum<int, std::string_view>, Error> s{::pfn::unexpect, FileNotFound};
+    fn::expected<fn::sum_for<int, std::string_view>, Error> s{::pfn::unexpect, FileNotFound};
     CHECK(s.and_then( //
                [](auto...) -> fn::expected<bool, Error> { return {true}; })
               .error()
@@ -2094,7 +2097,7 @@ TEST_CASE("expected sum support and_then", "[expected][sum][and_then]")
                   [](auto...) -> fn::expected<bool, Error> { return {true}; })
               .error()
           == FileNotFound);
-    CHECK(fn::expected<fn::sum<int, std::string_view>, Error>{::pfn::unexpect, FileNotFound}
+    CHECK(fn::expected<fn::sum_for<int, std::string_view>, Error>{::pfn::unexpect, FileNotFound}
               .and_then( //
                   [](auto...) -> fn::expected<bool, Error> { return {true}; })
               .error()
@@ -2116,7 +2119,7 @@ TEST_CASE("expected sum support and_then", "[expected][sum][and_then]")
                                      [](std::string_view const &) -> fn::expected<bool, Error> { throw 0; },
                                      [](std::string_view &&) -> fn::expected<bool, Error> { throw 0; },
                                      [](std::string_view const &&) -> fn::expected<bool, Error> { throw 0; }};
-    constexpr fn::expected<fn::sum<int, std::string_view>, Error> a{fn::sum{42}};
+    constexpr fn::expected<fn::sum_for<int, std::string_view>, Error> a{fn::sum{42}};
     static_assert(std::is_same_v<decltype(a.and_then(fn)), fn::expected<bool, Error>>);
     static_assert(a.and_then(fn).value());
   }
@@ -2126,7 +2129,7 @@ TEST_CASE("expected sum support or_else", "[expected][sum][or_else]")
 {
   WHEN("value")
   {
-    fn::expected<double, fn::sum<int, std::string_view>> s{::pfn::unexpect, fn::sum{12}};
+    fn::expected<double, fn::sum_for<int, std::string_view>> s{::pfn::unexpect, fn::sum{12}};
 
     CHECK(s.or_else( //
                fn::overload{[](int &i) -> fn::expected<double, Error> { return {i}; },
@@ -2181,7 +2184,7 @@ TEST_CASE("expected sum support or_else", "[expected][sum][or_else]")
 
     WHEN("value")
     {
-      fn::expected<double, fn::sum<int, std::string_view>> s{1.5};
+      fn::expected<double, fn::sum_for<int, std::string_view>> s{1.5};
       CHECK(s.or_else( //
                  [](auto...) -> fn::expected<double, Error> { throw 0; })
                 .value()
@@ -2213,7 +2216,7 @@ TEST_CASE("expected sum support or_else", "[expected][sum][or_else]")
                                        [](std::string_view const &) -> fn::expected<double, Error> { throw 0; },
                                        [](std::string_view &&) -> fn::expected<double, Error> { throw 0; },
                                        [](std::string_view const &&) -> fn::expected<double, Error> { throw 0; }};
-      constexpr fn::expected<double, fn::sum<int, std::string_view>> a{::pfn::unexpect, fn::sum{42}};
+      constexpr fn::expected<double, fn::sum_for<int, std::string_view>> a{::pfn::unexpect, fn::sum{42}};
       static_assert(std::is_same_v<decltype(a.or_else(fn)), fn::expected<double, Error>>);
       static_assert(a.or_else(fn).value() == 42);
     }
@@ -2221,7 +2224,7 @@ TEST_CASE("expected sum support or_else", "[expected][sum][or_else]")
 
   WHEN("void")
   {
-    fn::expected<void, fn::sum<int, std::string_view>> s{::pfn::unexpect, fn::sum{12}};
+    fn::expected<void, fn::sum_for<int, std::string_view>> s{::pfn::unexpect, fn::sum{12}};
 
     CHECK(s.or_else( //
                fn::overload{[](int &) -> fn::expected<void, Error> { return ::pfn::unexpected<Error>{FileNotFound}; },
@@ -2279,7 +2282,7 @@ TEST_CASE("expected sum support or_else", "[expected][sum][or_else]")
 
     WHEN("value")
     {
-      fn::expected<void, fn::sum<int, std::string_view>> s{};
+      fn::expected<void, fn::sum_for<int, std::string_view>> s{};
       CHECK(s.or_else( //
                  [](auto...) -> fn::expected<void, Error> { throw 0; })
                 .has_value());
@@ -2308,7 +2311,7 @@ TEST_CASE("expected sum support or_else", "[expected][sum][or_else]")
           [](std::string_view const &) -> fn::expected<void, Error> { throw 0; },
           [](std::string_view &&) -> fn::expected<void, Error> { throw 0; },
           [](std::string_view const &&) -> fn::expected<void, Error> { throw 0; }};
-      constexpr fn::expected<void, fn::sum<int, std::string_view>> a{::pfn::unexpect, fn::sum{42}};
+      constexpr fn::expected<void, fn::sum_for<int, std::string_view>> a{::pfn::unexpect, fn::sum{42}};
       static_assert(std::is_same_v<decltype(a.or_else(fn)), fn::expected<void, Error>>);
       static_assert(a.or_else(fn).error() == FileNotFound);
     }
@@ -2319,7 +2322,7 @@ TEST_CASE("expected sum support transform", "[expected][sum][transform]")
 {
   WHEN("value")
   {
-    fn::expected<fn::sum<int, std::string_view>, Error> s{fn::sum{12}};
+    fn::expected<fn::sum_for<int, std::string_view>, Error> s{fn::sum{12}};
 
     CHECK(s.transform( //
                fn::overload{
@@ -2363,7 +2366,7 @@ TEST_CASE("expected sum support transform", "[expected][sum][transform]")
 
   WHEN("error")
   {
-    fn::expected<fn::sum<int, std::string_view>, Error> s{::pfn::unexpect, FileNotFound};
+    fn::expected<fn::sum_for<int, std::string_view>, Error> s{::pfn::unexpect, FileNotFound};
     CHECK(s.transform( //
                [](auto...) -> std::monostate { throw 0; })
               .error()
@@ -2395,7 +2398,7 @@ TEST_CASE("expected sum support transform", "[expected][sum][transform]")
                                      [](std::string_view const &) -> int { throw 0; },
                                      [](std::string_view &&) -> int { throw 0; },
                                      [](std::string_view const &&) -> int { throw 0; }};
-    constexpr fn::expected<fn::sum<int, std::string_view>, Error> a{fn::sum{42}};
+    constexpr fn::expected<fn::sum_for<int, std::string_view>, Error> a{fn::sum{42}};
     static_assert(std::is_same_v<decltype(a.transform(fn)), fn::expected<fn::sum<bool, int>, Error>>);
     // TODO Switch bool to std::monostate or similar user-defined type
     static_assert(a.transform(fn).value().has_value<bool>());
@@ -2406,7 +2409,7 @@ TEST_CASE("expected sum support transform_error", "[expected][sum][transform_err
 {
   WHEN("value")
   {
-    fn::expected<double, fn::sum<int, std::string_view>> s{::pfn::unexpect, fn::sum{12}};
+    fn::expected<double, fn::sum_for<int, std::string_view>> s{::pfn::unexpect, fn::sum{12}};
 
     CHECK(s.transform_error( //
                fn::overload{
@@ -2449,7 +2452,7 @@ TEST_CASE("expected sum support transform_error", "[expected][sum][transform_err
 
     WHEN("value")
     {
-      fn::expected<double, fn::sum<int, std::string_view>> s{1.5};
+      fn::expected<double, fn::sum_for<int, std::string_view>> s{1.5};
       CHECK(s.transform_error( //
                  [](auto...) -> bool { throw 0; })
                 .value()
@@ -2481,7 +2484,7 @@ TEST_CASE("expected sum support transform_error", "[expected][sum][transform_err
                                        [](std::string_view const &) -> int { throw 0; },
                                        [](std::string_view &&) -> int { throw 0; },
                                        [](std::string_view const &&) -> int { throw 0; }};
-      constexpr fn::expected<double, fn::sum<int, std::string_view>> a{::pfn::unexpect, fn::sum{42}};
+      constexpr fn::expected<double, fn::sum_for<int, std::string_view>> a{::pfn::unexpect, fn::sum{42}};
       static_assert(std::is_same_v<decltype(a.transform_error(fn)), fn::expected<double, fn::sum<bool, int>>>);
       static_assert(a.transform_error(fn).error() == fn::sum{true});
     }
@@ -2489,7 +2492,7 @@ TEST_CASE("expected sum support transform_error", "[expected][sum][transform_err
 
   WHEN("void")
   {
-    fn::expected<void, fn::sum<int, std::string_view>> s{::pfn::unexpect, fn::sum{12}};
+    fn::expected<void, fn::sum_for<int, std::string_view>> s{::pfn::unexpect, fn::sum{12}};
 
     CHECK(s.transform_error( //
                fn::overload{
@@ -2532,7 +2535,7 @@ TEST_CASE("expected sum support transform_error", "[expected][sum][transform_err
 
     WHEN("value")
     {
-      fn::expected<void, fn::sum<int, std::string_view>> s{};
+      fn::expected<void, fn::sum_for<int, std::string_view>> s{};
       CHECK(s.transform_error( //
                  [](auto...) -> int { throw 0; })
                 .has_value());
@@ -2560,7 +2563,7 @@ TEST_CASE("expected sum support transform_error", "[expected][sum][transform_err
                                        [](std::string_view const &) -> int { throw 0; },
                                        [](std::string_view &&) -> int { throw 0; },
                                        [](std::string_view const &&) -> int { throw 0; }};
-      constexpr fn::expected<void, fn::sum<int, std::string_view>> a{::pfn::unexpect, fn::sum{42}};
+      constexpr fn::expected<void, fn::sum_for<int, std::string_view>> a{::pfn::unexpect, fn::sum{42}};
       static_assert(std::is_same_v<decltype(a.transform_error(fn)), fn::expected<void, fn::sum<int>>>);
       static_assert(a.transform_error(fn).error() == fn::sum{42});
     }
