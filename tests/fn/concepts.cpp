@@ -80,11 +80,12 @@ static_assert(same_kind<expected<int, Error>, expected<Value, Error>>);
 static_assert(same_kind<expected<void, Error>, expected<Value, Error>>);
 static_assert(same_kind<expected<Value, fn::sum<Error>>, expected<void, fn::sum<Error>>>);
 static_assert(same_kind<expected<Value, fn::sum<Error>>, expected<void, fn::sum<int>>>);
-static_assert(same_kind<expected<Value, fn::sum<Error>>, expected<void, fn::sum<Error, int>>>);
-static_assert(same_kind<expected<Value, fn::sum<Error, int>>, expected<void, fn::sum<Error>>>);
+// sum_for, not sum<Error,int>: the alternative order is platform-specific (see sum.cpp) — same_kind ignores it.
+static_assert(same_kind<expected<Value, fn::sum<Error>>, expected<void, fn::sum_for<Error, int>>>);
+static_assert(same_kind<expected<Value, fn::sum_for<Error, int>>, expected<void, fn::sum<Error>>>);
 static_assert(same_kind<expected<Value, fn::sum<Error>>, expected<void, fn::sum<Xerror>>>);
-static_assert(same_kind<expected<Value, fn::sum<Error>>, expected<void, fn::sum<Error, Xerror>>>);
-static_assert(same_kind<expected<Value, fn::sum<int>>, expected<void, fn::sum<Error, Xerror>>>);
+static_assert(same_kind<expected<Value, fn::sum<Error>>, expected<void, fn::sum_for<Error, Xerror>>>);
+static_assert(same_kind<expected<Value, fn::sum<int>>, expected<void, fn::sum_for<Error, Xerror>>>);
 static_assert(not same_kind<expected<Value, Error>, expected<void, Xerror>>);
 static_assert(not same_kind<expected<void, Error>, expected<void, Xerror>>);
 static_assert(not same_kind<expected<void, Error>, expected<int, Xerror>>);
