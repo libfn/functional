@@ -3,8 +3,8 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#ifndef INCLUDE_FN_OR_ELSE
-#define INCLUDE_FN_OR_ELSE
+#ifndef INCLUDE_FN_VALUE_OR
+#define INCLUDE_FN_VALUE_OR
 
 #include <fn/concepts.hpp>
 #include <fn/functor.hpp>
@@ -33,7 +33,8 @@ constexpr inline struct value_or_t final {
    * @param args TODO
    * @return TODO
    */
-  [[nodiscard]] constexpr auto operator()(auto &&...args) const noexcept -> functor<value_or_t, decltype(args)...> //
+  template <typename... Args>
+  [[nodiscard]] constexpr auto operator()(Args &&...args) const noexcept -> functor<value_or_t, Args &&...> //
   {
     return {FWD(args)...};
   }
@@ -52,12 +53,14 @@ struct value_or_t::apply final {
    * @param args TODO
    * @return TODO
    */
-  [[nodiscard]] constexpr auto operator()(some_monadic_type auto &&v, auto &&...args) const noexcept //
-      -> same_value_kind<decltype(v)> auto
-    requires invocable_value_or<decltype(v), decltype(args)...>
+  template <some_monadic_type V, typename... Args>
+  [[nodiscard]] constexpr auto operator()(V &&v, Args &&...args) const noexcept //
+      -> same_value_kind<V &&> auto
+    requires invocable_value_or<V &&, Args...>
   {
-    using type = ::std::remove_cvref_t<decltype(v)>;
-    return FWD(v).or_else([&](auto &&...) -> type { return type{::std::in_place, args...}; });
+    return FWD(v).or_else([&](auto &&...) -> ::std::remove_cvref_t<V> {
+      return ::std::remove_cvref_t<V>{::std::in_place, FWD(args)...};
+    });
   }
 
   // No support for choice since there's no error to recover from
@@ -66,4 +69,4 @@ struct value_or_t::apply final {
 
 } // namespace fn
 
-#endif // INCLUDE_FUNCTIONAL_OR_ELSE
+#endif // INCLUDE_FN_VALUE_OR
