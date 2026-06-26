@@ -44,8 +44,11 @@ struct greedy_t {
 
 TEST_CASE("bad_expected_access", "[expected][polyfill][bad_expected_access]")
 {
+#ifndef PFN_TEST_VALIDATION
+  // std's what() message is implementation-defined ([expected.badaccess]); only pfn pins it, so the
+  // validation build instead just checks what() returns a non-empty string at the two sites below.
   std::string const e1 = "bad access to expected";
-  std::string const e2 = "bad access to std::expected";
+#endif
 
   SECTION("bad_expected_access<void>")
   {
@@ -78,7 +81,11 @@ TEST_CASE("bad_expected_access", "[expected][polyfill][bad_expected_access]")
       CHECK(T{}.what() == a.what());
     }
     std::string const tmp = a.what();
-    CHECK(((tmp.substr(0, e1.size()) == e1) || (tmp.substr(0, e2.size()) == e2)));
+#ifdef PFN_TEST_VALIDATION
+    CHECK(not tmp.empty());
+#else
+    CHECK(tmp.substr(0, e1.size()) == e1);
+#endif
 
     T const b;
     CHECK(&decltype(a)::what == &decltype(b)::what);
@@ -211,7 +218,11 @@ TEST_CASE("bad_expected_access", "[expected][polyfill][bad_expected_access]")
     {
       T a{12};
       std::string const tmp = a.what();
-      CHECK(((tmp.substr(0, e1.size()) == e1) || (tmp.substr(0, e2.size()) == e2)));
+#ifdef PFN_TEST_VALIDATION
+      CHECK(not tmp.empty());
+#else
+      CHECK(tmp.substr(0, e1.size()) == e1);
+#endif
       auto const c = []() {
         struct C : bad_expected_access<void> {};
         return C{};
