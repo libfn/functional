@@ -49,11 +49,13 @@ jobs:
         run-id: ${{ github.event.workflow_run.id }}
         path: ${{ runner.temp }}/sonar-artifact
 
-    - name: Check out base repository actions
+    # Trusted base checkout (default branch, since this runs via workflow_run) — provides
+    # resolve-sonar-project and the artifact validation script. Plain, not sparse: sparse-checkout
+    # forces a blob:none partial clone whose promisor filter the pull request checkout would inherit,
+    # leaving SonarCloud's git blame unable to read historical blobs.
+    - name: Check out base repository
       if: ${{ env.SONAR_TOKEN != '' }}
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      with:
-        sparse-checkout: .github
 
     - name: Resolve SonarCloud project
       id: sonar
@@ -63,14 +65,35 @@ jobs:
         organization: ${{ vars.SONAR_ORGANIZATION }}
         project-key: ${{ vars.SONAR_PROJECT_KEY }}
 
-    # No local actions are available after this step, because restore-pr-workspace deletes `.github/actions`.
-    - name: Restore pull request workspace
+    - name: Validate artifact and read pull request metadata
       id: pr
       if: ${{ env.SONAR_TOKEN != '' }}
-      uses: ./.github/actions/restore-pr-workspace
+      shell: bash
+      env:
+        ARCHIVE: ${{ runner.temp }}/sonar-artifact/sonarcloud-pr-inputs.tar.gz
+      run: bash .github/scripts/validate-pr-artifact.sh
+
+    # Full history (fetch-depth 0): SonarCloud needs git blame for SCM attribution and new-code detection.
+    - name: Check out pull request head
+      if: ${{ env.SONAR_TOKEN != '' }}
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
-        archive: ${{ runner.temp }}/sonar-artifact/sonarcloud-pr-inputs.tar.gz
-        full-history: 'true'
+        ref: ${{ steps.pr.outputs.head_sha }}
+        fetch-depth: 0
+
+    # The checkout above replaced `.github` with the untrusted PR copy; remove `.github/actions` so no
+    # local `./` action can run in this secrets-bearing job, then restore the build outputs from the
+    # artifact (kept outside the workspace, so the checkout did not wipe it).
+    - name: Neutralize local actions and restore build outputs
+      if: ${{ env.SONAR_TOKEN != '' }}
+      shell: bash
+      env:
+        ARCHIVE: ${{ runner.temp }}/sonar-artifact/sonarcloud-pr-inputs.tar.gz
+      run: |
+        rm -rf .github/actions
+        rm -rf .build
+        tar -xzf "$ARCHIVE" .build
+        rm -f "$ARCHIVE"
 
     - name: Run SonarQube scan action
       if: ${{ env.SONAR_TOKEN != '' }}

@@ -10,7 +10,7 @@ on:
     paths:
       - '.github/workflows/codecov.yml'
       - '.github/workflows/codecov-pr-scan.yml'
-      - '.github/actions/restore-pr-workspace/**'
+      - '.github/scripts/validate-pr-artifact.sh'
       - '.github/actions/collect-pr-workspace/**'
       - 'include/**'
       - 'tests/**'
