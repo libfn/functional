@@ -19,15 +19,6 @@ class LibfnConan(ConanFile):
     package_type = "header-library"
     no_copy_source = True
 
-    options = {
-        # Mirror of the CMake DISABLE_CXX23 option. When True, only the pfn
-        # component (C++20-compatible) is usable; the fn component requires C++23.
-        "disable_cxx23": [True, False],
-    }
-    default_options = {
-        "disable_cxx23": False,
-    }
-
     exports = "VERSION"
     exports_sources = "include/*", "LICENSE.md", "README.md"
 
@@ -38,8 +29,7 @@ class LibfnConan(ConanFile):
         basic_layout(self)
 
     def package_id(self):
-        # Intentional: header-only library, so all files are identical regardless of options. package_info() runs
-        # at consume time with the consumer's options, so the conditional fn component exposure works correctly.
+        # Intentional: header-only library, so the package is identical for every consumer.
         self.info.clear()
 
     def package(self):
@@ -62,15 +52,13 @@ class LibfnConan(ConanFile):
         self.cpp_info.set_property("cmake_file_name", "libfn")
         self.cpp_info.set_property("cmake_target_name", "libfn::libfn")
 
-        # fn: the main C++23 component (headers under include/fn/).
-        if not self.options.disable_cxx23:
-            fn = self.cpp_info.components["fn"]
-            fn.set_property("cmake_target_name", "libfn::fn")
-            fn.bindirs = []
-            fn.libdirs = []
-            fn.includedirs = ["include"]
-            # TODO uncomment once fn is reimplemented in terms of pfn.
-            # fn.requires = ["pfn"]
+        # fn: the main component (headers under include/fn/); built on the pfn polyfills.
+        fn = self.cpp_info.components["fn"]
+        fn.set_property("cmake_target_name", "libfn::fn")
+        fn.bindirs = []
+        fn.libdirs = []
+        fn.includedirs = ["include"]
+        fn.requires = ["pfn"]
 
         # pfn: the C++20 component (headers under include/pfn/).
         pfn = self.cpp_info.components["pfn"]

@@ -6,7 +6,6 @@
 , llvmPackages_21
 , ninja
 , enableTests ? true
-, disableCxx23 ? false
 }:
 
 stdenv.mkDerivation {
@@ -30,6 +29,5 @@ stdenv.mkDerivation {
 
   doCheck = enableTests;
   cmakeFlags = [ "-DDISABLE_CCACHE_DETECTION=On" "-DDISABLE_FETCH_CONTENT=On" ]
-    ++ lib.optional (!enableTests) "-DLIBFN_TESTS=OFF"
-    ++ lib.optional disableCxx23 "-DDISABLE_CXX23=ON";
+    ++ lib.optional (!enableTests) "-DLIBFN_TESTS=OFF";
 }
