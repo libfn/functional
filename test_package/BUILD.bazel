@@ -1,13 +1,8 @@
-# pfn is always available (C++20-compatible polyfills).
 cc_binary(
-    name = "pfn_quine",
-    srcs = ["src/pfn_quine.cpp"],
-    deps = ["@libfn//:pfn"],
-)
-
-# fn requires C++23; only built in the C++23-enabled mode.
-cc_binary(
-    name = "fn_quine",
-    srcs = ["src/fn_quine.cpp"],
-    deps = ["@libfn//:fn"],
+    name = "main",
+    srcs = ["src/main.cpp"],
+    deps = [
+        "@libfn//:fn",
+        "@libfn//:pfn",
+    ],
 )
