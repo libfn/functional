@@ -155,6 +155,61 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     static_assert(std::is_same_v<decltype(fn::sum_error(s)), fn::expected<int, fn::sum<Error>>>);
   }
 
+  WHEN("sum_error from non-sum, void value")
+  {
+    using T = fn::expected<void, Error>;
+    T s{};
+    static_assert(std::is_same_v<decltype(s.sum_error()), fn::expected<void, fn::sum<Error>>>);
+    static_assert(std::is_same_v<decltype(std::as_const(s).sum_error()), fn::expected<void, fn::sum<Error>>>);
+    static_assert(
+        std::is_same_v<decltype(std::move(std::as_const(s)).sum_error()), fn::expected<void, fn::sum<Error>>>);
+    static_assert(std::is_same_v<decltype(std::move(s).sum_error()), fn::expected<void, fn::sum<Error>>>);
+    WHEN("value")
+    {
+      CHECK(s.sum_error().has_value());
+      CHECK(std::as_const(s).sum_error().has_value());
+      CHECK(std::move(std::as_const(s)).sum_error().has_value());
+      CHECK(std::move(s).sum_error().has_value());
+    }
+    WHEN("error")
+    {
+      T s{::pfn::unexpect, Unknown};
+      CHECK(s.sum_error().error() == fn::sum{Unknown});
+      CHECK(std::as_const(s).sum_error().error() == fn::sum{Unknown});
+      CHECK(std::move(std::as_const(s)).sum_error().error() == fn::sum{Unknown});
+      CHECK(std::move(s).sum_error().error() == fn::sum{Unknown});
+    }
+
+    static_assert(std::is_same_v<decltype(fn::sum_error(s)), fn::expected<void, fn::sum<Error>>>);
+  }
+
+  WHEN("sum_error from sum, void value")
+  {
+    using T = fn::expected<void, fn::sum<Error>>;
+    T s{};
+    static_assert(std::is_same_v<decltype(s.sum_error()), T &>);
+    static_assert(std::is_same_v<decltype(std::as_const(s).sum_error()), T const &>);
+    static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_error()), T const &&>);
+    static_assert(std::is_same_v<decltype(std::move(s).sum_error()), T &&>);
+    WHEN("value")
+    {
+      CHECK(s.sum_error().has_value());
+      CHECK(std::as_const(s).sum_error().has_value());
+      CHECK(std::move(std::as_const(s)).sum_error().has_value());
+      CHECK(std::move(s).sum_error().has_value());
+    }
+    WHEN("error")
+    {
+      T s{::pfn::unexpect, Unknown};
+      CHECK(s.sum_error().error() == fn::sum{Unknown});
+      CHECK(std::as_const(s).sum_error().error() == fn::sum{Unknown});
+      CHECK(std::move(std::as_const(s)).sum_error().error() == fn::sum{Unknown});
+      CHECK(std::move(s).sum_error().error() == fn::sum{Unknown});
+    }
+
+    static_assert(std::is_same_v<decltype(fn::sum_error(s)), T &>);
+  }
+
   WHEN("sum_value from sum")
   {
     using T = fn::expected<fn::sum<int>, Error>;

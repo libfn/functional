@@ -881,9 +881,52 @@ template <typename Err> struct expected<void, Err> : private detail::_storage<vo
   {
     return _base::_transform_error(::std::move(*this), FWD(f));
   }
+
+  // Convert to graded monad
+  auto sum_error() const & -> expected<value_type, sum<error_type>>
+    requires(not some_sum<error_type>)
+  {
+    using type = expected<value_type, sum<error_type>>;
+    if (this->has_value())
+      return type{::std::in_place};
+    else
+      return type{::pfn::unexpect, sum<error_type>(this->error())};
+  }
+  auto sum_error() && -> expected<value_type, sum<error_type>>
+    requires(not some_sum<error_type>)
+  {
+    using type = expected<value_type, sum<error_type>>;
+    if (this->has_value())
+      return type{::std::in_place};
+    else
+      return type{::pfn::unexpect, sum<error_type>(::std::move(*this).error())};
+  }
+  auto sum_error() & -> decltype(auto)
+    requires(some_sum<error_type>)
+  {
+    return *this;
+  }
+  auto sum_error() const & -> decltype(auto)
+    requires(some_sum<error_type>)
+  {
+    return *this;
+  }
+  auto sum_error() && -> decltype(auto)
+    requires(some_sum<error_type>)
+  {
+    return ::std::move(*this);
+  }
+  auto sum_error() const && -> decltype(auto)
+    requires(some_sum<error_type>)
+  {
+    return ::std::move(*this);
+  }
 };
 // Lifts for sum transformation functions
-[[nodiscard]] constexpr auto sum_value(some_expected auto &&src) -> decltype(auto) { return FWD(src).sum_value(); }
+[[nodiscard]] constexpr auto sum_value(some_expected_non_void auto &&src) -> decltype(auto)
+{
+  return FWD(src).sum_value();
+}
 [[nodiscard]] constexpr auto sum_error(some_expected auto &&src) -> decltype(auto) { return FWD(src).sum_error(); }
 
 // When any of the sides is expected<void, ...>, we do not produce expected<pack<...>, ...>
