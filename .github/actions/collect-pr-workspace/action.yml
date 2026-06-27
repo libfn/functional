@@ -2,7 +2,8 @@ name: collect-pr-workspace
 description: >
   Build the project with coverage instrumentation and a compilation database and generate gcov reports.
   On `pull_request` events, package the `.build` outputs and PR metadata into the inputs artifact that
-  the companion `restore-pr-workspace` action reconstructs in the privileged downstream scan workflow.
+  the privileged downstream `*-pr-scan` workflows validate (`.github/scripts/validate-pr-artifact.sh`)
+  and restore.
 
 inputs:
   artifact-name:
@@ -71,7 +72,7 @@ runs:
         $GCOV -pbc -r -s "$(realpath ..)" $(find tests -type f -name '*.gcno') # generate .gcov files
 
     # Uniform artifact contract for both tools: always carry compile_commands.json and base_ref even
-    # though codecov ignores them, so restore-pr-workspace needs no per-tool branching.
+    # though codecov ignores them, so the downstream restore needs no per-tool branching.
     - name: Package pull request workspace
       if: github.event_name == 'pull_request'
       shell: bash
@@ -82,7 +83,7 @@ runs:
         PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
         PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
       run: |
-        # `.pr-meta` is the artifact contract consumed by the restore-pr-workspace action.
+        # `.pr-meta` is the artifact contract consumed by .github/scripts/validate-pr-artifact.sh downstream.
         mkdir -p .pr-meta
         printf "%s\n" "$PR_NUMBER"   > .pr-meta/number
         printf "%s\n" "$PR_HEAD_SHA" > .pr-meta/head_sha
