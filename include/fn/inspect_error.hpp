@@ -87,4 +87,4 @@ struct inspect_error_t::apply final {
 
 } // namespace fn
 
-#endif // INCLUDE_FUNCTIONAL_INSPECT_ERROR
+#endif // INCLUDE_FN_INSPECT_ERROR

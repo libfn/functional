@@ -88,4 +88,4 @@ struct and_then_t::apply final {
 
 } // namespace fn
 
-#endif // INCLUDE_FUNCTIONAL_AND_THEN
+#endif // INCLUDE_FN_AND_THEN

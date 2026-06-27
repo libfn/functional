@@ -48,4 +48,4 @@ template <typename T, typename V>
 using apply_const_lvalue_t = decltype(detail::_apply_const<T &, decltype(detail::_apply_lvalue<T, V>)>);
 }
 
-#endif // INCLUDE_FUNCTIONAL_DETAIL_TRAITS
+#endif // INCLUDE_FN_DETAIL_TRAITS

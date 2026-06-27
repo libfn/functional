@@ -116,4 +116,4 @@ struct inspect_t::apply final {
 
 } // namespace fn
 
-#endif // INCLUDE_FUNCTIONAL_INSPECT
+#endif // INCLUDE_FN_INSPECT

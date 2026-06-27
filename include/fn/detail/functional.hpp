@@ -234,4 +234,4 @@ concept _typelist_invocable_r = _is_rts_invocable<R, Fn, T &&, Tx...>;
 
 } // namespace fn::detail
 
-#endif // INCLUDE_FUNCTIONAL_DETAIL_FUNCTIONAL
+#endif // INCLUDE_FN_DETAIL_FUNCTIONAL

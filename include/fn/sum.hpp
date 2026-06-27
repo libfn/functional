@@ -680,4 +680,4 @@ using sum_for = detail::_collapsing_sum::normalized<::fn::sum, detail::_collapsi
 
 } // namespace fn
 
-#endif // INCLUDE_FUNCTIONAL_SUM
+#endif // INCLUDE_FN_SUM

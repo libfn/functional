@@ -109,4 +109,4 @@ concept convertible_to_bool = requires { static_cast<bool>(::std::declval<T>());
 
 } // namespace fn
 
-#endif // INCLUDE_FUNCTIONAL_CONCEPTS
+#endif // INCLUDE_FN_CONCEPTS

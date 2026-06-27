@@ -115,4 +115,4 @@ struct recover_t::apply final {
 
 } // namespace fn
 
-#endif // INCLUDE_FUNCTIONAL_RECOVER
+#endif // INCLUDE_FN_RECOVER

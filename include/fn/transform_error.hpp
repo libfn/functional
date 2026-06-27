@@ -72,4 +72,4 @@ struct transform_error_t::apply final {
 
 } // namespace fn
 
-#endif // INCLUDE_FUNCTIONAL_TRANSFORM_ERROR
+#endif // INCLUDE_FN_TRANSFORM_ERROR

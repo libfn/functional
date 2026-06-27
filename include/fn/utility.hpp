@@ -67,4 +67,4 @@ template <typename T, typename... Args>
 
 } // namespace fn
 
-#endif // INCLUDE_FUNCTIONAL_UTILITY
+#endif // INCLUDE_FN_UTILITY

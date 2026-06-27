@@ -141,4 +141,4 @@ struct filter_t::apply final {
 
 } // namespace fn
 
-#endif // INCLUDE_FUNCTIONAL_FILTER
+#endif // INCLUDE_FN_FILTER

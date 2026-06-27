@@ -611,4 +611,4 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, ::std::s
 } // namespace detail
 } // namespace fn
 
-#endif // INCLUDE_FUNCTIONAL_DETAIL_VARIADIC_UNION
+#endif // INCLUDE_FN_DETAIL_VARIADIC_UNION

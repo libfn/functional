@@ -48,4 +48,4 @@ template <typename Functor, typename... Args> struct functor final {
 
 } // namespace fn
 
-#endif // INCLUDE_FUNCTIONAL_FUNCTOR
+#endif // INCLUDE_FN_FUNCTOR

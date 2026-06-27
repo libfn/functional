@@ -98,4 +98,4 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
 
 } // namespace fn::detail
 
-#endif // INCLUDE_FUNCTIONAL_DETAIL_PACK_IMPL
+#endif // INCLUDE_FN_DETAIL_PACK_IMPL

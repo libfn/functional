@@ -329,4 +329,4 @@ template <some_optional Lh, some_optional Rh> [[nodiscard]] constexpr auto opera
 
 } // namespace fn
 
-#endif // INCLUDE_FUNCTIONAL_OPTIONAL
+#endif // INCLUDE_FN_OPTIONAL

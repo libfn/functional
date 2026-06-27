@@ -1059,4 +1059,4 @@ template <typename Lh, typename Rh>
 
 } // namespace fn
 
-#endif // INCLUDE_FUNCTIONAL_EXPECTED
+#endif // INCLUDE_FN_EXPECTED

@@ -81,4 +81,4 @@ struct or_else_t::apply final {
 
 } // namespace fn
 
-#endif // INCLUDE_FUNCTIONAL_OR_ELSE
+#endif // INCLUDE_FN_OR_ELSE

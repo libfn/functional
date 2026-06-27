@@ -72,4 +72,4 @@ concept _some_sum = detail::_is_sum<T &>;
 } // namespace detail
 } // namespace fn
 
-#endif // INCLUDE_FUNCTIONAL_DETAIL_FWD
+#endif // INCLUDE_FN_DETAIL_FWD

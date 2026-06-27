@@ -480,4 +480,4 @@ using choice_for = detail::_collapsing_sum::normalized<::fn::choice, detail::_co
 
 } // namespace fn
 
-#endif // INCLUDE_FUNCTIONAL_CHOICE
+#endif // INCLUDE_FN_CHOICE
