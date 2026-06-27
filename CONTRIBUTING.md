@@ -4,14 +4,18 @@ This is for working *on* libfn; to *use* the library, see the [README](README.md
 
 ## Development environment
 
-Building and testing libfn needs a recent C++23 toolchain (the monadic `std::optional`/`std::expected` of ISO/IEC 14882:2023). The minimum recommended compilers are [gcc 13][gcc-standard-support] and [clang 18][clang-standard-support]; if your OS does not ship one recent enough, use the [devcontainer] or [Nix][nix] (see [nix/README.md][nixmd]).
+Building and testing libfn needs a C++20 toolchain (with one exception). `pfn` polyfills the C++23 standard-library utilities that `fn` builds on (`pfn::expected`, `pfn::invoke_r`, `pfn::unreachable`). The minimum supported compilers are [gcc 12][gcc-standard-support] and [clang 16][clang-standard-support]; if your OS does not ship one recent enough, use the [devcontainer] or [Nix][nix] (see [nix/README.md][nixmd]). You may also use Apple Clang 16.0 or Microsoft Visual Studio 2022 or newer.
+
+When working with `tests/pfn/expected.cpp` you will need a C++23 compiler, in order to enable the `VALIDATE_CXX23` option for `expected_validation.cpp` tests.
 
 ## Building locally
 
-`pfn` (`include/pfn`) targets C++20; `fn` (`include/fn`) is being migrated from C++23 to C++20. The CMake option `DISABLE_CXX23` builds the C++20-compatible subset — all of `pfn` plus the `fn` headers migrated so far. `fn` is not yet supported on MSVC (its type-ordering parses GCC/Clang-specific `__PRETTY_FUNCTION__`), so MSVC builds only `pfn`. For a quick check of a single example without the full CMake/Catch2 setup:
+Both `fn` (`include/fn`) and `pfn` (`include/pfn`) target C++20. The unit tests and examples build in C++20 by default. If you have a recent enough compiler, use the CMake option `VALIDATE_CXX23=ON` to additionally build them in C++23 (requires `LIBFN_TESTS=ON`).
+
+For a quick check of a single example without the full CMake/Catch2 setup:
 
 ```bash
-g++ -std=c++23 -Iinclude examples/polygon/main.cpp -o /tmp/polygon
+g++ -std=c++20 -Iinclude examples/polygon/main.cpp -o /tmp/polygon
 ```
 
 ## Test coverage

@@ -42,7 +42,6 @@ endif()
 
 option(DISABLE_FETCH_CONTENT "Do not use FetchContent for dependencies." OFF)
 option(DISABLE_CCACHE_DETECTION "Do not use ccache as CMAKE_CXX_COMPILER_LAUNCHER." OFF)
-option(DISABLE_CXX23 "Disable C++23 support." OFF)
 
 # Docs and coverage options are only relevant for top level builds.
 if(PROJECT_IS_TOP_LEVEL)
@@ -55,6 +54,7 @@ endif()
 
 # We want to allow tests even when our project is not a top level, e.g. for troubleshooting.
 option(LIBFN_TESTS    "Enable unit tests and examples." ON)
+option(VALIDATE_CXX23 "Enable C++23 tests/examples targets." OFF)
 
 # Do not enable sanitizers by default when our project is not a top level or when it is not Debug.
 # Also off by default for MSVC (unsupported), Homebrew GCC on macOS (libasan link path issues), and
@@ -71,6 +71,14 @@ else()
 endif()
 option(LIBFN_SANITIZERS "Enable sanitizers (Debug builds only)." ${sanitizers_default})
 unset(sanitizers_default)
+
+if(VALIDATE_CXX23 AND (NOT LIBFN_TESTS))
+    message(FATAL_ERROR "VALIDATE_CXX23=ON requires LIBFN_TESTS=ON")
+endif()
+
+if(VALIDATE_CXX23 AND MSVC)
+    message(FATAL_ERROR "VALIDATE_CXX23=ON is not supported with MSVC")
+endif()
 
 if(LIBFN_DOCS AND (NOT LIBFN_TESTS))
     message(FATAL_ERROR "LIBFN_DOCS=ON requires LIBFN_TESTS=ON")
@@ -116,19 +124,20 @@ if(PROJECT_IS_TOP_LEVEL)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
 endif()
 
-# Phony targets for all supported C++ versions
-add_custom_target(cxx20)
-
-if(NOT DISABLE_CXX23)
-    add_custom_target(cxx23)
-endif()
+# Phony targets for sentinels.
+add_custom_target(sentinels)
 
 include(GNUInstallDirs)
 
 add_subdirectory(include)
 
 if(LIBFN_TESTS)
-    # Phony targets for tests and examples
+    # Phony targets for C++20/23 tests/examples builds.
+    add_custom_target(cxx20)
+    if (VALIDATE_CXX23)
+        add_custom_target(cxx23)
+    endif()
+
     add_custom_target(tests)
     add_custom_target(examples)
 

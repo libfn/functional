@@ -10,10 +10,13 @@ set(EXAMPLES_POLYGON_SOURCES
     polygon.hpp
 )
 
-# TODO add 20 when we are compatible with C++20
-foreach(mode 23)
-    if(${mode} EQUAL 23 AND DISABLE_CXX23)
-        message(STATUS "C++23 support is disabled, skipping examples_polygon targets for C++23")
+foreach(mode 20 23)
+    if (NOT VALIDATE_CXX23 AND mode EQUAL 23)
+        continue()
+    endif()
+
+    # Current releases of MSVC only support C++20
+    if(MSVC AND NOT (mode EQUAL 20))
         continue()
     endif()
 
@@ -35,9 +38,13 @@ set(TESTS_EXAMPLES_POLYGON_SOURCES
     polygon.hpp
 )
 
-foreach(mode 23)
-    if(${mode} EQUAL 23 AND DISABLE_CXX23)
-        message(STATUS "C++23 support is disabled, skipping tests_examples_polygon targets for C++23")
+foreach(mode 20 23)
+    if (NOT VALIDATE_CXX23 AND mode EQUAL 23)
+        continue()
+    endif()
+
+    # Current releases of MSVC only support C++20
+    if(MSVC AND NOT (mode EQUAL 20))
         continue()
     endif()
 
@@ -48,8 +55,7 @@ foreach(mode 23)
     append_compilation_options("${target}" WARNINGS OPTIMIZATION)
     add_dependencies("cxx${mode}" "${target}")
     add_dependencies("examples" "${target}")
-# Not a real test target, so we don't want it to be a dependency of the "tests" phony target
-#     add_dependencies("tests" "${target}")
+    add_dependencies("tests" "${target}")
     set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
     target_compile_definitions("${target}" PRIVATE LIBFN_MODE=${mode})
 

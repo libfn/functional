@@ -13,39 +13,35 @@ set(TESTS_UTIL_HEADERS
 )
 
 add_library(tests_util INTERFACE)
-target_link_libraries(tests_util INTERFACE include_pfn)
+set_property(TARGET tests_util PROPERTY CXX_STANDARD 20)
 target_sources(tests_util INTERFACE
     FILE_SET tests_util_headers
     TYPE HEADERS
     FILES ${TESTS_UTIL_HEADERS})
 target_include_directories(tests_util INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(tests_util INTERFACE include_pfn)
+target_compile_features(tests_util INTERFACE cxx_std_20)
 
 # Generate sentinel target for each individual header, as a basic sanity check
-foreach(mode 20 23)
-    if(${mode} EQUAL 23 AND DISABLE_CXX23)
-        message(STATUS "C++23 support is disabled, skipping tests_util sentinel targets for C++23")
-        continue()
-    endif()
+foreach(source IN ITEMS ${TESTS_UTIL_HEADERS})
+    string(REGEX REPLACE "^(util)/([^\.]+)\.hpp$" "\\1_\\2" root_name ${source})
+    set(mode 20)
+    set(target "sentinel_${root_name}_cxx${mode}")
 
-    foreach(source IN ITEMS ${TESTS_UTIL_HEADERS})
-        string(REGEX REPLACE "^(util)/([^\.]+)\.hpp$" "\\1_\\2" root_name ${source})
-        set(target "sentinel_${root_name}_cxx${mode}")
+    create_target_for_file(
+        NAME "${target}"
+        SOURCE "${source}"
+        NEW_SOURCE "#include <${source}>\nint main() {}\n"
+        SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
+        DEPENDENCIES tests_util
+    )
+    append_compilation_options("${target}" WARNINGS)
+    add_dependencies("sentinels" "${target}")
+    set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
 
-        create_target_for_file(
-            NAME "${target}"
-            SOURCE "${source}"
-            NEW_SOURCE "#include <${source}>\nint main() {}\n"
-            SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
-            DEPENDENCIES tests_util
-        )
-        append_compilation_options("${target}" WARNINGS)
-        add_dependencies("cxx${mode}" "${target}")
-        set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
-        target_compile_definitions("${target}" PRIVATE LIBFN_MODE=${mode})
-
-        unset(target)
-        unset(root_name)
-    endforeach()
+    unset(target)
+    unset(mode)
+    unset(root_name)
 endforeach()
 
 ### tests/pfn
@@ -62,8 +58,12 @@ include(CompilationOptions)
 
 # Generate separate target for each individual test source
 foreach(mode 20 23)
-    if(${mode} EQUAL 23 AND DISABLE_CXX23)
-        message(STATUS "C++23 support is disabled, skipping tests_pfn targets for C++23")
+    if (NOT VALIDATE_CXX23 AND mode EQUAL 23)
+        continue()
+    endif()
+
+    # Current releases of MSVC only support C++20
+    if(MSVC AND NOT (mode EQUAL 20))
         continue()
     endif()
 
@@ -130,17 +130,16 @@ set(TESTS_FN_SOURCES
 
 # Generate separate target for each individual test source
 foreach(mode 20 23)
-    if(${mode} EQUAL 23 AND DISABLE_CXX23)
-        message(STATUS "C++23 support is disabled, skipping tests_fn targets for C++23")
+    if (NOT VALIDATE_CXX23 AND mode EQUAL 23)
+        continue()
+    endif()
+
+    # Current releases of MSVC only support C++20
+    if(MSVC AND NOT (mode EQUAL 20))
         continue()
     endif()
 
     foreach(source IN ITEMS ${TESTS_FN_SOURCES})
-        # Current releases of MSVC only support C++20
-        if(MSVC AND NOT (mode EQUAL 20))
-            continue()
-        endif()
-
         string(REGEX REPLACE "^(fn)/(detail|)/?([^\.]+)\.cpp$" "\\1_\\2\\3" root_name ${source})
         set(target "tests_${root_name}_cxx${mode}")
 

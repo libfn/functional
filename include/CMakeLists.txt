@@ -36,31 +36,25 @@ install(TARGETS include_pfn
 include(TargetGenerator)
 
 # Generate sentinel target for each individual header, as a basic sanity check
-foreach(mode 20 23)
-    if(${mode} EQUAL 23 AND DISABLE_CXX23)
-        message(STATUS "C++23 support is disabled, skipping include_pfn sentinel targets for C++23")
-        continue()
-    endif()
+foreach(source IN ITEMS ${INCLUDE_PFN_HEADERS})
+    string(REGEX REPLACE "^(pfn)/(detail|)/?([^\.]+)\.hpp$" "\\1_\\2\\3" root_name ${source})
+    set(mode 20)
+    set(target "sentinel_${root_name}_cxx${mode}")
 
-    foreach(source IN ITEMS ${INCLUDE_PFN_HEADERS})
-        string(REGEX REPLACE "^(pfn)/(detail|)/?([^\.]+)\.hpp$" "\\1_\\2\\3" root_name ${source})
-        set(target "sentinel_${root_name}_cxx${mode}")
+    create_target_for_file(
+        NAME "${target}"
+        SOURCE "${source}"
+        NEW_SOURCE "#include <${source}>\nint main() {}\n"
+        SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
+        DEPENDENCIES include_pfn
+    )
+    append_compilation_options("${target}" WARNINGS)
+    add_dependencies("sentinels" "${target}")
+    set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
 
-        create_target_for_file(
-            NAME "${target}"
-            SOURCE "${source}"
-            NEW_SOURCE "#include <${source}>\nint main() {}\n"
-            SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
-            DEPENDENCIES include_pfn
-        )
-        append_compilation_options("${target}" WARNINGS)
-        add_dependencies("cxx${mode}" "${target}")
-        set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
-        target_compile_definitions("${target}" PRIVATE LIBFN_MODE=${mode})
-
-        unset(target)
-        unset(root_name)
-    endforeach()
+    unset(target)
+    unset(mode)
+    unset(root_name)
 endforeach()
 
 ### include/fn
@@ -100,52 +94,43 @@ set(INCLUDE_FN_HEADERS
     fn/value_or.hpp
 )
 
-if(NOT DISABLE_CXX23)
-    add_library(include_fn INTERFACE)
-    set_property(TARGET include_fn PROPERTY CXX_STANDARD 20)
-    target_sources(include_fn INTERFACE
-        FILE_SET include_fn_headers
-        TYPE HEADERS
-        FILES ${INCLUDE_FN_HEADERS})
-    append_compilation_options(include_fn INTERFACE)
-    target_include_directories(include_fn SYSTEM INTERFACE
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-    set_target_properties(include_fn PROPERTIES EXPORT_NAME fn)
-    target_link_libraries(include_fn INTERFACE include_pfn)
-    target_compile_features(include_fn INTERFACE cxx_std_20)
+add_library(include_fn INTERFACE)
+set_property(TARGET include_fn PROPERTY CXX_STANDARD 20)
+target_sources(include_fn INTERFACE
+    FILE_SET include_fn_headers
+    TYPE HEADERS
+    FILES ${INCLUDE_FN_HEADERS})
+append_compilation_options(include_fn INTERFACE)
+target_include_directories(include_fn SYSTEM INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+set_target_properties(include_fn PROPERTIES EXPORT_NAME fn)
+target_link_libraries(include_fn INTERFACE include_pfn)
+target_compile_features(include_fn INTERFACE cxx_std_20)
 
-    install(TARGETS include_fn
-        EXPORT libfnTargets
-        FILE_SET include_fn_headers
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-endif()
+install(TARGETS include_fn
+    EXPORT libfnTargets
+    FILE_SET include_fn_headers
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 # Generate sentinel target for each individual header, as a basic sanity check
-# TODO add 20 when we are compatible with C++20
-foreach(mode 23)
-    if(${mode} EQUAL 23 AND DISABLE_CXX23)
-        message(STATUS "C++23 support is disabled, skipping include_fn sentinel targets for C++23")
-        continue()
-    endif()
+foreach(source IN ITEMS ${INCLUDE_FN_HEADERS})
+    string(REGEX REPLACE "^(fn)/(detail|)/?([^\.]+)\.hpp$" "\\1_\\2\\3" root_name ${source})
+    set(mode 20)
+    set(target "sentinel_${root_name}_cxx${mode}")
 
-    foreach(source IN ITEMS ${INCLUDE_FN_HEADERS})
-        string(REGEX REPLACE "^(fn)/(detail|)/?([^\.]+)\.hpp$" "\\1_\\2\\3" root_name ${source})
-        set(target "sentinel_${root_name}_cxx${mode}")
+    create_target_for_file(
+        NAME "${target}"
+        SOURCE "${source}"
+        NEW_SOURCE "#include <${source}>\nint main() {}\n"
+        SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
+        DEPENDENCIES include_fn
+    )
+    append_compilation_options("${target}" WARNINGS)
+    add_dependencies("sentinels" "${target}")
+    set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
 
-        create_target_for_file(
-            NAME "${target}"
-            SOURCE "${source}"
-            NEW_SOURCE "#include <${source}>\nint main() {}\n"
-            SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
-            DEPENDENCIES include_fn
-        )
-        append_compilation_options("${target}" WARNINGS)
-        add_dependencies("cxx${mode}" "${target}")
-        set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
-        target_compile_definitions("${target}" PRIVATE LIBFN_MODE=${mode})
-
-        unset(target)
-        unset(root_name)
-    endforeach()
+    unset(target)
+    unset(mode)
+    unset(root_name)
 endforeach()
