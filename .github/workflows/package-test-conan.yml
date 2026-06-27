@@ -25,19 +25,6 @@ jobs:
   test_conan:
     runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
     container: libfn.azurecr.io/ci-build-gcc:15-sha-08b1133
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: cxx23
-            disable_cxx23: 'False'
-            cppstd: '23'
-          - name: cxx20
-            disable_cxx23: 'True'
-            cppstd: '20'
-          - name: cxx20-std23
-            disable_cxx23: 'True'
-            cppstd: '23'
 
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -47,8 +34,6 @@ jobs:
         conan profile detect
         echo "tools.cmake.cmaketoolchain:generator=Ninja" >> ~/.conan2/global.conf
 
-    - name: Test ${{ matrix.name }} packaging
+    - name: Test packaging
       run: |
-        conan create . --build=missing \
-          -o "&:disable_cxx23=${{ matrix.disable_cxx23 }}" \
-          -s "compiler.cppstd=${{ matrix.cppstd }}"
+        conan create . --build=missing -s "compiler.cppstd=20"

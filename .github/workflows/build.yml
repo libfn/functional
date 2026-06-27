@@ -37,7 +37,6 @@ jobs:
       matrix:
         mode:
           - cxx20
-          - cxx23
         configuration:
           - Debug
           - Release
@@ -57,19 +56,29 @@ jobs:
           - "clang-libstdcxx:21"
           - "clang-libstdcxx:22"
         exclude:
-          - mode: cxx23
-            compiler: "gcc:12"
-          - mode: cxx23
-            compiler: "clang:16"
-          - mode: cxx23
-            compiler: "clang:17"
+          # These run the C++23 lane below, which builds C++20 too, so skip
+          # their standalone C++20 job rather than build C++20 twice.
+          - { mode: cxx20, compiler: "gcc:15" }
+          - { mode: cxx20, compiler: "gcc:16" }
+          - { mode: cxx20, compiler: "clang:21" }
+          - { mode: cxx20, compiler: "clang:22" }
+          - { mode: cxx20, compiler: "clang-libstdcxx:21" }
+          - { mode: cxx20, compiler: "clang-libstdcxx:22" }
         include:
-          - mode: all
-            configuration: Debug
-            compiler: "gcc:14"
-          - mode: all
-            configuration: Release
-            compiler: "gcc:14"
+          # C++23 validation lane (-DVALIDATE_CXX23=ON), restricted to a small
+          # set of compilers with solid C++23 support: gcc 15+, clang 21+.
+          - { mode: cxx23, configuration: Debug,   compiler: "gcc:15" }
+          - { mode: cxx23, configuration: Release, compiler: "gcc:15" }
+          - { mode: cxx23, configuration: Debug,   compiler: "gcc:16" }
+          - { mode: cxx23, configuration: Release, compiler: "gcc:16" }
+          - { mode: cxx23, configuration: Debug,   compiler: "clang:21" }
+          - { mode: cxx23, configuration: Release, compiler: "clang:21" }
+          - { mode: cxx23, configuration: Debug,   compiler: "clang:22" }
+          - { mode: cxx23, configuration: Release, compiler: "clang:22" }
+          - { mode: cxx23, configuration: Debug,   compiler: "clang-libstdcxx:21" }
+          - { mode: cxx23, configuration: Release, compiler: "clang-libstdcxx:21" }
+          - { mode: cxx23, configuration: Debug,   compiler: "clang-libstdcxx:22" }
+          - { mode: cxx23, configuration: Release, compiler: "clang-libstdcxx:22" }
     container: libfn.azurecr.io/ci-build-${{ matrix.compiler }}-sha-08b1133
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -78,23 +87,14 @@ jobs:
       run: |
         mkdir .build
         cd .build
-        cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ${{ matrix.mode == 'cxx20' && '-DDISABLE_CXX23=ON' || '' }} ..
+        cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ${{ matrix.mode == 'cxx23' && '-DVALIDATE_CXX23=ON' || '' }} ..
         COMPILER=$( grep -iE "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
         FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ matrix.configuration }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
         printf "C++ compiler path: %s\n" "$COMPILER"
         "$COMPILER" --version
         printf "C++ compilation options: %s\n" "$FLAGS"
 
-    - name: Build and test ${{ matrix.mode }}
-      if: matrix.mode != 'all'
-      run: |
-        cd .build
-        cmake --build . --target ${{ matrix.mode }}
-        ctest -L ${{ matrix.mode }} --output-on-failure
-
-    # Build and test all for one arbitrary configuration
-    - name: Build and test all
-      if: matrix.mode == 'all'
+    - name: Build and test
       run: |
         cd .build
         cmake --build .
@@ -115,7 +115,6 @@ jobs:
       matrix:
         mode:
           - cxx20
-          - cxx23
         configuration:
           - Debug
           - Release
@@ -142,21 +141,24 @@ jobs:
             osver: 26
             release: 15
         exclude:
-          - mode: cxx23
+          # appleclang-26 runs the C++23 lane below, which builds C++20 too, so
+          # skip its standalone C++20 job rather than build C++20 twice.
+          - mode: cxx20
             compiler:
               name: appleclang
-              osver: 14
+              osver: 26
         include:
-          - mode: all
+          # C++23 validation lane (-DVALIDATE_CXX23=ON): appleclang on macOS 26.
+          - mode: cxx23
             configuration: Debug
             compiler:
               name: appleclang
-              osver: 15
-          - mode: all
+              osver: 26
+          - mode: cxx23
             configuration: Release
             compiler:
               name: appleclang
-              osver: 15
+              osver: 26
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
@@ -187,23 +189,14 @@ jobs:
           CC="$(brew --prefix gcc@${{ matrix.compiler.release }})/bin/gcc-${{ matrix.compiler.release }}"
           export CXX CC
         fi
-        cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ${{ matrix.mode == 'cxx20' && '-DDISABLE_CXX23=ON' || '' }} ..
+        cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ${{ matrix.mode == 'cxx23' && '-DVALIDATE_CXX23=ON' || '' }} ..
         COMPILER=$( grep -iE "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
         FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ matrix.configuration }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
         printf "C++ compiler path: %s\n" "$COMPILER"
         "$COMPILER" --version
         printf "C++ compilation options: %s\n" "$FLAGS"
 
-    - name: Build and test ${{ matrix.mode }}
-      if: matrix.mode != 'all'
-      run: |
-        cd .build
-        cmake --build . --target ${{ matrix.mode }}
-        ctest -L ${{ matrix.mode }} --output-on-failure
-
-    # Build and test all for one arbitrary configuration
-    - name: Build and test all
-      if: matrix.mode == 'all'
+    - name: Build and test
       run: |
         cd .build
         cmake --build .
@@ -235,19 +228,19 @@ jobs:
       run: |
         mkdir .build
         cd .build
-        cmake -G "${{ matrix.vs.generator }}" -A x64 -DDISABLE_CXX23=ON ..
+        cmake -G "${{ matrix.vs.generator }}" -A x64 ..
         LINKER=$( grep -iE "^CMAKE_LINKER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
         FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ matrix.configuration }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
         printf "C++ linker path: %s\n" "$LINKER"
         "$LINKER" . || true
         printf "C++ compilation options: %s\n" "$FLAGS"
 
-    - name: Build and test ${{ matrix.mode }}
+    - name: Build and test
       shell: bash
       run: |
         cd .build
-        cmake --build . --target ${{ matrix.mode }} --config ${{ matrix.configuration }}
-        ctest -L ${{ matrix.mode }} -C ${{ matrix.configuration }} --output-on-failure
+        cmake --build . --config ${{ matrix.configuration }}
+        ctest -C ${{ matrix.configuration }} --output-on-failure
 
   nixos:
     timeout-minutes: 30
