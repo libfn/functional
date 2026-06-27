@@ -75,7 +75,7 @@ template <typename T, typename E> struct _storage : ::pfn::detail::_storage<T, E
         if constexpr (not ::std::is_same_v<E, sum<>>)
           return new_type(::pfn::unexpect, _pfn_base::_error(FWD(self)));
         else
-          ::pfn::unreachable();
+          ::pfn::unreachable(); // LCOV_EXCL_LINE
       }
     }
   }
@@ -110,7 +110,7 @@ template <typename T, typename E> struct _storage : ::pfn::detail::_storage<T, E
         if constexpr (not ::std::is_same_v<E, sum<>>)
           return new_type(::pfn::unexpect, _pfn_base::_error(FWD(self)));
         else
-          ::pfn::unreachable();
+          ::pfn::unreachable(); // LCOV_EXCL_LINE
       }
     }
   }
@@ -923,12 +923,12 @@ template <typename Lh, typename Rh>
     if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type, sum<>>)
       return type{::pfn::unexpect, new_error_type{FWD(lh).error()}};
     else
-      pfn::unreachable();
+      ::pfn::unreachable(); // LCOV_EXCL_LINE
   } else {
     if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Rh>::error_type, sum<>>)
       return type{::pfn::unexpect, new_error_type{FWD(rh).error()}};
     else
-      pfn::unreachable();
+      ::pfn::unreachable(); // LCOV_EXCL_LINE
   }
 }
 
@@ -967,12 +967,12 @@ template <typename Lh, typename Rh>
     if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type, sum<>>)
       return type{::pfn::unexpect, new_error_type{FWD(lh).error()}};
     else
-      pfn::unreachable();
+      ::pfn::unreachable(); // LCOV_EXCL_LINE
   } else {
     if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Rh>::error_type, sum<>>)
       return type{::pfn::unexpect, new_error_type{FWD(rh).error()}};
     else
-      pfn::unreachable();
+      ::pfn::unreachable(); // LCOV_EXCL_LINE
   }
 }
 
@@ -1009,12 +1009,12 @@ template <typename Lh, typename Rh>
     if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type, sum<>>)
       return type{::pfn::unexpect, new_error_type{FWD(lh).error()}};
     else
-      pfn::unreachable();
+      ::pfn::unreachable(); // LCOV_EXCL_LINE
   } else {
     if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Rh>::error_type, sum<>>)
       return type{::pfn::unexpect, new_error_type{FWD(rh).error()}};
     else
-      pfn::unreachable();
+      ::pfn::unreachable(); // LCOV_EXCL_LINE
   }
 }
 
@@ -1051,7 +1051,7 @@ template <typename Lh, typename Rh>
     if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<decltype(v)>::error_type, sum<>>) {
       return ::pfn::unexpected<new_error_type>(FWD(v).error());
     } else {
-      pfn::unreachable();
+      ::pfn::unreachable(); // LCOV_EXCL_LINE
     }
   };
   return ::fn::detail::_join<detail::template _expected_type<new_error_type>::template type>(FWD(lh), FWD(rh), efn);

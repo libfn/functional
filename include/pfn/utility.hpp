@@ -8,6 +8,7 @@
 
 namespace pfn {
 
+// LCOV_EXCL_START unreachable by design
 [[noreturn]] inline void unreachable()
 {
 #if defined(__GNUC__) || defined(__clang__)
@@ -16,6 +17,7 @@ namespace pfn {
   __assume(false);
 #endif
 }
+// LCOV_EXCL_STOP
 
 } // namespace pfn
 

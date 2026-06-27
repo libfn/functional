@@ -574,19 +574,19 @@ template <class T, class E, class Policy> struct _storage {
   static constexpr auto &&_value(auto &&s) noexcept
     requires(not ::std::is_void_v<T>)
   {
-    ASSERT(s.set_);
+    ASSERT(s.set_); // LCOV_EXCL_LINE
     return FWD(s).storage_.v_;
   }
   constexpr _value_t const *operator->() const noexcept
     requires(not ::std::is_void_v<T>)
   {
-    ASSERT(set_);
+    ASSERT(set_); // LCOV_EXCL_LINE
     return ::std::addressof(storage_.v_);
   }
   constexpr _value_t *operator->() noexcept
     requires(not ::std::is_void_v<T>)
   {
-    ASSERT(set_);
+    ASSERT(set_); // LCOV_EXCL_LINE
     return ::std::addressof(storage_.v_);
   }
   constexpr _value_t const &operator*() const & noexcept
@@ -650,22 +650,22 @@ template <class T, class E, class Policy> struct _storage {
   constexpr void operator*() const & noexcept
     requires(::std::is_void_v<T>)
   {
-    ASSERT(set_);
+    ASSERT(set_); // LCOV_EXCL_LINE
   }
   constexpr void operator*() & noexcept
     requires(::std::is_void_v<T>)
   {
-    ASSERT(set_);
+    ASSERT(set_); // LCOV_EXCL_LINE
   }
   constexpr void operator*() const && noexcept
     requires(::std::is_void_v<T>)
   {
-    ASSERT(set_);
+    ASSERT(set_); // LCOV_EXCL_LINE
   }
   constexpr void operator*() && noexcept
     requires(::std::is_void_v<T>)
   {
-    ASSERT(set_);
+    ASSERT(set_); // LCOV_EXCL_LINE
   }
   constexpr void value() const &
     requires(::std::is_void_v<T>)
@@ -685,7 +685,7 @@ template <class T, class E, class Policy> struct _storage {
 
   static constexpr auto &&_error(auto &&s) noexcept
   {
-    ASSERT(not s.set_);
+    ASSERT(not s.set_); // LCOV_EXCL_LINE
     return FWD(s).storage_.e_;
   }
   constexpr E const &error() const & noexcept { return _error(*this); }

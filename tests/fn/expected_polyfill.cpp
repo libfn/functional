@@ -7,7 +7,6 @@
 // subject-under-test aliases into the global namespace, then include pfn/expected.cpp.
 // The fn::expected sum/graded/pack behaviour is covered in fn/expected.cpp.
 
-#define LIBFN_ASSERT(...)
 #include <fn/expected.hpp>
 
 using fn::expected;

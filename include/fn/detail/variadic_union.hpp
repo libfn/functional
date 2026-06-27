@@ -316,7 +316,7 @@ template <typename R, typename U, typename Fn, typename... Args>
 {
   if (index == 0)
     return static_cast<R>(_invoke(FWD(fn), FWD(v).v0, FWD(args)...));
-  pfn::unreachable();
+  ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
 template <typename R, typename U, typename Fn>
@@ -327,7 +327,7 @@ template <typename R, typename U, typename Fn>
 {
   if (index == 0)
     return static_cast<R>(_invoke_type<typename U::t0>(FWD(fn), FWD(v).v0));
-  pfn::unreachable();
+  ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
 template <typename R, typename U, typename Fn, typename... Args>
@@ -338,7 +338,7 @@ constexpr void invoke_variadic_union(some_variadic_union auto &&v, ::std::size_t
 {
   if (index == 0)
     return (void)_invoke(FWD(fn), FWD(v).v0, FWD(args)...);
-  pfn::unreachable();
+  ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
 template <typename R, typename U, typename Fn>
@@ -349,7 +349,7 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, ::std::s
 {
   if (index == 0)
     return (void)_invoke_type<typename U::t0>(FWD(fn), FWD(v).v0);
-  pfn::unreachable();
+  ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
 template <typename R, typename U, typename Fn, typename... Args>
@@ -363,7 +363,7 @@ template <typename R, typename U, typename Fn, typename... Args>
     return static_cast<R>(_invoke(FWD(fn), FWD(v).v0, FWD(args)...));
   else if (index == 1)
     return static_cast<R>(_invoke(FWD(fn), FWD(v).v1, FWD(args)...));
-  pfn::unreachable();
+  ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
 template <typename R, typename U, typename Fn>
@@ -376,7 +376,7 @@ template <typename R, typename U, typename Fn>
     return static_cast<R>(_invoke_type<typename U::t0>(FWD(fn), FWD(v).v0));
   else if (index == 1)
     return static_cast<R>(_invoke_type<typename U::t1>(FWD(fn), FWD(v).v1));
-  pfn::unreachable();
+  ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
 template <typename R, typename U, typename Fn, typename... Args>
@@ -389,7 +389,7 @@ constexpr void invoke_variadic_union(some_variadic_union auto &&v, ::std::size_t
     return (void)_invoke(FWD(fn), FWD(v).v0, FWD(args)...);
   else if (index == 1)
     return (void)_invoke(FWD(fn), FWD(v).v1, FWD(args)...);
-  pfn::unreachable();
+  ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
 template <typename R, typename U, typename Fn>
@@ -402,7 +402,7 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, ::std::s
     return (void)_invoke_type<typename U::t0>(FWD(fn), FWD(v).v0);
   else if (index == 1)
     return (void)_invoke_type<typename U::t1>(FWD(fn), FWD(v).v1);
-  pfn::unreachable();
+  ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
 template <typename R, typename U, typename Fn, typename... Args>
@@ -418,7 +418,7 @@ template <typename R, typename U, typename Fn, typename... Args>
     return static_cast<R>(_invoke(FWD(fn), FWD(v).v1, FWD(args)...));
   else if (index == 2)
     return static_cast<R>(_invoke(FWD(fn), FWD(v).v2, FWD(args)...));
-  pfn::unreachable();
+  ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
 template <typename R, typename U, typename Fn>
@@ -433,7 +433,7 @@ template <typename R, typename U, typename Fn>
     return static_cast<R>(_invoke_type<typename U::t1>(FWD(fn), FWD(v).v1));
   else if (index == 2)
     return static_cast<R>(_invoke_type<typename U::t2>(FWD(fn), FWD(v).v2));
-  pfn::unreachable();
+  ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
 template <typename R, typename U, typename Fn, typename... Args>
@@ -448,7 +448,7 @@ constexpr void invoke_variadic_union(some_variadic_union auto &&v, ::std::size_t
     return (void)_invoke(FWD(fn), FWD(v).v1, FWD(args)...);
   else if (index == 2)
     return (void)_invoke(FWD(fn), FWD(v).v2, FWD(args)...);
-  pfn::unreachable();
+  ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
 template <typename R, typename U, typename Fn>
@@ -463,7 +463,7 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, ::std::s
     return (void)_invoke_type<typename U::t1>(FWD(fn), FWD(v).v1);
   else if (index == 2)
     return (void)_invoke_type<typename U::t2>(FWD(fn), FWD(v).v2);
-  pfn::unreachable();
+  ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
 template <typename R, typename U, typename Fn, typename... Args>
@@ -481,7 +481,7 @@ template <typename R, typename U, typename Fn, typename... Args>
     return static_cast<R>(_invoke(FWD(fn), FWD(v).v2, FWD(args)...));
   else if (index == 3)
     return static_cast<R>(_invoke(FWD(fn), FWD(v).v3, FWD(args)...));
-  pfn::unreachable();
+  ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
 template <typename R, typename U, typename Fn>
@@ -498,7 +498,7 @@ template <typename R, typename U, typename Fn>
     return static_cast<R>(_invoke_type<typename U::t2>(FWD(fn), FWD(v).v2));
   else if (index == 3)
     return static_cast<R>(_invoke_type<typename U::t3>(FWD(fn), FWD(v).v3));
-  pfn::unreachable();
+  ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
 template <typename R, typename U, typename Fn, typename... Args>
@@ -515,7 +515,7 @@ constexpr void invoke_variadic_union(some_variadic_union auto &&v, ::std::size_t
     return (void)_invoke(FWD(fn), FWD(v).v2, FWD(args)...);
   else if (index == 3)
     return (void)_invoke(FWD(fn), FWD(v).v3, FWD(args)...);
-  pfn::unreachable();
+  ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
 template <typename R, typename U, typename Fn>
@@ -532,7 +532,7 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, ::std::s
     return (void)_invoke_type<typename U::t2>(FWD(fn), FWD(v).v2);
   else if (index == 3)
     return (void)_invoke_type<typename U::t3>(FWD(fn), FWD(v).v3);
-  pfn::unreachable();
+  ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
 template <typename R, typename U, typename Fn, typename... Args>

@@ -7,8 +7,6 @@
 
 #ifndef PFN_TEST_NESTED
 
-// TODO : Add death tests.Until then, empty definition to avoid false "no coverage" reports
-#define LIBFN_ASSERT(...)
 #include <pfn/expected.hpp>
 
 using pfn::bad_expected_access;
