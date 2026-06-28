@@ -332,7 +332,7 @@ struct sum<Ts...> {
       : data(detail::invoke_type_variadic_union<data_t, data_t>(  //
             ::std::move(other).data, other.index,                 //
             []<typename T>(::std::in_place_type_t<T>, auto &&v) { //
-              return detail::make_variadic_union<T, data_t>(::std::move(v));
+              return detail::make_variadic_union<T, data_t>(FWD(v));
             })),
         index(other.index)
   {
