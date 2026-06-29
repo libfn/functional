@@ -32,13 +32,15 @@ function(append_compilation_options)
     endif()
 
     if(Options_WARNINGS)
-        # MSVC: disable C4456 (decl hides previous local), C4244 (narrowing _Ty→_Ty), C4101 (unref local var).
+        # MSVC: disable C4456 (decl hides previous local), C4244 (narrowing _Ty→_Ty),
+        # C4101 (unref local var), C4805 (bool/int in heterogeneous == ).
         # Clang ≥19: -Wno-c2y-extensions allows Catch2's use of __COUNTER__ (not a C++ preprocessor feature).
         target_compile_options(${Options_NAME} PRIVATE
             $<$<CXX_COMPILER_ID:MSVC>:/W4>
             $<$<CXX_COMPILER_ID:MSVC>:/wd4456>
             $<$<CXX_COMPILER_ID:MSVC>:/wd4244>
             $<$<CXX_COMPILER_ID:MSVC>:/wd4101>
+            $<$<CXX_COMPILER_ID:MSVC>:/wd4805>
             $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wall>
             $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wextra>
             $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wpedantic>

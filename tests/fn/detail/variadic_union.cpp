@@ -147,7 +147,7 @@ TEST_CASE(
   static_assert(invoke_type_variadic_union<int, U5>(b5, 4,
                                                     []<typename T>(std::in_place_type_t<T>, auto i) -> int {
                                                       if constexpr (std::same_as<T, std::string_view>)
-                                                        return i.size();
+                                                        return static_cast<int>(i.size());
                                                       return 0;
                                                     })
                 == 5);
@@ -166,7 +166,7 @@ TEST_CASE("variadic_unionc invoke only", "[variadic_union][invoke_variadic_union
   auto fn1L = [&total](auto i) { total += static_cast<int>(i); };
   constexpr auto fn2 = [](fn::some_in_place_type auto, auto i) { return static_cast<short>(i * 2); };
   auto fn2L = [&total](fn::some_in_place_type auto, auto i) { total += static_cast<int>(2 * i); };
-  auto fnAll = [](auto &&...a) { return static_cast<int>(sizeof...(a)); };
+  auto fnAll = []([[maybe_unused]] auto &&...a) { return static_cast<int>(sizeof...(a)); };
 
   WHEN("size == 1")
   {

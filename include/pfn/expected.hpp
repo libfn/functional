@@ -22,7 +22,7 @@
 #undef FWD
 #endif
 
-// Also defined in fn/detail/fwd_macro.hpp but pfn/* headers are standalone
+// Also defined in fn/detail/macro_fwd.hpp but pfn/* headers are standalone
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 
 #ifdef ASSERT
@@ -71,7 +71,7 @@ public:
 // [expected.bad], primary template
 template <class E> class bad_expected_access : public bad_expected_access<void> {
 public:
-  explicit bad_expected_access(E e) : e_(std::move(e)) {}
+  explicit bad_expected_access(E e) : e_(::std::move(e)) {}
   [[nodiscard]] char const *what() const noexcept override { return bad_expected_access<void>::what(); };
   E &error() & noexcept { return e_; }
   E const &error() const & noexcept { return e_; }
@@ -252,7 +252,7 @@ template <class T, class E> union _storage_union_t {
     } else if constexpr (::std::is_nothrow_move_constructible_v<New>) {
       New tmp(::std::forward<Args>(args)...);
       ::std::destroy_at(oldp);
-      ::std::construct_at(newp, std::move(tmp));
+      ::std::construct_at(newp, ::std::move(tmp));
     } else if constexpr (::std::is_trivially_copyable_v<Old>) {
       // Workaround for https://github.com/llvm/llvm-project/issues/196520:
       // clang on aarch64 sinks the snapshot load past the store-through-newp
@@ -273,23 +273,23 @@ template <class T, class E> union _storage_union_t {
         }
       } else {
         // LCOV_EXCL_START constant-evaluated only; runtime branches are above and below
-        Old tmp(std::move(*oldp));
+        Old tmp(::std::move(*oldp));
         ::std::destroy_at(oldp);
         try {
           ::std::construct_at(newp, ::std::forward<Args>(args)...);
         } catch (...) {
-          ::std::construct_at(oldp, std::move(tmp));
+          ::std::construct_at(oldp, ::std::move(tmp));
           throw;
         }
         // LCOV_EXCL_STOP
       }
     } else {
-      Old tmp(std::move(*oldp));
+      Old tmp(::std::move(*oldp));
       ::std::destroy_at(oldp);
       try {
         ::std::construct_at(newp, ::std::forward<Args>(args)...);
       } catch (...) {
-        ::std::construct_at(oldp, std::move(tmp));
+        ::std::construct_at(oldp, ::std::move(tmp));
         throw;
       }
     }
@@ -441,7 +441,7 @@ template <class T, class E, class Policy> struct _storage {
   // member selection to _storage_union_t(bool, S&&), based on first parameter.
   template <typename S>
   constexpr explicit _storage(bool s, S &&src)
-    requires(_is_storage_union<std::remove_cvref_t<S>>)
+    requires(_is_storage_union<::std::remove_cvref_t<S>>)
       : storage_(s, FWD(src)), set_(s)
   {
   }
@@ -515,7 +515,7 @@ template <class T, class E, class Policy> struct _storage {
       ::std::destroy_at(::std::addressof(storage_.e_));
       set_ = true;
     }
-    return *::std::construct_at(::std::addressof(storage_.v_), std::forward<Args>(args)...);
+    return *::std::construct_at(::std::addressof(storage_.v_), ::std::forward<Args>(args)...);
   }
 
   template <class U, class... Args>
@@ -528,7 +528,7 @@ template <class T, class E, class Policy> struct _storage {
       ::std::destroy_at(::std::addressof(storage_.e_));
       set_ = true;
     }
-    return *::std::construct_at(::std::addressof(storage_.v_), il, std::forward<Args>(args)...);
+    return *::std::construct_at(::std::addressof(storage_.v_), il, ::std::forward<Args>(args)...);
   }
 
   constexpr void emplace() noexcept
@@ -574,19 +574,19 @@ template <class T, class E, class Policy> struct _storage {
   static constexpr auto &&_value(auto &&s) noexcept
     requires(not ::std::is_void_v<T>)
   {
-    ASSERT(s.set_);
+    ASSERT(s.set_); // LCOV_EXCL_LINE
     return FWD(s).storage_.v_;
   }
   constexpr _value_t const *operator->() const noexcept
     requires(not ::std::is_void_v<T>)
   {
-    ASSERT(set_);
+    ASSERT(set_); // LCOV_EXCL_LINE
     return ::std::addressof(storage_.v_);
   }
   constexpr _value_t *operator->() noexcept
     requires(not ::std::is_void_v<T>)
   {
-    ASSERT(set_);
+    ASSERT(set_); // LCOV_EXCL_LINE
     return ::std::addressof(storage_.v_);
   }
   constexpr _value_t const &operator*() const & noexcept
@@ -650,22 +650,22 @@ template <class T, class E, class Policy> struct _storage {
   constexpr void operator*() const & noexcept
     requires(::std::is_void_v<T>)
   {
-    ASSERT(set_);
+    ASSERT(set_); // LCOV_EXCL_LINE
   }
   constexpr void operator*() & noexcept
     requires(::std::is_void_v<T>)
   {
-    ASSERT(set_);
+    ASSERT(set_); // LCOV_EXCL_LINE
   }
   constexpr void operator*() const && noexcept
     requires(::std::is_void_v<T>)
   {
-    ASSERT(set_);
+    ASSERT(set_); // LCOV_EXCL_LINE
   }
   constexpr void operator*() && noexcept
     requires(::std::is_void_v<T>)
   {
-    ASSERT(set_);
+    ASSERT(set_); // LCOV_EXCL_LINE
   }
   constexpr void value() const &
     requires(::std::is_void_v<T>)
@@ -685,7 +685,7 @@ template <class T, class E, class Policy> struct _storage {
 
   static constexpr auto &&_error(auto &&s) noexcept
   {
-    ASSERT(not s.set_);
+    ASSERT(not s.set_); // LCOV_EXCL_LINE
     return FWD(s).storage_.e_;
   }
   constexpr E const &error() const & noexcept { return _error(*this); }
@@ -1118,7 +1118,7 @@ public:
   {
   }
   template <class U = ::std::remove_cv_t<T>>
-  constexpr explicit(not ::std::is_convertible_v<U, T>) expected(U &&v) //
+  constexpr explicit(not ::std::is_convertible_v<U, T>) expected(U &&v) // NOSONAR cpp:S6458 _can_convert excludes self
       noexcept(::std::is_nothrow_constructible_v<T, U>)                 // extension
     requires(_base::template _can_convert<U>::value)
       : _base(::std::in_place, FWD(v))
@@ -1128,7 +1128,7 @@ public:
   constexpr explicit(!::std::is_convertible_v<G const &, E>) expected(unexpected<G> const &g) //
       noexcept(::std::is_nothrow_constructible_v<E, G const &>)                               // extension
     requires(::std::is_constructible_v<E, G const &>)
-      : _base(unexpect, ::std::forward<G const &>(g.error()))
+      : _base(unexpect, ::std::forward<G const &>(g.error())) // NOSONAR cpp:S6031 forward<GF> per the standard
   {
   }
   template <class G>
@@ -1181,7 +1181,7 @@ public:
       : _base(s.set_, FWD(s).storage_)
   {
   }
-  constexpr expected(expected &&s)
+  constexpr expected(expected &&s) noexcept
     requires(::std::is_move_constructible_v<T> && ::std::is_move_constructible_v<E>
              && ::std::is_trivially_move_constructible_v<T> && ::std::is_trivially_move_constructible_v<E>)
   = default;
@@ -1239,7 +1239,7 @@ public:
     return *this;
   }
 
-  constexpr expected &operator=(expected &&s) //
+  constexpr expected &operator=(expected &&s) // NOSONAR cpp:S5018 standard mandated `noexcept` spec.
       noexcept(::std::is_nothrow_move_assignable_v<T> && ::std::is_nothrow_move_constructible_v<T>
                && ::std::is_nothrow_move_assignable_v<E> && ::std::is_nothrow_move_constructible_v<E>) // required
     requires(::std::is_move_constructible_v<T> && ::std::is_move_assignable_v<T> && ::std::is_move_constructible_v<E>
@@ -1254,9 +1254,9 @@ public:
   using _base::emplace;
 
   // [expected.object.swap], swap; body delegates to _storage helper
-  constexpr void
-  swap(expected &rhs) noexcept(::std::is_nothrow_move_constructible_v<T> && ::std::is_nothrow_swappable_v<T>
-                               && ::std::is_nothrow_move_constructible_v<E> && ::std::is_nothrow_swappable_v<E>)
+  constexpr void swap(expected &rhs) // NOSONAR cpp:S5018 standard mandated `noexcept` spec.
+      noexcept(::std::is_nothrow_move_constructible_v<T> && ::std::is_nothrow_swappable_v<T>
+               && ::std::is_nothrow_move_constructible_v<E> && ::std::is_nothrow_swappable_v<E>)
     requires(::std::is_swappable_v<T> && ::std::is_swappable_v<E> && ::std::is_move_constructible_v<T>
              && ::std::is_move_constructible_v<E>
              && (::std::is_nothrow_move_constructible_v<T> || ::std::is_nothrow_move_constructible_v<E>))
@@ -1432,7 +1432,7 @@ public:
   constexpr explicit(!::std::is_convertible_v<G const &, E>) expected(unexpected<G> const &g) //
       noexcept(::std::is_nothrow_constructible_v<E, G const &>)                               // extension
     requires(::std::is_constructible_v<E, G const &>)
-      : _base(unexpect, ::std::forward<G const &>(g.error()))
+      : _base(unexpect, ::std::forward<G const &>(g.error())) // NOSONAR cpp:S6031 forward<GF> per the standard
   {
   }
   template <class G>
@@ -1470,7 +1470,7 @@ public:
       : _base(s.set_, FWD(s).storage_)
   {
   }
-  constexpr expected(expected &&s)                                                             //
+  constexpr expected(expected &&s) noexcept                                                    //
     requires(::std::is_move_constructible_v<E> && ::std::is_trivially_move_constructible_v<E>) //
   = default;
   constexpr expected(expected &&s)                        //
@@ -1511,7 +1511,7 @@ public:
     return *this;
   }
 
-  constexpr expected &operator=(expected &&s)                                                       //
+  constexpr expected &operator=(expected &&s) // NOSONAR cpp:S5018 standard mandated `noexcept` spec.
       noexcept(::std::is_nothrow_move_assignable_v<E> && ::std::is_nothrow_move_constructible_v<E>) // required
     requires(::std::is_move_constructible_v<E> && ::std::is_move_assignable_v<E>)
   {
@@ -1523,7 +1523,7 @@ public:
   using _base::emplace;
 
   // [expected.void.swap], swap; body delegates to _storage helper
-  constexpr void swap(expected &rhs) //
+  constexpr void swap(expected &rhs) // NOSONAR cpp:S5018 standard mandated `noexcept` spec.
       noexcept(::std::is_nothrow_move_constructible_v<E> && ::std::is_nothrow_swappable_v<E>)
     requires(::std::is_swappable_v<E> && ::std::is_move_constructible_v<E>)
   {

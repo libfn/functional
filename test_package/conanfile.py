@@ -28,8 +28,4 @@ class LibfnTestConan(ConanFile):
     def test(self):
         if not can_run(self):
             return
-        # pfn is always available.
-        self.run(os.path.join(self.cpp.build.bindir, "pfn_quine"), env="conanrun")
-        # fn is only available when disable_cxx23 is False.
-        if not self.dependencies["libfn"].options.disable_cxx23:
-            self.run(os.path.join(self.cpp.build.bindir, "fn_quine"), env="conanrun")
+        self.run(os.path.join(self.cpp.build.bindir, "main"), env="conanrun")

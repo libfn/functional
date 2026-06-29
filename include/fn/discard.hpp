@@ -3,8 +3,8 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#ifndef INCLUDE_FUNCTIONAL_DISCARD
-#define INCLUDE_FUNCTIONAL_DISCARD
+#ifndef INCLUDE_FN_DISCARD
+#define INCLUDE_FN_DISCARD
 
 #include <fn/concepts.hpp>
 #include <fn/functor.hpp>
@@ -29,10 +29,10 @@ constexpr inline struct discard_t final {
   [[nodiscard]] constexpr auto operator()() const noexcept -> functor<discard_t> { return {}; }
 
   struct apply final {
-    static constexpr auto operator()(some_monadic_type auto &&) noexcept -> void {}
+    constexpr auto operator()(some_monadic_type auto &&) const noexcept -> void {}
   };
 } discard = {};
 
 } // namespace fn
 
-#endif // INCLUDE_FUNCTIONAL_DISCARD
+#endif // INCLUDE_FN_DISCARD

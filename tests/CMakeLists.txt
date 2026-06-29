@@ -4,66 +4,44 @@ project(tests)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# tests_util: stdlib-only helpers, usable from any C++20+ test.
+# tests_util: shared test helpers. Links include_pfn so static_check.hpp's fn
+# includes resolve at cxx_std_20 (include_pfn exposes include/, containing fn/).
 # Pls keep the filenames sorted
 set(TESTS_UTIL_HEADERS
     util/helper_types.hpp
+    util/static_check.hpp
 )
 
 add_library(tests_util INTERFACE)
+set_property(TARGET tests_util PROPERTY CXX_STANDARD 20)
 target_sources(tests_util INTERFACE
     FILE_SET tests_util_headers
     TYPE HEADERS
     FILES ${TESTS_UTIL_HEADERS})
 target_include_directories(tests_util INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
-
-# tests_util_fn: fn/-based helpers. Kept separate so include_fn's cxx_std_23
-# requirement is not propagated to C++20 pfn tests via tests_util.
-set(TESTS_UTIL_FN_HEADERS "")
-if(NOT DISABLE_CXX23)
-    list(APPEND TESTS_UTIL_FN_HEADERS
-        util/static_check.hpp
-    )
-    add_library(tests_util_fn INTERFACE)
-    target_link_libraries(tests_util_fn INTERFACE tests_util include_fn)
-    target_sources(tests_util_fn INTERFACE
-        FILE_SET tests_util_fn_headers
-        TYPE HEADERS
-        FILES ${TESTS_UTIL_FN_HEADERS})
-endif()
+target_link_libraries(tests_util INTERFACE include_pfn)
+target_compile_features(tests_util INTERFACE cxx_std_20)
 
 # Generate sentinel target for each individual header, as a basic sanity check
-foreach(mode 23)
-    if(${mode} EQUAL 23 AND DISABLE_CXX23)
-        message(STATUS "C++23 support is disabled, skipping tests_util sentinel targets for C++23")
-        continue()
-    endif()
+foreach(source IN ITEMS ${TESTS_UTIL_HEADERS})
+    string(REGEX REPLACE "^(util)/([^\.]+)\.hpp$" "\\1_\\2" root_name ${source})
+    set(mode 20)
+    set(target "sentinel_${root_name}_cxx${mode}")
 
-    foreach(source IN ITEMS ${TESTS_UTIL_HEADERS} ${TESTS_UTIL_FN_HEADERS})
-        if(source IN_LIST TESTS_UTIL_FN_HEADERS)
-            set(util_dep tests_util_fn)
-        else()
-            set(util_dep tests_util)
-        endif()
-        string(REGEX REPLACE "^(util)/([^\.]+)\.hpp$" "\\1_\\2" root_name ${source})
-        set(target "sentinel_${root_name}_cxx${mode}")
+    create_target_for_file(
+        NAME "${target}"
+        SOURCE "${source}"
+        NEW_SOURCE "#include <${source}>\nint main() {}\n"
+        SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
+        DEPENDENCIES tests_util
+    )
+    append_compilation_options("${target}" WARNINGS)
+    add_dependencies("sentinels" "${target}")
+    set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
 
-        create_target_for_file(
-            NAME "${target}"
-            SOURCE "${source}"
-            NEW_SOURCE "#include <${source}>\nint main() {}\n"
-            SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
-            DEPENDENCIES ${util_dep}
-        )
-        append_compilation_options("${target}" WARNINGS)
-        add_dependencies("cxx${mode}" "${target}")
-        set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
-        target_compile_definitions("${target}" PRIVATE LIBFN_MODE=${mode})
-
-        unset(target)
-        unset(root_name)
-        unset(util_dep)
-    endforeach()
+    unset(target)
+    unset(mode)
+    unset(root_name)
 endforeach()
 
 ### tests/pfn
@@ -71,6 +49,8 @@ endforeach()
 set(TESTS_PFN_SOURCES
     pfn/expected.cpp
     pfn/expected_validation.cpp
+    pfn/functional.cpp
+    pfn/utility.cpp
 )
 
 include(TargetGenerator)
@@ -78,8 +58,12 @@ include(CompilationOptions)
 
 # Generate separate target for each individual test source
 foreach(mode 20 23)
-    if(${mode} EQUAL 23 AND DISABLE_CXX23)
-        message(STATUS "C++23 support is disabled, skipping tests_pfn targets for C++23")
+    if (NOT VALIDATE_CXX23 AND mode EQUAL 23)
+        continue()
+    endif()
+
+    # Current releases of MSVC only support C++20
+    if(MSVC AND NOT (mode EQUAL 20))
         continue()
     endif()
 
@@ -114,14 +98,19 @@ endforeach()
 
 # Pls keep the filenames sorted
 set(TESTS_FN_SOURCES
-    fn/detail/fwd_macro.cpp
+    fn/detail/functional.cpp
+    fn/detail/macro_deduced_return.cpp
+    fn/detail/macro_fwd.cpp
     fn/detail/meta.cpp
+    fn/detail/pack_impl.cpp
+    fn/detail/traits.cpp
     fn/detail/variadic_union.cpp
     fn/and_then.cpp
     fn/choice.cpp
     fn/concepts.cpp
     fn/discard.cpp
     fn/expected.cpp
+    fn/expected_polyfill.cpp
     fn/fail.cpp
     fn/filter.cpp
     fn/functional.cpp
@@ -140,10 +129,13 @@ set(TESTS_FN_SOURCES
 )
 
 # Generate separate target for each individual test source
-# TODO add 20 when we are compatible with C++20
-foreach(mode 23)
-    if(${mode} EQUAL 23 AND DISABLE_CXX23)
-        message(STATUS "C++23 support is disabled, skipping tests_fn targets for C++23")
+foreach(mode 20 23)
+    if (NOT VALIDATE_CXX23 AND mode EQUAL 23)
+        continue()
+    endif()
+
+    # Current releases of MSVC only support C++20
+    if(MSVC AND NOT (mode EQUAL 20))
         continue()
     endif()
 
@@ -154,7 +146,7 @@ foreach(mode 23)
         create_target_for_file(
             NAME "${target}"
             SOURCE "${source}"
-            DEPENDENCIES tests_util_fn Catch2::Catch2WithMain
+            DEPENDENCIES tests_util Catch2::Catch2WithMain
         )
         append_compilation_options("${target}" WARNINGS OPTIMIZATION TESTS)
         add_dependencies("cxx${mode}" "${target}")

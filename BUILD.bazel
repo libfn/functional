@@ -7,12 +7,10 @@ cc_library(
     includes = ["include"],
 )
 
-# C++23 library. Consumers that want a C++20-only build (the conan disable_cxx23
-# option / vcpkg disable-cxx23 feature equivalent) simply do not depend on this.
+# The functional library (C++20); built on the pfn polyfills.
 cc_library(
     name = "fn",
     hdrs = glob(["include/fn/**/*.hpp"]),
     includes = ["include"],
-    # TODO uncomment once fn is reimplemented in terms of pfn.
-    # deps = [":pfn"],
+    deps = [":pfn"],
 )

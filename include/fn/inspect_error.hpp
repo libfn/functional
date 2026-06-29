@@ -22,9 +22,9 @@ namespace fn {
 template <typename Fn, typename V>
 concept invocable_inspect_error //
     = (some_expected<V> && requires(Fn &&fn, V &&v) {
-        { ::fn::invoke(FWD(fn), std::as_const(v).error()) } -> std::same_as<void>;
+        { ::fn::invoke(FWD(fn), ::std::as_const(v).error()) } -> ::std::same_as<void>;
       }) || (some_optional<V> && requires(Fn &&fn) {
-        { ::fn::invoke(FWD(fn)) } -> std::same_as<void>;
+        { ::fn::invoke(FWD(fn)) } -> ::std::same_as<void>;
       });
 
 /**
@@ -56,11 +56,12 @@ struct inspect_error_t::apply final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] static constexpr auto operator()(some_expected auto &&v, auto &&fn) noexcept -> decltype(v)
-    requires invocable_inspect_error<decltype(fn), decltype(v)>
+  template <some_expected V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept -> V &&
+    requires invocable_inspect_error<Fn &&, V &&>
   {
     if (not v.has_value()) {
-      ::fn::invoke(FWD(fn), std::as_const(v).error()); // side-effects only
+      ::fn::invoke(FWD(fn), ::std::as_const(v).error()); // side-effects only
     }
     return FWD(v);
   }
@@ -72,8 +73,9 @@ struct inspect_error_t::apply final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] static constexpr auto operator()(some_optional auto &&v, auto &&fn) noexcept -> decltype(v)
-    requires invocable_inspect_error<decltype(fn), decltype(v)>
+  template <some_optional V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept -> V &&
+    requires invocable_inspect_error<Fn &&, V &&>
   {
     if (not v.has_value()) {
       ::fn::invoke(FWD(fn)); // side-effects only
@@ -82,9 +84,9 @@ struct inspect_error_t::apply final {
   }
 
   // No support for choice since there's no error to operate on
-  static auto operator()(some_choice auto &&v, auto &&...args) noexcept = delete;
+  auto operator()(some_choice auto &&v, auto &&...args) const noexcept = delete;
 };
 
 } // namespace fn
 
-#endif // INCLUDE_FUNCTIONAL_INSPECT_ERROR
+#endif // INCLUDE_FN_INSPECT_ERROR

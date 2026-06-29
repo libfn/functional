@@ -32,16 +32,6 @@ on:
 jobs:
   test_nix:
     runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: cxx23
-            target: consumer
-          - name: cxx20
-            target: consumer-no-cxx23
-          - name: cxx20-std23
-            target: consumer-no-cxx23-std23
 
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -52,7 +42,7 @@ jobs:
         extra_nix_config: |
           access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
 
-    - name: Test ${{ matrix.name }} packaging
+    - name: Test packaging
       run: |
-        nix -L build './test_package#${{ matrix.target }}' \
+        nix -L build './test_package#consumer' \
           --override-input libfn "git+file://$(pwd)?rev=${{ github.sha }}&shallow=1"

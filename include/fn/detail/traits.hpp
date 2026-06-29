@@ -16,18 +16,18 @@ template <typename T> extern T _as_value;
 
 template <typename T> extern T _as_value<T &&>;
 template <typename T>
-  requires(std::is_empty_v<T>)
+  requires(::std::is_empty_v<T>)
 extern T _as_value<T &>;
 template <typename T>
-  requires(!std::is_empty_v<T>)
+  requires(!::std::is_empty_v<T>)
 extern T &_as_value<T &>;
 
 template <typename T> extern T const _as_value<T const &&>;
 template <typename T>
-  requires(std::is_empty_v<T>)
+  requires(::std::is_empty_v<T>)
 extern T const _as_value<T const &>;
 template <typename T>
-  requires(!std::is_empty_v<T>)
+  requires(!::std::is_empty_v<T>)
 extern T const &_as_value<T const &>;
 
 // Add const to second type, if first type is const
@@ -48,4 +48,4 @@ template <typename T, typename V>
 using apply_const_lvalue_t = decltype(detail::_apply_const<T &, decltype(detail::_apply_lvalue<T, V>)>);
 }
 
-#endif // INCLUDE_FUNCTIONAL_DETAIL_TRAITS
+#endif // INCLUDE_FN_DETAIL_TRAITS

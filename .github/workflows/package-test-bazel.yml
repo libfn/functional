@@ -46,11 +46,6 @@ jobs:
       run: |
         echo "USE_BAZEL_VERSION=${{ env.BAZEL_RELEASE }}" >> "${GITHUB_ENV}"
 
-    - name: Test C++23 packaging
+    - name: Test packaging
       run: |
-        bazel run --cxxopt=-std=c++23 //:pfn_quine
-        bazel run --cxxopt=-std=c++23 //:fn_quine
-
-    - name: Test C++20 packaging
-      run: |
-        bazel run --cxxopt=-std=c++20 //:pfn_quine
+        bazel run --cxxopt=-std=c++20 //:main

@@ -28,19 +28,6 @@ on:
 jobs:
   test_vcpkg:
     runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: cxx23
-            install_spec: libfn
-            cmake_extra: ""
-          - name: cxx20
-            install_spec: "libfn[disable-cxx23]"
-            cmake_extra: ""
-          - name: cxx20-std23
-            install_spec: "libfn[disable-cxx23]"
-            cmake_extra: "-DCMAKE_CXX_STANDARD=23"
 
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -49,20 +36,16 @@ jobs:
       env:
         VCPKG_LIBFN_SOURCE_PATH: ${{ github.workspace }}
       run: |
-        "$VCPKG_INSTALLATION_ROOT/vcpkg" install "${{ matrix.install_spec }}" \
+        "$VCPKG_INSTALLATION_ROOT/vcpkg" install libfn \
           --overlay-ports=ports \
           --triplet x64-linux
 
-    - name: Configure and build ${{ matrix.name }}
+    - name: Configure and build
       run: |
         cmake -B .build test_package \
           "-DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" \
-          -DVCPKG_TARGET_TRIPLET=x64-linux ${{ matrix.cmake_extra }}
+          -DVCPKG_TARGET_TRIPLET=x64-linux
         cmake --build .build
 
-    - name: Run pfn_quine
-      run: .build/pfn_quine
-
-    - name: Run fn_quine
-      if: matrix.name == 'cxx23'
-      run: .build/fn_quine
+    - name: Run main
+      run: .build/main

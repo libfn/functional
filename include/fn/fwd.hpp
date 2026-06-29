@@ -9,4 +9,4 @@
 // For exposition only
 #include <fn/detail/fwd.hpp>
 
-#endif // INCLUDE_FUNCTIONAL_FWD
+#endif // INCLUDE_FN_FWD

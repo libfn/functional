@@ -29,7 +29,7 @@ concept invocable_and_then //
           ::fn::invoke(FWD(fn), FWD(v).value())
         } -> same_kind<V>;
       }) || (some_expected_non_void<V> //
-         && some_sum<typename std::remove_cvref_t<V>::error_type> && requires(Fn &&fn, V &&v) {
+         && some_sum<typename ::std::remove_cvref_t<V>::error_type> && requires(Fn &&fn, V &&v) {
         {
           ::fn::invoke(FWD(fn), FWD(v).value())
         } -> some_expected;
@@ -38,7 +38,7 @@ concept invocable_and_then //
           ::fn::invoke(FWD(fn))
         } -> same_kind<V>;
       }) || (some_expected_void<V> //
-         && some_sum<typename std::remove_cvref_t<V>::error_type> && requires(Fn &&fn, V &&v) {
+         && some_sum<typename ::std::remove_cvref_t<V>::error_type> && requires(Fn &&fn, V &&v) {
         {
           ::fn::invoke(FWD(fn))
         } -> some_expected;
@@ -78,9 +78,10 @@ struct and_then_t::apply final {
    * @param v The monad
    * @param fn The function to apply
    */
-  [[nodiscard]] static constexpr auto operator()(some_monadic_type auto &&v, auto &&fn) noexcept //
-      -> same_kind<decltype(v)> auto
-    requires invocable_and_then<decltype(fn), decltype(v)>
+  template <some_monadic_type V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept //
+      -> same_kind<V &&> auto
+    requires invocable_and_then<Fn &&, V &&>
   {
     return FWD(v).and_then(FWD(fn));
   }
@@ -88,4 +89,4 @@ struct and_then_t::apply final {
 
 } // namespace fn
 
-#endif // INCLUDE_FUNCTIONAL_AND_THEN
+#endif // INCLUDE_FN_AND_THEN

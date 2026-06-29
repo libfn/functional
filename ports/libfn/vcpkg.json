@@ -13,10 +13,5 @@
       "name": "vcpkg-cmake-config",
       "host": true
     }
-  ],
-  "features": {
-    "disable-cxx23": {
-      "description": "Disable C++23 support, exposing only the C++20 compatible components."
-    }
-  }
+  ]
 }

@@ -10,16 +10,10 @@ else()
         "Fetching by tag from GitHub is not yet supported (no tagged release).")
 endif()
 
-set(DISABLE_CXX23 OFF)
-if("disable-cxx23" IN_LIST FEATURES)
-    set(DISABLE_CXX23 ON)
-endif()
-
 vcpkg_cmake_configure(
     SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
         -DLIBFN_TESTS=OFF
-        -DDISABLE_CXX23=${DISABLE_CXX23}
 )
 
 vcpkg_cmake_install()

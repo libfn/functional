@@ -11,7 +11,7 @@ if(TARGET libfn::pfn)
     set(libfn_pfn_FOUND TRUE)
 endif()
 
-# fn is only installed when the library was built without DISABLE_CXX23
+# fn is always installed
 set(libfn_fn_FOUND FALSE)
 if(TARGET libfn::fn)
     set(libfn_fn_FOUND TRUE)

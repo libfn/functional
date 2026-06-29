@@ -24,7 +24,7 @@ concept invocable_or_else //
           ::fn::invoke(FWD(fn), FWD(v).error())
         } -> same_value_kind<V>;
       }) || (some_expected<V> //
-         && some_sum<typename std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
+         && some_sum<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
         {
           ::fn::invoke(FWD(fn), FWD(v).error())
         } -> some_expected;
@@ -33,7 +33,7 @@ concept invocable_or_else //
           ::fn::invoke(FWD(fn))
         } -> same_value_kind<V>;
       }) || (some_optional<V>  //
-         && some_sum<typename std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
+         && some_sum<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
         {
           ::fn::invoke(FWD(fn))
         } -> some_optional;
@@ -68,17 +68,18 @@ struct or_else_t::apply final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] static constexpr auto operator()(some_monadic_type auto &&v, auto &&fn) noexcept //
-      -> same_value_kind<decltype(v)> auto
-    requires invocable_or_else<decltype(fn), decltype(v)>
+  template <some_monadic_type V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept //
+      -> same_value_kind<V &&> auto
+    requires invocable_or_else<Fn &&, V &&>
   {
     return FWD(v).or_else(FWD(fn));
   }
 
   // No support for choice since there's no error to recover from
-  static auto operator()(some_choice auto &&v, auto &&...args) noexcept = delete;
+  auto operator()(some_choice auto &&v, auto &&...args) const noexcept = delete;
 };
 
 } // namespace fn
 
-#endif // INCLUDE_FUNCTIONAL_OR_ELSE
+#endif // INCLUDE_FN_OR_ELSE

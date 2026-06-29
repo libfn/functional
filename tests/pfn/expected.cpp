@@ -7,8 +7,6 @@
 
 #ifndef PFN_TEST_NESTED
 
-// TODO : Add death tests.Until then, empty definition to avoid false "no coverage" reports
-#define LIBFN_ASSERT(...)
 #include <pfn/expected.hpp>
 
 using pfn::bad_expected_access;
@@ -35,10 +33,20 @@ using pfn::unexpected;
 
 enum Error { unknown = 1, file_not_found = 5 };
 
+struct greedy_t {
+  greedy_t() = delete;
+  greedy_t(greedy_t const &) = delete;
+  greedy_t(greedy_t &&) = delete;
+  template <class U> constexpr greedy_t(U &&) noexcept {}
+};
+
 TEST_CASE("bad_expected_access", "[expected][polyfill][bad_expected_access]")
 {
+#ifndef PFN_TEST_VALIDATION
+  // std's what() message is implementation-defined ([expected.badaccess]); only pfn pins it, so the
+  // validation build instead just checks what() returns a non-empty string at the two sites below.
   std::string const e1 = "bad access to expected";
-  std::string const e2 = "bad access to std::expected";
+#endif
 
   SECTION("bad_expected_access<void>")
   {
@@ -71,7 +79,11 @@ TEST_CASE("bad_expected_access", "[expected][polyfill][bad_expected_access]")
       CHECK(T{}.what() == a.what());
     }
     std::string const tmp = a.what();
-    CHECK(((tmp.substr(0, e1.size()) == e1) || (tmp.substr(0, e2.size()) == e2)));
+#ifdef PFN_TEST_VALIDATION
+    CHECK(not tmp.empty());
+#else
+    CHECK(tmp.substr(0, e1.size()) == e1);
+#endif
 
     T const b;
     CHECK(&decltype(a)::what == &decltype(b)::what);
@@ -204,7 +216,11 @@ TEST_CASE("bad_expected_access", "[expected][polyfill][bad_expected_access]")
     {
       T a{12};
       std::string const tmp = a.what();
-      CHECK(((tmp.substr(0, e1.size()) == e1) || (tmp.substr(0, e2.size()) == e2)));
+#ifdef PFN_TEST_VALIDATION
+      CHECK(not tmp.empty());
+#else
+      CHECK(tmp.substr(0, e1.size()) == e1);
+#endif
       auto const c = []() {
         struct C : bad_expected_access<void> {};
         return C{};
@@ -720,6 +736,14 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
       T const c(helper(13));
       CHECK(c.value().v == 13 * from_rval);
+
+      using H = expected<greedy_t, Error>;
+      static_assert(not std::is_copy_constructible_v<H>);
+      static_assert(not std::is_move_constructible_v<H>);
+      static_assert(not std::is_constructible_v<H, H &>);
+      static_assert(not std::is_constructible_v<H, H const &>);
+      static_assert(not std::is_constructible_v<H, H &&>);
+      static_assert(not std::is_constructible_v<H, H const &&>);
     }
 
     SECTION("from unexpected rval")
@@ -891,7 +915,50 @@ TEST_CASE("expected non void", "[expected][polyfill]")
       static_assert(not std::is_copy_constructible_v<expected<int, U>>);
       static_assert(not std::is_move_constructible_v<expected<U, Error>>);
       static_assert(not std::is_move_constructible_v<expected<int, U>>);
-      SUCCEED();
+
+      // An immovable (non-copyable, non-movable) value or error type is still
+      // usable: the expected can be built in place and observed, even though it is
+      // itself neither copyable nor movable.
+      static_assert(not std::is_copy_constructible_v<expected<helper_immovable, Error>>);
+      static_assert(not std::is_move_constructible_v<expected<helper_immovable, Error>>);
+      static_assert(not std::is_copy_constructible_v<expected<int, helper_immovable>>);
+      static_assert(not std::is_move_constructible_v<expected<int, helper_immovable>>);
+      {
+        expected<helper_immovable, Error> const a(std::in_place, 6, 7);
+        CHECK(a.value().v == 6 * 7);
+      }
+      {
+        expected<int, helper_immovable> const a(unexpect, 6, 7);
+        CHECK(a.error().v == 6 * 7);
+      }
+    }
+
+    SECTION("move-only value type")
+    {
+      using T = expected<helper_move_only, Error>;
+      static_assert(not std::is_copy_constructible_v<T>);
+      static_assert(std::is_move_constructible_v<T>);
+      static_assert(not std::is_trivially_move_constructible_v<T>);
+      static_assert(not extension || std::is_nothrow_move_constructible_v<T>);
+
+      T a(std::in_place, 7);
+      T b = std::move(a);
+      CHECK(b.has_value());
+      CHECK(b.value().v == 7 * from_rval);
+    }
+
+    SECTION("move-only error type")
+    {
+      using T = expected<int, helper_move_only>;
+      static_assert(not std::is_copy_constructible_v<T>);
+      static_assert(std::is_move_constructible_v<T>);
+      static_assert(not std::is_trivially_move_constructible_v<T>);
+      static_assert(not extension || std::is_nothrow_move_constructible_v<T>);
+
+      T a(unexpect, 7);
+      T b = std::move(a);
+      CHECK(not b.has_value());
+      CHECK(b.error().v == 7 * from_rval);
     }
 
     SECTION("trivial")
@@ -2108,6 +2175,49 @@ TEST_CASE("expected non void", "[expected][polyfill]")
       }
     }
 
+    SECTION("move-only value type")
+    {
+      // Copy-assignment is deleted, so only rval (move) assignment is available.
+      using T = expected<helper_move_only, Error>;
+      static_assert(not std::is_copy_assignable_v<T>);
+      static_assert(std::is_move_assignable_v<T>);
+
+      SECTION("value to value")
+      {
+        T a(std::in_place, 3);
+        a = T(std::in_place, 7);
+        CHECK(a.value().v == 7 * from_rval);
+      }
+
+      SECTION("error to value")
+      {
+        T a(unexpect, Error::unknown);
+        a = T(std::in_place, 7);
+        CHECK(a.value().v == 7 * from_rval);
+      }
+    }
+
+    SECTION("move-only error type")
+    {
+      using T = expected<int, helper_move_only>;
+      static_assert(not std::is_copy_assignable_v<T>);
+      static_assert(std::is_move_assignable_v<T>);
+
+      SECTION("error to error")
+      {
+        T a(unexpect, 3);
+        a = T(unexpect, 7);
+        CHECK(a.error().v == 7 * from_rval);
+      }
+
+      SECTION("value to error")
+      {
+        T a(std::in_place, 5);
+        a = T(unexpect, 7);
+        CHECK(a.error().v == 7 * from_rval);
+      }
+    }
+
     SECTION("constexpr")
     {
       SECTION("nothrow move")
@@ -2247,6 +2357,21 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         a.emplace({7.0, 11.0});
         CHECK(a.value().v == 7 * 11);
       }
+    }
+
+    SECTION("move-only value type")
+    {
+      // emplace constructs in place, so it needs neither copy nor move of the value.
+      expected<helper_move_only_t<8>, Error> a(unexpect, Error::file_not_found);
+      a.emplace(7);
+      CHECK(a.value().v == 7);
+    }
+
+    SECTION("immovable value type")
+    {
+      expected<helper_immovable_t<8>, Error> a(unexpect, Error::unknown);
+      a.emplace(6, 7);
+      CHECK(a.value().v == 6 * 7);
     }
 
     SECTION("constexpr")
@@ -3785,6 +3910,34 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
   SECTION("copy, move and dtor")
   {
+    SECTION("immovable error type")
+    {
+      // An immovable (non-copyable, non-movable) error type leaves the expected
+      // neither copyable nor movable, yet it can still be built in place and observed.
+      static_assert(not std::is_copy_constructible_v<expected<void, helper_immovable>>);
+      static_assert(not std::is_move_constructible_v<expected<void, helper_immovable>>);
+
+      expected<void, helper_immovable> const a(unexpect, 6, 7);
+      CHECK(a.error().v == 6 * 7);
+
+      expected<void, helper_immovable> const b(std::in_place);
+      CHECK(b.has_value());
+    }
+
+    SECTION("move-only error type")
+    {
+      using T = expected<void, helper_move_only>;
+      static_assert(not std::is_copy_constructible_v<T>);
+      static_assert(std::is_move_constructible_v<T>);
+      static_assert(not std::is_trivially_move_constructible_v<T>);
+      static_assert(not extension || std::is_nothrow_move_constructible_v<T>);
+
+      T a(unexpect, 7);
+      T b = std::move(a);
+      CHECK(not b.has_value());
+      CHECK(b.error().v == 7 * from_rval);
+    }
+
     SECTION("trivial")
     {
       using T = expected<void, Error>;
@@ -4482,6 +4635,28 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
       }
     }
 
+    SECTION("move-only error type")
+    {
+      // Copy-assignment is deleted, so only rval (move) assignment is available.
+      using T = expected<void, helper_move_only>;
+      static_assert(not std::is_copy_assignable_v<T>);
+      static_assert(std::is_move_assignable_v<T>);
+
+      SECTION("error to error")
+      {
+        T a(unexpect, 3);
+        a = T(unexpect, 7);
+        CHECK(a.error().v == 7 * from_rval);
+      }
+
+      SECTION("value to error")
+      {
+        T a(std::in_place);
+        a = T(unexpect, 7);
+        CHECK(a.error().v == 7 * from_rval);
+      }
+    }
+
     SECTION("constexpr")
     {
       using T = expected<void, Error>;
@@ -4564,6 +4739,22 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 #ifndef PFN_TEST_VALIDATION
       CHECK(not a.has_error());
 #endif
+    }
+
+    SECTION("move-only error type")
+    {
+      // emplace() destroys the error and sets the value state, so the error type
+      // need be neither copyable nor movable.
+      expected<void, helper_move_only> a(unexpect, 7);
+      a.emplace();
+      CHECK(a.has_value());
+    }
+
+    SECTION("immovable error type")
+    {
+      expected<void, helper_immovable> a(unexpect, 6, 7);
+      a.emplace();
+      CHECK(a.has_value());
     }
 
     SECTION("constexpr")

@@ -6,8 +6,8 @@
 #ifndef TESTS_UTIL_STATIC_CHECK
 #define TESTS_UTIL_STATIC_CHECK
 
-#include <fn/concepts.hpp>
-#include <fn/functor.hpp>
+#include <fn/functional.hpp>
+#include <fn/monadic.hpp>
 
 #include <type_traits>
 
@@ -80,14 +80,14 @@ template <typename OperandType, template <typename> typename CommandType> struct
 template <typename OperationType, typename OperandType> class monadic_static_check {
   template <typename... HandlerTypes> struct binder {
     template <typename T> struct right {
-      [[nodiscard]] static constexpr auto operator()(auto &&...fns) noexcept -> bool
+      [[nodiscard]] constexpr auto operator()(auto &&...fns) const noexcept -> bool
       {
         return fn::monadic_invocable<OperationType, T, decltype(fns)..., HandlerTypes...>;
       }
     };
 
     template <typename T> struct left {
-      [[nodiscard]] static constexpr auto operator()(auto &&...fns) noexcept -> bool
+      [[nodiscard]] constexpr auto operator()(auto &&...fns) const noexcept -> bool
       {
         return fn::monadic_invocable<OperationType, T, HandlerTypes..., decltype(fns)...>;
       }

@@ -250,7 +250,13 @@ TEST_CASE("inputs::make", "[polygon][inputs]")
     REQUIRE(result.error().has_value<file_not_found>());
     auto const &err = *result.error().get_ptr<file_not_found>();
     CHECK(err.path == subpath);
+    // A non-directory path component is ENOTDIR on POSIX but ERROR_PATH_NOT_FOUND on Windows, which
+    // maps to no_such_file_or_directory; either way make() routes it to file_not_found above.
+#ifdef _WIN32
+    CHECK(err.ec == std::errc::no_such_file_or_directory);
+#else
     CHECK(err.ec == std::errc::not_a_directory);
+#endif
   }
 
   SECTION("symlink loop yields io_error")
