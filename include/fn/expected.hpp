@@ -349,7 +349,7 @@ template <typename T, typename Err> struct expected : private detail::_storage<T
       : _base(s.set_, FWD(s).storage_)
   {
   }
-  constexpr expected(expected &&s)
+  constexpr expected(expected &&s) noexcept
     requires(::std::is_move_constructible_v<T> && ::std::is_move_constructible_v<Err>
              && ::std::is_trivially_move_constructible_v<T> && ::std::is_trivially_move_constructible_v<Err>)
   = default;
@@ -705,7 +705,7 @@ template <typename Err> struct expected<void, Err> : private detail::_storage<vo
       : _base(s.set_, FWD(s).storage_)
   {
   }
-  constexpr expected(expected &&s)
+  constexpr expected(expected &&s) noexcept
     requires(::std::is_move_constructible_v<Err> && ::std::is_trivially_move_constructible_v<Err>)
   = default;
   constexpr expected(expected &&s) //
