@@ -179,7 +179,7 @@ template <typename T, typename E> struct _storage : ::pfn::detail::_storage<T, E
   // transform, value type is a sum (delegates to sum::transform)
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn)
-    requires some_sum<T>
+    requires some_sum<T> && ::std::is_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
   {
     using new_value_type = decltype(_pfn_base::_value(FWD(self)).transform(FWD(fn)));
     using type = ::fn::expected<new_value_type, E>;
@@ -197,6 +197,7 @@ template <typename T, typename E> struct _storage : ::pfn::detail::_storage<T, E
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn)
     requires(::std::is_void_v<T>) && ::fn::detail::_is_invocable<Fn>::value
+            && ::std::is_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
   {
     using new_value_type = typename ::fn::detail::_invoke_result<Fn>::type;
     using type = ::fn::expected<new_value_type, E>;
