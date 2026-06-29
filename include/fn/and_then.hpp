@@ -78,9 +78,10 @@ struct and_then_t::apply final {
    * @param v The monad
    * @param fn The function to apply
    */
-  [[nodiscard]] constexpr auto operator()(some_monadic_type auto &&v, auto &&fn) const noexcept //
-      -> same_kind<decltype(v)> auto
-    requires invocable_and_then<decltype(fn), decltype(v)>
+  template <some_monadic_type V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept //
+      -> same_kind<V &&> auto
+    requires invocable_and_then<Fn &&, V &&>
   {
     return FWD(v).and_then(FWD(fn));
   }

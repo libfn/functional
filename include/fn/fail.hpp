@@ -56,11 +56,11 @@ struct fail_t::apply final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] constexpr auto operator()(some_expected_non_void auto &&v, auto &&fn) const noexcept //
-      -> same_monadic_type_as<decltype(v)> auto
-    requires invocable_fail<decltype(fn), decltype(v)>
+  template <some_expected_non_void V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept -> ::std::remove_cvref_t<V>
+    requires invocable_fail<Fn &&, V &&>
   {
-    using type = ::std::remove_cvref_t<decltype(v)>;
+    using type = ::std::remove_cvref_t<V>;
     if (v.has_value()) {
       return type{::pfn::unexpect, ::fn::invoke(FWD(fn), FWD(v).value())};
     }
@@ -74,11 +74,11 @@ struct fail_t::apply final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] constexpr auto operator()(some_expected_void auto &&v, auto &&fn) const noexcept //
-      -> same_monadic_type_as<decltype(v)> auto
-    requires invocable_fail<decltype(fn), decltype(v)>
+  template <some_expected_void V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept -> ::std::remove_cvref_t<V>
+    requires invocable_fail<Fn &&, V &&>
   {
-    using type = ::std::remove_cvref_t<decltype(v)>;
+    using type = ::std::remove_cvref_t<V>;
     if (v.has_value()) {
       return type{::pfn::unexpect, ::fn::invoke(FWD(fn))};
     }
@@ -92,11 +92,11 @@ struct fail_t::apply final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] constexpr auto operator()(some_optional auto &&v, auto &&fn) const noexcept
-      -> same_monadic_type_as<decltype(v)> auto
-    requires invocable_fail<decltype(fn), decltype(v)>
+  template <some_optional V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept -> ::std::remove_cvref_t<V>
+    requires invocable_fail<Fn &&, V &&>
   {
-    using type = ::std::remove_cvref_t<decltype(v)>;
+    using type = ::std::remove_cvref_t<V>;
     if (v.has_value()) {
       ::fn::invoke(FWD(fn), FWD(v).value());
     }

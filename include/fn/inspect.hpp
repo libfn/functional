@@ -58,8 +58,9 @@ struct inspect_t::apply final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] constexpr auto operator()(some_expected_non_void auto &&v, auto &&fn) const noexcept -> decltype(v)
-    requires invocable_inspect<decltype(fn), decltype(v)>
+  template <some_expected_non_void V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept -> V &&
+    requires invocable_inspect<Fn &&, V &&>
   {
     if (v.has_value()) {
       ::fn::invoke(FWD(fn), ::std::as_const(v).value()); // side-effects only
@@ -74,8 +75,9 @@ struct inspect_t::apply final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] constexpr auto operator()(some_expected_void auto &&v, auto &&fn) const noexcept -> decltype(v)
-    requires invocable_inspect<decltype(fn), decltype(v)>
+  template <some_expected_void V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept -> V &&
+    requires invocable_inspect<Fn &&, V &&>
   {
     if (v.has_value()) {
       ::fn::invoke(FWD(fn)); // side-effects only
@@ -90,8 +92,9 @@ struct inspect_t::apply final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] constexpr auto operator()(some_optional auto &&v, auto &&fn) const noexcept -> decltype(v)
-    requires invocable_inspect<decltype(fn), decltype(v)>
+  template <some_optional V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept -> V &&
+    requires invocable_inspect<Fn &&, V &&>
   {
     if (v.has_value()) {
       ::fn::invoke(FWD(fn), ::std::as_const(v).value()); // side-effects only
@@ -106,8 +109,9 @@ struct inspect_t::apply final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] constexpr auto operator()(some_choice auto &&v, auto &&fn) const noexcept -> decltype(v)
-    requires invocable_inspect<decltype(fn), decltype(v)>
+  template <some_choice V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept -> V &&
+    requires invocable_inspect<Fn &&, V &&>
   {
     ::fn::invoke(FWD(fn), ::std::as_const(v).value()); // side-effects only
     return FWD(v);

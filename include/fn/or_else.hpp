@@ -68,9 +68,10 @@ struct or_else_t::apply final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] constexpr auto operator()(some_monadic_type auto &&v, auto &&fn) const noexcept //
-      -> same_value_kind<decltype(v)> auto
-    requires invocable_or_else<decltype(fn), decltype(v)>
+  template <some_monadic_type V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept //
+      -> same_value_kind<V &&> auto
+    requires invocable_or_else<Fn &&, V &&>
   {
     return FWD(v).or_else(FWD(fn));
   }

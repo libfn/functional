@@ -82,9 +82,9 @@ struct transform_t::apply final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] constexpr auto operator()(some_monadic_type auto &&v, auto &&fn) const noexcept
-      -> same_kind<decltype(v)> auto
-    requires invocable_transform<decltype(fn), decltype(v)>
+  template <some_monadic_type V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept -> same_kind<V &&> auto
+    requires invocable_transform<Fn &&, V &&>
   {
     return FWD(v).transform(FWD(fn));
   }

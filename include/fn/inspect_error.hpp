@@ -56,8 +56,9 @@ struct inspect_error_t::apply final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] constexpr auto operator()(some_expected auto &&v, auto &&fn) const noexcept -> decltype(v)
-    requires invocable_inspect_error<decltype(fn), decltype(v)>
+  template <some_expected V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept -> V &&
+    requires invocable_inspect_error<Fn &&, V &&>
   {
     if (not v.has_value()) {
       ::fn::invoke(FWD(fn), ::std::as_const(v).error()); // side-effects only
@@ -72,8 +73,9 @@ struct inspect_error_t::apply final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] constexpr auto operator()(some_optional auto &&v, auto &&fn) const noexcept -> decltype(v)
-    requires invocable_inspect_error<decltype(fn), decltype(v)>
+  template <some_optional V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept -> V &&
+    requires invocable_inspect_error<Fn &&, V &&>
   {
     if (not v.has_value()) {
       ::fn::invoke(FWD(fn)); // side-effects only
