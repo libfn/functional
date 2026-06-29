@@ -16,7 +16,7 @@ namespace pfn {
 #elif defined(_MSC_VER)
   __assume(false);
 #else
-#error "pfn/utility.hpp: no unreachable intrinsic for this compiler (need GCC/Clang or MSVC)"
+#error "No 'unreachable' intrinsic for this compiler"
 #endif
 }
 // LCOV_EXCL_STOP
