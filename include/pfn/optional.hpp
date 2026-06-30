@@ -164,32 +164,131 @@ template <class T> union _optional_union_t {
   }
 };
 
-// optional<T&> stores a single pointer: nullptr encodes the disengaged state, so no
-// discriminant or placeholder is needed (T* is trivially copyable/destructible).
-template <class T> union _optional_union_t<T &> {
+template <typename> constexpr bool _is_optional_union = false;
+template <typename T> constexpr bool _is_optional_union<_optional_union_t<T>> = true;
+
+// Shared implementation base class for ::pfn::optional. Members are public since
+// inheritance is private. For now this provides storage plus constructors and
+// destructors only; assignment is deferred to a later design pass.
+template <class T> struct _optional_base {
+  using _storage_t = _optional_union_t<T>;
+  using _value_t = _storage_t::_value_t; // == T
+  _storage_t storage_;
+  bool set_;
+
+  // Shared construction helper: selects the union's active member from `s`. Used by
+  // the wrapper's copy/move and (later) the converting constructors.
+  template <typename S>
+  constexpr explicit _optional_base(bool s, S &&src)
+    requires(_is_optional_union<::std::remove_cvref_t<S>>)
+      : storage_(s, FWD(src)), set_(s)
+  {
+  }
+
+  template <class... Args>
+  constexpr explicit _optional_base(::std::in_place_t /*ignored*/, Args &&...a) //
+      noexcept(::std::is_nothrow_constructible_v<_storage_t, ::std::in_place_t, Args...>)
+    requires ::std::is_constructible_v<_storage_t, ::std::in_place_t, Args...>
+      : storage_(::std::in_place, FWD(a)...), set_(true)
+  {
+  }
+  template <class U, class... Args>
+  constexpr explicit _optional_base(::std::in_place_t /*ignored*/, ::std::initializer_list<U> il, Args &&...a) //
+      noexcept(::std::is_nothrow_constructible_v<_storage_t, ::std::in_place_t, ::std::initializer_list<U> &, Args...>)
+    requires ::std::is_constructible_v<_storage_t, ::std::in_place_t, ::std::initializer_list<U> &, Args...>
+      : storage_(::std::in_place, il, FWD(a)...), set_(true)
+  {
+  }
+  constexpr explicit _optional_base(::std::nullopt_t /*ignored*/) noexcept //
+      : storage_(::std::nullopt), set_(false)
+  {
+  }
+
+  constexpr _optional_base(_optional_base const &) = default;
+  constexpr _optional_base(_optional_base &&) = default;
+
+  constexpr ~_optional_base() //
+    requires(::std::is_trivially_destructible_v<_value_t>)
+  = default;
+  constexpr ~_optional_base() //
+    requires(not ::std::is_trivially_destructible_v<_value_t>)
+  {
+    if (set_)
+      ::std::destroy_at(::std::addressof(storage_.v_));
+  }
+};
+
+// optional<T&> needs its own base: the referent is held directly as a pointer (nullptr
+// encodes the disengaged state), so there is no value union, no discriminant flag, and
+// every special member is implicitly trivial. The in_place ctor binds the reference by
+// storing its address (full [optional.ref.ctor] constraints are deferred).
+template <class T> struct _optional_base<T &> {
+  using _value_t = T &;
   T *v_ = nullptr;
+
+  constexpr explicit _optional_base(::std::nullopt_t /*ignored*/) noexcept {}
+
+  template <class Arg>
+  constexpr explicit _optional_base(::std::in_place_t /*ignored*/, Arg &&arg) noexcept //
+      : v_(::std::addressof(arg))
+  {
+  }
 };
 
 } // namespace detail
 
-template <class T> class optional {
+template <class T> class optional : private detail::_optional_base<T> {
+  using _base = detail::_optional_base<T>;
+
 public:
   using value_type = T;
 
   // [optional.ctor], constructors
-  constexpr optional() noexcept;
-  constexpr optional(::std::nullopt_t) noexcept;
-  constexpr optional(optional const &);
-  constexpr optional(optional &&) noexcept(true); // TODO noexcept
-  template <class... Args> constexpr explicit optional(::std::in_place_t, Args &&...);
+  constexpr optional() noexcept : _base(::std::nullopt) {}
+  constexpr optional(::std::nullopt_t) noexcept : _base(::std::nullopt) {}
+
+  constexpr optional(optional const &) = delete;
+  constexpr optional(optional const &s)                   //
+      noexcept(::std::is_nothrow_copy_constructible_v<T>) // extension
+    requires(::std::is_copy_constructible_v<T> && ::std::is_trivially_copy_constructible_v<T>)
+  = default;
+  constexpr optional(optional const &s)                   //
+      noexcept(::std::is_nothrow_copy_constructible_v<T>) // extension
+    requires(::std::is_copy_constructible_v<T> && not ::std::is_trivially_copy_constructible_v<T>)
+      : _base(s.set_, FWD(s).storage_)
+  {
+  }
+  constexpr optional(optional &&) noexcept
+    requires(::std::is_move_constructible_v<T> && ::std::is_trivially_move_constructible_v<T>)
+  = default;
+  constexpr optional(optional &&s) //
+      noexcept(::std::is_nothrow_move_constructible_v<T>)
+    requires(::std::is_move_constructible_v<T> && not ::std::is_trivially_move_constructible_v<T>)
+      : _base(s.set_, FWD(s).storage_)
+  {
+  }
+
+  template <class... Args>
+  constexpr explicit optional(::std::in_place_t, Args &&...a) //
+      noexcept(::std::is_nothrow_constructible_v<T, Args...>) // extension
+    requires ::std::is_constructible_v<T, Args...>
+      : _base(::std::in_place, FWD(a)...)
+  {
+  }
   template <class U, class... Args>
-  constexpr explicit optional(::std::in_place_t, ::std::initializer_list<U>, Args &&...);
-  template <class U = ::std::remove_cv_t<T>> constexpr explicit(true) optional(U &&); // TODO explicit
-  template <class U> constexpr explicit(true) optional(optional<U> const &);          // TODO explicit
-  template <class U> constexpr explicit(true) optional(optional<U> &&);               // TODO explicit
+  constexpr explicit optional(::std::in_place_t, ::std::initializer_list<U> il, Args &&...a) //
+      noexcept(::std::is_nothrow_constructible_v<T, ::std::initializer_list<U> &, Args...>)  // extension
+    requires ::std::is_constructible_v<T, ::std::initializer_list<U> &, Args...>
+      : _base(::std::in_place, il, FWD(a)...)
+  {
+  }
+
+  // TODO converting constructors (U&&, optional<U> const&, optional<U>&&): deferred until the
+  // _can_convert* base traits + [optional.ctor] constraints land. Left undeclared on purpose —
+  // an unconstrained optional(U&&) would hijack the copy/move ctors for non-const lvalues.
 
   // [optional.dtor], destructor
-  constexpr ~optional();
+  constexpr ~optional() = default;
 
   // [optional.assign], assignment
   constexpr optional &operator=(::std::nullopt_t) noexcept;
@@ -234,32 +333,31 @@ public:
 
   // [optional.mod], modifiers
   constexpr void reset() noexcept;
-
-private:
-  union {
-    ::std::remove_cv_t<T> val; // exposition only
-  };
 };
 
 template <class T> optional(T) -> optional<T>;
 
-template <class T> class optional<T &> {
+template <class T> class optional<T &> : private detail::_optional_base<T &> {
+  using _base = detail::_optional_base<T &>;
+
 public:
   using value_type = T;
 
 public:
   // [optional.ref.ctor], constructors
-  constexpr optional() noexcept = default;
+  constexpr optional() noexcept : _base(::std::nullopt) {}
   constexpr optional(::std::nullopt_t) noexcept : optional() {}
   constexpr optional(optional const &rhs) noexcept = default;
 
-  template <class Arg> constexpr explicit optional(::std::in_place_t, Arg &&arg);
-  template <class U> constexpr explicit(true) optional(U &&u) noexcept(true);                  // TODO explicit/noexcept
-  template <class U> constexpr explicit(true) optional(optional<U> &rhs) noexcept(true);       // TODO explicit/noexcept
-  template <class U> constexpr explicit(true) optional(optional<U> const &rhs) noexcept(true); // TODO explicit/noexcept
-  template <class U> constexpr explicit(true) optional(optional<U> &&rhs) noexcept(true);      // TODO explicit/noexcept
-  template <class U>
-  constexpr explicit(true) optional(optional<U> const &&rhs) noexcept(true); // TODO explicit/noexcept
+  template <class Arg>
+  constexpr explicit optional(::std::in_place_t, Arg &&arg) noexcept //
+      : _base(::std::in_place, FWD(arg))
+  {
+  }
+
+  // TODO converting constructors (U&&, optional<U>&, optional<U> const&, optional<U>&&,
+  // optional<U> const&&): deferred until the [optional.ref.ctor] constraint set lands. Left
+  // undeclared on purpose — an unconstrained optional(U&&) would hijack the copy ctor.
 
   constexpr ~optional() = default;
 
@@ -289,8 +387,6 @@ public:
   constexpr void reset() noexcept;
 
 private:
-  T *val = nullptr; // exposition only
-
   // [optional.ref.expos], exposition only helper functions
   template <class U> constexpr void _convert_ref_init_val(U &&u); // exposition only
 };
