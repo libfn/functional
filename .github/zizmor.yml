@@ -1,0 +1,9 @@
+# Audits listed below to be enabled incrementally in the future.
+rules:
+  artipacked: { disable: true }
+  dangerous-triggers: { disable: true }
+  dependabot-cooldown: { disable: true }
+  excessive-permissions: { disable: true }
+  github-env: { disable: true }
+  template-injection: { disable: true }
+  unpinned-images: { disable: true }

@@ -89,7 +89,13 @@ TEST_CASE("normalized", "[normalized]")
 
   static_assert(type_sortkey_v<int> == "int");
   static_assert(type_sortkey_v<decltype(0)> == "int");
+  // Sortkey is the compiler's type spelling: MSVC __FUNCSIG__ carries the `struct` elaboration and no
+  // comma spaces, GCC/Clang don't (fundamentals like `int` above spell identically). See sum.cpp.
+#ifdef _MSC_VER
+  static_assert(type_sortkey_v<_ts<bool, int>> == "struct fn::detail::_ts<bool,int>");
+#else
   static_assert(type_sortkey_v<_ts<bool, int>> == "fn::detail::_ts<bool, int>");
+#endif
 
   SUCCEED();
 }

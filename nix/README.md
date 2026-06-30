@@ -53,4 +53,17 @@ $ cd functional && nix develop .
 bash-5.2$ code .
 ```
 
-This makes the selected compiler available as a kit in VSCode as well as allows the project to be automatically configured by cmake once the kit is selected.
+This makes the selected compiler available as a kit in VSCode as well as allowing the project to be automatically configured by cmake once the kit is selected.
+
+## Avoiding ODR violations: use one libfn version per build
+
+> [!WARNING]
+> libfn is header-only, so linking two **different versions** of it into a single binary risks an ODR (One Definition Rule) violation.
+
+This concerns different **patch** releases of the **same** minor version (e.g. `0.1.2` vs `0.1.3`): we keep the API and ABI stable across patches, but do **not** guarantee identical inline definitions. Different **minor** versions are *not* affected; the minor number is part of a hidden inline namespace, so symbols and types from different minor versions are distinct and cannot collide.
+
+Conan, vcpkg and Bazel resolve a dependency to a single version automatically. **Nix does not deduplicate transitive flake inputs**, so if your project depends on libfn *and* on another flake that **also** depends on libfn, you can end up consuming two versions and causing ODR violations in your program. You can avoid this by unifying them to a single version with an input `follows`:
+
+```nix
+inputs.someDependency.inputs.libfn.follows = "libfn";
+```

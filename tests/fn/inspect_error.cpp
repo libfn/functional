@@ -22,7 +22,7 @@ struct Error final {
   static int count;
 
   operator std::string_view() const { return what; }
-  auto finalize() const & -> void { count += what.size(); }
+  auto finalize() const & -> void { count += static_cast<int>(what.size()); }
 };
 
 int Error::count = 0;
@@ -62,7 +62,7 @@ TEST_CASE("inspect_error expected", "[inspect_error][expected]")
     }
     WHEN("operand is error")
     {
-      operand_t a{std::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, Error{"Not good"}};
       using T = decltype(a | inspect_error(fnError));
       static_assert(std::is_same_v<T, operand_t &>);
       REQUIRE((a //
@@ -74,7 +74,7 @@ TEST_CASE("inspect_error expected", "[inspect_error][expected]")
     }
     WHEN("calling member function")
     {
-      operand_t a{std::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, Error{"Not good"}};
       using T = decltype(a | inspect_error(&Error::finalize));
       static_assert(std::is_same_v<T, operand_t &>);
       auto const before = Error::count;
@@ -97,9 +97,9 @@ TEST_CASE("inspect_error expected", "[inspect_error][expected]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{std::unexpect, "Not good"} | inspect_error(fnError));
+      using T = decltype(operand_t{::pfn::unexpect, Error{"Not good"}} | inspect_error(fnError));
       static_assert(std::is_same_v<T, operand_t &&>);
-      REQUIRE((operand_t{std::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} //
                | inspect_error(fnError))
                   .error()
                   .what
@@ -108,10 +108,10 @@ TEST_CASE("inspect_error expected", "[inspect_error][expected]")
     }
     WHEN("calling member function")
     {
-      using T = decltype(operand_t{std::unexpect, "Not good"} | inspect_error(&Error::finalize));
+      using T = decltype(operand_t{::pfn::unexpect, Error{"Not good"}} | inspect_error(&Error::finalize));
       static_assert(std::is_same_v<T, operand_t &&>);
       auto const before = Error::count;
-      REQUIRE((operand_t{std::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} //
                | inspect_error(&Error::finalize))
                   .error()
                   .what
@@ -183,7 +183,7 @@ TEST_CASE("constexpr inspect_error expected", "[inspect_error][constexpr][expect
   constexpr auto fn = [](Error) constexpr noexcept -> void {};
   constexpr auto r1 = T{0} | fn::inspect_error(fn);
   static_assert(r1.value() == 0);
-  constexpr auto r2 = T{std::unexpect, Error::SomethingElse} | fn::inspect_error(fn);
+  constexpr auto r2 = T{::pfn::unexpect, Error::SomethingElse} | fn::inspect_error(fn);
   static_assert(r2.error() == Error::SomethingElse);
 
   SUCCEED();
@@ -192,13 +192,13 @@ TEST_CASE("constexpr inspect_error expected", "[inspect_error][constexpr][expect
 TEST_CASE("constexpr inspect_error expected with sum", "[inspect_error][constexpr][expected][sum]")
 {
   enum class Error { ThresholdExceeded, SomethingElse };
-  using T = fn::expected<int, fn::sum<Error, bool>>;
+  using T = fn::expected<int, fn::sum_for<Error, bool>>;
   constexpr auto fn = fn::overload{[](Error) constexpr noexcept -> void {}, [](bool) constexpr noexcept -> void {}};
   constexpr auto r1 = T{0} | fn::inspect_error(fn);
   static_assert(r1.value() == 0);
-  constexpr auto r2 = T{std::unexpect, fn::sum{Error::SomethingElse}} | fn::inspect_error(fn);
+  constexpr auto r2 = T{::pfn::unexpect, fn::sum{Error::SomethingElse}} | fn::inspect_error(fn);
   static_assert(r2.error() == fn::sum{Error::SomethingElse});
-  constexpr auto r3 = T{std::unexpect, fn::sum{false}} | fn::inspect_error(fn);
+  constexpr auto r3 = T{::pfn::unexpect, fn::sum{false}} | fn::inspect_error(fn);
   static_assert(r3.error() == fn::sum{false});
 
   SUCCEED();

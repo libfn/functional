@@ -3,21 +3,23 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
+#include "catch2/catch_test_macros.hpp"
+
+#ifndef PFN_TEST_NESTED
+
+#include <pfn/optional.hpp>
+
+using pfn::make_optional;
+using pfn::optional;
+
+#endif
+// When nested via PFN_TEST_NESTED (e.g expected_validation.cpp), the wrapper TU
+// already includes the necessary header(s) and brings the relevant aliases into the
+// global namespace to select right set of types expected as the subject under test.
+
 #include <util/helper_types.hpp>
 
 #include <catch2/catch_all.hpp>
-
-#ifndef PFN_TEST_VALIDATION
-// TODO: Add death tests. Until then, empty definition to avoid false "no coverage" reports
-#define LIBFN_ASSERT(...)
-#include <pfn/optional.hpp>
-using pfn::make_optional;
-using pfn::optional;
-#else
-#include <optional>
-using std::make_optional;
-using std::optional;
-#endif
 
 TEST_CASE("dummy")
 {

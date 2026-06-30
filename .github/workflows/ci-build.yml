@@ -13,7 +13,11 @@ on:
       - '.github/actions/build-ci-image/**'
       - '.github/actions/merge-ci-images/**'
       - '.github/workflows/ci-build.yml'
-      - 'ci/build/**'
+      - 'ci/gcc/**'
+      - 'ci/clang/**'
+      - 'ci/build-catch.sh'
+      - 'ci/fetch-bazel.sh'
+      - 'ci/fetch-node.sh'
   workflow_dispatch:
 
 env:
@@ -22,20 +26,24 @@ env:
   # Also see https://learn.microsoft.com/en-gb/azure/container-registry/
   # and https://docs.docker.com/build/ci/github-actions/push-multi-registries/
   REGISTRY_IMAGE_ROOT: libfn.azurecr.io/ci-build
+  CATCH_RELEASE: 3.14.0
+  BAZEL_RELEASE: 8.7.0
+  NODE_RELEASE: 24
 
 jobs:
   build:
     if: ${{ github.repository == 'libfn/functional' }}
-    runs-on:
-      group: ${{ matrix.platform == 'linux/arm64' && 'runners-arm64' || 'runners-intel' }}
+    runs-on: ${{ matrix.platform == 'linux/arm64' && 'warp-ubuntu-latest-arm64-4x' || 'warp-ubuntu-latest-x64-4x' }}
     strategy:
       fail-fast: false
       matrix:
-        compiler:
+        image:
           - gcc:12
           - gcc:13
           - gcc:14
           - gcc:15
+          - gcc:16
+          - gcc-bazel:16
           - clang:16
           - clang:17
           - clang:18
@@ -43,6 +51,9 @@ jobs:
           - clang:20
           - clang:21
           - clang:22
+          - clang-libstdcxx:21
+          - clang-libstdcxx:22
+          - clang-bazel:22
         platform:
           - linux/amd64
           - linux/arm64
@@ -50,22 +61,39 @@ jobs:
     steps:
       - name: Prepare
         run: |
-          compiler=${{ matrix.compiler }}
-          echo "COMPILER=${compiler%%:*}" >> $GITHUB_ENV
-          echo "RELEASE=${compiler##*:}" >> $GITHUB_ENV
+          image=${{ matrix.image }}
+          name=${image%%:*}
+          {
+            echo "IMAGE=${name}"
+            echo "RELEASE=${image##*:}"
+            echo "COMPILER=${name%%-*}"
+          } >> "${GITHUB_ENV}"
 
-      - name: Select Debian version
+      - name: Determine Debian version
         run: |
-          [[ $COMPILER == "clang" && $RELEASE -ge 21 ]] && echo "DEBIAN_VERSION=trixie" >> $GITHUB_ENV || echo "DEBIAN_VERSION=bookworm" >> $GITHUB_ENV
+          if [[ $COMPILER == "gcc" ]]; then
+            if [[ $RELEASE -ge 15 ]]; then
+              echo "DEBIAN_VERSION=trixie" >> "${GITHUB_ENV}"
+            else
+              echo "DEBIAN_VERSION=bookworm" >> "${GITHUB_ENV}"
+            fi
+          fi
+          if [[ $COMPILER == "clang" ]]; then
+            if [[ $RELEASE -ge 21 ]]; then
+              echo "DEBIAN_VERSION=trixie" >> "${GITHUB_ENV}"
+            else
+              echo "DEBIAN_VERSION=bookworm" >> "${GITHUB_ENV}"
+            fi
+          fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           sparse-checkout: .github
 
       - uses: ./.github/actions/build-ci-image
         with:
           platform: ${{ matrix.platform }}
-          image: ${{ env.REGISTRY_IMAGE_ROOT }}-${{ env.COMPILER }}
+          image: ${{ env.REGISTRY_IMAGE_ROOT }}-${{ env.IMAGE }}
           tags: |
             type=raw,value=${{ env.RELEASE }}
             type=sha,prefix=${{ env.RELEASE }}-sha-
@@ -76,23 +104,29 @@ jobs:
             GCC_RELEASE=${{ env.RELEASE }}
             CLANG_RELEASE=${{ env.RELEASE }}
             DEBIAN_VERSION=${{ env.DEBIAN_VERSION }}
-          context: "ci/build/${{ env.COMPILER }}"
-          title: "build-${{ env.COMPILER}}-${{ env.RELEASE }}"
+            CATCH_RELEASE=${{ env.CATCH_RELEASE }}
+            BAZEL_RELEASE=${{ env.BAZEL_RELEASE }}
+            NODE_RELEASE=${{ env.NODE_RELEASE }}
+          context: "ci"
+          file: "${{ env.COMPILER }}/Dockerfile"
+          title: "build-${{ env.IMAGE }}-${{ env.RELEASE }}"
           push: ${{ github.ref_type == 'branch' && github.ref_name == 'main' }}
+          target: ${{ env.IMAGE }}
 
   merge:
     if: ${{ github.repository == 'libfn/functional' && github.ref_type == 'branch' && github.ref_name == 'main' }}
-    runs-on:
-      group: runners-intel
+    runs-on: warp-ubuntu-latest-x64-4x
     needs:
       - build
     strategy:
       matrix:
-        compiler:
+        image:
           - gcc:12
           - gcc:13
           - gcc:14
           - gcc:15
+          - gcc:16
+          - gcc-bazel:16
           - clang:16
           - clang:17
           - clang:18
@@ -100,25 +134,28 @@ jobs:
           - clang:20
           - clang:21
           - clang:22
+          - clang-libstdcxx:21
+          - clang-libstdcxx:22
+          - clang-bazel:22
 
     steps:
       - name: Prepare
         run: |
-          compiler=${{ matrix.compiler }}
-          echo "COMPILER=${compiler%%:*}" >> $GITHUB_ENV
-          echo "RELEASE=${compiler##*:}" >> $GITHUB_ENV
+          image=${{ matrix.image }}
+          echo "IMAGE=${image%%:*}" >> "${GITHUB_ENV}"
+          echo "RELEASE=${image##*:}" >> "${GITHUB_ENV}"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           sparse-checkout: .github
 
       - uses: ./.github/actions/merge-ci-images
         with:
-          image: ${{ env.REGISTRY_IMAGE_ROOT }}-${{ env.COMPILER }}
+          image: ${{ env.REGISTRY_IMAGE_ROOT }}-${{ env.IMAGE }}
           tags: |
             type=raw,value=${{ env.RELEASE }}
             type=sha,prefix=${{ env.RELEASE }}-sha-
           registry: libfn.azurecr.io
           username: ${{ secrets.AZURECR_NAME }}
           password: ${{ secrets.AZURECR_PASS }}
-          title: "build-${{ env.COMPILER}}-${{ env.RELEASE }}"
+          title: "build-${{ env.IMAGE }}-${{ env.RELEASE }}"

@@ -1,0 +1,51 @@
+name: sonarcloud
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  sonarcloud:
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
+    container: libfn.azurecr.io/ci-build-gcc:15-sha-08b1133
+    env:
+      CC: /usr/local/bin/gcc
+      CXX: /usr/local/bin/g++
+      GCOV: /usr/local/bin/gcov
+      # Gates the inline scan below (a fork without a token no-ops); see also resolve-sonar-project.
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+    steps:
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      with:
+        fetch-depth: 0  # Full history for blame info
+
+    - name: Build coverage and package pull request workspace
+      uses: ./.github/actions/collect-pr-workspace
+      with:
+        artifact-name: sonarcloud-pr-inputs
+
+    - name: Resolve SonarCloud project
+      id: sonar
+      if: ${{ github.event_name != 'pull_request' && env.SONAR_TOKEN != '' }}
+      uses: ./.github/actions/resolve-sonar-project
+      with:
+        organization: ${{ vars.SONAR_ORGANIZATION }}
+        project-key: ${{ vars.SONAR_PROJECT_KEY }}
+
+    # PRs hand off to sonarcloud-pr-scan (it has the real head SHA, and fork PRs get no secrets here).
+    - name: Run SonarScanner
+      if: ${{ github.event_name != 'pull_request' && env.SONAR_TOKEN != '' }}
+      uses: SonarSource/sonarqube-scan-action@713881670b6b3676cda39549040e2d88c70d582e # v8.2.0
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        args: >
+          -Dsonar.host.url=https://sonarcloud.io
+          -Dsonar.organization=${{ steps.sonar.outputs.organization }}
+          -Dsonar.projectKey=${{ steps.sonar.outputs.project-key }}
+          -Dsonar.cfamily.gcov.reportsPath=.build
+          -Dsonar.cfamily.compile-commands=.build/compile_commands.json

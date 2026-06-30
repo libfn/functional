@@ -29,7 +29,23 @@ repos:
   - id: destroyed-symlinks
   - id: detect-private-key
 - repo: https://github.com/pre-commit/mirrors-clang-format
-  rev: v18.1.8
+  rev: v22.1.5
   hooks:
   - id: clang-format
     types_or: [c++, c]
+- repo: https://github.com/zizmorcore/zizmor-pre-commit
+  rev: v1.25.2
+  hooks:
+  - id: zizmor
+- repo: https://github.com/rhysd/actionlint
+  rev: v1.7.12
+  hooks:
+  - id: actionlint
+- repo: local
+  hooks:
+  - id: sync-versions
+    name: sync packaging versions with VERSION
+    entry: python scripts/sync_versions.py
+    language: python
+    files: ^(VERSION|ports/libfn/vcpkg\.json|MODULE\.bazel)$
+    pass_filenames: false

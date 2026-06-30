@@ -86,7 +86,7 @@ TEST_CASE("filter", "[filter][expected][expected_value]")
 
     WHEN("operand is error")
     {
-      operand_t a{std::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, Error{"Not good"}};
       using T = decltype(a | filter(truePred, wrong));
       static_assert(std::is_same_v<T, operand_t>);
 
@@ -121,10 +121,10 @@ TEST_CASE("filter", "[filter][expected][expected_value]")
 
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{std::unexpect, "Not good"} | filter(truePred, wrong));
+      using T = decltype(operand_t{::pfn::unexpect, Error{"Not good"}} | filter(truePred, wrong));
       static_assert(std::is_same_v<T, operand_t>);
 
-      REQUIRE((operand_t{std::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} //
                | filter(truePred, wrong))
                   .error()
                   .what
@@ -186,7 +186,7 @@ TEST_CASE("filter member function", "[filter][expected][expected_value][member_f
     {
       WHEN("predicate returns true")
       {
-        operand_t a{std::in_place, 1};
+        operand_t a{std::in_place, Value{1}};
         using T = decltype(a | filter(predicate, onError));
         static_assert(std::is_same_v<T, operand_t>);
 
@@ -196,7 +196,7 @@ TEST_CASE("filter member function", "[filter][expected][expected_value][member_f
 
       WHEN("predicate returns false")
       {
-        operand_t a{std::in_place, 42};
+        operand_t a{std::in_place, Value{42}};
         using T = decltype(a | filter(predicate, onError));
         static_assert(std::is_same_v<T, operand_t>);
 
@@ -230,13 +230,13 @@ TEST_CASE("filter member function", "[filter][expected][expected_value][member_f
 
       WHEN("operand is error")
       {
-        REQUIRE((operand_t{std::unexpect, Error{"Not good"}} | filter(predPack, errPack)).error().what == "Not good");
+        REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} | filter(predPack, errPack)).error().what == "Not good");
       }
     }
 
     WHEN("operand is error")
     {
-      operand_t a{std::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, Error{"Not good"}};
       using T = decltype(a | filter(predicate, wrong));
       static_assert(std::is_same_v<T, operand_t>);
 
@@ -254,29 +254,29 @@ TEST_CASE("filter member function", "[filter][expected][expected_value][member_f
     {
       WHEN("predicate returns true")
       {
-        using T = decltype(operand_t{std::in_place, 1} | filter(predicate, onError));
+        using T = decltype(operand_t{std::in_place, Value{1}} | filter(predicate, onError));
         static_assert(std::is_same_v<T, operand_t>);
 
-        REQUIRE((operand_t{std::in_place, 1} | filter(predicate, onError)).value().v == 1);
-        REQUIRE((operand_t{std::in_place, 1} | filter(predicate, &Value::error_)).value().v == 1);
+        REQUIRE((operand_t{std::in_place, Value{1}} | filter(predicate, onError)).value().v == 1);
+        REQUIRE((operand_t{std::in_place, Value{1}} | filter(predicate, &Value::error_)).value().v == 1);
       }
 
       WHEN("predicate returns false")
       {
-        using T = decltype(operand_t{std::in_place, 42} | filter(predicate, onError));
+        using T = decltype(operand_t{std::in_place, Value{42}} | filter(predicate, onError));
         static_assert(std::is_same_v<T, operand_t>);
 
-        REQUIRE((operand_t{std::in_place, 42} | filter(predicate, onError)).error().what == "Got 42");
-        REQUIRE((operand_t{std::in_place, 42} | filter(predicate, &Value::error_)).error().what == "Got 42");
+        REQUIRE((operand_t{std::in_place, Value{42}} | filter(predicate, onError)).error().what == "Got 42");
+        REQUIRE((operand_t{std::in_place, Value{42}} | filter(predicate, &Value::error_)).error().what == "Got 42");
       }
     }
 
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{std::unexpect, "Not good"} | filter(predicate, wrong));
+      using T = decltype(operand_t{::pfn::unexpect, Error{"Not good"}} | filter(predicate, wrong));
       static_assert(std::is_same_v<T, operand_t>);
 
-      REQUIRE((operand_t{std::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} //
                | filter(predicate, wrong))
                   .error()
                   .what
@@ -333,7 +333,7 @@ TEST_CASE("filter", "[filter][expected][expected_void]")
 
     WHEN("operand is error")
     {
-      operand_t a{std::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, Error{"Not good"}};
       using T = decltype(a | filter(truePred, wrong));
       static_assert(std::is_same_v<T, operand_t>);
 
@@ -368,10 +368,10 @@ TEST_CASE("filter", "[filter][expected][expected_void]")
 
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{std::unexpect, "Not good"} | filter(truePred, wrong));
+      using T = decltype(operand_t{::pfn::unexpect, Error{"Not good"}} | filter(truePred, wrong));
       static_assert(std::is_same_v<T, operand_t>);
 
-      REQUIRE((operand_t{std::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} //
                | filter(truePred, wrong))
                   .error()
                   .what
@@ -531,7 +531,7 @@ TEST_CASE("filter member function", "[filter][optional]")
     {
       WHEN("predicate returns true")
       {
-        operand_t a{1};
+        operand_t a{Value{1}};
         using T = decltype(a | filter(predicate));
         static_assert(std::is_same_v<T, operand_t>);
 
@@ -539,7 +539,7 @@ TEST_CASE("filter member function", "[filter][optional]")
       }
       WHEN("predicate returns false")
       {
-        operand_t a{42};
+        operand_t a{Value{42}};
         using T = decltype(a | filter(predicate));
         static_assert(std::is_same_v<T, operand_t>);
 
@@ -562,18 +562,18 @@ TEST_CASE("filter member function", "[filter][optional]")
     {
       WHEN("predicate returns true")
       {
-        using T = decltype(operand_t{1} | filter(predicate));
+        using T = decltype(operand_t{Value{1}} | filter(predicate));
         static_assert(std::is_same_v<T, operand_t>);
 
-        REQUIRE((operand_t{1} | filter(predicate)).value().v == 1);
+        REQUIRE((operand_t{Value{1}} | filter(predicate)).value().v == 1);
       }
 
       WHEN("predicate returns false")
       {
-        using T = decltype(operand_t{42} | filter(predicate));
+        using T = decltype(operand_t{Value{42}} | filter(predicate));
         static_assert(std::is_same_v<T, operand_t>);
 
-        REQUIRE(not(operand_t{42} | filter(predicate)).has_value());
+        REQUIRE(not(operand_t{Value{42}} | filter(predicate)).has_value());
       }
     }
 
@@ -607,7 +607,7 @@ TEST_CASE("constexpr filter expected", "[filter][constexpr][expected]")
 TEST_CASE("constexpr filter expected with sum", "[filter][constexpr][expected][sum]")
 {
   enum class Error { ThresholdExceeded, SomethingElse };
-  using T = fn::expected<fn::sum<Value, int>, Error>;
+  using T = fn::expected<fn::sum_for<Value, int>, Error>;
 
   constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> bool { return i < 3; },
                                    [](Value const &v) constexpr noexcept -> bool { return v.v >= 5; }};
@@ -641,7 +641,7 @@ TEST_CASE("constexpr filter optional", "[filter][constexpr][optional]")
 
 TEST_CASE("constexpr filter optional with sum", "[filter][constexpr][optional][sum]")
 {
-  using T = fn::optional<fn::sum<Value, int>>;
+  using T = fn::optional<fn::sum_for<Value, int>>;
 
   constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> bool { return i < 3; },
                                    [](Value const &v) constexpr noexcept -> bool { return v.v >= 5; }};

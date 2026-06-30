@@ -1,8 +1,7 @@
 CompileFlags:
-  Add: [-Wall, -Wextra, -Wpedantic, -Wno-missing-braces]
-  Remove: -W*
+  Add: [-Wall, -Wextra, -Wpedantic, -Wno-missing-braces, -Wno-c2y-extensions, --std=c++20]
+  Remove: [-W*, -std=c++23, -funreachable-traps]
   Compiler: clang++
-  CompilationDatabase: .build
 Diagnostics:
   ClangTidy:
     Add: [modernize*, bugprone*, readability*, performance*]

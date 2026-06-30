@@ -5,43 +5,44 @@ description: Build and optionally push a CI image to a registry.
 
 inputs:
   platform:
-    default: null
     required: true
-    type: string
+    description: The target platform(s) for the image, e.g. "linux/amd64", "linux/arm64".
   context:
-    default: null
     required: true
-    type: string
-  build_args:
-    default: null
+    description: Path within the repo used as the build context (a subdir of the default Git context), e.g. "ci".
+  file:
+    default: Dockerfile
     required: false
+    description: Path to the Dockerfile, relative to the build context.
+  target:
+    required: false
+    description: The target stage to build in a multi-stage Dockerfile.
+  build_args:
+    required: false
+    description: Build arguments to pass to docker build, e.g. "GCC_RELEASE=16,DEBIAN_VERSION=trixie".
   image:
-    default: null
     required: true
-    type: string
+    description: The name of the image to build, e.g. "libfn.azurecr.io/ci-build-gcc".
   tags:
-    default: null
     required: true
+    description: The tags to apply to the image, e.g. "16".
   registry:
     default: "docker.io"
     required: true
-    type: string
+    description: The registry to push the image to, e.g. "docker.io" or "libfn.azurecr.io".
   username:
-    default: null
     required: true
-    type: string
+    description: The username for the registry.
   password:
-    default: null
     required: true
-    type: string
+    description: The password or token for the registry.
   title:
-    default: null
     required: true
-    type: string
+    description: A title to include in the image metadata, e.g. "build-gcc-16".
   push:
-    default: false
+    default: 'false'
     required: true
-    type: boolean
+    description: Whether to push the image to the registry. Set to "true" to push, or "false" to only build locally.
 
 runs:
   using: composite
@@ -52,11 +53,11 @@ runs:
         PLATFORM_PAIR: ${{ inputs.platform }}
       run: |
         platform=${PLATFORM_PAIR}
-        echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
+        echo "PLATFORM_PAIR=${platform//\//-}" >> "${GITHUB_ENV}"
 
     - name: Docker meta
       id: meta
-      uses: docker/metadata-action@v5
+      uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
       with:
         images: ${{ inputs.image }}
         tags: ${{ inputs.tags }}
@@ -67,13 +68,13 @@ runs:
           org.opencontainers.image.title=libfn/ci/${{ inputs.title }}
 
     - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3
+      uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
 
     - name: Login to Docker Hub
-      uses: docker/login-action@v3
+      uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
       with:
         registry: ${{ inputs.registry }}
         username: ${{ inputs.username }}
@@ -81,17 +82,18 @@ runs:
 
     - name: Build and push by digest
       id: build
-      uses: docker/build-push-action@v6
+      uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
       with:
         platforms: ${{ inputs.platform }}
         build-args: ${{ inputs.build_args }}
         context: "{{defaultContext}}:${{ inputs.context }}"
-        file: Dockerfile
+        file: ${{ inputs.file }}
         labels: ${{ steps.meta.outputs.labels }}
         outputs: type=image,name=${{ inputs.image }},push-by-digest=true,name-canonical=true,push=true
         sbom: true
         provenance: mode=max
         push: ${{ inputs.push }}
+        target: ${{ inputs.target }}
 
     - name: Export digest
       if: ${{ inputs.push }}
@@ -103,7 +105,7 @@ runs:
 
     - name: Upload digest
       if: ${{ inputs.push }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: digests-${{ inputs.title }}-${{ env.PLATFORM_PAIR }}
         path: /tmp/digests/*

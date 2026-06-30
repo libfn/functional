@@ -1,0 +1,48 @@
+name: resolve-sonar-project
+description: >
+  Resolve the SonarCloud organization and project key. The upstream repository uses fixed values; a
+  fork must supply its own via the SONAR_ORGANIZATION / SONAR_PROJECT_KEY repository variables. Guard
+  the call with the SonarCloud token so a fork is only required to set these when it actually scans.
+
+inputs:
+  organization:
+    default: ''
+    description: Fork's SonarCloud organization (repository variable SONAR_ORGANIZATION); ignored upstream.
+  project-key:
+    default: ''
+    description: Fork's SonarCloud project key (repository variable SONAR_PROJECT_KEY); ignored upstream.
+
+outputs:
+  organization:
+    description: Resolved SonarCloud organization.
+    value: ${{ steps.resolve.outputs.organization }}
+  project-key:
+    description: Resolved SonarCloud project key.
+    value: ${{ steps.resolve.outputs.project-key }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve organization and project key
+      id: resolve
+      shell: bash
+      env:
+        IS_UPSTREAM: ${{ github.repository == 'libfn/functional' }}
+        ORG: ${{ inputs.organization }}
+        KEY: ${{ inputs.project-key }}
+      run: |
+        if [ "$IS_UPSTREAM" = "true" ]; then
+          org=libfn
+          key=libfn_functional
+        else
+          org=$ORG
+          key=$KEY
+          if [ -z "$org" ] || [ -z "$key" ]; then
+            printf '::error::A fork must set the SONAR_ORGANIZATION and SONAR_PROJECT_KEY repository variables to run SonarCloud (see CONTRIBUTING.md).\n' >&2
+            exit 1
+          fi
+        fi
+        {
+          echo "organization=$org"
+          echo "project-key=$key"
+        } >> "$GITHUB_OUTPUT"

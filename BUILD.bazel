@@ -1,0 +1,16 @@
+package(default_visibility = ["//visibility:public"])
+
+# C++20-compatible polyfills; always available.
+cc_library(
+    name = "pfn",
+    hdrs = glob(["include/pfn/**/*.hpp"]),
+    includes = ["include"],
+)
+
+# The functional library (C++20); built on the pfn polyfills.
+cc_library(
+    name = "fn",
+    hdrs = glob(["include/fn/**/*.hpp"]),
+    includes = ["include"],
+    deps = [":pfn"],
+)

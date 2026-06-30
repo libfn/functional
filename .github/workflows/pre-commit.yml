@@ -7,15 +7,15 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   checks:
-    runs-on:
-      group: runners-arm64
-    container: libfn.azurecr.io/ci-pre-commit:latest
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-2x' || 'ubuntu-latest' }}
+    container: libfn.azurecr.io/ci-pre-commit:sha-08b1133
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
     - name: Prepare
       run: |

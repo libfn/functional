@@ -70,7 +70,7 @@ TEST_CASE("inspect expected", "[inspect][expected][expected_value][pack]")
     }
     WHEN("operand is error")
     {
-      operand_t a{std::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, Error{"Not good"}};
       using T = decltype(a | inspect(wrong));
       static_assert(std::is_same_v<T, operand_t &>);
       REQUIRE((a //
@@ -82,7 +82,7 @@ TEST_CASE("inspect expected", "[inspect][expected][expected_value][pack]")
     WHEN("calling member function")
     {
       using operand_t = fn::expected<Value, Error>;
-      operand_t a{std::in_place, 12};
+      operand_t a{std::in_place, Value{12}};
       using T = decltype(a | inspect(&Value::fn));
       static_assert(std::is_same_v<T, operand_t &>);
       auto const before = Value::count;
@@ -108,7 +108,7 @@ TEST_CASE("inspect expected", "[inspect][expected][expected_value][pack]")
     WHEN("operand is error")
     {
       using operand_t = fn::expected<fn::pack<int, double>, Error>;
-      operand_t a{std::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, Error{"Not good"}};
       constexpr auto wrong = [](auto...) { throw 0; };
       using T = decltype(a | inspect(wrong));
       static_assert(std::is_same_v<T, operand_t &>);
@@ -131,9 +131,9 @@ TEST_CASE("inspect expected", "[inspect][expected][expected_value][pack]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{std::unexpect, "Not good"} | inspect(wrong));
+      using T = decltype(operand_t{::pfn::unexpect, Error{"Not good"}} | inspect(wrong));
       static_assert(std::is_same_v<T, operand_t &&>);
-      REQUIRE((operand_t{std::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} //
                | inspect(wrong))
                   .error()
                   .what
@@ -142,10 +142,10 @@ TEST_CASE("inspect expected", "[inspect][expected][expected_value][pack]")
     WHEN("calling member function")
     {
       using operand_t = fn::expected<Value, Error>;
-      using T = decltype(operand_t{std::in_place, 12} | inspect(&Value::fn));
+      using T = decltype(operand_t{std::in_place, Value{12}} | inspect(&Value::fn));
       static_assert(std::is_same_v<T, operand_t &&>);
       auto const before = Value::count;
-      REQUIRE((operand_t{std::in_place, 12} | inspect(&Value::fn)).value().value == 12);
+      REQUIRE((operand_t{std::in_place, Value{12}} | inspect(&Value::fn)).value().value == 12);
       CHECK(Value::count == before + 12);
     }
   }
@@ -180,7 +180,7 @@ TEST_CASE("inspect void expected", "[inspect][expected][expected_void]")
     }
     WHEN("operand is error")
     {
-      operand_t a{std::unexpect, "Not good"};
+      operand_t a{::pfn::unexpect, Error{"Not good"}};
       using T = decltype(a | inspect(wrong));
       static_assert(std::is_same_v<T, operand_t &>);
       REQUIRE((a //
@@ -202,9 +202,9 @@ TEST_CASE("inspect void expected", "[inspect][expected][expected_void]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{std::unexpect, "Not good"} | inspect(wrong));
+      using T = decltype(operand_t{::pfn::unexpect, Error{"Not good"}} | inspect(wrong));
       static_assert(std::is_same_v<T, operand_t &&>);
-      REQUIRE((operand_t{std::unexpect, "Not good"} //
+      REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} //
                | inspect(wrong))
                   .error()
                   .what
@@ -256,7 +256,7 @@ TEST_CASE("inspect optional", "[inspect][optional][pack]")
     WHEN("calling member function")
     {
       using operand_t = fn::optional<Value>;
-      operand_t a{std::in_place, 12};
+      operand_t a{std::in_place, Value{12}};
       using T = decltype(a | inspect(&Value::fn));
       static_assert(std::is_same_v<T, operand_t &>);
       auto const before = Value::count;
@@ -310,10 +310,10 @@ TEST_CASE("inspect optional", "[inspect][optional][pack]")
     WHEN("calling member function")
     {
       using operand_t = fn::optional<Value>;
-      using T = decltype(operand_t{std::in_place, 12} | inspect(&Value::fn));
+      using T = decltype(operand_t{std::in_place, Value{12}} | inspect(&Value::fn));
       static_assert(std::is_same_v<T, operand_t &&>);
       auto const before = Value::count;
-      REQUIRE((operand_t{std::in_place, 12} | inspect(&Value::fn)).value().value == 12);
+      REQUIRE((operand_t{std::in_place, Value{12}} | inspect(&Value::fn)).value().value == 12);
       CHECK(Value::count == before + 12);
     }
   }
@@ -348,7 +348,7 @@ TEST_CASE("inspect choice", "[inspect][choice]")
     SUCCEED();
   }
 
-  using operand_t = fn::choice<Value, int>;
+  using operand_t = fn::choice_for<Value, int>;
   using is = monadic_static_check<inspect_t, operand_t>;
 
   static_assert(is::invocable_with_any([](auto) {}));
@@ -367,7 +367,7 @@ TEST_CASE("inspect choice", "[inspect][choice]")
 
   int value = 0;
   auto fnValue
-      = fn::overload([&value](int const &i) { value += i; }, [&value](Value const &i) { value += (i.value / 2); });
+      = fn::overload{[&value](int const &i) { value += i; }, [&value](Value const &i) { value += (i.value / 2); }};
 
   operand_t a{12};
   using T = decltype(a | inspect(fnValue));
@@ -383,7 +383,7 @@ TEST_CASE("constexpr inspect expected", "[inspect][constexpr][expected]")
   constexpr auto fn = [](int) constexpr noexcept -> void {};
   constexpr auto r1 = T{0} | fn::inspect(fn);
   static_assert(r1.value() == 0);
-  constexpr auto r2 = T{std::unexpect, Error::SomethingElse} | fn::inspect(fn);
+  constexpr auto r2 = T{::pfn::unexpect, Error::SomethingElse} | fn::inspect(fn);
   static_assert(r2.error() == Error::SomethingElse);
 
   SUCCEED();
@@ -401,7 +401,7 @@ TEST_CASE("constexpr inspect expected with sum", "[inspect][constexpr][expected]
   };
   constexpr auto r12 = T{0} | fn::inspect(fn2);
   static_assert(r12.value() == fn::sum{0});
-  constexpr auto r2 = T{std::unexpect, Error::SomethingElse} | fn::inspect(fn1);
+  constexpr auto r2 = T{::pfn::unexpect, Error::SomethingElse} | fn::inspect(fn1);
   static_assert(r2.error() == Error::SomethingElse);
 
   SUCCEED();

@@ -40,7 +40,9 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
   WHEN("value")
   {
-    static_assert(std::same_as<fn::sum<NonCopyable, int>, typename choice<NonCopyable, int>::value_type>);
+    // _for aliases: a choice's value_type is the sum of its alternatives, but the canonical order is
+    // platform-specific (see WHEN("choice_for") below), so normalize both sides per platform.
+    static_assert(std::same_as<fn::sum_for<NonCopyable, int>, typename fn::choice_for<NonCopyable, int>::value_type>);
     static_assert(std::same_as<fn::sum<int>, typename choice<int>::value_type>);
 
     using type = fn::choice<bool, helper>;
@@ -70,9 +72,24 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     static_assert(std::same_as<fn::choice_for<int, int>, fn::choice<int>>);
     static_assert(std::same_as<fn::choice_for<int, bool>, fn::choice<bool, int>>);
     static_assert(std::same_as<fn::choice_for<bool, int>, fn::choice<bool, int>>);
+    // Canonical alternative order is platform/ABI-specific (derived from the compiler's type spelling
+    // — GCC/Clang __PRETTY_FUNCTION__ vs MSVC __FUNCSIG__): MSVC sorts class/struct types after the
+    // fundamentals, GCC/Clang before. Inherent and deliberately NOT unified (not even by C++26
+    // std::type_order — an ABI-tied total order); see tests/fn/sum.cpp for the full rationale. This
+    // one assert documents the divergence; the rest assert only platform-independent invariants.
+    // Spelling: choices/sums whose alternatives include a non-builtin have platform-specific order, so
+    // they are written choice_for<...>; pure-builtin ones keep a fixed choice<...>.
+#ifdef _MSC_VER
+    static_assert(std::same_as<fn::choice_for<int, NonCopyable>, fn::choice<int, NonCopyable>>);
+#else
     static_assert(std::same_as<fn::choice_for<int, NonCopyable>, fn::choice<NonCopyable, int>>);
-    static_assert(std::same_as<fn::choice_for<NonCopyable, int>, fn::choice<NonCopyable, int>>);
-    static_assert(std::same_as<fn::choice_for<int, bool, NonCopyable>, fn::choice<NonCopyable, bool, int>>);
+#endif
+    static_assert(std::same_as<fn::choice_for<NonCopyable, int>, fn::choice_for<int, NonCopyable>>); // commutative
+    static_assert(
+        std::same_as<fn::choice_for<int, bool, NonCopyable>, fn::choice_for<NonCopyable, bool, int>>); // commutative
+    static_assert(
+        std::same_as<fn::choice_for<NonCopyable, int, NonCopyable>, fn::choice_for<int, NonCopyable>>); // unique
+    static_assert(fn::choice_for<int, bool, NonCopyable>::size == 3);
 
     static_assert(std::same_as<fn::choice_for<int, fn::sum<int>>, fn::choice<int>>);
     static_assert(std::same_as<fn::choice_for<int, fn::sum<bool>>, fn::choice<bool, int>>);
@@ -93,7 +110,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
   WHEN("invocable")
   {
-    using type = choice<TestType, int>;
+    using type = fn::choice_for<TestType, int>; // choice<...> order is platform-specific; choice_for normalizes
     static_assert(fn::typelist_invocable<decltype([](auto) {}), type &>);
     static_assert(fn::typelist_invocable<decltype([](auto &) {}), type &>);
     static_assert(fn::typelist_invocable<decltype([](auto const &) {}), type &>);
@@ -162,7 +179,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       constexpr auto b = fn(helper{{0.5, 2.0}, 19});
       static_assert(std::is_same_v<decltype(b), T const>);
       static_assert(b.has_value<helper>());
-      static_assert(b.value().get_ptr<helper>()->v == 19 * helper::from_rval);
+      static_assert(b.value().get_ptr<helper>()->v == 19 * from_rval);
     }
 
     WHEN("move from rvalue")
@@ -172,7 +189,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       auto const a = fn(helper{9});
       static_assert(std::is_same_v<decltype(a), T const>);
       CHECK(a.has_value<helper>());
-      CHECK(a.value().get_ptr<helper>()->v == 9 * helper::from_rval);
+      CHECK(a.value().get_ptr<helper>()->v == 9 * from_rval);
 
       auto b = fn(true);
       static_assert(std::is_same_v<decltype(b), T>);
@@ -192,7 +209,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       constexpr auto b = fn(helper{{0.5, 2.0}, 17});
       static_assert(std::is_same_v<decltype(b), T const>);
       static_assert(b.has_value<helper>());
-      static_assert(b.value().get_ptr<helper>()->v == 17 * helper::from_rval_const);
+      static_assert(b.value().get_ptr<helper>()->v == 17 * from_rval_const);
     }
 
     WHEN("move from const rvalue")
@@ -202,7 +219,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       auto const a = fn(helper{7});
       static_assert(std::is_same_v<decltype(a), T const>);
       CHECK(a.has_value<helper>());
-      CHECK(a.value().get_ptr<helper>()->v == 7 * helper::from_rval_const);
+      CHECK(a.value().get_ptr<helper>()->v == 7 * from_rval_const);
 
       auto b = fn(true);
       static_assert(std::is_same_v<decltype(b), T>);
@@ -222,7 +239,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       constexpr auto b = fn(helper{{0.5, 2.0}, 17});
       static_assert(std::is_same_v<decltype(b), T const>);
       static_assert(b.has_value<helper>());
-      static_assert(b.value().get_ptr<helper>()->v == 17 * helper::from_lval);
+      static_assert(b.value().get_ptr<helper>()->v == 17 * from_lval);
     }
 
     WHEN("copy from lvalue")
@@ -237,7 +254,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       auto b = fn(helper{13});
       static_assert(std::is_same_v<decltype(b), T>);
       CHECK(b.has_value<helper>());
-      CHECK(b.value().get_ptr<helper>()->v == 13 * helper::from_lval);
+      CHECK(b.value().get_ptr<helper>()->v == 13 * from_lval);
     }
 
     WHEN("constexpr copy from const lvalue")
@@ -252,7 +269,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       constexpr auto b = fn(helper{{0.5, 2.0}, 15});
       static_assert(std::is_same_v<decltype(b), T const>);
       static_assert(b.has_value<helper>());
-      static_assert(b.value().get_ptr<helper>()->v == 15 * helper::from_lval_const);
+      static_assert(b.value().get_ptr<helper>()->v == 15 * from_lval_const);
     }
 
     WHEN("copy from const lvalue")
@@ -267,7 +284,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       auto b = fn(helper{5});
       static_assert(std::is_same_v<decltype(b), T>);
       CHECK(b.has_value<helper>());
-      CHECK(b.value().get_ptr<helper>()->v == 5 * helper::from_lval_const);
+      CHECK(b.value().get_ptr<helper>()->v == 5 * from_lval_const);
     }
 
     WHEN("copy ctor")
@@ -278,7 +295,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       auto const b = std::as_const(a);
 
       CHECK(b.has_value<helper>());
-      CHECK(b.value().get_ptr<helper>()->v == 23 * helper::from_lval_const);
+      CHECK(b.value().get_ptr<helper>()->v == 23 * from_lval_const);
     }
 
     WHEN("move ctor")
@@ -289,7 +306,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       auto const b = std::move(a);
 
       CHECK(b.has_value<helper>());
-      CHECK(b.value().get_ptr<helper>()->v == 29 * helper::from_rval);
+      CHECK(b.value().get_ptr<helper>()->v == 29 * from_rval);
     }
   }
 
@@ -301,14 +318,14 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       fn::sum h{helper{1}};
       h.get_ptr<helper>()->v = 17;
       T const a{std::move(h)};
-      CHECK(a.value().get_ptr<helper>()->v == 17 * helper::from_rval);
+      CHECK(a.value().get_ptr<helper>()->v == 17 * from_rval);
     }
     WHEN("copy from const lvalue")
     {
       fn::sum h{helper{1}};
       h.get_ptr<helper>()->v = 19;
       T const a{std::as_const(h)};
-      CHECK(a.value().get_ptr<helper>()->v == 19 * helper::from_lval_const);
+      CHECK(a.value().get_ptr<helper>()->v == 19 * from_lval_const);
     }
   }
 
@@ -449,34 +466,37 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     choice<int> a{std::in_place_type<int>, 42};
     WHEN("value only")
     {
-      CHECK(a.invoke(   //
-          fn::overload( //
-              [](auto) -> bool { throw 1; }, [](int &) -> bool { return true; }, [](int const &) -> bool { throw 0; },
-              [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; })));
+      CHECK(a.invoke(  //
+          fn::overload{//
+                       [](auto) -> bool { throw 1; }, [](int &) -> bool { return true; },
+                       [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
+                       [](int const &&) -> bool { throw 0; }}));
       CHECK(std::as_const(a).invoke( //
-          fn::overload(              //
-              [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { return true; },
-              [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; })));
+          fn::overload{              //
+                       [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
+                       [](int const &) -> bool { return true; }, [](int &&) -> bool { throw 0; },
+                       [](int const &&) -> bool { throw 0; }}));
       CHECK(std::move(std::as_const(a))
-                .invoke(fn::overload([](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
+                .invoke(fn::overload{[](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
                                      [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
-                                     [](int const &&) -> bool { return true; })));
+                                     [](int const &&) -> bool { return true; }}));
       CHECK(std::move(a).invoke( //
-          fn::overload(          //
-              [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
-              [](int &&) -> bool { return true; }, [](int const &&) -> bool { throw 0; })));
+          fn::overload{          //
+                       [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
+                       [](int const &) -> bool { throw 0; }, [](int &&) -> bool { return true; },
+                       [](int const &&) -> bool { throw 0; }}));
 
       WHEN("constexpr")
       {
         constexpr choice<int> a{std::in_place_type<int>, 42};
-        static_assert(a.invoke(fn::overload(
+        static_assert(a.invoke(fn::overload{
             [](auto) -> std::false_type { return {}; }, //
             [](int &) -> std::false_type { return {}; }, [](int const &) -> std::true_type { return {}; },
-            [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::false_type { return {}; })));
-        static_assert(std::move(a).invoke(fn::overload(
+            [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::false_type { return {}; }}));
+        static_assert(std::move(a).invoke(fn::overload{
             [](auto) -> std::false_type { return {}; }, //
             [](int &) -> std::false_type { return {}; }, [](int const &) -> std::false_type { return {}; },
-            [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::true_type { return {}; })));
+            [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::true_type { return {}; }}));
       }
     }
   }
@@ -487,33 +507,36 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     WHEN("value only")
     {
       CHECK(a.invoke_r<int>( //
-          fn::overload(      //
-              [](auto) -> int { throw 1; }, [](int &) -> bool { return true; }, [](int const &) -> bool { throw 0; },
-              [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; })));
+          fn::overload{      //
+                       [](auto) -> int { throw 1; }, [](int &) -> bool { return true; },
+                       [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
+                       [](int const &&) -> bool { throw 0; }}));
       CHECK(std::as_const(a).invoke_r<int>( //
-          fn::overload(                     //
-              [](auto) -> int { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { return true; },
-              [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; })));
+          fn::overload{                     //
+                       [](auto) -> int { throw 1; }, [](int &) -> bool { throw 0; },
+                       [](int const &) -> bool { return true; }, [](int &&) -> bool { throw 0; },
+                       [](int const &&) -> bool { throw 0; }}));
       CHECK(std::move(std::as_const(a))
-                .invoke_r<int>(fn::overload([](auto) -> int { throw 1; }, [](int &) -> bool { throw 0; },
+                .invoke_r<int>(fn::overload{[](auto) -> int { throw 1; }, [](int &) -> bool { throw 0; },
                                             [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
-                                            [](int const &&) -> bool { return true; })));
+                                            [](int const &&) -> bool { return true; }}));
       CHECK(std::move(a).invoke_r<int>( //
-          fn::overload(                 //
-              [](auto) -> int { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
-              [](int &&) -> bool { return true; }, [](int const &&) -> bool { throw 0; })));
+          fn::overload{                 //
+                       [](auto) -> int { throw 1; }, [](int &) -> bool { throw 0; },
+                       [](int const &) -> bool { throw 0; }, [](int &&) -> bool { return true; },
+                       [](int const &&) -> bool { throw 0; }}));
 
       WHEN("constexpr")
       {
         constexpr choice<int> a{std::in_place_type<int>, 42};
-        static_assert(a.invoke_r<int>(fn::overload(
+        static_assert(a.invoke_r<int>(fn::overload{
             [](auto) -> std::false_type { return {}; }, //
             [](int &) -> std::false_type { return {}; }, [](int const &) -> std::true_type { return {}; },
-            [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::false_type { return {}; })));
-        static_assert(std::move(a).invoke_r<int>(fn::overload(
+            [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::false_type { return {}; }}));
+        static_assert(std::move(a).invoke_r<int>(fn::overload{
             [](auto) -> std::false_type { return {}; }, //
             [](int &) -> std::false_type { return {}; }, [](int const &) -> std::false_type { return {}; },
-            [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::true_type { return {}; })));
+            [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::true_type { return {}; }}));
       }
     }
   }
@@ -526,57 +549,57 @@ TEST_CASE("choice and_then", "[choice][and_then]")
 
   type s{init, 12};
   CHECK(s.and_then(                                                 //
-            fn::overload([](bool) -> fn::choice<bool> { throw 1; }, //
+            fn::overload{[](bool) -> fn::choice<bool> { throw 1; }, //
                          [](int &i) -> fn::choice<bool> {           //
                            return fn::choice<bool>{i == 12};
                          },
                          [](int const &) -> fn::choice<bool> { throw 0; },   //
                          [](int &&) -> fn::choice<bool> { throw 0; },        //
-                         [](int const &&) -> fn::choice<bool> { throw 0; })) //
+                         [](int const &&) -> fn::choice<bool> { throw 0; }}) //
         == fn::choice{true});
   CHECK(std::as_const(s).and_then(                                   //
-            fn::overload([](bool) -> fn::choice<bool> { throw 1; },  //
+            fn::overload{[](bool) -> fn::choice<bool> { throw 1; },  //
                          [](int &) -> fn::choice<bool> { throw 0; }, //
                          [](int const &i) -> fn::choice<bool> {      //
                            return {i == 12};
                          },
                          [](int &&) -> fn::choice<bool> { throw 0; },        //
-                         [](int const &&) -> fn::choice<bool> { throw 0; })) //
+                         [](int const &&) -> fn::choice<bool> { throw 0; }}) //
         == fn::choice{true});
   CHECK(type{init, 12}.and_then(                                           //
-            fn::overload([](bool) -> fn::choice<bool> { throw 1; },        //
+            fn::overload{[](bool) -> fn::choice<bool> { throw 1; },        //
                          [](int &) -> fn::choice<bool> { throw 0; },       //
                          [](int const &) -> fn::choice<bool> { throw 0; }, //
                          [](int &&i) -> fn::choice<bool> {                 //
                            return {i == 12};
                          },
-                         [](int const &&) -> fn::choice<bool> { throw 0; }))
+                         [](int const &&) -> fn::choice<bool> { throw 0; }})
         == fn::choice{true});
   CHECK(std::move(std::as_const(s))
             .and_then(                                                         //
-                fn::overload([](bool) -> fn::choice<bool> { throw 1; },        //
+                fn::overload{[](bool) -> fn::choice<bool> { throw 1; },        //
                              [](int &) -> fn::choice<bool> { throw 0; },       //
                              [](int const &) -> fn::choice<bool> { throw 0; }, //
                              [](int &&) -> fn::choice<bool> { throw 0; },      //
-                             [](int const &&i) -> fn::choice<bool> { return {i == 12}; }))
+                             [](int const &&i) -> fn::choice<bool> { return {i == 12}; }})
         == fn::choice{true});
 
   constexpr type a{std::in_place_type<int>, 42};
-  constexpr auto fn = fn::overload([](bool) -> fn::choice<bool> { throw 1; },  //
+  constexpr auto fn = fn::overload{[](bool) -> fn::choice<bool> { throw 1; },  //
                                    [](int &) -> fn::choice<bool> { throw 0; }, //
                                    [](int const &i) -> fn::choice<bool> {      //
                                      return {i == 42};
                                    },
                                    [](int &&) -> fn::choice<bool> { throw 0; }, //
-                                   [](int const &&) -> fn::choice<bool> { throw 0; });
+                                   [](int const &&) -> fn::choice<bool> { throw 0; }};
   static_assert(std::is_same_v<fn::choice<bool>, decltype(a.and_then(fn))>);
   static_assert(a.and_then(fn) == fn::choice{true});
   static_assert(std::move(a).and_then(                                             //
-                    fn::overload([](bool) -> fn::choice<bool> { throw 1; },        //
+                    fn::overload{[](bool) -> fn::choice<bool> { throw 1; },        //
                                  [](int &) -> fn::choice<bool> { throw 0; },       //
                                  [](int const &) -> fn::choice<bool> { throw 0; }, //
                                  [](int &&) -> fn::choice<bool> { throw 0; },      //
-                                 [](int const &&i) -> fn::choice<bool> { return {i == 42}; }))
+                                 [](int const &&i) -> fn::choice<bool> { return {i == 42}; }})
                 == fn::choice{true});
 }
 
@@ -588,57 +611,57 @@ TEST_CASE("choice transform", "[choice][transform]")
     constexpr auto init = std::in_place_type<int>;
     type s{init, 12};
     CHECK(s.transform(                                      //
-              fn::overload([](bool) -> double { throw 1; }, //
+              fn::overload{[](bool) -> double { throw 1; }, //
                            [](int &i) -> double {           //
                              return i / 8.0;
                            },
                            [](int const &) -> double { throw 0; },   //
                            [](int &&) -> double { throw 0; },        //
-                           [](int const &&) -> double { throw 0; })) //
+                           [](int const &&) -> double { throw 0; }}) //
           == fn::choice<double>{1.5});
     CHECK(std::as_const(s).transform(                        //
-              fn::overload([](bool) -> double { throw 1; },  //
+              fn::overload{[](bool) -> double { throw 1; },  //
                            [](int &) -> double { throw 0; }, //
                            [](int const &i) -> double {      //
                              return i / 8.0;
                            },
                            [](int &&) -> double { throw 0; },        //
-                           [](int const &&) -> double { throw 0; })) //
+                           [](int const &&) -> double { throw 0; }}) //
           == fn::choice<double>{1.5});
     CHECK(type{init, 12}.transform(                                //
-              fn::overload([](bool) -> double { throw 1; },        //
+              fn::overload{[](bool) -> double { throw 1; },        //
                            [](int &) -> double { throw 0; },       //
                            [](int const &) -> double { throw 0; }, //
                            [](int &&i) -> double {                 //
                              return i / 8.0;
                            },
-                           [](int const &&) -> double { throw 0; }))
+                           [](int const &&) -> double { throw 0; }})
           == fn::choice<double>{1.5});
     CHECK(std::move(std::as_const(s))
               .transform(                                              //
-                  fn::overload([](bool) -> double { throw 1; },        //
+                  fn::overload{[](bool) -> double { throw 1; },        //
                                [](int &) -> double { throw 0; },       //
                                [](int const &) -> double { throw 0; }, //
                                [](int &&) -> double { throw 0; },      //
-                               [](int const &&i) -> double { return i / 8.0; }))
+                               [](int const &&i) -> double { return i / 8.0; }})
           == fn::choice<double>{1.5});
 
     constexpr type a{std::in_place_type<int>, 42};
-    constexpr auto fn = fn::overload([](bool) -> fn::sum<bool> { throw 1; },    //
+    constexpr auto fn = fn::overload{[](bool) -> fn::sum<bool> { throw 1; },    //
                                      [](int &) -> fn::sum<double> { throw 0; }, //
                                      [](int const &i) -> fn::sum<double> {      //
                                        return i / 8.0;
                                      },
                                      [](int &&) -> fn::sum<double> { throw 0; }, //
-                                     [](int const &&) -> fn::sum<double> { throw 0; });
+                                     [](int const &&) -> fn::sum<double> { throw 0; }};
     static_assert(std::is_same_v<fn::choice<bool, double>, decltype(a.transform(fn))>);
     static_assert(a.transform(fn) == fn::choice<bool, double>{5.25});
     static_assert(std::move(a).transform(                                  //
-                      fn::overload([](bool) -> double { throw 1; },        //
+                      fn::overload{[](bool) -> double { throw 1; },        //
                                    [](int &) -> double { throw 0; },       //
                                    [](int const &) -> double { throw 0; }, //
                                    [](int &&) -> double { throw 0; },      //
-                                   [](int const &&i) -> double { return i / 8.0; }))
+                                   [](int const &&i) -> double { return i / 8.0; }})
                   == fn::choice<double>{5.25});
   }
 
@@ -657,31 +680,31 @@ TEST_CASE("choice transform", "[choice][transform]")
       CHECK(a.data.v0 == 0.5);
       WHEN("value only")
       {
-        static_assert(type{0.5}.transform(fn1) == choice{8uz});
-        CHECK(a.transform(      //
-                  fn::overload( //
-                      [](auto) -> int { throw 1; }, [](double &i) -> bool { return i == 0.5; },
-                      [](double const &) -> bool { throw 0; }, [](double &&) -> bool { throw 0; },
-                      [](double const &&) -> bool { throw 0; }))
+        static_assert(type{0.5}.transform(fn1) == choice{std::size_t{8}});
+        CHECK(a.transform(     //
+                  fn::overload{//
+                               [](auto) -> int { throw 1; }, [](double &i) -> bool { return i == 0.5; },
+                               [](double const &) -> bool { throw 0; }, [](double &&) -> bool { throw 0; },
+                               [](double const &&) -> bool { throw 0; }})
               == choice<bool, int>{true});
         CHECK(std::as_const(a).transform( //
-                  fn::overload(           //
-                      [](auto) -> int { throw 1; }, [](double &) -> bool { throw 0; },
-                      [](double const &i) -> bool { return i == 0.5; }, [](double &&) -> bool { throw 0; },
-                      [](double const &&) -> bool { throw 0; }))
+                  fn::overload{           //
+                               [](auto) -> int { throw 1; }, [](double &) -> bool { throw 0; },
+                               [](double const &i) -> bool { return i == 0.5; }, [](double &&) -> bool { throw 0; },
+                               [](double const &&) -> bool { throw 0; }})
               == choice<bool, int>{true});
         CHECK(type{std::in_place_type<double>, 0.5}.transform( //
-                  fn::overload(                                //
-                      [](auto) -> int { throw 1; }, [](double &) -> bool { throw 0; },
-                      [](double const &) -> bool { throw 0; }, [](double &&i) -> bool { return i == 0.5; },
-                      [](double const &&) -> bool { throw 0; }))
+                  fn::overload{                                //
+                               [](auto) -> int { throw 1; }, [](double &) -> bool { throw 0; },
+                               [](double const &) -> bool { throw 0; }, [](double &&i) -> bool { return i == 0.5; },
+                               [](double const &&) -> bool { throw 0; }})
               == choice<bool, int>{true});
         CHECK(std::move(std::as_const(a))
-                  .transform(       //
-                      fn::overload( //
-                          [](auto) -> int { throw 1; }, [](double &) -> bool { throw 0; },
-                          [](double const &) -> bool { throw 0; }, [](double &&) -> bool { throw 0; },
-                          [](double const &&i) -> bool { return i == 0.5; }))
+                  .transform(      //
+                      fn::overload{//
+                                   [](auto) -> int { throw 1; }, [](double &) -> bool { throw 0; },
+                                   [](double const &) -> bool { throw 0; }, [](double &&) -> bool { throw 0; },
+                                   [](double const &&i) -> bool { return i == 0.5; }})
               == choice<bool, int>{true});
       }
     }
@@ -693,31 +716,31 @@ TEST_CASE("choice transform", "[choice][transform]")
 
       WHEN("value only")
       {
-        static_assert(type{42}.transform(fn1) == choice{4uz});
-        CHECK(a.transform(      //
-                  fn::overload( //
-                      [](auto) -> bool { throw 1; }, [](int &i) -> bool { return i == 42; },
-                      [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
-                      [](int const &&) -> bool { throw 0; }))
+        static_assert(type{42}.transform(fn1) == choice{std::size_t{4}});
+        CHECK(a.transform(     //
+                  fn::overload{//
+                               [](auto) -> bool { throw 1; }, [](int &i) -> bool { return i == 42; },
+                               [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
+                               [](int const &&) -> bool { throw 0; }})
               == choice{true});
         CHECK(std::as_const(a).transform( //
-                  fn::overload(           //
-                      [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
-                      [](int const &i) -> bool { return i == 42; }, [](int &&) -> bool { throw 0; },
-                      [](int const &&) -> bool { throw 0; }))
+                  fn::overload{           //
+                               [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
+                               [](int const &i) -> bool { return i == 42; }, [](int &&) -> bool { throw 0; },
+                               [](int const &&) -> bool { throw 0; }})
               == choice{true});
-        CHECK(
-            choice<int>{std::in_place_type<int>, 42}.transform( //
-                fn::overload(                                   //
-                    [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
-                    [](int &&i) -> bool { return i == 42; }, [](int const &&) -> bool { throw 0; }))
-            == choice{true});
+        CHECK(choice<int>{std::in_place_type<int>, 42}.transform( //
+                  fn::overload{                                   //
+                               [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
+                               [](int const &) -> bool { throw 0; }, [](int &&i) -> bool { return i == 42; },
+                               [](int const &&) -> bool { throw 0; }})
+              == choice{true});
         CHECK(std::move(std::as_const(a))
-                  .transform(       //
-                      fn::overload( //
-                          [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
-                          [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
-                          [](int const &&i) -> bool { return i == 42; }))
+                  .transform(      //
+                      fn::overload{//
+                                   [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
+                                   [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
+                                   [](int const &&i) -> bool { return i == 42; }})
               == choice{true});
       }
     }

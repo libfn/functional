@@ -13,6 +13,7 @@ on:
       - 'CMakeLists.txt'
       - 'cmake/**'
       - '*.md'
+      - 'VERSION'
   workflow_dispatch:
 
 permissions:
@@ -22,11 +23,10 @@ permissions:
 
 jobs:
   generate_docs:
-    runs-on:
-      group: runners-arm64
-    container: libfn.azurecr.io/ci-docs:latest
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-2x' || 'ubuntu-latest' }}
+    container: libfn.azurecr.io/ci-docs:sha-08b1133
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       # Guardrail to ensure that we do not update docs after a bad merge
       - name: Build and run tests
@@ -34,7 +34,7 @@ jobs:
         run: |
           mkdir .build
           cd .build
-          cmake -DDOCS=On ..
+          cmake -DLIBFN_DOCS=On ..
           cmake --build .
           ctest
 
@@ -45,16 +45,19 @@ jobs:
           cmake --build . --target export_docs
 
       - name: Setup Pages
-        uses: actions/configure-pages@v4
+        if: ${{ github.repository == 'libfn/functional' }}
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        if: ${{ github.repository == 'libfn/functional' }}
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: ./.build/docs
           name: docs-develop
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        if: ${{ github.repository == 'libfn/functional' }}
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
         with:
           artifact_name: docs-develop

@@ -24,15 +24,15 @@ namespace fn {
 template <typename Pred, typename Err, typename V>
 concept invocable_filter //
     = (some_expected_non_void<V> && requires(Pred &&pred, Err &&on_err, V &&v) {
-        { ::fn::invoke(FWD(pred), std::as_const(v).value()) } -> convertible_to_bool;
+        { ::fn::invoke(FWD(pred), ::std::as_const(v).value()) } -> convertible_to_bool;
         {
           ::fn::invoke(FWD(on_err), FWD(v).value())
-        } -> std::convertible_to<typename std::remove_cvref_t<V>::error_type>;
+        } -> ::std::convertible_to<typename ::std::remove_cvref_t<V>::error_type>;
       }) || (some_expected_void<V> && requires(Pred &&pred, Err &&on_err, V &&v) {
         { ::fn::invoke(FWD(pred)) } -> convertible_to_bool;
-        { ::fn::invoke(FWD(on_err)) } -> std::convertible_to<typename std::remove_cvref_t<V>::error_type>;
-      }) || (some_optional<V> && std::same_as<Err, void> && requires(Pred &&pred, V &&v) {
-        { ::fn::invoke(FWD(pred), std::as_const(v).value()) } -> convertible_to_bool;
+        { ::fn::invoke(FWD(on_err)) } -> ::std::convertible_to<typename ::std::remove_cvref_t<V>::error_type>;
+      }) || (some_optional<V> && ::std::same_as<Err, void> && requires(Pred &&pred, V &&v) {
+        { ::fn::invoke(FWD(pred), ::std::as_const(v).value()) } -> convertible_to_bool;
       });
 
 /**
@@ -50,8 +50,8 @@ constexpr inline struct filter_t final {
    * @param on_err The error handler, takes the value by const reference and returns the error type
    * @return A functor that will filter the value of the monadic type
    */
-  [[nodiscard]] constexpr auto
-  operator()(auto &&pred, auto &&on_err) const noexcept -> functor<filter_t, decltype(pred), decltype(on_err)>
+  [[nodiscard]] constexpr auto operator()(auto &&pred, auto &&on_err) const noexcept
+      -> functor<filter_t, decltype(pred), decltype(on_err)>
   {
     return {FWD(pred), FWD(on_err)};
   }
@@ -81,15 +81,15 @@ struct filter_t::apply final {
    * @param on_err TODO
    * @return TODO
    */
-  [[nodiscard]] static constexpr auto operator()(some_expected_non_void auto &&v, auto &&pred,
-                                                 auto &&on_err) noexcept -> same_monadic_type_as<decltype(v)> auto
-    requires invocable_filter<decltype(pred), decltype(on_err), decltype(v)>
+  template <some_expected_non_void V, typename Pred, typename OnErr>
+  [[nodiscard]] constexpr auto operator()(V &&v, Pred &&pred, OnErr &&on_err) const noexcept -> ::std::remove_cvref_t<V>
+    requires invocable_filter<Pred &&, OnErr &&, V &&>
   {
-    using type = std::remove_cvref_t<decltype(v)>;
-    if (std::as_const(v).has_value()) {
-      bool const keep = ::fn::invoke(FWD(pred), std::as_const(v).value());
-      return (keep ? type{std::in_place, FWD(v).value()}
-                   : type{std::unexpect, ::fn::invoke(FWD(on_err), FWD(v).value())});
+    using type = ::std::remove_cvref_t<V>;
+    if (::std::as_const(v).has_value()) {
+      bool const keep = ::fn::invoke(FWD(pred), ::std::as_const(v).value());
+      return (keep ? type{::std::in_place, FWD(v).value()}
+                   : type{::pfn::unexpect, ::fn::invoke(FWD(on_err), FWD(v).value())});
     }
     return FWD(v);
   }
@@ -102,15 +102,15 @@ struct filter_t::apply final {
    * @param on_err TODO
    * @return TODO
    */
-  [[nodiscard]] static constexpr auto operator()(some_expected_void auto &&v, auto &&pred,
-                                                 auto &&on_err) noexcept -> same_monadic_type_as<decltype(v)> auto
-    requires invocable_filter<decltype(pred), decltype(on_err), decltype(v)>
+  template <some_expected_void V, typename Pred, typename OnErr>
+  [[nodiscard]] constexpr auto operator()(V &&v, Pred &&pred, OnErr &&on_err) const noexcept -> ::std::remove_cvref_t<V>
+    requires invocable_filter<Pred &&, OnErr &&, V &&>
   {
-    using type = std::remove_cvref_t<decltype(v)>;
-    if (std::as_const(v).has_value()) {
+    using type = ::std::remove_cvref_t<V>;
+    if (::std::as_const(v).has_value()) {
       bool const keep = ::fn::invoke(FWD(pred));
-      return (keep ? type{std::in_place} //
-                   : type{std::unexpect, ::fn::invoke(FWD(on_err))});
+      return (keep ? type{::std::in_place} //
+                   : type{::pfn::unexpect, ::fn::invoke(FWD(on_err))});
     }
     return FWD(v);
   }
@@ -122,23 +122,23 @@ struct filter_t::apply final {
    * @param pred TODO
    * @return TODO
    */
-  [[nodiscard]] static constexpr auto operator()(some_optional auto &&v,
-                                                 auto &&pred) noexcept -> same_monadic_type_as<decltype(v)> auto
-    requires invocable_filter<decltype(pred), void, decltype(v)>
+  template <some_optional V, typename Pred>
+  [[nodiscard]] constexpr auto operator()(V &&v, Pred &&pred) const noexcept -> ::std::remove_cvref_t<V>
+    requires invocable_filter<Pred &&, void, V &&>
   {
-    using type = std::remove_cvref_t<decltype(v)>;
-    if (std::as_const(v).has_value()) {
-      bool const keep = ::fn::invoke(FWD(pred), std::as_const(v).value());
-      return (keep ? type{std::in_place, FWD(v).value()} //
-                   : type{std::nullopt});
+    using type = ::std::remove_cvref_t<V>;
+    if (::std::as_const(v).has_value()) {
+      bool const keep = ::fn::invoke(FWD(pred), ::std::as_const(v).value());
+      return (keep ? type{::std::in_place, FWD(v).value()} //
+                   : type{::std::nullopt});
     }
     return FWD(v);
   }
 
   // No support for choice since there's no error to operate on
-  static auto operator()(some_choice auto &&v, auto &&...args) noexcept = delete;
+  auto operator()(some_choice auto &&v, auto &&...args) const noexcept = delete;
 };
 
 } // namespace fn
 
-#endif // INCLUDE_FUNCTIONAL_FILTER
+#endif // INCLUDE_FN_FILTER

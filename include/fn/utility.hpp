@@ -6,7 +6,7 @@
 #ifndef INCLUDE_FN_UTILITY
 #define INCLUDE_FN_UTILITY
 
-#include <fn/detail/fwd_macro.hpp>
+#include <fn/detail/macro_fwd.hpp>
 #include <fn/detail/traits.hpp>
 
 namespace fn {
@@ -67,4 +67,4 @@ template <typename T, typename... Args>
 
 } // namespace fn
 
-#endif // INCLUDE_FUNCTIONAL_UTILITY
+#endif // INCLUDE_FN_UTILITY

@@ -1,0 +1,39 @@
+name: package-test-conan
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/package-test-conan.yml'
+      - 'conanfile.py'
+      - 'test_package/**'
+      - 'include/**'
+      - 'VERSION'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/package-test-conan.yml'
+      - 'conanfile.py'
+      - 'test_package/**'
+      - 'include/**'
+      - 'VERSION'
+  workflow_dispatch:
+
+jobs:
+  test_conan:
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
+    container: libfn.azurecr.io/ci-build-gcc:15-sha-08b1133
+
+    steps:
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+    - name: Detect Conan profile
+      run: |
+        conan profile detect
+        echo "tools.cmake.cmaketoolchain:generator=Ninja" >> ~/.conan2/global.conf
+
+    - name: Test packaging
+      run: |
+        conan create . --build=missing -s "compiler.cppstd=20"

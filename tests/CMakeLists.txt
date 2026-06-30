@@ -4,37 +4,44 @@ project(tests)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# tests_util: shared test helpers. Links include_pfn so static_check.hpp's fn
+# includes resolve at cxx_std_20 (include_pfn exposes include/, containing fn/).
 # Pls keep the filenames sorted
-set(TESTS_UTIL_SOURCES
-    util/static_check.hpp
+set(TESTS_UTIL_HEADERS
     util/helper_types.hpp
+    util/static_check.hpp
 )
-add_library(tests_util INTERFACE ${TESTS_UTIL_SOURCES})
-set_property(TARGET tests_util PROPERTY CXX_STANDARD 23)
+
+add_library(tests_util INTERFACE)
+set_property(TARGET tests_util PROPERTY CXX_STANDARD 20)
+target_sources(tests_util INTERFACE
+    FILE_SET tests_util_headers
+    TYPE HEADERS
+    FILES ${TESTS_UTIL_HEADERS})
 target_include_directories(tests_util INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(tests_util INTERFACE include_fn)
+target_link_libraries(tests_util INTERFACE include_pfn)
+target_compile_features(tests_util INTERFACE cxx_std_20)
 
 # Generate sentinel target for each individual header, as a basic sanity check
-foreach(mode 23)
-    foreach(source IN ITEMS ${TESTS_UTIL_SOURCES})
-        string(REGEX REPLACE "^(util)/([^\.]+)\.hpp$" "\\1_\\2" root_name ${source})
-        set(target "sentinel_${root_name}_cxx${mode}")
+foreach(source IN ITEMS ${TESTS_UTIL_HEADERS})
+    string(REGEX REPLACE "^(util)/([^\.]+)\.hpp$" "\\1_\\2" root_name ${source})
+    set(mode 20)
+    set(target "sentinel_${root_name}_cxx${mode}")
 
-        create_target_for_file(
-            NAME "${target}"
-            SOURCE "${source}"
-            NEW_SOURCE "#include <${source}>\nint main() {}\n"
-            SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
-            DEPENDENCIES include_fn tests_util
-        )
-        append_compilation_options("${target}" WARNINGS)
-        add_dependencies("cxx${mode}" "${target}")
-        set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
-        target_compile_definitions("${target}" PRIVATE LIBFN_MODE=${mode})
+    create_target_for_file(
+        NAME "${target}"
+        SOURCE "${source}"
+        NEW_SOURCE "#include <${source}>\nint main() {}\n"
+        SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
+        DEPENDENCIES tests_util
+    )
+    append_compilation_options("${target}" WARNINGS)
+    add_dependencies("sentinels" "${target}")
+    set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
 
-        unset(target)
-        unset(root_name)
-    endforeach()
+    unset(target)
+    unset(mode)
+    unset(root_name)
 endforeach()
 
 ### tests/pfn
@@ -42,6 +49,9 @@ endforeach()
 set(TESTS_PFN_SOURCES
     pfn/expected.cpp
     pfn/optional.cpp
+    pfn/expected_validation.cpp
+    pfn/functional.cpp
+    pfn/utility.cpp
 )
 
 include(TargetGenerator)
@@ -49,6 +59,15 @@ include(CompilationOptions)
 
 # Generate separate target for each individual test source
 foreach(mode 20 23)
+    if (NOT VALIDATE_CXX23 AND mode EQUAL 23)
+        continue()
+    endif()
+
+    # Current releases of MSVC only support C++20
+    if(MSVC AND NOT (mode EQUAL 20))
+        continue()
+    endif()
+
     foreach(source IN ITEMS ${TESTS_PFN_SOURCES})
         string(REGEX REPLACE "^(pfn)/(detail|)/?([^\.]+)\.cpp$" "\\1_\\2\\3" root_name ${source})
         set(target "tests_${root_name}_cxx${mode}")
@@ -58,8 +77,9 @@ foreach(mode 20 23)
             SOURCE "${source}"
             DEPENDENCIES include_pfn tests_util Catch2::Catch2WithMain
         )
-        append_compilation_options("${target}" WARNINGS OPTIMIZATION)
+        append_compilation_options("${target}" WARNINGS OPTIMIZATION TESTS)
         add_dependencies("cxx${mode}" "${target}")
+        add_dependencies("tests" "${target}")
         set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
         target_compile_definitions("${target}" PRIVATE LIBFN_MODE=${mode})
 
@@ -71,32 +91,6 @@ foreach(mode 20 23)
         set_property(TEST "${target}" PROPERTY LABELS tests_pfn "cxx${mode}" "${root_name}")
 
         unset(target)
-
-        # pfn tests have a "validation" mode, where the unit tests intended for polyfill
-        # are run against the "real" thing. This validates the tests.
-        if (mode EQUAL 23)
-            set(target "tests_${root_name}_validation_cxx${mode}")
-
-            create_target_for_file(
-                NAME "${target}"
-                SOURCE "${source}"
-                DEPENDENCIES include_pfn tests_util Catch2::Catch2WithMain
-            )
-            append_compilation_options("${target}" WARNINGS OPTIMIZATION)
-            add_dependencies("cxx${mode}" "${target}")
-            set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
-            target_compile_definitions("${target}" PRIVATE LIBFN_MODE=${mode} PFN_TEST_VALIDATION)
-
-            add_test(
-                NAME "${target}"
-                COMMAND "${target}" -r console
-                WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-            )
-            set_property(TEST "${target}" PROPERTY LABELS tests_pfn "cxx${mode}" "${root_name}")
-
-            unset(target)
-        endif()
-
         unset(root_name)
     endforeach()
 endforeach()
@@ -105,14 +99,19 @@ endforeach()
 
 # Pls keep the filenames sorted
 set(TESTS_FN_SOURCES
-    fn/detail/fwd_macro.cpp
+    fn/detail/functional.cpp
+    fn/detail/macro_deduced_return.cpp
+    fn/detail/macro_fwd.cpp
     fn/detail/meta.cpp
+    fn/detail/pack_impl.cpp
+    fn/detail/traits.cpp
     fn/detail/variadic_union.cpp
     fn/and_then.cpp
     fn/choice.cpp
     fn/concepts.cpp
     fn/discard.cpp
     fn/expected.cpp
+    fn/expected_polyfill.cpp
     fn/fail.cpp
     fn/filter.cpp
     fn/functional.cpp
@@ -131,8 +130,16 @@ set(TESTS_FN_SOURCES
 )
 
 # Generate separate target for each individual test source
-# TODO add 20 when we are compatible with C++20
-foreach(mode 23)
+foreach(mode 20 23)
+    if (NOT VALIDATE_CXX23 AND mode EQUAL 23)
+        continue()
+    endif()
+
+    # Current releases of MSVC only support C++20
+    if(MSVC AND NOT (mode EQUAL 20))
+        continue()
+    endif()
+
     foreach(source IN ITEMS ${TESTS_FN_SOURCES})
         string(REGEX REPLACE "^(fn)/(detail|)/?([^\.]+)\.cpp$" "\\1_\\2\\3" root_name ${source})
         set(target "tests_${root_name}_cxx${mode}")
@@ -140,10 +147,11 @@ foreach(mode 23)
         create_target_for_file(
             NAME "${target}"
             SOURCE "${source}"
-            DEPENDENCIES include_fn tests_util Catch2::Catch2WithMain
+            DEPENDENCIES tests_util Catch2::Catch2WithMain
         )
-        append_compilation_options("${target}" WARNINGS OPTIMIZATION)
+        append_compilation_options("${target}" WARNINGS OPTIMIZATION TESTS)
         add_dependencies("cxx${mode}" "${target}")
+        add_dependencies("tests" "${target}")
         set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
         target_compile_definitions("${target}" PRIVATE LIBFN_MODE=${mode})
 
