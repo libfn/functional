@@ -7,7 +7,10 @@
 #define INCLUDE_PFN_OPTIONAL
 
 #include <cassert>
+#include <memory>
 #include <optional> // For anything that is not std::optional or std::make_optional
+#include <type_traits>
+#include <utility>
 
 #ifdef FWD
 #pragma push_macro("FWD")
@@ -82,6 +85,92 @@ template <class T> constexpr optional<::std::decay_t<T>> make_optional(T &&);
 template <class T, class... Args> constexpr optional<T> make_optional(Args &&...args);
 template <class T, class U, class... Args>
 constexpr optional<T> make_optional(::std::initializer_list<U> il, Args &&...args);
+
+namespace detail {
+
+// Internal union wrapper for optional's value / no-value storage. This mirrors the
+// strategy of `pfn::detail::_expected_union_t<void, E>` with the value and "empty"
+// roles reversed: the engaged value lives in `v_`, and `e_` is a trivial placeholder
+// for the disengaged state, so the union always has an active member (required for
+// constexpr use). Copy/move ctors are defaulted iff `T` is trivially copy/move
+// constructible; the destructor is defaulted iff `T` is trivially destructible.
+template <class T> union _optional_union_t {
+  // _dummy_t placeholder, so the union always has an active member
+  struct _dummy_t final {
+    constexpr _dummy_t() noexcept = default;
+  };
+
+  using _value_t = T;
+  T v_;
+  _dummy_t e_; // disengaged-state placeholder
+
+  template <typename S>
+  constexpr explicit _optional_union_t(bool s, S &&src) //
+      noexcept(::std::is_nothrow_constructible_v<T, decltype((FWD(src).v_))>)
+  {
+    if (s)
+      ::std::construct_at(::std::addressof(v_), FWD(src).v_);
+    else
+      ::std::construct_at(::std::addressof(e_));
+  }
+
+  constexpr _optional_union_t(_optional_union_t const &) = delete;
+  constexpr _optional_union_t(_optional_union_t const &) //
+    requires(::std::is_trivially_copy_constructible_v<T>)
+  = default;
+  constexpr _optional_union_t(_optional_union_t &&) = delete;
+  constexpr _optional_union_t(_optional_union_t &&) //
+    requires(::std::is_trivially_move_constructible_v<T>)
+  = default;
+  constexpr _optional_union_t &operator=(_optional_union_t const &) = delete;
+  constexpr _optional_union_t &operator=(_optional_union_t &&) = delete;
+
+  template <class... Args>
+  constexpr explicit _optional_union_t(::std::in_place_t /*ignored*/, Args &&...a) //
+      noexcept(::std::is_nothrow_constructible_v<T, Args...>)
+    requires ::std::is_constructible_v<T, Args...>
+      : v_(FWD(a)...)
+  {
+  }
+  constexpr explicit _optional_union_t(::std::nullopt_t /*ignored*/) noexcept : e_{} {}
+
+  constexpr ~_optional_union_t() noexcept
+    requires(::std::is_trivially_destructible_v<T>)
+  = default;
+  constexpr ~_optional_union_t() noexcept {}
+
+  // reinit, mirroring [expected.void.assign]'s direct construction: one of New/Old is
+  // always the trivial `_dummy_t` (value <-> empty transition), so no strong-exception
+  // snapshot of the old member is needed.
+  template <typename New, typename Old, typename... Args>
+  static constexpr void _reinit(New *newp, Old *oldp, Args &&...args) //
+      noexcept(::std::is_nothrow_constructible_v<New, Args...>)
+  {
+    if constexpr (::std::is_same_v<New, _dummy_t>) {
+      ::std::destroy_at(oldp);
+      ::std::construct_at(newp); // Never throws, since New is _dummy_t
+    } else if constexpr (::std::is_nothrow_constructible_v<New, Args...>) {
+      ::std::destroy_at(oldp);
+      ::std::construct_at(newp, ::std::forward<Args>(args)...); // Never throws
+    } else {
+      ::std::destroy_at(oldp);
+      try {
+        ::std::construct_at(newp, ::std::forward<Args>(args)...);
+      } catch (...) {
+        ::std::construct_at(oldp); // Never throws, since Old is _dummy_t
+        throw;
+      }
+    }
+  }
+};
+
+// optional<T&> stores a single pointer: nullptr encodes the disengaged state, so no
+// discriminant or placeholder is needed (T* is trivially copyable/destructible).
+template <class T> union _optional_union_t<T &> {
+  T *v_ = nullptr;
+};
+
+} // namespace detail
 
 template <class T> class optional {
 public:
