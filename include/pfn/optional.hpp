@@ -94,6 +94,14 @@ namespace detail {
 // for the disengaged state, so the union always has an active member (required for
 // constexpr use). Copy/move ctors are defaulted iff `T` is trivially copy/move
 // constructible; the destructor is defaulted iff `T` is trivially destructible.
+// Tag selecting _optional_union_t's/_optional_base's "construct from any source exposing
+// has_value()/operator*()" constructor, disambiguating it from the (bool, S&&) one below
+// (which instead reads another union's raw v_ member directly).
+struct _from_optional_t {
+  explicit _from_optional_t() = default;
+};
+constexpr inline _from_optional_t _from_optional{};
+
 template <class T> union _optional_union_t {
   // _dummy_t placeholder, so the union always has an active member
   struct _dummy_t final {
@@ -110,6 +118,21 @@ template <class T> union _optional_union_t {
   {
     if (s)
       ::std::construct_at(::std::addressof(v_), FWD(src).v_);
+    else
+      ::std::construct_at(::std::addressof(e_));
+  }
+
+  // Constructs from any source exposing has_value()/operator*() (e.g. a differently-typed
+  // optional, value or reference) -- mirrors the (bool, S&&) ctor above but reads engagement
+  // and the value through that public API instead of another union's raw v_ member, so it
+  // works uniformly for optional<U&> sources too (a completely different internal
+  // representation: a bare pointer, no union or set_ at all).
+  template <typename S>
+  constexpr explicit _optional_union_t(_from_optional_t /*ignored*/, S &&src) //
+      noexcept(::std::is_nothrow_constructible_v<T, decltype(*FWD(src))>)
+  {
+    if (src.has_value())
+      ::std::construct_at(::std::addressof(v_), *FWD(src));
     else
       ::std::construct_at(::std::addressof(e_));
   }
@@ -167,15 +190,61 @@ template <class T> union _optional_union_t {
 template <typename> constexpr bool _is_optional_union = false;
 template <typename T> constexpr bool _is_optional_union<_optional_union_t<T>> = true;
 
-// Shared implementation base class for ::pfn::optional. Members are public since
-// inheritance is private. Provides storage, constructors, destructors, and the
-// non-converting assignment/emplace machinery; converting assignment is deferred
-// alongside the converting constructors below.
-template <class T> struct _optional_base {
+// Shared implementation base class for ::pfn::optional. Members are public since inheritance is
+// private. Not used by ::pfn::optional<T&> which models a pointer and does not need `bool set_`.
+template <class T, class Policy> struct _optional_base {
   using _storage_t = _optional_union_t<T>;
   using _value_t = _storage_t::_value_t; // == T
   _storage_t storage_;
   bool set_;
+
+  template <class U>
+  using _can_convert = ::std::bool_constant<                                               //
+      ::std::is_constructible_v<T, U>                                                      //
+      && not ::std::is_same_v<::std::remove_cvref_t<U>, ::std::in_place_t>                 //
+      && not ::std::is_same_v<::std::remove_cvref_t<U>, typename Policy::template type<T>> //
+      && (not ::std::is_same_v<bool, ::std::remove_cv_t<T>>                                //
+          || not Policy::template is_specialization<::std::remove_cvref_t<U>>)>;
+
+  template <class U>
+  using _can_assign = ::std::bool_constant<                                                  //
+      ::std::is_constructible_v<T, U>                                                        //
+          && ::std::is_assignable_v<T &, U>                                                  //
+      && not ::std::conjunction_v<::std::is_scalar<T>, ::std::is_same<T, ::std::decay_t<U>>> //
+      && not ::std::is_same_v<::std::remove_cvref_t<U>, typename Policy::template type<T>>>;
+
+  // [optional.ctor], implementation of converts-from-any-cvref
+  template <class W>
+  using _converts_from_an_cvrev = ::std::bool_constant<::std::disjunction_v<      //
+      ::std::is_constructible<T, W &>, ::std::is_convertible<W &, T>,             //
+      ::std::is_constructible<T, W>, ::std::is_convertible<W, T>,                 //
+      ::std::is_constructible<T, W const &>, ::std::is_convertible<W const &, T>, //
+      ::std::is_constructible<T, W const>, ::std::is_convertible<W const, T>>>;
+
+  template <typename U>
+  using _can_copy_convert = ::std::bool_constant<       //
+      ::std::is_constructible_v<T, U const &>           //
+      && (::std::is_same_v<bool, ::std::remove_cv_t<T>> //
+          || not _converts_from_an_cvrev<typename Policy::template type<U>>::value)>;
+
+  template <typename U>
+  using _can_move_convert = ::std::bool_constant<       //
+      ::std::is_constructible_v<T, U>                   //
+      && (::std::is_same_v<bool, ::std::remove_cv_t<T>> //
+          || not _converts_from_an_cvrev<typename Policy::template type<U>>::value)>;
+
+  template <typename U, typename UF>
+  using _can_copy_assign_detail = ::std::bool_constant< //
+      ::std::is_constructible_v<T, UF>                  //
+          && ::std::is_assignable_v<T &, UF>
+      && not _converts_from_an_cvrev<typename Policy::template type<U>>::value      //
+      && not ::std::is_assignable_v<T &, typename Policy::template type<U> &>       //
+      && not ::std::is_assignable_v<T &, typename Policy::template type<U> &&>      //
+      && not ::std::is_assignable_v<T &, typename Policy::template type<U> const &> //
+      && not ::std::is_assignable_v<T &, typename Policy::template type<U> const &&>>;
+
+  template <typename U> using _can_copy_assign = _can_copy_assign_detail<U, U const &>;
+  template <typename U> using _can_move_assign = _can_copy_assign_detail<U, U>;
 
   // Shared construction helper: selects the union's active member from `s`. Used by
   // the wrapper's copy/move and (later) the converting constructors.
@@ -205,8 +274,40 @@ template <class T> struct _optional_base {
   {
   }
 
+  // Shared construction helper for any source exposing has_value()/operator*() -- i.e.
+  // another optional, same or differently typed, value or reference. Delegates to the
+  // union's own _from_optional_t ctor, which reads that public observer API directly rather
+  // than reaching into the source's storage, so it works uniformly for both optional<U> (a
+  // discriminated union) and optional<U&> (a bare pointer, no union or `set_` at all)
+  // sources alike. Used by the converting ctors below and by _assign_from.
+  template <typename S>
+  constexpr explicit _optional_base(_from_optional_t tag, S &&s) //
+      noexcept(::std::is_nothrow_constructible_v<_storage_t, _from_optional_t, S>)
+      : storage_(tag, FWD(s)), set_(s.has_value())
+  {
+  }
+
+  // [optional.ctor], converting constructors from a differently-typed optional<U>.
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U const &, T>)
+      _optional_base(typename Policy::template type<U> const &s) //
+      noexcept(::std::is_nothrow_constructible_v<T, U const &>)  // extension
+    requires(_can_copy_convert<U>::value)
+      : _optional_base(_from_optional, s)
+  {
+  }
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U, T>) _optional_base(typename Policy::template type<U> &&s) //
+      noexcept(::std::is_nothrow_constructible_v<T, U>) // extension
+    requires(_can_move_convert<U>::value)
+      : _optional_base(_from_optional, ::std::move(s))
+  {
+  }
+
   constexpr _optional_base(_optional_base const &) = default;
   constexpr _optional_base(_optional_base &&) = default;
+  constexpr _optional_base &operator=(_optional_base const &) = delete;
+  constexpr _optional_base &operator=(_optional_base &&) = delete;
 
   constexpr ~_optional_base() //
     requires(::std::is_trivially_destructible_v<_value_t>)
@@ -218,9 +319,7 @@ template <class T> struct _optional_base {
       ::std::destroy_at(::std::addressof(storage_.v_));
   }
 
-  // [optional.assign]: transitions to the disengaged state if currently engaged; never
-  // throws, since _reinit's target is always the trivial `_dummy_t`. Shared by
-  // operator=(nullopt_t) and emplace.
+  // [optional.assign]: transitions to the disengaged state if currently engaged
   constexpr void _reset() noexcept
   {
     if (set_) {
@@ -242,8 +341,36 @@ template <class T> struct _optional_base {
       _storage_t::_reinit(::std::addressof(storage_.v_), ::std::addressof(storage_.e_), FWD(s).storage_.v_);
       set_ = true;
     } else {
-      storage_.e_ = FWD(s).storage_.e_;
+      // no effect: both are disengaged, so the trivial `_dummy_t` is already active
     }
+  }
+
+  template <class U> constexpr void _assign_value(U &&s)
+  {
+    if (set_) {
+      storage_.v_ = FWD(s);
+    } else {
+      _storage_t::_reinit(::std::addressof(storage_.v_), ::std::addressof(storage_.e_), FWD(s));
+      set_ = true;
+    }
+  }
+
+  // Converting-assignment body shared by the public optional operator= overloads. Reads `s`
+  // through its public has_value()/operator*() (same reasoning as the converting ctors'
+  // shared helper above: works uniformly for optional<U> and optional<U&> sources alike),
+  // and reuses _reinit for *this's own storage exactly like _assign above.
+  template <typename S> constexpr void _assign_from(S &&s)
+  {
+    if (set_ && s.has_value()) {
+      storage_.v_ = *FWD(s);
+    } else if (set_) {
+      _storage_t::_reinit(::std::addressof(storage_.e_), ::std::addressof(storage_.v_));
+      set_ = false;
+    } else if (s.has_value()) {
+      _storage_t::_reinit(::std::addressof(storage_.v_), ::std::addressof(storage_.e_), *FWD(s));
+      set_ = true;
+    }
+    // else: both disengaged, no effect
   }
 
   template <class... Args>
@@ -288,7 +415,7 @@ template <class T> struct _optional_base {
 // encodes the disengaged state), so there is no value union, no discriminant flag, and
 // every special member is implicitly trivial. The in_place ctor binds the reference by
 // storing its address (full [optional.ref.ctor] constraints are deferred).
-template <class T> struct _optional_base<T &> {
+template <class T, class Policy> struct _optional_base<T &, Policy> {
   using _value_t = T &;
   T *v_ = nullptr;
 
@@ -301,10 +428,18 @@ template <class T> struct _optional_base<T &> {
   }
 };
 
+template <typename> constexpr bool _is_some_optional = false;
+template <typename T> constexpr bool _is_some_optional<::pfn::optional<T>> = true;
+
+struct optional_policy {
+  template <class T> using type = ::pfn::optional<T>;
+  template <class X> static constexpr bool is_specialization = _is_some_optional<X>;
+};
+
 } // namespace detail
 
-template <class T> class optional : private detail::_optional_base<T> {
-  using _base = detail::_optional_base<T>;
+template <class T> class optional : private detail::_optional_base<T, detail::optional_policy> {
+  using _base = detail::_optional_base<T, detail::optional_policy>;
 
 public:
   using value_type = T;
@@ -349,9 +484,27 @@ public:
   {
   }
 
-  // TODO converting constructors (U&&, optional<U> const&, optional<U>&&): deferred until the
-  // _can_convert* base traits + [optional.ctor] constraints land. Left undeclared on purpose —
-  // an unconstrained optional(U&&) would hijack the copy/move ctors for non-const lvalues.
+  template <class U = ::std::remove_cv_t<T>>
+  constexpr explicit(not ::std::is_convertible_v<U, T>) optional(U &&v) // NOSONAR cpp:S6458 _can_convert excludes self
+      noexcept(::std::is_nothrow_constructible_v<T, U>)                 // extension
+    requires(_base::template _can_convert<U>::value)
+      : _base(::std::in_place, FWD(v))
+  {
+  }
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U const &, T>) optional(optional<U> const &s) //
+      noexcept(::std::is_nothrow_constructible_v<T, U const &>)                                // extension
+    requires(_base::template _can_copy_convert<U>::value)
+      : _base(s)
+  {
+  }
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U, T>) optional(optional<U> &&s) //
+      noexcept(::std::is_nothrow_constructible_v<T, U>)                           // extension
+    requires(_base::template _can_move_convert<U>::value)
+      : _base(::std::move(s))
+  {
+  }
 
   // [optional.dtor], destructor
   constexpr ~optional() = default;
@@ -378,8 +531,31 @@ public:
     return *this;
   }
 
-  // TODO converting assignment (U&&, optional<U> const&, optional<U>&&): deferred until the
-  // _can_convert* base traits land, for the same reason as the converting constructors above.
+  template <class U = ::std::remove_cv_t<T>>
+  constexpr optional &operator=(U &&v)                                                            //
+      noexcept(::std::is_nothrow_assignable_v<T &, U> && ::std::is_nothrow_constructible_v<T, U>) // extension
+    requires(_base::template _can_assign<U>::value)
+  {
+    this->_assign_value(FWD(v));
+    return *this;
+  }
+  template <class U>
+  constexpr optional &operator=(optional<U> const &s) //
+      noexcept(::std::is_nothrow_assignable_v<T &, U const &>
+               && ::std::is_nothrow_constructible_v<T, U const &>) // extension
+    requires(_base::template _can_copy_assign<U>::value)
+  {
+    this->_assign_from(s);
+    return *this;
+  }
+  template <class U>
+  constexpr optional &operator=(optional<U> &&s)                                                  //
+      noexcept(::std::is_nothrow_assignable_v<T &, U> && ::std::is_nothrow_constructible_v<T, U>) // extension
+    requires(_base::template _can_move_assign<U>::value)
+  {
+    this->_assign_from(::std::move(s));
+    return *this;
+  }
 
   using _base::emplace;
 
@@ -416,8 +592,8 @@ public:
 
 template <class T> optional(T) -> optional<T>;
 
-template <class T> class optional<T &> : private detail::_optional_base<T &> {
-  using _base = detail::_optional_base<T &>;
+template <class T> class optional<T &> : private detail::_optional_base<T &, detail::optional_policy> {
+  using _base = detail::_optional_base<T &, detail::optional_policy>;
 
 public:
   using value_type = T;

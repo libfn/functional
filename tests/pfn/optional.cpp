@@ -27,6 +27,17 @@ using pfn::optional;
 #include <type_traits>
 #include <utility>
 
+// Constructible from literally anything, but itself neither copyable nor movable -- so
+// optional<greedy_t> can only be "constructible from an optional<greedy_t>&/&&/etc." via a
+// hijacking converting ctor, never via the (unavailable) dedicated copy/move ctor. Mirrors
+// pfn/expected.cpp's own greedy_t, used the same way for the same anti-hijack purpose.
+struct greedy_t {
+  greedy_t() = delete;
+  greedy_t(greedy_t const &) = delete;
+  greedy_t(greedy_t &&) = delete;
+  template <class U> constexpr greedy_t(U &&) noexcept {}
+};
+
 TEST_CASE("optional", "[optional][polyfill]")
 {
 #ifndef PFN_TEST_VALIDATION
@@ -89,6 +100,55 @@ TEST_CASE("optional", "[optional][polyfill]")
       int const s0 = helper::state;
       T a(std::in_place, {1.0, 2.0, 3.0}); // helper(list): state += 1*2*3
       CHECK(helper::state - s0 == 6);
+    }
+
+    SECTION("converting")
+    {
+      using T = optional<helper>;
+      static_assert(std::is_constructible_v<T, int>);
+      static_assert(not std::is_nothrow_constructible_v<T, int>);
+      static_assert(std::is_constructible_v<T, helper>);
+      static_assert(not extension || std::is_nothrow_constructible_v<T, helper>);
+
+      T const a(11);
+      CHECK(a->v == 11);
+
+      T const b(helper(13));
+      CHECK(b->v == 13 * from_rval);
+
+      // explicit-ness follows is_convertible_v<U, T>: helper(int) is an implicit ctor, so the
+      // optional(U&&) ctor must be implicit too, but an explicit-only value type forces it explicit.
+      static_assert(std::is_convertible_v<int, T>);
+      struct explicit_only {
+        int v;
+        constexpr explicit explicit_only(int x) noexcept : v(x) {}
+      };
+      static_assert(std::is_constructible_v<optional<explicit_only>, int>);
+      static_assert(not std::is_convertible_v<int, optional<explicit_only>>);
+
+      // Self-hijack guard: greedy_t is constructible from literally anything but has no copy
+      // or move ctor at all, so optional<greedy_t> can only spuriously look "constructible from
+      // itself" if optional(U&&) (U = optional<greedy_t> and its ref-qualified variants) were
+      // NOT excluded from the overload set.
+      using H = optional<greedy_t>;
+      static_assert(not std::is_copy_constructible_v<H>);
+      static_assert(not std::is_move_constructible_v<H>);
+      static_assert(not std::is_constructible_v<H, H &>);
+      static_assert(not std::is_constructible_v<H, H const &>);
+      static_assert(not std::is_constructible_v<H, H &&>);
+      static_assert(not std::is_constructible_v<H, H const &&>);
+
+      // nullopt_t/in_place_t must still select the dedicated ctors, never the converting one,
+      // even for a value type that (unlike a normal type) is ALSO directly constructible from
+      // both tags -- see the _can_convert exclusion in include/pfn/optional.hpp, an LWG4222-
+      // style fix (that issue added the analogous unexpect_t exclusion to expected's converting
+      // ctor; optional's own draft constraint list omits the equivalent nullopt_t exclusion).
+      static_assert(std::is_constructible_v<greedy_t, std::nullopt_t>);  // prerequisite
+      static_assert(std::is_constructible_v<greedy_t, std::in_place_t>); // prerequisite
+      H c(std::nullopt);
+      CHECK(not c.has_value());
+      H d(std::in_place, 1);
+      CHECK(d.has_value());
     }
   }
 
@@ -178,6 +238,99 @@ TEST_CASE("optional", "[optional][polyfill]")
       static_assert(std::is_move_constructible_v<T>);
       static_assert(std::is_nothrow_move_constructible_v<T>);
       SUCCEED();
+    }
+  }
+
+  SECTION("from other optional")
+  {
+    SECTION("rval")
+    {
+      SECTION("engaged")
+      {
+        using T = optional<helper>;
+        static_assert(std::is_constructible_v<T, optional<int>>);
+        static_assert(not std::is_nothrow_constructible_v<T, optional<int>>);
+        static_assert(not extension || std::is_nothrow_constructible_v<T, optional<helper_list_t>>);
+        static_assert(std::is_convertible_v<optional<int>, T>);
+
+        constexpr optional<int> a{5};
+        constexpr optional<double> b{a};
+        static_assert(b.has_value() && *b == 5.0);
+
+        T c((optional<int>(5)));
+        CHECK(c.has_value());
+        CHECK(c->v == 5);
+
+#ifndef PFN_TEST_VALIDATION
+        // Also converts from a *reference* optional<U&> (pfn-only: no released standard
+        // library implements C++26's optional<T&> yet), exercising the fact that the
+        // converting ctor reads its source through the public has_value()/operator*() API
+        // rather than its private storage -- optional<int&> has a completely different
+        // internal representation (a bare pointer, no union or set_ at all).
+        static_assert(std::is_constructible_v<T, optional<int &>>);
+        int x = 9;
+        T d(optional<int &>(std::in_place, x));
+        CHECK(d.has_value());
+        CHECK(d->v == 9);
+#endif
+      }
+
+      SECTION("disengaged")
+      {
+        using T = optional<helper>;
+        constexpr optional<int> a;
+        constexpr optional<double> b{a};
+        static_assert(not b.has_value());
+
+        T c((optional<int>(std::nullopt)));
+        CHECK(not c.has_value());
+      }
+    }
+
+    SECTION("lval const")
+    {
+      SECTION("engaged")
+      {
+        using T = optional<helper>;
+        static_assert(std::is_constructible_v<T, optional<int> const &>);
+        static_assert(not std::is_nothrow_constructible_v<T, optional<int> const &>);
+        static_assert(not extension || std::is_nothrow_constructible_v<T, optional<helper_list_t> const &>);
+        static_assert(std::is_convertible_v<optional<int> const &, T>);
+
+        constexpr optional<bool> v{true};
+        constexpr optional<int> a{v};
+        static_assert(a.has_value() && *a == 1);
+
+        optional<int> const w(11);
+        T b(w);
+        CHECK(b.has_value());
+        CHECK(b->v == 11);
+      }
+
+      SECTION("disengaged")
+      {
+        using T = optional<helper>;
+        optional<int> const a(std::nullopt);
+        T b(a);
+        CHECK(not b.has_value());
+      }
+    }
+
+    SECTION("move-only and immovable value types")
+    {
+      // The converting ctor constructs T fresh from U's contained value -- it never
+      // copies or moves a T, so it works even when T itself has neither ctor.
+      static_assert(std::is_constructible_v<optional<helper_move_only>, optional<int>>);
+      optional<int> a(std::in_place, 7);
+      optional<helper_move_only> b(std::move(a));
+      CHECK(b.has_value());
+      CHECK(b->v == 7);
+
+      static_assert(std::is_constructible_v<optional<helper_immovable>, optional<int>>);
+      optional<int> c(std::in_place, 6);
+      optional<helper_immovable> d(std::move(c));
+      CHECK(d.has_value());
+      CHECK(d->v == 6);
     }
   }
 
@@ -403,6 +556,122 @@ TEST_CASE("optional", "[optional][polyfill]")
       static_assert(not std::is_copy_assignable_v<optional<helper_immovable>>);
       static_assert(not std::is_move_assignable_v<optional<helper_immovable>>);
       SUCCEED();
+    }
+
+    SECTION("converting value")
+    {
+      using T = optional<double>;
+      static_assert(std::is_assignable_v<T &, int>);
+      // operator=(U&&)'s noexcept-specifier is a pfn extension (unspecified by the standard,
+      // like the in_place ctor's), so this only holds for pfn itself, not real std::optional.
+      static_assert(not extension || std::is_nothrow_assignable_v<T &, int>); // double(int) never throws
+
+      T a;
+      a = 5; // disengaged -> engaged, construct
+      CHECK(a.has_value());
+      CHECK(*a == 5.0);
+
+      a = 7; // engaged -> engaged, plain T assignment
+      CHECK(*a == 7.0);
+
+      // Self-exclusion: operator=(U&&) must not compete with operator=(optional const&).
+      // If _can_assign's exclusion were broken, this call would be ambiguous (a hard
+      // compile error), not silently wrong.
+      optional<int> b(std::in_place, 1);
+      optional<int> const c(std::in_place, 2);
+      b = c;
+      CHECK(*b == 2);
+    }
+
+    SECTION("from other optional")
+    {
+      SECTION("rval")
+      {
+        SECTION("engaged to engaged")
+        {
+          using T = optional<double>;
+          T a(std::in_place, 1.0);
+          optional<int> b(std::in_place, 5);
+          a = std::move(b); // both engaged: plain T assignment (double::operator=(int))
+          CHECK(*a == 5.0);
+        }
+
+        SECTION("disengaged to engaged")
+        {
+          using T = optional<double>;
+          T a;
+          optional<int> b(std::in_place, 7);
+          a = std::move(b); // construct
+          CHECK(a.has_value());
+          CHECK(*a == 7.0);
+        }
+
+        SECTION("engaged to disengaged")
+        {
+          using T = optional<double>;
+          T a(std::in_place, 1.0);
+          optional<int> b(std::nullopt);
+          a = std::move(b); // destroy
+          CHECK(not a.has_value());
+        }
+
+        SECTION("disengaged to disengaged")
+        {
+          using T = optional<double>;
+          T a;
+          optional<int> b(std::nullopt);
+          a = std::move(b);
+          CHECK(not a.has_value());
+        }
+      }
+
+      SECTION("lval const")
+      {
+        SECTION("engaged to engaged")
+        {
+          using T = optional<double>;
+          T a(std::in_place, 1.0);
+          optional<int> const b(std::in_place, 5);
+          a = b;
+          CHECK(*a == 5.0);
+        }
+
+        SECTION("disengaged to engaged")
+        {
+          using T = optional<double>;
+          T a;
+          optional<int> const b(std::in_place, 7);
+          a = b;
+          CHECK(a.has_value());
+          CHECK(*a == 7.0);
+        }
+
+        SECTION("engaged to disengaged")
+        {
+          using T = optional<double>;
+          T a(std::in_place, 1.0);
+          optional<int> const b(std::nullopt);
+          a = b;
+          CHECK(not a.has_value());
+        }
+      }
+
+#ifndef PFN_TEST_VALIDATION
+      SECTION("reference source")
+      {
+        // pfn-only (no released standard library implements C++26's optional<T&> yet).
+        // Exercises _assign_from reading through has_value()/operator*() rather than
+        // private storage -- optional<int&> has a completely different internal
+        // representation (a bare pointer, no union or set_ at all).
+        using T = optional<double>;
+        int x = 9;
+        optional<int &> const r(std::in_place, x);
+        T a;
+        a = r;
+        CHECK(a.has_value());
+        CHECK(*a == 9.0);
+      }
+#endif
     }
   }
 
