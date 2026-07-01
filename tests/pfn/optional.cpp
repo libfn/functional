@@ -13,7 +13,7 @@ using pfn::make_optional;
 using pfn::optional;
 
 #endif
-// When nested via PFN_TEST_NESTED (e.g expected_validation.cpp), the wrapper TU
+// When nested via PFN_TEST_NESTED (e.g optional_validation.cpp), the wrapper TU
 // already includes the necessary header(s) and brings the relevant aliases into the
 // global namespace to select right set of types expected as the subject under test.
 
@@ -181,6 +181,9 @@ TEST_CASE("optional", "[optional][polyfill]")
   }
 }
 
+// No released standard library implements C++26's optional<T&> ([optional.optional.ref])
+// yet, so this section is pfn-only and skipped when nested into optional_validation.cpp.
+#ifndef PFN_TEST_VALIDATION
 TEST_CASE("optional reference", "[optional_ref][polyfill]")
 {
   SECTION("type aliases")
@@ -217,3 +220,4 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
     SUCCEED();
   }
 }
+#endif
