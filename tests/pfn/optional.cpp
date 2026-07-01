@@ -553,5 +553,107 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
     (void)d;
     SUCCEED();
   }
+
+  SECTION("assignment")
+  {
+    using T = optional<int &>;
+
+    SECTION("nullopt_t")
+    {
+      int x = 5;
+      T a(std::in_place, x);
+      CHECK(a.has_value());
+      a = std::nullopt;
+      CHECK(not a.has_value());
+      a = std::nullopt; // already disengaged: no-op path
+      CHECK(not a.has_value());
+    }
+
+    SECTION("copy rebinds rather than assigning through")
+    {
+      int x = 5, y = 9;
+      T a(std::in_place, x);
+      T const b(std::in_place, y);
+      a = b;
+      CHECK(&*a == &y);
+      CHECK(x == 5); // x untouched by the rebind
+      y = 11;
+      CHECK(*a == 11); // a now observes y, not a copy of its old value
+    }
+
+    SECTION("copy from disengaged")
+    {
+      int x = 5;
+      T a(std::in_place, x);
+      T const b(std::nullopt);
+      a = b;
+      CHECK(not a.has_value());
+      CHECK(x == 5);
+    }
+  }
+
+  SECTION("emplace")
+  {
+    using T = optional<int &>;
+
+    SECTION("from disengaged")
+    {
+      int x = 7;
+      T a(std::nullopt);
+      int &r = a.emplace(x);
+      CHECK(a.has_value());
+      CHECK(&*a == &x);
+      CHECK(&r == &x);
+    }
+
+    SECTION("rebinds rather than assigning through")
+    {
+      int x = 5, y = 9;
+      T a(std::in_place, x);
+      a.emplace(y);
+      CHECK(&*a == &y);
+      CHECK(x == 5); // x untouched
+    }
+
+    SECTION("SFINAE and noexcept")
+    {
+      static_assert(std::is_nothrow_constructible_v<int &, int &>);
+      static_assert(noexcept(std::declval<T &>().emplace(std::declval<int &>())));
+
+      // int&& cannot bind int&: emplace must be SFINAE'd out, not a hard error. Wrapped in a
+      // generic lambda so the constraint failure is genuine SFINAE (substitution during the
+      // lambda's own instantiation), rather than a hard error from a non-dependent call.
+      static_assert(not std::is_constructible_v<int &, int &&>);
+      constexpr auto fn = [](auto &&...args) constexpr -> bool {
+        return requires(T &o) { o.emplace(std::forward<decltype(args)>(args)...); };
+      };
+      static_assert(not fn(5));
+      SUCCEED();
+    }
+  }
+
+  SECTION("observers")
+  {
+    using T = optional<int &>;
+
+    SECTION("const does not propagate to the referent")
+    {
+      int x = 5;
+      T const a(std::in_place, x);
+      static_assert(std::is_same_v<decltype(*a), int &>);             // not int const&
+      static_assert(std::is_same_v<decltype(a.operator->()), int *>); // not int const*
+      *a = 7;
+      CHECK(x == 7); // mutated through a const optional<int&>
+      CHECK(a.has_value());
+      CHECK(static_cast<bool>(a));
+    }
+
+    SECTION("disengaged")
+    {
+      T const a(std::nullopt);
+      CHECK(not a.has_value());
+      CHECK(not static_cast<bool>(a));
+    }
+  }
 }
 #endif

@@ -441,19 +441,40 @@ public:
   constexpr ~optional() = default;
 
   // [optional.ref.assign], assignment
-  constexpr optional &operator=(::std::nullopt_t) noexcept;
+  constexpr optional &operator=(::std::nullopt_t) noexcept
+  {
+    this->v_ = nullptr;
+    return *this;
+  }
   constexpr optional &operator=(optional const &rhs) noexcept = default;
 
-  template <class U> constexpr T &emplace(U &&u) noexcept(true); // TODO noexcept
+  // TODO reference_constructs_from_temporary_v is a C++23 trait with no portable C++20
+  // fallback; the dangling-reference guard from [optional.ref.assign]'s Constraints is
+  // deferred (same gap as the in_place ctor above, which binds via addressof(arg) directly
+  // rather than through _convert_ref_init_val's convert-then-bind).
+  template <class U>
+  constexpr T &emplace(U &&u) noexcept(::std::is_nothrow_constructible_v<T &, U>)
+    requires ::std::is_constructible_v<T &, U>
+  {
+    _convert_ref_init_val(FWD(u));
+    return *this->v_;
+  }
 
   // [optional.ref.swap], swap
   constexpr void swap(optional &rhs) noexcept;
 
-  // [optional.ref.observe], observers
-  constexpr T *operator->() const noexcept;
-  constexpr T &operator*() const noexcept;
-  constexpr explicit operator bool() const noexcept;
-  constexpr bool has_value() const noexcept;
+  // [optional.ref.observe], observers. Unlike optional<T>, const does not propagate to the
+  // referent: *this being const only means the stored pointer can't be rebound, not that T
+  // becomes T const -- so these all return plain T&/T*, and there is only ever one overload
+  // (no ref-qualifier/const overload set like optional<T>'s).
+  constexpr T *operator->() const noexcept
+  {
+    ASSERT(this->v_ != nullptr); // LCOV_EXCL_LINE
+    return this->v_;
+  }
+  constexpr T &operator*() const noexcept { return *(this->operator->()); }
+  constexpr explicit operator bool() const noexcept { return this->v_ != nullptr; }
+  constexpr bool has_value() const noexcept { return this->v_ != nullptr; }
   constexpr T &value() const; // freestanding-deleted
   template <class U = ::std::remove_cv_t<T>> constexpr ::std::remove_cv_t<T> value_or(U &&u) const;
 
@@ -466,8 +487,14 @@ public:
   constexpr void reset() noexcept;
 
 private:
-  // [optional.ref.expos], exposition only helper functions
-  template <class U> constexpr void _convert_ref_init_val(U &&u); // exposition only
+  // [optional.ref.expos], exposition only helper functions. Binds a reference to `u` (through
+  // whatever conversion T& requires) and stores its address -- used by emplace above and, once
+  // implemented, the converting constructors/assignment.
+  template <class U> constexpr void _convert_ref_init_val(U &&u) noexcept(::std::is_nothrow_constructible_v<T &, U>)
+  {
+    T &r(FWD(u));
+    this->v_ = ::std::addressof(r);
+  }
 };
 
 } // namespace pfn
