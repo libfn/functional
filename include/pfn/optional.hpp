@@ -168,8 +168,9 @@ template <typename> constexpr bool _is_optional_union = false;
 template <typename T> constexpr bool _is_optional_union<_optional_union_t<T>> = true;
 
 // Shared implementation base class for ::pfn::optional. Members are public since
-// inheritance is private. For now this provides storage plus constructors and
-// destructors only; assignment is deferred to a later design pass.
+// inheritance is private. Provides storage, constructors, destructors, and the
+// non-converting assignment/emplace machinery; converting assignment is deferred
+// alongside the converting constructors below.
 template <class T> struct _optional_base {
   using _storage_t = _optional_union_t<T>;
   using _value_t = _storage_t::_value_t; // == T
@@ -216,6 +217,71 @@ template <class T> struct _optional_base {
     if (set_)
       ::std::destroy_at(::std::addressof(storage_.v_));
   }
+
+  // [optional.assign]: transitions to the disengaged state if currently engaged; never
+  // throws, since _reinit's target is always the trivial `_dummy_t`. Shared by
+  // operator=(nullopt_t) and emplace.
+  constexpr void _reset() noexcept
+  {
+    if (set_) {
+      _storage_t::_reinit(::std::addressof(storage_.e_), ::std::addressof(storage_.v_));
+      set_ = false;
+    }
+  }
+
+  // Assignment body shared by the public optional operator= overloads, which keep their
+  // constraints/noexcept clauses and forward `s` here as an lvalue or rvalue.
+  constexpr void _assign(auto &&s)
+  {
+    if (set_ && s.set_) {
+      storage_.v_ = FWD(s).storage_.v_;
+    } else if (set_) {
+      _storage_t::_reinit(::std::addressof(storage_.e_), ::std::addressof(storage_.v_), FWD(s).storage_.e_);
+      set_ = false;
+    } else if (s.set_) {
+      _storage_t::_reinit(::std::addressof(storage_.v_), ::std::addressof(storage_.e_), FWD(s).storage_.v_);
+      set_ = true;
+    } else {
+      storage_.e_ = FWD(s).storage_.e_;
+    }
+  }
+
+  template <class... Args>
+  constexpr T &emplace(Args &&...args) //
+    requires ::std::is_constructible_v<T, Args...>
+  {
+    _reset();
+    _storage_t::_reinit(::std::addressof(storage_.v_), ::std::addressof(storage_.e_), FWD(args)...);
+    set_ = true;
+    return storage_.v_;
+  }
+  template <class U, class... Args>
+  constexpr T &emplace(::std::initializer_list<U> il, Args &&...args) //
+    requires ::std::is_constructible_v<T, ::std::initializer_list<U> &, Args...>
+  {
+    _reset();
+    _storage_t::_reinit(::std::addressof(storage_.v_), ::std::addressof(storage_.e_), il, FWD(args)...);
+    set_ = true;
+    return storage_.v_;
+  }
+
+  // [optional.observe], observers
+  constexpr T const *operator->() const noexcept
+  {
+    ASSERT(set_); // LCOV_EXCL_LINE
+    return ::std::addressof(storage_.v_);
+  }
+  constexpr T *operator->() noexcept
+  {
+    ASSERT(set_); // LCOV_EXCL_LINE
+    return ::std::addressof(storage_.v_);
+  }
+  constexpr T const &operator*() const & noexcept { return *(this->operator->()); }
+  constexpr T &operator*() & noexcept { return *(this->operator->()); }
+  constexpr T const &&operator*() const && noexcept { return ::std::move(*(this->operator->())); }
+  constexpr T &&operator*() && noexcept { return ::std::move(*(this->operator->())); }
+  constexpr explicit operator bool() const noexcept { return set_; }
+  constexpr bool has_value() const noexcept { return set_; }
 };
 
 // optional<T&> needs its own base: the referent is held directly as a pointer (nullptr
@@ -291,27 +357,40 @@ public:
   constexpr ~optional() = default;
 
   // [optional.assign], assignment
-  constexpr optional &operator=(::std::nullopt_t) noexcept;
-  constexpr optional &operator=(optional const &);
-  constexpr optional &operator=(optional &&) noexcept(true); // TODO noexcept
-  template <class U = ::std::remove_cv_t<T>> constexpr optional &operator=(U &&);
-  template <class U> constexpr optional &operator=(optional<U> const &);
-  template <class U> constexpr optional &operator=(optional<U> &&);
-  template <class... Args> constexpr T &emplace(Args &&...);
-  template <class U, class... Args> constexpr T &emplace(::std::initializer_list<U>, Args &&...);
+  constexpr optional &operator=(::std::nullopt_t) noexcept
+  {
+    this->_reset();
+    return *this;
+  }
+  constexpr optional &operator=(optional const &) = delete;
+  constexpr optional &operator=(optional const &s)                                                  //
+      noexcept(::std::is_nothrow_copy_assignable_v<T> && ::std::is_nothrow_copy_constructible_v<T>) // extension
+    requires(::std::is_copy_constructible_v<T> && ::std::is_copy_assignable_v<T>)
+  {
+    this->_assign(static_cast<_base const &>(s));
+    return *this;
+  }
+  constexpr optional &operator=(optional &&s) // NOSONAR cpp:S5018 standard mandated `noexcept` spec.
+      noexcept(::std::is_nothrow_move_assignable_v<T> && ::std::is_nothrow_move_constructible_v<T>) // required
+    requires(::std::is_move_constructible_v<T> && ::std::is_move_assignable_v<T>)
+  {
+    this->_assign(static_cast<_base &&>(s));
+    return *this;
+  }
+
+  // TODO converting assignment (U&&, optional<U> const&, optional<U>&&): deferred until the
+  // _can_convert* base traits land, for the same reason as the converting constructors above.
+
+  using _base::emplace;
 
   // [optional.swap], swap
   constexpr void swap(optional &) noexcept(true); // TODO noexcept
 
   // [optional.observe], observers
-  constexpr T const *operator->() const noexcept;
-  constexpr T *operator->() noexcept;
-  constexpr T const &operator*() const & noexcept;
-  constexpr T &operator*() & noexcept;
-  constexpr T &&operator*() && noexcept;
-  constexpr T const &&operator*() const && noexcept;
-  constexpr explicit operator bool() const noexcept;
-  constexpr bool has_value() const noexcept;
+  using _base::has_value;
+  using _base::operator bool;
+  using _base::operator*;
+  using _base::operator->;
   constexpr T const &value() const &;   // freestanding-deleted
   constexpr T &value() &;               // freestanding-deleted
   constexpr T &&value() &&;             // freestanding-deleted
