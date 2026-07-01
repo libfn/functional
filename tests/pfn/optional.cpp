@@ -113,7 +113,7 @@ TEST_CASE("optional", "[optional][polyfill]")
       static_assert(not std::is_copy_constructible_v<T>);
       static_assert(std::is_move_constructible_v<T>);
       static_assert(not std::is_trivially_move_constructible_v<T>);
-      static_assert(not extension || std::is_nothrow_move_constructible_v<T>);
+      static_assert(std::is_nothrow_move_constructible_v<T>);
 
       T a(std::in_place, 7);
       T b = std::move(a);
