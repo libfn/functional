@@ -965,11 +965,29 @@ TEST_CASE("optional", "[optional][polyfill]")
 // No released standard library implements C++26's optional<T&> ([optional.optional.ref])
 // yet, so this section is pfn-only and skipped when nested into optional_validation.cpp.
 #ifndef PFN_TEST_VALIDATION
+
+// Conversion-operator fixtures for optional<T&>'s convert-then-bind (_convert_ref_init_val)
+// paths: T& can also be obtained through a user conversion operator -- implicitly or
+// explicitly -- and that conversion (not any constructor of T) is what may throw.
+struct ref_holder {
+  int v;
+  constexpr operator int &() noexcept { return v; }
+};
+struct explicit_ref_holder {
+  int v;
+  constexpr explicit operator int &() noexcept { return v; }
+};
+struct throwing_ref_holder {
+  int v;
+  constexpr operator int &() noexcept(false) { return v; }
+};
+
 TEST_CASE("optional reference", "[optional_ref][polyfill]")
 {
   SECTION("type aliases")
   {
     static_assert(std::is_same_v<optional<int &>::value_type, int>);
+    static_assert(std::is_same_v<optional<int const &>::value_type, int const>);
     SUCCEED();
   }
 
@@ -988,17 +1006,161 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
   SECTION("constructors")
   {
     using T = optional<int &>;
-    constexpr T a;
-    constexpr T b(std::nullopt);
-    (void)a;
-    (void)b;
 
-    int x = 5;
-    T c(std::in_place, x); // binds the reference to x
-    T d = c;               // trivial copy
-    (void)c;
-    (void)d;
-    SUCCEED();
+    SECTION("default and nullopt")
+    {
+      static_assert(std::is_nothrow_default_constructible_v<T>);
+      static_assert(std::is_nothrow_constructible_v<T, std::nullopt_t>);
+
+      constexpr T a;
+      static_assert(not a.has_value());
+      constexpr T b(std::nullopt);
+      static_assert(not b.has_value());
+      SUCCEED();
+    }
+
+    SECTION("in_place")
+    {
+      static_assert(std::is_constructible_v<T, std::in_place_t, int &>);
+      static_assert(not std::is_constructible_v<T, std::in_place_t, int>);      // int& cannot bind an rvalue
+      static_assert(not std::is_constructible_v<T, std::in_place_t, double &>); // nor a different lvalue type
+      // the noexcept-specifier is a pfn extension ([optional.ref.ctor] leaves in_place without one)
+      static_assert(std::is_nothrow_constructible_v<T, std::in_place_t, int &>);
+      static_assert(not std::is_nothrow_constructible_v<T, std::in_place_t, throwing_ref_holder &>);
+
+      int x = 5;
+      T c(std::in_place, x); // binds the reference to x
+      CHECK(c.has_value());
+      CHECK(&*c == &x);
+
+      // converts (through a user conversion operator), then binds
+      ref_holder h{7};
+      T d(std::in_place, h);
+      CHECK(&*d == &h.v);
+      CHECK(*d == 7);
+    }
+
+    SECTION("copy")
+    {
+      int x = 5;
+      T c(std::in_place, x);
+      T d = c; // trivial copy
+      CHECK(&*d == &x);
+
+      T const e(std::nullopt);
+      T f = e;
+      CHECK(not f.has_value());
+    }
+
+    SECTION("converting")
+    {
+      static_assert(std::is_constructible_v<T, int &>);
+      static_assert(std::is_convertible_v<int &, T>);
+      static_assert(not std::is_constructible_v<T, int>); // int& cannot bind an rvalue
+      static_assert(not std::is_constructible_v<T, double &>);
+      static_assert(std::is_nothrow_constructible_v<T, int &>); // standard-mandated, not an extension
+      static_assert(not std::is_nothrow_constructible_v<T, throwing_ref_holder &>);
+
+      int x = 5;
+      T a = x;
+      CHECK(&*a == &x);
+
+      ref_holder h{7};
+      T b = h;
+      CHECK(&*b == &h.v);
+
+      // explicit-ness follows is_convertible_v<U, T&>: an explicit-only conversion operator
+      // still constructs, but no longer converts
+      static_assert(std::is_constructible_v<T, explicit_ref_holder &>);
+      static_assert(not std::is_convertible_v<explicit_ref_holder &, T>);
+      explicit_ref_holder e{9};
+      T c(e);
+      CHECK(&*c == &e.v);
+    }
+
+    SECTION("from other optional")
+    {
+      SECTION("value source")
+      {
+        using S = optional<int>;
+        static_assert(std::is_constructible_v<T, S &>);
+        static_assert(std::is_convertible_v<S &, T>);
+        static_assert(std::is_nothrow_constructible_v<T, S &>); // standard-mandated
+        // int& can bind neither a const nor an rvalue source's contained value, nor one
+        // whose contained type would require a conversion (i.e. a temporary)
+        static_assert(not std::is_constructible_v<T, S const &>);
+        static_assert(not std::is_constructible_v<T, S>);
+        static_assert(not std::is_constructible_v<T, S const &&>);
+        static_assert(not std::is_constructible_v<T, optional<double> &>);
+        static_assert(not std::is_constructible_v<optional<long &>, S &>);
+
+        S s(std::in_place, 5);
+        T a = s;
+        CHECK(a.has_value());
+        CHECK(&*a == &*s); // a observes s's contained value...
+        *a = 7;
+        CHECK(*s == 7); // ...and writes through to it
+
+        S d(std::nullopt);
+        T b = d;
+        CHECK(not b.has_value());
+      }
+
+      SECTION("const value source")
+      {
+        using C = optional<int const &>;
+        static_assert(std::is_constructible_v<C, optional<int> &>);
+        static_assert(std::is_constructible_v<C, optional<int> const &>);
+        static_assert(std::is_convertible_v<optional<int> const &, C>);
+
+        optional<int> const s(std::in_place, 5);
+        C a = s;
+        CHECK(a.has_value());
+        CHECK(&*a == &*s);
+      }
+
+      SECTION("reference source")
+      {
+        // a differently-typed reference source: B& binds D& directly (derived-to-base), so
+        // this is safe for any source value category -- the referent outlives the source
+        struct B {
+          int v;
+        };
+        struct D : B {};
+
+        D d{{5}};
+        optional<D &> s(std::in_place, d);
+        optional<B &> a = s;
+        CHECK(&*a == static_cast<B *>(&d));
+
+        optional<B &> b = std::move(s); // rval source: the referent (d) is unaffected
+        CHECK(&*b == static_cast<B *>(&d));
+
+        optional<D &> const cs(std::in_place, d);
+        optional<B &> g = std::move(cs); // const rval source, same directly-bound referent
+        CHECK(&*g == static_cast<B *>(&d));
+
+        optional<D &> const e(std::nullopt);
+        optional<B &> f = e;
+        CHECK(not f.has_value());
+      }
+
+      SECTION("constexpr")
+      {
+        static_assert([] {
+          optional<int> s(std::in_place, 5);
+          optional<int &> a(s);
+          *a = 7;
+          return &*a == &*s && *s == 7;
+        }());
+        static_assert([] {
+          optional<int> s(std::nullopt);
+          optional<int &> a(s);
+          return not a.has_value();
+        }());
+        SUCCEED();
+      }
+    }
   }
 
   SECTION("assignment")
@@ -1037,6 +1199,18 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
       CHECK(not a.has_value());
       CHECK(x == 5);
     }
+
+    SECTION("from value rebinds via the converting constructor")
+    {
+      // [optional.ref.assign] has no operator=(U&&): assigning from a value goes through the
+      // implicit converting constructor, then the trivial copy-assignment -- a rebind, never
+      // an assign-through
+      int x = 5, y = 9;
+      T a(std::in_place, x);
+      a = y;
+      CHECK(&*a == &y);
+      CHECK(x == 5);
+    }
   }
 
   SECTION("emplace")
@@ -1062,10 +1236,20 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
       CHECK(x == 5); // x untouched
     }
 
+    SECTION("converts then binds")
+    {
+      ref_holder h{7};
+      T a(std::nullopt);
+      int &r = a.emplace(h);
+      CHECK(&*a == &h.v);
+      CHECK(&r == &h.v);
+    }
+
     SECTION("SFINAE and noexcept")
     {
       static_assert(std::is_nothrow_constructible_v<int &, int &>);
       static_assert(noexcept(std::declval<T &>().emplace(std::declval<int &>())));
+      static_assert(not noexcept(std::declval<T &>().emplace(std::declval<throwing_ref_holder &>())));
 
       // int&& cannot bind int&: emplace must be SFINAE'd out, not a hard error. Wrapped in a
       // generic lambda so the constraint failure is genuine SFINAE (substitution during the
@@ -1075,6 +1259,17 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
         return requires(T &o) { o.emplace(std::forward<decltype(args)>(args)...); };
       };
       static_assert(not fn(5));
+      SUCCEED();
+    }
+
+    SECTION("constexpr")
+    {
+      static_assert([] {
+        int x = 1, y = 2;
+        T o(std::in_place, x);
+        o.emplace(y);
+        return &*o == &y && x == 1;
+      }());
       SUCCEED();
     }
   }
@@ -1089,6 +1284,10 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
       T const a(std::in_place, x);
       static_assert(std::is_same_v<decltype(*a), int &>);             // not int const&
       static_assert(std::is_same_v<decltype(a.operator->()), int *>); // not int const*
+      static_assert(noexcept(std::declval<T const &>().operator->()));
+      static_assert(noexcept(*std::declval<T const &>()));
+      static_assert(noexcept(std::declval<T const &>().has_value()));
+      static_assert(noexcept(static_cast<bool>(std::declval<T const &>())));
       *a = 7;
       CHECK(x == 7); // mutated through a const optional<int&>
       CHECK(a.has_value());
@@ -1100,6 +1299,110 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
       T const a(std::nullopt);
       CHECK(not a.has_value());
       CHECK(not static_cast<bool>(a));
+    }
+
+    SECTION("value")
+    {
+      // one overload only: T& regardless of the optional's constness or value category
+      static_assert(std::is_same_v<decltype(std::declval<T &>().value()), int &>);
+      static_assert(std::is_same_v<decltype(std::declval<T const &>().value()), int &>);
+      static_assert(std::is_same_v<decltype(std::declval<T &&>().value()), int &>);
+      static_assert(std::is_same_v<decltype(std::declval<T const &&>().value()), int &>);
+      static_assert(not noexcept(std::declval<T const &>().value()));
+
+      int x = 5;
+      T const a(std::in_place, x);
+      CHECK(&a.value() == &x);
+      a.value() = 7;
+      CHECK(x == 7); // mutated through a const optional<int&>
+
+      SECTION("constexpr")
+      {
+        static_assert([] {
+          int x = 5;
+          T o(std::in_place, x);
+          o.value() = 7;
+          return x == 7 && &o.value() == &x;
+        }());
+        SUCCEED();
+      }
+
+      SECTION("throwing")
+      {
+        T b(std::nullopt);
+        REQUIRE_THROWS_AS(b.value(), std::bad_optional_access);
+        REQUIRE_THROWS_AS(std::as_const(b).value(), std::bad_optional_access);
+        REQUIRE_THROWS_AS(std::move(b).value(), std::bad_optional_access);
+      }
+    }
+
+    SECTION("value_or")
+    {
+      using O = optional<helper &>;
+
+      // returns remove_cv_t<T> by value, and there is only the one const-qualified overload
+      static_assert(std::is_same_v<decltype(std::declval<O &>().value_or(0)), helper>);
+      static_assert(std::is_same_v<decltype(std::declval<O const &>().value_or(0)), helper>);
+      static_assert(std::is_same_v<decltype(std::declval<optional<int const &> &>().value_or(0)), int>);
+      static_assert(not noexcept(std::declval<O const &>().value_or(std::declval<int>())));
+
+      SECTION("default template parameter")
+      {
+        static_assert(requires(optional<int &> &o) { o.value_or({}); });
+        SUCCEED();
+      }
+
+      SECTION("engaged")
+      {
+        // copies the referent through T&, NOT T const& like optional<T>'s const& overload:
+        // the optional's constness does not propagate to the referent...
+        helper x(13);
+        O const a(std::in_place, x);
+        CHECK(a.value_or(0) == helper(13 * from_lval));
+
+        // ...unless the referent type itself is const
+        optional<helper const &> const b(std::in_place, x);
+        CHECK(b.value_or(0) == helper(13 * from_lval_const));
+      }
+
+      SECTION("disengaged")
+      {
+        O const a(std::nullopt);
+        CHECK(a.value_or(11) == helper(11));
+
+        helper b(11);
+        CHECK(a.value_or(b) == helper(11 * from_lval));
+        CHECK(a.value_or(std::as_const(b)) == helper(11 * from_lval_const));
+        CHECK(a.value_or(std::move(std::as_const(b))) == helper(11 * from_rval_const));
+        CHECK(a.value_or(std::move(b)) == helper(11 * from_rval));
+      }
+
+      SECTION("conversion")
+      {
+        optional<double &> a(std::nullopt);
+        static_assert(std::is_same_v<decltype(a.value_or(3)), double>);
+        CHECK(a.value_or(3) == 3.0);
+
+        double d = 0.5;
+        a.emplace(d);
+        CHECK(a.value_or(3) == 0.5);
+      }
+
+      SECTION("constexpr")
+      {
+        static_assert([] {
+          helper c{helper_list_t(), 7};
+          O o(std::in_place, c);
+          return o.value_or(0).v == 7 * from_lval;
+        }());
+        static_assert([] {
+          helper const c{helper_list_t(), 7};
+          O o(std::nullopt);
+          return o.value_or(c).v == 7 * from_lval_const //
+                 && o.value_or(helper(helper_list_t{7.0}, 3)).v == 7 * 3 * from_rval;
+        }());
+        SUCCEED();
+      }
     }
   }
 }

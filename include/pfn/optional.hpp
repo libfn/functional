@@ -429,18 +429,118 @@ template <class T, class Policy> struct _optional_base {
 
 // optional<T&> needs its own base: the referent is held directly as a pointer (nullptr
 // encodes the disengaged state), so there is no value union, no discriminant flag, and
-// every special member is implicitly trivial. The in_place ctor binds the reference by
-// storing its address (full [optional.ref.ctor] constraints are deferred).
+// every special member is implicitly trivial.
+//
+// TODO reference_constructs_from_temporary_v is a C++23 trait with no portable C++20
+// fallback, so the dangling-reference guards of [optional.ref.ctor] (constraints and
+// deleted overloads for binding a temporary) and of [optional.ref.assign]'s emplace are
+// deferred; until then such constructions compile and dangle.
 template <class T, class Policy> struct _optional_base<T &, Policy> {
   using _value_t = T &;
   T *v_ = nullptr;
 
+  // [optional.ref.expos], exposition only helper. Binds a reference to `u` (through whatever
+  // conversion T& requires -- possibly a throwing user conversion operator) and stores its
+  // address; the single construction path shared by the in_place and converting constructors
+  // and emplace.
+  template <class U> constexpr void _convert_ref_init_val(U &&u) noexcept(::std::is_nothrow_constructible_v<T &, U>)
+  {
+    T &r(FWD(u));
+    v_ = ::std::addressof(r);
+  }
+
+  template <class U>
+  using _can_convert = ::std::bool_constant<                                              //
+      not ::std::is_same_v<::std::remove_cvref_t<U>, typename Policy::template type<T &>> //
+      && not ::std::is_same_v<::std::remove_cvref_t<U>, ::std::in_place_t>                //
+      && ::std::is_constructible_v<T &, U>>;
+
+  // [optional.ref.ctor], shared constraint of the converting constructors from optional<U>;
+  // UF is the U flavor the overload binds from (U&, U const&, U, U const).
+  template <class U, class UF>
+  using _can_convert_from = ::std::bool_constant<                                    //
+      not ::std::is_same_v<::std::remove_cv_t<T>, typename Policy::template type<U>> //
+      && not ::std::is_same_v<T &, U>                                                //
+      && ::std::is_constructible_v<T &, UF>>;
+
+  constexpr _optional_base() noexcept = default;
   constexpr explicit _optional_base(::std::nullopt_t /*ignored*/) noexcept {}
 
   template <class Arg>
-  constexpr explicit _optional_base(::std::in_place_t /*ignored*/, Arg &&arg) noexcept //
-      : v_(::std::addressof(arg))
+  constexpr explicit _optional_base(::std::in_place_t /*ignored*/, Arg &&arg) //
+      noexcept(::std::is_nothrow_constructible_v<T &, Arg>)                   // extension
+    requires ::std::is_constructible_v<T &, Arg>
   {
+    _convert_ref_init_val(FWD(arg));
+  }
+
+  // [optional.ref.ctor], converting constructors from a differently-typed optional<U>: four
+  // overloads (unlike optional<T>'s two), since both the constness and the value category of
+  // the source select which U flavor T& must bind.
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U &, T &>) _optional_base(typename Policy::template type<U> &rhs) //
+      noexcept(::std::is_nothrow_constructible_v<T &, U &>)
+    requires(_can_convert_from<U, U &>::value)
+  {
+    if (rhs.has_value())
+      _convert_ref_init_val(*rhs);
+  }
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U const &, T &>)
+      _optional_base(typename Policy::template type<U> const &rhs) //
+      noexcept(::std::is_nothrow_constructible_v<T &, U const &>)
+    requires(_can_convert_from<U, U const &>::value)
+  {
+    if (rhs.has_value())
+      _convert_ref_init_val(*rhs);
+  }
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U, T &>) _optional_base(typename Policy::template type<U> &&rhs) //
+      noexcept(::std::is_nothrow_constructible_v<T &, U>)
+    requires(_can_convert_from<U, U>::value)
+  {
+    if (rhs.has_value())
+      _convert_ref_init_val(*::std::move(rhs));
+  }
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U const, T &>)
+      _optional_base(typename Policy::template type<U> const &&rhs) //
+      noexcept(::std::is_nothrow_constructible_v<T &, U const>)
+    requires(_can_convert_from<U, U const>::value)
+  {
+    if (rhs.has_value())
+      _convert_ref_init_val(*::std::move(rhs));
+  }
+
+  // [optional.ref.assign]
+  template <class U>
+  constexpr T &emplace(U &&u) noexcept(::std::is_nothrow_constructible_v<T &, U>)
+    requires ::std::is_constructible_v<T &, U>
+  {
+    _convert_ref_init_val(FWD(u));
+    return *v_;
+  }
+
+  // [optional.ref.observe], observers. Unlike optional<T>, const does not propagate to the
+  // referent: *this being const only means the stored pointer can't be rebound, not that T
+  // becomes T const -- so these all return plain T&/T*, and there is only ever one overload
+  // (no ref-qualifier/const overload set like optional<T>'s).
+  constexpr T *operator->() const noexcept
+  {
+    ASSERT(v_ != nullptr); // LCOV_EXCL_LINE
+    return v_;
+  }
+  constexpr T &operator*() const noexcept { return *(this->operator->()); }
+  constexpr explicit operator bool() const noexcept { return v_ != nullptr; }
+  constexpr bool has_value() const noexcept { return v_ != nullptr; }
+
+  constexpr T &value() const { return v_ != nullptr ? *v_ : throw ::std::bad_optional_access(); }
+
+  template <class U = ::std::remove_cv_t<T>> constexpr ::std::remove_cv_t<T> value_or(U &&u) const
+  {
+    static_assert(::std::is_constructible_v<::std::remove_cv_t<T>, T &> //
+                  && ::std::is_convertible_v<U, ::std::remove_cv_t<T>>);
+    return v_ != nullptr ? *v_ : static_cast<::std::remove_cv_t<T>>(::std::forward<U>(u));
   }
 };
 
@@ -619,21 +719,54 @@ template <class T> class optional<T &> : private detail::_optional_base<T &, det
 public:
   using value_type = T;
 
-public:
   // [optional.ref.ctor], constructors
-  constexpr optional() noexcept : _base(::std::nullopt) {}
+  constexpr optional() noexcept = default;
   constexpr optional(::std::nullopt_t) noexcept : optional() {}
   constexpr optional(optional const &rhs) noexcept = default;
 
   template <class Arg>
-  constexpr explicit optional(::std::in_place_t, Arg &&arg) noexcept //
+  constexpr explicit optional(::std::in_place_t, Arg &&arg) //
+      noexcept(::std::is_nothrow_constructible_v<T &, Arg>) // extension
+    requires ::std::is_constructible_v<T &, Arg>
       : _base(::std::in_place, FWD(arg))
   {
   }
 
-  // TODO converting constructors (U&&, optional<U>&, optional<U> const&, optional<U>&&,
-  // optional<U> const&&): deferred until the [optional.ref.ctor] constraint set lands. Left
-  // undeclared on purpose — an unconstrained optional(U&&) would hijack the copy ctor.
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U, T &>) optional(U &&u) //
+      noexcept(::std::is_nothrow_constructible_v<T &, U>)
+    requires(_base::template _can_convert<U>::value)
+      : _base(::std::in_place, FWD(u))
+  {
+  }
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U &, T &>) optional(optional<U> &rhs) //
+      noexcept(::std::is_nothrow_constructible_v<T &, U &>)
+    requires(_base::template _can_convert_from<U, U &>::value)
+      : _base(rhs)
+  {
+  }
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U const &, T &>) optional(optional<U> const &rhs) //
+      noexcept(::std::is_nothrow_constructible_v<T &, U const &>)
+    requires(_base::template _can_convert_from<U, U const &>::value)
+      : _base(rhs)
+  {
+  }
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U, T &>) optional(optional<U> &&rhs) //
+      noexcept(::std::is_nothrow_constructible_v<T &, U>)
+    requires(_base::template _can_convert_from<U, U>::value)
+      : _base(::std::move(rhs))
+  {
+  }
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U const, T &>) optional(optional<U> const &&rhs) //
+      noexcept(::std::is_nothrow_constructible_v<T &, U const>)
+    requires(_base::template _can_convert_from<U, U const>::value)
+      : _base(::std::move(rhs))
+  {
+  }
 
   constexpr ~optional() = default;
 
@@ -645,35 +778,18 @@ public:
   }
   constexpr optional &operator=(optional const &rhs) noexcept = default;
 
-  // TODO reference_constructs_from_temporary_v is a C++23 trait with no portable C++20
-  // fallback; the dangling-reference guard from [optional.ref.assign]'s Constraints is
-  // deferred (same gap as the in_place ctor above, which binds via addressof(arg) directly
-  // rather than through _convert_ref_init_val's convert-then-bind).
-  template <class U>
-  constexpr T &emplace(U &&u) noexcept(::std::is_nothrow_constructible_v<T &, U>)
-    requires ::std::is_constructible_v<T &, U>
-  {
-    _convert_ref_init_val(FWD(u));
-    return *this->v_;
-  }
+  using _base::emplace;
 
   // [optional.ref.swap], swap
   constexpr void swap(optional &rhs) noexcept;
 
-  // [optional.ref.observe], observers. Unlike optional<T>, const does not propagate to the
-  // referent: *this being const only means the stored pointer can't be rebound, not that T
-  // becomes T const -- so these all return plain T&/T*, and there is only ever one overload
-  // (no ref-qualifier/const overload set like optional<T>'s).
-  constexpr T *operator->() const noexcept
-  {
-    ASSERT(this->v_ != nullptr); // LCOV_EXCL_LINE
-    return this->v_;
-  }
-  constexpr T &operator*() const noexcept { return *(this->operator->()); }
-  constexpr explicit operator bool() const noexcept { return this->v_ != nullptr; }
-  constexpr bool has_value() const noexcept { return this->v_ != nullptr; }
-  constexpr T &value() const; // freestanding-deleted
-  template <class U = ::std::remove_cv_t<T>> constexpr ::std::remove_cv_t<T> value_or(U &&u) const;
+  // [optional.ref.observe], observers
+  using _base::has_value;
+  using _base::operator bool;
+  using _base::operator*;
+  using _base::operator->;
+  using _base::value; // freestanding-deleted
+  using _base::value_or;
 
   // [optional.ref.monadic], monadic operations
   template <class F> constexpr auto and_then(F &&f) const;
@@ -682,16 +798,6 @@ public:
 
   // [optional.ref.mod], modifiers
   constexpr void reset() noexcept;
-
-private:
-  // [optional.ref.expos], exposition only helper functions. Binds a reference to `u` (through
-  // whatever conversion T& requires) and stores its address -- used by emplace above and, once
-  // implemented, the converting constructors/assignment.
-  template <class U> constexpr void _convert_ref_init_val(U &&u) noexcept(::std::is_nothrow_constructible_v<T &, U>)
-  {
-    T &r(FWD(u));
-    this->v_ = ::std::addressof(r);
-  }
 };
 
 } // namespace pfn
