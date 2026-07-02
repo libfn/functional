@@ -211,11 +211,11 @@ template <class T, class E> union _expected_union_t {
   }
 
   constexpr _expected_union_t(_expected_union_t const &) = delete;
-  constexpr _expected_union_t(_expected_union_t const &) //
+  constexpr _expected_union_t(_expected_union_t const &) noexcept //
     requires(::std::is_trivially_copy_constructible_v<T> && ::std::is_trivially_copy_constructible_v<E>)
   = default;
   constexpr _expected_union_t(_expected_union_t &&) = delete;
-  constexpr _expected_union_t(_expected_union_t &&) //
+  constexpr _expected_union_t(_expected_union_t &&) noexcept //
     requires(::std::is_trivially_move_constructible_v<T> && ::std::is_trivially_move_constructible_v<E>)
   = default;
   constexpr _expected_union_t &operator=(_expected_union_t const &) = delete;
@@ -317,11 +317,11 @@ template <class E> union _expected_union_t<void, E> {
   }
 
   constexpr _expected_union_t(_expected_union_t const &) = delete;
-  constexpr _expected_union_t(_expected_union_t const &) //
+  constexpr _expected_union_t(_expected_union_t const &) noexcept //
     requires(::std::is_trivially_copy_constructible_v<E>)
   = default;
   constexpr _expected_union_t(_expected_union_t &&) = delete;
-  constexpr _expected_union_t(_expected_union_t &&) //
+  constexpr _expected_union_t(_expected_union_t &&) noexcept //
     requires(::std::is_trivially_move_constructible_v<E>)
   = default;
   constexpr _expected_union_t &operator=(_expected_union_t const &) = delete;
@@ -541,8 +541,8 @@ template <class T, class E, class Policy> struct _expected_base {
     }
   }
 
-  constexpr _expected_base(_expected_base const &) = default;
-  constexpr _expected_base(_expected_base &&) = default;
+  constexpr _expected_base(_expected_base const &) noexcept = default;
+  constexpr _expected_base(_expected_base &&) noexcept = default;
   constexpr _expected_base &operator=(_expected_base const &) = delete;
   constexpr _expected_base &operator=(_expected_base &&) = delete;
 

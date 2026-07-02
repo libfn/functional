@@ -138,11 +138,11 @@ template <class T> union _optional_union_t {
   }
 
   constexpr _optional_union_t(_optional_union_t const &) = delete;
-  constexpr _optional_union_t(_optional_union_t const &) //
+  constexpr _optional_union_t(_optional_union_t const &) noexcept //
     requires(::std::is_trivially_copy_constructible_v<T>)
   = default;
   constexpr _optional_union_t(_optional_union_t &&) = delete;
-  constexpr _optional_union_t(_optional_union_t &&) //
+  constexpr _optional_union_t(_optional_union_t &&) noexcept //
     requires(::std::is_trivially_move_constructible_v<T>)
   = default;
   constexpr _optional_union_t &operator=(_optional_union_t const &) = delete;
@@ -304,8 +304,8 @@ template <class T, class Policy> struct _optional_base {
   {
   }
 
-  constexpr _optional_base(_optional_base const &) = default;
-  constexpr _optional_base(_optional_base &&) = default;
+  constexpr _optional_base(_optional_base const &) noexcept = default;
+  constexpr _optional_base(_optional_base &&) noexcept = default;
   constexpr _optional_base &operator=(_optional_base const &) = delete;
   constexpr _optional_base &operator=(_optional_base &&) = delete;
 
