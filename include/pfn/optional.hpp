@@ -409,6 +409,22 @@ template <class T, class Policy> struct _optional_base {
   constexpr T &&operator*() && noexcept { return ::std::move(*(this->operator->())); }
   constexpr explicit operator bool() const noexcept { return set_; }
   constexpr bool has_value() const noexcept { return set_; }
+
+  constexpr T const &value() const & { return set_ ? storage_.v_ : throw ::std::bad_optional_access(); }
+  constexpr T &value() & { return set_ ? storage_.v_ : throw ::std::bad_optional_access(); }
+  constexpr T const &&value() const && { return set_ ? ::std::move(storage_.v_) : throw ::std::bad_optional_access(); }
+  constexpr T &&value() && { return set_ ? ::std::move(storage_.v_) : throw ::std::bad_optional_access(); }
+
+  template <class U = ::std::remove_cv_t<T>> constexpr T value_or(U &&v) const &
+  {
+    static_assert(::std::is_copy_constructible_v<T> && ::std::is_convertible_v<U &&, T>);
+    return set_ ? storage_.v_ : static_cast<T>(::std::forward<U>(v));
+  }
+  template <class U = ::std::remove_cv_t<T>> constexpr T value_or(U &&v) &&
+  {
+    static_assert(::std::is_move_constructible_v<T> && ::std::is_convertible_v<U &&, T>);
+    return set_ ? ::std::move(storage_.v_) : static_cast<T>(::std::forward<U>(v));
+  }
 };
 
 // optional<T&> needs its own base: the referent is held directly as a pointer (nullptr
@@ -575,12 +591,8 @@ public:
   using _base::operator bool;
   using _base::operator*;
   using _base::operator->;
-  constexpr T const &value() const &;   // freestanding-deleted
-  constexpr T &value() &;               // freestanding-deleted
-  constexpr T &&value() &&;             // freestanding-deleted
-  constexpr T const &&value() const &&; // freestanding-deleted
-  template <class U = ::std::remove_cv_t<T>> constexpr T value_or(U &&) const &;
-  template <class U = ::std::remove_cv_t<T>> constexpr T value_or(U &&) &&;
+  using _base::value; // freestanding-deleted
+  using _base::value_or;
 
   // [optional.monadic], monadic operations
   template <class F> constexpr auto and_then(F &&f) &;

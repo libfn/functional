@@ -23,6 +23,7 @@ using pfn::optional;
 
 #include <cstring>
 #include <initializer_list>
+#include <optional>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -779,6 +780,183 @@ TEST_CASE("optional", "[optional][polyfill]")
         static_assert(b->v == 3 * 11 * 7 * from_rval);
 
         SUCCEED();
+      }
+    }
+  }
+
+  SECTION("accessors")
+  {
+    SECTION("value")
+    {
+      using T = optional<helper>;
+      static_assert(not noexcept(std::declval<T &>().value()));
+      static_assert(not noexcept(std::declval<T const &>().value()));
+      static_assert(not noexcept(std::declval<T &&>().value()));
+      static_assert(not noexcept(std::declval<T const &&>().value()));
+
+      {
+        T a(std::in_place, 11);
+        CHECK(a.value().v == 11);
+        CHECK(std::as_const(a).value().v == 11);
+        CHECK(std::move(std::as_const(a)).value().v == 11);
+        CHECK(std::move(a).value().v == 11);
+
+        static_assert(std::is_same_v<decltype(a.value()), helper &>);
+        static_assert(std::is_same_v<decltype(std::as_const(a).value()), helper const &>);
+        static_assert(std::is_same_v<decltype(std::move(a).value()), helper &&>);
+        static_assert(std::is_same_v<decltype(std::move(std::as_const(a)).value()), helper const &&>);
+      }
+
+      {
+        T a(std::in_place, 13);
+        CHECK(a);
+        helper b{1};
+        CHECK((b = a.value()).v == 13 * from_lval);
+        CHECK((b = std::as_const(a).value()).v == 13 * from_lval_const);
+        CHECK((b = std::move(std::as_const(a)).value()).v == 13 * from_rval_const);
+        CHECK((b = std::move(a).value()).v == 13 * from_rval);
+      }
+
+      {
+        // value() returns a reference, so it needs neither copy nor move of the value
+        optional<helper_immovable> a(std::in_place, 6, 7);
+        CHECK(a.value().v == 6 * 7);
+        CHECK(std::as_const(a).value().v == 6 * 7);
+        static_assert(std::is_same_v<decltype(std::move(a).value()), helper_immovable &&>);
+      }
+
+      SECTION("constexpr")
+      {
+        static_assert([] {
+          T a{std::in_place, helper_list_t{}, 1};
+          a.value().v = 13;
+          return (                                //
+              a.value().v == 13                   //
+              && std::as_const(a).value().v == 13 //
+              && std::move(a).value().v == 13     //
+              && std::move(std::as_const(a)).value().v == 13);
+        }());
+        SUCCEED();
+      }
+
+      SECTION("throwing")
+      {
+        static_assert(std::is_base_of_v<std::exception, std::bad_optional_access>);
+
+        T a(std::nullopt);
+        CHECK(!a);
+        REQUIRE_THROWS_AS(a.value(), std::bad_optional_access);
+        REQUIRE_THROWS_AS(std::as_const(a).value(), std::bad_optional_access);
+        REQUIRE_THROWS_AS(std::move(std::as_const(a)).value(), std::bad_optional_access);
+        REQUIRE_THROWS_AS(std::move(a).value(), std::bad_optional_access);
+
+        try {
+          (void)a.value();
+          FAIL();
+        } catch (std::exception const &e) {
+          CHECK(e.what() != nullptr);
+        }
+      }
+    }
+
+    SECTION("value_or")
+    {
+      using T = optional<helper>;
+      static_assert(std::is_same_v<decltype(std::declval<T &>().value_or(0)), helper>);
+      static_assert(std::is_same_v<decltype(std::declval<T>().value_or(0)), helper>);
+      static_assert(not noexcept(std::declval<T>().value_or(std::declval<int>())));
+      static_assert(not noexcept(std::declval<T &>().value_or(std::declval<int>())));
+      // value_or has no noexcept-specifier ([optional.observe] puts none, and unlike expected's
+      // pfn adds no extension), so even nothrow arguments yield noexcept(false) -- asserted only
+      // for pfn, since a standard library is free to strengthen its own.
+      static_assert(not extension || not noexcept(std::declval<T>().value_or(std::declval<helper_list_t>())));
+      static_assert(not extension || not noexcept(std::declval<T &>().value_or(std::declval<helper_list_t>())));
+
+      SECTION("default template parameter")
+      {
+        // std::optional's value_or gained the `= remove_cv_t<T>` default late: libstdc++ in
+        // GCC 15, libc++ in LLVM 22. Older implementations don't have this default, so we
+        // can't test it there.
+#if !defined(PFN_TEST_VALIDATION) || (defined(_LIBCPP_VERSION) && _LIBCPP_VERSION >= 220000)                           \
+    || (defined(__GLIBCXX__) && _GLIBCXX_RELEASE >= 15)
+        using D = optional<int>;
+        static_assert(requires(D &o) { o.value_or({}); });             // const & overload
+        static_assert(requires(D &&o) { std::move(o).value_or({}); }); // && overload
+#endif
+        SUCCEED();
+      }
+
+      SECTION("engaged")
+      {
+        T a(std::in_place, 7);
+        CHECK(a.value_or(0) == helper(7 * from_lval_const));
+        CHECK(std::as_const(a).value_or(0) == helper(7 * from_lval_const));
+        CHECK(std::move(std::as_const(a)).value_or(0) == helper(7 * from_lval_const));
+        CHECK(std::move(a).value_or(0) == helper(7 * from_rval));
+      }
+
+      SECTION("disengaged")
+      {
+        {
+          T a(std::nullopt);
+          CHECK(a.value_or(13) == helper(13));
+          CHECK(std::move(a).value_or(5) == helper(5));
+        }
+
+        {
+          T const a(std::nullopt);
+          helper b(11);
+          CHECK(a.value_or(b) == helper(11 * from_lval));
+          CHECK(a.value_or(std::as_const(b)) == helper(11 * from_lval_const));
+          CHECK(a.value_or(std::move(std::as_const(b))) == helper(11 * from_rval_const));
+          CHECK(a.value_or(std::move(b)) == helper(11 * from_rval));
+        }
+      }
+
+      SECTION("conversion")
+      {
+        optional<double> a(std::in_place, 0.5);
+        static_assert(std::is_same_v<decltype(a.value_or(3)), double>);
+        CHECK(a.value_or(3) == 0.5);
+        a = std::nullopt;
+        CHECK(a.value_or(3) == 3.0);
+      }
+
+      SECTION("move-only value type")
+      {
+        optional<helper_move_only> a(std::in_place, 7);
+        CHECK(std::move(a).value_or(3) == helper_move_only(7 * from_rval));
+
+        optional<helper_move_only> b(std::nullopt);
+        CHECK(std::move(b).value_or(3) == helper_move_only(3));
+      }
+
+      SECTION("constexpr")
+      {
+        constexpr helper c{helper_list_t(), 7};
+
+        SECTION("lval const")
+        {
+          {
+            constexpr T a(std::in_place, {3.0}, 5);
+            static_assert(a.value_or(c).v == 3 * 5 * from_lval_const);
+          }
+          {
+            constexpr T a(std::nullopt);
+            static_assert(a.value_or(c).v == 7 * from_lval_const);
+          }
+
+          SUCCEED();
+        }
+
+        SECTION("rval")
+        {
+          static_assert(T{std::in_place, {3.0}, 5}.value_or(c).v == 3 * 5 * from_rval);
+          static_assert(T{std::nullopt}.value_or(c).v == 7 * from_lval_const);
+          static_assert(T{std::nullopt}.value_or(helper(helper_list_t{7.0}, 3)).v == 7 * 3 * from_rval);
+
+          SUCCEED();
+        }
       }
     }
   }
