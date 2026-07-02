@@ -436,9 +436,17 @@ struct optional_policy {
   template <class X> static constexpr bool is_specialization = _is_some_optional<X>;
 };
 
+template <typename T>
+constexpr bool _is_valid_optional =                                                         //
+    (::std::is_reference_v<T>                                                               //
+     || (::std::is_object_v<T> && ::std::is_destructible_v<T> && not ::std::is_array_v<T>)) //
+    && not ::std::is_same_v<::std::remove_cv_t<T>, ::std::in_place_t>                       //
+    && not ::std::is_same_v<::std::remove_cv_t<T>, ::std::nullopt_t>;
+
 } // namespace detail
 
 template <class T> class optional : private detail::_optional_base<T, detail::optional_policy> {
+  static_assert(detail::_is_valid_optional<T>);
   using _base = detail::_optional_base<T, detail::optional_policy>;
 
 public:
@@ -593,6 +601,7 @@ public:
 template <class T> optional(T) -> optional<T>;
 
 template <class T> class optional<T &> : private detail::_optional_base<T &, detail::optional_policy> {
+  static_assert(detail::_is_valid_optional<T>);
   using _base = detail::_optional_base<T &, detail::optional_policy>;
 
 public:
