@@ -439,14 +439,12 @@ template <class T, class Policy> struct _optional_base<T &, Policy> {
   using _value_t = T &;
   T *v_ = nullptr;
 
-  // [optional.ref.expos], exposition only helper. Binds a reference to `u` (through whatever
-  // conversion T& requires -- possibly a throwing user conversion operator) and stores its
-  // address; the single construction path shared by the in_place and converting constructors
-  // and emplace.
+  // [optional.ref.expos], exposition only helper. Binds a reference to `u` (through whatever conversion T&
+  // requires -- possibly a throwing user conversion operator) and stores its address.
   template <class U> constexpr void _convert_ref_init_val(U &&u) noexcept(::std::is_nothrow_constructible_v<T &, U>)
   {
-    T &r(FWD(u));
-    v_ = ::std::addressof(r);
+    // Workaround for MSVC error C2440, same semantics as the specified `T &r(FWD(u));` ([expr.static.cast]/4)
+    v_ = ::std::addressof(static_cast<T &>(FWD(u)));
   }
 
   template <class U>
