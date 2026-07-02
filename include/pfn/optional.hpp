@@ -79,7 +79,9 @@ template <class T, class U>
 constexpr ::std::compare_three_way_result_t<T, U> operator<=>(optional<T> const &, U const &);
 
 // [optional.specalg], specialized algorithms
-template <class T> constexpr void swap(optional<T> &, optional<T> &) noexcept(true); // TODO noexcept
+template <class T>
+constexpr void swap(optional<T> &x, optional<T> &y) noexcept(noexcept(x.swap(y)))
+  requires(::std::is_reference_v<T> || (::std::is_move_constructible_v<T> && ::std::is_swappable_v<T>));
 
 template <class T> constexpr optional<::std::decay_t<T>> make_optional(T &&);
 template <class T, class... Args> constexpr optional<T> make_optional(Args &&...args);
@@ -319,8 +321,8 @@ template <class T, class Policy> struct _optional_base {
       ::std::destroy_at(::std::addressof(storage_.v_));
   }
 
-  // [optional.assign]: transitions to the disengaged state if currently engaged
-  constexpr void _reset() noexcept
+  // [optional.mod] reset; also the disengage step of operator=(nullopt_t) and emplace
+  constexpr void reset() noexcept
   {
     if (set_) {
       _storage_t::_reinit(::std::addressof(storage_.e_), ::std::addressof(storage_.v_));
@@ -373,11 +375,34 @@ template <class T, class Policy> struct _optional_base {
     // else: both disengaged, no effect
   }
 
+  // Swap body shared by the public optional swap. Same-state mirrors _expected_base::_swap_with;
+  // cross-state reuses _reinit: the empty side gains the value first (and _reinit restores its
+  // dummy if that move throws), the donor is destroyed only afterwards -- [optional.swap]'s
+  // construct-then-destroy order and its unchanged-engagement-on-exception guarantee.
+  constexpr void _swap_with(_optional_base &rhs)
+  {
+    if (set_ == rhs.set_) {
+      if (set_) {
+        using ::std::swap;
+        swap(storage_.v_, rhs.storage_.v_);
+      }
+      // both disengaged: no effect
+    } else if (set_) {
+      _storage_t::_reinit(::std::addressof(rhs.storage_.v_), ::std::addressof(rhs.storage_.e_),
+                          ::std::move(storage_.v_));
+      rhs.set_ = true;
+      _storage_t::_reinit(::std::addressof(storage_.e_), ::std::addressof(storage_.v_));
+      set_ = false;
+    } else {
+      rhs._swap_with(*this);
+    }
+  }
+
   template <class... Args>
   constexpr T &emplace(Args &&...args) //
     requires ::std::is_constructible_v<T, Args...>
   {
-    _reset();
+    reset();
     _storage_t::_reinit(::std::addressof(storage_.v_), ::std::addressof(storage_.e_), FWD(args)...);
     set_ = true;
     return storage_.v_;
@@ -386,7 +411,7 @@ template <class T, class Policy> struct _optional_base {
   constexpr T &emplace(::std::initializer_list<U> il, Args &&...args) //
     requires ::std::is_constructible_v<T, ::std::initializer_list<U> &, Args...>
   {
-    _reset();
+    reset();
     _storage_t::_reinit(::std::addressof(storage_.v_), ::std::addressof(storage_.e_), il, FWD(args)...);
     set_ = true;
     return storage_.v_;
@@ -519,6 +544,10 @@ template <class T, class Policy> struct _optional_base<T &, Policy> {
     return *v_;
   }
 
+  // [optional.ref.swap] and [optional.ref.mod]: the pointer representation makes both trivial
+  constexpr void _swap_with(_optional_base &rhs) noexcept { ::std::swap(v_, rhs.v_); }
+  constexpr void reset() noexcept { v_ = nullptr; }
+
   // [optional.ref.observe], observers. Unlike optional<T>, const does not propagate to the
   // referent: *this being const only means the stored pointer can't be rebound, not that T
   // becomes T const -- so these all return plain T&/T*, and there is only ever one overload
@@ -634,7 +663,7 @@ public:
   // [optional.assign], assignment
   constexpr optional &operator=(::std::nullopt_t) noexcept
   {
-    this->_reset();
+    this->reset();
     return *this;
   }
   constexpr optional &operator=(optional const &) = delete;
@@ -681,8 +710,13 @@ public:
 
   using _base::emplace;
 
-  // [optional.swap], swap
-  constexpr void swap(optional &) noexcept(true); // TODO noexcept
+  // [optional.swap], swap; body delegates to _optional_base helper
+  constexpr void swap(optional &rhs) // NOSONAR cpp:S5018 standard mandated `noexcept` spec.
+      noexcept(::std::is_nothrow_move_constructible_v<T> && ::std::is_nothrow_swappable_v<T>) // required
+  {
+    static_assert(::std::is_move_constructible_v<T>);
+    this->_swap_with(rhs);
+  }
 
   // [optional.observe], observers
   using _base::has_value;
@@ -705,7 +739,7 @@ public:
   template <class F> constexpr optional or_else(F &&f) const &;
 
   // [optional.mod], modifiers
-  constexpr void reset() noexcept;
+  using _base::reset;
 };
 
 template <class T> optional(T) -> optional<T>;
@@ -771,7 +805,7 @@ public:
   // [optional.ref.assign], assignment
   constexpr optional &operator=(::std::nullopt_t) noexcept
   {
-    this->v_ = nullptr;
+    this->reset();
     return *this;
   }
   constexpr optional &operator=(optional const &rhs) noexcept = default;
@@ -779,7 +813,7 @@ public:
   using _base::emplace;
 
   // [optional.ref.swap], swap
-  constexpr void swap(optional &rhs) noexcept;
+  constexpr void swap(optional &rhs) noexcept { this->_swap_with(rhs); }
 
   // [optional.ref.observe], observers
   using _base::has_value;
@@ -795,8 +829,16 @@ public:
   template <class F> constexpr optional or_else(F &&f) const;
 
   // [optional.ref.mod], modifiers
-  constexpr void reset() noexcept;
+  using _base::reset;
 };
+
+// [optional.specalg], specialized algorithms
+template <class T>
+constexpr void swap(optional<T> &x, optional<T> &y) noexcept(noexcept(x.swap(y)))
+  requires(::std::is_reference_v<T> || (::std::is_move_constructible_v<T> && ::std::is_swappable_v<T>))
+{
+  x.swap(y);
+}
 
 } // namespace pfn
 

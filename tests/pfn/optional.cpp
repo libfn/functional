@@ -39,6 +39,33 @@ struct greedy_t {
   template <class U> constexpr greedy_t(U &&) noexcept {}
 };
 
+namespace {
+
+template <typename T> struct non_swappable {
+  friend void swap(T &, T &) = delete;
+};
+
+template <typename T> struct swappable {
+  friend void swap(T &, T &) noexcept(false) {}
+};
+
+template <typename T> struct nothrow_swappable {
+  friend void swap(T &, T &) noexcept(true) {}
+};
+
+// NOTE: not the same as std::is_swappable https://eel.is/c++draft/swappable.requirements
+// because std::is_swappable brings std::swap https://eel.is/c++draft/utility.swap#lib:swap
+// into scope, which we do not want for this check.
+template <typename T>
+concept is_swappable = requires { swap(std::declval<T &>(), std::declval<T &>()); };
+
+template <typename T>
+concept is_nothrow_swappable = requires {
+  { swap(std::declval<T &>(), std::declval<T &>()) } noexcept;
+};
+
+} // namespace
+
 TEST_CASE("optional", "[optional][polyfill]")
 {
 #ifndef PFN_TEST_VALIDATION
@@ -784,6 +811,198 @@ TEST_CASE("optional", "[optional][polyfill]")
     }
   }
 
+  SECTION("swap")
+  {
+    SECTION("non-swappable")
+    {
+      struct A : non_swappable<A> {};
+      static_assert(not std::is_swappable_v<A>);
+      static_assert(std::is_move_constructible_v<A>);
+
+      static_assert(not extension || not is_swappable<optional<A>>);
+
+      SUCCEED();
+    }
+
+    SECTION("non-move-constructible")
+    {
+      struct A : swappable<A> {
+        A(A &&) = delete;
+      };
+      static_assert(std::is_swappable_v<A>);
+      static_assert(not std::is_move_constructible_v<A>);
+
+      static_assert(not is_swappable<optional<A>>);
+
+#ifndef PFN_TEST_VALIDATION
+      // [optional.swap] Mandates (rather than constrains) move-constructibility and only
+      // preconditions swappability, unlike [expected.object.swap]'s constraints: the member
+      // stays declared even when the namespace-scope swap is constrained away
+      static_assert(requires(optional<A> &a, optional<A> &b) { a.swap(b); });
+#endif
+      SUCCEED();
+    }
+
+    SECTION("swappable, nothrow-move-constructible")
+    {
+      struct A : swappable<A> {
+        A(A &&) noexcept(true) = default;
+      };
+      static_assert(std::is_swappable_v<A>);
+      static_assert(not std::is_nothrow_swappable_v<A>);
+      static_assert(std::is_nothrow_move_constructible_v<A>);
+
+      static_assert(is_swappable<optional<A>>);
+      static_assert(not is_nothrow_swappable<optional<A>>);
+
+      SUCCEED();
+    }
+
+    SECTION("nothrow-swappable, no-nothrow-move-constructible")
+    {
+      struct A : nothrow_swappable<A> {
+        A(A &&) noexcept(false) {}
+      };
+      static_assert(std::is_nothrow_swappable_v<A>);
+      static_assert(std::is_move_constructible_v<A>);
+      static_assert(not std::is_nothrow_move_constructible_v<A>);
+
+      // unlike expected's swap, a throwing move alone does not disable swap -- the
+      // cross-state transfer may throw, with the engagement states left unchanged
+      static_assert(is_swappable<optional<A>>);
+      static_assert(not is_nothrow_swappable<optional<A>>);
+
+      SUCCEED();
+    }
+
+    SECTION("nothrow-swappable, nothrow-move-constructible")
+    {
+      struct A : nothrow_swappable<A> {
+        A(A &&) noexcept(true) = default;
+      };
+      static_assert(std::is_nothrow_swappable_v<A>);
+      static_assert(std::is_nothrow_move_constructible_v<A>);
+
+      static_assert(is_swappable<optional<A>>);
+      static_assert(is_nothrow_swappable<optional<A>>);
+
+      static_assert(is_nothrow_swappable<optional<int>>);
+
+      SUCCEED();
+    }
+
+    SECTION("both engaged")
+    {
+      using T = optional<helper>;
+      T a(std::in_place, 7);
+      T b(std::in_place, 13);
+      a.swap(b);
+      CHECK(a->v == 13 * swapped);
+      CHECK(b->v == 7 * swapped);
+
+      swap(a, b); // the namespace-scope swap, found by ADL
+      CHECK(a->v == 7 * swapped * swapped);
+      CHECK(b->v == 13 * swapped * swapped);
+    }
+
+    SECTION("engaged/disengaged")
+    {
+      using T = optional<helper>;
+      T a(std::in_place, 19);
+      T b(std::nullopt);
+      a.swap(b);
+      CHECK(not a.has_value());
+      CHECK(b.has_value());
+      CHECK(b->v == 19 * from_rval);
+
+      a.swap(b); // mirrored: *this disengaged, rhs engaged
+      CHECK(a.has_value());
+      CHECK(a->v == 19 * from_rval * from_rval);
+      CHECK(not b.has_value());
+    }
+
+    SECTION("both disengaged")
+    {
+      using T = optional<helper>;
+      T a(std::nullopt);
+      T b(std::nullopt);
+      a.swap(b);
+      CHECK(not a.has_value());
+      CHECK(not b.has_value());
+    }
+
+    SECTION("exception")
+    {
+      // a throwing move during the cross-state transfer: engagement states unchanged
+      using T = optional<helper_t<3>>;
+      static_assert(not std::is_nothrow_move_constructible_v<helper_t<3>>);
+
+      // constructed via the initializer_list ctor (no V<8 throw-check there) to get a
+      // stored 0 without the value ctor itself throwing first
+      T a(std::in_place, {0.0});
+      T b(std::nullopt);
+      try {
+        a.swap(b);
+        FAIL();
+      } catch (std::runtime_error const &e) {
+        CHECK(std::strcmp(e.what(), "invalid input") == 0);
+        CHECK(a.has_value());
+        CHECK(a->v == 0);
+        CHECK(not b.has_value());
+      }
+
+      try {
+        b.swap(a); // mirrored orientation takes the delegating branch
+        FAIL();
+      } catch (std::runtime_error const &) {
+        CHECK(a.has_value());
+        CHECK(not b.has_value());
+      }
+    }
+
+    SECTION("constexpr")
+    {
+      using T = optional<int>;
+
+      // in-lambda asserts rather than the fn-return idiom of the sibling sections: copying a
+      // swapped-to-disengaged std::optional out of the lambda is not a constant expression on
+      // libstdc++ 14 (its swap ends the donor payload's lifetime; the trivial copy reads it)
+      SECTION("cross-state")
+      {
+        static_assert([] {
+          T a(std::in_place, 12);
+          T b(std::nullopt);
+          swap(a, b);
+          return not a.has_value() && b.has_value() && *b == 12;
+        }());
+        static_assert([] {
+          T a(std::nullopt);
+          T b(std::in_place, 12);
+          swap(a, b);
+          return a.has_value() && *a == 12 && not b.has_value();
+        }());
+        SUCCEED();
+      }
+
+      SECTION("same-state")
+      {
+        static_assert([] {
+          T a(std::in_place, 7);
+          T b(std::in_place, 12);
+          swap(a, b);
+          return *a == 12 && *b == 7;
+        }());
+        static_assert([] {
+          T a(std::nullopt);
+          T b(std::nullopt);
+          swap(a, b);
+          return not a.has_value() && not b.has_value();
+        }());
+        SUCCEED();
+      }
+    }
+  }
+
   SECTION("accessors")
   {
     SECTION("value")
@@ -967,6 +1186,47 @@ TEST_CASE("optional", "[optional][polyfill]")
         }
       }
 #endif
+    }
+  }
+
+  SECTION("reset")
+  {
+    using T = optional<helper>;
+    static_assert(noexcept(std::declval<T &>().reset()));
+
+    SECTION("engaged")
+    {
+      // dtor witness: the contained value flips a flag when destroyed
+      struct D {
+        bool *flag;
+        constexpr explicit D(bool *f) noexcept : flag(f) {}
+        constexpr ~D() { *flag = true; }
+      };
+      bool destroyed = false;
+      optional<D> a(std::in_place, &destroyed);
+      CHECK(a.has_value());
+      a.reset();
+      CHECK(not a.has_value());
+      CHECK(destroyed);
+    }
+
+    SECTION("disengaged")
+    {
+      T a(std::nullopt);
+      a.reset(); // no effect
+      CHECK(not a.has_value());
+    }
+
+    SECTION("constexpr")
+    {
+      static_assert([] {
+        T a{std::in_place, helper_list_t{}, 5};
+        a.reset();
+        bool const disengaged = not a.has_value();
+        a.emplace(helper_list_t{3.0}, 7);
+        return disengaged && a.has_value() && a->v == 3 * 7;
+      }());
+      SUCCEED();
     }
   }
 }
@@ -1283,6 +1543,54 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
     }
   }
 
+  SECTION("swap")
+  {
+    using T = optional<int &>;
+    static_assert(noexcept(std::declval<T &>().swap(std::declval<T &>())));
+    // the namespace-scope swap accepts optional<T&> through the is_reference_v arm of its
+    // constraint, and is unconditionally noexcept here
+    static_assert(is_swappable<T>);
+    static_assert(is_nothrow_swappable<T>);
+
+    SECTION("rebinds both sides")
+    {
+      int x = 5, y = 9;
+      T a(std::in_place, x);
+      T b(std::in_place, y);
+      a.swap(b);
+      CHECK(&*a == &y);
+      CHECK(&*b == &x);
+      CHECK(x == 5); // a pointer swap, never a value swap: referents untouched
+      CHECK(y == 9);
+
+      swap(a, b);
+      CHECK(&*a == &x);
+      CHECK(&*b == &y);
+    }
+
+    SECTION("engaged/disengaged")
+    {
+      int x = 5;
+      T a(std::in_place, x);
+      T b(std::nullopt);
+      a.swap(b);
+      CHECK(not a.has_value());
+      CHECK(&*b == &x);
+    }
+
+    SECTION("constexpr")
+    {
+      static_assert([] {
+        int x = 1, y = 2;
+        T a(std::in_place, x);
+        T b(std::in_place, y);
+        a.swap(b);
+        return &*a == &y && &*b == &x && x == 1 && y == 2;
+      }());
+      SUCCEED();
+    }
+  }
+
   SECTION("observers")
   {
     using T = optional<int &>;
@@ -1416,6 +1724,31 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
         SUCCEED();
       }
 #endif
+    }
+  }
+
+  SECTION("reset")
+  {
+    using T = optional<int &>;
+    static_assert(noexcept(std::declval<T &>().reset()));
+
+    int x = 5;
+    T a(std::in_place, x);
+    a.reset();
+    CHECK(not a.has_value());
+    CHECK(x == 5); // referent untouched
+    a.reset();     // no effect when already disengaged
+    CHECK(not a.has_value());
+
+    SECTION("constexpr")
+    {
+      static_assert([] {
+        int x = 5;
+        T o(std::in_place, x);
+        o.reset();
+        return not o.has_value() && x == 5;
+      }());
+      SUCCEED();
     }
   }
 }
