@@ -22,7 +22,9 @@ using pfn::optional;
 #include <catch2/catch_all.hpp>
 
 #include <cstring>
+#include <functional>
 #include <initializer_list>
+#include <limits>
 #include <optional>
 #include <stdexcept>
 #include <type_traits>
@@ -63,6 +65,23 @@ template <typename T>
 concept is_nothrow_swappable = requires {
   { swap(std::declval<T &>(), std::declval<T &>()) } noexcept;
 };
+
+// SFINAE probes for the comparison operators' constraints; a generic (dependent) context, so
+// a non-viable comparison yields false instead of a hard error.
+template <typename L, typename R = L>
+concept has_eq = requires(L const &l, R const &r) { l == r; };
+template <typename L, typename R = L>
+concept has_ne = requires(L const &l, R const &r) { l != r; };
+template <typename L, typename R = L>
+concept has_lt = requires(L const &l, R const &r) { l < r; };
+template <typename L, typename R = L>
+concept has_gt = requires(L const &l, R const &r) { l > r; };
+template <typename L, typename R = L>
+concept has_le = requires(L const &l, R const &r) { l <= r; };
+template <typename L, typename R = L>
+concept has_ge = requires(L const &l, R const &r) { l >= r; };
+template <typename L, typename R = L>
+concept has_spaceship = requires(L const &l, R const &r) { l <=> r; };
 
 } // namespace
 
@@ -1229,6 +1248,271 @@ TEST_CASE("optional", "[optional][polyfill]")
       SUCCEED();
     }
   }
+
+  SECTION("relational operators")
+  {
+    SECTION("constraints")
+    {
+      struct A {};
+      struct B {
+        constexpr bool operator==(B const &) const noexcept = default;
+      };
+      // each operator is individually constrained on its own comparison expression
+      static_assert(not extension || not has_eq<optional<A>>);
+      static_assert(not extension || not has_ne<optional<A>>);
+      static_assert(not extension || not has_lt<optional<A>>);
+      static_assert(not extension || not has_gt<optional<A>>);
+      static_assert(not extension || not has_le<optional<A>>);
+      static_assert(not extension || not has_ge<optional<A>>);
+      static_assert(has_eq<optional<B>>);
+      static_assert(has_ne<optional<B>>); // *x != *y is well-formed through B's rewritten ==
+      static_assert(not has_spaceship<optional<A>>);
+      static_assert(not has_spaceship<optional<B>>); // == alone does not satisfy three_way_comparable_with
+      static_assert(has_spaceship<optional<int>, optional<long>>);
+      SUCCEED();
+    }
+
+    SECTION("equality")
+    {
+      SECTION("same type")
+      {
+        using T = optional<helper>;
+        T const e1(std::nullopt);
+        T const e2(std::nullopt);
+        T const v1(std::in_place, 12);
+        T const v2(std::in_place, {3.0}, 4);
+        T const v3(std::in_place, 5);
+        CHECK((e1 == e2));
+        CHECK(not(e1 != e2));
+        CHECK(not(e1 == v1));
+        CHECK((e1 != v1));
+        CHECK(not(v1 == e1)); // both argument orders go through the one [optional.relops] overload
+        CHECK((v1 != e1));
+        CHECK((v1 == v2));
+        CHECK(not(v1 != v2));
+        CHECK(not(v1 == v3));
+        CHECK((v1 != v3));
+      }
+
+      SECTION("different types")
+      {
+        using V = optional<int>;
+        using W = optional<double>;
+        static_assert(V{12} == W{12.0});
+        static_assert(V{12} != W{12.5});
+        static_assert(V{std::nullopt} == W{std::nullopt});
+        static_assert(V{12} != W{std::nullopt});
+        SUCCEED();
+      }
+    }
+
+    SECTION("ordering")
+    {
+      using V = optional<int>;
+      constexpr V e(std::nullopt);
+      constexpr V a(1);
+      constexpr V b(2);
+      // a disengaged optional orders before every engaged one
+      static_assert(e < a);
+      static_assert(not(a < e));
+      static_assert(e <= a);
+      static_assert(e <= e);
+      static_assert(not(e < e));
+      static_assert(not(e > e));
+      static_assert(e >= e);
+      static_assert(a < b);
+      static_assert(a <= b);
+      static_assert(b > a);
+      static_assert(b >= a);
+      static_assert(a > e);
+      static_assert(a >= e);
+
+      SECTION("different types")
+      {
+        static_assert(optional<int>(1) < optional<double>(1.5));
+        static_assert(optional<double>(0.5) < optional<int>(1));
+        SUCCEED();
+      }
+
+      SECTION("runtime")
+      {
+        V const e1(std::nullopt);
+        V const v1(3);
+        V const v2(7);
+        CHECK((e1 < v1));
+        CHECK(not(v1 < e1));
+        CHECK((v1 < v2));
+        CHECK((v2 > v1));
+        CHECK((v1 <= v1));
+        CHECK((v1 >= v1));
+      }
+    }
+
+    SECTION("three-way")
+    {
+      using V = optional<int>;
+      static_assert(
+          std::is_same_v<decltype(std::declval<V const &>() <=> std::declval<V const &>()), std::strong_ordering>);
+      static_assert(std::is_same_v<decltype(std::declval<V const &>() <=> std::declval<optional<double> const &>()),
+                                   std::partial_ordering>);
+      constexpr V e(std::nullopt);
+      constexpr V a(1);
+      constexpr V b(2);
+      static_assert((e <=> e) == std::strong_ordering::equal);
+      static_assert((e <=> a) == std::strong_ordering::less);
+      static_assert((a <=> e) == std::strong_ordering::greater);
+      static_assert((a <=> b) == std::strong_ordering::less);
+      static_assert((a <=> a) == std::strong_ordering::equal);
+
+      SECTION("partial ordering")
+      {
+        optional<double> const n(std::numeric_limits<double>::quiet_NaN());
+        optional<double> const e1(std::nullopt);
+        optional<double> const v(1.0);
+        CHECK((n <=> v) == std::partial_ordering::unordered);
+        CHECK((n <=> n) == std::partial_ordering::unordered); // engaged NaNs compare unordered...
+        CHECK((e1 <=> n) == std::partial_ordering::less);     // ...but engagement still orders first
+      }
+    }
+  }
+
+  SECTION("comparison with nullopt")
+  {
+    using V = optional<int>;
+    // [optional.nullops] both operators are noexcept, and <=> returns strong_ordering for any T
+    static_assert(noexcept(std::declval<V const &>() == std::nullopt));
+    static_assert(noexcept(std::nullopt == std::declval<V const &>()));
+    static_assert(noexcept(std::declval<V const &>() <=> std::nullopt));
+    static_assert(
+        std::is_same_v<decltype(std::declval<optional<double> const &>() <=> std::nullopt), std::strong_ordering>);
+
+    constexpr V e(std::nullopt);
+    constexpr V v(5);
+    static_assert(e == std::nullopt);
+    static_assert(std::nullopt == e);
+    static_assert(v != std::nullopt);
+    static_assert(std::nullopt != v);
+    static_assert((e <=> std::nullopt) == std::strong_ordering::equal);
+    static_assert((v <=> std::nullopt) == std::strong_ordering::greater);
+    // the ordering relations are rewritten from <=>
+    static_assert(std::nullopt < v);
+    static_assert(not(std::nullopt < e));
+    static_assert(e <= std::nullopt);
+    static_assert(v > std::nullopt);
+    static_assert(v >= std::nullopt);
+    static_assert(not(std::nullopt >= v));
+
+    V const r(7);
+    CHECK(not(r == std::nullopt));
+    CHECK((r != std::nullopt));
+    CHECK((std::nullopt < r));
+  }
+
+  SECTION("comparison with value")
+  {
+    SECTION("constraints")
+    {
+      struct A {};
+      static_assert(not extension || not has_eq<optional<A>, A>);
+      static_assert(not extension || not has_eq<A, optional<A>>);
+      static_assert(not extension || not has_lt<optional<A>, A>);
+      static_assert(not extension || not has_lt<A, optional<A>>);
+
+      // LWG4072: the value operand must not itself be a specialization of optional. weird_t
+      // compares only with a whole optional<move_only_t> (its == takes exactly that), and with
+      // the value-operand overloads constrained away no comparison is viable at all: the
+      // [optional.relops] overload would need weird_t == move_only_t, which does not exist
+      // (move_only_t is not copyable, so it does not implicitly convert to optional<move_only_t>)
+      struct move_only_t {
+        move_only_t() = default;
+        move_only_t(move_only_t &&) = default;
+      };
+      struct weird_t {
+        constexpr bool operator==(optional<move_only_t> const &) const noexcept { return true; }
+      };
+      static_assert(not extension || not has_eq<optional<weird_t>, optional<move_only_t>>);
+      // ...while as a direct value operand weird_t's own member operator== still applies
+      static_assert(has_eq<weird_t, optional<move_only_t>>);
+      SUCCEED();
+    }
+
+    SECTION("equality")
+    {
+      using V = optional<int>;
+      constexpr V e(std::nullopt);
+      constexpr V v(5);
+      static_assert(v == 5);
+      static_assert(5 == v);
+      static_assert(v != 7);
+      static_assert(7 != v);
+      static_assert(not(e == 5));
+      static_assert(e != 5);
+      static_assert(not(5 == e));
+      static_assert(5 != e);
+      static_assert(v == 5.0); // heterogeneous
+      static_assert(v != 5.5);
+
+      using T = optional<helper>;
+      T const t(std::in_place, {3.0}, 4);
+      CHECK((t == helper(12)));
+      CHECK((helper(12) == t));
+      CHECK((t != helper(7)));
+      CHECK((helper(7) != t));
+      CHECK(not(T(std::nullopt) == helper(12)));
+    }
+
+    SECTION("ordering")
+    {
+      using V = optional<int>;
+      constexpr V e(std::nullopt);
+      constexpr V v(5);
+      // a disengaged optional orders before any value
+      static_assert(e < 0);
+      static_assert(not(0 < e));
+      static_assert(e <= 0);
+      static_assert(not(0 <= e));
+      static_assert(0 > e);
+      static_assert(not(e > 0));
+      static_assert(0 >= e);
+      static_assert(not(e >= 0));
+      static_assert(v < 6);
+      static_assert(4 < v);
+      static_assert(v <= 5);
+      static_assert(5 <= v);
+      static_assert(v > 4);
+      static_assert(6 > v);
+      static_assert(v >= 5);
+      static_assert(5 >= v);
+      static_assert(v < 5.5); // heterogeneous
+
+      V const r(3);
+      CHECK((r < 5));
+      CHECK((5 > r));
+      CHECK((V(std::nullopt) < 5));
+    }
+
+    SECTION("three-way")
+    {
+      using V = optional<int>;
+      static_assert(std::is_same_v<decltype(std::declval<V const &>() <=> 5), std::strong_ordering>);
+      static_assert(std::is_same_v<decltype(std::declval<V const &>() <=> 5.0), std::partial_ordering>);
+      constexpr V e(std::nullopt);
+      constexpr V v(5);
+      static_assert((v <=> 5) == std::strong_ordering::equal);
+      static_assert((v <=> 7) == std::strong_ordering::less);
+      static_assert((e <=> 5) == std::strong_ordering::less);  // disengaged: strong_ordering::less
+      static_assert((5 <=> v) == std::strong_ordering::equal); // reversed, synthesized by rewriting
+      static_assert((5 <=> e) == std::strong_ordering::greater);
+
+      // a type derived from optional is compared by [optional.relops], not [optional.comp.with.t]
+      struct derived_t : optional<int> {
+        using optional<int>::optional;
+      };
+      static_assert(has_spaceship<optional<int>, derived_t>);
+      CHECK((V(5) <=> derived_t(3)) == std::strong_ordering::greater);
+      CHECK((V(5) <=> derived_t(std::nullopt)) == std::strong_ordering::greater); // compared as optionals
+    }
+  }
 }
 
 // No released standard library implements C++26's optional<T&> ([optional.optional.ref])
@@ -1751,5 +2035,234 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
       SUCCEED();
     }
   }
+
+  SECTION("relational operators")
+  {
+    using T = optional<int &>;
+
+    SECTION("with optional")
+    {
+      // compares the referents' values, never their addresses
+      int x = 5;
+      int y = 5;
+      int z = 7;
+      T const a(std::in_place, x);
+      T const b(std::in_place, y);
+      T const c(std::in_place, z);
+      T const e(std::nullopt);
+      CHECK((a == b));
+      CHECK(not(a != b));
+      CHECK((a != c));
+      CHECK((a < c));
+      CHECK((c > a));
+      CHECK((a <= b));
+      CHECK((a >= b));
+      CHECK((e < a));
+      CHECK((e == e));
+      static_assert(std::is_same_v<decltype(std::declval<T const &>() <=> std::declval<T const &>()), //
+                                   std::strong_ordering>);
+      CHECK((a <=> b) == std::strong_ordering::equal);
+      CHECK((e <=> a) == std::strong_ordering::less);
+
+      SECTION("with optional<U>")
+      {
+        // mixed with a value optional, in both argument orders
+        optional<int> const v(5);
+        optional<int> const w(9);
+        CHECK((a == v));
+        CHECK((v == a));
+        CHECK((a < w));
+        CHECK((w > a));
+        CHECK((a <=> v) == std::strong_ordering::equal);
+      }
+
+      SECTION("constexpr")
+      {
+        static_assert([] {
+          int x = 1;
+          int y = 2;
+          T const a(std::in_place, x);
+          T const b(std::in_place, y);
+          T const e(std::nullopt);
+          return a != b && a < b && e < a && (a <=> b) == std::strong_ordering::less;
+        }());
+        SUCCEED();
+      }
+    }
+
+    SECTION("with nullopt")
+    {
+      static_assert(noexcept(std::declval<T const &>() == std::nullopt));
+      static_assert(noexcept(std::declval<T const &>() <=> std::nullopt));
+      int x = 5;
+      T const a(std::in_place, x);
+      T const e(std::nullopt);
+      CHECK((e == std::nullopt));
+      CHECK((a != std::nullopt));
+      CHECK((std::nullopt < a));
+      CHECK((a <=> std::nullopt) == std::strong_ordering::greater);
+    }
+
+    SECTION("with value")
+    {
+      int x = 5;
+      T const a(std::in_place, x);
+      T const e(std::nullopt);
+      CHECK((a == 5));
+      CHECK((5 == a));
+      CHECK((a != 7));
+      CHECK((a < 9));
+      CHECK((9 > a));
+      CHECK((e < 5)); // disengaged orders before any value
+      CHECK(not(5 < e));
+      CHECK((a <=> 5) == std::strong_ordering::equal);
+      CHECK((e <=> 5) == std::strong_ordering::less);
+    }
+  }
 }
 #endif
+
+TEST_CASE("make_optional", "[optional][polyfill][make_optional]")
+{
+#ifndef PFN_TEST_VALIDATION
+  constexpr bool extension = true;
+#else
+  constexpr bool extension = false;
+#endif
+
+  SECTION("deduced")
+  {
+    // decay-copies its argument into an optional<decay_t<T>>
+    static_assert(std::is_same_v<decltype(make_optional(5)), optional<int>>);
+    static_assert(std::is_same_v<decltype(make_optional("abc")), optional<char const *>>);
+    static_assert(not extension || noexcept(make_optional(5)));
+
+    auto const o = make_optional(42);
+    static_assert(std::is_same_v<decltype(o), optional<int> const>);
+    CHECK((o == 42));
+
+    helper x(13);
+    static_assert(std::is_same_v<decltype(make_optional(x)), optional<helper>>); // decayed, no reference
+    CHECK(make_optional(x)->v == 13 * from_lval);
+    CHECK(make_optional(std::move(x))->v == 13 * from_rval);
+
+    SECTION("constexpr")
+    {
+      static_assert(*make_optional(42) == 42);
+      static_assert(make_optional(1.5) == optional<double>(1.5));
+      SUCCEED();
+    }
+  }
+
+  SECTION("in_place")
+  {
+    // an explicit type template-argument always selects the in_place overloads: [optional.specalg]
+    // constrains the deducing overload away from any such call
+    static_assert(std::is_same_v<decltype(make_optional<helper>(3, 4)), optional<helper>>);
+    auto const o = make_optional<helper>(3, 4);
+    CHECK(o->v == 3 * 4);                    // direct construction: no copy/move witness factor
+    CHECK(make_optional<helper>(5)->v == 5); // even with a single argument
+
+    SECTION("initializer_list")
+    {
+      static_assert(std::is_same_v<decltype(make_optional<helper>({3.0}, 4)), optional<helper>>);
+      CHECK(make_optional<helper>({3.0}, 4)->v == 3 * 4);
+    }
+
+    SECTION("constexpr")
+    {
+      static_assert(*make_optional<int>(7) == 7);
+      static_assert(make_optional<helper>({3.0}, 4)->v == 12);
+      SUCCEED();
+    }
+  }
+
+#ifndef PFN_TEST_VALIDATION
+  SECTION("reference")
+  {
+    // make_optional<U&>(u) binds instead of decaying: the [optional.specalg] constraint on the
+    // deducing overload is what routes an explicit type template-argument to in_place
+    int i = 5;
+    static_assert(std::is_same_v<decltype(make_optional<int &>(i)), optional<int &>>);
+    auto const o = make_optional<int &>(i);
+    CHECK(&*o == &i);
+
+    static_assert(std::is_same_v<decltype(make_optional<int const &>(i)), optional<int const &>>);
+    auto const c = make_optional<int const &>(i);
+    CHECK(&*c == &i);
+
+    SECTION("constexpr")
+    {
+      static_assert([] {
+        int i = 5;
+        auto const o = make_optional<int &>(i);
+        return &*o == &i && *o == 5;
+      }());
+      SUCCEED();
+    }
+  }
+#endif
+}
+
+TEST_CASE("optional hash", "[optional][polyfill][hash]")
+{
+#ifndef PFN_TEST_VALIDATION
+  constexpr bool extension = true;
+#else
+  constexpr bool extension = false;
+#endif
+
+  SECTION("enabled")
+  {
+    using T = optional<int>;
+    static_assert(std::is_default_constructible_v<std::hash<T>>);
+    static_assert(std::is_invocable_r_v<std::size_t, std::hash<T> const &, T const &>);
+    static_assert(not extension || noexcept(std::hash<T>{}(std::declval<T const &>())));
+
+    // engaged: hashes to the same value as the underlying hash ([optional.hash])
+    T const a(42);
+    CHECK(std::hash<T>{}(a) == std::hash<int>{}(42));
+
+    SECTION("remove_const")
+    {
+      // enablement and value are both keyed on hash<remove_const_t<T>>
+      optional<int const> const b(std::in_place, 42);
+      static_assert(std::is_default_constructible_v<std::hash<optional<int const>>>);
+      CHECK(std::hash<optional<int const>>{}(b) == std::hash<int>{}(42));
+    }
+
+    SECTION("disengaged")
+    {
+      // an unspecified but consistent value
+      T const d1(std::nullopt);
+      T const d2(std::nullopt);
+      CHECK(std::hash<T>{}(d1) == std::hash<T>{}(d2));
+    }
+  }
+
+  SECTION("disabled")
+  {
+    struct no_hash {};
+    using T = optional<no_hash>;
+    // [unord.hash]: a disabled specialization is not a function object and not constructible
+    static_assert(not std::is_default_constructible_v<std::hash<T>>);
+    static_assert(not std::is_copy_constructible_v<std::hash<T>>);
+    static_assert(not std::is_move_constructible_v<std::hash<T>>);
+    static_assert(not std::is_copy_assignable_v<std::hash<T>>);
+    static_assert(not std::is_move_assignable_v<std::hash<T>>);
+    static_assert(not std::is_invocable_v<std::hash<T>, T const &>);
+    SUCCEED();
+  }
+
+#ifndef PFN_TEST_VALIDATION
+  SECTION("reference")
+  {
+    // keyed on hash<remove_const_t<T>> with T = int&, and no std::hash for a reference type is
+    // ever enabled -- so hash<optional<int&>> is disabled, even though hash<int> is enabled
+    using T = optional<int &>;
+    static_assert(not std::is_default_constructible_v<std::hash<T>>);
+    static_assert(not std::is_invocable_v<std::hash<T>, T const &>);
+    SUCCEED();
+  }
+#endif
+}

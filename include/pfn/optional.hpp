@@ -7,6 +7,9 @@
 #define INCLUDE_PFN_OPTIONAL
 
 #include <cassert>
+#include <compare>
+#include <concepts>
+#include <cstddef>
 #include <memory>
 #include <optional> // For anything that is not std::optional or std::make_optional
 #include <type_traits>
@@ -47,13 +50,95 @@ concept _is_derived_from_optional = requires(T const &t) { // exposition only
   []<class U>(optional<U> const &) {}(t);
 };
 
+namespace detail {
+
+// Helper used as noexcept(...) operand where we want to evaluate both:
+// * noexcept of an expression itself (e.g. operator==) AND
+// * noexcept of the expression's implicit conversion to bool
+// May only be used in unevaluated contexts; any ODR-use will trigger a link error.
+// Also declared in pfn/expected.hpp (a benign redeclaration; pfn/* headers are standalone).
+constexpr bool _implicit_to_bool(bool) noexcept;
+
+template <typename> constexpr bool _is_some_optional = false;
+template <typename T> constexpr bool _is_some_optional<::pfn::optional<T>> = true;
+
+// [optional.relops] and [optional.comp.with.t] Constraints: the comparison expression is
+// well-formed and its result is convertible to bool. Operands are probed as const lvalues,
+// matching both *x on a const optional (L const& collapses to plain V& when L is V&, i.e.
+// for optional<V&>) and the value operand of [optional.comp.with.t].
+template <class L, class R>
+concept _eq_bool = requires(L const &l, R const &r) {
+  { l == r } -> ::std::convertible_to<bool>;
+};
+template <class L, class R>
+concept _ne_bool = requires(L const &l, R const &r) {
+  { l != r } -> ::std::convertible_to<bool>;
+};
+template <class L, class R>
+concept _lt_bool = requires(L const &l, R const &r) {
+  { l < r } -> ::std::convertible_to<bool>;
+};
+template <class L, class R>
+concept _gt_bool = requires(L const &l, R const &r) {
+  { l > r } -> ::std::convertible_to<bool>;
+};
+template <class L, class R>
+concept _le_bool = requires(L const &l, R const &r) {
+  { l <= r } -> ::std::convertible_to<bool>;
+};
+template <class L, class R>
+concept _ge_bool = requires(L const &l, R const &r) {
+  { l >= r } -> ::std::convertible_to<bool>;
+};
+
+// Conditional noexcept of the same comparison expressions, for the comparison operators'
+// extension noexcept clauses (probing the implicit conversion too, hence _implicit_to_bool).
+template <class L, class R>
+constexpr bool _eq_bool_noexcept
+    = noexcept(_implicit_to_bool(::std::declval<L const &>() == ::std::declval<R const &>()));
+template <class L, class R>
+constexpr bool _ne_bool_noexcept
+    = noexcept(_implicit_to_bool(::std::declval<L const &>() != ::std::declval<R const &>()));
+template <class L, class R>
+constexpr bool _lt_bool_noexcept
+    = noexcept(_implicit_to_bool(::std::declval<L const &>() < ::std::declval<R const &>()));
+template <class L, class R>
+constexpr bool _gt_bool_noexcept
+    = noexcept(_implicit_to_bool(::std::declval<L const &>() > ::std::declval<R const &>()));
+template <class L, class R>
+constexpr bool _le_bool_noexcept
+    = noexcept(_implicit_to_bool(::std::declval<L const &>() <= ::std::declval<R const &>()));
+template <class L, class R>
+constexpr bool _ge_bool_noexcept
+    = noexcept(_implicit_to_bool(::std::declval<L const &>() >= ::std::declval<R const &>()));
+
+} // namespace detail
+
 // [optional.relops], relational operators
-template <class T, class U> constexpr bool operator==(optional<T> const &, optional<U> const &);
-template <class T, class U> constexpr bool operator!=(optional<T> const &, optional<U> const &);
-template <class T, class U> constexpr bool operator<(optional<T> const &, optional<U> const &);
-template <class T, class U> constexpr bool operator>(optional<T> const &, optional<U> const &);
-template <class T, class U> constexpr bool operator<=(optional<T> const &, optional<U> const &);
-template <class T, class U> constexpr bool operator>=(optional<T> const &, optional<U> const &);
+template <class T, class U>
+constexpr bool operator==(optional<T> const &, optional<U> const &) //
+    noexcept(detail::_eq_bool_noexcept<T, U>)                       // extension
+  requires detail::_eq_bool<T, U>;
+template <class T, class U>
+constexpr bool operator!=(optional<T> const &, optional<U> const &) //
+    noexcept(detail::_ne_bool_noexcept<T, U>)                       // extension
+  requires detail::_ne_bool<T, U>;
+template <class T, class U>
+constexpr bool operator<(optional<T> const &, optional<U> const &) //
+    noexcept(detail::_lt_bool_noexcept<T, U>)                      // extension
+  requires detail::_lt_bool<T, U>;
+template <class T, class U>
+constexpr bool operator>(optional<T> const &, optional<U> const &) //
+    noexcept(detail::_gt_bool_noexcept<T, U>)                      // extension
+  requires detail::_gt_bool<T, U>;
+template <class T, class U>
+constexpr bool operator<=(optional<T> const &, optional<U> const &) //
+    noexcept(detail::_le_bool_noexcept<T, U>)                       // extension
+  requires detail::_le_bool<T, U>;
+template <class T, class U>
+constexpr bool operator>=(optional<T> const &, optional<U> const &) //
+    noexcept(detail::_ge_bool_noexcept<T, U>)                       // extension
+  requires detail::_ge_bool<T, U>;
 template <class T, ::std::three_way_comparable_with<T> U>
 constexpr ::std::compare_three_way_result_t<T, U> operator<=>(optional<T> const &, optional<U> const &);
 
@@ -62,20 +147,56 @@ template <class T> constexpr bool operator==(optional<T> const &, ::std::nullopt
 template <class T> constexpr ::std::strong_ordering operator<=>(optional<T> const &, ::std::nullopt_t) noexcept;
 
 // [optional.comp.with.t], comparison with T
-template <class T, class U> constexpr bool operator==(optional<T> const &, U const &);
-template <class T, class U> constexpr bool operator==(T const &, optional<U> const &);
-template <class T, class U> constexpr bool operator!=(optional<T> const &, U const &);
-template <class T, class U> constexpr bool operator!=(T const &, optional<U> const &);
-template <class T, class U> constexpr bool operator<(optional<T> const &, U const &);
-template <class T, class U> constexpr bool operator<(T const &, optional<U> const &);
-template <class T, class U> constexpr bool operator>(optional<T> const &, U const &);
-template <class T, class U> constexpr bool operator>(T const &, optional<U> const &);
-template <class T, class U> constexpr bool operator<=(optional<T> const &, U const &);
-template <class T, class U> constexpr bool operator<=(T const &, optional<U> const &);
-template <class T, class U> constexpr bool operator>=(optional<T> const &, U const &);
-template <class T, class U> constexpr bool operator>=(T const &, optional<U> const &);
 template <class T, class U>
-  requires(!_is_derived_from_optional<U>) && ::std::three_way_comparable_with<T, U>
+constexpr bool operator==(optional<T> const &, U const &) //
+    noexcept(detail::_eq_bool_noexcept<T, U>)             // extension
+  requires(not detail::_is_some_optional<U>) && detail::_eq_bool<T, U>;
+template <class T, class U>
+constexpr bool operator==(T const &, optional<U> const &) //
+    noexcept(detail::_eq_bool_noexcept<T, U>)             // extension
+  requires(not detail::_is_some_optional<T>) && detail::_eq_bool<T, U>;
+template <class T, class U>
+constexpr bool operator!=(optional<T> const &, U const &) //
+    noexcept(detail::_ne_bool_noexcept<T, U>)             // extension
+  requires(not detail::_is_some_optional<U>) && detail::_ne_bool<T, U>;
+template <class T, class U>
+constexpr bool operator!=(T const &, optional<U> const &) //
+    noexcept(detail::_ne_bool_noexcept<T, U>)             // extension
+  requires(not detail::_is_some_optional<T>) && detail::_ne_bool<T, U>;
+template <class T, class U>
+constexpr bool operator<(optional<T> const &, U const &) //
+    noexcept(detail::_lt_bool_noexcept<T, U>)            // extension
+  requires(not detail::_is_some_optional<U>) && detail::_lt_bool<T, U>;
+template <class T, class U>
+constexpr bool operator<(T const &, optional<U> const &) //
+    noexcept(detail::_lt_bool_noexcept<T, U>)            // extension
+  requires(not detail::_is_some_optional<T>) && detail::_lt_bool<T, U>;
+template <class T, class U>
+constexpr bool operator>(optional<T> const &, U const &) //
+    noexcept(detail::_gt_bool_noexcept<T, U>)            // extension
+  requires(not detail::_is_some_optional<U>) && detail::_gt_bool<T, U>;
+template <class T, class U>
+constexpr bool operator>(T const &, optional<U> const &) //
+    noexcept(detail::_gt_bool_noexcept<T, U>)            // extension
+  requires(not detail::_is_some_optional<T>) && detail::_gt_bool<T, U>;
+template <class T, class U>
+constexpr bool operator<=(optional<T> const &, U const &) //
+    noexcept(detail::_le_bool_noexcept<T, U>)             // extension
+  requires(not detail::_is_some_optional<U>) && detail::_le_bool<T, U>;
+template <class T, class U>
+constexpr bool operator<=(T const &, optional<U> const &) //
+    noexcept(detail::_le_bool_noexcept<T, U>)             // extension
+  requires(not detail::_is_some_optional<T>) && detail::_le_bool<T, U>;
+template <class T, class U>
+constexpr bool operator>=(optional<T> const &, U const &) //
+    noexcept(detail::_ge_bool_noexcept<T, U>)             // extension
+  requires(not detail::_is_some_optional<U>) && detail::_ge_bool<T, U>;
+template <class T, class U>
+constexpr bool operator>=(T const &, optional<U> const &) //
+    noexcept(detail::_ge_bool_noexcept<T, U>)             // extension
+  requires(not detail::_is_some_optional<T>) && detail::_ge_bool<T, U>;
+template <class T, class U>
+  requires(not _is_derived_from_optional<U>) && ::std::three_way_comparable_with<T, U>
 constexpr ::std::compare_three_way_result_t<T, U> operator<=>(optional<T> const &, U const &);
 
 // [optional.specalg], specialized algorithms
@@ -83,10 +204,20 @@ template <class T>
 constexpr void swap(optional<T> &x, optional<T> &y) noexcept(noexcept(x.swap(y)))
   requires(::std::is_reference_v<T> || (::std::is_move_constructible_v<T> && ::std::is_swappable_v<T>));
 
-template <class T> constexpr optional<::std::decay_t<T>> make_optional(T &&);
-template <class T, class... Args> constexpr optional<T> make_optional(Args &&...args);
+// The leading defaulted non-type parameter implements this overload's [optional.specalg]
+// Constraints: "the call to make_optional does not use an explicit template-argument-list
+// that begins with a type template-argument" -- so make_optional<U>(...) always selects an
+// in_place overload below (for U = X& there is nothing this overload could do: decay_t
+// strips the reference and would silently copy the referent).
+template <int = 0, class T>
+constexpr optional<::std::decay_t<T>> make_optional(T &&v)                       //
+    noexcept(::std::is_nothrow_constructible_v<optional<::std::decay_t<T>>, T>); // extension
+template <class T, class... Args>
+constexpr optional<T> make_optional(Args &&...args)          //
+    noexcept(::std::is_nothrow_constructible_v<T, Args...>); // extension
 template <class T, class U, class... Args>
-constexpr optional<T> make_optional(::std::initializer_list<U> il, Args &&...args);
+constexpr optional<T> make_optional(::std::initializer_list<U> il, Args &&...args)         //
+    noexcept(::std::is_nothrow_constructible_v<T, ::std::initializer_list<U> &, Args...>); // extension
 
 namespace detail {
 
@@ -571,9 +702,6 @@ template <class T, class Policy> struct _optional_base<T &, Policy> {
   }
 };
 
-template <typename> constexpr bool _is_some_optional = false;
-template <typename T> constexpr bool _is_some_optional<::pfn::optional<T>> = true;
-
 struct optional_policy {
   template <class T> using type = ::pfn::optional<T>;
   template <class X> static constexpr bool is_specialization = _is_some_optional<X>;
@@ -585,6 +713,36 @@ constexpr bool _is_valid_optional =                                             
      || (::std::is_object_v<T> && ::std::is_destructible_v<T> && not ::std::is_array_v<T>)) //
     && not ::std::is_same_v<::std::remove_cv_t<T>, ::std::in_place_t>                       //
     && not ::std::is_same_v<::std::remove_cv_t<T>, ::std::nullopt_t>;
+
+// [optional.hash]: hash<optional<T>> is enabled iff hash<remove_const_t<T>> is enabled --
+// detected through the disabled-specialization criteria of [unord.hash] (an unspecialized
+// std::hash is a complete but disabled type on all mainstream implementations). Never true
+// for T = U& (no std::hash specialization for reference types is ever enabled), so
+// hash<optional<U&>> is disabled.
+template <class X>
+concept _hash_enabled_for = ::std::is_default_constructible_v<::std::hash<X>> //
+                            && requires(::std::hash<X> const &h, X const &x) {
+                                 { h(x) } -> ::std::same_as<::std::size_t>;
+                               };
+
+template <class T, bool = _hash_enabled_for<::std::remove_const_t<T>>> struct _optional_hash_base {
+  ::std::size_t operator()(::pfn::optional<T> const &o) const         //
+      noexcept(noexcept(::std::hash<::std::remove_const_t<T>>{}(*o))) // extension
+  {
+    if (o.has_value())
+      return ::std::hash<::std::remove_const_t<T>>{}(*o);
+    return static_cast<::std::size_t>(-7919); // [optional.hash] disengaged: an unspecified value
+  }
+};
+// Disabled case: per [unord.hash] a disabled hash specialization is not a function object
+// (no call operator) and is neither constructible nor assignable.
+template <class T> struct _optional_hash_base<T, false> {
+  _optional_hash_base() = delete;
+  _optional_hash_base(_optional_hash_base const &) = delete;
+  _optional_hash_base(_optional_hash_base &&) = delete;
+  _optional_hash_base &operator=(_optional_hash_base const &) = delete;
+  _optional_hash_base &operator=(_optional_hash_base &&) = delete;
+};
 
 } // namespace detail
 
@@ -832,6 +990,181 @@ public:
   using _base::reset;
 };
 
+// [optional.relops], relational operators
+template <class T, class U>
+constexpr bool operator==(optional<T> const &x, optional<U> const &y) //
+    noexcept(detail::_eq_bool_noexcept<T, U>)                         // extension
+  requires detail::_eq_bool<T, U>
+{
+  if (x.has_value() != y.has_value())
+    return false;
+  if (not x.has_value())
+    return true;
+  return *x == *y;
+}
+template <class T, class U>
+constexpr bool operator!=(optional<T> const &x, optional<U> const &y) //
+    noexcept(detail::_ne_bool_noexcept<T, U>)                         // extension
+  requires detail::_ne_bool<T, U>
+{
+  if (x.has_value() != y.has_value())
+    return true;
+  if (not x.has_value())
+    return false;
+  return *x != *y;
+}
+template <class T, class U>
+constexpr bool operator<(optional<T> const &x, optional<U> const &y) //
+    noexcept(detail::_lt_bool_noexcept<T, U>)                        // extension
+  requires detail::_lt_bool<T, U>
+{
+  if (not y.has_value())
+    return false;
+  if (not x.has_value())
+    return true;
+  return *x < *y;
+}
+template <class T, class U>
+constexpr bool operator>(optional<T> const &x, optional<U> const &y) //
+    noexcept(detail::_gt_bool_noexcept<T, U>)                        // extension
+  requires detail::_gt_bool<T, U>
+{
+  if (not x.has_value())
+    return false;
+  if (not y.has_value())
+    return true;
+  return *x > *y;
+}
+template <class T, class U>
+constexpr bool operator<=(optional<T> const &x, optional<U> const &y) //
+    noexcept(detail::_le_bool_noexcept<T, U>)                         // extension
+  requires detail::_le_bool<T, U>
+{
+  if (not x.has_value())
+    return true;
+  if (not y.has_value())
+    return false;
+  return *x <= *y;
+}
+template <class T, class U>
+constexpr bool operator>=(optional<T> const &x, optional<U> const &y) //
+    noexcept(detail::_ge_bool_noexcept<T, U>)                         // extension
+  requires detail::_ge_bool<T, U>
+{
+  if (not y.has_value())
+    return true;
+  if (not x.has_value())
+    return false;
+  return *x >= *y;
+}
+template <class T, ::std::three_way_comparable_with<T> U>
+constexpr ::std::compare_three_way_result_t<T, U> operator<=>(optional<T> const &x, optional<U> const &y)
+{
+  return x.has_value() && y.has_value() ? *x <=> *y : x.has_value() <=> y.has_value();
+}
+
+// [optional.nullops], comparison with nullopt
+template <class T> constexpr bool operator==(optional<T> const &x, ::std::nullopt_t) noexcept
+{
+  return not x.has_value();
+}
+template <class T> constexpr ::std::strong_ordering operator<=>(optional<T> const &x, ::std::nullopt_t) noexcept
+{
+  return x.has_value() <=> false;
+}
+
+// [optional.comp.with.t], comparison with T
+template <class T, class U>
+constexpr bool operator==(optional<T> const &x, U const &v) //
+    noexcept(detail::_eq_bool_noexcept<T, U>)               // extension
+  requires(not detail::_is_some_optional<U>) && detail::_eq_bool<T, U>
+{
+  return x.has_value() ? *x == v : false;
+}
+template <class T, class U>
+constexpr bool operator==(T const &v, optional<U> const &x) //
+    noexcept(detail::_eq_bool_noexcept<T, U>)               // extension
+  requires(not detail::_is_some_optional<T>) && detail::_eq_bool<T, U>
+{
+  return x.has_value() ? v == *x : false;
+}
+template <class T, class U>
+constexpr bool operator!=(optional<T> const &x, U const &v) //
+    noexcept(detail::_ne_bool_noexcept<T, U>)               // extension
+  requires(not detail::_is_some_optional<U>) && detail::_ne_bool<T, U>
+{
+  return x.has_value() ? *x != v : true;
+}
+template <class T, class U>
+constexpr bool operator!=(T const &v, optional<U> const &x) //
+    noexcept(detail::_ne_bool_noexcept<T, U>)               // extension
+  requires(not detail::_is_some_optional<T>) && detail::_ne_bool<T, U>
+{
+  return x.has_value() ? v != *x : true;
+}
+template <class T, class U>
+constexpr bool operator<(optional<T> const &x, U const &v) //
+    noexcept(detail::_lt_bool_noexcept<T, U>)              // extension
+  requires(not detail::_is_some_optional<U>) && detail::_lt_bool<T, U>
+{
+  return x.has_value() ? *x < v : true;
+}
+template <class T, class U>
+constexpr bool operator<(T const &v, optional<U> const &x) //
+    noexcept(detail::_lt_bool_noexcept<T, U>)              // extension
+  requires(not detail::_is_some_optional<T>) && detail::_lt_bool<T, U>
+{
+  return x.has_value() ? v < *x : false;
+}
+template <class T, class U>
+constexpr bool operator>(optional<T> const &x, U const &v) //
+    noexcept(detail::_gt_bool_noexcept<T, U>)              // extension
+  requires(not detail::_is_some_optional<U>) && detail::_gt_bool<T, U>
+{
+  return x.has_value() ? *x > v : false;
+}
+template <class T, class U>
+constexpr bool operator>(T const &v, optional<U> const &x) //
+    noexcept(detail::_gt_bool_noexcept<T, U>)              // extension
+  requires(not detail::_is_some_optional<T>) && detail::_gt_bool<T, U>
+{
+  return x.has_value() ? v > *x : true;
+}
+template <class T, class U>
+constexpr bool operator<=(optional<T> const &x, U const &v) //
+    noexcept(detail::_le_bool_noexcept<T, U>)               // extension
+  requires(not detail::_is_some_optional<U>) && detail::_le_bool<T, U>
+{
+  return x.has_value() ? *x <= v : true;
+}
+template <class T, class U>
+constexpr bool operator<=(T const &v, optional<U> const &x) //
+    noexcept(detail::_le_bool_noexcept<T, U>)               // extension
+  requires(not detail::_is_some_optional<T>) && detail::_le_bool<T, U>
+{
+  return x.has_value() ? v <= *x : false;
+}
+template <class T, class U>
+constexpr bool operator>=(optional<T> const &x, U const &v) //
+    noexcept(detail::_ge_bool_noexcept<T, U>)               // extension
+  requires(not detail::_is_some_optional<U>) && detail::_ge_bool<T, U>
+{
+  return x.has_value() ? *x >= v : false;
+}
+template <class T, class U>
+constexpr bool operator>=(T const &v, optional<U> const &x) //
+    noexcept(detail::_ge_bool_noexcept<T, U>)               // extension
+  requires(not detail::_is_some_optional<T>) && detail::_ge_bool<T, U>
+{
+  return x.has_value() ? v >= *x : true;
+}
+template <class T, class U>
+  requires(not _is_derived_from_optional<U>) && ::std::three_way_comparable_with<T, U>
+constexpr ::std::compare_three_way_result_t<T, U> operator<=>(optional<T> const &x, U const &v)
+{
+  return x.has_value() ? *x <=> v : ::std::strong_ordering::less;
+}
+
 // [optional.specalg], specialized algorithms
 template <class T>
 constexpr void swap(optional<T> &x, optional<T> &y) noexcept(noexcept(x.swap(y)))
@@ -840,11 +1173,32 @@ constexpr void swap(optional<T> &x, optional<T> &y) noexcept(noexcept(x.swap(y))
   x.swap(y);
 }
 
+// The int parameter's default lives on the declaration above, along with the explanation of
+// the [optional.specalg] constraint it implements.
+template <int, class T>
+constexpr optional<::std::decay_t<T>> make_optional(T &&v)                      //
+    noexcept(::std::is_nothrow_constructible_v<optional<::std::decay_t<T>>, T>) // extension
+{
+  return optional<::std::decay_t<T>>(FWD(v));
+}
+template <class T, class... Args>
+constexpr optional<T> make_optional(Args &&...args)         //
+    noexcept(::std::is_nothrow_constructible_v<T, Args...>) // extension
+{
+  return optional<T>(::std::in_place, FWD(args)...);
+}
+template <class T, class U, class... Args>
+constexpr optional<T> make_optional(::std::initializer_list<U> il, Args &&...args)        //
+    noexcept(::std::is_nothrow_constructible_v<T, ::std::initializer_list<U> &, Args...>) // extension
+{
+  return optional<T>(::std::in_place, il, FWD(args)...);
+}
+
 } // namespace pfn
 
 namespace std {
 // [optional.hash], hash support
-template <class T> struct hash<::pfn::optional<T>>;
+template <class T> struct hash<::pfn::optional<T>> : ::pfn::detail::_optional_hash_base<T> {};
 } // namespace std
 
 #undef ASSERT
