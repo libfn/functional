@@ -600,10 +600,30 @@ template <class T, class Policy> struct _optional_base {
   constexpr explicit operator bool() const noexcept { return set_; }
   constexpr bool has_value() const noexcept { return set_; }
 
-  constexpr T const &value() const & { return set_ ? storage_.v_ : throw ::std::bad_optional_access(); }
-  constexpr T &value() & { return set_ ? storage_.v_ : throw ::std::bad_optional_access(); }
-  constexpr T const &&value() const && { return set_ ? ::std::move(storage_.v_) : throw ::std::bad_optional_access(); }
-  constexpr T &&value() && { return set_ ? ::std::move(storage_.v_) : throw ::std::bad_optional_access(); }
+  constexpr T const &value() const &
+  {
+    if (not set_)
+      throw ::std::bad_optional_access();
+    return storage_.v_;
+  }
+  constexpr T &value() &
+  {
+    if (not set_)
+      throw ::std::bad_optional_access();
+    return storage_.v_;
+  }
+  constexpr T const &&value() const &&
+  {
+    if (not set_)
+      throw ::std::bad_optional_access();
+    return ::std::move(storage_.v_);
+  }
+  constexpr T &&value() &&
+  {
+    if (not set_)
+      throw ::std::bad_optional_access();
+    return ::std::move(storage_.v_);
+  }
 
   template <class U = ::std::remove_cv_t<T>> constexpr T value_or(U &&v) const &
   {
@@ -782,7 +802,12 @@ template <class T, class Policy> struct _optional_base<T &, Policy> {
   constexpr explicit operator bool() const noexcept { return v_ != nullptr; }
   constexpr bool has_value() const noexcept { return v_ != nullptr; }
 
-  constexpr T &value() const { return v_ != nullptr ? *v_ : throw ::std::bad_optional_access(); }
+  constexpr T &value() const
+  {
+    if (v_ == nullptr)
+      throw ::std::bad_optional_access();
+    return *v_;
+  }
 
   template <class U = ::std::remove_cv_t<T>> constexpr ::std::remove_cv_t<T> value_or(U &&u) const
   {
