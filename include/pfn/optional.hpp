@@ -10,6 +10,7 @@
 #include <compare>
 #include <concepts>
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <optional> // For anything that is not std::optional or std::make_optional
 #include <type_traits>
@@ -235,6 +236,16 @@ struct _from_optional_t {
 };
 constexpr inline _from_optional_t _from_optional{};
 
+// Tag selecting the "direct-non-list-initialize the contained value from the result of
+// std::invoke" constructors, required by transform ([optional.monadic]/[optional.ref.monadic]):
+// the specified initialization is exactly `U u(invoke(...))` -- guaranteed elision, so no
+// extra move and an immovable U works -- which means the invoke expression itself must reach
+// the contained value's initializer.
+struct _from_invoke_t {
+  explicit _from_invoke_t() = default;
+};
+constexpr inline _from_invoke_t _from_invoke{};
+
 template <class T> union _optional_union_t {
   // _dummy_t placeholder, so the union always has an active member
   struct _dummy_t final {
@@ -268,6 +279,14 @@ template <class T> union _optional_union_t {
       ::std::construct_at(::std::addressof(v_), *FWD(src));
     else
       ::std::construct_at(::std::addressof(e_));
+  }
+
+  template <typename Fn, typename... Args>
+  constexpr explicit _optional_union_t(_from_invoke_t /*ignored*/, Fn &&fn, Args &&...args) //
+      noexcept(::std::is_nothrow_invocable_v<Fn, Args...>
+               && ::std::is_nothrow_constructible_v<T, ::std::invoke_result_t<Fn, Args...>>)
+      : v_(::std::invoke(FWD(fn), FWD(args)...))
+  {
   }
 
   constexpr _optional_union_t(_optional_union_t const &) = delete;
@@ -322,6 +341,15 @@ template <class T> union _optional_union_t {
 
 template <typename> constexpr bool _is_optional_union = false;
 template <typename T> constexpr bool _is_optional_union<_optional_union_t<T>> = true;
+
+// [optional.optional.general]: only lvalue references and complete non-array object types are
+// valid contained types; also the Mandates of transform's result type ([optional.monadic]).
+template <typename T>
+constexpr bool _is_valid_optional =                                                         //
+    (::std::is_lvalue_reference_v<T>                                                        //
+     || (::std::is_object_v<T> && ::std::is_destructible_v<T> && not ::std::is_array_v<T>)) //
+    && not ::std::is_same_v<::std::remove_cv_t<T>, ::std::in_place_t>                       //
+    && not ::std::is_same_v<::std::remove_cv_t<T>, ::std::nullopt_t>;
 
 // Shared implementation base class for ::pfn::optional. Members are public since inheritance is
 // private. Not used by ::pfn::optional<T&> which models a pointer and does not need `bool set_`.
@@ -400,6 +428,12 @@ template <class T, class Policy> struct _optional_base {
       noexcept(::std::is_nothrow_constructible_v<_storage_t, ::std::in_place_t, ::std::initializer_list<U> &, Args...>)
     requires ::std::is_constructible_v<_storage_t, ::std::in_place_t, ::std::initializer_list<U> &, Args...>
       : storage_(::std::in_place, il, FWD(a)...), set_(true)
+  {
+  }
+  template <typename Fn, typename... Args>
+  constexpr explicit _optional_base(_from_invoke_t tag, Fn &&fn, Args &&...args) //
+      noexcept(::std::is_nothrow_constructible_v<_storage_t, _from_invoke_t, Fn, Args...>)
+      : storage_(tag, FWD(fn), FWD(args)...), set_(true)
   {
   }
   constexpr explicit _optional_base(::std::nullopt_t /*ignored*/) noexcept //
@@ -581,6 +615,54 @@ template <class T, class Policy> struct _optional_base {
     static_assert(::std::is_move_constructible_v<T> && ::std::is_convertible_v<U &&, T>);
     return set_ ? ::std::move(storage_.v_) : static_cast<T>(::std::forward<U>(v));
   }
+
+  // [optional.monadic] bodies, shared by the public optional's ref-qualified overload sets.
+  // Self is the public optional (not this base), so `*FWD(self)` spells the draft's exact
+  // decltype((val)) / decltype(std::move(val)) value category and everything is reached
+  // through public API -- same reasoning as the _from_optional_t constructors above.
+  template <typename Self, typename Fn>
+  static constexpr auto _and_then(Self &&self, Fn &&fn) //
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(*FWD(self))>)
+    requires ::std::is_invocable_v<Fn, decltype(*FWD(self))>
+  {
+    using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(*FWD(self))>>;
+    static_assert(Policy::template is_specialization<result_t>); // [optional.monadic] Mandates
+    if (self.has_value()) {
+      return ::std::invoke(FWD(fn), *FWD(self));
+    }
+    return result_t();
+  }
+
+  template <typename Self, typename Fn>
+  static constexpr auto _transform(Self &&self, Fn &&fn) //
+      noexcept(
+          ::std::is_nothrow_invocable_v<Fn, decltype(*FWD(self))>
+          && ::std::is_nothrow_constructible_v<::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(*FWD(self))>>,
+                                               ::std::invoke_result_t<Fn, decltype(*FWD(self))>>)
+    requires ::std::is_invocable_v<Fn, decltype(*FWD(self))>
+  {
+    using value_t = ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(*FWD(self))>>;
+    static_assert(_is_valid_optional<value_t>); // [optional.monadic] Mandates
+    using result_t = typename Policy::template type<value_t>;
+    if (self.has_value()) {
+      return result_t(_from_invoke, FWD(fn), *FWD(self));
+    }
+    return result_t();
+  }
+
+  template <typename Self, typename Fn>
+  static constexpr auto _or_else(Self &&self, Fn &&fn) //
+      noexcept(::std::is_nothrow_invocable_v<Fn>
+               && ::std::is_nothrow_constructible_v<typename Policy::template type<T>, Self>)
+    requires(::std::is_invocable_v<Fn> && ::std::is_constructible_v<typename Policy::template type<T>, Self>)
+  {
+    using result_t = typename Policy::template type<T>;
+    static_assert(::std::is_same_v<::std::remove_cvref_t<::std::invoke_result_t<Fn>>, result_t>); // Mandates
+    if (self.has_value()) {
+      return result_t(FWD(self)); // the draft's `return *this;` / `return std::move(*this);`
+    }
+    return ::std::invoke(FWD(fn));
+  }
 };
 
 // optional<T&> needs its own base: the referent is held directly as a pointer (nullptr
@@ -626,6 +708,14 @@ template <class T, class Policy> struct _optional_base<T &, Policy> {
     requires ::std::is_constructible_v<T &, Arg>
   {
     _convert_ref_init_val(FWD(arg));
+  }
+
+  template <typename Fn, typename... Args>
+  constexpr explicit _optional_base(_from_invoke_t /*ignored*/, Fn &&fn, Args &&...args) //
+      noexcept(::std::is_nothrow_invocable_v<Fn, Args...>
+               && ::std::is_nothrow_constructible_v<T &, ::std::invoke_result_t<Fn, Args...>>)
+  {
+    _convert_ref_init_val(::std::invoke(FWD(fn), FWD(args)...));
   }
 
   // [optional.ref.ctor], converting constructors from a differently-typed optional<U>: four
@@ -700,19 +790,55 @@ template <class T, class Policy> struct _optional_base<T &, Policy> {
                   && ::std::is_convertible_v<U, ::std::remove_cv_t<T>>);
     return v_ != nullptr ? *v_ : static_cast<::std::remove_cv_t<T>>(::std::forward<U>(u));
   }
+
+  // [optional.ref.monadic] bodies; unlike optional<T>'s, the callable always receives plain
+  // T& (const on the optional does not propagate to the referent), so Self only says which
+  // public overload delegated here.
+  template <typename Self, typename Fn>
+  static constexpr auto _and_then(Self &&self, Fn &&fn) noexcept(::std::is_nothrow_invocable_v<Fn, T &>)
+    requires ::std::is_invocable_v<Fn, T &>
+  {
+    using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn, T &>>;
+    static_assert(Policy::template is_specialization<result_t>); // [optional.ref.monadic] Mandates
+    if (self.has_value()) {
+      return ::std::invoke(FWD(fn), *self);
+    }
+    return result_t();
+  }
+
+  template <typename Self, typename Fn>
+  static constexpr auto _transform(Self &&self, Fn &&fn) //
+      noexcept(::std::is_nothrow_invocable_v<Fn, T &>
+               && ::std::is_nothrow_constructible_v<::std::remove_cv_t<::std::invoke_result_t<Fn, T &>>,
+                                                    ::std::invoke_result_t<Fn, T &>>)
+    requires ::std::is_invocable_v<Fn, T &>
+  {
+    using value_t = ::std::remove_cv_t<::std::invoke_result_t<Fn, T &>>;
+    static_assert(_is_valid_optional<value_t>); // [optional.ref.monadic] Mandates
+    using result_t = typename Policy::template type<value_t>;
+    if (self.has_value()) {
+      return result_t(_from_invoke, FWD(fn), *self);
+    }
+    return result_t();
+  }
+
+  template <typename Self, typename Fn>
+  static constexpr auto _or_else(Self &&self, Fn &&fn) noexcept(::std::is_nothrow_invocable_v<Fn>)
+    requires ::std::is_invocable_v<Fn>
+  {
+    using result_t = typename Policy::template type<T &>;
+    static_assert(::std::is_same_v<::std::remove_cvref_t<::std::invoke_result_t<Fn>>, result_t>); // Mandates
+    if (self.has_value()) {
+      return result_t(*self); // the draft's `return *val;` -- rebinds the same referent
+    }
+    return ::std::invoke(FWD(fn));
+  }
 };
 
 struct optional_policy {
   template <class T> using type = ::pfn::optional<T>;
   template <class X> static constexpr bool is_specialization = _is_some_optional<X>;
 };
-
-template <typename T>
-constexpr bool _is_valid_optional =                                                         //
-    (::std::is_reference_v<T>                                                               //
-     || (::std::is_object_v<T> && ::std::is_destructible_v<T> && not ::std::is_array_v<T>)) //
-    && not ::std::is_same_v<::std::remove_cv_t<T>, ::std::in_place_t>                       //
-    && not ::std::is_same_v<::std::remove_cv_t<T>, ::std::nullopt_t>;
 
 // [optional.hash]: hash<optional<T>> is enabled iff hash<remove_const_t<T>> is enabled --
 // detected through the disabled-specialization criteria of [unord.hash] (an unspecialized
@@ -790,6 +916,15 @@ public:
       noexcept(::std::is_nothrow_constructible_v<T, ::std::initializer_list<U> &, Args...>)  // extension
     requires ::std::is_constructible_v<T, ::std::initializer_list<U> &, Args...>
       : _base(::std::in_place, il, FWD(a)...)
+  {
+  }
+
+  // Direct-non-list-initializes the contained value from the result of std::invoke; used by
+  // transform ([optional.monadic]), and public because the caller is another optional's base.
+  template <class Fn, class... Args>
+  constexpr explicit optional(detail::_from_invoke_t tag, Fn &&fn, Args &&...args) //
+      noexcept(::std::is_nothrow_constructible_v<_base, detail::_from_invoke_t, Fn, Args...>)
+      : _base(tag, FWD(fn), FWD(args)...)
   {
   }
 
@@ -884,17 +1019,79 @@ public:
   using _base::value; // freestanding-deleted
   using _base::value_or;
 
-  // [optional.monadic], monadic operations
-  template <class F> constexpr auto and_then(F &&f) &;
-  template <class F> constexpr auto and_then(F &&f) &&;
-  template <class F> constexpr auto and_then(F &&f) const &;
-  template <class F> constexpr auto and_then(F &&f) const &&;
-  template <class F> constexpr auto transform(F &&f) &;
-  template <class F> constexpr auto transform(F &&f) &&;
-  template <class F> constexpr auto transform(F &&f) const &;
-  template <class F> constexpr auto transform(F &&f) const &&;
-  template <class F> constexpr optional or_else(F &&f) &&;
-  template <class F> constexpr optional or_else(F &&f) const &;
+  // [optional.monadic], monadic operations; bodies delegate to _optional_base helpers
+  template <class F>
+  constexpr auto and_then(F &&f) &                        //
+      noexcept(noexcept(_base::_and_then(*this, FWD(f)))) // extension
+      -> decltype(_base::_and_then(*this, FWD(f)))
+  {
+    return _base::_and_then(*this, FWD(f));
+  }
+  template <class F>
+  constexpr auto and_then(F &&f) &&                                    //
+      noexcept(noexcept(_base::_and_then(::std::move(*this), FWD(f)))) // extension
+      -> decltype(_base::_and_then(::std::move(*this), FWD(f)))
+  {
+    return _base::_and_then(::std::move(*this), FWD(f));
+  }
+  template <class F>
+  constexpr auto and_then(F &&f) const &                  //
+      noexcept(noexcept(_base::_and_then(*this, FWD(f)))) // extension
+      -> decltype(_base::_and_then(*this, FWD(f)))
+  {
+    return _base::_and_then(*this, FWD(f));
+  }
+  template <class F>
+  constexpr auto and_then(F &&f) const &&                              //
+      noexcept(noexcept(_base::_and_then(::std::move(*this), FWD(f)))) // extension
+      -> decltype(_base::_and_then(::std::move(*this), FWD(f)))
+  {
+    return _base::_and_then(::std::move(*this), FWD(f));
+  }
+  template <class F>
+  constexpr auto transform(F &&f) &                        //
+      noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
+      -> decltype(_base::_transform(*this, FWD(f)))
+  {
+    return _base::_transform(*this, FWD(f));
+  }
+  template <class F>
+  constexpr auto transform(F &&f) &&                                    //
+      noexcept(noexcept(_base::_transform(::std::move(*this), FWD(f)))) // extension
+      -> decltype(_base::_transform(::std::move(*this), FWD(f)))
+  {
+    return _base::_transform(::std::move(*this), FWD(f));
+  }
+  template <class F>
+  constexpr auto transform(F &&f) const &                  //
+      noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
+      -> decltype(_base::_transform(*this, FWD(f)))
+  {
+    return _base::_transform(*this, FWD(f));
+  }
+  template <class F>
+  constexpr auto transform(F &&f) const &&                              //
+      noexcept(noexcept(_base::_transform(::std::move(*this), FWD(f)))) // extension
+      -> decltype(_base::_transform(::std::move(*this), FWD(f)))
+  {
+    return _base::_transform(::std::move(*this), FWD(f));
+  }
+  template <class F>
+  constexpr auto or_else(F &&f) &&                                    //
+      noexcept(noexcept(_base::_or_else(::std::move(*this), FWD(f)))) // extension
+      -> decltype(_base::_or_else(::std::move(*this), FWD(f)))
+    requires(::std::invocable<F> && ::std::move_constructible<T>)
+  {
+    return _base::_or_else(::std::move(*this), FWD(f));
+  }
+  template <class F>
+  constexpr auto or_else(F &&f) const &                  //
+      noexcept(noexcept(_base::_or_else(*this, FWD(f)))) // extension
+      -> decltype(_base::_or_else(*this, FWD(f)))
+    requires(::std::invocable<F> && ::std::copy_constructible<T>)
+  {
+    return _base::_or_else(*this, FWD(f));
+  }
 
   // [optional.mod], modifiers
   using _base::reset;
@@ -919,6 +1116,15 @@ public:
       noexcept(::std::is_nothrow_constructible_v<T &, Arg>) // extension
     requires ::std::is_constructible_v<T &, Arg>
       : _base(::std::in_place, FWD(arg))
+  {
+  }
+
+  // Direct-non-list-initializes the bound reference from the result of std::invoke; used by
+  // transform ([optional.ref.monadic]), and public because the caller is another optional's base.
+  template <class Fn, class... Args>
+  constexpr explicit optional(detail::_from_invoke_t tag, Fn &&fn, Args &&...args) //
+      noexcept(::std::is_nothrow_constructible_v<_base, detail::_from_invoke_t, Fn, Args...>)
+      : _base(tag, FWD(fn), FWD(args)...)
   {
   }
 
@@ -981,10 +1187,29 @@ public:
   using _base::value; // freestanding-deleted
   using _base::value_or;
 
-  // [optional.ref.monadic], monadic operations
-  template <class F> constexpr auto and_then(F &&f) const;
-  template <class F> constexpr optional<::std::invoke_result_t<F, T &>> transform(F &&f) const;
-  template <class F> constexpr optional or_else(F &&f) const;
+  // [optional.ref.monadic], monadic operations; bodies delegate to _optional_base helpers
+  template <class F>
+  constexpr auto and_then(F &&f) const                    //
+      noexcept(noexcept(_base::_and_then(*this, FWD(f)))) // extension
+      -> decltype(_base::_and_then(*this, FWD(f)))
+  {
+    return _base::_and_then(*this, FWD(f));
+  }
+  template <class F>
+  constexpr auto transform(F &&f) const                    //
+      noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
+      -> decltype(_base::_transform(*this, FWD(f)))
+  {
+    return _base::_transform(*this, FWD(f));
+  }
+  template <class F>
+  constexpr auto or_else(F &&f) const                    //
+      noexcept(noexcept(_base::_or_else(*this, FWD(f)))) // extension
+      -> decltype(_base::_or_else(*this, FWD(f)))
+    requires ::std::invocable<F>
+  {
+    return _base::_or_else(*this, FWD(f));
+  }
 
   // [optional.ref.mod], modifiers
   using _base::reset;

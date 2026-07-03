@@ -25,6 +25,7 @@ using pfn::optional;
 #include <functional>
 #include <initializer_list>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <type_traits>
@@ -83,6 +84,10 @@ template <typename L, typename R = L>
 concept has_ge = requires(L const &l, R const &r) { l >= r; };
 template <typename L, typename R = L>
 concept has_spaceship = requires(L const &l, R const &r) { l <=> r; };
+
+// SFINAE probe for or_else's constraints (the only constrained monadic operation)
+template <typename O, typename F>
+concept has_or_else = requires(O &&o, F &&f) { std::forward<O>(o).or_else(std::forward<F>(f)); };
 
 } // namespace
 
@@ -1209,6 +1214,250 @@ TEST_CASE("optional", "[optional][polyfill]")
     }
   }
 
+// C++23 members: gated away when validating against a pre-C++23 std::optional
+#if !defined(PFN_TEST_VALIDATION) || (defined(__cpp_lib_optional) && __cpp_lib_optional >= 202110L)
+  SECTION("monadic functions")
+  {
+    SECTION("and_then")
+    {
+      SECTION("value")
+      {
+        using T = optional<helper>;
+        constexpr auto fn
+            = [](auto &&a) constexpr -> optional<int> { return helper(std::forward<decltype(a)>(a)).v * 2; };
+
+        T a(std::in_place, 7);
+        static_assert(std::is_same_v<decltype(a.and_then(fn)), optional<int>>);
+        CHECK(a.and_then(fn).value() == 7 * 2 * from_lval);
+        CHECK(std::as_const(a).and_then(fn).value() == 7 * 2 * from_lval_const);
+        CHECK(std::move(std::as_const(a)).and_then(fn).value() == 7 * 2 * from_rval_const);
+        CHECK(std::move(a).and_then(fn).value() == 7 * 2 * from_rval);
+      }
+
+      SECTION("disengaged")
+      {
+        using T = optional<helper>;
+        constexpr auto fn = [](auto &&) constexpr -> optional<int> { return 1; };
+        T a(std::nullopt);
+        CHECK(not a.and_then(fn).has_value());
+        CHECK(not std::as_const(a).and_then(fn).has_value());
+        CHECK(not std::move(std::as_const(a)).and_then(fn).has_value());
+        CHECK(not std::move(a).and_then(fn).has_value());
+      }
+
+      SECTION("constexpr")
+      {
+        using T = optional<helper>;
+        constexpr auto fn
+            = [](auto &&a) constexpr -> optional<int> { return helper(std::forward<decltype(a)>(a)).v * 3; };
+
+        SECTION("lval const")
+        {
+          {
+            constexpr T a(std::in_place, {3.0}, 5);
+            static_assert(a.and_then(fn).value() == 3 * 3 * 5 * from_lval_const);
+          }
+
+          {
+            constexpr T a(std::nullopt);
+            static_assert(not a.and_then(fn).has_value());
+          }
+
+          SUCCEED();
+        }
+
+        SECTION("rval")
+        {
+          static_assert(T{std::in_place, {3.0}, 5}.and_then(fn) == 3 * 3 * 5 * from_rval);
+          static_assert(not T{std::nullopt}.and_then(fn).has_value());
+
+          SUCCEED();
+        }
+
+        SECTION("lval")
+        {
+          static_assert([&fn] {
+            T a{std::in_place, {3.0}, 5};
+            T b{std::nullopt};
+            return a.and_then(fn).value() == 3 * 3 * 5 * from_lval //
+                   && not b.and_then(fn).has_value();
+          }());
+
+          SUCCEED();
+        }
+
+        SECTION("rval const")
+        {
+          static_assert([&fn] {
+            T a{std::in_place, {3.0}, 5};
+            T b{std::nullopt};
+            return std::move(std::as_const(a)).and_then(fn).value() == 3 * 3 * 5 * from_rval_const //
+                   && not std::move(std::as_const(b)).and_then(fn).has_value();
+          }());
+
+          SUCCEED();
+        }
+      }
+
+      SECTION("move-only type")
+      {
+        optional<std::unique_ptr<int>> o(std::in_place, std::make_unique<int>(42));
+        auto res = std::move(o).and_then([](std::unique_ptr<int> p) -> optional<int> { return *p + 1; });
+        CHECK(res.value() == 43);
+      }
+    }
+
+    SECTION("or_else")
+    {
+      SECTION("engaged")
+      {
+        using T = optional<helper>;
+        constexpr auto fn = []() constexpr -> T { return T(std::in_place, 1); };
+
+        T a(std::in_place, 13);
+        // or_else has only const& and && overloads; the engaged path returns a copy of *this
+        // (the contained value through helper's const& copy ctor) or a move of it
+        CHECK(a.or_else(fn).value().v == 13 * from_lval_const);
+        CHECK(std::as_const(a).or_else(fn).value().v == 13 * from_lval_const);
+        CHECK(std::move(std::as_const(a)).or_else(fn).value().v == 13 * from_lval_const);
+        CHECK(std::move(a).or_else(fn).value().v == 13 * from_rval);
+      }
+
+      SECTION("disengaged")
+      {
+        using T = optional<helper>;
+        constexpr auto fn = []() constexpr -> T { return T(std::in_place, 5); };
+        T a(std::nullopt);
+        // the callable's result is returned as-is: no witness factor multiplied in
+        CHECK(a.or_else(fn).value().v == 5);
+        CHECK(std::move(a).or_else(fn).value().v == 5);
+        CHECK(not T(std::nullopt).or_else([]() -> T { return T(std::nullopt); }).has_value());
+      }
+
+      SECTION("constraints")
+      {
+        // [optional.monadic] or_else Constraints: invocable F and, per overload, copy- or
+        // move-constructible T
+        constexpr auto fn = []() -> optional<helper_move_only> { return {}; };
+        static_assert(has_or_else<optional<helper_move_only> &&, decltype(fn)>);
+        static_assert(not has_or_else<optional<helper_move_only> &, decltype(fn)>);
+        static_assert(not has_or_else<optional<helper_move_only> const &, decltype(fn)>);
+        static_assert(not has_or_else<optional<int> &&, int>); // not invocable
+        SUCCEED();
+      }
+
+      SECTION("constexpr")
+      {
+        using T = optional<int>;
+        constexpr auto fn = []() constexpr -> T { return T(99); };
+        static_assert(T(5).or_else(fn).value() == 5);
+        static_assert(T(std::nullopt).or_else(fn).value() == 99);
+        static_assert([&fn] {
+          T a(7);
+          T e(std::nullopt);
+          return a.or_else(fn).value() == 7 && e.or_else(fn).value() == 99;
+        }());
+        SUCCEED();
+      }
+    }
+
+    SECTION("transform")
+    {
+      SECTION("value")
+      {
+        using T = optional<helper>;
+        constexpr auto fn = [](auto &&a) constexpr { return helper(std::forward<decltype(a)>(a)).v * 2; };
+
+        T a(std::in_place, 7);
+        static_assert(std::is_same_v<decltype(a.transform(fn)), optional<int>>);
+        CHECK(a.transform(fn).value() == 7 * 2 * from_lval);
+        CHECK(std::as_const(a).transform(fn).value() == 7 * 2 * from_lval_const);
+        CHECK(std::move(std::as_const(a)).transform(fn).value() == 7 * 2 * from_rval_const);
+        CHECK(std::move(a).transform(fn).value() == 7 * 2 * from_rval);
+      }
+
+      SECTION("direct initialization")
+      {
+        // the contained value is direct-non-list-initialized from the invoke result:
+        // guaranteed elision, so no copy/move witness factor and an immovable type works
+        optional<int> a(7);
+        auto r = a.transform([](int v) { return helper(v); });
+        static_assert(std::is_same_v<decltype(r), optional<helper>>);
+        CHECK(r.value().v == 7);
+
+        static_assert(not std::is_move_constructible_v<helper_immovable>);
+        auto ri = a.transform([](int v) { return helper_immovable(v, 3); });
+        static_assert(std::is_same_v<decltype(ri), optional<helper_immovable>>);
+        CHECK(ri.value().v == 7 * 3);
+      }
+
+      SECTION("disengaged")
+      {
+        using T = optional<helper>;
+        constexpr auto fn = [](auto &&) constexpr { return 1; };
+        T a(std::nullopt);
+        CHECK(not a.transform(fn).has_value());
+        CHECK(not std::as_const(a).transform(fn).has_value());
+        CHECK(not std::move(std::as_const(a)).transform(fn).has_value());
+        CHECK(not std::move(a).transform(fn).has_value());
+      }
+
+#ifndef PFN_TEST_VALIDATION
+      SECTION("to reference")
+      {
+        // C++26 via P2988: remove_cv_t<invoke_result_t<F, ...>> does not strip references and
+        // T& is now a valid contained type, so a reference-returning callable produces an
+        // optional<X&> bound to the returned lvalue
+        int x = 5;
+        optional<int> a(1);
+        auto r = a.transform([&x](int) -> int & { return x; });
+        static_assert(std::is_same_v<decltype(r), optional<int &>>);
+        CHECK(&*r == &x);
+      }
+#endif
+
+      SECTION("constexpr")
+      {
+        using T = optional<helper>;
+        constexpr auto fn = [](auto &&a) constexpr { return helper(std::forward<decltype(a)>(a)).v * 3; };
+
+        SECTION("lval const")
+        {
+          constexpr T a(std::in_place, {3.0}, 5);
+          constexpr T e(std::nullopt);
+          static_assert(a.transform(fn).value() == 3 * 3 * 5 * from_lval_const);
+          static_assert(not e.transform(fn).has_value());
+          SUCCEED();
+        }
+
+        SECTION("rval")
+        {
+          static_assert(T{std::in_place, {3.0}, 5}.transform(fn) == 3 * 3 * 5 * from_rval);
+          SUCCEED();
+        }
+
+        SECTION("lval")
+        {
+          static_assert([&fn] {
+            T a{std::in_place, {3.0}, 5};
+            return a.transform(fn).value() == 3 * 3 * 5 * from_lval;
+          }());
+          SUCCEED();
+        }
+
+        SECTION("rval const")
+        {
+          static_assert([&fn] {
+            T a{std::in_place, {3.0}, 5};
+            return std::move(std::as_const(a)).transform(fn).value() == 3 * 3 * 5 * from_rval_const;
+          }());
+          SUCCEED();
+        }
+      }
+    }
+  }
+#endif
+
   SECTION("reset")
   {
     using T = optional<helper>;
@@ -2029,6 +2278,109 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
         SUCCEED();
       }
 #endif
+    }
+  }
+
+  SECTION("monadic functions")
+  {
+    using T = optional<int &>;
+
+    SECTION("and_then")
+    {
+      int x = 5;
+      T const a(std::in_place, x);
+      T const e(std::nullopt);
+      // the callable always receives plain int&, even through a const optional<int&>
+      constexpr auto fn = [](int &v) -> optional<double> { return v * 2.0; };
+      static_assert(std::is_same_v<decltype(a.and_then(fn)), optional<double>>);
+      CHECK(a.and_then(fn).value() == 10.0);
+      CHECK(not e.and_then(fn).has_value());
+
+      // the referent itself is passed, not a copy
+      auto same = [&x](int &v) -> optional<bool> { return &v == &x; };
+      CHECK(a.and_then(same).value());
+
+      SECTION("constexpr")
+      {
+        static_assert([] {
+          int y = 5;
+          T const o(std::in_place, y);
+          T const d(std::nullopt);
+          auto f = [](int &v) -> optional<int> { return v + 1; };
+          return o.and_then(f).value() == 6 && not d.and_then(f).has_value();
+        }());
+        SUCCEED();
+      }
+    }
+
+    SECTION("or_else")
+    {
+      int x = 5;
+      int y = 9;
+      T const a(std::in_place, x);
+      T const e(std::nullopt);
+      auto fn = [&y]() -> T { return T(std::in_place, y); };
+      // engaged: rebinds to the same referent; disengaged: the callable's result
+      auto r1 = a.or_else(fn);
+      CHECK(&*r1 == &x);
+      auto r2 = e.or_else(fn);
+      CHECK(&*r2 == &y);
+      // [optional.ref.monadic] Constraints: only invocable F, no copy-constructible arm
+      static_assert(has_or_else<T const &, decltype(fn)>);
+      static_assert(not has_or_else<T const &, int>);
+
+      SECTION("constexpr")
+      {
+        static_assert([] {
+          int v = 1;
+          int w = 2;
+          T const o(std::in_place, v);
+          T const d(std::nullopt);
+          auto f = [&w]() -> T { return T(std::in_place, w); };
+          return &*o.or_else(f) == &v && &*d.or_else(f) == &w;
+        }());
+        SUCCEED();
+      }
+    }
+
+    SECTION("transform")
+    {
+      int x = 5;
+      T const a(std::in_place, x);
+      T const e(std::nullopt);
+
+      SECTION("to value")
+      {
+        constexpr auto fn = [](int &v) { return v * 3; };
+        static_assert(std::is_same_v<decltype(a.transform(fn)), optional<int>>);
+        CHECK(a.transform(fn).value() == 15);
+        CHECK(not e.transform(fn).has_value());
+
+        // direct-non-list-initialized from the invoke result: no witness factor
+        auto r = a.transform([](int &v) { return helper(v); });
+        CHECK(r.value().v == 5);
+      }
+
+      SECTION("to reference")
+      {
+        // a reference-returning callable yields optional<X&>, here still bound to x
+        constexpr auto fn = [](int &v) -> int & { return v; };
+        auto r = a.transform(fn);
+        static_assert(std::is_same_v<decltype(r), optional<int &>>);
+        CHECK(&*r == &x);
+        CHECK(not e.transform(fn).has_value());
+      }
+
+      SECTION("constexpr")
+      {
+        static_assert([] {
+          int y = 7;
+          T const o(std::in_place, y);
+          auto f = [](int &v) { return v * 2; };
+          return o.transform(f).value() == 14;
+        }());
+        SUCCEED();
+      }
     }
   }
 
