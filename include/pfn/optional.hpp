@@ -241,10 +241,10 @@ constexpr inline _from_optional_t _from_optional{};
 // the specified initialization is exactly `U u(invoke(...))` -- guaranteed elision, so no
 // extra move and an immovable U works -- which means the invoke expression itself must reach
 // the contained value's initializer.
-struct _from_invoke_t {
-  explicit _from_invoke_t() = default;
+struct _optional_from_invoke_t {
+  explicit _optional_from_invoke_t() = default;
 };
-constexpr inline _from_invoke_t _from_invoke{};
+constexpr inline _optional_from_invoke_t _optional_from_invoke{};
 
 template <class T> union _optional_union_t {
   // _dummy_t placeholder, so the union always has an active member
@@ -282,7 +282,7 @@ template <class T> union _optional_union_t {
   }
 
   template <typename Fn, typename... Args>
-  constexpr explicit _optional_union_t(_from_invoke_t /*ignored*/, Fn &&fn, Args &&...args) //
+  constexpr explicit _optional_union_t(_optional_from_invoke_t /*ignored*/, Fn &&fn, Args &&...args) //
       noexcept(::std::is_nothrow_invocable_v<Fn, Args...>
                && ::std::is_nothrow_constructible_v<T, ::std::invoke_result_t<Fn, Args...>>)
       : v_(::std::invoke(FWD(fn), FWD(args)...))
@@ -431,8 +431,8 @@ template <class T, class Policy> struct _optional_base {
   {
   }
   template <typename Fn, typename... Args>
-  constexpr explicit _optional_base(_from_invoke_t tag, Fn &&fn, Args &&...args) //
-      noexcept(::std::is_nothrow_constructible_v<_storage_t, _from_invoke_t, Fn, Args...>)
+  constexpr explicit _optional_base(_optional_from_invoke_t tag, Fn &&fn, Args &&...args) //
+      noexcept(::std::is_nothrow_constructible_v<_storage_t, _optional_from_invoke_t, Fn, Args...>)
       : storage_(tag, FWD(fn), FWD(args)...), set_(true)
   {
   }
@@ -665,7 +665,7 @@ template <class T, class Policy> struct _optional_base {
     static_assert(_is_valid_optional<value_t>); // [optional.monadic] Mandates
     using result_t = typename Policy::template type<value_t>;
     if (self.has_value()) {
-      return result_t(_from_invoke, FWD(fn), *FWD(self));
+      return result_t(_optional_from_invoke, FWD(fn), *FWD(self));
     }
     return result_t();
   }
@@ -731,7 +731,7 @@ template <class T, class Policy> struct _optional_base<T &, Policy> {
   }
 
   template <typename Fn, typename... Args>
-  constexpr explicit _optional_base(_from_invoke_t /*ignored*/, Fn &&fn, Args &&...args) //
+  constexpr explicit _optional_base(_optional_from_invoke_t /*ignored*/, Fn &&fn, Args &&...args) //
       noexcept(::std::is_nothrow_invocable_v<Fn, Args...>
                && ::std::is_nothrow_constructible_v<T &, ::std::invoke_result_t<Fn, Args...>>)
   {
@@ -842,7 +842,7 @@ template <class T, class Policy> struct _optional_base<T &, Policy> {
     static_assert(_is_valid_optional<value_t>); // [optional.ref.monadic] Mandates
     using result_t = typename Policy::template type<value_t>;
     if (self.has_value()) {
-      return result_t(_from_invoke, FWD(fn), *self);
+      return result_t(_optional_from_invoke, FWD(fn), *self);
     }
     return result_t();
   }
@@ -947,8 +947,8 @@ public:
   // Direct-non-list-initializes the contained value from the result of std::invoke; used by
   // transform ([optional.monadic]), and public because the caller is another optional's base.
   template <class Fn, class... Args>
-  constexpr explicit optional(detail::_from_invoke_t tag, Fn &&fn, Args &&...args) //
-      noexcept(::std::is_nothrow_constructible_v<_base, detail::_from_invoke_t, Fn, Args...>)
+  constexpr explicit optional(detail::_optional_from_invoke_t tag, Fn &&fn, Args &&...args) //
+      noexcept(::std::is_nothrow_constructible_v<_base, detail::_optional_from_invoke_t, Fn, Args...>)
       : _base(tag, FWD(fn), FWD(args)...)
   {
   }
@@ -1147,8 +1147,8 @@ public:
   // Direct-non-list-initializes the bound reference from the result of std::invoke; used by
   // transform ([optional.ref.monadic]), and public because the caller is another optional's base.
   template <class Fn, class... Args>
-  constexpr explicit optional(detail::_from_invoke_t tag, Fn &&fn, Args &&...args) //
-      noexcept(::std::is_nothrow_constructible_v<_base, detail::_from_invoke_t, Fn, Args...>)
+  constexpr explicit optional(detail::_optional_from_invoke_t tag, Fn &&fn, Args &&...args) //
+      noexcept(::std::is_nothrow_constructible_v<_base, detail::_optional_from_invoke_t, Fn, Args...>)
       : _base(tag, FWD(fn), FWD(args)...)
   {
   }
