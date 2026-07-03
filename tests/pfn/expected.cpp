@@ -3378,6 +3378,22 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         CHECK(a.transform([](auto &&) {}).error().v == 11 * from_lval);
       }
 
+      SECTION("direct initialization")
+      {
+        // the new value is direct-non-list-initialized from the invoke result: guaranteed
+        // elision, so no copy/move witness factor and an immovable type works
+        using T = expected<int, Error>;
+        T a(7);
+        auto r = a.transform([](int v) { return helper(v); });
+        static_assert(std::is_same_v<decltype(r), expected<helper, Error>>);
+        CHECK(r.value().v == 7);
+
+        static_assert(not std::is_move_constructible_v<helper_immovable>);
+        auto ri = a.transform([](int v) { return helper_immovable(v, 3); });
+        static_assert(std::is_same_v<decltype(ri), expected<helper_immovable, Error>>);
+        CHECK(ri.value().v == 7 * 3);
+      }
+
       SECTION("constexpr")
       {
         using T = expected<helper, Error>;
@@ -3465,6 +3481,22 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         CHECK(std::as_const(a).transform_error(fn).value().v == 13 * from_lval_const);
         CHECK(std::move(std::as_const(a)).transform_error(fn).value().v == 13 * from_rval_const);
         CHECK(std::move(a).transform_error(fn).value().v == 13 * from_rval);
+      }
+
+      SECTION("direct initialization")
+      {
+        // the new error is direct-non-list-initialized from the invoke result: no witness
+        // factor, and an immovable type works
+        using T = expected<bool, int>;
+        T a(unexpect, 5);
+        auto r = a.transform_error([](int e) { return helper(e); });
+        static_assert(std::is_same_v<decltype(r), expected<bool, helper>>);
+        CHECK(r.error().v == 5);
+
+        static_assert(not std::is_move_constructible_v<helper_immovable>);
+        auto ri = a.transform_error([](int e) { return helper_immovable(e, 3); });
+        static_assert(std::is_same_v<decltype(ri), expected<bool, helper_immovable>>);
+        CHECK(ri.error().v == 5 * 3);
       }
 
       SECTION("constexpr")
@@ -5474,6 +5506,17 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         CHECK(a.transform([]() {}).has_value());
       }
 
+      SECTION("direct initialization")
+      {
+        // no witness factor, and an immovable type works
+        using T = expected<void, Error>;
+        T a;
+        static_assert(not std::is_move_constructible_v<helper_immovable>);
+        auto r = a.transform([] { return helper_immovable(6, 7); });
+        static_assert(std::is_same_v<decltype(r), expected<helper_immovable, Error>>);
+        CHECK(r.value().v == 6 * 7);
+      }
+
       SECTION("error")
       {
         using T = expected<void, helper>;
@@ -5562,6 +5605,18 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
         T a{};
         CHECK(a.transform_error(fn).has_value());
+      }
+
+      SECTION("direct initialization")
+      {
+        // covers the void specialization's from-invoke union constructor: the new error is
+        // direct-non-list-initialized, so no witness factor and an immovable type works
+        using T = expected<void, int>;
+        T a(unexpect, 5);
+        static_assert(not std::is_move_constructible_v<helper_immovable>);
+        auto r = a.transform_error([](int e) { return helper_immovable(e, 3); });
+        static_assert(std::is_same_v<decltype(r), expected<void, helper_immovable>>);
+        CHECK(r.error().v == 5 * 3);
       }
 
       SECTION("constexpr")

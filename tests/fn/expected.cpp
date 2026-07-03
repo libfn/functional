@@ -98,6 +98,21 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
         static_assert(std::is_same_v<decltype(a), fn::expected<int, fn::sum<>>>);
         CHECK(a.value() == 144'000);
       }
+
+      WHEN("transform direct-initializes its result")
+      {
+        // the value is direct-non-list-initialized from the callable's result: no extra
+        // move, and an immovable type works
+        struct immovable_t {
+          int v;
+          constexpr explicit immovable_t(int i) noexcept : v(i) {}
+          immovable_t(immovable_t &&) = delete;
+        };
+        constexpr auto fn = []() -> immovable_t { return immovable_t(7); };
+        auto a = unit.transform(fn);
+        static_assert(std::is_same_v<decltype(a), fn::expected<immovable_t, fn::sum<>>>);
+        CHECK(a.value().v == 7);
+      }
     }
   }
 

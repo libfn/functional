@@ -41,6 +41,9 @@ struct expected_policy {
 // Storage layer for ::fn::expected. Inherits the standard-conformant base from
 // pfn, then hides the four monadic static helpers with sum-widening variants
 // that materialise their result via `expected_policy::template type<U, G>`.
+// The transform/transform_error helpers hand pfn's _expected_from_invoke constructors a
+// zero-argument thunk, so the result's member is direct-non-list-initialized from fn's own
+// _invoke (or sum::transform) result: no extra move, and immovable result types work.
 template <typename T, typename E> struct _expected_base : ::pfn::detail::_expected_base<T, E, expected_policy> {
   using _pfn_base = ::pfn::detail::_expected_base<T, E, expected_policy>;
   using _pfn_base::_pfn_base;
@@ -171,7 +174,8 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
         ::fn::detail::_invoke(FWD(fn), _pfn_base::_value(FWD(self)));
         return type();
       } else
-        return type(::std::in_place, ::fn::detail::_invoke(FWD(fn), _pfn_base::_value(FWD(self))));
+        return type(::pfn::detail::_expected_from_invoke, ::std::in_place,
+                    [&]() -> decltype(auto) { return ::fn::detail::_invoke(FWD(fn), _pfn_base::_value(FWD(self))); });
     else
       return type(::pfn::unexpect, _pfn_base::_error(FWD(self)));
   }
@@ -188,7 +192,8 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
         _pfn_base::_value(FWD(self)).transform(FWD(fn));
         return type();
       } else
-        return type(::std::in_place, _pfn_base::_value(FWD(self)).transform(FWD(fn)));
+        return type(::pfn::detail::_expected_from_invoke, ::std::in_place,
+                    [&]() -> decltype(auto) { return _pfn_base::_value(FWD(self)).transform(FWD(fn)); });
     else
       return type(::pfn::unexpect, _pfn_base::_error(FWD(self)));
   }
@@ -206,7 +211,8 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
         ::fn::detail::_invoke(FWD(fn));
         return type();
       } else
-        return type(::std::in_place, ::fn::detail::_invoke(FWD(fn)));
+        return type(::pfn::detail::_expected_from_invoke, ::std::in_place,
+                    [&]() -> decltype(auto) { return ::fn::detail::_invoke(FWD(fn)); });
     else
       return type(::pfn::unexpect, _pfn_base::_error(FWD(self)));
   }
@@ -225,7 +231,8 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       else
         return type();
     else
-      return type(::pfn::unexpect, ::fn::detail::_invoke(FWD(fn), _pfn_base::_error(FWD(self))));
+      return type(::pfn::detail::_expected_from_invoke, ::pfn::unexpect,
+                  [&]() -> decltype(auto) { return ::fn::detail::_invoke(FWD(fn), _pfn_base::_error(FWD(self))); });
   }
 
   // transform_error, error type is a sum (delegates to sum::transform)
@@ -241,7 +248,8 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       else
         return type();
     else
-      return type(::pfn::unexpect, _pfn_base::_error(FWD(self)).transform(FWD(fn)));
+      return type(::pfn::detail::_expected_from_invoke, ::pfn::unexpect,
+                  [&]() -> decltype(auto) { return _pfn_base::_error(FWD(self)).transform(FWD(fn)); });
   }
 };
 
@@ -333,6 +341,15 @@ template <typename T, typename Err> struct expected : private detail::_expected_
       noexcept(::std::is_nothrow_constructible_v<Err, ::std::initializer_list<U> &, Args...>)
     requires ::std::is_constructible_v<Err, ::std::initializer_list<U> &, Args...>
       : _base(::pfn::unexpect, il, FWD(a)...)
+  {
+  }
+
+  // Direct-non-list-initializes the value (in_place) or error (unexpect) member from the
+  // result of a callable; used by the monadic static helpers.
+  template <class Tag, class Fn, class... Args>
+  constexpr explicit expected(::pfn::detail::_expected_from_invoke_t tag, Tag which, Fn &&fn, Args &&...args) //
+      noexcept(::std::is_nothrow_constructible_v<_base, ::pfn::detail::_expected_from_invoke_t, Tag, Fn, Args...>)
+      : _base(tag, which, FWD(fn), FWD(args)...)
   {
   }
 
@@ -692,6 +709,15 @@ template <typename Err> struct expected<void, Err> : private detail::_expected_b
       noexcept(::std::is_nothrow_constructible_v<Err, ::std::initializer_list<U> &, Args...>)
     requires ::std::is_constructible_v<Err, ::std::initializer_list<U> &, Args...>
       : _base(::pfn::unexpect, il, FWD(a)...)
+  {
+  }
+
+  // Direct-non-list-initializes the error member from the result of a callable; used by the
+  // monadic static helpers.
+  template <class Tag, class Fn, class... Args>
+  constexpr explicit expected(::pfn::detail::_expected_from_invoke_t tag, Tag which, Fn &&fn, Args &&...args) //
+      noexcept(::std::is_nothrow_constructible_v<_base, ::pfn::detail::_expected_from_invoke_t, Tag, Fn, Args...>)
+      : _base(tag, which, FWD(fn), FWD(args)...)
   {
   }
 
