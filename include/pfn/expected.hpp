@@ -83,10 +83,9 @@ private:
 };
 
 // [expected.syn], unexpect_t disambiguation tag
-struct unexpect_t {
+constexpr inline struct unexpect_t {
   explicit unexpect_t() = default;
-};
-constexpr inline unexpect_t unexpect{};
+} unexpect{};
 
 // [expected.unexpected]
 template <class E> class unexpected;
@@ -116,10 +115,9 @@ constexpr bool _implicit_to_bool(bool) noexcept;
 // expression itself must reach the member's initializer. Named _expected_* (mirroring
 // optional.hpp's _optional_from_invoke_t) since both standalone headers share one namespace
 // and may share a TU: a second definition of one name would collide.
-struct _expected_from_invoke_t {
+constexpr inline struct _expected_from_invoke_t {
   explicit _expected_from_invoke_t() = default;
-};
-constexpr inline _expected_from_invoke_t _expected_from_invoke{};
+} _expected_from_invoke{};
 } // namespace detail
 
 // [expected.unexpected], class template unexpected

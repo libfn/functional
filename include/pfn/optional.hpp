@@ -231,20 +231,18 @@ namespace detail {
 // Tag selecting _optional_union_t's/_optional_base's "construct from any source exposing
 // has_value()/operator*()" constructor, disambiguating it from the (bool, S&&) one below
 // (which instead reads another union's raw v_ member directly).
-struct _from_optional_t {
+constexpr inline struct _from_optional_t {
   explicit _from_optional_t() = default;
-};
-constexpr inline _from_optional_t _from_optional{};
+} _from_optional{};
 
 // Tag selecting the "direct-non-list-initialize the contained value from the result of
 // std::invoke" constructors, required by transform ([optional.monadic]/[optional.ref.monadic]):
 // the specified initialization is exactly `U u(invoke(...))` -- guaranteed elision, so no
 // extra move and an immovable U works -- which means the invoke expression itself must reach
 // the contained value's initializer.
-struct _optional_from_invoke_t {
+constexpr inline struct _optional_from_invoke_t {
   explicit _optional_from_invoke_t() = default;
-};
-constexpr inline _optional_from_invoke_t _optional_from_invoke{};
+} _optional_from_invoke{};
 
 template <class T> union _optional_union_t {
   // _dummy_t placeholder, so the union always has an active member
