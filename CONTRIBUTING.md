@@ -4,7 +4,7 @@ This is for working *on* libfn; to *use* the library, see the [README](README.md
 
 ## Development environment
 
-Building and testing libfn needs a C++20 toolchain (with one exception). `pfn` polyfills the C++23 standard-library utilities that `fn` builds on (`pfn::expected`, `pfn::invoke_r`, `pfn::unreachable`). The minimum supported compilers are [gcc 12][gcc-standard-support] and [clang 16][clang-standard-support]; if your OS does not ship one recent enough, use the [devcontainer] or [Nix][nix] (see [nix/README.md][nixmd]). You may also use Apple Clang 16.0 or Microsoft Visual Studio 2022 or newer.
+Building and testing libfn needs a C++20 toolchain (with one exception). `pfn` polyfills C++23/26 standard-library utilities (`pfn::expected`, `pfn::optional`, `pfn::invoke_r`, `pfn::unreachable`); `fn` builds on `pfn` rather than the newer standard library. The minimum supported compilers are [gcc 12][gcc-standard-support] and [clang 16][clang-standard-support]; if your OS does not ship one recent enough, use the [devcontainer] or [Nix][nix] (see [nix/README.md][nixmd]). You may also use Apple Clang 16.0 or Microsoft Visual Studio 2022 or newer.
 
 When working with `tests/pfn/expected.cpp` you will need a C++23 compiler, in order to enable the `VALIDATE_CXX23` option for `expected_validation.cpp` tests.
 

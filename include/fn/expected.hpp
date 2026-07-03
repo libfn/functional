@@ -41,8 +41,8 @@ struct expected_policy {
 // Storage layer for ::fn::expected. Inherits the standard-conformant base from
 // pfn, then hides the four monadic static helpers with sum-widening variants
 // that materialise their result via `expected_policy::template type<U, G>`.
-template <typename T, typename E> struct _storage : ::pfn::detail::_storage<T, E, expected_policy> {
-  using _pfn_base = ::pfn::detail::_storage<T, E, expected_policy>;
+template <typename T, typename E> struct _expected_base : ::pfn::detail::_expected_base<T, E, expected_policy> {
+  using _pfn_base = ::pfn::detail::_expected_base<T, E, expected_policy>;
   using _pfn_base::_pfn_base;
 
   // and_then, non-void value type
@@ -248,8 +248,8 @@ template <typename T, typename E> struct _storage : ::pfn::detail::_storage<T, E
 } // namespace detail
 
 // Primary template - non-void value type
-template <typename T, typename Err> struct expected : private detail::_storage<T, Err> {
-  using _base = detail::_storage<T, Err>;
+template <typename T, typename Err> struct expected : private detail::_expected_base<T, Err> {
+  using _base = detail::_expected_base<T, Err>;
   using value_type = T;
   using error_type = Err;
   using unexpected_type = ::pfn::unexpected<Err>;
@@ -257,9 +257,9 @@ template <typename T, typename Err> struct expected : private detail::_storage<T
 
   template <class U> using rebind = expected<U, error_type>;
 
-  // Allow sibling _storage instantiations to downcast into the private base.
-  template <class, class, class> friend struct ::pfn::detail::_storage;
-  template <class, class> friend struct ::fn::detail::_storage;
+  // Allow sibling _expected_base instantiations to downcast into the private base.
+  template <class, class, class> friend struct ::pfn::detail::_expected_base;
+  template <class, class> friend struct ::fn::detail::_expected_base;
 
   // Constructors. Explicit forwarders to the base mirror pfn::expected.
   constexpr expected() noexcept(::std::is_nothrow_default_constructible_v<T>)
@@ -414,7 +414,7 @@ template <typename T, typename Err> struct expected : private detail::_storage<T
     return *this;
   }
 
-  // Observers inherited from _storage
+  // Observers inherited from _expected_base
   using _base::operator*;
   using _base::operator->;
   using _base::operator bool;
@@ -425,10 +425,10 @@ template <typename T, typename Err> struct expected : private detail::_storage<T
   using _base::value;
   using _base::value_or;
 
-  // Emplace inherited from _storage
+  // Emplace inherited from _expected_base
   using _base::emplace;
 
-  // Swap; body delegates to _storage helper
+  // Swap; body delegates to _expected_base helper
   constexpr void
   swap(expected &rhs) noexcept(::std::is_nothrow_move_constructible_v<T> && ::std::is_nothrow_swappable_v<T>
                                && ::std::is_nothrow_move_constructible_v<Err> && ::std::is_nothrow_swappable_v<Err>)
@@ -439,7 +439,7 @@ template <typename T, typename Err> struct expected : private detail::_storage<T
     this->_swap_with(rhs);
   }
 
-  // Monadic operations. Bodies delegate to _storage static helpers, which perform sum-widening.
+  // Monadic operations. Bodies delegate to _expected_base static helpers, which perform sum-widening.
   template <class F>
   constexpr auto and_then(F &&f) &                        //
       noexcept(noexcept(_base::_and_then(*this, FWD(f)))) // extension
@@ -636,16 +636,16 @@ template <typename T, typename Err> struct expected : private detail::_storage<T
   }
 };
 
-template <typename Err> struct expected<void, Err> : private detail::_storage<void, Err> {
-  using _base = detail::_storage<void, Err>;
+template <typename Err> struct expected<void, Err> : private detail::_expected_base<void, Err> {
+  using _base = detail::_expected_base<void, Err>;
   using value_type = void;
   using error_type = Err;
   using unexpected_type = ::pfn::unexpected<Err>;
 
   template <class U> using rebind = expected<U, error_type>;
 
-  template <class, class, class> friend struct ::pfn::detail::_storage;
-  template <class, class> friend struct ::fn::detail::_storage;
+  template <class, class, class> friend struct ::pfn::detail::_expected_base;
+  template <class, class> friend struct ::fn::detail::_expected_base;
 
   constexpr expected() noexcept : _base(::std::in_place) {}
 
@@ -766,7 +766,7 @@ template <typename Err> struct expected<void, Err> : private detail::_storage<vo
   using _base::has_value;
   using _base::value;
 
-  // Monadic operations. Bodies delegate to _storage static helpers, which perform sum-widening.
+  // Monadic operations. Bodies delegate to _expected_base static helpers, which perform sum-widening.
   template <class F>
   constexpr auto and_then(F &&f) &                        //
       noexcept(noexcept(_base::_and_then(*this, FWD(f)))) // extension
