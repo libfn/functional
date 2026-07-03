@@ -1350,6 +1350,13 @@ TEST_CASE("optional", "[optional][polyfill]")
         CHECK((v2 > v1));
         CHECK((v1 <= v1));
         CHECK((v1 >= v1));
+        // disengaged branches again, at runtime: the constexpr matrix above earns no coverage
+        CHECK(not(e1 > v1));
+        CHECK((v1 > e1));
+        CHECK((e1 <= v1));
+        CHECK(not(v1 <= e1));
+        CHECK((v1 >= e1));
+        CHECK(not(e1 >= v1));
       }
     }
 
