@@ -29,6 +29,7 @@ using pfn::optional;
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
+#include <version>
 
 // Constructible from literally anything, but itself neither copyable nor movable -- so
 // optional<greedy_t> can only be "constructible from an optional<greedy_t>&/&&/etc." via a
@@ -1268,7 +1269,11 @@ TEST_CASE("optional", "[optional][polyfill]")
       static_assert(has_ne<optional<B>>); // *x != *y is well-formed through B's rewritten ==
       static_assert(not has_spaceship<optional<A>>);
       static_assert(not has_spaceship<optional<B>>); // == alone does not satisfy three_way_comparable_with
+// libc++ 16 has no operator<=> for std::optional (P1614 incomplete there);
+// __cpp_lib_three_way_comparison tracks the stdlib's library-wide <=> support
+#if !defined(PFN_TEST_VALIDATION) || defined(__cpp_lib_three_way_comparison)
       static_assert(has_spaceship<optional<int>, optional<long>>);
+#endif
       SUCCEED();
     }
 
@@ -1348,7 +1353,8 @@ TEST_CASE("optional", "[optional][polyfill]")
       }
     }
 
-    SECTION("three-way")
+#if !defined(PFN_TEST_VALIDATION) || defined(__cpp_lib_three_way_comparison)
+    SECTION("three-way") // no std::optional operator<=> in libc++ 16
     {
       using V = optional<int>;
       static_assert(
@@ -1374,6 +1380,7 @@ TEST_CASE("optional", "[optional][polyfill]")
         CHECK((e1 <=> n) == std::partial_ordering::less);     // ...but engagement still orders first
       }
     }
+#endif
   }
 
   SECTION("comparison with nullopt")
@@ -1382,9 +1389,12 @@ TEST_CASE("optional", "[optional][polyfill]")
     // [optional.nullops] both operators are noexcept, and <=> returns strong_ordering for any T
     static_assert(noexcept(std::declval<V const &>() == std::nullopt));
     static_assert(noexcept(std::nullopt == std::declval<V const &>()));
+#if !defined(PFN_TEST_VALIDATION) || defined(__cpp_lib_three_way_comparison)
+    // no std::optional operator<=> in libc++ 16
     static_assert(noexcept(std::declval<V const &>() <=> std::nullopt));
     static_assert(
         std::is_same_v<decltype(std::declval<optional<double> const &>() <=> std::nullopt), std::strong_ordering>);
+#endif
 
     constexpr V e(std::nullopt);
     constexpr V v(5);
@@ -1392,9 +1402,11 @@ TEST_CASE("optional", "[optional][polyfill]")
     static_assert(std::nullopt == e);
     static_assert(v != std::nullopt);
     static_assert(std::nullopt != v);
+#if !defined(PFN_TEST_VALIDATION) || defined(__cpp_lib_three_way_comparison)
     static_assert((e <=> std::nullopt) == std::strong_ordering::equal);
     static_assert((v <=> std::nullopt) == std::strong_ordering::greater);
-    // the ordering relations are rewritten from <=>
+#endif
+    // the ordering relations are rewritten from <=> (libc++ 16 falls back to its legacy operators)
     static_assert(std::nullopt < v);
     static_assert(not(std::nullopt < e));
     static_assert(e <= std::nullopt);
@@ -1491,7 +1503,8 @@ TEST_CASE("optional", "[optional][polyfill]")
       CHECK((V(std::nullopt) < 5));
     }
 
-    SECTION("three-way")
+#if !defined(PFN_TEST_VALIDATION) || defined(__cpp_lib_three_way_comparison)
+    SECTION("three-way") // no std::optional operator<=> in libc++ 16
     {
       using V = optional<int>;
       static_assert(std::is_same_v<decltype(std::declval<V const &>() <=> 5), std::strong_ordering>);
@@ -1512,6 +1525,7 @@ TEST_CASE("optional", "[optional][polyfill]")
       CHECK((V(5) <=> derived_t(3)) == std::strong_ordering::greater);
       CHECK((V(5) <=> derived_t(std::nullopt)) == std::strong_ordering::greater); // compared as optionals
     }
+#endif
   }
 }
 
