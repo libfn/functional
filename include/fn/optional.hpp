@@ -545,10 +545,12 @@ private:
 };
 
 namespace detail {
-// Mirrors pfn's exposition-only _is_derived_from_optional, probing fn::optional instead: a
-// type derived from optional is compared by the relational operators, not comparison-with-value.
+// Deduction probe: deliberately declared without a definition (it is only named in an
+// unevaluated context), and called qualified so that ADL cannot pull unrelated overloads.
+template <class U> void _derived_from_optional(::fn::optional<U> const &);
+
 template <class T>
-concept _is_derived_from_optional = requires(T const &t) { []<class U>(::fn::optional<U> const &) {}(t); };
+concept _is_derived_from_optional = requires(T const &t) { ::fn::detail::_derived_from_optional(t); };
 } // namespace detail
 
 // Comparison operators, the same full set as pfn::optional's (whose namespace-scope templates

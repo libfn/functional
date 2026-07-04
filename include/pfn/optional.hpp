@@ -46,12 +46,15 @@ template <class T> class optional; // partially freestanding
 // [optional.optional.ref], partial specialization of optional for lvalue reference types
 template <class T> class optional<T &>; // partially freestanding
 
+namespace detail {
+// Deduction probe: deliberately declared without a definition (it is only named in an unevaluated
+// context), and called qualified so that ADL cannot pull unrelated overloads into the probe.
+template <class U> void _derived_from_optional(optional<U> const &);
+
 template <class T>
 concept _is_derived_from_optional = requires(T const &t) { // exposition only
-  []<class U>(optional<U> const &) {}(t);
+  detail::_derived_from_optional(t);
 };
-
-namespace detail {
 
 // Helper used as noexcept(...) operand where we want to evaluate both:
 // * noexcept of an expression itself (e.g. operator==) AND
@@ -197,7 +200,7 @@ constexpr bool operator>=(T const &, optional<U> const &) //
     noexcept(detail::_ge_bool_noexcept<T, U>)             // extension
   requires(not detail::_is_some_optional<T>) && detail::_ge_bool<T, U>;
 template <class T, class U>
-  requires(not _is_derived_from_optional<U>) && ::std::three_way_comparable_with<T, U>
+  requires(not detail::_is_derived_from_optional<U>) && ::std::three_way_comparable_with<T, U>
 constexpr ::std::compare_three_way_result_t<T, U> operator<=>(optional<T> const &, U const &);
 
 // [optional.specalg], specialized algorithms
@@ -1421,7 +1424,7 @@ constexpr bool operator>=(T const &v, optional<U> const &x) //
   return x.has_value() ? v >= *x : true;
 }
 template <class T, class U>
-  requires(not _is_derived_from_optional<U>) && ::std::three_way_comparable_with<T, U>
+  requires(not detail::_is_derived_from_optional<U>) && ::std::three_way_comparable_with<T, U>
 constexpr ::std::compare_three_way_result_t<T, U> operator<=>(optional<T> const &x, U const &v)
 {
   return x.has_value() ? *x <=> v : ::std::strong_ordering::less;
