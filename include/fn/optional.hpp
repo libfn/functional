@@ -36,13 +36,17 @@ struct optional_policy {
 // The transform helpers hand pfn's _optional_from_invoke constructor a zero-argument
 // thunk, so the result's contained value is direct-non-list-initialized from fn's own
 // _invoke (or sum::transform) result: no extra move, and immovable result types work.
+// The statics carry the same extension noexcept as pfn's, spelled with the std traits: for
+// the sum/pack dispatch extensions std::is_nothrow_invocable_v is false (the callable is not
+// directly invocable on a sum or pack), so those are conservatively noexcept(false).
 template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, optional_policy> {
   using _pfn_base = ::pfn::detail::_optional_base<T, optional_policy>;
   using _pfn_base::_pfn_base;
 
   // and_then
   template <typename Self, typename Fn>
-  static constexpr auto _and_then(Self &&self, Fn &&fn)
+  static constexpr auto _and_then(Self &&self, Fn &&fn)                 //
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(*FWD(self))>) // extension
     requires ::fn::detail::_is_invocable<Fn, decltype(*FWD(self))>::value
   {
     using type = ::std::remove_cvref_t<typename ::fn::detail::_invoke_result<Fn, decltype(*FWD(self))>::type>;
@@ -63,7 +67,11 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
 
   // or_else (with value-widening into a sum)
   template <typename Self, typename Fn>
-  static constexpr auto _or_else(Self &&self, Fn &&fn)
+  static constexpr auto _or_else(Self &&self, Fn &&fn) //
+      noexcept(
+          ::std::is_same_v<::std::remove_cvref_t<typename ::fn::detail::_invoke_result<Fn>::type>, ::fn::optional<T>>
+          && ::std::is_nothrow_invocable_v<Fn>
+          && ::std::is_nothrow_constructible_v<::fn::optional<T>, Self>) // extension
     requires ::fn::detail::_is_invocable<Fn>::value && ::std::is_constructible_v<T, decltype(*FWD(self))>
   {
     using type = ::std::remove_cvref_t<typename ::fn::detail::_invoke_result<Fn>::type>;
@@ -91,9 +99,24 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
     }
   }
 
+  // or_else for the optional<T&> wrapper: forwards to pfn's reference _or_else (hidden by the
+  // _or_else above), propagating its constraints and noexcept -- a reference optional has
+  // nothing to sum-widen, so pfn's semantics apply exactly
+  template <typename Self, typename Fn>
+  static constexpr auto _or_else_ref(Self &&self, Fn &&fn)        //
+      noexcept(noexcept(_pfn_base::_or_else(FWD(self), FWD(fn)))) //
+      -> decltype(_pfn_base::_or_else(FWD(self), FWD(fn)))
+  {
+    return _pfn_base::_or_else(FWD(self), FWD(fn));
+  }
+
   // transform, value type is not a sum
   template <typename Self, typename Fn>
-  static constexpr auto _transform(Self &&self, Fn &&fn)
+  static constexpr auto _transform(Self &&self, Fn &&fn) //
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(*FWD(self))>
+               && ::std::is_nothrow_constructible_v<
+                   ::std::remove_cv_t<typename ::fn::detail::_invoke_result<Fn, decltype(*FWD(self))>::type>,
+                   typename ::fn::detail::_invoke_result<Fn, decltype(*FWD(self))>::type>) // extension
     requires(not some_sum<T>) && ::fn::detail::_is_invocable_if<not some_sum<T>, Fn, decltype(*FWD(self))>::value
   {
     using new_value_type = ::std::remove_cv_t<typename ::fn::detail::_invoke_result<Fn, decltype(*FWD(self))>::type>;
@@ -501,12 +524,12 @@ public:
     return _base::_transform(*this, FWD(f));
   }
   template <class F>
-  constexpr auto or_else(F &&f) const                    //
-      noexcept(noexcept(_base::_or_else(*this, FWD(f)))) // extension
-      -> decltype(_base::_or_else(*this, FWD(f)))
+  constexpr auto or_else(F &&f) const                        //
+      noexcept(noexcept(_base::_or_else_ref(*this, FWD(f)))) // extension
+      -> decltype(_base::_or_else_ref(*this, FWD(f)))
     requires ::std::invocable<F>
   {
-    return _base::_or_else(*this, FWD(f));
+    return _base::_or_else_ref(*this, FWD(f));
   }
 
 private:

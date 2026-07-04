@@ -1238,6 +1238,12 @@ TEST_CASE("optional", "[optional][polyfill]")
 
         T a(std::in_place, 7);
         static_assert(std::is_same_v<decltype(a.and_then(fn)), optional<int>>);
+
+        // extension: conditional noexcept, keyed on the callable
+        constexpr auto nx = [](auto &&) noexcept -> optional<int> { return 1; };
+        static_assert(not extension || noexcept(a.and_then(nx)));
+        static_assert(not extension || not noexcept(a.and_then(fn)));
+
         CHECK(a.and_then(fn).value() == 7 * 2 * from_lval);
         CHECK(std::as_const(a).and_then(fn).value() == 7 * 2 * from_lval_const);
         CHECK(std::move(std::as_const(a)).and_then(fn).value() == 7 * 2 * from_rval_const);
@@ -1325,6 +1331,19 @@ TEST_CASE("optional", "[optional][polyfill]")
         constexpr auto fn = []() constexpr -> T { return T(std::in_place, 1); };
 
         T a(std::in_place, 13);
+
+        // extension: conditional noexcept, keyed on the callable and on copying *this (helper's
+        // copy constructor is noexcept; a throwing copy makes the second conjunct false)
+        constexpr auto nx = []() noexcept -> T { return T(std::nullopt); };
+        static_assert(not extension || noexcept(a.or_else(nx)));
+        static_assert(not extension || not noexcept(a.or_else(fn)));
+        struct throwing_copy_t {
+          throwing_copy_t() = default;
+          throwing_copy_t(throwing_copy_t const &) {}
+        };
+        constexpr auto nxt = []() noexcept -> optional<throwing_copy_t> { return {std::nullopt}; };
+        static_assert(not extension || not noexcept(std::declval<optional<throwing_copy_t> const &>().or_else(nxt)));
+
         // or_else has only const& and && overloads; the engaged path returns a copy of *this
         // (the contained value through helper's const& copy ctor) or a move of it
         CHECK(a.or_else(fn).value().v == 13 * from_lval_const);
@@ -1380,6 +1399,12 @@ TEST_CASE("optional", "[optional][polyfill]")
 
         T a(std::in_place, 7);
         static_assert(std::is_same_v<decltype(a.transform(fn)), optional<int>>);
+
+        // extension: conditional noexcept, keyed on the callable and the result construction
+        constexpr auto nx = [](auto &&) noexcept { return 1; };
+        static_assert(not extension || noexcept(a.transform(nx)));
+        static_assert(not extension || not noexcept(a.transform(fn)));
+
         CHECK(a.transform(fn).value() == 7 * 2 * from_lval);
         CHECK(std::as_const(a).transform(fn).value() == 7 * 2 * from_lval_const);
         CHECK(std::move(std::as_const(a)).transform(fn).value() == 7 * 2 * from_rval_const);
@@ -2311,6 +2336,12 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
       // the callable always receives plain int&, even through a const optional<int&>
       constexpr auto fn = [](int &v) -> optional<double> { return v * 2.0; };
       static_assert(std::is_same_v<decltype(a.and_then(fn)), optional<double>>);
+
+      // extension: conditional noexcept, keyed on the callable
+      constexpr auto nx = [](int &) noexcept -> optional<int> { return 1; };
+      static_assert(noexcept(a.and_then(nx)));
+      static_assert(not noexcept(a.and_then(fn)));
+
       CHECK(a.and_then(fn).value() == 10.0);
       CHECK(not e.and_then(fn).has_value());
 
@@ -2338,6 +2369,13 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
       T const a(std::in_place, x);
       T const e(std::nullopt);
       auto fn = [&y]() -> T { return T(std::in_place, y); };
+
+      // extension: conditional noexcept, keyed on the callable alone (no copy conjunct:
+      // the engaged path only rebinds a pointer, which cannot throw)
+      constexpr auto nx = []() noexcept -> T { return T(std::nullopt); };
+      static_assert(noexcept(a.or_else(nx)));
+      static_assert(not noexcept(a.or_else(fn)));
+
       // engaged: rebinds to the same referent; disengaged: the callable's result
       auto r1 = a.or_else(fn);
       CHECK(&*r1 == &x);
@@ -2371,6 +2409,12 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
       {
         constexpr auto fn = [](int &v) { return v * 3; };
         static_assert(std::is_same_v<decltype(a.transform(fn)), optional<int>>);
+
+        // extension: conditional noexcept, keyed on the callable and the result construction
+        constexpr auto nx = [](int &) noexcept { return 1; };
+        static_assert(noexcept(a.transform(nx)));
+        static_assert(not noexcept(a.transform(fn)));
+
         CHECK(a.transform(fn).value() == 15);
         CHECK(not e.transform(fn).has_value());
 
