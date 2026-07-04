@@ -444,7 +444,8 @@ template <class T, class Policy> struct _optional_base {
   // union's own _from_optional_t ctor, which reads that public observer API directly rather
   // than reaching into the source's storage, so it works uniformly for both optional<U> (a
   // discriminated union) and optional<U&> (a bare pointer, no union or `set_` at all)
-  // sources alike. Used by the converting ctors below and by _assign_from.
+  // sources alike. Used by the converting ctors below; _assign_from applies the same
+  // public-API reads in its own body (via _reinit), without going through this ctor.
   template <typename S>
   constexpr explicit _optional_base(_from_optional_t tag, S &&s) //
       noexcept(::std::is_nothrow_constructible_v<_storage_t, _from_optional_t, S>)
