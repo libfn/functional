@@ -203,6 +203,16 @@ TEST_CASE("optional", "[optional][polyfill]")
       H d(std::in_place, 1);
       CHECK(d.has_value());
     }
+
+#ifndef PFN_TEST_VALIDATION
+    SECTION("from-invoke tag ctor is private")
+    {
+      // is_constructible_v cannot see inaccessible ctors, so this pins the detail tag
+      // ctor (used by transform) out of the public interface
+      static_assert(not std::is_constructible_v<optional<int>, pfn::detail::_optional_from_invoke_t, int (*)()>);
+      SUCCEED();
+    }
+#endif
   }
 
   SECTION("copy, move and dtor")
@@ -1983,6 +1993,14 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
         }());
         SUCCEED();
       }
+    }
+
+    SECTION("from-invoke tag ctor is private")
+    {
+      // is_constructible_v cannot see inaccessible ctors, so this pins the detail tag
+      // ctor (used by transform) out of the public interface
+      static_assert(not std::is_constructible_v<optional<int &>, pfn::detail::_optional_from_invoke_t, int &(*)()>);
+      SUCCEED();
     }
   }
 

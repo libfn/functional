@@ -112,6 +112,12 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
         auto a = unit.transform(fn);
         static_assert(std::is_same_v<decltype(a), fn::expected<immovable_t, fn::sum<>>>);
         CHECK(a.value().v == 7);
+
+        // the from-invoke tag ctor backing this is not part of the public interface
+        // (is_constructible_v cannot see private ctors)
+        static_assert(
+            not std::is_constructible_v<fn::expected<immovable_t, fn::sum<>>, pfn::detail::_expected_from_invoke_t,
+                                        std::in_place_t, immovable_t (*)()>);
       }
     }
   }

@@ -1117,7 +1117,8 @@ template <class T, class E> class expected : private detail::_expected_base<T, E
   using _base = detail::_expected_base<T, E, detail::expected_policy>;
 
   // Allow sibling `_expected_base` instantiations to downcast into our private base
-  // (needed for the lifted converting ctors and friend operators).
+  // (needed for the lifted converting ctors and friend operators) and to call the
+  // private from-invoke ctor below.
   template <class, class, class> friend struct detail::_expected_base;
 
 public:
@@ -1200,16 +1201,6 @@ public:
       noexcept(::std::is_nothrow_constructible_v<E, ::std::initializer_list<U> &, Args...>) // extension
     requires ::std::is_constructible_v<E, ::std::initializer_list<U> &, Args...>
       : _base(unexpect, il, FWD(a)...)
-  {
-  }
-
-  // Direct-non-list-initializes the value (in_place) or error (unexpect) member from the result
-  // of std::invoke; used by transform and transform_error ([expected.object.monadic]), and
-  // public because the caller is another expected's base.
-  template <class Tag, class Fn, class... Args>
-  constexpr explicit expected(detail::_expected_from_invoke_t tag, Tag which, Fn &&fn, Args &&...args) //
-      noexcept(::std::is_nothrow_constructible_v<_base, detail::_expected_from_invoke_t, Tag, Fn, Args...>)
-      : _base(tag, which, FWD(fn), FWD(args)...)
   {
   }
 
@@ -1439,6 +1430,16 @@ public:
 
   // [expected.object.eq], equality operators are hidden friends of _expected_base,
   // found via ADL (associated classes include the private base).
+
+private:
+  // Direct-non-list-initializes the value (in_place) or error (unexpect) member from the result
+  // of std::invoke; used by monadic functions implemented in _expected_base.
+  template <class Tag, class Fn, class... Args>
+  constexpr explicit expected(detail::_expected_from_invoke_t tag, Tag which, Fn &&fn, Args &&...args) //
+      noexcept(::std::is_nothrow_constructible_v<_base, detail::_expected_from_invoke_t, Tag, Fn, Args...>)
+      : _base(tag, which, FWD(fn), FWD(args)...)
+  {
+  }
 };
 
 template <class E> class expected<void, E> : private detail::_expected_base<void, E, detail::expected_policy> {
@@ -1446,7 +1447,8 @@ template <class E> class expected<void, E> : private detail::_expected_base<void
   using _base = detail::_expected_base<void, E, detail::expected_policy>;
 
   // Allow sibling `_expected_base` instantiations to downcast into our private base
-  // (needed for the lifted converting ctors and friend operators).
+  // (needed for the lifted converting ctors and friend operators) and to call the
+  // private from-invoke ctor below.
   template <class, class, class> friend struct detail::_expected_base;
 
 public:
@@ -1502,16 +1504,6 @@ public:
       noexcept(::std::is_nothrow_constructible_v<E, ::std::initializer_list<U> &, Args...>) // extension
     requires ::std::is_constructible_v<E, ::std::initializer_list<U> &, Args...>
       : _base(unexpect, il, FWD(a)...)
-  {
-  }
-
-  // Direct-non-list-initializes the error member from the result of std::invoke; used by
-  // transform_error ([expected.void.monadic]), and public because the caller is another
-  // expected's base.
-  template <class Tag, class Fn, class... Args>
-  constexpr explicit expected(detail::_expected_from_invoke_t tag, Tag which, Fn &&fn, Args &&...args) //
-      noexcept(::std::is_nothrow_constructible_v<_base, detail::_expected_from_invoke_t, Tag, Fn, Args...>)
-      : _base(tag, which, FWD(fn), FWD(args)...)
   {
   }
 
@@ -1713,6 +1705,16 @@ public:
 
   // [expected.void.eq], equality operators are hidden friends of _expected_base,
   // found via ADL (associated classes include the private base).
+
+private:
+  // Direct-non-list-initializes the error member from the result of std::invoke; used by
+  // transform_error implemented in _expected_base.
+  template <class Tag, class Fn, class... Args>
+  constexpr explicit expected(detail::_expected_from_invoke_t tag, Tag which, Fn &&fn, Args &&...args) //
+      noexcept(::std::is_nothrow_constructible_v<_base, detail::_expected_from_invoke_t, Tag, Fn, Args...>)
+      : _base(tag, which, FWD(fn), FWD(args)...)
+  {
+  }
 };
 
 } // namespace pfn

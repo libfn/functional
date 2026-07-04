@@ -819,6 +819,18 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         CHECK(std::strcmp(e.what(), "invalid input") == 0);
       }
     }
+
+#ifndef PFN_TEST_VALIDATION
+    SECTION("from-invoke tag ctor is private")
+    {
+      // is_constructible_v cannot see inaccessible ctors, so this pins the detail tag
+      // ctor (used by transform and transform_error) out of the public interface
+      using T = expected<int, Error>;
+      static_assert(not std::is_constructible_v<T, pfn::detail::_expected_from_invoke_t, std::in_place_t, int (*)()>);
+      static_assert(not std::is_constructible_v<T, pfn::detail::_expected_from_invoke_t, pfn::unexpect_t, Error (*)()>);
+      SUCCEED();
+    }
+#endif
   }
 
   SECTION("from other expected")
@@ -3875,6 +3887,17 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
       CHECK(not b.has_error());
 #endif
     }
+
+#ifndef PFN_TEST_VALIDATION
+    SECTION("from-invoke tag ctor is private")
+    {
+      // is_constructible_v cannot see inaccessible ctors, so this pins the detail tag
+      // ctor (used by transform_error) out of the public interface
+      using T = expected<void, Error>;
+      static_assert(not std::is_constructible_v<T, pfn::detail::_expected_from_invoke_t, pfn::unexpect_t, Error (*)()>);
+      SUCCEED();
+    }
+#endif
   }
 
   SECTION("from other expected")

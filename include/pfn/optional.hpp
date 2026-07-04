@@ -900,6 +900,10 @@ template <class T> class optional : private detail::_optional_base<T, detail::op
   static_assert(detail::_is_valid_optional<T>);
   using _base = detail::_optional_base<T, detail::optional_policy>;
 
+  // Allow sibling `_optional_base` instantiations to call the private from-invoke ctor
+  // below (its caller is another optional's base).
+  template <class, class> friend struct detail::_optional_base;
+
 public:
   using value_type = T;
 
@@ -940,15 +944,6 @@ public:
       noexcept(::std::is_nothrow_constructible_v<T, ::std::initializer_list<U> &, Args...>)  // extension
     requires ::std::is_constructible_v<T, ::std::initializer_list<U> &, Args...>
       : _base(::std::in_place, il, FWD(a)...)
-  {
-  }
-
-  // Direct-non-list-initializes the contained value from the result of std::invoke; used by
-  // transform ([optional.monadic]), and public because the caller is another optional's base.
-  template <class Fn, class... Args>
-  constexpr explicit optional(detail::_optional_from_invoke_t tag, Fn &&fn, Args &&...args) //
-      noexcept(::std::is_nothrow_constructible_v<_base, detail::_optional_from_invoke_t, Fn, Args...>)
-      : _base(tag, FWD(fn), FWD(args)...)
   {
   }
 
@@ -1119,6 +1114,16 @@ public:
 
   // [optional.mod], modifiers
   using _base::reset;
+
+private:
+  // Direct-non-list-initializes the contained value from the result of std::invoke; used by
+  // transform implemented in _optional_base.
+  template <class Fn, class... Args>
+  constexpr explicit optional(detail::_optional_from_invoke_t tag, Fn &&fn, Args &&...args) //
+      noexcept(::std::is_nothrow_constructible_v<_base, detail::_optional_from_invoke_t, Fn, Args...>)
+      : _base(tag, FWD(fn), FWD(args)...)
+  {
+  }
 };
 
 template <class T> optional(T) -> optional<T>;
@@ -1126,6 +1131,10 @@ template <class T> optional(T) -> optional<T>;
 template <class T> class optional<T &> : private detail::_optional_base<T &, detail::optional_policy> {
   static_assert(detail::_is_valid_optional<T>);
   using _base = detail::_optional_base<T &, detail::optional_policy>;
+
+  // Allow sibling `_optional_base` instantiations to call the private from-invoke ctor
+  // below (its caller is another optional's base).
+  template <class, class> friend struct detail::_optional_base;
 
 public:
   using value_type = T;
@@ -1140,15 +1149,6 @@ public:
       noexcept(::std::is_nothrow_constructible_v<T &, Arg>) // extension
     requires ::std::is_constructible_v<T &, Arg>
       : _base(::std::in_place, FWD(arg))
-  {
-  }
-
-  // Direct-non-list-initializes the bound reference from the result of std::invoke; used by
-  // transform ([optional.ref.monadic]), and public because the caller is another optional's base.
-  template <class Fn, class... Args>
-  constexpr explicit optional(detail::_optional_from_invoke_t tag, Fn &&fn, Args &&...args) //
-      noexcept(::std::is_nothrow_constructible_v<_base, detail::_optional_from_invoke_t, Fn, Args...>)
-      : _base(tag, FWD(fn), FWD(args)...)
   {
   }
 
@@ -1237,6 +1237,16 @@ public:
 
   // [optional.ref.mod], modifiers
   using _base::reset;
+
+private:
+  // Direct-non-list-initializes the bound reference from the result of std::invoke; used by
+  // transform implemented in _optional_base.
+  template <class Fn, class... Args>
+  constexpr explicit optional(detail::_optional_from_invoke_t tag, Fn &&fn, Args &&...args) //
+      noexcept(::std::is_nothrow_constructible_v<_base, detail::_optional_from_invoke_t, Fn, Args...>)
+      : _base(tag, FWD(fn), FWD(args)...)
+  {
+  }
 };
 
 // [optional.relops], relational operators

@@ -256,18 +256,20 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
 } // namespace detail
 
 // Primary template - non-void value type
-template <typename T, typename Err> struct expected : private detail::_expected_base<T, Err> {
+template <typename T, typename Err> class expected : private detail::_expected_base<T, Err> {
+  static_assert(not ::std::is_same_v<T, ::fn::sum<>>);
   using _base = detail::_expected_base<T, Err>;
-  using value_type = T;
-  using error_type = Err;
-  using unexpected_type = ::pfn::unexpected<Err>;
-  static_assert(not ::std::is_same_v<value_type, ::fn::sum<>>);
-
-  template <class U> using rebind = expected<U, error_type>;
 
   // Allow sibling _expected_base instantiations to downcast into the private base.
   template <class, class, class> friend struct ::pfn::detail::_expected_base;
   template <class, class> friend struct ::fn::detail::_expected_base;
+
+public:
+  using value_type = T;
+  using error_type = Err;
+  using unexpected_type = ::pfn::unexpected<Err>;
+
+  template <class U> using rebind = expected<U, error_type>;
 
   // Constructors. Explicit forwarders to the base mirror pfn::expected.
   constexpr expected() noexcept(::std::is_nothrow_default_constructible_v<T>)
@@ -341,15 +343,6 @@ template <typename T, typename Err> struct expected : private detail::_expected_
       noexcept(::std::is_nothrow_constructible_v<Err, ::std::initializer_list<U> &, Args...>)
     requires ::std::is_constructible_v<Err, ::std::initializer_list<U> &, Args...>
       : _base(::pfn::unexpect, il, FWD(a)...)
-  {
-  }
-
-  // Direct-non-list-initializes the value (in_place) or error (unexpect) member from the
-  // result of a callable; used by the monadic static helpers.
-  template <class Tag, class Fn, class... Args>
-  constexpr explicit expected(::pfn::detail::_expected_from_invoke_t tag, Tag which, Fn &&fn, Args &&...args) //
-      noexcept(::std::is_nothrow_constructible_v<_base, ::pfn::detail::_expected_from_invoke_t, Tag, Fn, Args...>)
-      : _base(tag, which, FWD(fn), FWD(args)...)
   {
   }
 
@@ -651,18 +644,30 @@ template <typename T, typename Err> struct expected : private detail::_expected_
   {
     return ::std::move(*this);
   }
+
+private:
+  // Direct-non-list-initializes the value (in_place) or error (unexpect) member from the
+  // result of a callable; used by the monadic functions implemented in _expected_base.
+  template <class Tag, class Fn, class... Args>
+  constexpr explicit expected(::pfn::detail::_expected_from_invoke_t tag, Tag which, Fn &&fn, Args &&...args) //
+      noexcept(::std::is_nothrow_constructible_v<_base, ::pfn::detail::_expected_from_invoke_t, Tag, Fn, Args...>)
+      : _base(tag, which, FWD(fn), FWD(args)...)
+  {
+  }
 };
 
-template <typename Err> struct expected<void, Err> : private detail::_expected_base<void, Err> {
+template <typename Err> class expected<void, Err> : private detail::_expected_base<void, Err> {
   using _base = detail::_expected_base<void, Err>;
+
+  template <class, class, class> friend struct ::pfn::detail::_expected_base;
+  template <class, class> friend struct ::fn::detail::_expected_base;
+
+public:
   using value_type = void;
   using error_type = Err;
   using unexpected_type = ::pfn::unexpected<Err>;
 
   template <class U> using rebind = expected<U, error_type>;
-
-  template <class, class, class> friend struct ::pfn::detail::_expected_base;
-  template <class, class> friend struct ::fn::detail::_expected_base;
 
   constexpr expected() noexcept : _base(::std::in_place) {}
 
@@ -709,15 +714,6 @@ template <typename Err> struct expected<void, Err> : private detail::_expected_b
       noexcept(::std::is_nothrow_constructible_v<Err, ::std::initializer_list<U> &, Args...>)
     requires ::std::is_constructible_v<Err, ::std::initializer_list<U> &, Args...>
       : _base(::pfn::unexpect, il, FWD(a)...)
-  {
-  }
-
-  // Direct-non-list-initializes the error member from the result of a callable; used by the
-  // monadic static helpers.
-  template <class Tag, class Fn, class... Args>
-  constexpr explicit expected(::pfn::detail::_expected_from_invoke_t tag, Tag which, Fn &&fn, Args &&...args) //
-      noexcept(::std::is_nothrow_constructible_v<_base, ::pfn::detail::_expected_from_invoke_t, Tag, Fn, Args...>)
-      : _base(tag, which, FWD(fn), FWD(args)...)
   {
   }
 
@@ -947,6 +943,16 @@ template <typename Err> struct expected<void, Err> : private detail::_expected_b
     requires(some_sum<error_type>)
   {
     return ::std::move(*this);
+  }
+
+private:
+  // Direct-non-list-initializes the error member from the result of a callable; used by the
+  // monadic functions implemented in _expected_base.
+  template <class Tag, class Fn, class... Args>
+  constexpr explicit expected(::pfn::detail::_expected_from_invoke_t tag, Tag which, Fn &&fn, Args &&...args) //
+      noexcept(::std::is_nothrow_constructible_v<_base, ::pfn::detail::_expected_from_invoke_t, Tag, Fn, Args...>)
+      : _base(tag, which, FWD(fn), FWD(args)...)
+  {
   }
 };
 // Lifts for sum transformation functions
