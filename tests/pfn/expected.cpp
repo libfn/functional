@@ -3187,6 +3187,12 @@ TEST_CASE("expected non void", "[expected][polyfill]")
             = [](auto &&a) constexpr -> expected<int, Error> { return helper(std::forward<decltype(a)>(a)).v * 2; };
 
         T a(7);
+
+        // extension: conditional noexcept, keyed on the callable and on copying the error
+        constexpr auto nx = [](auto &&) noexcept -> expected<int, Error> { return {0}; };
+        static_assert(not extension || noexcept(a.and_then(nx)));
+        static_assert(not extension || not noexcept(a.and_then(fn)));
+
         CHECK(a.and_then(fn).value() == 7 * 2 * from_lval);
         CHECK(std::as_const(a).and_then(fn).value() == 7 * 2 * from_lval_const);
         CHECK(std::move(std::as_const(a)).and_then(fn).value() == 7 * 2 * from_rval_const);
@@ -3292,6 +3298,20 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         constexpr auto fn = [](auto &&) constexpr -> expected<helper, int> { return {0}; };
 
         T a(13);
+
+        // extension: conditional noexcept, keyed on the callable and on copying the value
+        // (helper's copy constructor is noexcept; a throwing copy makes that conjunct false)
+        constexpr auto nx = [](auto &&) noexcept -> expected<helper, int> { return {0}; };
+        static_assert(not extension || noexcept(a.or_else(nx)));
+        static_assert(not extension || not noexcept(a.or_else(fn)));
+        struct throwing_copy_t {
+          throwing_copy_t() = default;
+          throwing_copy_t(throwing_copy_t const &) {}
+        };
+        constexpr auto nxt = [](auto &&) noexcept -> expected<throwing_copy_t, int> { return {}; };
+        static_assert(not extension
+                      || not noexcept(std::declval<expected<throwing_copy_t, Error> const &>().or_else(nxt)));
+
         CHECK(a.or_else(fn).value().v == 13 * from_lval);
         CHECK(std::as_const(a).or_else(fn).value().v == 13 * from_lval_const);
         CHECK(std::move(std::as_const(a)).or_else(fn).value().v == 13 * from_rval_const);
@@ -3370,6 +3390,13 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         constexpr auto fn = [](auto &&a) constexpr -> int { return helper(std::forward<decltype(a)>(a)).v * 2; };
 
         T a(7);
+
+        // extension: conditional noexcept, keyed on the callable, the error copy and the
+        // result construction
+        constexpr auto nx = [](auto &&) noexcept { return 1; };
+        static_assert(not extension || noexcept(a.transform(nx)));
+        static_assert(not extension || not noexcept(a.transform(fn)));
+
         CHECK(a.transform(fn).value() == 7 * 2 * from_lval);
         CHECK(std::as_const(a).transform(fn).value() == 7 * 2 * from_lval_const);
         CHECK(std::move(std::as_const(a)).transform(fn).value() == 7 * 2 * from_rval_const);
@@ -3489,6 +3516,13 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         constexpr auto fn = [](auto &&) constexpr -> int { return 0; };
 
         T a(13);
+
+        // extension: conditional noexcept, keyed on the callable, the value copy and the
+        // result construction
+        constexpr auto nx = [](auto &&) noexcept { return 1; };
+        static_assert(not extension || noexcept(a.transform_error(nx)));
+        static_assert(not extension || not noexcept(a.transform_error(fn)));
+
         CHECK(a.transform_error(fn).value().v == 13 * from_lval);
         CHECK(std::as_const(a).transform_error(fn).value().v == 13 * from_lval_const);
         CHECK(std::move(std::as_const(a)).transform_error(fn).value().v == 13 * from_rval_const);
@@ -5358,6 +5392,12 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         constexpr auto fn = []() constexpr -> expected<int, Error> { return {2}; };
 
         T a;
+
+        // extension: conditional noexcept, keyed on the callable and on copying the error
+        constexpr auto nx = []() noexcept -> expected<int, Error> { return {2}; };
+        static_assert(not extension || noexcept(a.and_then(nx)));
+        static_assert(not extension || not noexcept(a.and_then(fn)));
+
         CHECK(a.and_then(fn).value() == 2);
       }
 
@@ -5437,6 +5477,12 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         };
 
         T a(unexpect, 5);
+
+        // extension: conditional noexcept, keyed on the callable (T is void: no value copy)
+        constexpr auto nx = [](auto &&) noexcept -> expected<void, int> { return {}; };
+        static_assert(not extension || noexcept(a.or_else(nx)));
+        static_assert(not extension || not noexcept(a.or_else(fn)));
+
         CHECK(a.or_else(fn).error() == 5 * 3 * from_lval);
         CHECK(std::as_const(a).or_else(fn).error() == 5 * 3 * from_lval_const);
         CHECK(std::move(std::as_const(a)).or_else(fn).error() == 5 * 3 * from_rval_const);
@@ -5525,6 +5571,13 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         constexpr auto fn = []() constexpr -> int { return 2; };
 
         T a;
+
+        // extension: conditional noexcept, keyed on the callable, the error copy and the
+        // result construction
+        constexpr auto nx = []() noexcept { return 1; };
+        static_assert(not extension || noexcept(a.transform(nx)));
+        static_assert(not extension || not noexcept(a.transform(fn)));
+
         CHECK(a.transform(fn).value() == 2);
         CHECK(a.transform([]() {}).has_value());
       }
@@ -5615,6 +5668,13 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         constexpr auto fn = [](auto &&a) constexpr -> int { return helper(std::forward<decltype(a)>(a)).v * 3; };
 
         T a(unexpect, 5);
+
+        // extension: conditional noexcept, keyed on the callable and the result construction
+        // (T is void: no value copy)
+        constexpr auto nx = [](auto &&) noexcept { return 1; };
+        static_assert(not extension || noexcept(a.transform_error(nx)));
+        static_assert(not extension || not noexcept(a.transform_error(fn)));
+
         CHECK(a.transform_error(fn).error() == 5 * 3 * from_lval);
         CHECK(std::as_const(a).transform_error(fn).error() == 5 * 3 * from_lval_const);
         CHECK(std::move(std::as_const(a)).transform_error(fn).error() == 5 * 3 * from_rval_const);
