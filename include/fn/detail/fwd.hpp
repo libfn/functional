@@ -22,7 +22,7 @@ struct filter_t;
 struct inspect_t;
 
 // expected monad (Either a | b)
-template <typename T, typename Err> struct expected;
+template <typename T, typename Err> class expected;
 namespace detail {
 template <typename T> constexpr bool _is_some_expected = false;
 template <typename T, typename Err> constexpr bool _is_some_expected<::fn::expected<T, Err> &> = true;
@@ -32,7 +32,7 @@ concept _some_expected = _is_some_expected<T &>;
 } // namespace detail
 
 // optional monad (Maybe a)
-template <typename T> struct optional;
+template <typename T> class optional;
 namespace detail {
 template <typename T> constexpr bool _is_some_optional = false;
 template <typename T> constexpr bool _is_some_optional<::fn::optional<T> &> = true;

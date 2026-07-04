@@ -8,7 +8,9 @@
 
 #include <catch2/catch_all.hpp>
 
+#include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace {
 struct Xint {
@@ -708,6 +710,25 @@ TEST_CASE("optional polyfills transform", "[optional][polyfill][transform]")
                                [](int &&i) -> bool { return i == 12; }, [](int const &&) -> bool { throw 0; }}) //
               .value());
 
+    WHEN("transform direct-initializes its result")
+    {
+      // the value is direct-non-list-initialized from the callable's result: no extra
+      // move, and an immovable type works
+      struct immovable_t {
+        int v;
+        constexpr explicit immovable_t(int i) noexcept : v(i) {}
+        immovable_t(immovable_t &&) = delete;
+      };
+      auto a = s.transform([](int i) -> immovable_t { return immovable_t(i + 1); });
+      static_assert(std::is_same_v<decltype(a), fn::optional<immovable_t>>);
+      CHECK(a.value().v == 13);
+
+      // the from-invoke tag ctor backing this is not part of the public interface
+      // (is_constructible_v cannot see private ctors)
+      static_assert(not std::is_constructible_v<fn::optional<immovable_t>, pfn::detail::_optional_from_invoke_t,
+                                                immovable_t (*)()>);
+    }
+
     WHEN("error")
     {
       fn::optional<int> s{};
@@ -716,5 +737,114 @@ TEST_CASE("optional polyfills transform", "[optional][polyfill][transform]")
       CHECK(not std::move(std::as_const(s)).transform([](auto) -> bool { throw 0; }).has_value());
       CHECK(not std::move(s).transform([](auto) -> bool { throw 0; }).has_value());
     }
+  }
+}
+
+TEST_CASE("optional constructors and assignment", "[optional][constructors][assignment]")
+{
+  WHEN("constructors")
+  {
+    fn::optional<short> const c{static_cast<short>(3)};
+    fn::optional<int> const x{c};
+    CHECK(x.value() == 3);
+    fn::optional<int> const y{fn::optional<short>{static_cast<short>(5)}};
+    CHECK(y.value() == 5);
+    fn::optional<int> const e{fn::optional<short>{}};
+    CHECK(not e.has_value());
+
+    fn::optional<std::vector<int>> v{std::in_place, {1, 2, 3}};
+    auto v2 = v;
+    CHECK(v2.value() == std::vector<int>{1, 2, 3});
+    auto v3 = std::move(v);
+    CHECK(v3.value().size() == 3);
+  }
+
+  WHEN("assignment")
+  {
+    fn::optional<int> a{};
+    a = 12;
+    CHECK(a.value() == 12);
+    a = std::nullopt;
+    CHECK(not a.has_value());
+
+    fn::optional<int> const b{42};
+    a = b;
+    CHECK(a.value() == 42);
+    a = fn::optional<int>{7};
+    CHECK(a.value() == 7);
+
+    fn::optional<short> const c{static_cast<short>(3)};
+    a = c;
+    CHECK(a.value() == 3);
+    a = fn::optional<short>{static_cast<short>(5)};
+    CHECK(a.value() == 5);
+  }
+
+  WHEN("emplace and reset")
+  {
+    fn::optional<int> a{};
+    CHECK(a.emplace(11) == 11);
+    CHECK(a.value() == 11);
+    a.reset();
+    CHECK(not a.has_value());
+  }
+
+  WHEN("swap")
+  {
+    fn::optional<int> x{1};
+    fn::optional<int> y{};
+    x.swap(y);
+    CHECK(not x.has_value());
+    CHECK(y.value() == 1);
+  }
+}
+
+TEST_CASE("optional comparison operators", "[optional][compare]")
+{
+  WHEN("optional to optional")
+  {
+    fn::optional<int> const a{12};
+    fn::optional<double> const b{12.0};
+    fn::optional<int> const e{};
+
+    CHECK(a == b);
+    CHECK(a != fn::optional<int>{13});
+    CHECK(e == fn::optional<double>{});
+    CHECK(a != e);
+    CHECK(e < a);
+    CHECK(a <= b);
+    CHECK(a > e);
+    CHECK(fn::optional<int>{13} >= b);
+    static_assert(fn::optional<int>{1} == fn::optional<int>{1});
+
+    // Xint is equality-comparable but not three-way-comparable: only the `==` family applies
+    CHECK(fn::optional<Xint>{Xint{5}} == fn::optional<Xint>{Xint{5}});
+  }
+
+  WHEN("optional to nullopt")
+  {
+    fn::optional<int> const a{12};
+    fn::optional<int> const e{};
+
+    CHECK(e == std::nullopt);
+    CHECK(std::nullopt == e);
+    CHECK(a != std::nullopt);
+    CHECK(std::nullopt < a);
+    CHECK(e >= std::nullopt);
+  }
+
+  WHEN("optional to value")
+  {
+    fn::optional<int> const a{12};
+    fn::optional<int> const e{};
+
+    CHECK(a == 12);
+    CHECK(12 == a);
+    CHECK(a != 13);
+    CHECK(e != 12);
+    CHECK(a < 13.0);
+    CHECK(13 > a);
+    CHECK(e < 12);
+    CHECK(fn::optional<Xint>{Xint{5}} == Xint{5});
   }
 }
