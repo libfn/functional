@@ -49,3 +49,9 @@ repos:
     language: python
     files: ^(VERSION|ports/libfn/vcpkg\.json|MODULE\.bazel)$
     pass_filenames: false
+  - id: check-install-headers
+    name: check include/ headers are listed for install
+    entry: python scripts/check_install_headers.py
+    language: python
+    files: ^include/.*(\.hpp|CMakeLists\.txt)$
+    pass_filenames: false
