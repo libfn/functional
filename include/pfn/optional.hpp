@@ -875,8 +875,10 @@ concept _hash_enabled_for = ::std::is_default_constructible_v<::std::hash<X>> //
                                  { h(x) } -> ::std::same_as<::std::size_t>;
                                };
 
-template <class T, bool = _hash_enabled_for<::std::remove_const_t<T>>> struct _optional_hash_base {
-  ::std::size_t operator()(::pfn::optional<T> const &o) const         //
+// Opt is the optional type whose std::hash specialization derives this base; a parameter so
+// that a derived library's optional (e.g. fn::optional) can reuse the same machinery.
+template <class Opt, class T, bool = _hash_enabled_for<::std::remove_const_t<T>>> struct _optional_hash_base {
+  ::std::size_t operator()(Opt const &o) const                        //
       noexcept(noexcept(::std::hash<::std::remove_const_t<T>>{}(*o))) // extension
   {
     if (o.has_value())
@@ -886,7 +888,7 @@ template <class T, bool = _hash_enabled_for<::std::remove_const_t<T>>> struct _o
 };
 // Disabled case: per [unord.hash] a disabled hash specialization is not a function object
 // (no call operator) and is neither constructible nor assignable.
-template <class T> struct _optional_hash_base<T, false> {
+template <class Opt, class T> struct _optional_hash_base<Opt, T, false> {
   _optional_hash_base() = delete;
   _optional_hash_base(_optional_hash_base const &) = delete;
   _optional_hash_base(_optional_hash_base &&) = delete;
@@ -1457,7 +1459,7 @@ constexpr optional<T> make_optional(::std::initializer_list<U> il, Args &&...arg
 
 namespace std {
 // [optional.hash], hash support
-template <class T> struct hash<::pfn::optional<T>> : ::pfn::detail::_optional_hash_base<T> {};
+template <class T> struct hash<::pfn::optional<T>> : ::pfn::detail::_optional_hash_base<::pfn::optional<T>, T> {};
 } // namespace std
 
 #undef ASSERT
