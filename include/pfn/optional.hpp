@@ -1155,7 +1155,8 @@ public:
   }
 
   template <class U>
-  constexpr explicit(not ::std::is_convertible_v<U, T &>) optional(U &&u) //
+  constexpr explicit(not ::std::is_convertible_v<U, T &>)
+      optional(U &&u) // NOSONAR cpp:S6458 _can_convert excludes self
       noexcept(::std::is_nothrow_constructible_v<T &, U>)
     requires(_base::template _can_convert<U>::value)
       : _base(::std::in_place, FWD(u))
