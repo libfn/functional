@@ -282,10 +282,14 @@ template <class T> union _optional_union_t {
       ::std::construct_at(::std::addressof(e_));
   }
 
+  // In the noexcept spec, a same-type (modulo cv) invoke result means guaranteed elision: the
+  // invoke expression initializes v_ directly and no constructor of T runs, so probing
+  // is_nothrow_constructible (false e.g. for an immovable T) would be wrongly pessimistic.
   template <typename Fn, typename... Args>
   constexpr explicit _optional_union_t(_optional_from_invoke_t /*ignored*/, Fn &&fn, Args &&...args) //
       noexcept(::std::is_nothrow_invocable_v<Fn, Args...>
-               && ::std::is_nothrow_constructible_v<T, ::std::invoke_result_t<Fn, Args...>>)
+               && (::std::is_same_v<::std::remove_cv_t<::std::invoke_result_t<Fn, Args...>>, ::std::remove_cv_t<T>>
+                   || ::std::is_nothrow_constructible_v<T, ::std::invoke_result_t<Fn, Args...>>))
       : v_(::std::invoke(FWD(fn), FWD(args)...))
   {
   }
@@ -655,12 +659,12 @@ template <class T, class Policy> struct _optional_base {
     return result_t();
   }
 
+  // In the noexcept spec, only the invoke can throw: the contained value is direct-non-list-
+  // initialized from the invoke expression -- guaranteed elision for an object result (no
+  // constructor of value_t runs), an identity reference binding for a reference result.
   template <typename Self, typename Fn>
-  static constexpr auto _transform(Self &&self, Fn &&fn) //
-      noexcept(
-          ::std::is_nothrow_invocable_v<Fn, decltype(*FWD(self))>
-          && ::std::is_nothrow_constructible_v<::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(*FWD(self))>>,
-                                               ::std::invoke_result_t<Fn, decltype(*FWD(self))>>)
+  static constexpr auto _transform(Self &&self, Fn &&fn)                //
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(*FWD(self))>) // extension
     requires ::std::is_invocable_v<Fn, decltype(*FWD(self))>
   {
     using value_t = ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(*FWD(self))>>;
@@ -833,11 +837,11 @@ template <class T, class Policy> struct _optional_base<T &, Policy> {
     return result_t();
   }
 
+  // In the noexcept spec, only the invoke can throw -- same reasoning as the primary
+  // _transform's.
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn, T &>
-               && ::std::is_nothrow_constructible_v<::std::remove_cv_t<::std::invoke_result_t<Fn, T &>>,
-                                                    ::std::invoke_result_t<Fn, T &>>)
+      noexcept(::std::is_nothrow_invocable_v<Fn, T &>)   // extension
     requires ::std::is_invocable_v<Fn, T &>
   {
     using value_t = ::std::remove_cv_t<::std::invoke_result_t<Fn, T &>>;

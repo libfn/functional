@@ -202,17 +202,13 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
     }
   }
 
-  // transform, non-void value type, not a sum
+  // transform, non-void value type, not a sum. In the noexcept specs of the transform and
+  // transform_error overloads, only the invoke and copying the untouched side can throw: the
+  // new value/error is direct-non-list-initialized from the thunk's result (guaranteed elision).
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn) //
-      noexcept(
-          ::std::is_nothrow_invocable_v<Fn, decltype(_pfn_base::_value(FWD(self)))>
-          && ::std::is_nothrow_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
-          && (::std::is_void_v<typename ::fn::detail::_invoke_result<Fn, decltype(_pfn_base::_value(FWD(self)))>::type>
-              || ::std::is_nothrow_constructible_v<::std::remove_cv_t<typename ::fn::detail::_invoke_result<
-                                                       Fn, decltype(_pfn_base::_value(FWD(self)))>::type>,
-                                                   typename ::fn::detail::_invoke_result<
-                                                       Fn, decltype(_pfn_base::_value(FWD(self)))>::type>)) // extension
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(_pfn_base::_value(FWD(self)))>
+               && ::std::is_nothrow_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>) // extension
     requires(not ::std::is_void_v<T>) && (not some_sum<T>)
             && ::fn::detail::_is_invocable_if<not some_sum<T>, Fn, decltype(_pfn_base::_value(FWD(self)))>::value
             && ::std::is_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
@@ -251,12 +247,8 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   // transform, void value type
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn) //
-      noexcept(
-          ::std::is_nothrow_invocable_v<Fn>
-          && ::std::is_nothrow_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
-          && (::std::is_void_v<typename ::fn::detail::_invoke_result<Fn>::type>
-              || ::std::is_nothrow_constructible_v<::std::remove_cv_t<typename ::fn::detail::_invoke_result<Fn>::type>,
-                                                   typename ::fn::detail::_invoke_result<Fn>::type>)) // extension
+      noexcept(::std::is_nothrow_invocable_v<Fn>
+               && ::std::is_nothrow_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>) // extension
     requires(::std::is_void_v<T>) && ::fn::detail::_is_invocable<Fn>::value
             && ::std::is_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
   {
@@ -277,15 +269,10 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   // apply_const_lvalue_t for the same reason as _or_else's above)
   template <typename Self, typename Fn>
   static constexpr auto _transform_error(Self &&self, Fn &&fn) //
-      noexcept(
-          ::std::is_nothrow_invocable_v<Fn, decltype(_pfn_base::_error(FWD(self)))>
-          && (::std::is_void_v<T>
-              || ::std::is_nothrow_constructible_v<T,
-                                                   ::fn::apply_const_lvalue_t<Self, typename _pfn_base::_value_t &&>>)
-          && ::std::is_nothrow_constructible_v<
-              ::std::remove_cv_t<
-                  typename ::fn::detail::_invoke_result<Fn, decltype(_pfn_base::_error(FWD(self)))>::type>,
-              typename ::fn::detail::_invoke_result<Fn, decltype(_pfn_base::_error(FWD(self)))>::type>) // extension
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(_pfn_base::_error(FWD(self)))>
+               && (::std::is_void_v<T>
+                   || ::std::is_nothrow_constructible_v<
+                       T, ::fn::apply_const_lvalue_t<Self, typename _pfn_base::_value_t &&>>)) // extension
     requires(not some_sum<E>)
             && ::fn::detail::_is_invocable_if<not some_sum<E>, Fn, decltype(_pfn_base::_error(FWD(self)))>::value
   {

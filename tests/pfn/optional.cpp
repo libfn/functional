@@ -1400,10 +1400,14 @@ TEST_CASE("optional", "[optional][polyfill]")
         T a(std::in_place, 7);
         static_assert(std::is_same_v<decltype(a.transform(fn)), optional<int>>);
 
-        // extension: conditional noexcept, keyed on the callable and the result construction
+        // extension: conditional noexcept, keyed on the callable alone -- the result is
+        // direct-initialized from the invoke expression (guaranteed elision), so even an
+        // immovable result type keeps it
         constexpr auto nx = [](auto &&) noexcept { return 1; };
         static_assert(not extension || noexcept(a.transform(nx)));
         static_assert(not extension || not noexcept(a.transform(fn)));
+        constexpr auto nxi = [](auto &&) noexcept { return helper_immovable(3, 4); };
+        static_assert(not extension || noexcept(a.transform(nxi)));
 
         CHECK(a.transform(fn).value() == 7 * 2 * from_lval);
         CHECK(std::as_const(a).transform(fn).value() == 7 * 2 * from_lval_const);
@@ -2410,10 +2414,14 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
         constexpr auto fn = [](int &v) { return v * 3; };
         static_assert(std::is_same_v<decltype(a.transform(fn)), optional<int>>);
 
-        // extension: conditional noexcept, keyed on the callable and the result construction
+        // extension: conditional noexcept, keyed on the callable alone -- the result is
+        // direct-initialized from the invoke expression (guaranteed elision), so even an
+        // immovable result type keeps it
         constexpr auto nx = [](int &) noexcept { return 1; };
         static_assert(noexcept(a.transform(nx)));
         static_assert(not noexcept(a.transform(fn)));
+        constexpr auto nxi = [](int &) noexcept { return helper_immovable(3, 4); };
+        static_assert(noexcept(a.transform(nxi)));
 
         CHECK(a.transform(fn).value() == 15);
         CHECK(not e.transform(fn).has_value());

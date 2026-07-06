@@ -115,13 +115,11 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
     return _pfn_base::_or_else(FWD(self), FWD(fn));
   }
 
-  // transform, value type is not a sum
+  // transform, value type is not a sum. In the noexcept spec, only the invoke can throw: the
+  // result is direct-non-list-initialized from the thunk's result (guaranteed elision).
   template <typename Self, typename Fn>
-  static constexpr auto _transform(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(*FWD(self))>
-               && ::std::is_nothrow_constructible_v<
-                   ::std::remove_cv_t<typename ::fn::detail::_invoke_result<Fn, decltype(*FWD(self))>::type>,
-                   typename ::fn::detail::_invoke_result<Fn, decltype(*FWD(self))>::type>) // extension
+  static constexpr auto _transform(Self &&self, Fn &&fn)                //
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(*FWD(self))>) // extension
     requires(not some_sum<T>) && ::fn::detail::_is_invocable_if<not some_sum<T>, Fn, decltype(*FWD(self))>::value
   {
     using new_value_type = ::std::remove_cv_t<typename ::fn::detail::_invoke_result<Fn, decltype(*FWD(self))>::type>;

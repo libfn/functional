@@ -246,11 +246,16 @@ template <class T, class E> union _expected_union_t {
   {
   }
 
+  // In the noexcept specs, a same-type (modulo cv) invoke result means guaranteed elision: the
+  // invoke expression initializes the member directly and no constructor of T/E runs, so
+  // probing is_nothrow_constructible (false e.g. for an immovable type) would be wrongly
+  // pessimistic.
   template <typename Fn, typename... Args>
   constexpr explicit _expected_union_t(_expected_from_invoke_t /*ignored*/, ::std::in_place_t /*ignored*/, Fn &&fn,
                                        Args &&...args) //
       noexcept(::std::is_nothrow_invocable_v<Fn, Args...>
-               && ::std::is_nothrow_constructible_v<T, ::std::invoke_result_t<Fn, Args...>>)
+               && (::std::is_same_v<::std::remove_cv_t<::std::invoke_result_t<Fn, Args...>>, ::std::remove_cv_t<T>>
+                   || ::std::is_nothrow_constructible_v<T, ::std::invoke_result_t<Fn, Args...>>))
       : v_(::std::invoke(FWD(fn), FWD(args)...))
   {
   }
@@ -258,7 +263,8 @@ template <class T, class E> union _expected_union_t {
   constexpr explicit _expected_union_t(_expected_from_invoke_t /*ignored*/, unexpect_t /*ignored*/, Fn &&fn,
                                        Args &&...args) //
       noexcept(::std::is_nothrow_invocable_v<Fn, Args...>
-               && ::std::is_nothrow_constructible_v<E, ::std::invoke_result_t<Fn, Args...>>)
+               && (::std::is_same_v<::std::remove_cv_t<::std::invoke_result_t<Fn, Args...>>, ::std::remove_cv_t<E>>
+                   || ::std::is_nothrow_constructible_v<E, ::std::invoke_result_t<Fn, Args...>>))
       : e_(::std::invoke(FWD(fn), FWD(args)...))
   {
   }
@@ -365,10 +371,13 @@ template <class E> union _expected_union_t<void, E> {
   }
 
   template <typename Fn, typename... Args>
+  // A same-type invoke result in the noexcept spec means guaranteed elision -- same
+  // reasoning as the primary union's from-invoke constructors.
   constexpr explicit _expected_union_t(_expected_from_invoke_t /*ignored*/, unexpect_t /*ignored*/, Fn &&fn,
                                        Args &&...args) //
       noexcept(::std::is_nothrow_invocable_v<Fn, Args...>
-               && ::std::is_nothrow_constructible_v<E, ::std::invoke_result_t<Fn, Args...>>)
+               && (::std::is_same_v<::std::remove_cv_t<::std::invoke_result_t<Fn, Args...>>, ::std::remove_cv_t<E>>
+                   || ::std::is_nothrow_constructible_v<E, ::std::invoke_result_t<Fn, Args...>>))
       : e_(::std::invoke(FWD(fn), FWD(args)...))
   {
   }
@@ -839,14 +848,13 @@ template <class T, class E, class Policy> struct _expected_base {
     return ::std::invoke(FWD(fn), _expected_base::_error(FWD(self)));
   }
 
+  // In the noexcept specs of the four _transform/_transform_error overloads, only the invoke
+  // and copying the untouched side can throw: the new value/error is direct-non-list-
+  // initialized from the invoke expression (guaranteed elision, no constructor of it runs).
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn) //
       noexcept(::std::is_nothrow_invocable_v<Fn, decltype(_expected_base::_value(FWD(self)))>
-               && ::std::is_nothrow_constructible_v<E, decltype(_expected_base::_error(FWD(self)))>
-               && (::std::is_void_v<::std::invoke_result_t<Fn, decltype(_expected_base::_value(FWD(self)))>>
-                   || ::std::is_nothrow_constructible_v<
-                       ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(_expected_base::_value(FWD(self)))>>,
-                       ::std::invoke_result_t<Fn, decltype(_expected_base::_value(FWD(self)))>>))
+               && ::std::is_nothrow_constructible_v<E, decltype(_expected_base::_error(FWD(self)))>) // extension
     requires(not ::std::is_void_v<T> && ::std::is_invocable_v<Fn, decltype(_expected_base::_value(FWD(self)))>
              && ::std::is_constructible_v<E, decltype(_expected_base::_error(FWD(self)))>)
   {
@@ -867,10 +875,7 @@ template <class T, class E, class Policy> struct _expected_base {
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn) //
       noexcept(::std::is_nothrow_invocable_v<Fn>
-               && ::std::is_nothrow_constructible_v<E, decltype(_expected_base::_error(FWD(self)))>
-               && (::std::is_void_v<::std::invoke_result_t<Fn>>
-                   || ::std::is_nothrow_constructible_v<::std::remove_cv_t<::std::invoke_result_t<Fn>>,
-                                                        ::std::invoke_result_t<Fn>>))
+               && ::std::is_nothrow_constructible_v<E, decltype(_expected_base::_error(FWD(self)))>) // extension
     requires(::std::is_void_v<T> && ::std::is_invocable_v<Fn>
              && ::std::is_constructible_v<E, decltype(_expected_base::_error(FWD(self)))>)
   {
@@ -891,10 +896,7 @@ template <class T, class E, class Policy> struct _expected_base {
   template <typename Self, typename Fn>
   static constexpr auto _transform_error(Self &&self, Fn &&fn) //
       noexcept(::std::is_nothrow_invocable_v<Fn, decltype(_expected_base::_error(FWD(self)))>
-               && ::std::is_nothrow_constructible_v<T, decltype(_expected_base::_value(FWD(self)))>
-               && ::std::is_nothrow_constructible_v<
-                   ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(_expected_base::_error(FWD(self)))>>,
-                   ::std::invoke_result_t<Fn, decltype(_expected_base::_error(FWD(self)))>>)
+               && ::std::is_nothrow_constructible_v<T, decltype(_expected_base::_value(FWD(self)))>) // extension
     requires(not ::std::is_void_v<T> && ::std::is_invocable_v<Fn, decltype(_expected_base::_error(FWD(self)))>
              && ::std::is_constructible_v<T, decltype(_expected_base::_value(FWD(self)))>)
   {
@@ -908,11 +910,8 @@ template <class T, class E, class Policy> struct _expected_base {
   }
 
   template <typename Self, typename Fn>
-  static constexpr auto _transform_error(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(_expected_base::_error(FWD(self)))>
-               && ::std::is_nothrow_constructible_v<
-                   ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(_expected_base::_error(FWD(self)))>>,
-                   ::std::invoke_result_t<Fn, decltype(_expected_base::_error(FWD(self)))>>)
+  static constexpr auto _transform_error(Self &&self, Fn &&fn)                                 //
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(_expected_base::_error(FWD(self)))>) // extension
     requires(::std::is_void_v<T> && ::std::is_invocable_v<Fn, decltype(_expected_base::_error(FWD(self)))>)
   {
     using error_t = ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(_expected_base::_error(FWD(self)))>>;

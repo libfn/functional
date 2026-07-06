@@ -3391,11 +3391,14 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
         T a(7);
 
-        // extension: conditional noexcept, keyed on the callable, the error copy and the
-        // result construction
+        // extension: conditional noexcept, keyed on the callable and the error copy -- the
+        // result is direct-initialized from the invoke expression (guaranteed elision), so
+        // even an immovable result type keeps it
         constexpr auto nx = [](auto &&) noexcept { return 1; };
         static_assert(not extension || noexcept(a.transform(nx)));
         static_assert(not extension || not noexcept(a.transform(fn)));
+        constexpr auto nxi = [](auto &&) noexcept { return helper_immovable(3, 4); };
+        static_assert(not extension || noexcept(a.transform(nxi)));
 
         CHECK(a.transform(fn).value() == 7 * 2 * from_lval);
         CHECK(std::as_const(a).transform(fn).value() == 7 * 2 * from_lval_const);
@@ -3517,11 +3520,14 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
         T a(13);
 
-        // extension: conditional noexcept, keyed on the callable, the value copy and the
-        // result construction
+        // extension: conditional noexcept, keyed on the callable and the value copy -- the
+        // new error is direct-initialized from the invoke expression (guaranteed elision), so
+        // even an immovable error type keeps it
         constexpr auto nx = [](auto &&) noexcept { return 1; };
         static_assert(not extension || noexcept(a.transform_error(nx)));
         static_assert(not extension || not noexcept(a.transform_error(fn)));
+        constexpr auto nxi = [](auto &&) noexcept { return helper_immovable(3, 4); };
+        static_assert(not extension || noexcept(a.transform_error(nxi)));
 
         CHECK(a.transform_error(fn).value().v == 13 * from_lval);
         CHECK(std::as_const(a).transform_error(fn).value().v == 13 * from_lval_const);
@@ -5572,11 +5578,14 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
         T a;
 
-        // extension: conditional noexcept, keyed on the callable, the error copy and the
-        // result construction
+        // extension: conditional noexcept, keyed on the callable and the error copy -- the
+        // result is direct-initialized from the invoke expression (guaranteed elision), so
+        // even an immovable result type keeps it
         constexpr auto nx = []() noexcept { return 1; };
         static_assert(not extension || noexcept(a.transform(nx)));
         static_assert(not extension || not noexcept(a.transform(fn)));
+        constexpr auto nxi = []() noexcept { return helper_immovable(3, 4); };
+        static_assert(not extension || noexcept(a.transform(nxi)));
 
         CHECK(a.transform(fn).value() == 2);
         CHECK(a.transform([]() {}).has_value());
@@ -5669,11 +5678,14 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
         T a(unexpect, 5);
 
-        // extension: conditional noexcept, keyed on the callable and the result construction
-        // (T is void: no value copy)
+        // extension: conditional noexcept, keyed on the callable alone (T is void: no value
+        // copy) -- the new error is direct-initialized from the invoke expression (guaranteed
+        // elision), so even an immovable error type keeps it
         constexpr auto nx = [](auto &&) noexcept { return 1; };
         static_assert(not extension || noexcept(a.transform_error(nx)));
         static_assert(not extension || not noexcept(a.transform_error(fn)));
+        constexpr auto nxi = [](auto &&) noexcept { return helper_immovable(3, 4); };
+        static_assert(not extension || noexcept(a.transform_error(nxi)));
 
         CHECK(a.transform_error(fn).error() == 5 * 3 * from_lval);
         CHECK(std::as_const(a).transform_error(fn).error() == 5 * 3 * from_lval_const);
