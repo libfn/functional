@@ -9,6 +9,7 @@
 #include <pfn/expected.hpp>
 #include <pfn/utility.hpp>
 
+#include <fn/detail/traits.hpp>
 #include <fn/fwd.hpp>
 #include <fn/pack.hpp>
 #include <fn/sum.hpp>
@@ -38,16 +39,40 @@ struct expected_policy {
   template <class X> static constexpr bool is_specialization = _is_some_expected<X &>;
 };
 
+// Exposition-only probes for the noexcept specs below: the value/error type of an
+// fn::expected, or a never-matching incomplete tag when X is not one.
+struct _never_t;
+template <typename X> struct _expected_types {
+  using value_type = _never_t;
+  using error_type = _never_t;
+};
+template <typename U, typename G> struct _expected_types<::fn::expected<U, G>> {
+  using value_type = U;
+  using error_type = G;
+};
+
 // Storage layer for ::fn::expected. Inherits the standard-conformant base from
 // pfn, then hides the four monadic static helpers with sum-widening variants
 // that materialise their result via `expected_policy::template type<U, G>`.
+// The transform/transform_error helpers hand pfn's _expected_from_invoke constructors a
+// zero-argument thunk, so the result's member is direct-non-list-initialized from fn's own
+// _invoke (or sum::transform) result: no extra move, and immovable result types work.
+// The statics carry the same extension noexcept as pfn's, spelled with the std traits: for
+// the sum/pack dispatch and sum-widening extensions the lead conjunct is false (the callable
+// is not directly invocable, or the result is differently shaped), so those are
+// conservatively noexcept(false).
 template <typename T, typename E> struct _expected_base : ::pfn::detail::_expected_base<T, E, expected_policy> {
   using _pfn_base = ::pfn::detail::_expected_base<T, E, expected_policy>;
   using _pfn_base::_pfn_base;
 
   // and_then, non-void value type
   template <typename Self, typename Fn>
-  static constexpr auto _and_then(Self &&self, Fn &&fn)
+  static constexpr auto _and_then(Self &&self, Fn &&fn) //
+      noexcept(::std::is_same_v<typename _expected_types<::std::remove_cvref_t<typename ::fn::detail::_invoke_result<
+                                    Fn, decltype(_pfn_base::_value(FWD(self)))>::type>>::error_type,
+                                E>
+               && ::std::is_nothrow_invocable_v<Fn, decltype(_pfn_base::_value(FWD(self)))>
+               && ::std::is_nothrow_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>) // extension
     requires(not ::std::is_void_v<T>) && ::fn::detail::_is_invocable<Fn, decltype(_pfn_base::_value(FWD(self)))>::value
             && ::std::is_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
   {
@@ -82,7 +107,12 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
 
   // and_then, void value type
   template <typename Self, typename Fn>
-  static constexpr auto _and_then(Self &&self, Fn &&fn)
+  static constexpr auto _and_then(Self &&self, Fn &&fn) //
+      noexcept(::std::is_same_v<typename _expected_types<
+                                    ::std::remove_cvref_t<typename ::fn::detail::_invoke_result<Fn>::type>>::error_type,
+                                E>
+               && ::std::is_nothrow_invocable_v<Fn>
+               && ::std::is_nothrow_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>) // extension
     requires(::std::is_void_v<T>) && ::fn::detail::_is_invocable<Fn>::value
             && ::std::is_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
   {
@@ -115,9 +145,19 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
     }
   }
 
-  // or_else, covers both void and non-void value type
+  // or_else, covers both void and non-void value type. The value-copy conjunct spells the
+  // _value(FWD(self)) category via apply_const_lvalue_t: unlike the requires clause below, a
+  // noexcept operand is not constraint-checked, so the `is_void_v<T> ||` guard could not save
+  // an ill-formed _value call (constrained away for void) from being a hard error.
   template <typename Self, typename Fn>
-  static constexpr auto _or_else(Self &&self, Fn &&fn)
+  static constexpr auto _or_else(Self &&self, Fn &&fn) //
+      noexcept(::std::is_same_v<typename _expected_types<::std::remove_cvref_t<typename ::fn::detail::_invoke_result<
+                                    Fn, decltype(_pfn_base::_error(FWD(self)))>::type>>::value_type,
+                                T>
+               && ::std::is_nothrow_invocable_v<Fn, decltype(_pfn_base::_error(FWD(self)))>
+               && (::std::is_void_v<T>
+                   || ::std::is_nothrow_constructible_v<
+                       T, ::fn::apply_const_lvalue_t<Self, typename _pfn_base::_value_t &&>>)) // extension
     requires ::fn::detail::_is_invocable<Fn, decltype(_pfn_base::_error(FWD(self)))>::value
              && (::std::is_void_v<T> || ::std::is_constructible_v<T, decltype(_pfn_base::_value(FWD(self)))>)
   {
@@ -133,8 +173,13 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
 #if defined(__clang__) && __clang_major__ <= 18
           // clang 15-18 miscompile the prvalue return below for three of the four Self ref-qualifier
           // instantiations (&, const &, const &&) at -O1/-O2: the value-state result is observed with
-          // set_ == false (storage-poison). The workaround dodges the buggy mandatory copy-elision.
-          return ::std::move(type{::std::in_place});
+          // set_ == false (storage-poison). The workaround dodges the buggy mandatory copy-elision,
+          // at the cost of a move -- an immovable error type must keep the prvalue (the workaround
+          // would not compile; the miscompile is not observed in that shape).
+          if constexpr (::std::is_move_constructible_v<type>)
+            return ::std::move(type{::std::in_place});
+          else
+            return type{::std::in_place};
 #else
           return type{::std::in_place};
 #endif
@@ -157,9 +202,13 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
     }
   }
 
-  // transform, non-void value type, not a sum
+  // transform, non-void value type, not a sum. In the noexcept specs of the transform and
+  // transform_error overloads, only the invoke and copying the untouched side can throw: the
+  // new value/error is direct-non-list-initialized from the thunk's result (guaranteed elision).
   template <typename Self, typename Fn>
-  static constexpr auto _transform(Self &&self, Fn &&fn)
+  static constexpr auto _transform(Self &&self, Fn &&fn) //
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(_pfn_base::_value(FWD(self)))>
+               && ::std::is_nothrow_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>) // extension
     requires(not ::std::is_void_v<T>) && (not some_sum<T>)
             && ::fn::detail::_is_invocable_if<not some_sum<T>, Fn, decltype(_pfn_base::_value(FWD(self)))>::value
             && ::std::is_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
@@ -171,7 +220,8 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
         ::fn::detail::_invoke(FWD(fn), _pfn_base::_value(FWD(self)));
         return type();
       } else
-        return type(::std::in_place, ::fn::detail::_invoke(FWD(fn), _pfn_base::_value(FWD(self))));
+        return type(::pfn::detail::_expected_from_invoke, ::std::in_place,
+                    [&]() -> decltype(auto) { return ::fn::detail::_invoke(FWD(fn), _pfn_base::_value(FWD(self))); });
     else
       return type(::pfn::unexpect, _pfn_base::_error(FWD(self)));
   }
@@ -188,14 +238,17 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
         _pfn_base::_value(FWD(self)).transform(FWD(fn));
         return type();
       } else
-        return type(::std::in_place, _pfn_base::_value(FWD(self)).transform(FWD(fn)));
+        return type(::pfn::detail::_expected_from_invoke, ::std::in_place,
+                    [&]() -> decltype(auto) { return _pfn_base::_value(FWD(self)).transform(FWD(fn)); });
     else
       return type(::pfn::unexpect, _pfn_base::_error(FWD(self)));
   }
 
   // transform, void value type
   template <typename Self, typename Fn>
-  static constexpr auto _transform(Self &&self, Fn &&fn)
+  static constexpr auto _transform(Self &&self, Fn &&fn) //
+      noexcept(::std::is_nothrow_invocable_v<Fn>
+               && ::std::is_nothrow_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>) // extension
     requires(::std::is_void_v<T>) && ::fn::detail::_is_invocable<Fn>::value
             && ::std::is_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
   {
@@ -206,14 +259,20 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
         ::fn::detail::_invoke(FWD(fn));
         return type();
       } else
-        return type(::std::in_place, ::fn::detail::_invoke(FWD(fn)));
+        return type(::pfn::detail::_expected_from_invoke, ::std::in_place,
+                    [&]() -> decltype(auto) { return ::fn::detail::_invoke(FWD(fn)); });
     else
       return type(::pfn::unexpect, _pfn_base::_error(FWD(self)));
   }
 
-  // transform_error, error type is not a sum
+  // transform_error, error type is not a sum (the value-copy conjunct is spelled via
+  // apply_const_lvalue_t for the same reason as _or_else's above)
   template <typename Self, typename Fn>
-  static constexpr auto _transform_error(Self &&self, Fn &&fn)
+  static constexpr auto _transform_error(Self &&self, Fn &&fn) //
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(_pfn_base::_error(FWD(self)))>
+               && (::std::is_void_v<T>
+                   || ::std::is_nothrow_constructible_v<
+                       T, ::fn::apply_const_lvalue_t<Self, typename _pfn_base::_value_t &&>>)) // extension
     requires(not some_sum<E>)
             && ::fn::detail::_is_invocable_if<not some_sum<E>, Fn, decltype(_pfn_base::_error(FWD(self)))>::value
   {
@@ -225,7 +284,8 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       else
         return type();
     else
-      return type(::pfn::unexpect, ::fn::detail::_invoke(FWD(fn), _pfn_base::_error(FWD(self))));
+      return type(::pfn::detail::_expected_from_invoke, ::pfn::unexpect,
+                  [&]() -> decltype(auto) { return ::fn::detail::_invoke(FWD(fn), _pfn_base::_error(FWD(self))); });
   }
 
   // transform_error, error type is a sum (delegates to sum::transform)
@@ -241,25 +301,28 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       else
         return type();
     else
-      return type(::pfn::unexpect, _pfn_base::_error(FWD(self)).transform(FWD(fn)));
+      return type(::pfn::detail::_expected_from_invoke, ::pfn::unexpect,
+                  [&]() -> decltype(auto) { return _pfn_base::_error(FWD(self)).transform(FWD(fn)); });
   }
 };
 
 } // namespace detail
 
 // Primary template - non-void value type
-template <typename T, typename Err> struct expected : private detail::_expected_base<T, Err> {
+template <typename T, typename Err> class expected : private detail::_expected_base<T, Err> {
+  static_assert(not ::std::is_same_v<T, ::fn::sum<>>);
   using _base = detail::_expected_base<T, Err>;
-  using value_type = T;
-  using error_type = Err;
-  using unexpected_type = ::pfn::unexpected<Err>;
-  static_assert(not ::std::is_same_v<value_type, ::fn::sum<>>);
-
-  template <class U> using rebind = expected<U, error_type>;
 
   // Allow sibling _expected_base instantiations to downcast into the private base.
   template <class, class, class> friend struct ::pfn::detail::_expected_base;
   template <class, class> friend struct ::fn::detail::_expected_base;
+
+public:
+  using value_type = T;
+  using error_type = Err;
+  using unexpected_type = ::pfn::unexpected<Err>;
+
+  template <class U> using rebind = expected<U, error_type>;
 
   // Constructors. Explicit forwarders to the base mirror pfn::expected.
   constexpr expected() noexcept(::std::is_nothrow_default_constructible_v<T>)
@@ -634,18 +697,30 @@ template <typename T, typename Err> struct expected : private detail::_expected_
   {
     return ::std::move(*this);
   }
+
+private:
+  // Direct-non-list-initializes the value (in_place) or error (unexpect) member from the
+  // result of a callable; used by the monadic functions implemented in _expected_base.
+  template <class Tag, class Fn, class... Args>
+  constexpr explicit expected(::pfn::detail::_expected_from_invoke_t tag, Tag which, Fn &&fn, Args &&...args) //
+      noexcept(::std::is_nothrow_constructible_v<_base, ::pfn::detail::_expected_from_invoke_t, Tag, Fn, Args...>)
+      : _base(tag, which, FWD(fn), FWD(args)...)
+  {
+  }
 };
 
-template <typename Err> struct expected<void, Err> : private detail::_expected_base<void, Err> {
+template <typename Err> class expected<void, Err> : private detail::_expected_base<void, Err> {
   using _base = detail::_expected_base<void, Err>;
+
+  template <class, class, class> friend struct ::pfn::detail::_expected_base;
+  template <class, class> friend struct ::fn::detail::_expected_base;
+
+public:
   using value_type = void;
   using error_type = Err;
   using unexpected_type = ::pfn::unexpected<Err>;
 
   template <class U> using rebind = expected<U, error_type>;
-
-  template <class, class, class> friend struct ::pfn::detail::_expected_base;
-  template <class, class> friend struct ::fn::detail::_expected_base;
 
   constexpr expected() noexcept : _base(::std::in_place) {}
 
@@ -921,6 +996,16 @@ template <typename Err> struct expected<void, Err> : private detail::_expected_b
     requires(some_sum<error_type>)
   {
     return ::std::move(*this);
+  }
+
+private:
+  // Direct-non-list-initializes the error member from the result of a callable; used by the
+  // monadic functions implemented in _expected_base.
+  template <class Tag, class Fn, class... Args>
+  constexpr explicit expected(::pfn::detail::_expected_from_invoke_t tag, Tag which, Fn &&fn, Args &&...args) //
+      noexcept(::std::is_nothrow_constructible_v<_base, ::pfn::detail::_expected_from_invoke_t, Tag, Fn, Args...>)
+      : _base(tag, which, FWD(fn), FWD(args)...)
+  {
   }
 };
 // Lifts for sum transformation functions

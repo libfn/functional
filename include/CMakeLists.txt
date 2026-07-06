@@ -12,6 +12,7 @@ include(CompilationOptions)
 set(INCLUDE_PFN_HEADERS
     pfn/expected.hpp
     pfn/functional.hpp
+    pfn/optional.hpp
     pfn/utility.hpp
 )
 

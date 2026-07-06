@@ -98,6 +98,27 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
         static_assert(std::is_same_v<decltype(a), fn::expected<int, fn::sum<>>>);
         CHECK(a.value() == 144'000);
       }
+
+      WHEN("transform direct-initializes its result")
+      {
+        // the value is direct-non-list-initialized from the callable's result: no extra
+        // move, and an immovable type works
+        struct immovable_t {
+          int v;
+          constexpr explicit immovable_t(int i) noexcept : v(i) {}
+          immovable_t(immovable_t &&) = delete;
+        };
+        constexpr auto fn = []() -> immovable_t { return immovable_t(7); };
+        auto a = unit.transform(fn);
+        static_assert(std::is_same_v<decltype(a), fn::expected<immovable_t, fn::sum<>>>);
+        CHECK(a.value().v == 7);
+
+        // the from-invoke tag ctor backing this is not part of the public interface
+        // (is_constructible_v cannot see private ctors)
+        static_assert(
+            not std::is_constructible_v<fn::expected<immovable_t, fn::sum<>>, pfn::detail::_expected_from_invoke_t,
+                                        std::in_place_t, immovable_t (*)()>);
+      }
     }
   }
 
@@ -532,6 +553,21 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
       CHECK(std::as_const(s).or_else(fn).value() == fn::sum{12});
       CHECK(std::move(std::as_const(s)).or_else(fn).value() == fn::sum{12});
       CHECK(std::move(s).or_else(fn).value() == fn::sum{12});
+    }
+
+    WHEN("engaged void source, immovable error type in the result")
+    {
+      // the value-state path must compile even though the result cannot be moved (the
+      // clang<=18 miscompile workaround must not force a move)
+      struct immovable_t {
+        int v;
+        constexpr explicit immovable_t(int i) noexcept : v(i) {}
+        immovable_t(immovable_t &&) = delete;
+      };
+      fn::expected<void, Error> u{};
+      auto r = u.or_else([](Error) -> fn::expected<void, immovable_t> { return {}; });
+      static_assert(std::is_same_v<decltype(r), fn::expected<void, immovable_t>>);
+      CHECK(r.has_value());
     }
   }
 }

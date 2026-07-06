@@ -819,6 +819,18 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         CHECK(std::strcmp(e.what(), "invalid input") == 0);
       }
     }
+
+#ifndef PFN_TEST_VALIDATION
+    SECTION("from-invoke tag ctor is private")
+    {
+      // is_constructible_v cannot see inaccessible ctors, so this pins the detail tag
+      // ctor (used by transform and transform_error) out of the public interface
+      using T = expected<int, Error>;
+      static_assert(not std::is_constructible_v<T, pfn::detail::_expected_from_invoke_t, std::in_place_t, int (*)()>);
+      static_assert(not std::is_constructible_v<T, pfn::detail::_expected_from_invoke_t, pfn::unexpect_t, Error (*)()>);
+      SUCCEED();
+    }
+#endif
   }
 
   SECTION("from other expected")
@@ -3175,6 +3187,12 @@ TEST_CASE("expected non void", "[expected][polyfill]")
             = [](auto &&a) constexpr -> expected<int, Error> { return helper(std::forward<decltype(a)>(a)).v * 2; };
 
         T a(7);
+
+        // extension: conditional noexcept, keyed on the callable and on copying the error
+        constexpr auto nx = [](auto &&) noexcept -> expected<int, Error> { return {0}; };
+        static_assert(not extension || noexcept(a.and_then(nx)));
+        static_assert(not extension || not noexcept(a.and_then(fn)));
+
         CHECK(a.and_then(fn).value() == 7 * 2 * from_lval);
         CHECK(std::as_const(a).and_then(fn).value() == 7 * 2 * from_lval_const);
         CHECK(std::move(std::as_const(a)).and_then(fn).value() == 7 * 2 * from_rval_const);
@@ -3280,6 +3298,20 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         constexpr auto fn = [](auto &&) constexpr -> expected<helper, int> { return {0}; };
 
         T a(13);
+
+        // extension: conditional noexcept, keyed on the callable and on copying the value
+        // (helper's copy constructor is noexcept; a throwing copy makes that conjunct false)
+        constexpr auto nx = [](auto &&) noexcept -> expected<helper, int> { return {0}; };
+        static_assert(not extension || noexcept(a.or_else(nx)));
+        static_assert(not extension || not noexcept(a.or_else(fn)));
+        struct throwing_copy_t {
+          throwing_copy_t() = default;
+          throwing_copy_t(throwing_copy_t const &) {}
+        };
+        constexpr auto nxt = [](auto &&) noexcept -> expected<throwing_copy_t, int> { return {}; };
+        static_assert(not extension
+                      || not noexcept(std::declval<expected<throwing_copy_t, Error> const &>().or_else(nxt)));
+
         CHECK(a.or_else(fn).value().v == 13 * from_lval);
         CHECK(std::as_const(a).or_else(fn).value().v == 13 * from_lval_const);
         CHECK(std::move(std::as_const(a)).or_else(fn).value().v == 13 * from_rval_const);
@@ -3358,6 +3390,16 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         constexpr auto fn = [](auto &&a) constexpr -> int { return helper(std::forward<decltype(a)>(a)).v * 2; };
 
         T a(7);
+
+        // extension: conditional noexcept, keyed on the callable and the error copy -- the
+        // result is direct-initialized from the invoke expression (guaranteed elision), so
+        // even an immovable result type keeps it
+        constexpr auto nx = [](auto &&) noexcept { return 1; };
+        static_assert(not extension || noexcept(a.transform(nx)));
+        static_assert(not extension || not noexcept(a.transform(fn)));
+        constexpr auto nxi = [](auto &&) noexcept { return helper_immovable(3, 4); };
+        static_assert(not extension || noexcept(a.transform(nxi)));
+
         CHECK(a.transform(fn).value() == 7 * 2 * from_lval);
         CHECK(std::as_const(a).transform(fn).value() == 7 * 2 * from_lval_const);
         CHECK(std::move(std::as_const(a)).transform(fn).value() == 7 * 2 * from_rval_const);
@@ -3376,6 +3418,22 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         CHECK(std::move(std::as_const(a)).transform(fn).error().v == 11 * from_rval_const);
         CHECK(std::move(a).transform(fn).error().v == 11 * from_rval);
         CHECK(a.transform([](auto &&) {}).error().v == 11 * from_lval);
+      }
+
+      SECTION("direct initialization")
+      {
+        // the new value is direct-non-list-initialized from the invoke result: guaranteed
+        // elision, so no copy/move witness factor and an immovable type works
+        using T = expected<int, Error>;
+        T a(7);
+        auto r = a.transform([](int v) { return helper(v); });
+        static_assert(std::is_same_v<decltype(r), expected<helper, Error>>);
+        CHECK(r.value().v == 7);
+
+        static_assert(not std::is_move_constructible_v<helper_immovable>);
+        auto ri = a.transform([](int v) { return helper_immovable(v, 3); });
+        static_assert(std::is_same_v<decltype(ri), expected<helper_immovable, Error>>);
+        CHECK(ri.value().v == 7 * 3);
       }
 
       SECTION("constexpr")
@@ -3461,10 +3519,36 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         constexpr auto fn = [](auto &&) constexpr -> int { return 0; };
 
         T a(13);
+
+        // extension: conditional noexcept, keyed on the callable and the value copy -- the
+        // new error is direct-initialized from the invoke expression (guaranteed elision), so
+        // even an immovable error type keeps it
+        constexpr auto nx = [](auto &&) noexcept { return 1; };
+        static_assert(not extension || noexcept(a.transform_error(nx)));
+        static_assert(not extension || not noexcept(a.transform_error(fn)));
+        constexpr auto nxi = [](auto &&) noexcept { return helper_immovable(3, 4); };
+        static_assert(not extension || noexcept(a.transform_error(nxi)));
+
         CHECK(a.transform_error(fn).value().v == 13 * from_lval);
         CHECK(std::as_const(a).transform_error(fn).value().v == 13 * from_lval_const);
         CHECK(std::move(std::as_const(a)).transform_error(fn).value().v == 13 * from_rval_const);
         CHECK(std::move(a).transform_error(fn).value().v == 13 * from_rval);
+      }
+
+      SECTION("direct initialization")
+      {
+        // the new error is direct-non-list-initialized from the invoke result: no witness
+        // factor, and an immovable type works
+        using T = expected<bool, int>;
+        T a(unexpect, 5);
+        auto r = a.transform_error([](int e) { return helper(e); });
+        static_assert(std::is_same_v<decltype(r), expected<bool, helper>>);
+        CHECK(r.error().v == 5);
+
+        static_assert(not std::is_move_constructible_v<helper_immovable>);
+        auto ri = a.transform_error([](int e) { return helper_immovable(e, 3); });
+        static_assert(std::is_same_v<decltype(ri), expected<bool, helper_immovable>>);
+        CHECK(ri.error().v == 5 * 3);
       }
 
       SECTION("constexpr")
@@ -3843,6 +3927,17 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
       CHECK(not b.has_error());
 #endif
     }
+
+#ifndef PFN_TEST_VALIDATION
+    SECTION("from-invoke tag ctor is private")
+    {
+      // is_constructible_v cannot see inaccessible ctors, so this pins the detail tag
+      // ctor (used by transform_error) out of the public interface
+      using T = expected<void, Error>;
+      static_assert(not std::is_constructible_v<T, pfn::detail::_expected_from_invoke_t, pfn::unexpect_t, Error (*)()>);
+      SUCCEED();
+    }
+#endif
   }
 
   SECTION("from other expected")
@@ -5303,6 +5398,12 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         constexpr auto fn = []() constexpr -> expected<int, Error> { return {2}; };
 
         T a;
+
+        // extension: conditional noexcept, keyed on the callable and on copying the error
+        constexpr auto nx = []() noexcept -> expected<int, Error> { return {2}; };
+        static_assert(not extension || noexcept(a.and_then(nx)));
+        static_assert(not extension || not noexcept(a.and_then(fn)));
+
         CHECK(a.and_then(fn).value() == 2);
       }
 
@@ -5382,6 +5483,12 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         };
 
         T a(unexpect, 5);
+
+        // extension: conditional noexcept, keyed on the callable (T is void: no value copy)
+        constexpr auto nx = [](auto &&) noexcept -> expected<void, int> { return {}; };
+        static_assert(not extension || noexcept(a.or_else(nx)));
+        static_assert(not extension || not noexcept(a.or_else(fn)));
+
         CHECK(a.or_else(fn).error() == 5 * 3 * from_lval);
         CHECK(std::as_const(a).or_else(fn).error() == 5 * 3 * from_lval_const);
         CHECK(std::move(std::as_const(a)).or_else(fn).error() == 5 * 3 * from_rval_const);
@@ -5470,8 +5577,29 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         constexpr auto fn = []() constexpr -> int { return 2; };
 
         T a;
+
+        // extension: conditional noexcept, keyed on the callable and the error copy -- the
+        // result is direct-initialized from the invoke expression (guaranteed elision), so
+        // even an immovable result type keeps it
+        constexpr auto nx = []() noexcept { return 1; };
+        static_assert(not extension || noexcept(a.transform(nx)));
+        static_assert(not extension || not noexcept(a.transform(fn)));
+        constexpr auto nxi = []() noexcept { return helper_immovable(3, 4); };
+        static_assert(not extension || noexcept(a.transform(nxi)));
+
         CHECK(a.transform(fn).value() == 2);
         CHECK(a.transform([]() {}).has_value());
+      }
+
+      SECTION("direct initialization")
+      {
+        // no witness factor, and an immovable type works
+        using T = expected<void, Error>;
+        T a;
+        static_assert(not std::is_move_constructible_v<helper_immovable>);
+        auto r = a.transform([] { return helper_immovable(6, 7); });
+        static_assert(std::is_same_v<decltype(r), expected<helper_immovable, Error>>);
+        CHECK(r.value().v == 6 * 7);
       }
 
       SECTION("error")
@@ -5549,6 +5677,16 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         constexpr auto fn = [](auto &&a) constexpr -> int { return helper(std::forward<decltype(a)>(a)).v * 3; };
 
         T a(unexpect, 5);
+
+        // extension: conditional noexcept, keyed on the callable alone (T is void: no value
+        // copy) -- the new error is direct-initialized from the invoke expression (guaranteed
+        // elision), so even an immovable error type keeps it
+        constexpr auto nx = [](auto &&) noexcept { return 1; };
+        static_assert(not extension || noexcept(a.transform_error(nx)));
+        static_assert(not extension || not noexcept(a.transform_error(fn)));
+        constexpr auto nxi = [](auto &&) noexcept { return helper_immovable(3, 4); };
+        static_assert(not extension || noexcept(a.transform_error(nxi)));
+
         CHECK(a.transform_error(fn).error() == 5 * 3 * from_lval);
         CHECK(std::as_const(a).transform_error(fn).error() == 5 * 3 * from_lval_const);
         CHECK(std::move(std::as_const(a)).transform_error(fn).error() == 5 * 3 * from_rval_const);
@@ -5562,6 +5700,18 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
         T a{};
         CHECK(a.transform_error(fn).has_value());
+      }
+
+      SECTION("direct initialization")
+      {
+        // covers the void specialization's from-invoke union constructor: the new error is
+        // direct-non-list-initialized, so no witness factor and an immovable type works
+        using T = expected<void, int>;
+        T a(unexpect, 5);
+        static_assert(not std::is_move_constructible_v<helper_immovable>);
+        auto r = a.transform_error([](int e) { return helper_immovable(e, 3); });
+        static_assert(std::is_same_v<decltype(r), expected<void, helper_immovable>>);
+        CHECK(r.error().v == 5 * 3);
       }
 
       SECTION("constexpr")

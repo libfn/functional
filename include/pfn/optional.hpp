@@ -46,12 +46,15 @@ template <class T> class optional; // partially freestanding
 // [optional.optional.ref], partial specialization of optional for lvalue reference types
 template <class T> class optional<T &>; // partially freestanding
 
+namespace detail {
+// Deduction probe: deliberately declared without a definition (it is only named in an unevaluated
+// context), and called qualified so that ADL cannot pull unrelated overloads into the probe.
+template <class U> void _derived_from_optional(optional<U> const &);
+
 template <class T>
 concept _is_derived_from_optional = requires(T const &t) { // exposition only
-  []<class U>(optional<U> const &) {}(t);
+  detail::_derived_from_optional(t);
 };
-
-namespace detail {
 
 // Helper used as noexcept(...) operand where we want to evaluate both:
 // * noexcept of an expression itself (e.g. operator==) AND
@@ -197,7 +200,7 @@ constexpr bool operator>=(T const &, optional<U> const &) //
     noexcept(detail::_ge_bool_noexcept<T, U>)             // extension
   requires(not detail::_is_some_optional<T>) && detail::_ge_bool<T, U>;
 template <class T, class U>
-  requires(not _is_derived_from_optional<U>) && ::std::three_way_comparable_with<T, U>
+  requires(not detail::_is_derived_from_optional<U>) && ::std::three_way_comparable_with<T, U>
 constexpr ::std::compare_three_way_result_t<T, U> operator<=>(optional<T> const &, U const &);
 
 // [optional.specalg], specialized algorithms
@@ -231,20 +234,18 @@ namespace detail {
 // Tag selecting _optional_union_t's/_optional_base's "construct from any source exposing
 // has_value()/operator*()" constructor, disambiguating it from the (bool, S&&) one below
 // (which instead reads another union's raw v_ member directly).
-struct _from_optional_t {
+constexpr inline struct _from_optional_t {
   explicit _from_optional_t() = default;
-};
-constexpr inline _from_optional_t _from_optional{};
+} _from_optional{};
 
 // Tag selecting the "direct-non-list-initialize the contained value from the result of
 // std::invoke" constructors, required by transform ([optional.monadic]/[optional.ref.monadic]):
 // the specified initialization is exactly `U u(invoke(...))` -- guaranteed elision, so no
 // extra move and an immovable U works -- which means the invoke expression itself must reach
 // the contained value's initializer.
-struct _from_invoke_t {
-  explicit _from_invoke_t() = default;
-};
-constexpr inline _from_invoke_t _from_invoke{};
+constexpr inline struct _optional_from_invoke_t {
+  explicit _optional_from_invoke_t() = default;
+} _optional_from_invoke{};
 
 template <class T> union _optional_union_t {
   // _dummy_t placeholder, so the union always has an active member
@@ -281,10 +282,14 @@ template <class T> union _optional_union_t {
       ::std::construct_at(::std::addressof(e_));
   }
 
+  // In the noexcept spec, a same-type (modulo cv) invoke result means guaranteed elision: the
+  // invoke expression initializes v_ directly and no constructor of T runs, so probing
+  // is_nothrow_constructible (false e.g. for an immovable T) would be wrongly pessimistic.
   template <typename Fn, typename... Args>
-  constexpr explicit _optional_union_t(_from_invoke_t /*ignored*/, Fn &&fn, Args &&...args) //
+  constexpr explicit _optional_union_t(_optional_from_invoke_t /*ignored*/, Fn &&fn, Args &&...args) //
       noexcept(::std::is_nothrow_invocable_v<Fn, Args...>
-               && ::std::is_nothrow_constructible_v<T, ::std::invoke_result_t<Fn, Args...>>)
+               && (::std::is_same_v<::std::remove_cv_t<::std::invoke_result_t<Fn, Args...>>, ::std::remove_cv_t<T>>
+                   || ::std::is_nothrow_constructible_v<T, ::std::invoke_result_t<Fn, Args...>>))
       : v_(::std::invoke(FWD(fn), FWD(args)...))
   {
   }
@@ -431,8 +436,8 @@ template <class T, class Policy> struct _optional_base {
   {
   }
   template <typename Fn, typename... Args>
-  constexpr explicit _optional_base(_from_invoke_t tag, Fn &&fn, Args &&...args) //
-      noexcept(::std::is_nothrow_constructible_v<_storage_t, _from_invoke_t, Fn, Args...>)
+  constexpr explicit _optional_base(_optional_from_invoke_t tag, Fn &&fn, Args &&...args) //
+      noexcept(::std::is_nothrow_constructible_v<_storage_t, _optional_from_invoke_t, Fn, Args...>)
       : storage_(tag, FWD(fn), FWD(args)...), set_(true)
   {
   }
@@ -446,7 +451,8 @@ template <class T, class Policy> struct _optional_base {
   // union's own _from_optional_t ctor, which reads that public observer API directly rather
   // than reaching into the source's storage, so it works uniformly for both optional<U> (a
   // discriminated union) and optional<U&> (a bare pointer, no union or `set_` at all)
-  // sources alike. Used by the converting ctors below and by _assign_from.
+  // sources alike. Used by the converting ctors below; _assign_from applies the same
+  // public-API reads in its own body (via _reinit), without going through this ctor.
   template <typename S>
   constexpr explicit _optional_base(_from_optional_t tag, S &&s) //
       noexcept(::std::is_nothrow_constructible_v<_storage_t, _from_optional_t, S>)
@@ -653,19 +659,19 @@ template <class T, class Policy> struct _optional_base {
     return result_t();
   }
 
+  // In the noexcept spec, only the invoke can throw: the contained value is direct-non-list-
+  // initialized from the invoke expression -- guaranteed elision for an object result (no
+  // constructor of value_t runs), an identity reference binding for a reference result.
   template <typename Self, typename Fn>
-  static constexpr auto _transform(Self &&self, Fn &&fn) //
-      noexcept(
-          ::std::is_nothrow_invocable_v<Fn, decltype(*FWD(self))>
-          && ::std::is_nothrow_constructible_v<::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(*FWD(self))>>,
-                                               ::std::invoke_result_t<Fn, decltype(*FWD(self))>>)
+  static constexpr auto _transform(Self &&self, Fn &&fn)                //
+      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(*FWD(self))>) // extension
     requires ::std::is_invocable_v<Fn, decltype(*FWD(self))>
   {
     using value_t = ::std::remove_cv_t<::std::invoke_result_t<Fn, decltype(*FWD(self))>>;
     static_assert(_is_valid_optional<value_t>); // [optional.monadic] Mandates
     using result_t = typename Policy::template type<value_t>;
     if (self.has_value()) {
-      return result_t(_from_invoke, FWD(fn), *FWD(self));
+      return result_t(_optional_from_invoke, FWD(fn), *FWD(self));
     }
     return result_t();
   }
@@ -731,7 +737,7 @@ template <class T, class Policy> struct _optional_base<T &, Policy> {
   }
 
   template <typename Fn, typename... Args>
-  constexpr explicit _optional_base(_from_invoke_t /*ignored*/, Fn &&fn, Args &&...args) //
+  constexpr explicit _optional_base(_optional_from_invoke_t /*ignored*/, Fn &&fn, Args &&...args) //
       noexcept(::std::is_nothrow_invocable_v<Fn, Args...>
                && ::std::is_nothrow_constructible_v<T &, ::std::invoke_result_t<Fn, Args...>>)
   {
@@ -831,18 +837,18 @@ template <class T, class Policy> struct _optional_base<T &, Policy> {
     return result_t();
   }
 
+  // In the noexcept spec, only the invoke can throw -- same reasoning as the primary
+  // _transform's.
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn, T &>
-               && ::std::is_nothrow_constructible_v<::std::remove_cv_t<::std::invoke_result_t<Fn, T &>>,
-                                                    ::std::invoke_result_t<Fn, T &>>)
+      noexcept(::std::is_nothrow_invocable_v<Fn, T &>)   // extension
     requires ::std::is_invocable_v<Fn, T &>
   {
     using value_t = ::std::remove_cv_t<::std::invoke_result_t<Fn, T &>>;
     static_assert(_is_valid_optional<value_t>); // [optional.ref.monadic] Mandates
     using result_t = typename Policy::template type<value_t>;
     if (self.has_value()) {
-      return result_t(_from_invoke, FWD(fn), *self);
+      return result_t(_optional_from_invoke, FWD(fn), *self);
     }
     return result_t();
   }
@@ -876,8 +882,10 @@ concept _hash_enabled_for = ::std::is_default_constructible_v<::std::hash<X>> //
                                  { h(x) } -> ::std::same_as<::std::size_t>;
                                };
 
-template <class T, bool = _hash_enabled_for<::std::remove_const_t<T>>> struct _optional_hash_base {
-  ::std::size_t operator()(::pfn::optional<T> const &o) const         //
+// Opt is the optional type whose std::hash specialization derives this base; a parameter so
+// that a derived library's optional (e.g. fn::optional) can reuse the same machinery.
+template <class Opt, class T, bool = _hash_enabled_for<::std::remove_const_t<T>>> struct _optional_hash_base {
+  ::std::size_t operator()(Opt const &o) const                        //
       noexcept(noexcept(::std::hash<::std::remove_const_t<T>>{}(*o))) // extension
   {
     if (o.has_value())
@@ -887,7 +895,7 @@ template <class T, bool = _hash_enabled_for<::std::remove_const_t<T>>> struct _o
 };
 // Disabled case: per [unord.hash] a disabled hash specialization is not a function object
 // (no call operator) and is neither constructible nor assignable.
-template <class T> struct _optional_hash_base<T, false> {
+template <class Opt, class T> struct _optional_hash_base<Opt, T, false> {
   _optional_hash_base() = delete;
   _optional_hash_base(_optional_hash_base const &) = delete;
   _optional_hash_base(_optional_hash_base &&) = delete;
@@ -900,6 +908,10 @@ template <class T> struct _optional_hash_base<T, false> {
 template <class T> class optional : private detail::_optional_base<T, detail::optional_policy> {
   static_assert(detail::_is_valid_optional<T>);
   using _base = detail::_optional_base<T, detail::optional_policy>;
+
+  // Allow sibling `_optional_base` instantiations to call the private from-invoke ctor
+  // below (its caller is another optional's base).
+  template <class, class> friend struct detail::_optional_base;
 
 public:
   using value_type = T;
@@ -941,15 +953,6 @@ public:
       noexcept(::std::is_nothrow_constructible_v<T, ::std::initializer_list<U> &, Args...>)  // extension
     requires ::std::is_constructible_v<T, ::std::initializer_list<U> &, Args...>
       : _base(::std::in_place, il, FWD(a)...)
-  {
-  }
-
-  // Direct-non-list-initializes the contained value from the result of std::invoke; used by
-  // transform ([optional.monadic]), and public because the caller is another optional's base.
-  template <class Fn, class... Args>
-  constexpr explicit optional(detail::_from_invoke_t tag, Fn &&fn, Args &&...args) //
-      noexcept(::std::is_nothrow_constructible_v<_base, detail::_from_invoke_t, Fn, Args...>)
-      : _base(tag, FWD(fn), FWD(args)...)
   {
   }
 
@@ -1120,6 +1123,16 @@ public:
 
   // [optional.mod], modifiers
   using _base::reset;
+
+private:
+  // Direct-non-list-initializes the contained value from the result of std::invoke; used by
+  // transform implemented in _optional_base.
+  template <class Fn, class... Args>
+  constexpr explicit optional(detail::_optional_from_invoke_t tag, Fn &&fn, Args &&...args) //
+      noexcept(::std::is_nothrow_constructible_v<_base, detail::_optional_from_invoke_t, Fn, Args...>)
+      : _base(tag, FWD(fn), FWD(args)...)
+  {
+  }
 };
 
 template <class T> optional(T) -> optional<T>;
@@ -1127,6 +1140,10 @@ template <class T> optional(T) -> optional<T>;
 template <class T> class optional<T &> : private detail::_optional_base<T &, detail::optional_policy> {
   static_assert(detail::_is_valid_optional<T>);
   using _base = detail::_optional_base<T &, detail::optional_policy>;
+
+  // Allow sibling `_optional_base` instantiations to call the private from-invoke ctor
+  // below (its caller is another optional's base).
+  template <class, class> friend struct detail::_optional_base;
 
 public:
   using value_type = T;
@@ -1144,17 +1161,9 @@ public:
   {
   }
 
-  // Direct-non-list-initializes the bound reference from the result of std::invoke; used by
-  // transform ([optional.ref.monadic]), and public because the caller is another optional's base.
-  template <class Fn, class... Args>
-  constexpr explicit optional(detail::_from_invoke_t tag, Fn &&fn, Args &&...args) //
-      noexcept(::std::is_nothrow_constructible_v<_base, detail::_from_invoke_t, Fn, Args...>)
-      : _base(tag, FWD(fn), FWD(args)...)
-  {
-  }
-
   template <class U>
-  constexpr explicit(not ::std::is_convertible_v<U, T &>) optional(U &&u) //
+  constexpr explicit(not ::std::is_convertible_v<U, T &>)
+      optional(U &&u) // NOSONAR cpp:S6458 _can_convert excludes self
       noexcept(::std::is_nothrow_constructible_v<T &, U>)
     requires(_base::template _can_convert<U>::value)
       : _base(::std::in_place, FWD(u))
@@ -1238,6 +1247,16 @@ public:
 
   // [optional.ref.mod], modifiers
   using _base::reset;
+
+private:
+  // Direct-non-list-initializes the bound reference from the result of std::invoke; used by
+  // transform implemented in _optional_base.
+  template <class Fn, class... Args>
+  constexpr explicit optional(detail::_optional_from_invoke_t tag, Fn &&fn, Args &&...args) //
+      noexcept(::std::is_nothrow_constructible_v<_base, detail::_optional_from_invoke_t, Fn, Args...>)
+      : _base(tag, FWD(fn), FWD(args)...)
+  {
+  }
 };
 
 // [optional.relops], relational operators
@@ -1409,7 +1428,7 @@ constexpr bool operator>=(T const &v, optional<U> const &x) //
   return x.has_value() ? v >= *x : true;
 }
 template <class T, class U>
-  requires(not _is_derived_from_optional<U>) && ::std::three_way_comparable_with<T, U>
+  requires(not detail::_is_derived_from_optional<U>) && ::std::three_way_comparable_with<T, U>
 constexpr ::std::compare_three_way_result_t<T, U> operator<=>(optional<T> const &x, U const &v)
 {
   return x.has_value() ? *x <=> v : ::std::strong_ordering::less;
@@ -1448,7 +1467,7 @@ constexpr optional<T> make_optional(::std::initializer_list<U> il, Args &&...arg
 
 namespace std {
 // [optional.hash], hash support
-template <class T> struct hash<::pfn::optional<T>> : ::pfn::detail::_optional_hash_base<T> {};
+template <class T> struct hash<::pfn::optional<T>> : ::pfn::detail::_optional_hash_base<::pfn::optional<T>, T> {};
 } // namespace std
 
 #undef ASSERT

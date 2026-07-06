@@ -512,6 +512,20 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
                   .and_then( //
                       [](auto) -> fn::optional<bool> { throw 0; })
                   .has_value());
+
+    WHEN("immovable result type")
+    {
+      // the disengaged path must compile even though the result cannot be moved (the
+      // clang<=18 miscompile workaround must not force a move)
+      struct immovable_t {
+        int v;
+        constexpr explicit immovable_t(int i) noexcept : v(i) {}
+        immovable_t(immovable_t &&) = delete;
+      };
+      auto r = s.and_then([](auto) -> fn::optional<immovable_t> { throw 0; });
+      static_assert(std::is_same_v<decltype(r), fn::optional<immovable_t>>);
+      CHECK(not r.has_value());
+    }
   }
 
   WHEN("constexpr")
@@ -604,117 +618,5 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
     constexpr fn::optional<fn::sum_for<int, std::string_view>> a{fn::sum{42}};
     static_assert(std::is_same_v<decltype(a.transform(fn)), fn::optional<fn::sum<bool, int>>>);
     static_assert(a.transform(fn).value() == fn::sum{true});
-  }
-}
-
-TEST_CASE("optional polyfills and_then", "[optional][polyfill][and_then]")
-{
-  WHEN("value")
-  {
-    fn::optional<int> s{12};
-    CHECK(s.and_then( //
-               fn::overload{[](int &i) -> fn::optional<bool> { return i == 12; },
-                            [](int const &) -> fn::optional<bool> { throw 0; },
-                            [](int &&) -> fn::optional<bool> { throw 0; },
-                            [](int const &&) -> fn::optional<bool> { throw 0; }}) //
-              .value());
-    CHECK(std::as_const(s)
-              .and_then( //
-                  fn::overload{[](int &) -> fn::optional<bool> { throw 0; },
-                               [](int const &i) -> fn::optional<bool> { return i == 12; },
-                               [](int &&) -> fn::optional<bool> { throw 0; },
-                               [](int const &&) -> fn::optional<bool> { throw 0; }}) //
-              .value());
-    CHECK(std::move(std::as_const(s))
-              .and_then( //
-                  fn::overload{[](int &) -> fn::optional<bool> { throw 0; },
-                               [](int const &) -> fn::optional<bool> { throw 0; },
-                               [](int &&) -> fn::optional<bool> { throw 0; },
-                               [](int const &&i) -> fn::optional<bool> { return i == 12; }}) //
-              .value());
-    CHECK(std::move(s)
-              .and_then( //
-                  fn::overload{[](int &) -> fn::optional<bool> { throw 0; },
-                               [](int const &) -> fn::optional<bool> { throw 0; },
-                               [](int &&i) -> fn::optional<bool> { return i == 12; },
-                               [](int const &&) -> fn::optional<bool> { throw 0; }}) //
-              .value());
-
-    WHEN("error")
-    {
-      fn::optional<int> s{};
-      CHECK(not s.and_then( //
-                     [](auto) -> fn::optional<bool> { throw 0; })
-                    .has_value());
-      CHECK(not std::as_const(s)
-                    .and_then( //
-                        [](auto) -> fn::optional<bool> { throw 0; })
-                    .has_value());
-      CHECK(not std::move(std::as_const(s))
-                    .and_then( //
-                        [](auto) -> fn::optional<bool> { throw 0; })
-                    .has_value());
-      CHECK(not std::move(s)
-                    .and_then( //
-                        [](auto) -> fn::optional<bool> { throw 0; })
-                    .has_value());
-    }
-  }
-}
-
-TEST_CASE("optional polyfills or_else", "[optional][polyfill][or_else]")
-{
-  WHEN("value")
-  {
-    fn::optional<int> s{1};
-    CHECK(s.or_else([]() -> fn::optional<int> { throw 0; }).value());
-    CHECK(std::as_const(s).or_else([]() -> fn::optional<int> { throw 0; }).value());
-    CHECK(std::move(std::as_const(s)).or_else([]() -> fn::optional<int> { throw 0; }).value());
-    CHECK(std::move(s).or_else([]() -> fn::optional<int> { throw 0; }).value());
-
-    WHEN("error")
-    {
-      fn::optional<int> s{};
-      CHECK(s.or_else([]() -> fn::optional<int> { return 12; }).value() == 12);
-      CHECK(std::as_const(s).or_else([]() -> fn::optional<int> { return 12; }).value() == 12);
-      CHECK(std::move(std::as_const(s)).or_else([]() -> fn::optional<int> { return 12; }).value() == 12);
-      CHECK(std::move(s).or_else([]() -> fn::optional<int> { return 12; }).value() == 12);
-    }
-  }
-}
-
-TEST_CASE("optional polyfills transform", "[optional][polyfill][transform]")
-{
-  WHEN("value")
-  {
-    fn::optional<int> s{12};
-    CHECK(s.transform( //
-               fn::overload{[](int &i) -> bool { return i == 12; }, [](int const &) -> bool { throw 0; },
-                            [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; }}) //
-              .value());
-    CHECK(std::as_const(s)
-              .transform( //
-                  fn::overload{[](int &) -> bool { throw 0; }, [](int const &i) -> bool { return i == 12; },
-                               [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; }}) //
-              .value());
-    CHECK(std::move(std::as_const(s))
-              .transform( //
-                  fn::overload{[](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
-                               [](int &&) -> bool { throw 0; }, [](int const &&i) -> bool { return i == 12; }}) //
-              .value());
-    CHECK(std::move(s)
-              .transform( //
-                  fn::overload{[](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
-                               [](int &&i) -> bool { return i == 12; }, [](int const &&) -> bool { throw 0; }}) //
-              .value());
-
-    WHEN("error")
-    {
-      fn::optional<int> s{};
-      CHECK(not s.transform([](auto) -> bool { throw 0; }).has_value());
-      CHECK(not std::as_const(s).transform([](auto) -> bool { throw 0; }).has_value());
-      CHECK(not std::move(std::as_const(s)).transform([](auto) -> bool { throw 0; }).has_value());
-      CHECK(not std::move(s).transform([](auto) -> bool { throw 0; }).has_value());
-    }
   }
 }
