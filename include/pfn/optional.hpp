@@ -19,10 +19,10 @@
 #ifdef FWD
 #pragma push_macro("FWD")
 #define INCLUDE_PFN_OPTIONAL__POP_FWD
-#undef FWD
+#undef FWD // NOSONAR cpp:S959 saved by push_macro above
 #endif
 
-// Also defined in fn/detail/fwd_macro.hpp but pfn/* headers are standalone
+// Also defined in fn/detail/macro_fwd.hpp but pfn headers are standalone
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 
 #ifdef ASSERT
@@ -60,7 +60,7 @@ concept _is_derived_from_optional = requires(T const &t) { // exposition only
 // * noexcept of an expression itself (e.g. operator==) AND
 // * noexcept of the expression's implicit conversion to bool
 // May only be used in unevaluated contexts; any ODR-use will trigger a link error.
-// Also declared in pfn/expected.hpp (a benign redeclaration; pfn/* headers are standalone).
+// Also declared in pfn/expected.hpp (a benign redeclaration; pfn headers are standalone).
 constexpr bool _implicit_to_bool(bool) noexcept;
 
 template <typename> constexpr bool _is_some_optional = false;
@@ -312,12 +312,15 @@ template <class T> union _optional_union_t {
       : v_(FWD(a)...)
   {
   }
-  constexpr explicit _optional_union_t(::std::nullopt_t /*ignored*/) noexcept : e_{} {}
+  constexpr explicit _optional_union_t(::std::nullopt_t /*ignored*/) noexcept
+      : e_{} // NOSONAR cpp:S3230 activates the member
+  {
+  }
 
   constexpr ~_optional_union_t() noexcept
     requires(::std::is_trivially_destructible_v<T>)
   = default;
-  constexpr ~_optional_union_t() noexcept {}
+  constexpr ~_optional_union_t() noexcept {} // NOSONAR cpp:S3490 non-trivial arm of the conditionally-trivial pair
 
   // reinit, mirroring [expected.void.assign]'s direct construction: one of New/Old is
   // always the trivial `_dummy_t` (value <-> empty transition), so no strong-exception
@@ -918,7 +921,7 @@ public:
 
   // [optional.ctor], constructors
   constexpr optional() noexcept : _base(::std::nullopt) {}
-  constexpr optional(::std::nullopt_t) noexcept : _base(::std::nullopt) {}
+  constexpr optional(::std::nullopt_t) noexcept : _base(::std::nullopt) {} // NOSONAR cpp:S1709 implicit per spec
 
   constexpr optional(optional const &) = delete;
   constexpr optional(optional const &s)                   //
@@ -1150,7 +1153,7 @@ public:
 
   // [optional.ref.ctor], constructors
   constexpr optional() noexcept = default;
-  constexpr optional(::std::nullopt_t) noexcept : optional() {}
+  constexpr optional(::std::nullopt_t) noexcept : optional() {} // NOSONAR cpp:S1709 implicit per spec
   constexpr optional(optional const &rhs) noexcept = default;
 
   template <class Arg>

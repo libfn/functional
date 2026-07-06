@@ -31,7 +31,7 @@ static constexpr bool _is_valid_choice_subtype //
     &&(not ::std::is_reference_v<T>)           //
     &&(not some_sum<T>)                        //
     &&(not some_in_place_type<T>)              //
-    &&(::std::is_same_v<T, ::std::remove_cv_t<T>>);
+    &&::std::is_same_v<T, ::std::remove_cv_t<T>>;
 }
 
 /**
@@ -81,7 +81,7 @@ struct choice<Ts...> : sum<Ts...> {
    * @param v TODO
    */
   template <typename T>
-  constexpr choice(T &&v)
+  constexpr choice(T &&v) // NOSONAR cpp:S1709,S6458 implicit arm of the explicit pair; has_type excludes self
     requires has_type<::std::remove_cvref_t<T>> && (::std::is_constructible_v<::std::remove_cvref_t<T>, decltype(v)>)
              && (::std::is_convertible_v<decltype(v), ::std::remove_cvref_t<T>>)
       : _impl(::std::in_place_type<::std::remove_cvref_t<T>>, FWD(v))
@@ -95,7 +95,7 @@ struct choice<Ts...> : sum<Ts...> {
    * @param v TODO
    */
   template <typename T>
-  constexpr explicit choice(T &&v)
+  constexpr explicit choice(T &&v) // NOSONAR cpp:S6458 has_type excludes self
     requires has_type<::std::remove_cvref_t<T>> && (::std::is_constructible_v<::std::remove_cvref_t<T>, decltype(v)>)
              && (not ::std::is_convertible_v<decltype(v), ::std::remove_cvref_t<T>>)
       : _impl(::std::in_place_type<::std::remove_cvref_t<T>>, FWD(v))
@@ -110,7 +110,7 @@ struct choice<Ts...> : sum<Ts...> {
    * @param v TODO
    */
   template <typename T>
-  constexpr choice(::std::in_place_type_t<T> d, auto &&...args) noexcept
+  constexpr explicit choice(::std::in_place_type_t<T> d, auto &&...args) noexcept
     requires has_type<T>
       : _impl(d, FWD(args)...)
   {
@@ -123,7 +123,7 @@ struct choice<Ts...> : sum<Ts...> {
    * @param v TODO
    */
   template <typename... Tx>
-  constexpr choice(sum<Tx...> const &v) noexcept
+  constexpr choice(sum<Tx...> const &v) noexcept // NOSONAR cpp:S1709 implicit widening by design
     requires detail::is_superset_of<choice, choice<Tx...>> && (... && ::std::is_copy_constructible_v<Tx>)
       : _impl(::std::in_place_type<sum<Tx...>>, FWD(v))
   {
@@ -136,7 +136,7 @@ struct choice<Ts...> : sum<Ts...> {
    * @param v TODO
    */
   template <typename... Tx>
-  constexpr choice(sum<Tx...> &&v) noexcept
+  constexpr choice(sum<Tx...> &&v) noexcept // NOSONAR cpp:S1709 implicit widening by design
     requires detail::is_superset_of<choice, choice<Tx...>> && (... && ::std::is_move_constructible_v<Tx>)
       : _impl(::std::in_place_type<sum<Tx...>>, FWD(v))
   {

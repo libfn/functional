@@ -13,9 +13,7 @@
 
 #include <type_traits>
 
-namespace fn {
-
-namespace detail {
+namespace fn::detail {
 
 template <typename T> constexpr bool _is_in_place_type = false;
 template <typename T> constexpr bool _is_in_place_type<::std::in_place_type_t<T> &> = true;
@@ -110,7 +108,7 @@ template <typename... Ts> constexpr bool _is_variadic_union<variadic_union<Ts...
 template <typename T>
 concept some_variadic_union = _is_variadic_union<T &>;
 
-template <typename T0> union variadic_union<T0> final {
+template <typename T0> union variadic_union<T0> {
   static_assert(not _some_in_place_type<T0>);
   using t0 = T0;
   T0 v0;
@@ -120,10 +118,10 @@ template <typename T0> union variadic_union<T0> final {
       = ::std::is_same_v<T, T0>;
   static constexpr ::std::size_t size = 1;
 
-  constexpr ~variadic_union() {}
+  constexpr ~variadic_union() {} // NOSONAR cpp:S3490 = default would be deleted for non-trivial members
 };
 
-template <typename T0, typename T1> union variadic_union<T0, T1> final {
+template <typename T0, typename T1> union variadic_union<T0, T1> {
   static_assert(not _some_in_place_type<T0>);
   static_assert(not _some_in_place_type<T1>);
   static_assert(not ::std::is_same_v<T0, T1>);
@@ -138,10 +136,10 @@ template <typename T0, typename T1> union variadic_union<T0, T1> final {
       = ::std::is_same_v<T, T0> || ::std::is_same_v<T, T1>;
   static constexpr ::std::size_t size = 2;
 
-  constexpr ~variadic_union() {}
+  constexpr ~variadic_union() {} // NOSONAR cpp:S3490 = default would be deleted for non-trivial members
 };
 
-template <typename T0, typename T1, typename T2> union variadic_union<T0, T1, T2> final {
+template <typename T0, typename T1, typename T2> union variadic_union<T0, T1, T2> {
   static_assert(not _some_in_place_type<T0>);
   static_assert(not _some_in_place_type<T1>);
   static_assert(not _some_in_place_type<T2>);
@@ -161,10 +159,10 @@ template <typename T0, typename T1, typename T2> union variadic_union<T0, T1, T2
       = ::std::is_same_v<T, T0> || ::std::is_same_v<T, T1> || ::std::is_same_v<T, T2>;
   static constexpr ::std::size_t size = 3;
 
-  constexpr ~variadic_union() {}
+  constexpr ~variadic_union() {} // NOSONAR cpp:S3490 = default would be deleted for non-trivial members
 };
 
-template <typename T0, typename T1, typename T2, typename T3> union variadic_union<T0, T1, T2, T3> final {
+template <typename T0, typename T1, typename T2, typename T3> union variadic_union<T0, T1, T2, T3> {
   static_assert(not _some_in_place_type<T0>);
   static_assert(not _some_in_place_type<T1>);
   static_assert(not _some_in_place_type<T2>);
@@ -190,12 +188,12 @@ template <typename T0, typename T1, typename T2, typename T3> union variadic_uni
       = ::std::is_same_v<T, T0> || ::std::is_same_v<T, T1> || ::std::is_same_v<T, T2> || ::std::is_same_v<T, T3>;
   static constexpr ::std::size_t size = 4;
 
-  constexpr ~variadic_union() {}
+  constexpr ~variadic_union() {} // NOSONAR cpp:S3490 = default would be deleted for non-trivial members
 };
 
 template <typename T0, typename T1, typename T2, typename T3, typename... Ts>
   requires(sizeof...(Ts) > 0)
-union variadic_union<T0, T1, T2, T3, Ts...> final {
+union variadic_union<T0, T1, T2, T3, Ts...> {
   static_assert(not _some_in_place_type<T0>);
   static_assert(not _some_in_place_type<T1>);
   static_assert(not _some_in_place_type<T2>);
@@ -229,7 +227,7 @@ union variadic_union<T0, T1, T2, T3, Ts...> final {
         || variadic_union<Ts...>::template has_type<T>;
   static constexpr ::std::size_t size = 4 + more_t::size;
 
-  constexpr ~variadic_union() {}
+  constexpr ~variadic_union() {} // NOSONAR cpp:S3490 = default would be deleted for non-trivial members
 };
 
 template <typename T, typename U>
@@ -608,7 +606,6 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, ::std::s
     return invoke_type_variadic_union<R, typename U::more_t>(FWD(v).more, index - 4, FWD(fn));
 }
 
-} // namespace detail
-} // namespace fn
+} // namespace fn::detail
 
 #endif // INCLUDE_FN_DETAIL_VARIADIC_UNION

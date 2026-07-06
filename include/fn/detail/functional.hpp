@@ -188,7 +188,7 @@ template <typename Ret, typename Fn, typename... Args> struct _is_nothrow_invoca
 // invoke
 template <typename Fn, typename... Args>
   requires(_is_invocable<Fn, Args...>::value)
-constexpr inline auto _invoke(Fn &&fn, Args &&...args) noexcept(_is_nothrow_invocable<Fn, Args...>::value)
+constexpr auto _invoke(Fn &&fn, Args &&...args) noexcept(_is_nothrow_invocable<Fn, Args...>::value)
     -> _invoke_result<Fn, Args...>::type
 {
   return _invoke_detail::invoke(FWD(fn), FWD(args)...);

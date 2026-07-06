@@ -19,10 +19,10 @@
 #ifdef FWD
 #pragma push_macro("FWD")
 #define INCLUDE_PFN_EXPECTED__POP_FWD
-#undef FWD
+#undef FWD // NOSONAR cpp:S959 saved by push_macro above
 #endif
 
-// Also defined in fn/detail/macro_fwd.hpp but pfn/* headers are standalone
+// Also defined in fn/detail/macro_fwd.hpp but pfn headers are standalone
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 
 #ifdef ASSERT
@@ -79,7 +79,7 @@ public:
   E const &&error() const && noexcept { return ::std::move(e_); }
 
 private:
-  E e_;
+  E e_; // NOSONAR cpp:S6226 MSVC ignores the attribute
 };
 
 // [expected.syn], unexpect_t disambiguation tag
@@ -187,7 +187,7 @@ public:
   }
 
 private:
-  E e_;
+  E e_; // NOSONAR cpp:S6226 MSVC ignores the attribute
 };
 
 template <class E> unexpected(E) -> unexpected<E>;
@@ -272,7 +272,7 @@ template <class T, class E> union _expected_union_t {
   constexpr ~_expected_union_t() noexcept
     requires(::std::is_trivially_destructible_v<T> && ::std::is_trivially_destructible_v<E>)
   = default;
-  constexpr ~_expected_union_t() noexcept {}
+  constexpr ~_expected_union_t() noexcept {} // NOSONAR cpp:S3490 non-trivial arm of the conditionally-trivial pair
 
   // [expected.object.assign], implementation of reinit-expected
   template <typename New, typename Old, typename... Args>
@@ -296,7 +296,7 @@ template <class T, class E> union _expected_union_t {
       // (and therefore trivially-destructible per [class.prop]/1). Old is
       // observationally identical to the destroy-and-recreate branch below.
       if (not ::std::is_constant_evaluated()) {
-        alignas(Old) unsigned char _bytes[sizeof(Old)];
+        alignas(Old) unsigned char _bytes[sizeof(Old)]; // NOSONAR cpp:S5945 raw byte snapshot
         ::std::memcpy(_bytes, oldp, sizeof(Old));
         try {
           ::std::construct_at(newp, ::std::forward<Args>(args)...);
@@ -360,7 +360,10 @@ template <class E> union _expected_union_t<void, E> {
   constexpr _expected_union_t &operator=(_expected_union_t const &) = delete;
   constexpr _expected_union_t &operator=(_expected_union_t &&) = delete;
 
-  constexpr explicit _expected_union_t(::std::in_place_t /*ignored*/) noexcept : v_{} {}
+  constexpr explicit _expected_union_t(::std::in_place_t /*ignored*/) noexcept
+      : v_{} // NOSONAR cpp:S3230 activates the member
+  {
+  }
 
   template <class... Args>
   constexpr explicit _expected_union_t(unexpect_t /*ignored*/, Args &&...a) //
@@ -385,7 +388,7 @@ template <class E> union _expected_union_t<void, E> {
   constexpr ~_expected_union_t() noexcept
     requires(::std::is_trivially_destructible_v<E>)
   = default;
-  constexpr ~_expected_union_t() noexcept {}
+  constexpr ~_expected_union_t() noexcept {} // NOSONAR cpp:S3490 non-trivial arm of the conditionally-trivial pair
 
   // [expected.void.assign] mandates direct construction (no temporary).
   template <typename New, typename Old, typename... Args>

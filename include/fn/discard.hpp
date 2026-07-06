@@ -29,7 +29,7 @@ constexpr inline struct discard_t final {
   [[nodiscard]] constexpr auto operator()() const noexcept -> functor<discard_t> { return {}; }
 
   struct apply final {
-    constexpr auto operator()(some_monadic_type auto &&) const noexcept -> void {}
+    constexpr auto operator()(some_monadic_type auto &&) const noexcept -> void {} // NOSONAR cpp:S1186 discards
   };
 } discard = {};
 
