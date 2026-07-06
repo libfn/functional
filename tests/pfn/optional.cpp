@@ -1126,6 +1126,35 @@ TEST_CASE("optional", "[optional][polyfill]")
           optional<pt> p{std::in_place, pt{7}};
           CHECK(p.begin()->x == 7);
         }
+
+        SECTION("constexpr")
+        {
+          static_assert([] {
+            optional<int> a{std::in_place, 42};
+            auto i = a.begin();
+            auto const s = a.end();
+            bool ok = *i == 42 && i[0] == 42 && i != s && i < s && i <= s && s > i && s >= i;
+            ok = ok && ++i == s;
+            ok = ok && --i == a.begin();
+            ok = ok && i++ == a.begin();
+            ok = ok && i-- == s;
+            ok = ok && i + 1 == s && 1 + i == s && s - 1 == i && s - i == 1;
+            i += 1;
+            ok = ok && i == s;
+            i -= 1;
+            ok = ok && i == a.begin();
+            optional<int>::const_iterator ci = i;
+            return ok && ci == i && i == ci && i - ci == 0;
+          }());
+          static_assert([] {
+            struct pt {
+              int x;
+            };
+            optional<pt> p{std::in_place, pt{7}};
+            return p.begin()->x == 7;
+          }());
+          SUCCEED();
+        }
       }
     }
 
