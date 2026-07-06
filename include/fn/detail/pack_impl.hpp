@@ -17,7 +17,7 @@
 namespace fn::detail {
 template <::std::size_t I, typename T> struct _element {
   static_assert(not ::std::is_rvalue_reference_v<T>);
-  T v;
+  T v; // NOSONAR cpp:S6226 MSVC ignores the attribute
 };
 
 template <typename, typename... Ts> struct pack_impl;

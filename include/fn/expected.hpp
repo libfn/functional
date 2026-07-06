@@ -220,8 +220,9 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
         ::fn::detail::_invoke(FWD(fn), _pfn_base::_value(FWD(self)));
         return type();
       } else
-        return type(::pfn::detail::_expected_from_invoke, ::std::in_place,
-                    [&]() -> decltype(auto) { return ::fn::detail::_invoke(FWD(fn), _pfn_base::_value(FWD(self))); });
+        return type(::pfn::detail::_expected_from_invoke, ::std::in_place, [&fn, &self]() -> decltype(auto) {
+          return ::fn::detail::_invoke(FWD(fn), _pfn_base::_value(FWD(self)));
+        });
     else
       return type(::pfn::unexpect, _pfn_base::_error(FWD(self)));
   }
@@ -239,7 +240,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
         return type();
       } else
         return type(::pfn::detail::_expected_from_invoke, ::std::in_place,
-                    [&]() -> decltype(auto) { return _pfn_base::_value(FWD(self)).transform(FWD(fn)); });
+                    [&fn, &self]() -> decltype(auto) { return _pfn_base::_value(FWD(self)).transform(FWD(fn)); });
     else
       return type(::pfn::unexpect, _pfn_base::_error(FWD(self)));
   }
@@ -260,7 +261,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
         return type();
       } else
         return type(::pfn::detail::_expected_from_invoke, ::std::in_place,
-                    [&]() -> decltype(auto) { return ::fn::detail::_invoke(FWD(fn)); });
+                    [&fn]() -> decltype(auto) { return ::fn::detail::_invoke(FWD(fn)); });
     else
       return type(::pfn::unexpect, _pfn_base::_error(FWD(self)));
   }
@@ -284,8 +285,9 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       else
         return type();
     else
-      return type(::pfn::detail::_expected_from_invoke, ::pfn::unexpect,
-                  [&]() -> decltype(auto) { return ::fn::detail::_invoke(FWD(fn), _pfn_base::_error(FWD(self))); });
+      return type(::pfn::detail::_expected_from_invoke, ::pfn::unexpect, [&fn, &self]() -> decltype(auto) {
+        return ::fn::detail::_invoke(FWD(fn), _pfn_base::_error(FWD(self)));
+      });
   }
 
   // transform_error, error type is a sum (delegates to sum::transform)
@@ -302,7 +304,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
         return type();
     else
       return type(::pfn::detail::_expected_from_invoke, ::pfn::unexpect,
-                  [&]() -> decltype(auto) { return _pfn_base::_error(FWD(self)).transform(FWD(fn)); });
+                  [&fn, &self]() -> decltype(auto) { return _pfn_base::_error(FWD(self)).transform(FWD(fn)); });
   }
 };
 

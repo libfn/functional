@@ -40,7 +40,7 @@ static constexpr bool _is_valid_sum_subtype //
     &&(not ::std::is_reference_v<T>)        //
     &&(not some_sum<T>)                     //
     &&(not some_in_place_type<T>)           //
-    &&(::std::is_same_v<T, ::std::remove_cv_t<T>>);
+    &&::std::is_same_v<T, ::std::remove_cv_t<T>>;
 
 struct _invoke_autodetect_tag final {};
 
@@ -213,7 +213,7 @@ struct sum<Ts...> {
    * @param v TODO
    */
   template <typename T>
-  constexpr sum(T &&v)
+  constexpr sum(T &&v) // NOSONAR cpp:S1709,S6458 implicit arm of the explicit pair; has_type excludes self
     requires has_type<::std::remove_cvref_t<T>> && (::std::is_constructible_v<::std::remove_cvref_t<T>, decltype(v)>)
                  && (::std::is_convertible_v<decltype(v), ::std::remove_cvref_t<T>>)
       : data(detail::make_variadic_union<::std::remove_cvref_t<T>, data_t>(FWD(v))),
@@ -228,7 +228,7 @@ struct sum<Ts...> {
    * @param v TODO
    */
   template <typename T>
-  constexpr explicit sum(T &&v)
+  constexpr explicit sum(T &&v) // NOSONAR cpp:S6458 has_type excludes self
     requires has_type<::std::remove_cvref_t<T>> && (::std::is_constructible_v<::std::remove_cvref_t<T>, decltype(v)>)
                  && (not ::std::is_convertible_v<decltype(v), ::std::remove_cvref_t<T>>)
       : data(detail::make_variadic_union<::std::remove_cvref_t<T>, data_t>(FWD(v))),
@@ -243,7 +243,7 @@ struct sum<Ts...> {
    * @param args TODO
    */
   template <typename T>
-  constexpr sum(::std::in_place_type_t<T>, auto &&...args)
+  constexpr explicit sum(::std::in_place_type_t<T>, auto &&...args)
     requires has_type<T>
       : data(detail::make_variadic_union<T, data_t>(FWD(args)...)), index(detail::type_index<T, Ts...>)
   {
@@ -256,7 +256,7 @@ struct sum<Ts...> {
    * @param arg TODO
    */
   template <typename... Tx>
-  constexpr sum(sum<Tx...> const &arg) noexcept
+  constexpr sum(sum<Tx...> const &arg) noexcept // NOSONAR cpp:S1709 implicit widening by design
     requires detail::is_superset_of<sum, sum<Tx...>> && (not ::std::is_same_v<sum, sum<Tx...>>)
                  && (... && ::std::is_copy_constructible_v<Tx>) && (sizeof...(Tx) > 0)
       : data(FWD(arg).template _invoke<data_t>([]<typename T>(::std::in_place_type_t<T>, auto &&v) {
@@ -275,7 +275,7 @@ struct sum<Ts...> {
    * @param arg TODO
    */
   template <typename... Tx>
-  constexpr sum(sum<Tx...> &&arg) noexcept
+  constexpr sum(sum<Tx...> &&arg) noexcept // NOSONAR cpp:S1709 implicit widening by design
     requires detail::is_superset_of<sum, sum<Tx...>> && (not ::std::is_same_v<sum, sum<Tx...>>)
                  && (... && ::std::is_move_constructible_v<Tx>) && (sizeof...(Tx) > 0)
       : data(FWD(arg).template _invoke<data_t>([]<typename T>(::std::in_place_type_t<T>, auto &&v) {

@@ -51,7 +51,7 @@ template <typename T> struct _indexed_type {
   ::std::size_t index;
 };
 template <typename... Ts> struct _indexed_type_list : _indexed_type<Ts>... {
-  constexpr _indexed_type_list(::std::size_t i = 0) : _indexed_type<Ts>{i++}... {}
+  constexpr explicit _indexed_type_list(::std::size_t i = 0) : _indexed_type<Ts>{i++}... {}
 };
 template <typename T, typename... Ts>
   requires(... || ::std::is_same_v<Ts, T>)
@@ -146,18 +146,18 @@ template <typename... Ts> struct normalized final {
 
   struct _uniqued final {
     ::std::array<::std::size_t, N> indices;
-    ::std::size_t size;
+    ::std::size_t count;
   };
 
   [[nodiscard]] static constexpr auto _indices() noexcept
   {
     ::std::array<::std::string_view, sizeof...(Ts)> names{type_sortkey_v<Ts>...};
     ::std::array<::std::size_t, sizeof...(Ts)> indices{};
-    ::std::generate(indices.begin(), indices.end(), [n = 0]() mutable -> ::std::size_t { return n++; });
+    ::std::ranges::generate(indices, [n = 0]() mutable -> ::std::size_t { return n++; });
     auto const less = [v = &names](::std::size_t i, ::std::size_t j) constexpr { return (*v)[i] < (*v)[j]; };
-    ::std::sort(indices.begin(), indices.end(), less);
+    ::std::ranges::sort(indices, less);
     auto const equal = [v = &names](::std::size_t i, ::std::size_t j) constexpr { return (*v)[i] == (*v)[j]; };
-    auto const end = ::std::unique(indices.begin(), indices.end(), equal);
+    auto const end = ::std::ranges::unique(indices, equal).begin();
     return _uniqued{indices, static_cast<::std::size_t>(end - indices.begin())};
   }
 
@@ -168,7 +168,7 @@ template <typename... Ts> struct normalized final {
       -> F<select_nth_t<_indices_v.indices[Is], Ts...>...>;
 
   // How many unique types
-  static constexpr ::std::size_t size = _indices_v.size;
+  static constexpr ::std::size_t size = _indices_v.count;
 
   // Apply a given template on a normalized list of types
   template <template <typename...> typename F>
@@ -182,7 +182,7 @@ static constexpr bool is_superset_of<F<Ts...>, F<Tu...>> = (... && type_one_of<T
 template <typename... Tx> struct _ts final {};
 
 template <typename... Ts> struct is_normal final {
-  static constexpr auto value = ::std::is_same<typename normalized<Ts...>::template apply<_ts>, _ts<Ts...>>::value;
+  static constexpr auto value = ::std::is_same_v<typename normalized<Ts...>::template apply<_ts>, _ts<Ts...>>;
 };
 
 template <typename... Ts> static constexpr bool is_normal_v = is_normal<Ts...>::value;

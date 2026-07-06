@@ -126,7 +126,7 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
     using type = ::fn::optional<new_value_type>;
     if (self.has_value())
       return type(::pfn::detail::_optional_from_invoke,
-                  [&]() -> decltype(auto) { return ::fn::detail::_invoke(FWD(fn), *FWD(self)); });
+                  [&fn, &self]() -> decltype(auto) { return ::fn::detail::_invoke(FWD(fn), *FWD(self)); });
     else
       return type(::std::nullopt);
   }
@@ -140,7 +140,7 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
     using type = ::fn::optional<new_value_type>;
     if (self.has_value())
       return type(::pfn::detail::_optional_from_invoke,
-                  [&]() -> decltype(auto) { return (*FWD(self)).transform(FWD(fn)); });
+                  [&fn, &self]() -> decltype(auto) { return (*FWD(self)).transform(FWD(fn)); });
     else
       return type(::std::nullopt);
   }
@@ -148,7 +148,7 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
 
 } // namespace detail
 
-template <typename T> class optional : private detail::_optional_base<T> {
+template <typename T> class optional : private detail::_optional_base<T> { // NOSONAR cpp:S3624 base manages storage
   static_assert(::pfn::detail::_is_valid_optional<T>);
   static_assert(not ::std::is_same_v<T, ::fn::sum<>>);
   using _base = detail::_optional_base<T>;
@@ -162,7 +162,7 @@ public:
 
   // Constructors. Explicit forwarders to the base mirror pfn::optional.
   constexpr optional() noexcept : _base(::std::nullopt) {}
-  constexpr optional(::std::nullopt_t) noexcept : _base(::std::nullopt) {}
+  constexpr optional(::std::nullopt_t) noexcept : _base(::std::nullopt) {} // NOSONAR cpp:S1709 implicit per spec
 
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U const &, T>) optional(optional<U> const &s) //
@@ -439,7 +439,7 @@ public:
 
   // Constructors. Explicit forwarders to the base mirror pfn::optional.
   constexpr optional() noexcept = default;
-  constexpr optional(::std::nullopt_t) noexcept : optional() {}
+  constexpr optional(::std::nullopt_t) noexcept : optional() {} // NOSONAR cpp:S1709 implicit per spec
   constexpr optional(optional const &rhs) noexcept = default;
 
   template <class Arg>
