@@ -2,6 +2,10 @@
 
 Conventions for AI agents in this repo (you are the primary reader — keep this terse).
 
+## Collaboration
+
+- Pushing back **and** asking questions is welcome — a challenged design beats a silently implemented flawed one.
+
 ## CI
 
 - Red CI is top priority — fix before other work; a failed build masks failures behind it. Check CI state when starting new work: via `gh` if it's available here, else ask the user.
@@ -42,6 +46,7 @@ C++20 is the sole export surface: fn + pfn build and pass their tests as C++20 o
 ## Tests
 
 - Add each check to the existing `TEST_CASE`/`SECTION` (or file) covering that member/behaviour, matching local idiom — not the nearest spot or a catch-all. A check in the right named section is self-documenting.
+- Every behaviour gets both a runtime `CHECK` (a `static_assert`-only branch is a codecov hole) and a constant-evaluation twin (`static_assert`) — constexpr diagnoses UB at compile time, and users rely on it.
 
 ## Tooling
 
