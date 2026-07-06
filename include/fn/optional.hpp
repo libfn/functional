@@ -57,8 +57,13 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
 #if defined(__clang__) && __clang_major__ <= 18
       // clang 15-18 miscompile the prvalue return below for three of the four Self ref-qualifier
       // instantiations (&, const &, const &&) at -O1/-O2: the disengaged result is observed with
-      // garbage in set_ (storage-poison). The workaround dodges the buggy mandatory copy-elision.
-      return ::std::move(type(::std::nullopt));
+      // garbage in set_ (storage-poison). The workaround dodges the buggy mandatory copy-elision,
+      // at the cost of a move -- an immovable result type must keep the prvalue (the workaround
+      // would not compile; the miscompile is not observed in that shape).
+      if constexpr (::std::is_move_constructible_v<type>)
+        return ::std::move(type(::std::nullopt));
+      else
+        return type(::std::nullopt);
 #else
       return type(::std::nullopt);
 #endif

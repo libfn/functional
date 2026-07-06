@@ -554,6 +554,21 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
       CHECK(std::move(std::as_const(s)).or_else(fn).value() == fn::sum{12});
       CHECK(std::move(s).or_else(fn).value() == fn::sum{12});
     }
+
+    WHEN("engaged void source, immovable error type in the result")
+    {
+      // the value-state path must compile even though the result cannot be moved (the
+      // clang<=18 miscompile workaround must not force a move)
+      struct immovable_t {
+        int v;
+        constexpr explicit immovable_t(int i) noexcept : v(i) {}
+        immovable_t(immovable_t &&) = delete;
+      };
+      fn::expected<void, Error> u{};
+      auto r = u.or_else([](Error) -> fn::expected<void, immovable_t> { return {}; });
+      static_assert(std::is_same_v<decltype(r), fn::expected<void, immovable_t>>);
+      CHECK(r.has_value());
+    }
   }
 }
 

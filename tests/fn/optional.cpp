@@ -512,6 +512,20 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
                   .and_then( //
                       [](auto) -> fn::optional<bool> { throw 0; })
                   .has_value());
+
+    WHEN("immovable result type")
+    {
+      // the disengaged path must compile even though the result cannot be moved (the
+      // clang<=18 miscompile workaround must not force a move)
+      struct immovable_t {
+        int v;
+        constexpr explicit immovable_t(int i) noexcept : v(i) {}
+        immovable_t(immovable_t &&) = delete;
+      };
+      auto r = s.and_then([](auto) -> fn::optional<immovable_t> { throw 0; });
+      static_assert(std::is_same_v<decltype(r), fn::optional<immovable_t>>);
+      CHECK(not r.has_value());
+    }
   }
 
   WHEN("constexpr")
