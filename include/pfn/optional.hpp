@@ -13,8 +13,14 @@
 #include <functional>
 #include <memory>
 #include <optional> // For anything that is not std::optional or std::make_optional
+#include <ranges>   // For std::ranges::enable_view
 #include <type_traits>
 #include <utility>
+#include <version>
+
+#if defined(__cpp_lib_format_ranges)
+#include <format> // For std::format_kind
+#endif
 
 #ifdef FWD
 #pragma push_macro("FWD")
@@ -591,6 +597,19 @@ template <class T, class Policy> struct _optional_base {
     return storage_.v_;
   }
 
+  // [optional.iterators], iterator support. The Policy picks which library's iterator
+  // wrapper is minted here, so fn::optional never exposes a pfn type. A disengaged
+  // optional hands out the empty range (nullptr, nullptr).
+  using iterator = typename Policy::template iterator<T>;
+  using const_iterator = typename Policy::template iterator<T const>;
+  [[nodiscard]] constexpr iterator begin() noexcept { return iterator(set_ ? ::std::addressof(storage_.v_) : nullptr); }
+  [[nodiscard]] constexpr const_iterator begin() const noexcept
+  {
+    return const_iterator(set_ ? ::std::addressof(storage_.v_) : nullptr);
+  }
+  [[nodiscard]] constexpr iterator end() noexcept { return begin() + has_value(); }
+  [[nodiscard]] constexpr const_iterator end() const noexcept { return begin() + has_value(); }
+
   // [optional.observe], observers
   constexpr T const *operator->() const noexcept
   {
@@ -798,6 +817,13 @@ template <class T, class Policy> struct _optional_base<T &, Policy> {
   constexpr void _swap_with(_optional_base &rhs) noexcept { ::std::swap(v_, rhs.v_); }
   constexpr void reset() noexcept { v_ = nullptr; }
 
+  // [optional.ref.iterators], iterator support; const-only like the observers below. The
+  // draft's "present only if T is an object type other than an array of unknown bound" is
+  // vacuously satisfied: _is_valid_optional already rejects any other referent.
+  using iterator = typename Policy::template iterator<T>;
+  [[nodiscard]] constexpr iterator begin() const noexcept { return iterator(v_); }
+  [[nodiscard]] constexpr iterator end() const noexcept { return begin() + has_value(); }
+
   // [optional.ref.observe], observers. Unlike optional<T>, const does not propagate to the
   // referent: *this being const only means the stored pointer can't be rebound, not that T
   // becomes T const -- so these all return plain T&/T*, and there is only ever one overload
@@ -869,8 +895,106 @@ template <class T, class Policy> struct _optional_base<T &, Policy> {
   }
 };
 
+// [optional.iterators]: the implementation-defined iterator types for pfn::optional. A minimal
+// wrapper over T* whose job is to keep pointer-ness out of optional interface. Only what mandated
+// by contiguous_iterator, Cpp17RandomAccessIterator and the container iterator requirements.
+template <class T> class _optional_iterator {
+  static_assert(::std::is_object_v<T>);
+
+  T *p_ = nullptr;
+
+  // Only an optional's base mints iterators from storage pointers; the sibling friendship
+  // lets the iterator -> const_iterator converting constructor read p_.
+  template <class, class> friend struct _optional_base;
+  template <class> friend class _optional_iterator;
+
+  constexpr explicit _optional_iterator(T *p) noexcept : p_(p) {}
+
+public:
+  using iterator_concept = ::std::contiguous_iterator_tag;
+  using iterator_category = ::std::random_access_iterator_tag;
+  using value_type = ::std::remove_cv_t<T>;
+  using difference_type = ::std::ptrdiff_t;
+  using pointer = T *;
+  using reference = T &;
+
+  constexpr _optional_iterator() noexcept = default;
+
+  // iterator -> const_iterator, required by the container iterator requirements
+  template <class U>
+    requires ::std::is_same_v<U const, T>
+  constexpr _optional_iterator(_optional_iterator<U> const &other) noexcept // NOSONAR cpp:S1709 implicit per spec
+      : p_(other.p_)
+  {
+  }
+
+  [[nodiscard]] constexpr T &operator*() const noexcept { return *p_; }
+  [[nodiscard]] constexpr T *operator->() const noexcept { return p_; } // std::to_address requires this
+  [[nodiscard]] constexpr T &operator[](difference_type n) const noexcept { return p_[n]; }
+
+  constexpr _optional_iterator &operator++() noexcept
+  {
+    ++p_;
+    return *this;
+  }
+  constexpr _optional_iterator operator++(int) noexcept
+  {
+    auto r = *this;
+    ++p_;
+    return r;
+  }
+  constexpr _optional_iterator &operator--() noexcept
+  {
+    --p_;
+    return *this;
+  }
+  constexpr _optional_iterator operator--(int) noexcept
+  {
+    auto r = *this;
+    --p_;
+    return r;
+  }
+  constexpr _optional_iterator &operator+=(difference_type n) noexcept
+  {
+    p_ += n;
+    return *this;
+  }
+  constexpr _optional_iterator &operator-=(difference_type n) noexcept
+  {
+    p_ -= n;
+    return *this;
+  }
+
+  [[nodiscard]] constexpr friend _optional_iterator operator+(_optional_iterator i, difference_type n) noexcept
+  {
+    return i += n;
+  }
+  [[nodiscard]] constexpr friend _optional_iterator operator+(difference_type n, _optional_iterator i) noexcept
+  {
+    return i += n;
+  }
+  [[nodiscard]] constexpr friend _optional_iterator operator-(_optional_iterator i, difference_type n) noexcept
+  {
+    return i -= n;
+  }
+  [[nodiscard]] constexpr friend difference_type operator-(_optional_iterator const &x,
+                                                           _optional_iterator const &y) noexcept
+  {
+    return x.p_ - y.p_;
+  }
+
+  [[nodiscard]] constexpr friend bool operator==(_optional_iterator const &, _optional_iterator const &) noexcept
+      = default;
+  [[nodiscard]] constexpr friend ::std::strong_ordering operator<=>(_optional_iterator const &x,
+                                                                    _optional_iterator const &y) noexcept
+  {
+    return x.p_ <=> y.p_;
+  }
+};
+
 struct optional_policy {
   template <class T> using type = ::pfn::optional<T>;
+  template <class T> using iterator = _optional_iterator<T>;
   template <class X> static constexpr bool is_specialization = _is_some_optional<X>;
 };
 
@@ -918,6 +1042,9 @@ template <class T> class optional : private detail::_optional_base<T, detail::op
 
 public:
   using value_type = T;
+  // [optional.iterators]: the iterator types are implementation-defined
+  using iterator = detail::_optional_iterator<T>;
+  using const_iterator = detail::_optional_iterator<T const>;
 
   // [optional.ctor], constructors
   constexpr optional() noexcept : _base(::std::nullopt) {}
@@ -1042,6 +1169,10 @@ public:
     this->_swap_with(rhs);
   }
 
+  // [optional.iterators], iterator support
+  using _base::begin;
+  using _base::end;
+
   // [optional.observe], observers
   using _base::has_value;
   using _base::operator bool;
@@ -1150,6 +1281,8 @@ template <class T> class optional<T &> : private detail::_optional_base<T &, det
 
 public:
   using value_type = T;
+  // [optional.ref.iterators]: the iterator type is implementation-defined
+  using iterator = detail::_optional_iterator<T>;
 
   // [optional.ref.ctor], constructors
   constexpr optional() noexcept = default;
@@ -1215,6 +1348,10 @@ public:
 
   // [optional.ref.swap], swap
   constexpr void swap(optional &rhs) noexcept { this->_swap_with(rhs); }
+
+  // [optional.ref.iterators], iterator support
+  using _base::begin;
+  using _base::end;
 
   // [optional.ref.observe], observers
   using _base::has_value;
@@ -1471,6 +1608,18 @@ constexpr optional<T> make_optional(::std::initializer_list<U> il, Args &&...arg
 namespace std {
 // [optional.hash], hash support
 template <class T> struct hash<::pfn::optional<T>> : ::pfn::detail::_optional_hash_base<::pfn::optional<T>, T> {};
+
+#if defined(__cpp_lib_format_ranges)
+// [optional.syn]: an optional is never formatted as a range
+template <class T> constexpr range_format format_kind<::pfn::optional<T>> = range_format::disabled;
+#endif
+
+// [optional.syn]: an optional is a view of at most one element. The nested-namespace block
+// mirrors MSVC's own STL (e.g. span): a qualified definition draws C2888 and the compound
+// `namespace std::ranges` form is not reliably matched by MSVC either.
+namespace ranges {
+template <class T> constexpr bool enable_view<::pfn::optional<T>> = true;
+} // namespace ranges
 } // namespace std
 
 #undef ASSERT

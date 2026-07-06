@@ -1038,6 +1038,165 @@ TEST_CASE("optional", "[optional][polyfill]")
     }
   }
 
+#if !defined(PFN_TEST_VALIDATION) || defined(__cpp_lib_optional_range_support)
+  SECTION("iterator support")
+  {
+    static_assert(std::contiguous_iterator<optional<int>::iterator>);
+    static_assert(std::contiguous_iterator<optional<int>::const_iterator>);
+    static_assert(std::is_same_v<std::iter_value_t<optional<int const>::iterator>, int>);
+    static_assert(std::is_same_v<std::iter_reference_t<optional<int>::iterator>, int &>);
+    static_assert(std::is_same_v<std::iter_reference_t<optional<int>::const_iterator>, int const &>);
+    static_assert(std::ranges::contiguous_range<optional<int>>);
+    static_assert(std::ranges::enable_view<optional<int>>);
+#if defined(__cpp_lib_format_ranges)
+    static_assert(std::format_kind<optional<int>> == std::range_format::disabled);
+#endif
+
+    SECTION("engaged")
+    {
+      optional<int> o{std::in_place, 42};
+
+      SECTION("mutable")
+      {
+        CHECK(o.end() - o.begin() == 1);
+        CHECK(std::addressof(*o.begin()) == std::addressof(*o));
+
+        SECTION("write-through")
+        {
+          *o.begin() += 1;
+          CHECK(*o == 43);
+        }
+      }
+
+      SECTION("const")
+      {
+        auto const &c = o;
+        static_assert(std::is_same_v<decltype(*c.begin()), int const &>);
+        CHECK(c.end() - c.begin() == 1);
+        CHECK(std::addressof(*c.begin()) == std::addressof(*o));
+      }
+
+      SECTION("range-based for")
+      {
+        int count = 0;
+        for (auto &v : o) {
+          CHECK(v == 42);
+          count += 1;
+        }
+        CHECK(count == 1);
+      }
+
+      SECTION("iterator operations")
+      {
+        auto it = o.begin();
+        auto const e = o.end();
+        CHECK(*it == 42);
+        CHECK(it[0] == 42);
+        CHECK(it != e);
+        CHECK(it < e);
+        CHECK(it <= e);
+        CHECK(e > it);
+        CHECK(e >= it);
+        CHECK(++it == e);
+        CHECK(--it == o.begin());
+        CHECK(it++ == o.begin());
+        CHECK(it-- == e);
+        CHECK(it + 1 == e);
+        CHECK(1 + it == e);
+        CHECK(e - 1 == it);
+        CHECK(e - it == 1);
+        it += 1;
+        CHECK(it == e);
+        it -= 1;
+        CHECK(it == o.begin());
+
+        SECTION("conversion to const_iterator")
+        {
+          optional<int>::const_iterator cit = it;
+          CHECK(cit == it);
+          CHECK(it == cit);
+          CHECK(it - cit == 0);
+        }
+
+        SECTION("member access")
+        {
+          struct pt {
+            int x;
+          };
+          optional<pt> p{std::in_place, pt{7}};
+          CHECK(p.begin()->x == 7);
+        }
+
+        SECTION("constexpr")
+        {
+          static_assert([] {
+            optional<int> a{std::in_place, 42};
+            auto i = a.begin();
+            auto const s = a.end();
+            bool ok = *i == 42 && i[0] == 42 && i != s && i < s && i <= s && s > i && s >= i;
+            ok = ok && ++i == s;
+            ok = ok && --i == a.begin();
+            ok = ok && i++ == a.begin();
+            ok = ok && i-- == s;
+            ok = ok && i + 1 == s && 1 + i == s && s - 1 == i && s - i == 1;
+            i += 1;
+            ok = ok && i == s;
+            i -= 1;
+            ok = ok && i == a.begin();
+            optional<int>::const_iterator ci = i;
+            return ok && ci == i && i == ci && i - ci == 0;
+          }());
+          static_assert([] {
+            struct pt {
+              int x;
+            };
+            optional<pt> p{std::in_place, pt{7}};
+            return p.begin()->x == 7;
+          }());
+          SUCCEED();
+        }
+      }
+    }
+
+    SECTION("disengaged")
+    {
+      optional<int> o{};
+
+      SECTION("mutable") { CHECK(o.begin() == o.end()); }
+
+      SECTION("const")
+      {
+        auto const &c = o;
+        CHECK(c.begin() == c.end());
+      }
+
+      SECTION("range-based for")
+      {
+        int count = 0;
+        for ([[maybe_unused]] auto &v : o)
+          count += 1;
+        CHECK(count == 0);
+      }
+    }
+
+    SECTION("constexpr")
+    {
+      static_assert([] {
+        optional<int> o{std::in_place, 7};
+        int n = 0;
+        for (auto v : o)
+          n += v;
+        return n == 7;
+      }());
+      static_assert([] {
+        optional<int> o{};
+        return o.begin() == o.end();
+      }());
+      SUCCEED();
+    }
+  }
+#endif
+
   SECTION("accessors")
   {
     SECTION("value")
@@ -2187,6 +2346,59 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
         T b(std::in_place, y);
         a.swap(b);
         return &*a == &y && &*b == &x && x == 1 && y == 2;
+      }());
+      SUCCEED();
+    }
+  }
+
+  SECTION("iterator support")
+  {
+    static_assert(std::contiguous_iterator<optional<int &>::iterator>);
+    static_assert(std::is_same_v<std::iter_value_t<optional<int const &>::iterator>, int>);
+    static_assert(std::is_same_v<std::iter_reference_t<optional<int &>::iterator>, int &>);
+    static_assert(std::ranges::contiguous_range<optional<int &>>);
+    static_assert(std::ranges::enable_view<optional<int &>>);
+    // const-only single overload, like the observers: const does not propagate to the referent
+    static_assert(std::is_same_v<decltype(std::declval<optional<int &> const &>().begin()), //
+                                 optional<int &>::iterator>);
+
+    SECTION("engaged")
+    {
+      int x = 42;
+      optional<int &> const o{std::in_place, x};
+
+      SECTION("referent identity")
+      {
+        CHECK(o.end() - o.begin() == 1);
+        CHECK(std::addressof(*o.begin()) == std::addressof(x));
+      }
+
+      SECTION("write-through")
+      {
+        for (auto &v : o)
+          v += 1;
+        CHECK(x == 43);
+      }
+    }
+
+    SECTION("disengaged")
+    {
+      optional<int &> const o{};
+      CHECK(o.begin() == o.end());
+      int count = 0;
+      for ([[maybe_unused]] auto &v : o)
+        count += 1;
+      CHECK(count == 0);
+    }
+
+    SECTION("constexpr")
+    {
+      static_assert([] {
+        int x = 3;
+        optional<int &> const o{std::in_place, x};
+        for (auto &v : o)
+          v += 4;
+        return x == 7 && std::addressof(*o.begin()) == std::addressof(x);
       }());
       SUCCEED();
     }
