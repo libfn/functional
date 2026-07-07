@@ -46,7 +46,7 @@ jobs:
 
     - name: Install conan
       shell: pwsh
-      run: pip install conan
+      run: pip install "conan<3"
 
     - name: Detect Conan profile
       shell: pwsh
