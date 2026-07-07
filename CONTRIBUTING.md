@@ -6,11 +6,11 @@ This is for working *on* libfn; to *use* the library, see the [README](README.md
 
 Building and testing libfn needs a C++20 toolchain (with one exception). `pfn` polyfills C++23/26 standard-library utilities (`pfn::expected`, `pfn::optional`, `pfn::invoke_r`, `pfn::unreachable`); `fn` builds on `pfn` rather than the newer standard library. The minimum supported compilers are [gcc 12][gcc-standard-support] and [clang 16][clang-standard-support]; if your OS does not ship one recent enough, use the [devcontainer] or [Nix][nix] (see [nix/README.md][nixmd]). You may also use Apple Clang 16.0 or Microsoft Visual Studio 2022 or newer.
 
-When working with `tests/pfn/expected.cpp` you will need a C++23 compiler, in order to enable the `VALIDATE_CXX23` option for `expected_validation.cpp` tests.
+The exception: the C++23 validation lane (CMake option `VALIDATE_CXX23`, below) needs a compiler with solid C++23 support — gcc 15 or clang 21, or newer — and is rejected with MSVC.
 
 ## Building locally
 
-Both `fn` (`include/fn`) and `pfn` (`include/pfn`) target C++20. The unit tests and examples build in C++20 by default. If you have a recent enough compiler, use the CMake option `VALIDATE_CXX23=ON` to additionally build them in C++23 (requires `LIBFN_TESTS=ON`).
+Both `fn` (`include/fn`) and `pfn` (`include/pfn`) target C++20. The unit tests and examples build in C++20 by default. If you have a recent enough compiler, use the CMake option `VALIDATE_CXX23=ON` to additionally build them in C++23 (requires `LIBFN_TESTS=ON`). This also enables `tests/pfn/expected_validation.cpp` and `tests/pfn/optional_validation.cpp`, which run the `pfn` test suites against the standard library's own `std::expected` and `std::optional` — validating the polyfills, and the tests themselves, against the real thing.
 
 For a quick check of a single example without the full CMake/Catch2 setup:
 
@@ -21,6 +21,8 @@ g++ -std=c++20 -Iinclude examples/polygon/main.cpp -o /tmp/polygon
 ## Test coverage
 
 In this project, 100% tests coverage does not actually mean much, because the most useful tests cases are around compile-time language elements, such as overload resolution, built-in conversions etc. Any meaningful tests must execute the same set of functions in many, subtly different ways, rather than simply execute each function and branch at least once.
+
+Two rules: every behaviour gets both a runtime `CHECK` and a constant-evaluation twin (`static_assert`), and a new check belongs in the existing `TEST_CASE`/`SECTION` covering that member or behaviour, matching the local idiom. The twin, because constant evaluation diagnoses UB at compile time — users rely on it — while a `static_assert`-only branch is a coverage hole; the placement, because a check in the right named section is self-documenting.
 
 ## Versioning
 
