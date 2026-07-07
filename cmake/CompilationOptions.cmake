@@ -21,7 +21,7 @@ function(append_compilation_options)
     if(Options_INTERFACE)
         target_compile_options(${Options_NAME} INTERFACE
             $<$<CXX_COMPILER_ID:MSVC>:/permissive->
-            $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wno-missing-braces>)
+            $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wno-missing-braces>)
 
         # MSVC's <eh.h> declares a global `unexpected` that shadows the std::expected/std::unexpected
         # vocabulary used by libfn; _HAS_CXX23 (MSVC STL's C++23-mode switch) drops the legacy declaration.

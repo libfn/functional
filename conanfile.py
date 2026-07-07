@@ -78,5 +78,5 @@ class LibfnConan(ConanFile):
             if compiler == "msvc":
                 component.cxxflags.append("/permissive-")
                 component.defines.append("_HAS_CXX23")
-            elif compiler in ("gcc", "clang", "apple-clang"):
+            elif compiler in ("clang", "apple-clang"):
                 component.cxxflags.append("-Wno-missing-braces")
