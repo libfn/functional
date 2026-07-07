@@ -21,7 +21,6 @@ function(append_compilation_options)
     if(Options_INTERFACE)
         target_compile_options(${Options_NAME} INTERFACE
             $<$<CXX_COMPILER_ID:MSVC>:/permissive->
-            $<$<CXX_COMPILER_ID:GNU>:-Wno-non-template-friend>
             $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wno-missing-braces>)
 
         # MSVC's <eh.h> declares a global `unexpected` that shadows the std::expected/std::unexpected
