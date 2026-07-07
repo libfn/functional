@@ -1,6 +1,7 @@
 module(name = "libfn_test_package")
 
 bazel_dep(name = "libfn")
+bazel_dep(name = "rules_cc", version = "0.1.1")
 local_path_override(
     module_name = "libfn",
     path = "..",
