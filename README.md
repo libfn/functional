@@ -38,10 +38,6 @@ Every packaging route above except Bazel also delivers the compile options the h
 
 The maintainers will aim to maintain compatibility with the proposed changes in the C++ standard library, **rather than with the existing uses** of the code in this repo. In practice, this means that all code in this repo should be considered "under intensive development and unstable" until the standardization of the proposed facilities.
 
-### Best make your private fork from this repo and use it as you see fit.
-
-The maintainers are unable to guarantee that no significant refactoring will ever take place. The opposite is to be expected, since the process of standardization of any additions to the C++ standard library typically involves a fair number of changes and improvements, some of them quite fundamental. This includes all kinds of interfaces and names in this library, which until the moment of standardization are only _proposed_.
-
 ## Versioning and ABI
 
 Releases are numbered `0.y.z` and will stay below `1.0.0` for the foreseeable future. [SemVer](https://semver.org/) treats any `0.y.z` version as unstable — anything may change — so libfn narrows that into a usable contract:
