@@ -22,7 +22,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  test_conan:
+  test_conan_linux:
     runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
     container: libfn.azurecr.io/ci-build-gcc:15-sha-08b1133
 
@@ -37,3 +37,21 @@ jobs:
     - name: Test packaging
       run: |
         conan create . --build=missing -s "compiler.cppstd=20"
+
+  test_conan_windows:
+    runs-on: windows-2022
+
+    steps:
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+    - name: Install conan
+      shell: pwsh
+      run: pip install conan
+
+    - name: Detect Conan profile
+      shell: pwsh
+      run: conan profile detect
+
+    - name: Test packaging
+      shell: pwsh
+      run: conan create . --build=missing -s compiler.cppstd=20
