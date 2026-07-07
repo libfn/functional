@@ -20,13 +20,22 @@ This library requires a very modern implementation of the C++ library which impl
 
 This library requires standardized type ordering, which currently is a [proposed C++26 feature][standardized-type-ordering] and is not implemented by any compiler. Currently, the library relies on an internal, naive implementation of such a feature which is _not expected to work_ with unnamed types, types without linkage etc.
 
+## Using the library
+
+The library is header-only. The CMake package exports two targets:
+
+```cmake
+find_package(libfn CONFIG REQUIRED)
+target_link_libraries(main PRIVATE libfn::fn)   # or libfn::pfn for the polyfills alone
+```
+
+Packaging is provided — and exercised by CI — for [conan](conanfile.py), [vcpkg](ports/libfn) (an in-repo port), [Nix](flake.nix) and [Bazel](MODULE.bazel); plain CMake `FetchContent` or `add_subdirectory` works as well. Until the first tagged release, consume a pinned git revision — and read [Backwards compatibility](#backwards-compatibility).
+
+Every packaging route above except Bazel also delivers the compile options the headers require. Under Bazel — and a plain copy of `include/` — these options don't arrive automatically; provide them yourself: C++20 or newer (`--cxxopt=-std=c++20` in Bazel), `-Wno-missing-braces` on clang (`fn::pack` initialization elides braces by design), and with MSVC `/permissive-` plus `_HAS_CXX23`. The authoritative set is the `INTERFACE` options in [cmake/CompilationOptions.cmake](cmake/CompilationOptions.cmake).
+
 ## Backwards compatibility
 
 The maintainers will aim to maintain compatibility with the proposed changes in the C++ standard library, **rather than with the existing uses** of the code in this repo. In practice, this means that all code in this repo should be considered "under intensive development and unstable" until the standardization of the proposed facilities.
-
-### Best make your private fork from this repo and use it as you see fit.
-
-The maintainers are unable to guarantee that no significant refactoring will ever take place. The opposite is to be expected, since the process of standardization of any additions to the C++ standard library typically involves a fair number of changes and improvements, some of them quite fundamental. This includes all kinds of interfaces and names in this library, which until the moment of standardization are only _proposed_.
 
 ## Versioning and ABI
 
