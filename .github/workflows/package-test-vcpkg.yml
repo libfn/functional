@@ -60,6 +60,9 @@ jobs:
       shell: pwsh
       env:
         VCPKG_LIBFN_SOURCE_PATH: ${{ github.workspace }}
+        # vcpkg cleans the port build environment on Windows (POSIX inherits it),
+        # so the source-path var must be kept explicitly for portfile.cmake to see it.
+        VCPKG_KEEP_ENV_VARS: VCPKG_LIBFN_SOURCE_PATH
       run: |
         & "$env:VCPKG_INSTALLATION_ROOT\vcpkg" install libfn `
           --overlay-ports=ports `
