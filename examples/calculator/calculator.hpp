@@ -220,8 +220,8 @@ inline auto step(Stack s, std::string const &token) -> Result
 
   return (fn::expected<void, fn::sum<>>{} & lookup(token)) //
          | fn::and_then([&s, &store](auto op) -> Result {
-             // the wrapper's StackError is never raised; `&` needs a non-empty error type to fold with
-             using loaded = fn::expected<decltype(op), StackError>;
+             // the operation itself cannot fail — sum<> is the empty set of errors
+             using loaded = fn::expected<decltype(op), fn::sum<>>;
              constexpr int take = decltype(op)::argument_count;
              if constexpr (take == 0)
                return execute(op) | fn::and_then(store);

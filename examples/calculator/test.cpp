@@ -26,13 +26,12 @@ static_assert(std::is_same_v<decltype(fn::expected<void, fn::sum<>>{} & calc::pa
                                           fn::sum<calc::ParseError>>>);
 
 // ... `step` folds the operands AND the operation into one cartesian dispatch table for `execute`:
-static_assert(
-    std::is_same_v<decltype(fn::expected<void, fn::sum<>>{} & calc::pop(std::declval<calc::Stack &>())
-                            & calc::pop(std::declval<calc::Stack &>())
-                            & fn::expected<calc::Div, calc::StackError>{calc::Div{}}),
-                   fn::expected<fn::sum_for<fn::pack<double, double, calc::Div>, fn::pack<double, long, calc::Div>,
-                                            fn::pack<long, double, calc::Div>, fn::pack<long, long, calc::Div>>,
-                                fn::sum<calc::StackError>>>);
+static_assert(std::is_same_v<
+              decltype(fn::expected<void, fn::sum<>>{} & calc::pop(std::declval<calc::Stack &>())
+                       & calc::pop(std::declval<calc::Stack &>()) & fn::expected<calc::Div, fn::sum<>>{calc::Div{}}),
+              fn::expected<fn::sum_for<fn::pack<double, double, calc::Div>, fn::pack<double, long, calc::Div>,
+                                       fn::pack<long, double, calc::Div>, fn::pack<long, long, calc::Div>>,
+                           fn::sum<calc::StackError>>>);
 
 // ... and the calculator's Error alias is exactly the normalized sum of its three error types:
 static_assert(std::is_same_v<calc::Error, fn::sum_for<calc::MathError, calc::ParseError, calc::StackError>>);
