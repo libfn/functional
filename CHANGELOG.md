@@ -2,6 +2,10 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `operator&` composes the `sum<>` unit error — 8 July 2026
+
+- **A non-void `fn::expected` carrying the `sum<>` unit error now composes under `operator&`.** A never-erroring operand — `expected<T, sum<>>`, the "cannot fail" grade — folds into a fallible `&`-chain, adding its value to the pack and no alternative to the widened error. The different-error overload had been ill-formed here: its error lambda deduced `void` for the `sum<>` side, poisoning the pack join's return-type deduction. The README example follows the fix, collapsing from a two-stage pipeline into a single `and_then` over the cartesian `(a & op & b)` dispatch table, its operator honestly typed `expected<sum_for<Add, Mul>, sum<>>`.
+
 ## Documentation realigned — 7 July 2026
 
 - **README.md caught up with the two-library reality.** Its founding description — `fn` extends the `std` vocabulary types via inheritance and requires a C++23 standard library (gcc 13 / clang 18) — predated `pfn` (September 2025) and the C++20 rebase (June 2026). Replaced by the present state: `fn` builds on `pfn`, everything is C++20, minimums gcc 12 / clang 16. A "Using the library" section names the supported packaging routes.
