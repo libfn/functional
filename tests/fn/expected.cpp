@@ -2201,8 +2201,11 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
         static_assert((VoidUnit{} & Rh{5}).value() == 5);
         static_assert((VoidUnit{} & Rh{::pfn::unexpect, FileNotFound}).error() == fn::sum{FileNotFound});
         static_assert((Rh{5} & VoidUnit{}).value() == 5);
+        static_assert((Rh{::pfn::unexpect, FileNotFound} & VoidUnit{}).error() == fn::sum{FileNotFound});
 
         CHECK((VoidUnit{} & Rh{5}).value() == 5);
+        CHECK((VoidUnit{} & Rh{::pfn::unexpect, FileNotFound}).error() == fn::sum{FileNotFound});
+        CHECK((Rh{5} & VoidUnit{}).value() == 5);
         CHECK((Rh{::pfn::unexpect, FileNotFound} & VoidUnit{}).error() == fn::sum{FileNotFound});
       }
     }
