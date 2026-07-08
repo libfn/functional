@@ -37,6 +37,7 @@ public:
   static auto make(long long n, long long d) -> fn::expected<Rational, fn::sum_for<DivByZero, Overflow>>
   {
     if (d == 0) return pfn::unexpected{fn::sum{DivByZero{}}};
+    if (n == LLONG_MIN || d == LLONG_MIN) return pfn::unexpected{fn::sum{Overflow{}}};
     auto const g = (d < 0 ? -1 : 1) * std::gcd(n, d);
     n /= g;
     d /= g;
