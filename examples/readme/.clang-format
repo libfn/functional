@@ -1,2 +1,3 @@
 BasedOnStyle: InheritParentConfig
 AllowShortIfStatementsOnASingleLine: WithoutElse
+ColumnLimit:     100

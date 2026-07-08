@@ -1178,7 +1178,9 @@ template <typename Lh, typename Rh>
 {
   using new_error_type
       = sum_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>;
-  constexpr auto efn = [](auto &&v) {
+  // Explicit return type: for a sum<> (never-erroring) operand the else branch is the only one
+  // instantiated, and without this it would deduce void — poisoning _join's return-type deduction.
+  constexpr auto efn = [](auto &&v) -> ::pfn::unexpected<new_error_type> {
     if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<decltype(v)>::error_type, sum<>>) {
       return ::pfn::unexpected<new_error_type>(FWD(v).error());
     } else {
