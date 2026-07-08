@@ -14,76 +14,64 @@ The purpose of this library is to exercise an approach to functional programming
 
 ```cpp
 #include <fn/and_then.hpp>
-#include <fn/or_else.hpp>
 #include <fn/utility.hpp>
 
-#include <charconv>
-#include <string_view>
+#include <climits>
+#include <numeric>
 #include <type_traits>
 
-enum class HostError { Empty };
-enum class PortError { NotANumber };
-enum class NetError { PortOutOfRange };
+struct DivByZero {};
+struct Overflow {};
+struct Add {};
+struct Mul {};
+enum Side { num, den };
+class Rational {
+  int num_, den_;
+  constexpr Rational(int n, int d) noexcept : num_(n), den_(d) {}
 
-struct Endpoint {
-  std::string_view host;
-  int port;
+public:
+  constexpr bool operator==(Rational const &) const noexcept = default;
+  template <Side S> constexpr friend auto get(Rational const &r) noexcept -> int { return S == num ? r.num_ : r.den_; }
+  // The invariant lives in the type: `make` is the only way to build one, so every Rational is reduced,
+  // sign-normalized and representable — callers receive a value they never have to re-check.
+  static auto make(long long n, long long d) -> fn::expected<Rational, fn::sum_for<DivByZero, Overflow>>
+  {
+    if (d == 0) return pfn::unexpected{fn::sum{DivByZero{}}};
+    auto const g = (d < 0 ? -1 : 1) * std::gcd(n, d);
+    n /= g;
+    d /= g;
+    if (n < INT_MIN || n > INT_MAX || d > INT_MAX) return pfn::unexpected{fn::sum{Overflow{}}};
+    return Rational(int(n), int(d));
+  }
 };
-
-auto parse_host(std::string_view s) -> fn::expected<std::string_view, HostError>
+// `evaluate` trusts its operands — the type guarantees them, so it never revalidates. The int64 intermediates
+// cannot overflow for int32 fields, and `make` rejects any result that will not fit back, folding Overflow in:
+auto evaluate(fn::expected<Rational, fn::sum_for<DivByZero, Overflow>> a, fn::sum_for<Add, Mul> op,
+              fn::expected<Rational, fn::sum_for<DivByZero, Overflow>> b)
 {
-  if (s.empty())
-    return pfn::unexpected<HostError>{HostError::Empty};
-  return {s};
+  return (a & b) | fn::and_then([op](Rational x, Rational y) {
+           return op.invoke(fn::overload{
+               [&](Add) {
+                 return Rational::make(1LL * get<num>(x) * get<den>(y) + 1LL * get<num>(y) * get<den>(x),
+                                       1LL * get<den>(x) * get<den>(y));
+               },
+               [&](Mul) { return Rational::make(1LL * get<num>(x) * get<num>(y), 1LL * get<den>(x) * get<den>(y)); }});
+         });
 }
-
-auto parse_port(std::string_view s) -> fn::expected<int, PortError>
-{
-  int p = {};
-  char const *end = s.data() + s.size();
-  if (std::from_chars(s.data(), end, p).ptr != end)
-    return pfn::unexpected<PortError>{PortError::NotANumber};
-  return {p};
-}
-
-auto endpoint(std::string_view host, std::string_view port)
-{
-  return (fn::expected<void, fn::sum<>>{} & parse_host(host) & parse_port(port))
-         | fn::and_then([](std::string_view h, int p) -> fn::expected<Endpoint, NetError> {
-             if (p < 1 || p > 0xffff)
-               return pfn::unexpected<NetError>{NetError::PortOutOfRange};
-             return Endpoint{h, p};
-           });
-}
-
-// The pipeline type is composed by the library, including the sum of everything that can go wrong:
-static_assert(
-    std::is_same_v<decltype(endpoint("", "")), fn::expected<Endpoint, fn::sum<HostError, NetError, PortError>>>);
-
-struct BadConfiguration {};
-using configured = fn::expected<Endpoint, BadConfiguration>;
-
-// Recover from some errors, translate others; compilation error if `fn::overload` cannot match *all* errors
-auto with_default(std::string_view host, std::string_view port)
-{
-  return endpoint(host, port)
-         | fn::or_else(fn::overload{[](HostError) -> configured { return pfn::unexpected{BadConfiguration{}}; },
-                                    [](PortError) -> configured { return pfn::unexpected{BadConfiguration{}}; },
-                                    [](NetError) -> configured { return Endpoint{"localhost", 8080}; }});
-}
-
-// ... and the sum of errors collapses at the API boundary:
-static_assert(std::is_same_v<decltype(with_default("", "")), configured>);
+// The library composes the pipeline type — a Rational, over the sum of every way construction can fail:
+static_assert(std::is_same_v<decltype(evaluate(Rational::make(0, 1), Add{}, Rational::make(0, 1))),
+                             fn::expected<Rational, fn::sum<DivByZero, Overflow>>>);
 ```
 
 ### What
 
 The library features demonstrated by the code example above:
 
-* **Monadic pipelines** — `operator|` pipes `fn::expected` (and `fn::optional`) through operations: `and_then` and `or_else` above; also `transform`, `filter`, `inspect`, `recover`, `fail`, `transform_error` and more.
-* **Composition** — `operator&` accumulates several monadic values into one: `parse_host`'s and `parse_port`'s results arrive at the next operation as two separate arguments, courtesy of `fn::pack`.
-* **Graded errors** — error types accumulate alongside the values: every step's error type joins the `fn::sum`, and the pipeline's final type — never written out, composed entirely by the library — spells out everything that can go wrong. The starting `fn::expected<void, fn::sum<>>` is a unit type: `fn::sum<>` cannot be instantiated, so an error is impossible, while `void` carries no useful value.
-* **Multidispatch** — `fn::sum` is indexed by type, not by position like `std::variant`, and `fn::overload` dispatches over its alternatives by ordinary overload resolution — exhaustively, so a missing handler is a compile error. In `or_else` this recovers from some errors and translates the rest into a caller-facing type: the graded sum collapses to `BadConfiguration` at the API boundary.
+* **Smart constructors** — `Rational`'s constructor is private; the only way to build one is the static `make`, which enforces the invariant (reduced, representable) and returns `fn::expected`. An invalid `Rational` cannot exist, so callers stop re-checking what the type already guarantees.
+* **Monadic pipelines** — `operator|` pipes `fn::expected` (and `fn::optional`) through operations: `and_then` above; also `or_else`, `transform`, `filter`, `inspect`, `recover`, `fail`, `transform_error` and more.
+* **Composition** — `operator&` accumulates several monadic values into one: the two operands arrive at the next operation as separate arguments, courtesy of `fn::pack`.
+* **Graded errors** — each way a step can fail contributes its own error type, and the library widens them into a single `fn::sum` — here `fn::sum<DivByZero, Overflow>`, the whole pipeline's error, composed by the library and never written by hand (pinned by a `static_assert`).
+* **Multidispatch** — `fn::sum` is indexed by type, not by position like `std::variant`, and `fn::overload` dispatches over its alternatives (`Add` and `Mul`) by ordinary overload resolution — exhaustively, so a missing handler is a compile error.
 
 Beyond the example: `fn::choice` (a monad over `fn::sum`), dispatch across any combination of `fn::pack` and `fn::sum`, and more — see [examples/](examples/) and the [API reference][docs].
 

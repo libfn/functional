@@ -5,75 +5,62 @@
 
 // readme-example
 #include <fn/and_then.hpp>
-#include <fn/or_else.hpp>
 #include <fn/utility.hpp>
 
-#include <charconv>
-#include <string_view>
+#include <climits>
+#include <numeric>
 #include <type_traits>
 
-enum class HostError { Empty };
-enum class PortError { NotANumber };
-enum class NetError { PortOutOfRange };
+struct DivByZero {};
+struct Overflow {};
+struct Add {};
+struct Mul {};
+enum Side { num, den };
+class Rational {
+  int num_, den_;
+  constexpr Rational(int n, int d) noexcept : num_(n), den_(d) {}
 
-struct Endpoint {
-  std::string_view host;
-  int port;
+public:
+  constexpr bool operator==(Rational const &) const noexcept = default;
+  template <Side S> constexpr friend auto get(Rational const &r) noexcept -> int { return S == num ? r.num_ : r.den_; }
+  // The invariant lives in the type: `make` is the only way to build one, so every Rational is reduced,
+  // sign-normalized and representable — callers receive a value they never have to re-check.
+  static auto make(long long n, long long d) -> fn::expected<Rational, fn::sum_for<DivByZero, Overflow>>
+  {
+    if (d == 0) return pfn::unexpected{fn::sum{DivByZero{}}};
+    auto const g = (d < 0 ? -1 : 1) * std::gcd(n, d);
+    n /= g;
+    d /= g;
+    if (n < INT_MIN || n > INT_MAX || d > INT_MAX) return pfn::unexpected{fn::sum{Overflow{}}};
+    return Rational(int(n), int(d));
+  }
 };
-
-auto parse_host(std::string_view s) -> fn::expected<std::string_view, HostError>
+// `evaluate` trusts its operands — the type guarantees them, so it never revalidates. The int64 intermediates
+// cannot overflow for int32 fields, and `make` rejects any result that will not fit back, folding Overflow in:
+auto evaluate(fn::expected<Rational, fn::sum_for<DivByZero, Overflow>> a, fn::sum_for<Add, Mul> op,
+              fn::expected<Rational, fn::sum_for<DivByZero, Overflow>> b)
 {
-  if (s.empty())
-    return pfn::unexpected<HostError>{HostError::Empty};
-  return {s};
+  return (a & b) | fn::and_then([op](Rational x, Rational y) {
+           return op.invoke(fn::overload{
+               [&](Add) {
+                 return Rational::make(1LL * get<num>(x) * get<den>(y) + 1LL * get<num>(y) * get<den>(x),
+                                       1LL * get<den>(x) * get<den>(y));
+               },
+               [&](Mul) { return Rational::make(1LL * get<num>(x) * get<num>(y), 1LL * get<den>(x) * get<den>(y)); }});
+         });
 }
-
-auto parse_port(std::string_view s) -> fn::expected<int, PortError>
-{
-  int p = {};
-  char const *end = s.data() + s.size();
-  if (std::from_chars(s.data(), end, p).ptr != end)
-    return pfn::unexpected<PortError>{PortError::NotANumber};
-  return {p};
-}
-
-auto endpoint(std::string_view host, std::string_view port)
-{
-  return (fn::expected<void, fn::sum<>>{} & parse_host(host) & parse_port(port))
-         | fn::and_then([](std::string_view h, int p) -> fn::expected<Endpoint, NetError> {
-             if (p < 1 || p > 0xffff)
-               return pfn::unexpected<NetError>{NetError::PortOutOfRange};
-             return Endpoint{h, p};
-           });
-}
-
-// The pipeline type is composed by the library, including the sum of everything that can go wrong:
-static_assert(
-    std::is_same_v<decltype(endpoint("", "")), fn::expected<Endpoint, fn::sum<HostError, NetError, PortError>>>);
-
-struct BadConfiguration {};
-using configured = fn::expected<Endpoint, BadConfiguration>;
-
-// Recover from some errors, translate others; compilation error if `fn::overload` cannot match *all* errors
-auto with_default(std::string_view host, std::string_view port)
-{
-  return endpoint(host, port)
-         | fn::or_else(fn::overload{[](HostError) -> configured { return pfn::unexpected{BadConfiguration{}}; },
-                                    [](PortError) -> configured { return pfn::unexpected{BadConfiguration{}}; },
-                                    [](NetError) -> configured { return Endpoint{"localhost", 8080}; }});
-}
-
-// ... and the sum of errors collapses at the API boundary:
-static_assert(std::is_same_v<decltype(with_default("", "")), configured>);
+// The library composes the pipeline type — a Rational, over the sum of every way construction can fail:
+static_assert(std::is_same_v<decltype(evaluate(Rational::make(0, 1), Add{}, Rational::make(0, 1))),
+                             fn::expected<Rational, fn::sum<DivByZero, Overflow>>>);
 // readme-example
 
 int main()
 {
-  return (endpoint("test.example.com", "8080").value().port == 8080    //
-          && endpoint("", "8080").error() == fn::sum{HostError::Empty} //
-          && endpoint("test.example.com", "0").error() == fn::sum{NetError::PortOutOfRange}
-          && with_default("test.example.com", "0").value().port == 8080 //
-          && not with_default("", "8080").has_value())
+  auto const big = Rational::make(2000000000, 1); // fits int32; its square does not
+  return (evaluate(Rational::make(1, 2), Add{}, Rational::make(1, 3)).value() == Rational::make(5, 6)    //
+          && evaluate(Rational::make(2, 3), Mul{}, Rational::make(3, 4)).value() == Rational::make(1, 2) //
+          && Rational::make(1, 0).error().has_value<DivByZero>()                                         //
+          && evaluate(big, Mul{}, big).error().has_value<Overflow>())
              ? 0
              : 1;
 }
