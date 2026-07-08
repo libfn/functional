@@ -22,12 +22,12 @@ The purpose of this library is to exercise an approach to functional programming
 #include <string_view>
 #include <type_traits>
 
-// Various error types - each type is unrelated to other, `enum` for brevity.
+// Various error types — each type is unrelated to other, `enum` for brevity.
 enum NotANumber { notANumber };
 enum DivByZero { divByZero };
 enum Overflow { overflow };
 
-// Operations on rational numbers - `enum` for brevity.
+// Operations on rational numbers — `enum` for brevity.
 enum Add { add };
 enum Mul { mul };
 
@@ -110,6 +110,7 @@ The library features demonstrated by the code example above:
 * **Composition** — `operator&` accumulates both operands and the operator, as monadic values, into a `fn::pack` — which the next operation receives as separate arguments.
 * **Graded errors** — each stage fails in its own way — a malformed string, a zero denominator, an out-of-range result — and the library widens these into a single `fn::sum`, here `fn::sum<DivByZero, NotANumber, Overflow>`: the whole pipeline's error, composed by the library and never written by hand.
 * **Multidispatch** — `fn::sum` is indexed by type, not by position like `std::variant`, and `fn::overload` dispatches over its alternatives (`Add` and `Mul`) by ordinary overload resolution — exhaustively, so a missing handler is a compile error.
+* **Identity monad** — `fn::expected<T, fn::sum<>>` can never be in the error state (enforced in compilation), hence it's a spelling of the identity monad — the example lifts `op` as identity `Op`.
 
 Beyond the example: `fn::choice` (a monad over `fn::sum`), dispatch across any combination of `fn::pack` and `fn::sum`, and more — see [examples/](examples/) and the [API reference][docs].
 

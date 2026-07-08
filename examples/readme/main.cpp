@@ -13,12 +13,12 @@
 #include <string_view>
 #include <type_traits>
 
-// Various error types - each type is unrelated to other, `enum` for brevity.
+// Various error types — each type is unrelated to other, `enum` for brevity.
 enum NotANumber { notANumber };
 enum DivByZero { divByZero };
 enum Overflow { overflow };
 
-// Operations on rational numbers - `enum` for brevity.
+// Operations on rational numbers — `enum` for brevity.
 enum Add { add };
 enum Mul { mul };
 
