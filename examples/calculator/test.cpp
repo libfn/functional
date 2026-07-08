@@ -9,6 +9,8 @@
 
 #include <catch2/catch_all.hpp>
 
+#include <limits>
+#include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
@@ -111,8 +113,9 @@ TEST_CASE("errors", "[calculator]")
 
   SECTION("long division cannot overflow")
   {
-    CHECK(run("-9223372036854775808 -1 /").error() == fn::sum{calc::MathError::Overflow});
-    CHECK(run("-9223372036854775808 -1 %").error() == fn::sum{calc::MathError::Overflow});
+    auto const minimum = std::to_string(std::numeric_limits<long>::min());
+    CHECK(run(minimum + " -1 /").error() == fn::sum{calc::MathError::Overflow});
+    CHECK(run(minimum + " -1 %").error() == fn::sum{calc::MathError::Overflow});
   }
 
   SECTION("stack underflow")
