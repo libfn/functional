@@ -55,3 +55,9 @@ repos:
     language: python
     files: ^include/.*(\.hpp|CMakeLists\.txt)$
     pass_filenames: false
+  - id: sync-readme-example
+    name: sync README example with examples/readme
+    entry: python scripts/sync_readme_example.py
+    language: python
+    files: ^(README\.md|examples/readme/main\.cpp)$
+    pass_filenames: false
