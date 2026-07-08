@@ -56,19 +56,21 @@ function(append_compilation_options)
         )
 
         if(LIBFN_SANITIZERS)
-            # GCC's constexpr evaluator is incompatible with UBSan instrumentation in libstdc++, so GCC stays on
-            # address (+leak). Clang/AppleClang gets address,undefined (+leak on non-Darwin).
+            # GCC gets UBSan too, minus the null-pointer checks, whose instrumentation breaks constexpr evaluation
+            # of the meta.hpp sortkey (a string_view into a template parameter object) and so fails the build.
+            # Clang/AppleClang gets address,undefined (+leak on non-Darwin).
             # GCC links the runtimes dynamically (its default): not every distro packages the static archives.
             # Clang keeps the umbrella -static-libsan: its compiler-rt static archives ship with the compiler.
             # On macOS we support only AppleClang and libclang_rt is bundled as dylib, so no static-link flag.
             target_compile_options(${Options_NAME} PRIVATE
-                $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>>:-fsanitize=address,leak>
+                $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>>:-fsanitize=address,leak,undefined>
+                $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>>:-fno-sanitize=null,nonnull-attribute,returns-nonnull-attribute>
                 $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:Clang,AppleClang>,$<NOT:$<PLATFORM_ID:Darwin>>>:-fsanitize=address,undefined,leak>
                 $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:AppleClang>,$<PLATFORM_ID:Darwin>>:-fsanitize=address,undefined>
                 $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>,$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,14>>:-funreachable-traps>
             )
             target_link_options(${Options_NAME} PRIVATE
-                $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>>:-fsanitize=address,leak>
+                $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>>:-fsanitize=address,leak,undefined>
                 $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:Clang,AppleClang>,$<NOT:$<PLATFORM_ID:Darwin>>>:-fsanitize=address,undefined,leak>
                 $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:AppleClang>,$<PLATFORM_ID:Darwin>>:-fsanitize=address,undefined>
                 $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:Clang,AppleClang>,$<NOT:$<PLATFORM_ID:Darwin>>>:-static-libsan>
