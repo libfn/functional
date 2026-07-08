@@ -56,11 +56,11 @@ function(append_compilation_options)
         )
 
         if(LIBFN_SANITIZERS)
-            # GCC gets UBSan too, minus the null-pointer checks, whose instrumentation breaks constexpr evaluation
-            # of the meta.hpp sortkey (a string_view into a template parameter object) and so fails the build.
+            # GCC runs UBSan minus its three null-pointer checks, whose instrumentation breaks constexpr
+            # evaluation of the meta.hpp sortkey (a string_view into a template parameter object), failing the build.
             # Clang/AppleClang gets address,undefined (+leak on non-Darwin).
             # GCC links the runtimes dynamically (its default): not every distro packages the static archives.
-            # Clang keeps the umbrella -static-libsan: its compiler-rt static archives ship with the compiler.
+            # Clang static-links via -static-libsan: its compiler-rt static archives ship with the compiler.
             # On macOS we support only AppleClang and libclang_rt is bundled as dylib, so no static-link flag.
             target_compile_options(${Options_NAME} PRIVATE
                 $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>>:-fsanitize=address,leak,undefined>
