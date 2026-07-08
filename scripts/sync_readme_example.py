@@ -18,7 +18,7 @@ repo = pathlib.Path(__file__).resolve().parents[1]
 example_path = repo / "examples" / "readme" / "main.cpp"
 readme_path = repo / "README.md"
 
-lines = example_path.read_text().splitlines(keepends=True)
+lines = example_path.read_text(encoding="utf-8").splitlines(keepends=True)
 marks = [i for i, line in enumerate(lines) if line.rstrip("\n") == MARKER]
 if len(marks) != 2:
     sys.stderr.write(
@@ -27,7 +27,7 @@ if len(marks) != 2:
     sys.exit(1)
 region = lines[marks[0] + 1 : marks[1]]
 
-readme = readme_path.read_text().splitlines(keepends=True)
+readme = readme_path.read_text(encoding="utf-8").splitlines(keepends=True)
 try:
     heading = next(i for i, line in enumerate(readme) if line.rstrip("\n") == HEADING)
     fence = next(i for i in range(heading + 1, len(readme)) if readme[i].rstrip("\n") == "```cpp")
@@ -40,7 +40,7 @@ except StopIteration:
 
 if readme[fence + 1 : close] != region:
     readme[fence + 1 : close] = region
-    readme_path.write_text("".join(readme))
+    readme_path.write_text("".join(readme), encoding="utf-8")
     print(f"synced {readme_path.relative_to(repo)} example <- {example_path.relative_to(repo)}")
     sys.exit(1)
 sys.exit(0)
