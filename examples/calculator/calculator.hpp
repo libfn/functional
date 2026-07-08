@@ -79,10 +79,8 @@ inline auto parse(std::string const &token) -> fn::expected<Number, ParseError>
   errno = 0;
   if (long const i = std::strtol(token.data(), &end, 0); end == last && end != token.data() && errno == 0)
     return Number{i};
-  errno = 0; // strtol left ERANGE behind on the very path where a long promotes to double
-  if (double const d = std::strtod(token.data(), &end);
-      end == last && end != token.data() && errno == 0 && std::isfinite(d))
-    return Number{d};
+  if (double const d = std::strtod(token.data(), &end); end == last && end != token.data() && std::isfinite(d))
+    return Number{d}; // an overflow returns HUGE_VAL, which is infinity; an underflow is just a tiny number
   return pfn::unexpected(ParseError::UnknownToken);
 }
 
@@ -155,19 +153,31 @@ constexpr inline auto execute = fn::overload{
         return pfn::unexpected(MathError::Overflow);
       return {fn::pack{x + y}};
     },
-    [](auto x, auto y, Add) -> Results { return {fn::pack{x + y}}; },
+    [](auto x, auto y, Add) -> Results {
+      if (not std::isfinite(x + y))
+        return pfn::unexpected(MathError::Overflow);
+      return {fn::pack{x + y}};
+    },
     [](long x, long y, Sub op) -> Results {
       if (overflows(x, y, op))
         return pfn::unexpected(MathError::Overflow);
       return {fn::pack{x - y}};
     },
-    [](auto x, auto y, Sub) -> Results { return {fn::pack{x - y}}; },
+    [](auto x, auto y, Sub) -> Results {
+      if (not std::isfinite(x - y))
+        return pfn::unexpected(MathError::Overflow);
+      return {fn::pack{x - y}};
+    },
     [](long x, long y, Mul op) -> Results {
       if (overflows(x, y, op))
         return pfn::unexpected(MathError::Overflow);
       return {fn::pack{x * y}};
     },
-    [](auto x, auto y, Mul) -> Results { return {fn::pack{x * y}}; },
+    [](auto x, auto y, Mul) -> Results {
+      if (not std::isfinite(x * y))
+        return pfn::unexpected(MathError::Overflow);
+      return {fn::pack{x * y}};
+    },
     [](long x, long y, Div) -> Results {
       if (y == 0)
         return pfn::unexpected(MathError::DivisionByZero);
@@ -178,6 +188,8 @@ constexpr inline auto execute = fn::overload{
     [](auto x, auto y, Div) -> Results {
       if (y == 0)
         return pfn::unexpected(MathError::DivisionByZero);
+      if (not std::isfinite(x / y))
+        return pfn::unexpected(MathError::Overflow);
       return {fn::pack{x / y}}; // a double anywhere promotes: `7 2.0 /` is 3.5
     },
     [](long x, long y, Mod) -> Results {

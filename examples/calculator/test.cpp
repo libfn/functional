@@ -54,6 +54,7 @@ TEST_CASE("parse", "[calculator]")
     CHECK(calc::parse(".5").value() == calc::Number{0.5});
     CHECK(calc::parse("2.").value() == calc::Number{2.0});
     CHECK(calc::parse("0x1.8p1").value() == calc::Number{3.0});
+    CHECK(calc::parse("1e-999").value() == calc::Number{0.0}); // an underflow rounds to zero
   }
 
   SECTION("a long overflow promotes to the double alternative")
@@ -127,6 +128,14 @@ TEST_CASE("errors", "[calculator]")
     // ... while the guards admit the exact bounds
     CHECK(run(maximum + " 0 +").value() == calc::Stack{calc::Number{std::numeric_limits<long>::max()}});
     CHECK(run(minimum + " 1 *").value() == calc::Stack{calc::Number{std::numeric_limits<long>::min()}});
+  }
+
+  SECTION("double overflow")
+  {
+    CHECK(run("1e308 1e308 +").error() == fn::sum{calc::MathError::Overflow});
+    CHECK(run("-1e308 1e308 -").error() == fn::sum{calc::MathError::Overflow});
+    CHECK(run("1e308 1e308 *").error() == fn::sum{calc::MathError::Overflow});
+    CHECK(run("1e308 1e-308 /").error() == fn::sum{calc::MathError::Overflow});
   }
 
   SECTION("stack underflow")
