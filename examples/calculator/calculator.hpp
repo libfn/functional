@@ -19,6 +19,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -100,9 +101,8 @@ inline auto lookup(std::string const &token) -> fn::expected<Operation, ParseErr
   if (token == "drop")
     return {Drop{}};
 
-  return parse(token) | fn::transform([](auto n) { //
-           return Push{Number{n}};
-         });
+  return parse(token) //
+         | fn::transform([](auto n) { return Push{Number{n}}; });
 }
 
 inline auto pop(Stack &s) -> fn::expected<Number, StackError>
@@ -115,9 +115,19 @@ inline auto pop(Stack &s) -> fn::expected<Number, StackError>
 }
 
 // What an operation pushes back — zero, one or two numbers — or its typed failure
-using Results = fn::expected<fn::sum_for<fn::pack<>, fn::pack<long>, fn::pack<double>, fn::pack<long, long>,
-                                         fn::pack<double, long>, fn::pack<long, double>, fn::pack<double, double>>,
+using Results = fn::expected<fn::sum_for<fn::pack<>,                                      //
+                                         decltype(fn::pack<>{} & std::declval<Number>()), //
+                                         decltype(std::declval<Number>() & std::declval<Number>())>,
                              MathError>;
+
+// How: `&` concatenates operands into packs, distributing sum alternatives — two Numbers form the
+// 2×2 cartesian sum of packs — and sum_for absorbs nested sums into one normalized alternative
+// list; fully distributed, the deduction above is exactly:
+static_assert(
+    std::is_same_v<Results,
+                   fn::expected<fn::sum_for<fn::pack<>, fn::pack<long>, fn::pack<double>, fn::pack<long, long>,
+                                            fn::pack<double, long>, fn::pack<long, double>, fn::pack<double, double>>,
+                                MathError>>);
 
 constexpr inline long minimum = std::numeric_limits<long>::min();
 constexpr inline long maximum = std::numeric_limits<long>::max();

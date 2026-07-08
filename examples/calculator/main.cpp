@@ -23,15 +23,16 @@ void print(calc::Stack const &stack)
 
 void report(calc::Error const &error)
 {
-  std::cout << error.invoke(fn::overload{[](calc::ParseError) { return "not a number or a known operation"; },
-                                         [](calc::StackError) { return "not enough operands on the stack"; },
-                                         [](calc::MathError e) {
-                                           if (e == calc::MathError::DivisionByZero)
-                                             return "division by zero";
-                                           if (e == calc::MathError::NotIntegral)
-                                             return "operation is defined for integers only";
-                                           return "overflow";
-                                         }})
+  std::cout << error.invoke( //
+      fn::overload{[](calc::ParseError) { return "not a number or a known operation"; },
+                   [](calc::StackError) { return "not enough operands on the stack"; },
+                   [](calc::MathError e) {
+                     if (e == calc::MathError::DivisionByZero)
+                       return "division by zero";
+                     if (e == calc::MathError::NotIntegral)
+                       return "operation is defined for integers only";
+                     return "overflow";
+                   }})
             << '\n';
 }
 
