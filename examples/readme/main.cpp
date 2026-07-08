@@ -73,7 +73,6 @@ constexpr auto number = [](std::string_view s) { return parse(s) | fn::and_then(
 // error sum, never spelled by hand:
 auto evaluate(std::string_view a, fn::sum_for<Add, Mul> op, std::string_view b)
 {
-  using Op = fn::expected<fn::sum_for<Add, Mul>, fn::sum<>>;
   constexpr auto apply = fn::overload{
       [](Rational x, Add, Rational y) {
         return Rational::make(1LL * get<num>(x) * get<den>(y) + 1LL * get<num>(y) * get<den>(x),
@@ -82,6 +81,7 @@ auto evaluate(std::string_view a, fn::sum_for<Add, Mul> op, std::string_view b)
       [](Rational x, Mul, Rational y) {
         return Rational::make(1LL * get<num>(x) * get<num>(y), 1LL * get<den>(x) * get<den>(y));
       }};
+  using Op = fn::expected<decltype(op), fn::sum<>>;
   return (number(a) & Op{op} & number(b)) | fn::and_then(apply);
 }
 
