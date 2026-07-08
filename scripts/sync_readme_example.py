@@ -19,7 +19,7 @@ example_path = repo / "examples" / "readme" / "main.cpp"
 readme_path = repo / "README.md"
 
 lines = example_path.read_text(encoding="utf-8").splitlines(keepends=True)
-marks = [i for i, line in enumerate(lines) if line.rstrip("\n") == MARKER]
+marks = [i for i, line in enumerate(lines) if line.rstrip("\r\n") == MARKER]
 if len(marks) != 2:
     sys.stderr.write(
         f"{example_path.relative_to(repo)}: expected exactly two {MARKER!r} lines, found {len(marks)}\n"
@@ -29,9 +29,9 @@ region = lines[marks[0] + 1 : marks[1]]
 
 readme = readme_path.read_text(encoding="utf-8").splitlines(keepends=True)
 try:
-    heading = next(i for i, line in enumerate(readme) if line.rstrip("\n") == HEADING)
-    fence = next(i for i in range(heading + 1, len(readme)) if readme[i].rstrip("\n") == "```cpp")
-    close = next(i for i in range(fence + 1, len(readme)) if readme[i].rstrip("\n") == "```")
+    heading = next(i for i, line in enumerate(readme) if line.rstrip("\r\n") == HEADING)
+    fence = next(i for i in range(heading + 1, len(readme)) if readme[i].rstrip("\r\n") == "```cpp")
+    close = next(i for i in range(fence + 1, len(readme)) if readme[i].rstrip("\r\n") == "```")
 except StopIteration:
     sys.stderr.write(
         f"{readme_path.relative_to(repo)}: could not find {HEADING!r} followed by a ```cpp fence\n"
