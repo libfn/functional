@@ -120,12 +120,39 @@ using Results = fn::expected<fn::sum_for<fn::pack<>, fn::pack<long>, fn::pack<do
                              MathError>;
 
 constexpr inline long minimum = std::numeric_limits<long>::min();
+constexpr inline long maximum = std::numeric_limits<long>::max();
+
+// Signed overflow is UB, so operands are checked before the arithmetic, never after; the Mul bounds
+// are exact because integer division truncates toward zero
+constexpr auto overflows(long x, long y, Add) -> bool { return y > 0 ? x > maximum - y : x < minimum - y; }
+constexpr auto overflows(long x, long y, Sub) -> bool { return y < 0 ? x > maximum + y : x < minimum + y; }
+constexpr auto overflows(long x, long y, Mul) -> bool
+{
+  if (x > 0)
+    return y > 0 ? x > maximum / y : y < minimum / x;
+  return y > 0 ? x < minimum / y : x != 0 && y < maximum / x;
+}
 
 // One table defines every operation, dispatched on the runtime types of *both* operands and the
 // operation itself; overload resolution picks the arm, so `7 2 /` is exact and `7 2.0 /` promotes
 constexpr inline auto execute = fn::overload{
+    [](long x, long y, Add op) -> Results {
+      if (overflows(x, y, op))
+        return pfn::unexpected(MathError::Overflow);
+      return {fn::pack{x + y}};
+    },
     [](auto x, auto y, Add) -> Results { return {fn::pack{x + y}}; },
+    [](long x, long y, Sub op) -> Results {
+      if (overflows(x, y, op))
+        return pfn::unexpected(MathError::Overflow);
+      return {fn::pack{x - y}};
+    },
     [](auto x, auto y, Sub) -> Results { return {fn::pack{x - y}}; },
+    [](long x, long y, Mul op) -> Results {
+      if (overflows(x, y, op))
+        return pfn::unexpected(MathError::Overflow);
+      return {fn::pack{x * y}};
+    },
     [](auto x, auto y, Mul) -> Results { return {fn::pack{x * y}}; },
     [](long x, long y, Div) -> Results {
       if (y == 0)

@@ -111,11 +111,19 @@ TEST_CASE("errors", "[calculator]")
     CHECK(run("1 0 %").error() == fn::sum{calc::MathError::DivisionByZero});
   }
 
-  SECTION("long division cannot overflow")
+  SECTION("long overflow")
   {
     auto const minimum = std::to_string(std::numeric_limits<long>::min());
+    auto const maximum = std::to_string(std::numeric_limits<long>::max());
     CHECK(run(minimum + " -1 /").error() == fn::sum{calc::MathError::Overflow});
     CHECK(run(minimum + " -1 %").error() == fn::sum{calc::MathError::Overflow});
+    CHECK(run(maximum + " 1 +").error() == fn::sum{calc::MathError::Overflow});
+    CHECK(run(minimum + " 1 -").error() == fn::sum{calc::MathError::Overflow});
+    CHECK(run(maximum + " 2 *").error() == fn::sum{calc::MathError::Overflow});
+    CHECK(run(minimum + " -1 *").error() == fn::sum{calc::MathError::Overflow});
+    // ... while the guards admit the exact bounds
+    CHECK(run(maximum + " 0 +").value() == calc::Stack{calc::Number{std::numeric_limits<long>::max()}});
+    CHECK(run(minimum + " 1 *").value() == calc::Stack{calc::Number{std::numeric_limits<long>::min()}});
   }
 
   SECTION("stack underflow")
