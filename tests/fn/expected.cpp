@@ -2119,6 +2119,96 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
         }
       }
     }
+
+    WHEN("unit error grade sum<>")
+    {
+      // A never-erroring expected<T, sum<>> composes with a fallible one: the sum<> operand adds no
+      // alternative to the widened error, only its value to the pack. Previously ill-formed, because the
+      // sum<> side made operator&'s error lambda deduce void and poisoned _join's return type.
+      using Unit = fn::expected<int, fn::sum<>>;
+
+      WHEN("different error, unit on left")
+      {
+        using Rh = fn::expected<int, Error>;
+        static_assert(std::same_as<decltype(std::declval<Unit>() & std::declval<Rh>()),
+                                   fn::expected<fn::pack<int, int>, fn::sum<Error>>>);
+
+        static_assert((Unit{7} & Rh{5}) //
+                          .transform([](int a, int b) constexpr -> bool { return a == 7 && b == 5; })
+                          .value());
+        static_assert((Unit{7} & Rh{::pfn::unexpect, FileNotFound}).error() == fn::sum{FileNotFound});
+
+        CHECK((Unit{7} & Rh{5}) //
+                  .transform([](int a, int b) constexpr -> bool { return a == 7 && b == 5; })
+                  .value());
+        CHECK((Unit{7} & Rh{::pfn::unexpect, FileNotFound}).error() == fn::sum{FileNotFound});
+      }
+
+      WHEN("different error, unit on right")
+      {
+        using Lh = fn::expected<int, Error>;
+        static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Unit>()),
+                                   fn::expected<fn::pack<int, int>, fn::sum<Error>>>);
+
+        static_assert((Lh{5} & Unit{7}) //
+                          .transform([](int a, int b) constexpr -> bool { return a == 5 && b == 7; })
+                          .value());
+        static_assert((Lh{::pfn::unexpect, FileNotFound} & Unit{7}).error() == fn::sum{FileNotFound});
+
+        CHECK((Lh{5} & Unit{7}) //
+                  .transform([](int a, int b) constexpr -> bool { return a == 5 && b == 7; })
+                  .value());
+        CHECK((Lh{::pfn::unexpect, FileNotFound} & Unit{7}).error() == fn::sum{FileNotFound});
+      }
+
+      WHEN("unit meets a sum grade, either order")
+      {
+        using Rh = fn::expected<int, fn::sum<Error>>;
+        static_assert(std::same_as<decltype(std::declval<Unit>() & std::declval<Rh>()),
+                                   fn::expected<fn::pack<int, int>, fn::sum<Error>>>);
+        static_assert(std::same_as<decltype(std::declval<Rh>() & std::declval<Unit>()),
+                                   fn::expected<fn::pack<int, int>, fn::sum<Error>>>);
+
+        static_assert((Unit{7} & Rh{::pfn::unexpect, fn::sum{FileNotFound}}).error() == fn::sum{FileNotFound});
+        static_assert((Rh{::pfn::unexpect, fn::sum{FileNotFound}} & Unit{7}).error() == fn::sum{FileNotFound});
+
+        CHECK((Unit{7} & Rh{::pfn::unexpect, fn::sum{FileNotFound}}).error() == fn::sum{FileNotFound});
+        CHECK((Rh{::pfn::unexpect, fn::sum{FileNotFound}} & Unit{7}).error() == fn::sum{FileNotFound});
+      }
+
+      WHEN("same error, both unit")
+      {
+        static_assert(std::same_as<decltype(std::declval<Unit>() & std::declval<Unit>()),
+                                   fn::expected<fn::pack<int, int>, fn::sum<>>>);
+
+        static_assert((Unit{7} & Unit{5}) //
+                          .transform([](int a, int b) constexpr -> bool { return a == 7 && b == 5; })
+                          .value());
+        CHECK((Unit{7} & Unit{5}) //
+                  .transform([](int a, int b) constexpr -> bool { return a == 7 && b == 5; })
+                  .value());
+      }
+
+      WHEN("void operand carries the unit error")
+      {
+        using VoidUnit = fn::expected<void, fn::sum<>>;
+        using Rh = fn::expected<int, Error>;
+        static_assert(
+            std::same_as<decltype(std::declval<VoidUnit>() & std::declval<Rh>()), fn::expected<int, fn::sum<Error>>>);
+        static_assert(
+            std::same_as<decltype(std::declval<Rh>() & std::declval<VoidUnit>()), fn::expected<int, fn::sum<Error>>>);
+
+        static_assert((VoidUnit{} & Rh{5}).value() == 5);
+        static_assert((VoidUnit{} & Rh{::pfn::unexpect, FileNotFound}).error() == fn::sum{FileNotFound});
+        static_assert((Rh{5} & VoidUnit{}).value() == 5);
+        static_assert((Rh{::pfn::unexpect, FileNotFound} & VoidUnit{}).error() == fn::sum{FileNotFound});
+
+        CHECK((VoidUnit{} & Rh{5}).value() == 5);
+        CHECK((VoidUnit{} & Rh{::pfn::unexpect, FileNotFound}).error() == fn::sum{FileNotFound});
+        CHECK((Rh{5} & VoidUnit{}).value() == 5);
+        CHECK((Rh{::pfn::unexpect, FileNotFound} & VoidUnit{}).error() == fn::sum{FileNotFound});
+      }
+    }
   }
 }
 
