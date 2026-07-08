@@ -13,12 +13,14 @@
 #include <string_view>
 #include <type_traits>
 
+// Various error types - each type is unrelated to other, `enum` for brevity.
 enum NotANumber { notANumber };
 enum DivByZero { divByZero };
 enum Overflow { overflow };
+
+// Operations on rational numbers - `enum` for brevity.
 enum Add { add };
 enum Mul { mul };
-enum Side { num, den };
 
 class Rational {
   int n_, d_;
@@ -26,10 +28,8 @@ class Rational {
 
 public:
   constexpr bool operator==(Rational const &) const noexcept = default;
-  template <Side S> constexpr friend int get(Rational const &r) noexcept
-  {
-    return S == num ? r.n_ : r.d_;
-  }
+  constexpr int num() const noexcept { return n_; }
+  constexpr int den() const noexcept { return d_; }
 
   // The invariant lives in the type: `make` is the only way to build one, so every
   // Rational is reduced, sign-normalized and representable — callers receive a value they
@@ -66,23 +66,24 @@ auto parse(std::string_view s) -> fn::expected<fn::pack<int, int>, fn::sum<NotAN
 }
 
 // Helper, does not need to name any error types — let the library compose them.
-constexpr auto number = [](std::string_view s) { return parse(s) | fn::and_then(Rational::make); };
+constexpr auto rational
+    = [](std::string_view s) { return parse(s) | fn::and_then(Rational::make); };
 
 // `evaluate` parses both operands, applies the operator, and lets `make` re-check the
 // result. Each stage fails its own way, and the library folds those failures into one
 // error sum, never spelled by hand:
 auto evaluate(std::string_view a, fn::sum_for<Add, Mul> op, std::string_view b)
 {
-  constexpr auto apply = fn::overload{
-      [](Rational x, Add, Rational y) {
-        return Rational::make(1LL * get<num>(x) * get<den>(y) + 1LL * get<num>(y) * get<den>(x),
-                              1LL * get<den>(x) * get<den>(y));
-      },
-      [](Rational x, Mul, Rational y) {
-        return Rational::make(1LL * get<num>(x) * get<num>(y), 1LL * get<den>(x) * get<den>(y));
-      }};
   using Op = fn::expected<decltype(op), fn::sum<>>;
-  return (number(a) & Op{op} & number(b)) | fn::and_then(apply);
+  return (rational(a) & Op{op} & rational(b))
+         | fn::and_then(fn::overload{
+             [](Rational x, Add, Rational y) {
+               return Rational::make( //
+                   1LL * x.num() * y.den() + 1LL * y.num() * x.den(), 1LL * x.den() * y.den());
+             },
+             [](Rational x, Mul, Rational y) {
+               return Rational::make(1LL * x.num() * y.num(), 1LL * x.den() * y.den());
+             }});
 }
 
 // Result is a Rational, over the sum of every way a stage can fail:
@@ -96,7 +97,7 @@ int main()
   return (evaluate("1/2", add, "1/3").value() == Rational::make(5, 6)    //
           && evaluate("2/3", mul, "3/4").value() == Rational::make(1, 2) //
           && parse("abc").error().has_value<NotANumber>()                //
-          && number("1/0").error().has_value<DivByZero>()                //
+          && rational("1/0").error().has_value<DivByZero>()              //
           && evaluate("2000000000", mul, "2000000000").error().has_value<Overflow>())
              ? 0
              : 1;
