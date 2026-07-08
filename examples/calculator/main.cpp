@@ -15,10 +15,10 @@ namespace {
 
 void print(calc::Stack const &stack)
 {
-  std::cout << "stack:";
+  std::cout << "[";
   for (calc::Number const &n : stack)
     n.invoke([](auto v) { std::cout << ' ' << v; });
-  std::cout << '\n';
+  std::cout << " ]\n";
 }
 
 void report(calc::Error const &error)
@@ -40,7 +40,8 @@ void report(calc::Error const &error)
 auto main() -> int
 try {
   calc::Stack stack;
-  for (std::string line; std::getline(std::cin, line);) {
+  // the prompt goes to stderr (like a shell's) so piped stdout stays clean without any TTY detection
+  for (std::string line; std::cerr << "> ", std::getline(std::cin, line);) {
     // A failed line reports its error and leaves the stack untouched
     if (auto r = calc::evaluate(stack, line); r.has_value()) {
       stack = std::move(r).value();
