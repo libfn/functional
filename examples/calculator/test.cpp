@@ -66,6 +66,9 @@ TEST_CASE("parse", "[calculator]")
     CHECK(calc::parse("").error() == calc::ParseError::UnknownToken);
     CHECK(calc::parse("x").error() == calc::ParseError::UnknownToken);
     CHECK(calc::parse("1x").error() == calc::ParseError::UnknownToken);
+    CHECK(calc::parse("1e999").error() == calc::ParseError::UnknownToken);
+    CHECK(calc::parse("inf").error() == calc::ParseError::UnknownToken);
+    CHECK(calc::parse("nan").error() == calc::ParseError::UnknownToken);
   }
 }
 

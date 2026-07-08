@@ -13,6 +13,7 @@
 #include "fn/utility.hpp"
 
 #include <cerrno>
+#include <cmath>
 #include <cstdlib>
 #include <iterator>
 #include <limits>
@@ -69,7 +70,8 @@ struct Swap {
 };
 using Operation = fn::sum<Add, Div, Drop, Dup, Mod, Mul, Push, Sub, Swap>;
 
-// "42", "052" and "0x2a" are long, "2.5", "1e-3" and ".5" are double; a long overflow promotes to double
+// "42", "052" and "0x2a" are long, "2.5", "1e-3" and ".5" are double; a long overflow promotes to
+// double, while a double overflow — like the "inf" and "nan" spellings strtod accepts — is no number here
 inline auto parse(std::string const &token) -> fn::expected<Number, ParseError>
 {
   char const *last = token.data() + token.size();
@@ -77,7 +79,9 @@ inline auto parse(std::string const &token) -> fn::expected<Number, ParseError>
   errno = 0;
   if (long const i = std::strtol(token.data(), &end, 0); end == last && end != token.data() && errno == 0)
     return Number{i};
-  if (double const d = std::strtod(token.data(), &end); end == last && end != token.data())
+  errno = 0; // strtol left ERANGE behind on the very path where a long promotes to double
+  if (double const d = std::strtod(token.data(), &end);
+      end == last && end != token.data() && errno == 0 && std::isfinite(d))
     return Number{d};
   return pfn::unexpected(ParseError::UnknownToken);
 }
