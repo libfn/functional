@@ -18,6 +18,9 @@ class LibfnConan(ConanFile):
 
     package_type = "header-library"
     no_copy_source = True
+    # Settings are needed to read the consumer's compiler in package_info();
+    # package_id() clears them, so the package stays identical for everyone.
+    settings = "os", "arch", "compiler", "build_type"
 
     exports = "VERSION"
     exports_sources = "include/*", "LICENSE.md", "README.md"
@@ -66,3 +69,14 @@ class LibfnConan(ConanFile):
         pfn.bindirs = []
         pfn.libdirs = []
         pfn.includedirs = ["include"]
+
+        # CMakeDeps synthesizes its own targets, so the INTERFACE compile options
+        # exported by the CMake package do not reach conan consumers; mirror
+        # cmake/CompilationOptions.cmake (append_compilation_options INTERFACE) here.
+        compiler = self.settings.get_safe("compiler")
+        for component in (fn, pfn):
+            if compiler == "msvc":
+                component.cxxflags.append("/permissive-")
+                component.defines.append("_HAS_CXX23")
+            elif compiler in ("clang", "apple-clang"):
+                component.cxxflags.append("-Wno-missing-braces")

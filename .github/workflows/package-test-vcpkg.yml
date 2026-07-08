@@ -26,7 +26,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  test_vcpkg:
+  test_vcpkg_linux:
     runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
 
     steps:
@@ -49,3 +49,33 @@ jobs:
 
     - name: Run main
       run: .build/main
+
+  test_vcpkg_windows:
+    runs-on: windows-2022
+
+    steps:
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+    - name: Install libfn
+      shell: pwsh
+      env:
+        VCPKG_LIBFN_SOURCE_PATH: ${{ github.workspace }}
+        # vcpkg cleans the port build environment on Windows (POSIX inherits it),
+        # so the source-path var must be kept explicitly for portfile.cmake to see it.
+        VCPKG_KEEP_ENV_VARS: VCPKG_LIBFN_SOURCE_PATH
+      run: |
+        & "$env:VCPKG_INSTALLATION_ROOT\vcpkg" install libfn `
+          --overlay-ports=ports `
+          --triplet x64-windows
+
+    - name: Configure and build
+      shell: pwsh
+      run: |
+        cmake -B .build test_package -G "Visual Studio 17 2022" -A x64 `
+          "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+          -DVCPKG_TARGET_TRIPLET=x64-windows
+        cmake --build .build --config Release
+
+    - name: Run main
+      shell: pwsh
+      run: .build/Release/main.exe

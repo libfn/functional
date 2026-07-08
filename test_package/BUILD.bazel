@@ -1,5 +1,15 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+
 cc_binary(
     name = "main",
+    # Warnings-as-errors, so CI fails when consuming libfn stops being warning-clean.
+    # -Wno-missing-braces is the consumer-side suppression README.md documents: Bazel
+    # cannot receive compile options from a dependency, and main.cpp constructs fn::pack.
+    copts = [
+        "-Wall",
+        "-Werror",
+        "-Wno-missing-braces",
+    ],
     srcs = ["src/main.cpp"],
     deps = [
         "@libfn//:fn",
