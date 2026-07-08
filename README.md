@@ -113,19 +113,6 @@ target_link_libraries(main PRIVATE libfn::fn)   # or libfn::pfn for the polyfill
 
 Packaging is provided — and exercised by CI — for [conan](conanfile.py), [vcpkg](ports/libfn) (an in-repo port), [Nix](flake.nix) and [Bazel](MODULE.bazel); plain CMake `FetchContent` or `add_subdirectory` works as well. Until the first tagged release, consume a pinned git revision — and read [Backwards compatibility](#backwards-compatibility).
 
-Every packaging route above except Bazel also delivers the compile options the headers require. Bazel offers no way for a library to pass options to its consumers, and a plain copy of `include/` carries nothing — with these, provide the options yourself: C++20 or newer (`--cxxopt=-std=c++20` in Bazel), `-Wno-missing-braces` on clang (`fn::pack` initialization elides braces by design), and with MSVC `/permissive-` plus `_HAS_CXX23`. The authoritative set is the `INTERFACE` options in [cmake/CompilationOptions.cmake](cmake/CompilationOptions.cmake).
-
-## Using the library
-
-The library is header-only. The CMake package exports two targets:
-
-```cmake
-find_package(libfn CONFIG REQUIRED)
-target_link_libraries(main PRIVATE libfn::fn)   # or libfn::pfn for the polyfills alone
-```
-
-Packaging is provided — and exercised by CI — for [conan](conanfile.py), [vcpkg](ports/libfn) (an in-repo port), [Nix](flake.nix) and [Bazel](MODULE.bazel); plain CMake `FetchContent` or `add_subdirectory` works as well. Until the first tagged release, consume a pinned git revision — and read [Backwards compatibility](#backwards-compatibility).
-
 Every packaging route above except Bazel also delivers the compile options the headers require. Under Bazel — and a plain copy of `include/` — these options don't arrive automatically; provide them yourself: C++20 or newer (`--cxxopt=-std=c++20` in Bazel), `-Wno-missing-braces` on clang (`fn::pack` initialization elides braces by design), and with MSVC `/permissive-` plus `_HAS_CXX23`. The authoritative set is the `INTERFACE` options in [cmake/CompilationOptions.cmake](cmake/CompilationOptions.cmake).
 
 ## Backwards compatibility
