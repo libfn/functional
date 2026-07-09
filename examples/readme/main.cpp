@@ -3,24 +3,120 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-// readme-example
 #include <fn/and_then.hpp>
 #include <fn/utility.hpp>
 
 #include <charconv>
-#include <climits>
 #include <numeric>
 #include <string_view>
-#include <type_traits>
 
-// Various error types — each type is unrelated to other, `enum` for brevity.
-enum NotANumber { notANumber };
-enum DivByZero { divByZero };
-enum Overflow { overflow };
+// `parse` uses `std::from_chars` to parse a number from a string - only `constexpr` since C++23
+#ifdef __cpp_lib_constexpr_charconv
+#define FROM_CHARS std::from_chars
+#else
+#define FROM_CHARS fallback_parse_int
 
-// Operations on rational numbers — `enum` for brevity.
-enum Add { add };
-enum Mul { mul };
+constexpr std::from_chars_result fallback_parse_int(char const *first, char const *last, int &value,
+                                                    int base = 10) noexcept
+{
+  // std::from_chars constraints on base
+  if (base < 2 || base > 36) {
+    return {first, std::errc::invalid_argument};
+  }
+
+  char const *curr = first;
+  if (curr == last) {
+    return {first, std::errc::invalid_argument};
+  }
+
+  bool const negative = (*curr == '-');
+  if (negative) {
+    ++curr;
+    if (curr == last) { // Lone minus sign
+      return {first, std::errc::invalid_argument};
+    }
+  }
+
+  // A valid character must follow the optional minus sign
+  // Check digit mapping according to base rule
+  auto get_digit = [](char c) -> int {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'z') return 10 + (c - 'a');
+    if (c >= 'A' && c <= 'Z') return 10 + (c - 'A');
+    return -1;
+  };
+
+  if (get_digit(*curr) == -1 || get_digit(*curr) >= base) {
+    return {first, std::errc::invalid_argument};
+  }
+
+  long long val = 0;
+  bool overflowed = false;
+
+  while (curr != last) {
+    int const digit = get_digit(*curr);
+    if (digit == -1 || digit >= base) {
+      break; // Non-digit character ends parsing gracefully
+    }
+
+    if (!overflowed) {
+      val = val * base + digit;
+
+      // Perform local overflow boundary checking for `int` limits
+      if ((negative && -val < std::numeric_limits<int>::min())
+          || (!negative && val > std::numeric_limits<int>::max())) {
+        overflowed = true;
+      }
+    }
+    ++curr;
+  }
+
+  if (overflowed) {
+    return {curr, std::errc::result_out_of_range};
+  }
+
+  // Write out value on success
+  value = negative ? static_cast<int>(-val) : static_cast<int>(val);
+  return {curr, std::errc{}};
+}
+
+#endif
+
+enum class NotANumber;
+
+constexpr auto parse(std::string_view s) noexcept
+    -> fn::expected<fn::pack<int, int>, fn::sum<NotANumber>>
+{
+  int n = 0, d = 1;
+  auto const bar = s.find('/');
+  auto const head = s.substr(0, bar);
+  auto const [p, e] = FROM_CHARS(head.data(), head.data() + head.size(), n);
+  if (e != std::errc{} || p != head.data() + head.size())
+    return pfn::unexpected{fn::sum{NotANumber{}}};
+  if (bar != std::string_view::npos) {
+    auto const tail = s.substr(bar + 1);
+    auto const [q, f] = FROM_CHARS(tail.data(), tail.data() + tail.size(), d);
+    if (f != std::errc{} || q != tail.data() + tail.size())
+      return pfn::unexpected{fn::sum{NotANumber{}}};
+  }
+  return fn::pack<int, int>{n, d};
+}
+
+// readme-example
+// Various error types.
+enum class NotANumber {};
+enum class DivByZero {};
+enum class Overflow {};
+
+// Operations on rational numbers.
+enum class Add {};
+enum class Sub {};
+enum class Mul {};
+enum class Div {};
+
+// `parse` turns a '/' delimited string into a pair of numbers (a numerator and denominator)
+constexpr auto parse(std::string_view s) noexcept
+    -> fn::expected<fn::pack<int, int>, fn::sum<NotANumber>>;
 
 class Rational {
   int n_, d_;
@@ -31,74 +127,94 @@ public:
   constexpr int num() const noexcept { return n_; }
   constexpr int den() const noexcept { return d_; }
 
-  // The invariant lives in the type: `make` is the only way to build one, so every
-  // Rational is reduced, sign-normalized and representable — callers receive a value they
-  // never have to re-check.
-  static constexpr auto make(long long n, long long d)
-      -> fn::expected<Rational, fn::sum_for<DivByZero, Overflow>>
+  // The invariants live in the type: `make` is the only way to build a `Rational`, and every one is
+  // reduced, sign-normalized and representable. Callers receive a value they never need re-check.
+  static constexpr struct make_t {
+    constexpr auto operator()(long long n, long long d) const noexcept
+        -> fn::expected<Rational, fn::sum_for<DivByZero, Overflow>>
+    {
+      if (d == 0) return pfn::unexpected{fn::sum{DivByZero{}}};
+      if (n == std::numeric_limits<long long>::min() || d == std::numeric_limits<long long>::min())
+        return pfn::unexpected{fn::sum{Overflow{}}};
+
+      auto const g = (d < 0 ? -1 : 1) * std::gcd(n, d);
+      n /= g;
+      d /= g;
+      if (n < std::numeric_limits<int>::min() || n > std::numeric_limits<int>::max()
+          || d > std::numeric_limits<int>::max())
+        return pfn::unexpected{fn::sum{Overflow{}}};
+
+      return Rational(static_cast<int>(n), static_cast<int>(d));
+    }
+
+    constexpr auto operator()(fn::pack<int, int> p) const noexcept
+    {
+      return (*this)(get<0>(p), get<1>(p));
+    }
+    constexpr auto operator()(std::string_view s) const noexcept
+    {
+      return parse(s) | fn::and_then(*this);
+    }
+  } make{};
+
+  constexpr auto neg() const noexcept { return make(-1LL * n_, d_); }
+  constexpr auto inv() const noexcept { return make(d_, n_); }
+  constexpr auto add(Rational const &other) const noexcept
   {
-    if (d == 0) return pfn::unexpected{fn::sum{divByZero}};
-    if (n == LLONG_MIN || d == LLONG_MIN) return pfn::unexpected{fn::sum{overflow}};
-    auto const g = (d < 0 ? -1 : 1) * std::gcd(n, d);
-    n /= g;
-    d /= g;
-    if (n < INT_MIN || n > INT_MAX || d > INT_MAX) return pfn::unexpected{fn::sum{overflow}};
-    return Rational(int(n), int(d));
+    return make(1LL * n_ * other.d_ + 1LL * other.n_ * d_, //
+                1LL * d_ * other.d_);
+  }
+  constexpr auto sub(Rational const &other) const noexcept
+  {
+    return other.neg() | fn::and_then([x = *this](Rational y) { return x.add(y); });
+  }
+  constexpr auto mul(Rational const &other) const noexcept
+  {
+    return make(1LL * n_ * other.n_, 1LL * d_ * other.d_);
+  }
+  constexpr auto div(Rational const &other) const noexcept
+  {
+    return other.inv() | fn::and_then([x = *this](Rational y) { return x.mul(y); });
   }
 };
 
-// `parse` turns a string into a pair of numbers (a numerator and denominator)
-auto parse(std::string_view s) -> fn::expected<fn::pack<int, int>, fn::sum<NotANumber>>
-{
-  int n = 0, d = 1;
-  auto const bar = s.find('/');
-  auto const head = s.substr(0, bar);
-  auto const [p, e] = std::from_chars(head.data(), head.data() + head.size(), n);
-  if (e != std::errc{} || p != head.data() + head.size())
-    return pfn::unexpected{fn::sum{notANumber}};
-  if (bar != std::string_view::npos) {
-    auto const tail = s.substr(bar + 1);
-    auto const [q, f] = std::from_chars(tail.data(), tail.data() + tail.size(), d);
-    if (f != std::errc{} || q != tail.data() + tail.size())
-      return pfn::unexpected{fn::sum{notANumber}};
-  }
-  return fn::pack<int, int>{n, d};
-}
-
-// Helper, does not need to name any error types — let the library compose them.
-constexpr auto rational
-    = [](std::string_view s) { return parse(s) | fn::and_then(Rational::make); };
-
-// `evaluate` parses both operands, applies the operator, and lets `make` re-check the
-// result. Each stage fails its own way, and the library folds those failures into one
-// error sum, never spelled by hand:
-auto evaluate(std::string_view a, fn::sum_for<Add, Mul> op, std::string_view b)
+// `evaluate` parses each operand, applies the operator, and lets `make` re-check the result.
+// Each stage fails its own way, and the library folds error types into one sum of types.
+constexpr auto evaluate(fn::sum_for<Add, Sub, Mul, Div> op, std::string_view a,
+                        std::string_view b) noexcept
 {
   using Op = fn::expected<decltype(op), fn::sum<>>;
-  return (rational(a) & Op{op} & rational(b))
-         | fn::and_then(fn::overload{
-             [](Rational x, Add, Rational y) {
-               return Rational::make( //
-                   1LL * x.num() * y.den() + 1LL * y.num() * x.den(), 1LL * x.den() * y.den());
-             },
-             [](Rational x, Mul, Rational y) {
-               return Rational::make(1LL * x.num() * y.num(), 1LL * x.den() * y.den());
-             }});
+  return (Op{op} & Rational::make(a) & Rational::make(b))
+         | fn::and_then(fn::overload{//
+                                     [](Add, Rational x, Rational y) { return x.add(y); },
+                                     [](Sub, Rational x, Rational y) { return x.sub(y); },
+                                     [](Mul, Rational x, Rational y) { return x.mul(y); },
+                                     [](Div, Rational x, Rational y) { return x.div(y); }});
 }
 
 // Result is a Rational, over the sum of every way a stage can fail:
-static_assert(std::is_same_v<decltype(evaluate("1/2", add, "3/4")),
+static_assert(std::is_same_v<decltype(evaluate(Add{}, "1/2", "3/4")),
                              fn::expected<Rational, fn::sum<DivByZero, NotANumber, Overflow>>>);
-
+// Fully constant-evaluated example, with compile-time checks of the result and error types:
+static_assert(evaluate(Add{}, "1/2", "1/3").value() == Rational::make(5, 6));
+static_assert(evaluate(Div{}, "2/3", "0/1").error().has_value<DivByZero>());
 // readme-example
 
 int main()
 {
-  return (evaluate("1/2", add, "1/3").value() == Rational::make(5, 6)    //
-          && evaluate("2/3", mul, "3/4").value() == Rational::make(1, 2) //
-          && parse("abc").error().has_value<NotANumber>()                //
-          && rational("1/0").error().has_value<DivByZero>()              //
-          && evaluate("2000000000", mul, "2000000000").error().has_value<Overflow>())
+  return (evaluate(Add{}, "1/2", "1/3").value() == Rational::make(5, 6)    //
+          && evaluate(Sub{}, "1/2", "1/3").value() == Rational::make(1, 6) //
+          && evaluate(Mul{}, "2/3", "3/4").value() == Rational::make(1, 2) //
+          && evaluate(Div{}, "2/3", "1/2").value() == Rational::make(4, 3) //
+          && evaluate(Div{}, "2/3", "0/1").error().has_value<DivByZero>()  //
+          && Rational::make("1/0").error().has_value<DivByZero>()          //
+          && Rational::make(1, 1)
+                 .value()
+                 .sub(Rational::make(std::numeric_limits<int>::min(), 1).value())
+                 .error()
+                 .has_value<Overflow>()
+          && parse("abc").error().has_value<NotANumber>() //
+          && evaluate(Mul{}, "2000000000", "2000000000").error().has_value<Overflow>())
              ? 0
              : 1;
 }
