@@ -12,7 +12,6 @@
 #include <fn/detail/pack_impl.hpp>
 #include <fn/sum.hpp>
 
-#include <tuple>
 #include <type_traits>
 
 namespace fn {
