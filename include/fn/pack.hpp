@@ -8,9 +8,11 @@
 
 #include <fn/detail/macro_deduced_return.hpp>
 #include <fn/detail/macro_fwd.hpp>
+#include <fn/detail/meta.hpp>
 #include <fn/detail/pack_impl.hpp>
 #include <fn/sum.hpp>
 
+#include <tuple>
 #include <type_traits>
 
 namespace fn {
@@ -287,6 +289,24 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
 
 template <typename... Args> pack(Args &&...args) -> pack<Args...>;
 
+/**
+ * @brief Tuple-protocol element access
+ *
+ * Returns the `I`-th element carrying the pack's cv-qualification and value
+ * category, exactly as `invoke` would pass it. Found by ADL, so it also serves
+ * structured bindings and the generic `using ::std::get; get<I>(p)` idiom.
+ *
+ * @tparam I element index
+ * @param p the pack
+ * @return reference to the `I`-th element
+ */
+template <::std::size_t I, some_pack P>
+[[nodiscard]] constexpr decltype(auto) get(P &&p) noexcept
+  requires(I < ::std::remove_cvref_t<P>::size)
+{
+  return ::std::remove_cvref_t<P>::template _get<I>(FWD(p));
+}
+
 // Lifts
 /**
  * @brief TODO
@@ -389,5 +409,17 @@ constexpr inline struct identity_t {
 } identity;
 
 } // namespace fn
+
+namespace std {
+// tuple-protocol opt-in for structured bindings. Only the unqualified pack is
+// specialized; the standard library's own tuple_size<const T> / tuple_element<I,
+// const T> partial specializations layer the cv-qualification on top of these.
+template <typename... Ts>
+struct tuple_size<::fn::pack<Ts...>> : ::std::integral_constant<::std::size_t, sizeof...(Ts)> {};
+
+template <::std::size_t I, typename... Ts> struct tuple_element<I, ::fn::pack<Ts...>> {
+  using type = ::fn::detail::select_nth_t<I, Ts...>;
+};
+} // namespace std
 
 #endif // INCLUDE_FN_PACK

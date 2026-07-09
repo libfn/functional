@@ -36,6 +36,9 @@ concept can_invoke = requires(P p, Fn fn, Args &&...args) { P::_invoke(p, fn, st
 template <typename P, typename T, typename... Args>
 concept can_append = requires(P p, Args &&...args) { P::template _append<T>(p, static_cast<Args &&>(args)...); };
 
+template <typename P, std::size_t I>
+concept can_get = requires(P p) { std::remove_cvref_t<P>::template _get<I>(static_cast<P &&>(p)); };
+
 } // namespace
 
 TEST_CASE("pack_impl size and aggregate construction", "[pack_impl]")
@@ -130,6 +133,37 @@ TEST_CASE("pack_impl _invoke", "[pack_impl][invoke]")
   static_assert(not can_invoke<P, decltype([](int *, int *) {})>);
   // positive control
   static_assert(can_invoke<P, decltype([](int, double) {})>);
+}
+
+TEST_CASE("pack_impl _get", "[pack_impl][get]")
+{
+  using fn::detail::pack_impl;
+  using P = pack_impl<std::index_sequence_for<int, double>, int, double>;
+
+  // value category of the pack is carried onto the returned reference
+  P p{2, 4.0};
+  static_assert(std::same_as<decltype(P::_get<0>(p)), int &>);
+  static_assert(std::same_as<decltype(P::_get<1>(p)), double &>);
+  static_assert(std::same_as<decltype(P::_get<0>(std::as_const(p))), int const &>);
+  static_assert(std::same_as<decltype(P::_get<0>(std::move(p))), int &&>);
+  static_assert(std::same_as<decltype(P::_get<0>(std::move(std::as_const(p)))), int const &&>);
+
+  CHECK(P::_get<0>(p) == 2);
+  CHECK(P::_get<1>(p) == 4.0);
+  P::_get<0>(p) = 5;
+  CHECK(P::_get<0>(p) == 5);
+
+  // in-range indices are viable, out-of-range is not
+  static_assert(can_get<P &, 0>);
+  static_assert(can_get<P &, 1>);
+  static_assert(not can_get<P &, 2>);
+
+  // constexpr twin
+  static_assert([] {
+    P q{7, 1.5};
+    P::_get<1>(q) = 3.5;
+    return P::_get<0>(q) == 7 && P::_get<1>(q) == 3.5;
+  }());
 }
 
 TEST_CASE("pack_impl _append and append_type", "[pack_impl][append][append_type]")

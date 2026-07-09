@@ -12,6 +12,7 @@
 
 #include <catch2/catch_all.hpp>
 
+#include <tuple>
 #include <utility>
 
 namespace {
@@ -677,4 +678,88 @@ TEST_CASE("operator &", "[pack][sum][operator_and]")
                     fn::pack<int, int, double, double, bool, double, int>> const>);
   static_assert(r2.invoke([](auto &&...args) -> double { return (1 * ... * static_cast<double>(args)); })
                 == 12. * 3 * 2.5 * 0.5 * 1 * 1.5 * 12);
+}
+
+namespace {
+template <typename P, std::size_t I>
+concept can_get = requires(P p) { fn::get<I>(static_cast<P &&>(p)); };
+} // namespace
+
+TEST_CASE("pack get and tuple protocol", "[pack][get][tuple]")
+{
+  using fn::get;
+  using fn::pack;
+
+  // tuple_size / tuple_element
+  static_assert(std::tuple_size_v<pack<int, double, A>> == 3);
+  static_assert(std::tuple_size_v<pack<>> == 0);
+  static_assert(std::same_as<std::tuple_element_t<0, pack<int, double, A>>, int>);
+  static_assert(std::same_as<std::tuple_element_t<1, pack<int, double, A>>, double>);
+  static_assert(std::same_as<std::tuple_element_t<2, pack<int, double, A>>, A>);
+  // the library's tuple_element<I, const T> propagates const onto value elements
+  static_assert(std::same_as<std::tuple_element_t<0, pack<int, double, A> const>, int const>);
+
+  // get value categories mirror what invoke passes
+  pack<int, double> p{2, 4};
+  static_assert(std::same_as<decltype(get<0>(p)), int &>);
+  static_assert(std::same_as<decltype(get<1>(p)), double &>);
+  static_assert(std::same_as<decltype(get<0>(std::as_const(p))), int const &>);
+  static_assert(std::same_as<decltype(get<0>(std::move(p))), int &&>);
+  static_assert(std::same_as<decltype(get<0>(std::move(std::as_const(p)))), int const &&>);
+
+  CHECK(get<0>(p) == 2);
+  CHECK(get<1>(p) == 4.0);
+  get<0>(p) = 7;
+  CHECK(get<0>(p) == 7);
+
+  // out-of-range index is not viable (SFINAE-clean, not a hard error)
+  static_assert(can_get<pack<int, double> &, 0>);
+  static_assert(can_get<pack<int, double> &, 1>);
+  static_assert(not can_get<pack<int, double> &, 2>);
+  static_assert(not can_get<pack<> &, 0>);
+
+  // reference-holding element: a non-const pack yields the stored reference
+  int x = 11;
+  pack<int &> r{x};
+  static_assert(std::same_as<std::tuple_element_t<0, pack<int &>>, int &>);
+  static_assert(std::same_as<decltype(get<0>(r)), int &>);
+  get<0>(r) = 12;
+  CHECK(x == 12);
+
+  // structured bindings over an lvalue pack alias the elements
+  auto &[a0, a1] = p;
+  CHECK(a0 == 7);
+  CHECK(a1 == 4.0);
+  a0 = 9;
+  CHECK(get<0>(p) == 9);
+
+  // structured bindings over an rvalue pack move the elements out
+  auto [b0, b1] = std::move(p);
+  static_assert(std::same_as<decltype(b0), int>);
+  static_assert(std::same_as<decltype(b1), double>);
+  CHECK(b0 == 9);
+  CHECK(b1 == 4.0);
+
+  // generic idiom: unqualified get with std::get also in scope resolves to fn::get by ADL
+  {
+    using std::get;
+    pack<int, double> q{3, 1.5};
+    CHECK(get<0>(q) == 3);
+    CHECK(get<1>(q) == 1.5);
+  }
+
+  // constexpr twins
+  static_assert(std::tuple_size_v<pack<int, double>> == 2);
+  static_assert([] {
+    pack<int, double> q{5, 2.5};
+    auto &[c0, c1] = q;
+    c0 = 6;
+    return get<0>(q) == 6 && get<1>(q) == 2.5;
+  }());
+  static_assert([] {
+    int y = 3;
+    pack<int &> s{y};
+    get<0>(s) = 4;
+    return y == 4;
+  }());
 }
