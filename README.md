@@ -114,9 +114,7 @@ static_assert(evaluate("2/3", Div{}, "0/1").error().has_value<DivByZero>());
 
 The library features demonstrated by the code example above:
 
-* **Smart constructors** — `Rational`'s constructor is private; the only way to build one is the `make` functor, which enforces the type's invariants and returns `fn::expected` — a normalized `Rational`, or an error. An invalid `Rational` cannot exist, so callers never re-check what the type guarantees.
 * **Monadic sequences** — `operator|` pipes a `fn::expected` (or `fn::optional`) through operations: `and_then` and `transform` act on the value, `or_else`, `recover` and `transform_error` on the error, with `filter`, `inspect`, `fail` and more besides.
-* **Callables as values** — the operations accept any callable, including a functor value: `make` passes whole into `and_then`, carrying its overload set — where an overloaded or bare template function, being no single value, could not.
 * **Graded errors** — each stage fails its own way — a malformed string, a zero denominator, an out-of-range result — and the library folds these into one `fn::sum` whose type it derives for you: here `fn::sum<DivByZero, NotANumber, Overflow>`, never spelled by hand.
 * **Composing values** — `operator&` gathers successful operands left to right: two values become a `fn::pack`, a third appends to it. A `fn::pack` is a heterogeneous product — the operands as one value, spread into the next call or reached individually through the tuple protocol (`get<0>(p)` or structured bindings).
 * **Composing alternatives** — when a side is a `fn::sum` (a co-product — one of several types, indexed by type, not by position like `std::variant`), `&` distributes over it, pairing every alternative with the other operand. Two sums yield the full cartesian product. The result type is flattened, deduplicated and sorted for you.
@@ -124,7 +122,11 @@ The library features demonstrated by the code example above:
 * **Identity monad** — `fn::expected<T, fn::sum<>>` cannot hold an error (enforced at compile time), a spelling of the identity monad; the example lifts `op` into it as `Op`.
 * **No surprises** — libfn throws no exceptions of its own (only `value()`, as the standard mandates), and composes safely with callables that do. Being fully `constexpr`, it can drive a program evaluated entirely at compile time, where the compiler diagnoses any undefined behaviour.
 
-Beyond the example: `fn::choice` (a monad over `fn::sum`), the same operations over `fn::optional` as over `fn::expected`, support for immovable values and callables (threaded by reference, never copied), and more — see [examples/](examples/) and the [API reference][docs].
+The example also demonstrates how well libfn works with general programming idioms. With *smart constructors*, `Rational`'s constructor is private; the only way to build one is the `make` functor, which enforces the type's invariants and returns `fn::expected` — a normalized `Rational`. An invalid `Rational` cannot exist, and callers never need to re-check what the type guarantees. Treating *callables as values* lets the operations such as `and_then` accept any callable, a functor value included: `make` passes whole, carrying its overload set, where an overloaded or bare template function — being no single value — could not.
+
+These properties also make libfn a natural fit for asynchronous composition, such as senders/receivers. Monadic types, `fn::pack` and `fn::sum` are just values, and so are the operations — `and_then(f)` is a functor, applied only when piped — so a pipeline is a *description* of work rather than its execution. A strongly typed error channel, the absence of libfn's own exceptions or hidden control flow, and support for immovable values threaded by reference are exactly what such programming models need.
+
+Beyond the example: `fn::choice` (a monad over `fn::sum`), the same operations over `fn::optional` as over `fn::expected`, immovable values and callables, and more — see [examples/](examples/) and the [API reference][docs].
 
 ## How
 
