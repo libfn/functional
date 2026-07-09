@@ -410,14 +410,17 @@ constexpr inline struct identity_t {
 } // namespace fn
 
 namespace std {
-// tuple-protocol opt-in for structured bindings. Only the unqualified pack is
-// specialized; the standard library's own tuple_size<const T> / tuple_element<I,
-// const T> partial specializations layer the cv-qualification on top of these.
 template <typename... Ts>
 struct tuple_size<::fn::pack<Ts...>> : ::std::integral_constant<::std::size_t, sizeof...(Ts)> {};
 
 template <::std::size_t I, typename... Ts> struct tuple_element<I, ::fn::pack<Ts...>> {
   using type = ::fn::detail::select_nth_t<I, Ts...>;
+};
+
+// A const pack propagates const onto reference elements, so `tuple_element<I, pack const>`
+// must match `get` and cannot defer to the generic `tuple_element<I, const T>`.
+template <::std::size_t I, typename... Ts> struct tuple_element<I, ::fn::pack<Ts...> const> {
+  using type = decltype(::fn::detail::_apply_const<::fn::pack<Ts...> const &, ::fn::detail::select_nth_t<I, Ts...>>);
 };
 } // namespace std
 

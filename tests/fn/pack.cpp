@@ -726,6 +726,20 @@ TEST_CASE("pack get and tuple protocol", "[pack][get][tuple]")
   get<0>(r) = 12;
   CHECK(x == 12);
 
+  // const pack of a reference: fn propagates const through the reference (unlike
+  // std::tuple<int&>, whose reference member is immune to container const), so
+  // get and tuple_element agree on int const& here.
+  static_assert(std::same_as<std::tuple_element_t<0, pack<int &> const>, int const &>);
+  static_assert(std::same_as<decltype(get<0>(std::as_const(r))), int const &>);
+  static_assert(std::same_as<decltype(get<0>(std::move(std::as_const(r)))), int const &>);
+  CHECK(get<0>(std::as_const(r)) == 12);
+  // a const structured binding over the const pack observes the const-propagated reference
+  {
+    auto const &[e0] = std::as_const(r);
+    static_assert(std::same_as<decltype(e0), int const &>);
+    CHECK(e0 == 12);
+  }
+
   // structured bindings over an lvalue pack alias the elements
   auto &[a0, a1] = p;
   CHECK(a0 == 7);
@@ -761,5 +775,15 @@ TEST_CASE("pack get and tuple protocol", "[pack][get][tuple]")
     pack<int &> s{y};
     get<0>(s) = 4;
     return y == 4;
+  }());
+  static_assert([] {
+    int y = 5;
+    pack<int &> s{y};
+    // const-propagation twin: get on the const pack yields int const&, and
+    // tuple_element agrees, so the binding is read-only yet still aliases y.
+    static_assert(std::same_as<decltype(get<0>(std::as_const(s))), int const &>);
+    static_assert(std::same_as<std::tuple_element_t<0, pack<int &> const>, int const &>);
+    auto const &[e0] = std::as_const(s);
+    return e0 == 5;
   }());
 }

@@ -2,6 +2,11 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `fn::pack` gained the tuple protocol — 9 July 2026
+
+- **`fn::pack` now models the tuple protocol** — `std::tuple_size`, `std::tuple_element`, and an ADL-found `get<I>`, so a pack works with structured bindings and the generic `using std::get; get<I>(p)` idiom.
+- **A const pack propagates const onto its reference elements.** `get<I>` carries the pack's const through to the element, so `get<0>` on a `const pack<T&>` yields `T const&`. This diverges from `std::tuple<T&>`, whose reference members ignore container const — a deliberate difference: it lets a const pack hand out read-only views of referenced data, which a caller passing a pack of references by const reference generally wants. `std::tuple_element<I, pack const>` is specialized to match `get` rather than defer to the generic `tuple_element<I, const T>` wrapper.
+
 ## `operator&` composes the `sum<>` unit error — 8 July 2026
 
 - **A non-void `fn::expected` carrying the `sum<>` unit error now composes under `operator&`.** A never-erroring operand — `expected<T, sum<>>`, the "cannot fail" grade — folds into a fallible `&`-chain, adding its value to the pack and no alternative to the widened error. The different-error overload had been ill-formed here: its error lambda deduced `void` for the `sum<>` side, poisoning the pack join's return-type deduction. The README example follows the fix, collapsing from a two-stage pipeline into a single `and_then` over the cartesian `(a & op & b)` dispatch table, its operator honestly typed `expected<sum_for<Add, Mul>, sum<>>`.
