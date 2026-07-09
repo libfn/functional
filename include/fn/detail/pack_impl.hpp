@@ -9,6 +9,7 @@
 #include <fn/detail/functional.hpp>
 #include <fn/detail/fwd.hpp>
 #include <fn/detail/macro_fwd.hpp>
+#include <fn/detail/meta.hpp>
 #include <fn/detail/traits.hpp>
 
 #include <type_traits>
@@ -67,6 +68,14 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
   {
     return ::fn::detail::_invoke(
         FWD(fn), static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., FWD(args)...);
+  }
+
+  template <::std::size_t I, typename Self>
+  static constexpr decltype(auto) _get(Self &&self) noexcept
+    requires(I < size)
+  {
+    return static_cast<apply_const_lvalue_t<Self, select_nth_t<I, Ts...> &&>>(
+        FWD(self)._element<I, select_nth_t<I, Ts...>>::v);
   }
 
   template <typename T> using append_type = _pack_append<T, Ts...>::type;
