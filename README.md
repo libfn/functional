@@ -90,24 +90,24 @@ public:
 
 // `evaluate` parses each operand, applies the operator, and lets `make` re-check the result.
 // Each stage fails its own way, and the library folds error types into one sum of types.
-constexpr auto evaluate(fn::sum_for<Add, Sub, Mul, Div> op, std::string_view a,
+constexpr auto evaluate(std::string_view a, fn::sum_for<Add, Sub, Mul, Div> op,
                         std::string_view b) noexcept
 {
   using Op = fn::expected<decltype(op), fn::sum<>>;
-  return (Op{op} & Rational::make(a) & Rational::make(b))
+  return (Rational::make(a) & Op{op} & Rational::make(b))
          | fn::and_then(fn::overload{//
-                                     [](Add, Rational x, Rational y) { return x.add(y); },
-                                     [](Sub, Rational x, Rational y) { return x.sub(y); },
-                                     [](Mul, Rational x, Rational y) { return x.mul(y); },
-                                     [](Div, Rational x, Rational y) { return x.div(y); }});
+                                     [](Rational x, Add, Rational y) { return x.add(y); },
+                                     [](Rational x, Sub, Rational y) { return x.sub(y); },
+                                     [](Rational x, Mul, Rational y) { return x.mul(y); },
+                                     [](Rational x, Div, Rational y) { return x.div(y); }});
 }
 
 // Result is a Rational, over the sum of every way a stage can fail:
-static_assert(std::is_same_v<decltype(evaluate(Add{}, "1/2", "3/4")),
+static_assert(std::is_same_v<decltype(evaluate("1/2", Add{}, "3/4")),
                              fn::expected<Rational, fn::sum<DivByZero, NotANumber, Overflow>>>);
 // Fully constant-evaluated example, with compile-time checks of the result and error types:
-static_assert(evaluate(Add{}, "1/2", "1/3").value() == Rational::make(5, 6));
-static_assert(evaluate(Div{}, "2/3", "0/1").error().has_value<DivByZero>());
+static_assert(evaluate("1/2", Add{}, "1/3").value() == Rational::make(5, 6));
+static_assert(evaluate("2/3", Div{}, "0/1").error().has_value<DivByZero>());
 ```
 
 ### What
