@@ -8,7 +8,7 @@ Functional programming in C++
 
 ## Why
 
-The purpose of this library is to exercise an approach to functional programming in C++ on top of the existing `std` C++ vocabulary types (such as `std::expected` and `std::optional`), with the aim of eventually extending the future versions of the C++ standard library with the functionality found to work well.
+The purpose of this library is to exercise an approach to functional programming in C++ on top of the existing standard vocabulary types (such as `std::expected` and `std::optional`), with the aim of eventually extending future revisions of the C++ standard library with the functionality found to work well.
 
 ## Example
 
@@ -58,10 +58,6 @@ public:
       return Rational(static_cast<int>(n), static_cast<int>(d));
     }
 
-    constexpr auto operator()(fn::pack<int, int> p) const noexcept
-    {
-      return (*this)(get<0>(p), get<1>(p));
-    }
     constexpr auto operator()(std::string_view s) const noexcept
     {
       return parse(s) | fn::and_then(*this);
@@ -116,23 +112,23 @@ The library features demonstrated by the code example above:
 
 * **Monadic sequences** — `operator|` pipes a `fn::expected` (or `fn::optional`) through operations: `and_then` and `transform` act on the value, `or_else`, `recover` and `transform_error` on the error, with `filter`, `inspect`, `fail` and more besides.
 * **Graded errors** — each stage fails its own way — a malformed string, a zero denominator, an out-of-range result — and the library folds these into one `fn::sum` whose type it derives for you: here `fn::sum<DivByZero, NotANumber, Overflow>`, never spelled by hand.
-* **Composing values** — `operator&` gathers successful operands left to right: two values become a `fn::pack`, a third appends to it. A `fn::pack` is a heterogeneous product — the operands as one value, spread into the next call or reached individually through the tuple protocol (`get<0>(p)` or structured bindings).
+* **Composing values** — `operator&` gathers successful operands left to right: two values become a `fn::pack`, a third appends to it. A `fn::pack` is a heterogeneous product — the operands as one value, spread into the next call; for example in `make`, where a `pack<int, int>` returned from `parse` is passed to an overload taking two numbers.
 * **Composing alternatives** — when a side is a `fn::sum` (a co-product — one of several types, indexed by type, not by position like `std::variant`), `&` distributes over it, pairing every alternative with the other operand. Two sums yield the full cartesian product. The result type is flattened, deduplicated and sorted for you.
-* **Multidispatch** — the pack (or sum of packs) flows into the next stage as separate arguments; an `fn::overload` — or any function — dispatches on the runtime alternative by ordinary overload resolution. Dispatch is exhaustive: a missing handler is a compile error.
+* **Multidispatch** — the pack (or sum of packs) flows into the next stage as separate arguments. An `fn::overload` — or any function — dispatches on the runtime alternative by ordinary overload resolution. Dispatch is exhaustive: a missing handler is a compile error.
 * **Identity monad** — `fn::expected<T, fn::sum<>>` cannot hold an error (enforced at compile time), a spelling of the identity monad; the example lifts `op` into it as `Op`.
-* **No surprises** — libfn throws no exceptions of its own (only `value()`, as the standard mandates), and composes safely with callables that do. Being fully `constexpr`, it can drive a program evaluated entirely at compile time, where the compiler diagnoses any undefined behaviour.
+* **No surprises** — libfn throws no exceptions of its own (only `value()`, as the standard mandates), and composes safely with callables that do; it allocates no memory of its own and performs no I/O. Being fully `constexpr`, it can drive a program evaluated entirely at compile time, where the compiler diagnoses any undefined behaviour.
 
-The example also demonstrates how well libfn works with general programming idioms. With *smart constructors*, `Rational`'s constructor is private; the only way to build one is the `make` functor, which enforces the type's invariants and returns `fn::expected` — a normalized `Rational`. An invalid `Rational` cannot exist, and callers never need to re-check what the type guarantees. Treating *callables as values* lets the operations such as `and_then` accept any callable, a functor value included: `make` passes whole, carrying its overload set, where an overloaded or bare template function — being no single value — could not.
+The example also demonstrates how well libfn works with general programming idioms. `make` is a *smart constructor* — the only way to build a `Rational` — enforcing the type's invariants and returning `fn::expected`: callers never need to re-check what the type guarantees. Treating *callables as values* lets operations such as `and_then` accept `make` whole, carrying its overload set.
 
-These properties also make libfn a natural fit for asynchronous composition, such as senders/receivers. Monadic types, `fn::pack` and `fn::sum` are just values, and so are the operations — `and_then(f)` is a functor, applied only when piped — so a pipeline is a *description* of work rather than its execution. A strongly typed error channel, the absence of libfn's own exceptions or hidden control flow, and support for immovable values threaded by reference are exactly what such programming models need.
+These properties also make libfn a natural fit for asynchronous composition, such as senders/receivers. Operations and monadic types alike are plain values: `and_then(f)` is a *description* of a step, executed only when a monad is piped into it (an input to the sequence, or the result of the preceding operation). A framework can hold the steps of a computation and apply them as results arrive, with a strongly typed error channel and no hidden control flow — exactly what such programming models need.
 
-Beyond the example: `fn::choice` (a monad over `fn::sum`), the same operations over `fn::optional` as over `fn::expected`, immovable values and callables, and more — see [examples/](examples/) and the [API reference][docs].
+Beyond the example: `fn::choice` (a monad over `fn::sum`); the same operations over `fn::optional` as over `fn::expected`; tuple protocol in `fn::pack` (`get<I>(p)` or structured bindings); `fn::pack` and `fn::sum` are both structural types (a `constexpr` value which may be used as a template parameter); support for immovable values and callables; and more — see [examples/](examples/) and the [API reference][docs].
 
 ## How
 
 The library comes as two parts in one repository:
 
-* **`pfn`** (`include/pfn`, namespace `pfn`) — a faithful polyfill of standard-library vocabulary types: `std::expected` (as specified for C++26, including `has_error()`) and `std::optional` (as specified for C++26, including monadic functions, `optional<T&>` and range support), plus smaller utilities such as `std::invoke_r` and `std::unreachable`. It adds nothing of its own on top of what's mandated by the [C++ standard](https://eel.is/c++draft/).
+* **`pfn`** (`include/pfn`, namespace `pfn`) — a faithful polyfill of standard-library vocabulary types as specified for C++26: `std::expected`, `std::optional` (including the monadic functions, `optional<T&>` and range support), plus smaller utilities such as `std::invoke_r` and `std::unreachable`. It adds nothing of its own on top of what's mandated by the [C++ standard](https://eel.is/c++draft/) or accepted for a future revision — such as `has_error()`.
 * **`fn`** (`include/fn`, namespace `fn`) — the functional-programming library. It extends the vocabulary types with the facilities useful in writing functional style programs — monadic operations composable with `operator|`, such as `and_then`, `transform`, `or_else`, `inspect`, `recover`, `filter` — and adds new vocabulary types: `sum`, `choice`, `pack`.
 
 Every `fn` type with a `pfn` counterpart is a strict superset of it: switching a valid program using `pfn` types to use `fn` instead changes neither compilation nor program behaviour.
@@ -158,7 +154,7 @@ Every packaging route above except Bazel also delivers the compile options the h
 
 ## Backwards compatibility
 
-The maintainers will aim to maintain compatibility with the proposed changes in the C++ standard library, **rather than with the existing uses** of the code in this repo. In practice, this means that all code in this repo should be considered "under intensive development and unstable" until the standardization of the proposed facilities.
+The maintainers aim for compatibility with the proposed changes to the C++ standard library, **rather than with the existing uses** of the code in this repo. In practice, this means that all code in this repo should be considered "under intensive development and unstable" until the standardization of the proposed facilities.
 
 ## Versioning and ABI
 

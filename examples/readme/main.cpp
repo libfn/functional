@@ -137,10 +137,6 @@ public:
       return Rational(static_cast<int>(n), static_cast<int>(d));
     }
 
-    constexpr auto operator()(fn::pack<int, int> p) const noexcept
-    {
-      return (*this)(get<0>(p), get<1>(p));
-    }
     constexpr auto operator()(std::string_view s) const noexcept
     {
       return parse(s) | fn::and_then(*this);

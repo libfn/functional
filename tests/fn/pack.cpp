@@ -23,6 +23,10 @@ struct A final {
 template <typename V, typename Fn>
 concept pack_check = requires(V v, Fn fn) { FWD(v).invoke(FWD(fn), A{}); };
 
+template <fn::pack<int, double> P> struct pack_nttp final {};
+template <fn::some_pack auto P> struct some_pack_nttp final {};
+template <fn::some_pack auto P> auto read_nttp() { return fn::get<0>(P); }
+
 } // namespace
 
 TEST_CASE("pack", "[pack]")
@@ -117,6 +121,17 @@ TEST_CASE("pack", "[pack]")
     else
       return false;
   }));
+
+  // pack is a structural type: a constexpr pack can be a template parameter, with
+  // template-argument equivalence comparing element-wise
+  constexpr pack<int, double> s1{3, 0.5};
+  constexpr pack<int, double> s2{3, 0.5};
+  constexpr pack<int, double> s3{4, 0.5};
+  static_assert(std::is_same_v<pack_nttp<s1>, pack_nttp<s2>>);
+  static_assert(not std::is_same_v<pack_nttp<s1>, pack_nttp<s3>>);
+  static_assert(std::is_same_v<some_pack_nttp<s1>, some_pack_nttp<s2>>);
+  static_assert(not std::is_same_v<some_pack_nttp<s1>, some_pack_nttp<s3>>);
+  CHECK(read_nttp<s1>() == 3); // the template-parameter object is usable at runtime
 }
 
 TEST_CASE("append value categories", "[pack][append]")
