@@ -152,7 +152,7 @@ public:
   }
   constexpr auto sub(Rational const &other) const noexcept
   {
-    return other.neg() | fn::and_then([x = *this](Rational y) { return x.add(y); });
+    return other.neg() | fn::and_then([*this](Rational y) { return add(y); });
   }
   constexpr auto mul(Rational const &other) const noexcept
   {
@@ -160,7 +160,7 @@ public:
   }
   constexpr auto div(Rational const &other) const noexcept
   {
-    return other.inv() | fn::and_then([x = *this](Rational y) { return x.mul(y); });
+    return other.inv() | fn::and_then([*this](Rational y) { return mul(y); });
   }
 };
 
