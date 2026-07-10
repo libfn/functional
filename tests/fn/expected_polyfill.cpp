@@ -9,11 +9,11 @@
 
 #include <fn/expected.hpp>
 
+using fn::bad_expected_access;
 using fn::expected;
-using pfn::bad_expected_access;
-using pfn::unexpect;
-using pfn::unexpect_t;
-using pfn::unexpected;
+using fn::unexpect;
+using fn::unexpect_t;
+using fn::unexpected;
 
 #define PFN_TEST_NESTED
 #include "pfn/expected.cpp"

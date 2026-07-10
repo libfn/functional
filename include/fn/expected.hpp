@@ -19,6 +19,12 @@
 
 namespace fn {
 
+// Bring the C++23 polyfill primitives into `fn` namespace, for consistent type naming.
+using ::pfn::bad_expected_access;
+using ::pfn::unexpect;
+using ::pfn::unexpect_t;
+using ::pfn::unexpected;
+
 template <typename T>
 concept some_expected = detail::_some_expected<T>;
 
@@ -83,7 +89,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       if (self.has_value())
         return ::fn::detail::_invoke(FWD(fn), _pfn_base::_value(FWD(self)));
       else
-        return type(::pfn::unexpect, _pfn_base::_error(FWD(self)));
+        return type(::fn::unexpect, _pfn_base::_error(FWD(self)));
     } else {
       using new_error_type = sum_for<E, typename type::error_type>;
       using new_type = ::fn::expected<typename type::value_type, new_error_type>;
@@ -95,10 +101,10 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
           else
             return new_type{::std::in_place};
         else
-          return new_type{::pfn::unexpect, ::std::move(t).error()};
+          return new_type{::fn::unexpect, ::std::move(t).error()};
       } else {
         if constexpr (not ::std::is_same_v<E, sum<>>)
-          return new_type(::pfn::unexpect, _pfn_base::_error(FWD(self)));
+          return new_type(::fn::unexpect, _pfn_base::_error(FWD(self)));
         else
           ::pfn::unreachable(); // LCOV_EXCL_LINE
       }
@@ -123,7 +129,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       if (self.has_value())
         return ::fn::detail::_invoke(FWD(fn));
       else
-        return type(::pfn::unexpect, _pfn_base::_error(FWD(self)));
+        return type(::fn::unexpect, _pfn_base::_error(FWD(self)));
     } else {
       using new_error_type = sum_for<E, typename type::error_type>;
       using new_type = ::fn::expected<typename type::value_type, new_error_type>;
@@ -135,10 +141,10 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
           else
             return new_type{::std::in_place};
         else
-          return new_type{::pfn::unexpect, ::std::move(t).error()};
+          return new_type{::fn::unexpect, ::std::move(t).error()};
       } else {
         if constexpr (not ::std::is_same_v<E, sum<>>)
-          return new_type(::pfn::unexpect, _pfn_base::_error(FWD(self)));
+          return new_type(::fn::unexpect, _pfn_base::_error(FWD(self)));
         else
           ::pfn::unreachable(); // LCOV_EXCL_LINE
       }
@@ -197,7 +203,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
         if (t.has_value())
           return new_type{::std::in_place, ::std::move(t).value()};
         else
-          return new_type{::pfn::unexpect, ::std::move(t).error()};
+          return new_type{::fn::unexpect, ::std::move(t).error()};
       }
     }
   }
@@ -224,7 +230,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
           return ::fn::detail::_invoke(FWD(fn), _pfn_base::_value(FWD(self)));
         });
     else
-      return type(::pfn::unexpect, _pfn_base::_error(FWD(self)));
+      return type(::fn::unexpect, _pfn_base::_error(FWD(self)));
   }
 
   // transform, value type is a sum (delegates to sum::transform)
@@ -242,7 +248,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
         return type(::pfn::detail::_expected_from_invoke, ::std::in_place,
                     [&fn, &self]() -> decltype(auto) { return _pfn_base::_value(FWD(self)).transform(FWD(fn)); });
     else
-      return type(::pfn::unexpect, _pfn_base::_error(FWD(self)));
+      return type(::fn::unexpect, _pfn_base::_error(FWD(self)));
   }
 
   // transform, void value type
@@ -263,7 +269,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
         return type(::pfn::detail::_expected_from_invoke, ::std::in_place,
                     [&fn]() -> decltype(auto) { return ::fn::detail::_invoke(FWD(fn)); });
     else
-      return type(::pfn::unexpect, _pfn_base::_error(FWD(self)));
+      return type(::fn::unexpect, _pfn_base::_error(FWD(self)));
   }
 
   // transform_error, error type is not a sum (the value-copy conjunct is spelled via
@@ -285,7 +291,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       else
         return type();
     else
-      return type(::pfn::detail::_expected_from_invoke, ::pfn::unexpect, [&fn, &self]() -> decltype(auto) {
+      return type(::pfn::detail::_expected_from_invoke, ::fn::unexpect, [&fn, &self]() -> decltype(auto) {
         return ::fn::detail::_invoke(FWD(fn), _pfn_base::_error(FWD(self)));
       });
   }
@@ -303,7 +309,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       else
         return type();
     else
-      return type(::pfn::detail::_expected_from_invoke, ::pfn::unexpect,
+      return type(::pfn::detail::_expected_from_invoke, ::fn::unexpect,
                   [&fn, &self]() -> decltype(auto) { return _pfn_base::_error(FWD(self)).transform(FWD(fn)); });
   }
 };
@@ -322,7 +328,7 @@ template <typename T, typename Err> class expected : private detail::_expected_b
 public:
   using value_type = T;
   using error_type = Err;
-  using unexpected_type = ::pfn::unexpected<Err>;
+  using unexpected_type = ::fn::unexpected<Err>;
 
   template <class U> using rebind = expected<U, error_type>;
 
@@ -358,17 +364,17 @@ public:
   }
 
   template <class G>
-  constexpr explicit(not ::std::is_convertible_v<G const &, Err>) expected(::pfn::unexpected<G> const &g) //
+  constexpr explicit(not ::std::is_convertible_v<G const &, Err>) expected(::fn::unexpected<G> const &g) //
       noexcept(::std::is_nothrow_constructible_v<Err, G const &>)
     requires(::std::is_constructible_v<Err, G const &>)
-      : _base(::pfn::unexpect, ::std::forward<G const &>(g.error()))
+      : _base(::fn::unexpect, ::std::forward<G const &>(g.error()))
   {
   }
   template <class G>
-  constexpr explicit(not ::std::is_convertible_v<G, Err>) expected(::pfn::unexpected<G> &&g) //
+  constexpr explicit(not ::std::is_convertible_v<G, Err>) expected(::fn::unexpected<G> &&g) //
       noexcept(::std::is_nothrow_constructible_v<Err, G>)
     requires(::std::is_constructible_v<Err, G>)
-      : _base(::pfn::unexpect, ::std::forward<G>(g.error()))
+      : _base(::fn::unexpect, ::std::forward<G>(g.error()))
   {
   }
 
@@ -387,17 +393,17 @@ public:
   {
   }
   template <class... Args>
-  constexpr explicit expected(::pfn::unexpect_t, Args &&...a)   //
+  constexpr explicit expected(::fn::unexpect_t, Args &&...a)    //
       noexcept(::std::is_nothrow_constructible_v<Err, Args...>) //
     requires ::std::is_constructible_v<Err, Args...>
-      : _base(::pfn::unexpect, FWD(a)...)
+      : _base(::fn::unexpect, FWD(a)...)
   {
   }
   template <class U, class... Args>
-  constexpr explicit expected(::pfn::unexpect_t, ::std::initializer_list<U> il, Args &&...a) //
+  constexpr explicit expected(::fn::unexpect_t, ::std::initializer_list<U> il, Args &&...a) //
       noexcept(::std::is_nothrow_constructible_v<Err, ::std::initializer_list<U> &, Args...>)
     requires ::std::is_constructible_v<Err, ::std::initializer_list<U> &, Args...>
-      : _base(::pfn::unexpect, il, FWD(a)...)
+      : _base(::fn::unexpect, il, FWD(a)...)
   {
   }
 
@@ -438,7 +444,7 @@ public:
     return *this;
   }
   template <class G>
-  constexpr expected &operator=(::pfn::unexpected<G> const &s) //
+  constexpr expected &operator=(::fn::unexpected<G> const &s) //
       noexcept(::std::is_nothrow_assignable_v<Err &, G const &> && ::std::is_nothrow_constructible_v<Err, G const &>)
     requires(::std::is_constructible_v<Err, G const &> && ::std::is_assignable_v<Err &, G const &>
              && (::std::is_nothrow_constructible_v<Err, G const &> || ::std::is_nothrow_move_constructible_v<T>
@@ -448,7 +454,7 @@ public:
     return *this;
   }
   template <class G>
-  constexpr expected &operator=(::pfn::unexpected<G> &&s) //
+  constexpr expected &operator=(::fn::unexpected<G> &&s) //
       noexcept(::std::is_nothrow_assignable_v<Err &, G> && ::std::is_nothrow_constructible_v<Err, G>)
     requires(::std::is_constructible_v<Err, G> && ::std::is_assignable_v<Err &, G>
              && (::std::is_nothrow_constructible_v<Err, G> || ::std::is_nothrow_move_constructible_v<T>
@@ -629,7 +635,7 @@ public:
     if (this->has_value())
       return type{::std::in_place, this->value()};
     else
-      return type{::pfn::unexpect, sum<error_type>(this->error())};
+      return type{::fn::unexpect, sum<error_type>(this->error())};
   }
   auto sum_error() && -> expected<value_type, sum<error_type>>
     requires(not some_sum<error_type>)
@@ -638,7 +644,7 @@ public:
     if (this->has_value())
       return type{::std::in_place, ::std::move(*this).value()};
     else
-      return type{::pfn::unexpect, sum<error_type>(::std::move(*this).error())};
+      return type{::fn::unexpect, sum<error_type>(::std::move(*this).error())};
   }
   auto sum_error() & -> decltype(auto)
     requires(some_sum<error_type>)
@@ -668,7 +674,7 @@ public:
     if (this->has_value())
       return type{::std::in_place, sum<value_type>(this->value())};
     else
-      return type{::pfn::unexpect, this->error()};
+      return type{::fn::unexpect, this->error()};
   }
   auto sum_value() && -> expected<sum<value_type>, error_type>
     requires(not some_sum<value_type>)
@@ -677,7 +683,7 @@ public:
     if (this->has_value())
       return type{::std::in_place, sum<value_type>(::std::move(*this).value())};
     else
-      return type{::pfn::unexpect, ::std::move(*this).error()};
+      return type{::fn::unexpect, ::std::move(*this).error()};
   }
   auto sum_value() & -> decltype(auto)
     requires(some_sum<value_type>)
@@ -720,7 +726,7 @@ template <typename Err> class expected<void, Err> : private detail::_expected_ba
 public:
   using value_type = void;
   using error_type = Err;
-  using unexpected_type = ::pfn::unexpected<Err>;
+  using unexpected_type = ::fn::unexpected<Err>;
 
   template <class U> using rebind = expected<U, error_type>;
 
@@ -741,34 +747,34 @@ public:
   {
   }
   template <class G>
-  constexpr explicit(not ::std::is_convertible_v<G const &, Err>) expected(::pfn::unexpected<G> const &g) //
+  constexpr explicit(not ::std::is_convertible_v<G const &, Err>) expected(::fn::unexpected<G> const &g) //
       noexcept(::std::is_nothrow_constructible_v<Err, G const &>)
     requires(::std::is_constructible_v<Err, G const &>)
-      : _base(::pfn::unexpect, ::std::forward<G const &>(g.error()))
+      : _base(::fn::unexpect, ::std::forward<G const &>(g.error()))
   {
   }
   template <class G>
-  constexpr explicit(not ::std::is_convertible_v<G, Err>) expected(::pfn::unexpected<G> &&g) //
+  constexpr explicit(not ::std::is_convertible_v<G, Err>) expected(::fn::unexpected<G> &&g) //
       noexcept(::std::is_nothrow_constructible_v<Err, G>)
     requires(::std::is_constructible_v<Err, G>)
-      : _base(::pfn::unexpect, ::std::forward<G>(g.error()))
+      : _base(::fn::unexpect, ::std::forward<G>(g.error()))
   {
   }
 
   constexpr explicit expected(::std::in_place_t) noexcept : _base(::std::in_place) {}
 
   template <class... Args>
-  constexpr explicit expected(::pfn::unexpect_t, Args &&...a)   //
+  constexpr explicit expected(::fn::unexpect_t, Args &&...a)    //
       noexcept(::std::is_nothrow_constructible_v<Err, Args...>) //
     requires ::std::is_constructible_v<Err, Args...>
-      : _base(::pfn::unexpect, FWD(a)...)
+      : _base(::fn::unexpect, FWD(a)...)
   {
   }
   template <class U, class... Args>
-  constexpr explicit expected(::pfn::unexpect_t, ::std::initializer_list<U> il, Args &&...a) //
+  constexpr explicit expected(::fn::unexpect_t, ::std::initializer_list<U> il, Args &&...a) //
       noexcept(::std::is_nothrow_constructible_v<Err, ::std::initializer_list<U> &, Args...>)
     requires ::std::is_constructible_v<Err, ::std::initializer_list<U> &, Args...>
-      : _base(::pfn::unexpect, il, FWD(a)...)
+      : _base(::fn::unexpect, il, FWD(a)...)
   {
   }
 
@@ -795,7 +801,7 @@ public:
   constexpr ~expected() = default;
 
   template <class G>
-  constexpr expected &operator=(::pfn::unexpected<G> const &s) //
+  constexpr expected &operator=(::fn::unexpected<G> const &s) //
       noexcept(::std::is_nothrow_assignable_v<Err &, G const &> && ::std::is_nothrow_constructible_v<Err, G const &>)
     requires(::std::is_constructible_v<Err, G const &> && ::std::is_assignable_v<Err &, G const &>)
   {
@@ -803,7 +809,7 @@ public:
     return *this;
   }
   template <class G>
-  constexpr expected &operator=(::pfn::unexpected<G> &&s) //
+  constexpr expected &operator=(::fn::unexpected<G> &&s) //
       noexcept(::std::is_nothrow_assignable_v<Err &, G> && ::std::is_nothrow_constructible_v<Err, G>)
     requires(::std::is_constructible_v<Err, G> && ::std::is_assignable_v<Err &, G>)
   {
@@ -968,7 +974,7 @@ public:
     if (this->has_value())
       return type{::std::in_place};
     else
-      return type{::pfn::unexpect, sum<error_type>(this->error())};
+      return type{::fn::unexpect, sum<error_type>(this->error())};
   }
   auto sum_error() && -> expected<value_type, sum<error_type>>
     requires(not some_sum<error_type>)
@@ -977,7 +983,7 @@ public:
     if (this->has_value())
       return type{::std::in_place};
     else
-      return type{::pfn::unexpect, sum<error_type>(::std::move(*this).error())};
+      return type{::fn::unexpect, sum<error_type>(::std::move(*this).error())};
   }
   auto sum_error() & -> decltype(auto)
     requires(some_sum<error_type>)
@@ -1031,9 +1037,9 @@ template <typename Lh, typename Rh>
   if (lh.has_value() && rh.has_value())
     return type{::std::in_place, FWD(rh).value()};
   else if (not lh.has_value())
-    return type{::pfn::unexpect, FWD(lh).error()};
+    return type{::fn::unexpect, FWD(lh).error()};
   else
-    return type{::pfn::unexpect, FWD(rh).error()};
+    return type{::fn::unexpect, FWD(rh).error()};
 }
 
 template <typename Lh, typename Rh>
@@ -1052,12 +1058,12 @@ template <typename Lh, typename Rh>
     return type{::std::in_place, FWD(rh).value()};
   else if (not lh.has_value()) {
     if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type, sum<>>)
-      return type{::pfn::unexpect, new_error_type{FWD(lh).error()}};
+      return type{::fn::unexpect, new_error_type{FWD(lh).error()}};
     else
       ::pfn::unreachable(); // LCOV_EXCL_LINE
   } else {
     if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Rh>::error_type, sum<>>)
-      return type{::pfn::unexpect, new_error_type{FWD(rh).error()}};
+      return type{::fn::unexpect, new_error_type{FWD(rh).error()}};
     else
       ::pfn::unreachable(); // LCOV_EXCL_LINE
   }
@@ -1075,9 +1081,9 @@ template <typename Lh, typename Rh>
   if (lh.has_value() && rh.has_value())
     return type{::std::in_place, FWD(lh).value()};
   else if (not lh.has_value())
-    return type{::pfn::unexpect, FWD(lh).error()};
+    return type{::fn::unexpect, FWD(lh).error()};
   else
-    return type{::pfn::unexpect, FWD(rh).error()};
+    return type{::fn::unexpect, FWD(rh).error()};
 }
 
 template <typename Lh, typename Rh>
@@ -1096,12 +1102,12 @@ template <typename Lh, typename Rh>
     return type{::std::in_place, FWD(lh).value()};
   else if (not lh.has_value()) {
     if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type, sum<>>)
-      return type{::pfn::unexpect, new_error_type{FWD(lh).error()}};
+      return type{::fn::unexpect, new_error_type{FWD(lh).error()}};
     else
       ::pfn::unreachable(); // LCOV_EXCL_LINE
   } else {
     if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Rh>::error_type, sum<>>)
-      return type{::pfn::unexpect, new_error_type{FWD(rh).error()}};
+      return type{::fn::unexpect, new_error_type{FWD(rh).error()}};
     else
       ::pfn::unreachable(); // LCOV_EXCL_LINE
   }
@@ -1118,9 +1124,9 @@ template <typename Lh, typename Rh>
   if (lh.has_value() && rh.has_value())
     return type{::std::in_place};
   else if (not lh.has_value())
-    return type{::pfn::unexpect, FWD(lh).error()};
+    return type{::fn::unexpect, FWD(lh).error()};
   else
-    return type{::pfn::unexpect, FWD(rh).error()};
+    return type{::fn::unexpect, FWD(rh).error()};
 }
 
 template <typename Lh, typename Rh>
@@ -1138,12 +1144,12 @@ template <typename Lh, typename Rh>
     return type{::std::in_place};
   else if (not lh.has_value()) {
     if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type, sum<>>)
-      return type{::pfn::unexpect, new_error_type{FWD(lh).error()}};
+      return type{::fn::unexpect, new_error_type{FWD(lh).error()}};
     else
       ::pfn::unreachable(); // LCOV_EXCL_LINE
   } else {
     if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Rh>::error_type, sum<>>)
-      return type{::pfn::unexpect, new_error_type{FWD(rh).error()}};
+      return type{::fn::unexpect, new_error_type{FWD(rh).error()}};
     else
       ::pfn::unreachable(); // LCOV_EXCL_LINE
   }
@@ -1164,7 +1170,7 @@ template <typename Lh, typename Rh>
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
 {
   using error_type = ::std::remove_cvref_t<Lh>::error_type;
-  constexpr auto efn = [](auto &&v) { return ::pfn::unexpected<error_type>(FWD(v).error()); };
+  constexpr auto efn = [](auto &&v) { return ::fn::unexpected<error_type>(FWD(v).error()); };
   return ::fn::detail::_join<detail::template _expected_type<error_type>::template type>(FWD(lh), FWD(rh), efn);
 }
 
@@ -1180,9 +1186,9 @@ template <typename Lh, typename Rh>
       = sum_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>;
   // Explicit return type: for a sum<> (never-erroring) operand the else branch is the only one
   // instantiated, and without this it would deduce void — poisoning _join's return-type deduction.
-  constexpr auto efn = [](auto &&v) -> ::pfn::unexpected<new_error_type> {
+  constexpr auto efn = [](auto &&v) -> ::fn::unexpected<new_error_type> {
     if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<decltype(v)>::error_type, sum<>>) {
-      return ::pfn::unexpected<new_error_type>(FWD(v).error());
+      return ::fn::unexpected<new_error_type>(FWD(v).error());
     } else {
       ::pfn::unreachable(); // LCOV_EXCL_LINE
     }

@@ -2,6 +2,10 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `expected`'s associated types joined namespace `fn` — 10 July 2026
+
+- **`fn` re-exports `unexpected`, `unexpect`, `unexpect_t` and `bad_expected_access` from `pfn`.** Nothing is added — these are using-declarations, so both spellings name the same types — but the `<expected>` vocabulary is complete under one namespace, and constructing the error state in otherwise pure-`fn` code no longer reaches into `pfn` (previously every example returned `pfn::unexpected`). No `optional` counterparts: `optional`'s associated types are already in C++20's `std`, so no polyfills and nothing to bring from `pfn` to `fn` namespace.
+
 ## `fn::pack` gained the tuple protocol — 9 July 2026
 
 - **`fn::pack` now models the tuple protocol** — `std::tuple_size`, `std::tuple_element`, and an ADL-found `get<I>`, so a pack works with structured bindings and the generic `using std::get; get<I>(p)` idiom.
