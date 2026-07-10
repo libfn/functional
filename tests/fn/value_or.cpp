@@ -37,7 +37,7 @@ TEST_CASE("value_or", "[value_or][expected][expected_value]")
     }
     WHEN("operand is error")
     {
-      operand_t a{::pfn::unexpect, Error{"Not good"}};
+      operand_t a{::fn::unexpect, Error{"Not good"}};
       using T = decltype(a | value_or(3));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a | value_or(3)).value() == 3);
@@ -54,9 +54,9 @@ TEST_CASE("value_or", "[value_or][expected][expected_value]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{::pfn::unexpect, Error{"Not good"}} | value_or(3));
+      using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | value_or(3));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} | value_or(3)).value() == 3);
+      REQUIRE((operand_t{::fn::unexpect, Error{"Not good"}} | value_or(3)).value() == 3);
     }
   }
 
@@ -72,13 +72,13 @@ TEST_CASE("value_or", "[value_or][expected][expected_value]")
       }
       WHEN("operand is error")
       {
-        operand_t a{::pfn::unexpect, Error{"Not good"}};
+        operand_t a{::fn::unexpect, Error{"Not good"}};
         REQUIRE((std::move(a) | value_or(3, 5)).value().v == 3 * 5);
       }
     }
     WHEN("use move ctor")
     {
-      operand_t a{::pfn::unexpect, Error{"Not good"}};
+      operand_t a{::fn::unexpect, Error{"Not good"}};
       REQUIRE((std::move(a) | value_or(helper_move_only{3, 7})).value().v == 21 * from_rval * from_rval);
     }
   }
@@ -139,7 +139,7 @@ TEST_CASE("constexpr value_or expected", "[value_or][constexpr][expected]")
 
   constexpr auto r1 = T{2} | fn::value_or(3);
   static_assert(r1.value() == 2);
-  constexpr auto r2 = T{::pfn::unexpect, Error::SomethingElse} | fn::value_or(3);
+  constexpr auto r2 = T{::fn::unexpect, Error::SomethingElse} | fn::value_or(3);
   static_assert(r2.value() == 3);
 
   SUCCEED();

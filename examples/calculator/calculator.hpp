@@ -81,7 +81,7 @@ inline auto parse(std::string const &token) -> fn::expected<Number, ParseError>
     return Number{i};
   if (double const d = std::strtod(token.data(), &end); end == last && end != token.data() && std::isfinite(d))
     return Number{d}; // an overflow returns HUGE_VAL, which is infinity; an underflow is just a tiny number
-  return pfn::unexpected(ParseError::UnknownToken);
+  return fn::unexpected(ParseError::UnknownToken);
 }
 
 inline auto lookup(std::string const &token) -> fn::expected<Operation, ParseError>
@@ -110,7 +110,7 @@ inline auto lookup(std::string const &token) -> fn::expected<Operation, ParseErr
 inline auto pop(Stack &s) -> fn::expected<Number, StackError>
 {
   if (s.empty())
-    return pfn::unexpected(StackError::NotEnoughOperands);
+    return fn::unexpected(StackError::NotEnoughOperands);
   Number n = s.back();
   s.pop_back();
   return n;
@@ -150,57 +150,57 @@ constexpr auto overflows(long x, long y, Mul) -> bool
 constexpr inline auto execute = fn::overload{
     [](long x, long y, Add op) -> Results {
       if (overflows(x, y, op))
-        return pfn::unexpected(MathError::Overflow);
+        return fn::unexpected(MathError::Overflow);
       return {fn::pack{x + y}};
     },
     [](auto x, auto y, Add) -> Results {
       if (not std::isfinite(x + y))
-        return pfn::unexpected(MathError::Overflow);
+        return fn::unexpected(MathError::Overflow);
       return {fn::pack{x + y}};
     },
     [](long x, long y, Sub op) -> Results {
       if (overflows(x, y, op))
-        return pfn::unexpected(MathError::Overflow);
+        return fn::unexpected(MathError::Overflow);
       return {fn::pack{x - y}};
     },
     [](auto x, auto y, Sub) -> Results {
       if (not std::isfinite(x - y))
-        return pfn::unexpected(MathError::Overflow);
+        return fn::unexpected(MathError::Overflow);
       return {fn::pack{x - y}};
     },
     [](long x, long y, Mul op) -> Results {
       if (overflows(x, y, op))
-        return pfn::unexpected(MathError::Overflow);
+        return fn::unexpected(MathError::Overflow);
       return {fn::pack{x * y}};
     },
     [](auto x, auto y, Mul) -> Results {
       if (not std::isfinite(x * y))
-        return pfn::unexpected(MathError::Overflow);
+        return fn::unexpected(MathError::Overflow);
       return {fn::pack{x * y}};
     },
     [](long x, long y, Div) -> Results {
       if (y == 0)
-        return pfn::unexpected(MathError::DivisionByZero);
+        return fn::unexpected(MathError::DivisionByZero);
       if (x == minimum && y == -1)
-        return pfn::unexpected(MathError::Overflow);
+        return fn::unexpected(MathError::Overflow);
       return {fn::pack{x / y}}; // exact: `7 2 /` is 3
     },
     [](auto x, auto y, Div) -> Results {
       if (y == 0)
-        return pfn::unexpected(MathError::DivisionByZero);
+        return fn::unexpected(MathError::DivisionByZero);
       if (not std::isfinite(x / y))
-        return pfn::unexpected(MathError::Overflow);
+        return fn::unexpected(MathError::Overflow);
       return {fn::pack{x / y}}; // a double anywhere promotes: `7 2.0 /` is 3.5
     },
     [](long x, long y, Mod) -> Results {
       if (y == 0)
-        return pfn::unexpected(MathError::DivisionByZero);
+        return fn::unexpected(MathError::DivisionByZero);
       if (x == minimum && y == -1)
-        return pfn::unexpected(MathError::Overflow);
+        return fn::unexpected(MathError::Overflow);
       return {fn::pack{x % y}};
     },
     // dispatch is also how an operation rejects operands it is not defined for
-    [](auto, auto, Mod) -> Results { return pfn::unexpected(MathError::NotIntegral); },
+    [](auto, auto, Mod) -> Results { return fn::unexpected(MathError::NotIntegral); },
     // named arguments deduce reference elements in a pack; spell the value types instead
     [](auto x, auto y, Swap) -> Results { return {fn::pack<decltype(y), decltype(x)>{y, x}}; },
     [](auto x, Dup) -> Results { return {fn::pack<decltype(x), decltype(x)>{x, x}}; },

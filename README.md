@@ -46,12 +46,12 @@ public:
   static constexpr auto make(long long n, long long d)
       -> fn::expected<Rational, fn::sum_for<DivByZero, Overflow>>
   {
-    if (d == 0) return pfn::unexpected{fn::sum{divByZero}};
-    if (n == LLONG_MIN || d == LLONG_MIN) return pfn::unexpected{fn::sum{overflow}};
+    if (d == 0) return fn::unexpected{fn::sum{divByZero}};
+    if (n == LLONG_MIN || d == LLONG_MIN) return fn::unexpected{fn::sum{overflow}};
     auto const g = (d < 0 ? -1 : 1) * std::gcd(n, d);
     n /= g;
     d /= g;
-    if (n < INT_MIN || n > INT_MAX || d > INT_MAX) return pfn::unexpected{fn::sum{overflow}};
+    if (n < INT_MIN || n > INT_MAX || d > INT_MAX) return fn::unexpected{fn::sum{overflow}};
     return Rational(int(n), int(d));
   }
 };
@@ -64,12 +64,12 @@ auto parse(std::string_view s) -> fn::expected<fn::pack<int, int>, fn::sum<NotAN
   auto const head = s.substr(0, bar);
   auto const [p, e] = std::from_chars(head.data(), head.data() + head.size(), n);
   if (e != std::errc{} || p != head.data() + head.size())
-    return pfn::unexpected{fn::sum{notANumber}};
+    return fn::unexpected{fn::sum{notANumber}};
   if (bar != std::string_view::npos) {
     auto const tail = s.substr(bar + 1);
     auto const [q, f] = std::from_chars(tail.data(), tail.data() + tail.size(), d);
     if (f != std::errc{} || q != tail.data() + tail.size())
-      return pfn::unexpected{fn::sum{notANumber}};
+      return fn::unexpected{fn::sum{notANumber}};
   }
   return fn::pack<int, int>{n, d};
 }
