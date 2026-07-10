@@ -43,16 +43,16 @@ public:
     constexpr auto operator()(long long n, long long d) const noexcept
         -> fn::expected<Rational, fn::sum_for<DivByZero, Overflow>>
     {
-      if (d == 0) return pfn::unexpected{fn::sum{DivByZero{}}};
+      if (d == 0) return fn::unexpected{fn::sum{DivByZero{}}};
       if (n == std::numeric_limits<long long>::min() || d == std::numeric_limits<long long>::min())
-        return pfn::unexpected{fn::sum{Overflow{}}};
+        return fn::unexpected{fn::sum{Overflow{}}};
 
       auto const g = (d < 0 ? -1 : 1) * std::gcd(n, d);
       n /= g;
       d /= g;
       if (n < std::numeric_limits<int>::min() || n > std::numeric_limits<int>::max()
           || d > std::numeric_limits<int>::max())
-        return pfn::unexpected{fn::sum{Overflow{}}};
+        return fn::unexpected{fn::sum{Overflow{}}};
 
       return Rational(static_cast<int>(n), static_cast<int>(d));
     }

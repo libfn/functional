@@ -339,8 +339,7 @@ TEST_CASE("and_then", "[and_then][expected][expected_value][pack]")
 
   constexpr auto fnValue = [](int i) -> operand_t { return {i + 1}; };
   constexpr auto wrong = [](int) -> operand_t { throw 0; };
-  constexpr auto fnFail
-      = [](int i) -> operand_t { return ::pfn::unexpected<Error>(Error{"Got " + std::to_string(i)}); };
+  constexpr auto fnFail = [](int i) -> operand_t { return ::fn::unexpected<Error>(Error{"Got " + std::to_string(i)}); };
   constexpr auto fnXabs = [](int i) -> fn::expected<Xint, Error> { return {{std::abs(8 - i)}}; };
 
   static_assert(is::invocable_with_any(fnValue));
@@ -388,7 +387,7 @@ TEST_CASE("and_then", "[and_then][expected][expected_value][pack]")
 
     WHEN("operand is error")
     {
-      operand_t a{::pfn::unexpect, Error{"Not good"}};
+      operand_t a{::fn::unexpect, Error{"Not good"}};
       using T = decltype(a | and_then(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a //
@@ -412,7 +411,7 @@ TEST_CASE("and_then", "[and_then][expected][expected_value][pack]")
         WHEN("fail")
         {
           constexpr auto fnFail = [](int i, double d) constexpr -> fn::expected<int, Error> {
-            return ::pfn::unexpected<Error>(Error{"Got " + std::to_string(i) + " and " + std::to_string(d)});
+            return ::fn::unexpected<Error>(Error{"Got " + std::to_string(i) + " and " + std::to_string(d)});
           };
           using T = decltype(a | and_then(fnFail));
           static_assert(std::is_same_v<T, fn::expected<int, Error>>);
@@ -423,7 +422,7 @@ TEST_CASE("and_then", "[and_then][expected][expected_value][pack]")
       WHEN("operand is error")
       {
         constexpr auto wrong = [](auto...) -> operand_t { throw 0; };
-        REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} | and_then(wrong)).error().what == "Not good");
+        REQUIRE((operand_t{::fn::unexpect, Error{"Not good"}} | and_then(wrong)).error().what == "Not good");
       }
     }
   }
@@ -452,9 +451,9 @@ TEST_CASE("and_then", "[and_then][expected][expected_value][pack]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{::pfn::unexpect, Error{"Not good"}} | and_then(wrong));
+      using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | and_then(wrong));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} //
+      REQUIRE((operand_t{::fn::unexpect, Error{"Not good"}} //
                | and_then(wrong))
                   .error()
                   .what
@@ -479,7 +478,7 @@ TEST_CASE("and_then", "[and_then][expected][expected_void]")
   };
 
   constexpr auto wrong = []() -> operand_t { throw 0; };
-  auto fnFail = [&count]() -> operand_t { return ::pfn::unexpected<Error>(Error{"Got " + std::to_string(++count)}); };
+  auto fnFail = [&count]() -> operand_t { return ::fn::unexpected<Error>(Error{"Got " + std::to_string(++count)}); };
   auto fnXabs = [&count]() -> fn::expected<Xint, Error> { return {{++count}}; };
 
   static_assert(is::invocable_with_any(fnValue));
@@ -515,7 +514,7 @@ TEST_CASE("and_then", "[and_then][expected][expected_void]")
     }
     WHEN("operand is error")
     {
-      operand_t a{::pfn::unexpect, Error{"Not good"}};
+      operand_t a{::fn::unexpect, Error{"Not good"}};
       using T = decltype(a | and_then(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a //
@@ -551,9 +550,9 @@ TEST_CASE("and_then", "[and_then][expected][expected_void]")
     }
     WHEN("operand is error")
     {
-      using T = decltype(operand_t{::pfn::unexpect, Error{"Not good"}} | and_then(wrong));
+      using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | and_then(wrong));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{::pfn::unexpect, Error{"Not good"}} //
+      REQUIRE((operand_t{::fn::unexpect, Error{"Not good"}} //
                | and_then(wrong))
                   .error()
                   .what
@@ -766,7 +765,7 @@ TEST_CASE("constexpr and_then expected", "[and_then][constexpr][expected]")
     constexpr auto fn = [](int i) constexpr noexcept -> T {
       if (i < 3)
         return {i + 1};
-      return ::pfn::unexpected<Error>{Error::ThresholdExceeded};
+      return ::fn::unexpected<Error>{Error::ThresholdExceeded};
     };
     constexpr auto r1 = T{0} | fn::and_then(fn);
     static_assert(r1.value() == 1);
@@ -782,7 +781,7 @@ TEST_CASE("constexpr and_then expected", "[and_then][constexpr][expected]")
         return {true};
       if (i == 0)
         return {false};
-      return ::pfn::unexpected<Error>{Error::SomethingElse};
+      return ::fn::unexpected<Error>{Error::SomethingElse};
     };
     constexpr auto r1 = T{1} | fn::and_then(fn);
     static_assert(std::is_same_v<decltype(r1), fn::expected<bool, Error> const>);
@@ -806,7 +805,7 @@ TEST_CASE("constexpr and_then expected with sum", "[and_then][constexpr][expecte
     constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> T {
                                        if (i < 3)
                                          return {i + 1};
-                                       return ::pfn::unexpected<Error>{Error::ThresholdExceeded};
+                                       return ::fn::unexpected<Error>{Error::ThresholdExceeded};
                                      },
                                      [](Xint v) constexpr noexcept -> T { return v; }};
     constexpr auto r1 = T{0} | fn::and_then(fn);
@@ -824,9 +823,9 @@ TEST_CASE("constexpr and_then expected with sum", "[and_then][constexpr][expecte
                            return {true};
                          if (i == 0)
                            return {false};
-                         return ::pfn::unexpected<Error>{Error::SomethingElse};
+                         return ::fn::unexpected<Error>{Error::SomethingElse};
                        },
-                       [](Xint) constexpr noexcept -> T1 { return ::pfn::unexpected<Error>{Error::UnexpectedType}; }};
+                       [](Xint) constexpr noexcept -> T1 { return ::fn::unexpected<Error>{Error::UnexpectedType}; }};
     constexpr auto r1 = T{1} | fn::and_then(fn);
     static_assert(std::is_same_v<decltype(r1), fn::expected<bool, Error> const>);
     static_assert(r1.value() == true);
@@ -849,7 +848,7 @@ TEST_CASE("constexpr and_then graded monad", "[and_then][constexpr][expected][gr
     constexpr auto fn1 = [](int i) -> fn::expected<int, int> {
       if (i < 2)
         return {i + 1};
-      return ::pfn::unexpected<int>{i};
+      return ::fn::unexpected<int>{i};
     };
 
     constexpr auto r1 = T{0} | fn::and_then(fn1);
@@ -867,7 +866,7 @@ TEST_CASE("constexpr and_then graded monad", "[and_then][constexpr][expected][gr
   {
     constexpr auto fn2 = [](int i) -> fn::expected<bool, Error> {
       if (i < 0 || i > 1)
-        return ::pfn::unexpected<Error>{Error::InvalidValue};
+        return ::fn::unexpected<Error>{Error::InvalidValue};
       return {i == 1};
     };
 

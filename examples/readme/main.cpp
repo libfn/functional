@@ -92,12 +92,12 @@ constexpr auto parse(std::string_view s) noexcept
   auto const head = s.substr(0, bar);
   auto const [p, e] = FROM_CHARS(head.data(), head.data() + head.size(), n);
   if (e != std::errc{} || p != head.data() + head.size())
-    return pfn::unexpected{fn::sum{NotANumber{}}};
+    return fn::unexpected{fn::sum{NotANumber{}}};
   if (bar != std::string_view::npos) {
     auto const tail = s.substr(bar + 1);
     auto const [q, f] = FROM_CHARS(tail.data(), tail.data() + tail.size(), d);
     if (f != std::errc{} || q != tail.data() + tail.size())
-      return pfn::unexpected{fn::sum{NotANumber{}}};
+      return fn::unexpected{fn::sum{NotANumber{}}};
   }
   return fn::pack<int, int>{n, d};
 }
@@ -133,16 +133,16 @@ public:
     constexpr auto operator()(long long n, long long d) const noexcept
         -> fn::expected<Rational, fn::sum_for<DivByZero, Overflow>>
     {
-      if (d == 0) return pfn::unexpected{fn::sum{DivByZero{}}};
+      if (d == 0) return fn::unexpected{fn::sum{DivByZero{}}};
       if (n == std::numeric_limits<long long>::min() || d == std::numeric_limits<long long>::min())
-        return pfn::unexpected{fn::sum{Overflow{}}};
+        return fn::unexpected{fn::sum{Overflow{}}};
 
       auto const g = (d < 0 ? -1 : 1) * std::gcd(n, d);
       n /= g;
       d /= g;
       if (n < std::numeric_limits<int>::min() || n > std::numeric_limits<int>::max()
           || d > std::numeric_limits<int>::max())
-        return pfn::unexpected{fn::sum{Overflow{}}};
+        return fn::unexpected{fn::sum{Overflow{}}};
 
       return Rational(static_cast<int>(n), static_cast<int>(d));
     }
