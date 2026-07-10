@@ -20,21 +20,16 @@ constexpr std::from_chars_result fallback_parse_int(char const *first, char cons
                                                     int base = 10) noexcept
 {
   // std::from_chars constraints on base
-  if (base < 2 || base > 36) {
-    return {first, std::errc::invalid_argument};
-  }
+  if (base < 2 || base > 36) return {first, std::errc::invalid_argument};
 
   char const *curr = first;
-  if (curr == last) {
-    return {first, std::errc::invalid_argument};
-  }
+  if (curr == last) return {first, std::errc::invalid_argument};
 
   bool const negative = (*curr == '-');
   if (negative) {
     ++curr;
-    if (curr == last) { // Lone minus sign
+    if (curr == last) // Lone minus sign
       return {first, std::errc::invalid_argument};
-    }
   }
 
   // A valid character must follow the optional minus sign
@@ -46,18 +41,15 @@ constexpr std::from_chars_result fallback_parse_int(char const *first, char cons
     return -1;
   };
 
-  if (get_digit(*curr) == -1 || get_digit(*curr) >= base) {
+  if (get_digit(*curr) == -1 || get_digit(*curr) >= base)
     return {first, std::errc::invalid_argument};
-  }
 
   long long val = 0;
   bool overflowed = false;
 
   while (curr != last) {
     int const digit = get_digit(*curr);
-    if (digit == -1 || digit >= base) {
-      break; // Non-digit character ends parsing gracefully
-    }
+    if (digit == -1 || digit >= base) break; // Non-digit character ends parsing gracefully
 
     if (!overflowed) {
       val = val * base + digit;
@@ -71,11 +63,8 @@ constexpr std::from_chars_result fallback_parse_int(char const *first, char cons
     ++curr;
   }
 
-  if (overflowed) {
-    return {curr, std::errc::result_out_of_range};
-  }
+  if (overflowed) return {curr, std::errc::result_out_of_range};
 
-  // Write out value on success
   value = negative ? static_cast<int>(-val) : static_cast<int>(val);
   return {curr, std::errc{}};
 }
@@ -141,8 +130,9 @@ public:
       n /= g;
       d /= g;
       if (n < std::numeric_limits<int>::min() || n > std::numeric_limits<int>::max()
-          || d > std::numeric_limits<int>::max())
+          || d > std::numeric_limits<int>::max()) {
         return fn::unexpected{fn::sum{Overflow{}}};
+      }
 
       return Rational(static_cast<int>(n), static_cast<int>(d));
     }
@@ -184,9 +174,8 @@ constexpr auto evaluate(std::string_view a, fn::sum_for<Add, Sub, Mul, Div> op,
                         std::string_view b) noexcept
 {
   using Op = fn::expected<decltype(op), fn::sum<>>;
-  return (Rational::make(a) & Op{op} & Rational::make(b))
-         | fn::and_then(fn::overload{//
-                                     [](Rational x, Add, Rational y) { return x.add(y); },
+  return (Rational::make(a) & Op{op} & Rational::make(b)) //
+         | fn::and_then(fn::overload{[](Rational x, Add, Rational y) { return x.add(y); },
                                      [](Rational x, Sub, Rational y) { return x.sub(y); },
                                      [](Rational x, Mul, Rational y) { return x.mul(y); },
                                      [](Rational x, Div, Rational y) { return x.div(y); }});

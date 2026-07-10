@@ -51,8 +51,9 @@ public:
       n /= g;
       d /= g;
       if (n < std::numeric_limits<int>::min() || n > std::numeric_limits<int>::max()
-          || d > std::numeric_limits<int>::max())
+          || d > std::numeric_limits<int>::max()) {
         return fn::unexpected{fn::sum{Overflow{}}};
+      }
 
       return Rational(static_cast<int>(n), static_cast<int>(d));
     }
@@ -94,9 +95,8 @@ constexpr auto evaluate(std::string_view a, fn::sum_for<Add, Sub, Mul, Div> op,
                         std::string_view b) noexcept
 {
   using Op = fn::expected<decltype(op), fn::sum<>>;
-  return (Rational::make(a) & Op{op} & Rational::make(b))
-         | fn::and_then(fn::overload{//
-                                     [](Rational x, Add, Rational y) { return x.add(y); },
+  return (Rational::make(a) & Op{op} & Rational::make(b)) //
+         | fn::and_then(fn::overload{[](Rational x, Add, Rational y) { return x.add(y); },
                                      [](Rational x, Sub, Rational y) { return x.sub(y); },
                                      [](Rational x, Mul, Rational y) { return x.mul(y); },
                                      [](Rational x, Div, Rational y) { return x.div(y); }});
