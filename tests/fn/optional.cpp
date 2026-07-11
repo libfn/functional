@@ -108,12 +108,20 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     static_assert(noexcept(std::declval<S const &&>().sum_value()));
     static_assert(noexcept(fn::sum_value(std::declval<S &>())));
 
-    // the lifting overloads wrap the value in a sum, so they weigh that construction: sum's own
-    // value constructor carries no noexcept specifier yet (#280), so they are conservatively false
-    // even for int, and sharpen when it does
-    static_assert(not noexcept(std::declval<T &>().sum_value()));
-    static_assert(not noexcept(std::declval<T &&>().sum_value()));
-    static_assert(not noexcept(fn::sum_value(std::declval<T &>())));
+    // the lifting overloads wrap the value in a sum, so they weigh that construction
+    static_assert(noexcept(std::declval<T &>().sum_value()));
+    static_assert(noexcept(std::declval<T &&>().sum_value()));
+    static_assert(noexcept(fn::sum_value(std::declval<T &>())));
+
+    // ... and report it when the value's copy can throw
+    struct throwing_copy {
+      throwing_copy() = default;
+      throwing_copy(throwing_copy const &) noexcept(false);
+      throwing_copy(throwing_copy &&) noexcept;
+    };
+    using W = fn::optional<throwing_copy>;
+    static_assert(not noexcept(std::declval<W const &>().sum_value())); // copies
+    static_assert(noexcept(std::declval<W &&>().sum_value()));          // moves
     SUCCEED();
   }
 

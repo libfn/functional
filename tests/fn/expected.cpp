@@ -9,6 +9,7 @@
 #include <catch2/catch_all.hpp>
 
 #include <memory>
+#include <string>
 #include <utility>
 #include <variant>
 
@@ -264,13 +265,15 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     static_assert(noexcept(fn::sum_error(std::declval<S &>())));
     static_assert(noexcept(fn::sum_value(std::declval<V &>())));
 
-    // a lifting overload wraps one side in a sum and relocates the other, so it weighs both. sum's
-    // own value constructor carries no noexcept specifier yet (#280), so these are conservatively
-    // false, and sharpen when it does
-    static_assert(not noexcept(std::declval<fn::expected<int, Error> &>().sum_error()));
-    static_assert(not noexcept(std::declval<fn::expected<int, Error> &&>().sum_value()));
-    static_assert(not noexcept(std::declval<fn::expected<void, Error> &>().sum_error()));
-    static_assert(not noexcept(fn::sum_error(std::declval<fn::expected<int, Error> &>())));
+    // a lifting overload wraps one side in a sum and relocates the other, so it weighs both
+    static_assert(noexcept(std::declval<fn::expected<int, Error> &>().sum_error()));
+    static_assert(noexcept(std::declval<fn::expected<int, Error> &&>().sum_value()));
+    static_assert(noexcept(std::declval<fn::expected<void, Error> &>().sum_error()));
+    static_assert(noexcept(fn::sum_error(std::declval<fn::expected<int, Error> &>())));
+
+    // ... including the side it does not touch: here the value's copy is what can throw
+    static_assert(not noexcept(std::declval<fn::expected<std::string, Error> const &>().sum_error()));
+    static_assert(noexcept(std::declval<fn::expected<std::string, Error> &&>().sum_error()));
     SUCCEED();
   }
 

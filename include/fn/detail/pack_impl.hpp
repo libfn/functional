@@ -69,8 +69,9 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
 
   template <typename Self, typename Fn, typename... Args>
     requires(not(... || (_some_pack<Args> || _some_sum<Args>)))
-  static constexpr auto _swap_invoke(Self &&self, Fn &&fn, Args &&...args) noexcept
-      -> ::std::invoke_result<Fn &&, Args &&..., apply_const_lvalue_t<Self, Ts &&>...>::type
+  static constexpr auto _swap_invoke(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(::std::is_nothrow_invocable_v<Fn &&, Args &&..., apply_const_lvalue_t<Self, Ts &&>...>)
+          -> ::std::invoke_result<Fn &&, Args &&..., apply_const_lvalue_t<Self, Ts &&>...>::type
     requires(::std::is_invocable<Fn &&, Args && ..., apply_const_lvalue_t<Self, Ts &&>...>::value)
   {
     return ::std::invoke(FWD(fn), FWD(args)...,
@@ -79,8 +80,9 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
 
   template <typename Self, typename Fn, typename... Args>
     requires(not(... || (_some_pack<Args> || _some_sum<Args>)))
-  static constexpr auto _invoke(Self &&self, Fn &&fn, Args &&...args) noexcept
-      -> _invoke_result<Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args &&...>::type
+  static constexpr auto _invoke(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(_is_nothrow_invocable<Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args &&...>::value)
+          -> _invoke_result<Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args &&...>::type
     requires(_is_invocable<Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args && ...>::value)
   {
     return ::fn::detail::_invoke(
@@ -97,9 +99,16 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
 
   template <typename T> using append_type = _pack_append<T, Ts...>::type;
 
+  // Every existing element is relocated into the new pack, so appending weighs that as well as the
+  // construction of the element being appended.
+  template <typename Self>
+  static constexpr bool _nothrow_relocatable
+      = (... && ::std::is_nothrow_constructible_v<Ts, apply_const_lvalue_t<Self, Ts &&>>);
+
   template <typename T, typename Self>
-  static constexpr auto _append(Self &&self, auto &&...args) noexcept //
-      -> pack_impl<::std::index_sequence<Is..., size>, Ts..., T>
+  static constexpr auto _append(Self &&self, auto &&...args) //
+      noexcept(_nothrow_relocatable<Self> && _nothrow_initializable<T, decltype(args)...>)
+          -> pack_impl<::std::index_sequence<Is..., size>, Ts..., T>
     requires(not _some_sum<T>) && (not _some_pack<T>) && _initializable<T, decltype(args)...>
   {
     return {static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)...,
@@ -107,7 +116,9 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
   }
 
   template <typename T, typename Self>
-  static constexpr auto _append(Self &&self, auto &&other) noexcept -> //
+  static constexpr auto _append(Self &&self, auto &&other) //
+      noexcept(_nothrow_relocatable<Self>
+               && ::std::remove_cvref_t<T>::_impl::template _nothrow_relocatable<decltype(other)>) -> //
       typename _pack_append<::std::remove_cvref_t<T>, Ts...>::impl
     requires _some_pack<T> && (::std::is_same_v<::std::remove_cvref_t<decltype(other)>, ::std::remove_cvref_t<T>>)
   {
