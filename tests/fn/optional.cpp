@@ -114,6 +114,22 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     constexpr auto fn8 = []() -> fn::optional<fn::sum_for<Xint, int, long>> { throw 0; };
     static_assert(std::is_same_v<decltype(s.or_else(fn8)), fn::optional<fn::sum_for<Xint, int, long>>>);
 
+    // noexcept (extension): true only when the callback is nothrow-invocable, returns exactly
+    // optional<sum<int>> (no widening), and *this is nothrow-constructible from itself.
+    constexpr auto nothrow_same = []() noexcept -> fn::optional<fn::sum<int>> { return {std::nullopt}; };
+    static_assert(noexcept(s.or_else(nothrow_same)));
+    static_assert(noexcept(std::move(s).or_else(nothrow_same)));
+    static_assert(not noexcept(s.or_else(fn3))); // fn3 throws
+    constexpr auto nothrow_widen = []() noexcept -> fn::optional<Xint> { return {std::nullopt}; };
+    static_assert(not noexcept(s.or_else(nothrow_widen))); // nothrow but widens to sum_for<Xint, int>
+
+    // constraints (extension): a non-invocable argument drops or_else from the overload set via
+    // SFINAE (the return-type-is-optional requirement is instead a Mandates static_assert inside).
+    constexpr auto can_or_else
+        = [](auto &&f) { return requires { std::declval<fn::optional<fn::sum<int>>>().or_else(f); }; };
+    static_assert(can_or_else(nothrow_same));
+    static_assert(not can_or_else(42));
+
     WHEN("error to value")
     {
       constexpr auto fn = []() -> fn::optional<Xint> { return {Xint{12}}; };
