@@ -111,7 +111,7 @@ struct choice<Ts...> : sum<Ts...> {
    */
   template <typename T>
   constexpr explicit choice(::std::in_place_type_t<T> d, auto &&...args) noexcept
-    requires has_type<T>
+    requires has_type<T> && detail::_brace_constructible<T, decltype(args)...>
       : _impl(d, FWD(args)...)
   {
   }
