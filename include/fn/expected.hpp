@@ -284,6 +284,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
                        T, ::fn::apply_const_lvalue_t<Self, typename _pfn_base::_value_t &&>>)) // extension
     requires(not some_sum<E>)
             && ::fn::detail::_is_invocable_if<not some_sum<E>, Fn, decltype(_pfn_base::_error(FWD(self)))>::value
+            && (::std::is_void_v<T> || ::std::is_constructible_v<T, decltype(_pfn_base::_value(FWD(self)))>)
   {
     using new_error_type = typename ::fn::detail::_invoke_result<Fn, decltype(_pfn_base::_error(FWD(self)))>::type;
     using type = ::fn::expected<T, new_error_type>;
@@ -303,6 +304,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   template <typename Self, typename Fn>
   static constexpr auto _transform_error(Self &&self, Fn &&fn)
     requires some_sum<E> && ::fn::detail::_typelist_invocable<Fn, decltype(_pfn_base::_error(FWD(self)))>
+             && (::std::is_void_v<T> || ::std::is_constructible_v<T, decltype(_pfn_base::_value(FWD(self)))>)
   {
     using new_error_type = decltype(_pfn_base::_error(FWD(self)).transform(FWD(fn)));
     using type = ::fn::expected<T, new_error_type>;
