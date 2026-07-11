@@ -130,6 +130,13 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     static_assert(std::is_same_v<decltype(std::as_const(s).sum_error()), T const &>);
     static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_error()), T const &&>);
     static_assert(std::is_same_v<decltype(std::move(s).sum_error()), T &&>);
+    // GAP: these overloads return *this by reference but are not declared noexcept
+    // (include/fn/expected.hpp:649-664; issue #276 -- filed for sum_value, sum_error is the
+    // same gap); asserts current behaviour until fixed.
+    static_assert(not noexcept(s.sum_error()));
+    static_assert(not noexcept(std::as_const(s).sum_error()));
+    static_assert(not noexcept(std::move(std::as_const(s)).sum_error()));
+    static_assert(not noexcept(std::move(s).sum_error()));
     WHEN("value")
     {
       CHECK(s.sum_error().value() == 12);
@@ -157,6 +164,12 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     static_assert(std::is_same_v<decltype(std::as_const(s).sum_error()), fn::expected<int, fn::sum<Error>>>);
     static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_error()), fn::expected<int, fn::sum<Error>>>);
     static_assert(std::is_same_v<decltype(std::move(s).sum_error()), fn::expected<int, fn::sum<Error>>>);
+    // GAP: sum_error() here wraps into a fresh expected and is likewise not declared noexcept
+    // (include/fn/expected.hpp:631/640, issue #276), even for nothrow value and error types.
+    static_assert(not noexcept(s.sum_error()));
+    static_assert(not noexcept(std::as_const(s).sum_error()));
+    static_assert(not noexcept(std::move(std::as_const(s)).sum_error()));
+    static_assert(not noexcept(std::move(s).sum_error()));
     WHEN("value")
     {
       CHECK(s.sum_error().value() == 12);
@@ -185,6 +198,12 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     static_assert(
         std::is_same_v<decltype(std::move(std::as_const(s)).sum_error()), fn::expected<void, fn::sum<Error>>>);
     static_assert(std::is_same_v<decltype(std::move(s).sum_error()), fn::expected<void, fn::sum<Error>>>);
+    // GAP: the void-value constructing overloads are not declared noexcept either
+    // (include/fn/expected.hpp:970/979, issue #276).
+    static_assert(not noexcept(s.sum_error()));
+    static_assert(not noexcept(std::as_const(s).sum_error()));
+    static_assert(not noexcept(std::move(std::as_const(s)).sum_error()));
+    static_assert(not noexcept(std::move(s).sum_error()));
     WHEN("value")
     {
       CHECK(s.sum_error().has_value());
@@ -212,6 +231,12 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     static_assert(std::is_same_v<decltype(std::as_const(s).sum_error()), T const &>);
     static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_error()), T const &&>);
     static_assert(std::is_same_v<decltype(std::move(s).sum_error()), T &&>);
+    // GAP: the void-value self-return overloads are not declared noexcept either
+    // (include/fn/expected.hpp:988-1003, issue #276).
+    static_assert(not noexcept(s.sum_error()));
+    static_assert(not noexcept(std::as_const(s).sum_error()));
+    static_assert(not noexcept(std::move(std::as_const(s)).sum_error()));
+    static_assert(not noexcept(std::move(s).sum_error()));
     WHEN("value")
     {
       CHECK(s.sum_error().has_value());
@@ -239,6 +264,12 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     static_assert(std::is_same_v<decltype(std::as_const(s).sum_value()), T const &>);
     static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_value()), T const &&>);
     static_assert(std::is_same_v<decltype(std::move(s).sum_value()), T &&>);
+    // GAP: these overloads return *this by reference but are not declared noexcept
+    // (include/fn/expected.hpp:688-703, issue #276); asserts current behaviour until fixed.
+    static_assert(not noexcept(s.sum_value()));
+    static_assert(not noexcept(std::as_const(s).sum_value()));
+    static_assert(not noexcept(std::move(std::as_const(s)).sum_value()));
+    static_assert(not noexcept(std::move(s).sum_value()));
     WHEN("value")
     {
       CHECK(s.sum_value().value() == fn::sum{12});
@@ -266,6 +297,12 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     static_assert(std::is_same_v<decltype(std::as_const(s).sum_value()), fn::expected<fn::sum<int>, Error>>);
     static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_value()), fn::expected<fn::sum<int>, Error>>);
     static_assert(std::is_same_v<decltype(std::move(s).sum_value()), fn::expected<fn::sum<int>, Error>>);
+    // GAP: sum_value() here wraps into a fresh expected and is likewise not declared noexcept
+    // (include/fn/expected.hpp:670/679, issue #276), even for nothrow value and error types.
+    static_assert(not noexcept(s.sum_value()));
+    static_assert(not noexcept(std::as_const(s).sum_value()));
+    static_assert(not noexcept(std::move(std::as_const(s)).sum_value()));
+    static_assert(not noexcept(std::move(s).sum_value()));
     WHEN("value")
     {
       CHECK(s.sum_value().value() == fn::sum{12});
@@ -283,6 +320,20 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     }
 
     static_assert(std::is_same_v<decltype(fn::sum_value(s)), fn::expected<fn::sum<int>, Error>>);
+  }
+
+  WHEN("sum_value absent for void value")
+  {
+    // by design: a void value cannot be sum-wrapped -- the void specialization has no
+    // sum_value member and the free fn::sum_value is constrained some_expected_non_void
+    // (include/fn/expected.hpp:1020); sum_error, by contrast, serves void (asserted above)
+    constexpr auto can_member_sum_value = [](auto &&e) { return requires { e.sum_value(); }; };
+    constexpr auto can_free_sum_value = [](auto &&e) { return requires { fn::sum_value(e); }; };
+    static_assert(not can_member_sum_value(fn::expected<void, Error>{}));
+    static_assert(not can_free_sum_value(fn::expected<void, Error>{}));
+    static_assert(can_member_sum_value(fn::expected<int, Error>{1}));
+    static_assert(can_free_sum_value(fn::expected<int, Error>{1}));
+    SUCCEED();
   }
 
   WHEN("and_then")
@@ -717,6 +768,25 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
 {
   WHEN("and_then")
   {
+    using S = fn::expected<fn::pack<int, std::string_view>, Error>;
+
+    // noexcept (extension, expected.hpp:77-81): a multi-argument visitor is not invocable on
+    // the whole pack, so the borrowed std trait is conservatively false (GH #254); a generic
+    // same-error-type callback IS, and reports true
+    constexpr auto nothrow_two = [](int &, std::string_view &) noexcept -> fn::expected<bool, Error> { return {true}; };
+    static_assert(not noexcept(std::declval<S &>().and_then(nothrow_two)));
+    constexpr auto nothrow_generic = [](auto &&...) noexcept -> fn::expected<bool, Error> { return {true}; };
+    static_assert(noexcept(std::declval<S &>().and_then(nothrow_generic)));
+
+    // constraints (extension, :82-83): pack-apply invocability tracking the pack's value
+    // category; wrong arity or a non-callable SFINAE-drops
+    constexpr auto can_and_then_lval = [](auto &&f) { return requires { std::declval<S &>().and_then(f); }; };
+    constexpr auto can_and_then_rval = [](auto &&f) { return requires { std::declval<S &&>().and_then(f); }; };
+    static_assert(can_and_then_lval(nothrow_two));
+    static_assert(not can_and_then_rval(nothrow_two));                                         // lvalue-only visitor
+    static_assert(not can_and_then_lval([](int &) -> fn::expected<bool, Error> { throw 0; })); // wrong arity
+    static_assert(not can_and_then_lval(42));
+
     WHEN("value")
     {
       fn::expected<fn::pack<int, std::string_view>, Error> s{
@@ -778,6 +848,21 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
 
   WHEN("transform")
   {
+    using S = fn::expected<fn::pack<int, std::string_view>, Error>;
+
+    // noexcept and constraints mirror and_then above (expected.hpp:216-220): the non-sum
+    // _transform is constrained on pack-apply invocability AND the untouched error's copy --
+    // contrast the sum case (see "expected sum support transform")
+    constexpr auto nothrow_two = [](int &, std::string_view &) noexcept -> bool { return true; };
+    static_assert(not noexcept(std::declval<S &>().transform(nothrow_two)));
+    constexpr auto nothrow_generic = [](auto &&...) noexcept -> bool { return true; };
+    static_assert(noexcept(std::declval<S &>().transform(nothrow_generic)));
+
+    constexpr auto can_transform = [](auto &&f) { return requires { std::declval<S &>().transform(f); }; };
+    static_assert(can_transform(nothrow_two));
+    static_assert(not can_transform([](int &) -> bool { throw 0; })); // wrong arity
+    static_assert(not can_transform(42));
+
     WHEN("value")
     {
       fn::expected<fn::pack<int, std::string_view>, Error> s{
@@ -857,6 +942,25 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
 
   WHEN("operator &")
   {
+    // noexcept: all eight operator& overloads are declared unconditionally noexcept
+    // (expected.hpp:1032-1183) though joining copies/moves the operands' values into the
+    // result -- for a throwing-copy value type this is a promise the join cannot keep. GAP:
+    // asserts current behaviour; flip to `not noexcept` when fixed.
+    struct throwing_copy {
+      // defined, not just declared: the instantiated join references it (-Wundefined-internal)
+      throwing_copy(throwing_copy const &) noexcept(false) {}
+    };
+    static_assert(noexcept(std::declval<fn::expected<int, Error> &>() & std::declval<fn::expected<void, Error> &>()));
+    static_assert(
+        noexcept(std::declval<fn::expected<throwing_copy, Error> &>() & std::declval<fn::expected<int, Error> &>()));
+
+    // constraints: both operands are expected, and their error types must match or be graded
+    constexpr auto can_amp = [](auto &&rh) { return requires { std::declval<fn::expected<int, Error> &>() & rh; }; };
+    static_assert(can_amp(fn::expected<void, Error>{}));
+    static_assert(not can_amp(42));
+    enum class other_error {};
+    static_assert(not can_amp(fn::expected<int, other_error>{1})); // mismatched non-graded error
+
     WHEN("same error type")
     {
       WHEN("value & void yield value")
@@ -2200,6 +2304,18 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
         CHECK((Rh{5} & VoidUnit{}).value() == 5);
         CHECK((Rh{::fn::unexpect, FileNotFound} & VoidUnit{}).error() == fn::sum{FileNotFound});
       }
+    }
+
+    WHEN("constexpr")
+    {
+      // the graded/unit shapes have constant-evaluation asserts above; these cover the plain
+      // same-error shapes, which had none
+      static_assert((fn::expected<double, Error>{0.5} & fn::expected<int, Error>{12})
+                        .transform([](double d, int i) constexpr -> bool { return d == 0.5 && i == 12; })
+                        .value());
+      static_assert((fn::expected<double, Error>{::fn::unexpect, FileNotFound} & fn::expected<int, Error>{12}).error()
+                    == FileNotFound);
+      SUCCEED();
     }
   }
 }
