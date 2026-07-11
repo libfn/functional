@@ -70,6 +70,9 @@ template <typename L, typename R>
 concept can_eq = requires { std::declval<L const &>() == std::declval<R const &>(); };
 template <typename L, typename R>
 concept can_ne = requires { std::declval<L const &>() != std::declval<R const &>(); };
+
+template <typename S, typename T, typename... Args>
+concept can_in_place = requires(Args... args) { S{std::in_place_type<T>, args...}; };
 } // anonymous namespace
 
 TEST_CASE("sum basic functionality tests", "[sum]")
@@ -289,6 +292,20 @@ TEST_CASE("sum basic functionality tests", "[sum]")
 
       auto b = sum{std::in_place_type<NonCopyable>, 42};
       static_assert(std::is_same_v<decltype(b), sum<NonCopyable>>);
+    }
+
+    WHEN("constraints")
+    {
+      static_assert(can_in_place<sum<NonCopyable>, NonCopyable, int>);
+      static_assert(not can_in_place<sum<NonCopyable>, int, int>); // int is not an alternative
+
+      // GAP #284: the constructor requires only has_type<T> - it never checks that T is
+      // constructible from the arguments. So a bad argument list is reported viable here and then
+      // fails to compile inside variadic_union, outside the immediate context and beyond SFINAE's
+      // reach. Both of these should read `not`, and will once the conjunct is added.
+      static_assert(can_in_place<sum<NonCopyable>, NonCopyable>);               // no default ctor
+      static_assert(can_in_place<sum<NonCopyable>, NonCopyable, char const *>); // not constructible from
+      SUCCEED();
     }
   }
 
