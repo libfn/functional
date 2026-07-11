@@ -152,6 +152,37 @@ TEST_CASE("or_else", "[or_else][expected][expected_value]")
   }
 }
 
+TEST_CASE("or_else noexcept", "[or_else][expected][expected_value][noexcept]")
+{
+  using namespace fn;
+
+  using operand_t = fn::expected<int, Error>;
+
+  // Taken by const reference: a by-value Error would copy its std::string on the way in, which is
+  // itself a throwing operation and would mask what the callback promises.
+  constexpr auto fnNothrow = [](Error const &) noexcept -> operand_t { return {0}; };
+  constexpr auto fnThrows = [](Error const &) noexcept(false) -> operand_t { return {0}; };
+
+  // The member's spec is precise: here the untouched value is an int, whose copy cannot throw, so
+  // the callback alone decides.
+  static_assert(noexcept(std::declval<operand_t &>().or_else(fnNothrow)));
+  static_assert(not noexcept(std::declval<operand_t &>().or_else(fnThrows)));
+
+  // It weighs the copy of the untouched VALUE as well - the mirror of what and_then does with the
+  // untouched error. Give it a value whose copy can throw and even a noexcept callback leaves the
+  // member potentially-throwing.
+  using throwing_value_t = fn::expected<std::string, Error>;
+  constexpr auto fnNothrow2 = [](Error const &) noexcept -> throwing_value_t { return {""}; };
+  static_assert(not std::is_nothrow_copy_constructible_v<std::string>);
+  static_assert(not noexcept(std::declval<throwing_value_t &>().or_else(fnNothrow2)));
+
+  // GAP #285: or_else_t::apply then discards all of that, being unconditionally noexcept - as is the
+  // rest of the pipeline it is reached through (pinned in tests/fn/functor.cpp).
+  static_assert(noexcept(or_else_t::apply{}(std::declval<operand_t &>(), fnThrows)));
+
+  SUCCEED();
+}
+
 TEST_CASE("or_else", "[or_else][expected][expected_void]")
 {
   using namespace fn;
@@ -270,6 +301,24 @@ TEST_CASE("or_else", "[or_else][expected][expected_void]")
   }
 }
 
+TEST_CASE("or_else noexcept", "[or_else][expected][expected_void][noexcept]")
+{
+  using namespace fn;
+
+  using operand_t = fn::expected<void, Error>;
+
+  constexpr auto fnNothrow = [](Error const &) noexcept -> operand_t { return {}; };
+  constexpr auto fnThrows = [](Error const &) noexcept(false) -> operand_t { return {}; };
+
+  // With a void value there is nothing on the untouched side to copy, so the callback alone decides.
+  static_assert(noexcept(std::declval<operand_t &>().or_else(fnNothrow)));
+  static_assert(not noexcept(std::declval<operand_t &>().or_else(fnThrows)));
+
+  static_assert(noexcept(or_else_t::apply{}(std::declval<operand_t &>(), fnThrows))); // GAP #285
+
+  SUCCEED();
+}
+
 TEST_CASE("or_else", "[or_else][optional]")
 {
   using namespace fn;
@@ -340,6 +389,23 @@ TEST_CASE("or_else", "[or_else][optional]")
       }
     }
   }
+}
+
+TEST_CASE("or_else noexcept", "[or_else][optional][noexcept]")
+{
+  using namespace fn;
+
+  using operand_t = fn::optional<int>;
+
+  constexpr auto fnNothrow = []() noexcept -> operand_t { return {42}; };
+  constexpr auto fnThrows = []() noexcept(false) -> operand_t { return {42}; };
+
+  static_assert(noexcept(std::declval<operand_t &>().or_else(fnNothrow)));
+  static_assert(not noexcept(std::declval<operand_t &>().or_else(fnThrows)));
+
+  static_assert(noexcept(or_else_t::apply{}(std::declval<operand_t &>(), fnThrows))); // GAP #285
+
+  SUCCEED();
 }
 
 TEST_CASE("constexpr or_else expected", "[or_else][constexpr][expected]")

@@ -124,6 +124,32 @@ TEST_CASE("transform", "[transform][expected][expected_value][pack]")
   }
 }
 
+TEST_CASE("transform noexcept", "[transform][expected][expected_value][noexcept]")
+{
+  using namespace fn;
+
+  using operand_t = fn::expected<int, Error>;
+
+  constexpr auto fnNothrow = [](int i) noexcept -> int { return i + 1; };
+  constexpr auto fnThrows = [](int i) noexcept(false) -> int { return i + 1; };
+
+  // The member weighs the callback AND the copy of the untouched error. Error carries a std::string,
+  // whose copy can throw, so even a noexcept callback leaves the member potentially-throwing.
+  static_assert(not std::is_nothrow_copy_constructible_v<Error>);
+  static_assert(not noexcept(std::declval<operand_t &>().transform(fnNothrow)));
+
+  // Give it an error whose copy cannot throw, and the callback alone decides.
+  using nothrow_t = fn::expected<int, int>;
+  static_assert(noexcept(std::declval<nothrow_t &>().transform(fnNothrow)));
+  static_assert(not noexcept(std::declval<nothrow_t &>().transform(fnThrows)));
+
+  // GAP #285: transform_t::apply discards that, being unconditionally noexcept - as is the rest of
+  // the pipeline it is reached through (pinned in tests/fn/functor.cpp).
+  static_assert(noexcept(transform_t::apply{}(std::declval<nothrow_t &>(), fnThrows)));
+
+  SUCCEED();
+}
+
 TEST_CASE("transform", "[transform][expected][expected_void]")
 {
   using namespace fn;
@@ -199,6 +225,28 @@ TEST_CASE("transform", "[transform][expected][expected_void]")
               == "Not good");
     }
   }
+}
+
+TEST_CASE("transform noexcept", "[transform][expected][expected_void][noexcept]")
+{
+  using namespace fn;
+
+  using operand_t = fn::expected<void, Error>;
+
+  constexpr auto fnNothrow = []() noexcept -> int { return 1; };
+  constexpr auto fnThrows = []() noexcept(false) -> int { return 1; };
+
+  // As for a non-void value: the untouched Error's copy can throw, so isolate the callback with an
+  // error whose copy cannot.
+  static_assert(not noexcept(std::declval<operand_t &>().transform(fnNothrow)));
+
+  using nothrow_t = fn::expected<void, int>;
+  static_assert(noexcept(std::declval<nothrow_t &>().transform(fnNothrow)));
+  static_assert(not noexcept(std::declval<nothrow_t &>().transform(fnThrows)));
+
+  static_assert(noexcept(transform_t::apply{}(std::declval<nothrow_t &>(), fnThrows))); // GAP #285
+
+  SUCCEED();
 }
 
 TEST_CASE("transform", "[transform][optional][pack]")
@@ -295,6 +343,24 @@ TEST_CASE("transform", "[transform][optional][pack]")
   }
 }
 
+TEST_CASE("transform noexcept", "[transform][optional][noexcept]")
+{
+  using namespace fn;
+
+  using operand_t = fn::optional<int>;
+
+  constexpr auto fnNothrow = [](int i) noexcept -> int { return i + 1; };
+  constexpr auto fnThrows = [](int i) noexcept(false) -> int { return i + 1; };
+
+  // An optional has no error side to copy, so the callback alone decides.
+  static_assert(noexcept(std::declval<operand_t &>().transform(fnNothrow)));
+  static_assert(not noexcept(std::declval<operand_t &>().transform(fnThrows)));
+
+  static_assert(noexcept(transform_t::apply{}(std::declval<operand_t &>(), fnThrows))); // GAP #285
+
+  SUCCEED();
+}
+
 TEST_CASE("transform choice", "[transform][choice]")
 {
   using namespace fn;
@@ -363,6 +429,25 @@ TEST_CASE("transform choice", "[transform][choice]")
       }
     }
   }
+}
+
+TEST_CASE("transform noexcept", "[transform][choice][noexcept]")
+{
+  using namespace fn;
+
+  using operand_t = fn::choice<bool, double, int>;
+
+  constexpr auto fnThrows = [](auto i) noexcept(false) -> int { return static_cast<int>(i) + 1; };
+
+  // GAP #280: choice parts company with optional and expected here - its own transform is
+  // unconditionally noexcept, dispatching through sum::transform, so even the MEMBER over-promises.
+  // The same operation therefore has different exception behaviour depending on the monad it is
+  // written against.
+  static_assert(noexcept(std::declval<operand_t &>().transform(fnThrows)));
+
+  static_assert(noexcept(transform_t::apply{}(std::declval<operand_t &>(), fnThrows))); // GAP #285
+
+  SUCCEED();
 }
 
 TEST_CASE("constexpr transform expected", "[transform][constexpr][expected]")
