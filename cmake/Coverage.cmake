@@ -7,8 +7,6 @@
 
 set(CODE_COVERAGE_VERBOSE ON)
 set(CODE_COVERAGE_FORMAT "xml" CACHE STRING "Format of the coverage report.")
-set(CODE_COVERAGE_TEST "ctest" CACHE STRING "Command to run tests.")
-set(CODE_COVERAGE_TEST_ARGS -L tests_fn -j1 CACHE STRING "Parameters to the test command.")
 set(GCOVR_ADDITIONAL_ARGS
 --exclude-noncode-lines
 --exclude-unreachable-branches

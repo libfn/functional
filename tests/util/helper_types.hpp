@@ -3,6 +3,9 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
+#ifndef INCLUDE_TESTS_UTIL_HELPER_TYPES
+#define INCLUDE_TESTS_UTIL_HELPER_TYPES
+
 #include <compare>
 #include <concepts>
 #include <initializer_list>
@@ -10,7 +13,8 @@
 #include <type_traits>
 #include <utility>
 
-// Use prime numbers to record Foo states in witness
+// Prime factors recording which special member ran: the witness value is multiplied by one of
+// these, so a test can recover the exact copy/move/swap path from the factorization.
 enum helper_witness {
   from_lval = 53, //
   from_lval_const = 59,
@@ -21,119 +25,85 @@ enum helper_witness {
 
 using helper_list_t = std::initializer_list<double>;
 
-template <int V> struct helper_t {
-  static inline int state = 0;
+// Behaviour axes for the witness fixtures, combined with operator|. The default (regular == 0) is
+// copyable, movable and every special member noexcept; each flag opts one operation into throwing
+// (noexcept(false), throws when the resulting value is zero). runtime_move additionally makes the
+// move constructor non-constexpr so it cannot be elided and is observable in `state` and coverage.
+enum class prop : unsigned {
+  regular = 0,
+  throw_copy = 1U << 0,        // copy constructor
+  throw_move = 1U << 1,        // move constructor
+  throw_copy_assign = 1U << 2, // copy assignment
+  throw_move_assign = 1U << 3, // move assignment
+  throw_value = 1U << 4,       // value (integral arguments) constructor
+  runtime_move = 1U << 5,      // non-constexpr move constructor; accumulates into `state`
+};
 
+constexpr prop operator|(prop a, prop b) noexcept
+{
+  using U = std::underlying_type_t<prop>;
+  return static_cast<prop>(static_cast<U>(a) | static_cast<U>(b));
+}
+
+constexpr prop operator&(prop a, prop b) noexcept
+{
+  using U = std::underlying_type_t<prop>;
+  return static_cast<prop>(static_cast<U>(a) & static_cast<U>(b));
+}
+
+// Transitional: map the legacy helper_t<int> selector onto flags, so unconverted call sites keep
+// compiling while their tests migrate to the named flags. Remove the int overload (and this comment)
+// once no call site instantiates a fixture with an integer.
+constexpr prop prop_of(prop p) noexcept { return p; }
+constexpr prop prop_of(int V) noexcept
+{
+  prop f = prop::regular;
+  if (V >= 2 && V < 4)
+    f = f | prop::throw_copy;
+  if ((V >= 3 && V < 5) || (V >= 33 && V < 35))
+    f = f | prop::throw_move;
+  if (V >= 40 && V < 41)
+    f = f | prop::throw_copy_assign | prop::throw_move_assign;
+  if (V < 8)
+    f = f | prop::throw_value;
+  if (V >= 30)
+    f = f | prop::runtime_move;
+  return f;
+}
+
+// Common value storage and value constructors shared by the three fixtures; the copy/move behaviour
+// (witnessed, deleted, or throwing) is layered on by the derived templates below.
+template <prop F> struct helper_value_base {
+  static constexpr bool throws_value = (F & prop::throw_value) != prop::regular;
+
+  static inline int state = 0;
   int v = {};
 
-  // No default constructor
-  helper_t() = delete;
+  helper_value_base() = delete;
+  constexpr ~helper_value_base() noexcept {}
+  constexpr bool operator==(helper_value_base const &) const noexcept = default;
 
-  constexpr ~helper_t() noexcept {};
-
-  constexpr bool operator==(helper_t const &) const noexcept = default;
-
-  // Assignment operators will multiply witness by a prime
-  constexpr helper_t &operator=(helper_t &o) noexcept(V < 40 || V >= 41)
-  {
-    if constexpr (V >= 40 && V < 41) {
-      if (o.v == 0)
-        throw std::runtime_error("invalid input");
-    }
-    v = o.v;
-    v *= from_lval;
-    return *this;
-  }
-
-  constexpr helper_t &operator=(helper_t const &o) noexcept(V < 40 || V >= 41)
-  {
-    if constexpr (V >= 40 && V < 41) {
-      if (o.v == 0)
-        throw std::runtime_error("invalid input");
-    }
-    v = o.v;
-    v *= from_lval_const;
-    return *this;
-  }
-
-  constexpr helper_t &operator=(helper_t &&o) noexcept(V < 40 || V >= 41)
-  {
-    if constexpr (V >= 40 && V < 41) {
-      if (o.v == 0)
-        throw std::runtime_error("invalid input");
-    }
-    v = o.v;
-    v *= from_rval;
-    return *this;
-  }
-
-  constexpr helper_t &operator=(helper_t const &&o) noexcept(V < 40 || V >= 41)
-  {
-    if constexpr (V >= 40 && V < 41) {
-      if (o.v == 0)
-        throw std::runtime_error("invalid input");
-    }
-    v = o.v;
-    v *= from_rval_const;
-    return *this;
-  }
-
-  // See table below
-  constexpr helper_t(helper_t &o) noexcept : v(o.v) { v *= from_lval; }
-  constexpr helper_t(helper_t const &o) noexcept(V < 2 || V >= 4) : v(o.v)
-  {
-    v *= from_lval_const;
-    if constexpr (V >= 2 && V < 4) {
-      if (v == 0)
-        throw std::runtime_error("invalid input");
-    }
-  }
-  constexpr helper_t(helper_t &&o) noexcept(V < 3 || V >= 5)
-    requires(V < 30)
-      : v(o.v)
-  {
-    v *= from_rval;
-    if constexpr (V >= 3 && V < 5) {
-      if (v == 0)
-        throw std::runtime_error("invalid input");
-    }
-  }
-  helper_t(helper_t &&o) noexcept(V < 33 || V >= 35)
-    requires(V >= 30)
-      : v(o.v)
-  {
-    v *= from_rval;
-    state += v;
-    if constexpr (V >= 33 && V < 35) {
-      if (v == 0)
-        throw std::runtime_error("invalid input");
-    }
-  }
-  constexpr helper_t(helper_t const &&o) noexcept : v(o.v) { v *= from_rval_const; }
-
-  // The intent of non-constexpr constructors is to make sure that they are never optimized away,
-  // thus ensuring that any code which relies on them in tests will show up in coverage reports.
-  helper_t(std::integral auto... a) noexcept(V >= 8)
+  // Non-constexpr on purpose: guarantees the constructor is emitted (never folded away) so a test
+  // relying on it shows up in coverage, and lets `state` witness that construction actually ran.
+  helper_value_base(std::integral auto... a) noexcept(not throws_value)
     requires(sizeof...(a) > 0) // intentionally implicit when sizeof...(a) == 1
       : v((1 * ... * a))
   {
-    if constexpr (V < 8) {
+    if constexpr (throws_value) {
       if (v == 0)
         throw std::runtime_error("invalid input");
     }
     state += v;
   }
 
-  helper_t(helper_list_t list) noexcept(true) : v(init(list)) { state += v; }
+  helper_value_base(helper_list_t list) noexcept : v(init(list)) { state += v; }
 
-  // Potentially throwing constructor
-  constexpr helper_t(helper_list_t list, std::integral auto... a) noexcept(true)
+  constexpr helper_value_base(helper_list_t list, std::integral auto... a) noexcept
     requires(sizeof...(a) > 0)
       : v(init(list, a...)) //
   {
   }
 
-  // ... and the actual exception being thrown
   static constexpr int init(helper_list_t l, auto &&...a) noexcept
   {
     double ret = (1 * ... * a);
@@ -143,73 +113,89 @@ template <int V> struct helper_t {
     return static_cast<int>(ret);
   }
 
-  // Disable comparison operators; compare .v instead
-  friend bool operator==(helper_t, std::integral auto) = delete;
-  friend std::strong_ordering operator<=>(helper_t, helper_t) = delete;
+protected:
+  struct raw_t {
+    explicit raw_t() = default;
+  };
+  // Side-effect-free initialiser used by the witnessing copy/move constructors of the derived
+  // fixtures, which must set `v` without running the value constructor's throw/`state` logic.
+  constexpr helper_value_base(raw_t, int value) noexcept : v(value) {}
 };
 
-//     helper_t<V>
-// V   nothrow_copy_ctor  nothrow_move_ctor  nothrow_copy_assign  nothrow_move_assign
-// 0   1                  1                  1                    1
-// 1   1                  1                  1                    1
-// 2   0                  1                  1                    1
-// 3   0                  0                  1                    1
-// 4   1                  0                  1                    1
-// 5   1                  1                  1                    1
-// 40  1                  1                  0                    0
-static_assert(std::is_nothrow_copy_constructible_v<helper_t<0>>);
-static_assert(std::is_nothrow_move_constructible_v<helper_t<0>>);
-static_assert(std::is_nothrow_copy_constructible_v<helper_t<1>>);
-static_assert(std::is_nothrow_move_constructible_v<helper_t<1>>);
-static_assert(not std::is_nothrow_copy_constructible_v<helper_t<2>>);
-static_assert(std::is_nothrow_move_constructible_v<helper_t<2>>);
-static_assert(not std::is_nothrow_copy_constructible_v<helper_t<3>>);
-static_assert(not std::is_nothrow_move_constructible_v<helper_t<3>>);
-static_assert(std::is_nothrow_copy_constructible_v<helper_t<4>>);
-static_assert(not std::is_nothrow_move_constructible_v<helper_t<4>>);
-static_assert(std::is_nothrow_copy_constructible_v<helper_t<5>>);
-static_assert(std::is_nothrow_move_constructible_v<helper_t<5>>);
-static_assert(std::is_nothrow_copy_constructible_v<helper_t<40>>);
-static_assert(std::is_nothrow_move_constructible_v<helper_t<40>>);
-static_assert(not std::is_nothrow_copy_assignable_v<helper_t<40>>);
-static_assert(not std::is_nothrow_move_assignable_v<helper_t<40>>);
+// Fully copyable and movable witness. Each special member multiplies `v` by its prime and,
+// per the flags in F, may be noexcept(false) and throw on a zero result.
+template <auto Cfg> struct helper_t : helper_value_base<prop_of(Cfg)> {
+  static constexpr prop F = prop_of(Cfg);
+  using base = helper_value_base<F>;
+  static constexpr bool throws_copy = (F & prop::throw_copy) != prop::regular;
+  static constexpr bool throws_move = (F & prop::throw_move) != prop::regular;
+  static constexpr bool throws_copy_assign = (F & prop::throw_copy_assign) != prop::regular;
+  static constexpr bool throws_move_assign = (F & prop::throw_move_assign) != prop::regular;
 
-// Swap will also multiply witness by a prime
-template <auto V> constexpr void swap(helper_t<V> &l, helper_t<V> &r)
-{
-  std::swap(l.v, r.v);
-  l.v *= swapped;
-  r.v *= swapped;
-}
+  using base::base;
+  using base::v;
 
-using helper = helper_t<0>;
+  constexpr helper_t(helper_t &o) noexcept : base(typename base::raw_t{}, o.v) { v *= from_lval; }
 
-// Move-only counterpart to helper_t: copy construction/assignment are deleted;
-// the move operations are witnessed by a prime factor and parameterized by V with
-// the same scheme as helper_t (V in [3,5) throws on move-construct, V in [40,41)
-// throws on move-assign, V < 8 throws on the value constructor).
-template <int V> struct helper_move_only_t {
-  int v = {};
-
-  helper_move_only_t() = delete;
-  constexpr ~helper_move_only_t() noexcept {};
-
-  helper_move_only_t(helper_move_only_t const &) = delete;
-  helper_move_only_t &operator=(helper_move_only_t const &) = delete;
-
-  constexpr helper_move_only_t(helper_move_only_t &&o) noexcept(V < 3 || V >= 5) : v(o.v)
+  constexpr helper_t(helper_t const &o) noexcept(not throws_copy) : base(typename base::raw_t{}, o.v)
   {
-    v *= from_rval;
-    if constexpr (V >= 3 && V < 5) {
+    v *= from_lval_const;
+    if constexpr (throws_copy) {
       if (v == 0)
         throw std::runtime_error("invalid input");
     }
   }
-  constexpr helper_move_only_t(helper_move_only_t const &&o) noexcept : v(o.v) { v *= from_rval_const; }
 
-  constexpr helper_move_only_t &operator=(helper_move_only_t &&o) noexcept(V < 40 || V >= 41)
+  constexpr helper_t(helper_t &&o) noexcept(not throws_move)
+    requires((prop_of(Cfg) & prop::runtime_move) == prop::regular)
+      : base(typename base::raw_t{}, o.v)
   {
-    if constexpr (V >= 40 && V < 41) {
+    v *= from_rval;
+    if constexpr (throws_move) {
+      if (v == 0)
+        throw std::runtime_error("invalid input");
+    }
+  }
+
+  helper_t(helper_t &&o) noexcept(not throws_move)
+    requires((prop_of(Cfg) & prop::runtime_move) != prop::regular)
+      : base(typename base::raw_t{}, o.v)
+  {
+    v *= from_rval;
+    base::state += v;
+    if constexpr (throws_move) {
+      if (v == 0)
+        throw std::runtime_error("invalid input");
+    }
+  }
+
+  constexpr helper_t(helper_t const &&o) noexcept : base(typename base::raw_t{}, o.v) { v *= from_rval_const; }
+
+  constexpr helper_t &operator=(helper_t &o) noexcept(not throws_copy_assign)
+  {
+    if constexpr (throws_copy_assign) {
+      if (o.v == 0)
+        throw std::runtime_error("invalid input");
+    }
+    v = o.v;
+    v *= from_lval;
+    return *this;
+  }
+
+  constexpr helper_t &operator=(helper_t const &o) noexcept(not throws_copy_assign)
+  {
+    if constexpr (throws_copy_assign) {
+      if (o.v == 0)
+        throw std::runtime_error("invalid input");
+    }
+    v = o.v;
+    v *= from_lval_const;
+    return *this;
+  }
+
+  constexpr helper_t &operator=(helper_t &&o) noexcept(not throws_move_assign)
+  {
+    if constexpr (throws_move_assign) {
       if (o.v == 0)
         throw std::runtime_error("invalid input");
     }
@@ -218,57 +204,123 @@ template <int V> struct helper_move_only_t {
     return *this;
   }
 
-  helper_move_only_t(std::integral auto... a) noexcept(V >= 8)
-    requires(sizeof...(a) > 0) // intentionally implicit when sizeof...(a) == 1
-      : v((1 * ... * a))
+  constexpr helper_t &operator=(helper_t const &&o) noexcept(not throws_move_assign)
   {
-    if constexpr (V < 8) {
+    if constexpr (throws_move_assign) {
+      if (o.v == 0)
+        throw std::runtime_error("invalid input");
+    }
+    v = o.v;
+    v *= from_rval_const;
+    return *this;
+  }
+
+  constexpr bool operator==(helper_t const &) const noexcept = default;
+
+  // Disable comparison operators; compare .v instead
+  friend bool operator==(helper_t, std::integral auto) = delete;
+  friend std::strong_ordering operator<=>(helper_t, helper_t) = delete;
+};
+
+// Move-only witness: copy construction/assignment deleted, moves witnessed. runtime_move does not
+// apply (the move constructor is always constexpr, matching the fixture's only historical use).
+template <auto Cfg> struct helper_move_only_t : helper_value_base<prop_of(Cfg)> {
+  static constexpr prop F = prop_of(Cfg);
+  using base = helper_value_base<F>;
+  static constexpr bool throws_move = (F & prop::throw_move) != prop::regular;
+  static constexpr bool throws_move_assign = (F & prop::throw_move_assign) != prop::regular;
+
+  using base::base;
+  using base::v;
+
+  helper_move_only_t(helper_move_only_t const &) = delete;
+  helper_move_only_t &operator=(helper_move_only_t const &) = delete;
+
+  constexpr helper_move_only_t(helper_move_only_t &&o) noexcept(not throws_move) : base(typename base::raw_t{}, o.v)
+  {
+    v *= from_rval;
+    if constexpr (throws_move) {
       if (v == 0)
         throw std::runtime_error("invalid input");
     }
   }
 
+  constexpr helper_move_only_t(helper_move_only_t const &&o) noexcept : base(typename base::raw_t{}, o.v)
+  {
+    v *= from_rval_const;
+  }
+
+  constexpr helper_move_only_t &operator=(helper_move_only_t &&o) noexcept(not throws_move_assign)
+  {
+    if constexpr (throws_move_assign) {
+      if (o.v == 0)
+        throw std::runtime_error("invalid input");
+    }
+    v = o.v;
+    v *= from_rval;
+    return *this;
+  }
+
   constexpr bool operator==(helper_move_only_t const &) const noexcept = default;
 };
 
-static_assert(not std::is_copy_constructible_v<helper_move_only_t<0>>);
-static_assert(std::is_move_constructible_v<helper_move_only_t<0>>);
-static_assert(std::is_nothrow_move_constructible_v<helper_move_only_t<0>>);
-static_assert(not std::is_nothrow_move_constructible_v<helper_move_only_t<3>>); // throwing move ctor
-static_assert(not std::is_copy_assignable_v<helper_move_only_t<0>>);
-static_assert(std::is_move_assignable_v<helper_move_only_t<0>>);
-static_assert(not std::is_nothrow_move_assignable_v<helper_move_only_t<40>>); // throwing move assign
+// Immovable witness: all copy/move deleted; only in-place constructible (from a value) and observable.
+template <auto Cfg> struct helper_immovable_t : helper_value_base<prop_of(Cfg)> {
+  using base = helper_value_base<prop_of(Cfg)>;
 
-// Non-copyable AND non-movable: can only be constructed in place (from a value)
-// and observed; V < 8 makes the value constructor throw on a zero result.
-template <int V> struct helper_immovable_t {
-  int v = {};
-
-  helper_immovable_t() = delete;
-  constexpr ~helper_immovable_t() noexcept {};
+  using base::base;
+  using base::v;
 
   helper_immovable_t(helper_immovable_t const &) = delete;
   helper_immovable_t(helper_immovable_t &&) = delete;
   helper_immovable_t &operator=(helper_immovable_t const &) = delete;
   helper_immovable_t &operator=(helper_immovable_t &&) = delete;
 
-  helper_immovable_t(std::integral auto... a) noexcept(V >= 8)
-    requires(sizeof...(a) > 0) // intentionally implicit when sizeof...(a) == 1
-      : v((1 * ... * a))
-  {
-    if constexpr (V < 8) {
-      if (v == 0)
-        throw std::runtime_error("invalid input");
-    }
-  }
-
   constexpr bool operator==(helper_immovable_t const &) const noexcept = default;
 };
 
-static_assert(not std::is_copy_constructible_v<helper_immovable_t<0>>);
-static_assert(not std::is_move_constructible_v<helper_immovable_t<0>>);
-static_assert(not std::is_copy_assignable_v<helper_immovable_t<0>>);
-static_assert(not std::is_move_assignable_v<helper_immovable_t<0>>);
+// Swap multiplies each witness by its prime.
+template <auto Cfg> constexpr void swap(helper_t<Cfg> &l, helper_t<Cfg> &r)
+{
+  std::swap(l.v, r.v);
+  l.v *= swapped;
+  r.v *= swapped;
+}
 
-using helper_move_only = helper_move_only_t<0>;
-using helper_immovable = helper_immovable_t<0>;
+using helper = helper_t<prop::throw_value>;
+using helper_move_only = helper_move_only_t<prop::throw_value>;
+using helper_immovable = helper_immovable_t<prop::throw_value>;
+
+static_assert(std::is_nothrow_copy_constructible_v<helper>);
+static_assert(std::is_nothrow_move_constructible_v<helper>);
+static_assert(std::is_nothrow_copy_assignable_v<helper>);
+static_assert(std::is_nothrow_move_assignable_v<helper>);
+
+static_assert(not std::is_nothrow_copy_constructible_v<helper_t<prop::throw_copy>>);
+static_assert(std::is_nothrow_move_constructible_v<helper_t<prop::throw_copy>>);
+static_assert(std::is_nothrow_copy_constructible_v<helper_t<prop::throw_move>>);
+static_assert(not std::is_nothrow_move_constructible_v<helper_t<prop::throw_move>>);
+static_assert(not std::is_nothrow_copy_assignable_v<helper_t<prop::throw_copy_assign>>);
+static_assert(std::is_nothrow_move_assignable_v<helper_t<prop::throw_copy_assign>>);
+static_assert(std::is_nothrow_copy_assignable_v<helper_t<prop::throw_move_assign>>);
+static_assert(not std::is_nothrow_move_assignable_v<helper_t<prop::throw_move_assign>>);
+
+static_assert(not std::is_copy_constructible_v<helper_move_only>);
+static_assert(std::is_nothrow_move_constructible_v<helper_move_only>);
+static_assert(not std::is_nothrow_move_constructible_v<helper_move_only_t<prop::throw_move>>);
+static_assert(not std::is_copy_assignable_v<helper_move_only>);
+static_assert(std::is_nothrow_move_assignable_v<helper_move_only>);
+static_assert(not std::is_nothrow_move_assignable_v<helper_move_only_t<prop::throw_move_assign>>);
+
+static_assert(not std::is_copy_constructible_v<helper_immovable>);
+static_assert(not std::is_move_constructible_v<helper_immovable>);
+static_assert(not std::is_copy_assignable_v<helper_immovable>);
+static_assert(not std::is_move_assignable_v<helper_immovable>);
+
+// Legacy shim sanity: a few representative integer selectors still map to the right behaviour.
+// Remove together with the prop_of(int) overload once no call site uses an integer selector.
+static_assert(not std::is_nothrow_copy_constructible_v<helper_t<2>>);
+static_assert(not std::is_nothrow_move_constructible_v<helper_t<3>>);
+static_assert(not std::is_nothrow_move_assignable_v<helper_t<40>>);
+
+#endif // INCLUDE_TESTS_UTIL_HELPER_TYPES
