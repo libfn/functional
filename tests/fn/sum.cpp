@@ -52,6 +52,18 @@ struct Throwing final {
   constexpr bool operator==(Throwing const &o) const noexcept(false) { return v == o.v; }
 };
 
+// Copy is explicit, move is implicit - so an lvalue argument is constructible-but-not-convertible
+// and selects sum's explicit value constructor, while an rvalue selects the implicit one.
+// NOTE no operator int(): with the implicit ExplicitCopy(int) ctor it would open an
+// ExplicitCopy& -> int -> ExplicitCopy path, making the argument convertible after all.
+struct ExplicitCopy final {
+  int v;
+
+  constexpr ExplicitCopy(int i) noexcept : v(i) {}
+  constexpr explicit ExplicitCopy(ExplicitCopy const &o) noexcept : v(o.v) {}
+  constexpr ExplicitCopy(ExplicitCopy &&o) noexcept : v(o.v) {}
+};
+
 // Comparison probes are type-keyed rather than the file's usual value-taking lambda: sum<> has no
 // values to pass one (its default constructor is deleted, by design).
 template <typename L, typename R>
@@ -192,6 +204,37 @@ TEST_CASE("sum basic functionality tests", "[sum]")
       SUCCEED();
     }
 
+    WHEN("explicit (non-convertible) argument")
+    {
+      // The two value constructors differ only in the argument's convertibility to the alternative:
+      // ExplicitCopy's copy constructor is explicit, so an lvalue selects the explicit arm and can
+      // only direct-initialize, while an rvalue (implicit move) selects the implicit one.
+      static_assert(std::is_constructible_v<ExplicitCopy, ExplicitCopy &>);
+      static_assert(not std::is_convertible_v<ExplicitCopy &, ExplicitCopy>);
+
+      static_assert(std::is_constructible_v<sum<ExplicitCopy>, ExplicitCopy &>);
+      static_assert(not std::is_convertible_v<ExplicitCopy &, sum<ExplicitCopy>>); // explicit arm
+      static_assert(std::is_constructible_v<sum<ExplicitCopy>, ExplicitCopy &&>);
+      static_assert(std::is_convertible_v<ExplicitCopy &&, sum<ExplicitCopy>>); // implicit arm
+
+      ExplicitCopy e{42};
+      sum<ExplicitCopy> a{e};
+      CHECK(a.invoke([](auto &&i) -> int { return i.v; }) == 42);
+
+      sum<ExplicitCopy> b{std::move(e)};
+      CHECK(b.invoke([](auto &&i) -> int { return i.v; }) == 42);
+
+      WHEN("constexpr")
+      {
+        constexpr auto c = []() constexpr {
+          ExplicitCopy e{42};
+          return sum<ExplicitCopy>{e};
+        }();
+        static_assert(c.invoke([](auto &&i) -> int { return i.v; }) == 42);
+        SUCCEED();
+      }
+    }
+
     WHEN("CTAD")
     {
       sum a{42};
@@ -283,6 +326,82 @@ TEST_CASE("sum basic functionality tests", "[sum]")
 
       auto b = sum{std::in_place_type<std::array<int, 3>>, 1, 2, 3};
       static_assert(std::is_same_v<decltype(b), sum<std::array<int, 3>>>);
+    }
+  }
+
+  WHEN("widening constructor")
+  {
+    using T = sum<bool, double, int>;
+    using S = sum<bool, int>;
+
+    WHEN("from lvalue")
+    {
+      S const a{std::in_place_type<int>, 42};
+      T b{a};
+      CHECK(b.has_value(std::in_place_type<int>));
+      CHECK(b.invoke([](auto &&i) -> int { return static_cast<int>(i); }) == 42);
+      CHECK(a.has_value(std::in_place_type<int>)); // the source is copied, not consumed
+    }
+
+    WHEN("from rvalue")
+    {
+      S a{std::in_place_type<int>, 42};
+      T b{std::move(a)};
+      CHECK(b.has_value(std::in_place_type<int>));
+      CHECK(b.invoke([](auto &&i) -> int { return static_cast<int>(i); }) == 42);
+    }
+
+    WHEN("in_place_type names the source sum")
+    {
+      S const a{std::in_place_type<bool>, true};
+      T b{std::in_place_type<S>, a};
+      CHECK(b.has_value(std::in_place_type<bool>));
+      CHECK(b.invoke([](auto &&i) -> bool { return static_cast<bool>(i); }));
+    }
+
+    WHEN("constexpr")
+    {
+      constexpr S a{std::in_place_type<int>, 42};
+      constexpr T b{a};
+      static_assert(b.has_value(std::in_place_type<int>));
+      static_assert(b == T{42});
+
+      constexpr T c{S{true}}; // rvalue
+      static_assert(c.has_value(std::in_place_type<bool>));
+
+      constexpr T d{std::in_place_type<S>, a};
+      static_assert(d == b);
+      SUCCEED();
+    }
+
+    WHEN("constraints")
+    {
+      // Widening only ever widens: the target must be a superset of the source.
+      static_assert(std::is_constructible_v<T, S const &>);
+      static_assert(std::is_constructible_v<T, S &&>);
+      static_assert(std::is_constructible_v<T, sum<int> const &>);
+      static_assert(not std::is_constructible_v<sum<int>, S const &>); // narrowing
+      static_assert(not std::is_constructible_v<sum<int>, S &&>);
+      static_assert(not std::is_constructible_v<S, sum<double> const &>); // disjoint
+
+      // The in_place_type form names the SOURCE sum, and is superset-constrained the same way.
+      static_assert(std::is_constructible_v<T, std::in_place_type_t<S>, S const &>);
+      static_assert(not std::is_constructible_v<sum<int>, std::in_place_type_t<S>, S const &>);
+
+      // Same-type construction is the copy/move constructor - the widening pair excludes it.
+      static_assert(std::is_constructible_v<T, T const &>);
+      SUCCEED();
+    }
+
+    WHEN("noexcept")
+    {
+      // GAP #280: all three widening constructors are unconditionally noexcept, though each copies
+      // or moves every alternative of the source into the wider union.
+      using X = fn::sum_for<Throwing, int>;
+      static_assert(noexcept(X{std::declval<sum<Throwing> const &>()}));
+      static_assert(noexcept(X{std::declval<sum<Throwing> &&>()}));
+      static_assert(noexcept(X{std::in_place_type<sum<Throwing>>, std::declval<sum<Throwing> const &>()}));
+      SUCCEED();
     }
   }
 
@@ -799,6 +918,25 @@ TEST_CASE("sum transform", "[sum][transform]")
                          [](double const &&) -> bool { throw 0; }})
         == sum<bool, int>{true});
 
+  WHEN("extra arguments")
+  {
+    constexpr auto add = [](double i, int j) noexcept -> double { return i + j; };
+    static_assert(std::same_as<decltype(a.transform(add, 3)), sum<double>>);
+
+    CHECK(a.transform(add, 3) == sum{3.5});
+    CHECK(std::as_const(a).transform(add, 3) == sum{3.5});
+    CHECK(std::move(std::as_const(a)).transform(add, 3) == sum{3.5});
+    CHECK(std::move(a).transform(add, 3) == sum{3.5});
+
+    WHEN("constexpr")
+    {
+      constexpr type b{std::in_place_type<double>, 0.5};
+      static_assert(b.transform(add, 3) == sum{3.5});
+      static_assert(std::move(b).transform(add, 3) == sum{3.5});
+      SUCCEED();
+    }
+  }
+
   WHEN("noexcept")
   {
     // GAP #280: transform promises noexcept in every value category no matter what the callback
@@ -1098,6 +1236,25 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
     }
   }
 
+  WHEN("widening")
+  {
+    // The widening pair carries the copy/move constructors' requirements over to the SOURCE's
+    // alternatives: copy-widening needs each of them copyable, move-widening needs each movable.
+    static_assert(std::is_constructible_v<fn::sum_for<CopyOnly, int>, sum<CopyOnly> const &>);
+    static_assert(std::is_constructible_v<fn::sum_for<CopyOnly, int>, sum<CopyOnly> &&>); // binds const &
+
+    static_assert(not std::is_constructible_v<fn::sum_for<MoveOnly, int>, sum<MoveOnly> const &>);
+    static_assert(std::is_constructible_v<fn::sum_for<MoveOnly, int>, sum<MoveOnly> &&>);
+
+    static_assert(not std::is_constructible_v<fn::sum_for<NonCopyable, int>, sum<NonCopyable> const &>);
+    static_assert(not std::is_constructible_v<fn::sum_for<NonCopyable, int>, sum<NonCopyable> &&>);
+
+    sum<MoveOnly> a{std::in_place_type<MoveOnly>, 12};
+    fn::sum_for<MoveOnly, int> b{std::move(a)};
+    CHECK(b.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
+    CHECK(a.invoke([](auto &&i) { return static_cast<int>(i); }) == -1); // moved from
+  }
+
   WHEN("noexcept")
   {
     // GAP #280: the copy and move constructors are declared unconditionally noexcept, so an
@@ -1162,6 +1319,9 @@ TEST_CASE("sum", "[sum][has_value][get_ptr]")
   CHECK(std::as_const(b).get_ptr(std::in_place_type<double>) == nullptr);
   static_assert(noexcept(b.get_ptr(std::in_place_type<int>))); // accurate: no alternative is touched
   static_assert(noexcept(std::as_const(b).get_ptr(std::in_place_type<int>)));
+  static_assert([](auto &b) constexpr -> bool { //
+    return not requires { b.get_ptr(std::in_place_type<bool>); };
+  }(b)); // bool is not a type member
 
   T const c{std::in_place_type<double>, 4.25};
   CHECK(c.get_ptr(std::in_place_type<int>) == nullptr);
