@@ -57,16 +57,105 @@ template <typename U, typename G> struct _expected_types<::fn::expected<U, G>> {
   using error_type = G;
 };
 
+// A sum<> error is unconstructible, so an expected carrying one can never hold an error: every arm
+// that lifts one is unreachable, and what cannot run cannot throw. Guarded on the SOURCE's error
+// type - the value arms of the same expected still relocate, and still weigh.
+template <typename E, typename Type, typename... Args>
+constexpr inline bool _nothrow_error_arm = _nothrow_initializable<Type, Args...>;
+template <typename E, typename Type, typename... Args>
+  requires ::std::is_same_v<E, sum<>>
+constexpr inline bool _nothrow_error_arm<E, Type, Args...> = true;
+
+// Carrying the callback's value across into a widened result. An expected<void, ...> has no value to
+// carry, and `declval<void>()` is not a thing to ask about.
+template <typename Type, typename Src>
+constexpr inline bool _nothrow_carry_value
+    = _nothrow_initializable<Type, ::std::in_place_t, decltype(::std::declval<Src>().value())>;
+template <typename Type, typename Src>
+  requires ::std::is_void_v<typename ::std::remove_cvref_t<Src>::value_type>
+constexpr inline bool _nothrow_carry_value<Type, Src> = _nothrow_initializable<Type, ::std::in_place_t>;
+
+// `and_then` and `or_else` each have two arms - the callback's own expected is returned, or the two
+// error (value) types are widened into a sum - and `if constexpr` picks between them. A
+// noexcept-specifier is an ordinary constant expression and cannot pick: the untaken arm's spelling
+// would have to be well-formed too. Hence a trait, whose constrained specializations mirror the
+// body's arms. Both lead with `_is_some_expected`, so a callback returning something else leaves the
+// unconstrained primary to answer, and the body's static_assert to diagnose - a specification must
+// not pre-empt that with a hard error.
+template <typename E, typename Fn, typename ErrArg, typename... ValArg> struct _nothrow_and_then : ::std::false_type {};
+
+template <typename E, typename Fn, typename ErrArg, typename... ValArg>
+  requires _is_some_expected<::std::remove_cvref_t<typename _invoke_result<Fn, ValArg...>::type> &>
+           && ::std::is_same_v<typename _expected_types<
+                                   ::std::remove_cvref_t<typename _invoke_result<Fn, ValArg...>::type>>::error_type,
+                               E>
+struct _nothrow_and_then<E, Fn, ErrArg, ValArg...>
+    : ::std::bool_constant<
+          _is_nothrow_invocable<Fn, ValArg...>::value // the callback
+              && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<typename _invoke_result<Fn, ValArg...>::type>,
+                                                   ::fn::unexpect_t, ErrArg>> {}; // lifting self's error
+
+template <typename E, typename Fn, typename ErrArg, typename... ValArg>
+  requires _is_some_expected<::std::remove_cvref_t<typename _invoke_result<Fn, ValArg...>::type> &>
+           && (not ::std::is_same_v<typename _expected_types<::std::remove_cvref_t<
+                                        typename _invoke_result<Fn, ValArg...>::type>>::error_type,
+                                    E>)
+struct _nothrow_and_then<E, Fn, ErrArg, ValArg...> {
+  using type = ::std::remove_cvref_t<typename _invoke_result<Fn, ValArg...>::type>;
+  using new_type = ::fn::expected<typename type::value_type, sum_for<E, typename type::error_type>>;
+
+  static constexpr bool value
+      = _is_nothrow_invocable<Fn, ValArg...>::value // the callback
+        && _nothrow_carry_value<new_type, type>     // carrying its value across
+        && _nothrow_initializable<new_type, ::fn::unexpect_t,
+                                  decltype(::std::declval<type>().error())> // widening its error
+        && _nothrow_error_arm<E, new_type, ::fn::unexpect_t, ErrArg>;       // widening self's error
+};
+
+// or_else's arms, mirrored the same way. ValArg is the type of self's value as the body relocates it
+// (spelled through apply_const_lvalue_t by the caller, since for a void T there is no value to name).
+template <typename T, typename Fn, typename ErrArg, typename ValArg> struct _nothrow_or_else : ::std::false_type {};
+
+template <typename T, typename Fn, typename ErrArg, typename ValArg>
+  requires _is_some_expected<::std::remove_cvref_t<typename _invoke_result<Fn, ErrArg>::type> &>
+           && ::std::is_same_v<
+               typename _expected_types<::std::remove_cvref_t<typename _invoke_result<Fn, ErrArg>::type>>::value_type,
+               T>
+struct _nothrow_or_else<T, Fn, ErrArg, ValArg>
+    : ::std::bool_constant<
+          _is_nothrow_invocable<Fn, ErrArg>::value // the callback
+          && (::std::is_void_v<T>
+              || _nothrow_initializable<::std::remove_cvref_t<typename _invoke_result<Fn, ErrArg>::type>,
+                                        ::std::in_place_t, ValArg>)> {}; // carrying self's value
+
+template <typename T, typename Fn, typename ErrArg, typename ValArg>
+  requires _is_some_expected<::std::remove_cvref_t<typename _invoke_result<Fn, ErrArg>::type> &>
+           && (not ::std::is_same_v<
+               typename _expected_types<::std::remove_cvref_t<typename _invoke_result<Fn, ErrArg>::type>>::value_type,
+               T>)
+struct _nothrow_or_else<T, Fn, ErrArg, ValArg> {
+  using type = ::std::remove_cvref_t<typename _invoke_result<Fn, ErrArg>::type>;
+  using new_type = ::fn::expected<sum_for<T, typename type::value_type>, typename type::error_type>;
+
+  static constexpr bool value
+      = _is_nothrow_invocable<Fn, ErrArg>::value                       // the callback
+        && _nothrow_initializable<new_type, ::std::in_place_t, ValArg> // widening self's value
+        && _nothrow_carry_value<new_type, type>                        // widening its value
+        && _nothrow_initializable<new_type, ::fn::unexpect_t,
+                                  decltype(::std::declval<type>().error())>; // carrying its error
+};
+
 // Storage layer for ::fn::expected. Inherits the standard-conformant base from
 // pfn, then hides the four monadic static helpers with sum-widening variants
 // that materialise their result via `expected_policy::template type<U, G>`.
 // The transform/transform_error helpers hand pfn's _expected_from_invoke constructors a
 // zero-argument thunk, so the result's member is direct-non-list-initialized from fn's own
 // _invoke (or sum::transform) result: no extra move, and immovable result types work.
-// The statics carry the same extension noexcept as pfn's, spelled with the std traits: for
-// the sum/pack dispatch and sum-widening extensions the lead conjunct is false (the callable
-// is not directly invocable, or the result is differently shaped), so those are
-// conservatively noexcept(false).
+// The statics carry the same extension noexcept as pfn's, computed through fn's own machinery: the
+// callback of a sum/pack dispatch is invoked through `_invoke`, not called directly, so it is
+// `_is_nothrow_invocable` - not the std trait, which is false for a callable that is not directly
+// invocable on a sum or a pack - that answers for it, and the widening arms are weighed by the
+// traits above.
 template <typename T, typename E> struct _expected_base : ::pfn::detail::_expected_base<T, E, expected_policy> {
   using _pfn_base = ::pfn::detail::_expected_base<T, E, expected_policy>;
   using _pfn_base::_pfn_base;
@@ -74,11 +163,8 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   // and_then, non-void value type
   template <typename Self, typename Fn>
   static constexpr auto _and_then(Self &&self, Fn &&fn) //
-      noexcept(::std::is_same_v<typename _expected_types<::std::remove_cvref_t<typename ::fn::detail::_invoke_result<
-                                    Fn, decltype(_pfn_base::_value(FWD(self)))>::type>>::error_type,
-                                E>
-               && ::std::is_nothrow_invocable_v<Fn, decltype(_pfn_base::_value(FWD(self)))>
-               && ::std::is_nothrow_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>) // extension
+      noexcept(::fn::detail::_nothrow_and_then<E, Fn, decltype(_pfn_base::_error(FWD(self))),
+                                               decltype(_pfn_base::_value(FWD(self)))>::value) // extension
     requires(not ::std::is_void_v<T>) && ::fn::detail::_is_invocable<Fn, decltype(_pfn_base::_value(FWD(self)))>::value
             && ::std::is_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
   {
@@ -113,12 +199,8 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
 
   // and_then, void value type
   template <typename Self, typename Fn>
-  static constexpr auto _and_then(Self &&self, Fn &&fn) //
-      noexcept(::std::is_same_v<typename _expected_types<
-                                    ::std::remove_cvref_t<typename ::fn::detail::_invoke_result<Fn>::type>>::error_type,
-                                E>
-               && ::std::is_nothrow_invocable_v<Fn>
-               && ::std::is_nothrow_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>) // extension
+  static constexpr auto _and_then(Self &&self, Fn &&fn)                                               //
+      noexcept(::fn::detail::_nothrow_and_then<E, Fn, decltype(_pfn_base::_error(FWD(self)))>::value) // extension
     requires(::std::is_void_v<T>) && ::fn::detail::_is_invocable<Fn>::value
             && ::std::is_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
   {
@@ -157,13 +239,8 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   // an ill-formed _value call (constrained away for void) from being a hard error.
   template <typename Self, typename Fn>
   static constexpr auto _or_else(Self &&self, Fn &&fn) //
-      noexcept(::std::is_same_v<typename _expected_types<::std::remove_cvref_t<typename ::fn::detail::_invoke_result<
-                                    Fn, decltype(_pfn_base::_error(FWD(self)))>::type>>::value_type,
-                                T>
-               && ::std::is_nothrow_invocable_v<Fn, decltype(_pfn_base::_error(FWD(self)))>
-               && (::std::is_void_v<T>
-                   || ::std::is_nothrow_constructible_v<
-                       T, ::fn::apply_const_lvalue_t<Self, typename _pfn_base::_value_t &&>>)) // extension
+      noexcept(::fn::detail::_nothrow_or_else<T, Fn, decltype(_pfn_base::_error(FWD(self))),
+                                              ::fn::apply_const_lvalue_t<Self, typename _pfn_base::_value_t &&>>::value)
     requires ::fn::detail::_is_invocable<Fn, decltype(_pfn_base::_error(FWD(self)))>::value
              && (::std::is_void_v<T> || ::std::is_constructible_v<T, decltype(_pfn_base::_value(FWD(self)))>)
   {
@@ -213,7 +290,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   // new value/error is direct-non-list-initialized from the thunk's result (guaranteed elision).
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(_pfn_base::_value(FWD(self)))>
+      noexcept(::fn::detail::_is_nothrow_invocable<Fn, decltype(_pfn_base::_value(FWD(self)))>::value
                && ::std::is_nothrow_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>) // extension
     requires(not ::std::is_void_v<T>) && (not some_sum<T>)
             && ::fn::detail::_is_invocable_if<not some_sum<T>, Fn, decltype(_pfn_base::_value(FWD(self)))>::value
@@ -236,7 +313,9 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   // transform, value type is a sum (delegates to sum::transform). The callback is constrained here,
   // in the immediate context, for the reason given on optional's sum-case _transform.
   template <typename Self, typename Fn>
-  static constexpr auto _transform(Self &&self, Fn &&fn)
+  static constexpr auto _transform(Self &&self, Fn &&fn) //
+      noexcept(noexcept(_pfn_base::_value(FWD(self)).transform(FWD(fn)))
+               && ::std::is_nothrow_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>) // extension
     requires some_sum<T> && ::fn::detail::_typelist_invocable<Fn, decltype(_pfn_base::_value(FWD(self)))>
              && ::std::is_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
   {
@@ -256,7 +335,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   // transform, void value type
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn>
+      noexcept(::fn::detail::_is_nothrow_invocable<Fn>::value
                && ::std::is_nothrow_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>) // extension
     requires(::std::is_void_v<T>) && ::fn::detail::_is_invocable<Fn>::value
             && ::std::is_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
@@ -278,7 +357,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   // apply_const_lvalue_t for the same reason as _or_else's above)
   template <typename Self, typename Fn>
   static constexpr auto _transform_error(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(_pfn_base::_error(FWD(self)))>
+      noexcept(::fn::detail::_is_nothrow_invocable<Fn, decltype(_pfn_base::_error(FWD(self)))>::value
                && (::std::is_void_v<T>
                    || ::std::is_nothrow_constructible_v<
                        T, ::fn::apply_const_lvalue_t<Self, typename _pfn_base::_value_t &&>>)) // extension
@@ -302,7 +381,11 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   // transform_error, error type is a sum (delegates to sum::transform). The callback is constrained
   // here, in the immediate context, for the reason given on optional's sum-case _transform.
   template <typename Self, typename Fn>
-  static constexpr auto _transform_error(Self &&self, Fn &&fn)
+  static constexpr auto _transform_error(Self &&self, Fn &&fn) //
+      noexcept(noexcept(_pfn_base::_error(FWD(self)).transform(FWD(fn)))
+               && (::std::is_void_v<T>
+                   || ::std::is_nothrow_constructible_v<
+                       T, ::fn::apply_const_lvalue_t<Self, typename _pfn_base::_value_t &&>>)) // extension
     requires some_sum<E> && ::fn::detail::_typelist_invocable<Fn, decltype(_pfn_base::_error(FWD(self)))>
              && (::std::is_void_v<T> || ::std::is_constructible_v<T, decltype(_pfn_base::_value(FWD(self)))>)
   {
@@ -1065,13 +1148,11 @@ constexpr inline bool _nothrow_join_expected
       && _nothrow_initializable<Type, ::fn::unexpect_t, decltype(::std::declval<Lh>().error())>
       && _nothrow_initializable<Type, ::fn::unexpect_t, decltype(::std::declval<Rh>().error())>;
 
-// Lifting an operand's error into a widened error type. A sum<> operand can never hold an error, so
-// its arm is unreachable - the joins below assert as much - and what cannot run cannot throw.
+// Lifting an operand's error into a widened error type, through the sum<> guard of _nothrow_error_arm
+// (the joins below assert the same unreachability with pfn::unreachable).
 template <typename Src, typename Err>
-constexpr inline bool _nothrow_error_lift = _nothrow_initializable<Err, decltype(::std::declval<Src>().error())>;
-template <typename Src, typename Err>
-  requires ::std::is_same_v<typename ::std::remove_cvref_t<Src>::error_type, sum<>>
-constexpr inline bool _nothrow_error_lift<Src, Err> = true;
+constexpr inline bool _nothrow_error_lift
+    = _nothrow_error_arm<typename ::std::remove_cvref_t<Src>::error_type, Err, decltype(::std::declval<Src>().error())>;
 
 template <typename Type, typename Err, typename Lh, typename Rh, typename... Vs>
 constexpr inline bool _nothrow_join_widened = _nothrow_initializable<Type, ::std::in_place_t, Vs...>
