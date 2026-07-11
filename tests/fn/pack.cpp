@@ -4,7 +4,6 @@
 // or copy at https://opensource.org/licenses/ISC
 
 #include "util/helper_types.hpp"
-#include "util/static_check.hpp"
 
 #include <fn/functional.hpp>
 #include <fn/optional.hpp>
@@ -328,7 +327,6 @@ TEST_CASE("append value categories", "[pack][append]")
 TEST_CASE("pack with immovable data", "[pack][immovable]")
 {
   using fn::pack;
-  using util::static_check;
 
   struct ImmovableType {
     int value = 0;
@@ -348,15 +346,14 @@ TEST_CASE("pack with immovable data", "[pack][immovable]")
   ImmovableType const val2{92};
   T v{ImmovableType{3}, ImmovableType{14}, val1, val2};
 
-  using is
-      = static_check::bind<decltype([](auto &&fn) constexpr { return requires { std::declval<T>().invoke(fn); }; })>;
+  constexpr auto can_invoke = [](auto &&fn) constexpr { return requires { std::declval<T>().invoke(fn); }; };
 
-  static_assert(is::invocable([](auto &&...) {})); // generic call
-  static_assert(is::invocable([](ImmovableType const &, ImmovableType const &, ImmovableType const &,
-                                 ImmovableType const &) {})); // pass everything by const reference
-  static_assert(is::invocable([](ImmovableType &&, ImmovableType const &&, ImmovableType &, ImmovableType const &) {
-  }));                                                                // bind rvalues and lvalues
-  static_assert(is::not_invocable([](ImmovableType, auto &&...) {})); // cannot pass immovable by value
+  static_assert(can_invoke([](auto &&...) {})); // generic call
+  static_assert(can_invoke([](ImmovableType const &, ImmovableType const &, ImmovableType const &,
+                              ImmovableType const &) {})); // pass everything by const reference
+  static_assert(can_invoke([](ImmovableType &&, ImmovableType const &&, ImmovableType &, ImmovableType const &) {
+  }));                                                             // bind rvalues and lvalues
+  static_assert(not can_invoke([](ImmovableType, auto &&...) {})); // cannot pass immovable by value
 
   CHECK(v.invoke([](auto &&...args) noexcept -> int { return (0 + ... + args.value); }) == 3 + 14 + 15 + 92);
 }
