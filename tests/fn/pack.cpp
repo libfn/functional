@@ -308,6 +308,47 @@ TEST_CASE("append value categories", "[pack][append]")
   }
 }
 
+TEST_CASE("pack noexcept", "[pack][noexcept]")
+{
+  using fn::pack;
+
+  struct Throwy {
+    Throwy() = default;
+    Throwy(Throwy const &) noexcept(false) {}
+    Throwy(Throwy &&) noexcept(false) {}
+  };
+  struct Quiet {
+    Quiet() = default;
+    Quiet(Quiet const &) noexcept {}
+    Quiet(Quiet &&) noexcept {}
+  };
+
+  WHEN("append")
+  {
+    static_assert(noexcept(std::declval<pack<int> &>().append(std::in_place_type<int>, 1)));
+    static_assert(noexcept(std::declval<pack<Quiet> &>().append(std::in_place_type<int>, 1)));
+
+    // the element being appended can throw on construction ...
+    static_assert(
+        not noexcept(std::declval<pack<int> &>().append(std::in_place_type<Throwy>, std::declval<Throwy const &>())));
+    // ... and so can relocating an element the pack already holds, even where the new one cannot
+    static_assert(not noexcept(std::declval<pack<Throwy> &>().append(std::in_place_type<int>, 1)));
+    static_assert(not noexcept(std::declval<pack<Throwy> &>().append(1))); // deduced form
+    SUCCEED();
+  }
+
+  WHEN("invoke")
+  {
+    constexpr auto nothrow_fn = [](auto &&...) noexcept { return 0; };
+    constexpr auto throwing_fn = [](auto &&...) { return 0; };
+    static_assert(noexcept(std::declval<pack<int, bool> &>().invoke(nothrow_fn)));
+    static_assert(not noexcept(std::declval<pack<int, bool> &>().invoke(throwing_fn)));
+    static_assert(noexcept(std::declval<pack<int, bool> &>().template invoke_r<int>(nothrow_fn)));
+    static_assert(not noexcept(std::declval<pack<int, bool> &>().template invoke_r<int>(throwing_fn)));
+    SUCCEED();
+  }
+}
+
 TEST_CASE("pack with immovable data", "[pack][immovable]")
 {
   using fn::pack;

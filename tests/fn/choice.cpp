@@ -556,6 +556,29 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
   }
 }
 
+TEST_CASE("choice noexcept", "[choice][noexcept]")
+{
+  using fn::choice;
+  using C = choice<int>;
+
+  // choice used to over-promise where optional and expected did not: the same monadic operation had
+  // different exception behaviour depending on the monad it was written against
+  constexpr auto nothrow_fn = [](auto i) noexcept -> choice<int> { return {i}; };
+  constexpr auto throwing_fn = [](auto i) -> choice<int> { return {i}; };
+
+  static_assert(noexcept(std::declval<C &>().and_then(nothrow_fn)));
+  static_assert(not noexcept(std::declval<C &>().and_then(throwing_fn)));
+  static_assert(not noexcept(std::declval<C &&>().and_then(throwing_fn)));
+
+  constexpr auto nothrow_t = [](auto) noexcept { return 0; };
+  constexpr auto throwing_t = [](auto) { return 0; };
+  static_assert(noexcept(std::declval<C &>().transform(nothrow_t)));
+  static_assert(not noexcept(std::declval<C &>().transform(throwing_t)));
+  static_assert(noexcept(std::declval<C &>().invoke(nothrow_t)));
+  static_assert(not noexcept(std::declval<C &>().invoke(throwing_t)));
+  SUCCEED();
+}
+
 TEST_CASE("choice and_then", "[choice][and_then]")
 {
   using type = fn::choice<bool, int>;

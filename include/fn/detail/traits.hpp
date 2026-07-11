@@ -22,6 +22,17 @@ concept _initializable                                                    //
     = (::std::is_reference_v<T> && ::std::is_constructible_v<T, Args...>) //
       || ((not ::std::is_reference_v<T>) && requires { T{::std::declval<Args>()...}; });
 
+// Whether that same initialization can throw. Only instantiated for an `_initializable` T, and for
+// the same reason it cannot be `is_nothrow_constructible_v`: the question is about `T{args...}`.
+template <typename T, typename... Args>
+struct _nothrow_init : ::std::bool_constant<noexcept(T{::std::declval<Args>()...})> {};
+template <typename T, typename... Args>
+  requires ::std::is_reference_v<T>
+struct _nothrow_init<T, Args...> : ::std::bool_constant<::std::is_nothrow_constructible_v<T, Args...>> {};
+
+template <typename T, typename... Args>
+concept _nothrow_initializable = _initializable<T, Args...> && _nothrow_init<T, Args...>::value;
+
 // Change any rvalue or empty value to prvalue, but leave lvalues unchanged.
 // This is meant to find the type of data members which won't bind to rvalues.
 template <typename T> extern T _as_value;

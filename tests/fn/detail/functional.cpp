@@ -5,6 +5,7 @@
 
 #include <fn/detail/functional.hpp>
 #include <fn/pack.hpp>
+#include <fn/utility.hpp>
 
 #include <catch2/catch_all.hpp>
 
@@ -58,19 +59,38 @@ TEST_CASE("_is_invocable_r", "[functional][is_invocable_r]")
 
 TEST_CASE("_is_nothrow_invocable", "[functional][is_nothrow_invocable]")
 {
-  // Hardcoded to false pending https://github.com/libfn/functional/issues/45
   using fn::detail::_is_nothrow_invocable;
-  static_assert(not _is_nothrow_invocable<decltype(sum_two), int, double>::value);
-  static_assert(not _is_nothrow_invocable<decltype([]() noexcept { return 0; })>::value);
+  static_assert(not _is_nothrow_invocable<decltype(sum_two), int, double>::value); // sum_two can throw
+  static_assert(_is_nothrow_invocable<decltype([]() noexcept { return 0; })>::value);
+  static_assert(not _is_nothrow_invocable<decltype([]() { return 0; })>::value);
+  static_assert(not _is_nothrow_invocable<decltype([](int) noexcept { return 0; })>::value); // not invocable at all
+
+  // it composes through the dispatch: a pack answers for the call over its elements, a sum for the
+  // call over every alternative, since which one runs is only known at run time
+  constexpr auto nothrow_generic = [](auto &&...) noexcept { return 0; };
+  constexpr auto throwing_generic = [](auto &&...) { return 0; };
+  static_assert(_is_nothrow_invocable<decltype(nothrow_generic), fn::pack<int, bool> &>::value);
+  static_assert(not _is_nothrow_invocable<decltype(throwing_generic), fn::pack<int, bool> &>::value);
+  static_assert(_is_nothrow_invocable<decltype(nothrow_generic), fn::sum<bool, int> &>::value);
+  static_assert(not _is_nothrow_invocable<decltype(throwing_generic), fn::sum<bool, int> &>::value);
+
+  // one throwing alternative is enough
+  constexpr auto mixed = fn::overload{[](int &) noexcept { return 0; }, [](bool &) { return 0; }};
+  static_assert(not _is_nothrow_invocable<decltype(mixed), fn::sum<bool, int> &>::value);
   SUCCEED();
 }
 
 TEST_CASE("_is_nothrow_invocable_r", "[functional][is_nothrow_invocable_r]")
 {
-  // Hardcoded to false pending https://github.com/libfn/functional/issues/45
   using fn::detail::_is_nothrow_invocable_r;
   static_assert(not _is_nothrow_invocable_r<double, decltype(sum_two), int, double>::value);
-  static_assert(not _is_nothrow_invocable_r<int, decltype([]() noexcept { return 0; })>::value);
+  static_assert(_is_nothrow_invocable_r<int, decltype([]() noexcept { return 0; })>::value);
+  static_assert(not _is_nothrow_invocable_r<int, decltype([]() { return 0; })>::value);
+  static_assert(not _is_nothrow_invocable_r<int *, decltype([]() noexcept { return 0; })>::value); // not convertible
+
+  constexpr auto nothrow_generic = [](auto &&...) noexcept { return 0; };
+  static_assert(_is_nothrow_invocable_r<int, decltype(nothrow_generic), fn::pack<int, bool> &>::value);
+  static_assert(_is_nothrow_invocable_r<int, decltype(nothrow_generic), fn::sum<bool, int> &>::value);
   SUCCEED();
 }
 
