@@ -170,6 +170,13 @@ struct choice<Ts...> : sum<Ts...> {
   constexpr choice(choice &&other) = default;
   constexpr ~choice() = default;
 
+  // Declared because the move constructor above would otherwise delete the implicit copy assignment
+  // and suppress the implicit move assignment. Defaulted, so both inherit the base sum's - its
+  // constraints, its strong guarantee, and its computed noexcept (which an explicit one here would
+  // contradict, and thereby delete).
+  constexpr choice &operator=(choice const &other) = default;
+  constexpr choice &operator=(choice &&other) = default;
+
   /**
    * @brief TODO
    *
