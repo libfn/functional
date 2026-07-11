@@ -19,7 +19,22 @@
 namespace fn::detail {
 
 namespace _fold_detail {
-template <typename L, typename R> [[nodiscard]] constexpr auto _fold(auto &&l, auto &&r)
+// The branch the fold takes is chosen by `if constexpr`, so a single expression cannot state its
+// specification: the two untaken spellings would be ill-formed. Hence one specialization per branch.
+template <typename L, typename R, typename Lv, typename Rv>
+struct _nothrow_fold : ::std::bool_constant<noexcept(::fn::pack<L, R>{::std::declval<Lv>(), ::std::declval<Rv>()})> {};
+template <typename L, typename R, typename Lv, typename Rv>
+  requires _some_pack<L>
+struct _nothrow_fold<L, R, Lv, Rv>
+    : ::std::bool_constant<noexcept(::std::declval<Lv>().append(::std::in_place_type_t<R>{}, ::std::declval<Rv>()))> {};
+template <typename L, typename R, typename Lv, typename Rv>
+  requires(not _some_pack<L>) && _some_pack<R>
+struct _nothrow_fold<L, R, Lv, Rv> : ::std::bool_constant<noexcept(::fn::pack<L>{::std::declval<Lv>()}.append(
+                                         ::std::in_place_type_t<R>{}, ::std::declval<Rv>()))> {};
+
+template <typename L, typename R>
+[[nodiscard]] constexpr auto _fold(auto &&l, auto &&r) //
+    noexcept(_nothrow_fold<L, R, decltype(l), decltype(r)>::value)
 {
   if constexpr (_some_pack<L>) {
     return FWD(l).append(::std::in_place_type_t<R>{}, FWD(r));
@@ -32,35 +47,70 @@ template <typename L, typename R> [[nodiscard]] constexpr auto _fold(auto &&l, a
   }
 }
 
+// Named types, not lambdas: `fold` and everything above it specify themselves in terms of what
+// dispatching through these promises, and a lambda can be named neither in a noexcept-specifier nor
+// (before clang 17) in any unevaluated operand at all.
+template <typename R, typename Rv> struct _fold_rh final {
+  Rv rv;
+
+  template <typename L>
+  [[nodiscard]] constexpr auto operator()(::std::in_place_type_t<L>, auto &&l) const
+      noexcept(noexcept(_fold<L, R>(FWD(l), ::std::declval<Rv>())))
+  {
+    return _fold<L, R>(FWD(l), static_cast<Rv &&>(rv));
+  }
+};
+
+template <typename L, typename Lv> struct _fold_lh final {
+  Lv lv;
+
+  template <typename R>
+  [[nodiscard]] constexpr auto operator()(::std::in_place_type_t<R>, auto &&r) const
+      noexcept(noexcept(_fold<L, R>(::std::declval<Lv>(), FWD(r))))
+  {
+    return _fold<L, R>(static_cast<Lv &&>(lv), FWD(r));
+  }
+};
+
+template <typename Rv> struct _fold_rh_sum final {
+  Rv rv;
+
+  template <typename L>
+  [[nodiscard]] constexpr auto operator()(::std::in_place_type_t<L>, auto &&l) const
+      noexcept(noexcept(::std::declval<Rv>()._transform(_fold_lh<L, decltype(l)>{FWD(l)})))
+  {
+    return static_cast<Rv &&>(rv)._transform(_fold_lh<L, decltype(l)>{FWD(l)});
+  }
+};
+
 template <typename Lh, typename Rh>
   requires _some_sum<Lh> && _some_sum<Rh>
-[[nodiscard]] constexpr auto fold(auto &&lv, auto &&rv)
+[[nodiscard]] constexpr auto fold(auto &&lv, auto &&rv) //
+    noexcept(noexcept(FWD(lv)._transform(_fold_rh_sum<decltype(rv)>{FWD(rv)})))
 {
-  return FWD(lv)._transform([&rv]<typename L>(::std::in_place_type_t<L>, auto &&l) {
-    return FWD(rv)._transform(
-        [&l]<typename R>(::std::in_place_type_t<R>, auto &&r) { return _fold<L, R>(FWD(l), FWD(r)); });
-  });
+  return FWD(lv)._transform(_fold_rh_sum<decltype(rv)>{FWD(rv)});
 }
 
 template <typename Lh, typename Rh>
   requires _some_sum<Lh> && (not _some_sum<Rh>)
-[[nodiscard]] constexpr auto fold(auto &&lv, auto &&rv)
+[[nodiscard]] constexpr auto fold(auto &&lv, auto &&rv) //
+    noexcept(noexcept(FWD(lv)._transform(_fold_rh<Rh, decltype(rv)>{FWD(rv)})))
 {
-  return FWD(lv)._transform(
-      [&rv]<typename L>(::std::in_place_type_t<L>, auto &&l) { return _fold<L, Rh>(FWD(l), FWD(rv)); });
+  return FWD(lv)._transform(_fold_rh<Rh, decltype(rv)>{FWD(rv)});
 }
 
 template <typename Lh, typename Rh>
   requires(not _some_sum<Lh>) && _some_sum<Rh>
-[[nodiscard]] constexpr auto fold(auto &&lv, auto &&rv)
+[[nodiscard]] constexpr auto fold(auto &&lv, auto &&rv) //
+    noexcept(noexcept(FWD(rv)._transform(_fold_lh<Lh, decltype(lv)>{FWD(lv)})))
 {
-  return FWD(rv)._transform(
-      [&lv]<typename R>(::std::in_place_type_t<R>, auto &&r) { return _fold<Lh, R>(FWD(lv), FWD(r)); });
+  return FWD(rv)._transform(_fold_lh<Lh, decltype(lv)>{FWD(lv)});
 }
 
 template <typename Lh, typename Rh>
   requires(not _some_sum<Lh>) && (not _some_sum<Rh>)
-[[nodiscard]] constexpr auto fold(auto &&lv, auto &&rv)
+[[nodiscard]] constexpr auto fold(auto &&lv, auto &&rv) //
+    noexcept(noexcept(_fold<Lh, Rh>(FWD(lv), FWD(rv))))
 {
   return _fold<Lh, Rh>(FWD(lv), FWD(rv));
 }

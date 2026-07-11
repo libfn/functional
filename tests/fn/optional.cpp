@@ -21,6 +21,13 @@ struct Xint {
   constexpr Xint &operator=(Xint const &) = default;
 };
 
+// Nothrow move, throwing copy: joining lvalue operands copies the value, joining rvalues moves it
+struct MoveNothrow {
+  MoveNothrow() = default;
+  MoveNothrow(MoveNothrow const &) noexcept(false) {}
+  MoveNothrow(MoveNothrow &&) noexcept = default;
+};
+
 // Sums whose alternatives include a non-builtin (Xint/std::string_view/fn::pack — any
 // class/struct/enum) have platform-specific order (see sum.cpp); pure-builtin sums keep sum<...>.
 } // namespace
@@ -484,6 +491,25 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
         CHECK(not(Lh{fn::pack{0.5, 3}} & Rh{std::nullopt}).has_value());
         CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
       }
+    }
+
+    WHEN("noexcept")
+    {
+      // the join relocates both operands' values into the result, so it promises only what
+      // relocating them promises - the nullopt arm is a tag, and cannot throw
+      using Lh = fn::optional<MoveNothrow>;
+      using Rh = fn::optional<int>;
+      static_assert(noexcept(std::declval<Rh &>() & std::declval<Rh &>()));
+      static_assert(not noexcept(std::declval<Lh &>() & std::declval<Rh &>())); // copies
+      static_assert(not noexcept(std::declval<Rh &>() & std::declval<Lh &>()));
+      static_assert(noexcept(std::declval<Lh &&>() & std::declval<Rh &&>())); // moves
+      static_assert(noexcept(std::declval<Rh &&>() & std::declval<Lh &&>()));
+
+      // the same, dispatched through a sum
+      using Sh = fn::optional<fn::sum<MoveNothrow>>;
+      static_assert(not noexcept(std::declval<Sh &>() & std::declval<Rh &>()));
+      static_assert(noexcept(std::declval<Sh &&>() & std::declval<Rh &&>()));
+      SUCCEED();
     }
   }
 }
