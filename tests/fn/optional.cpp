@@ -167,6 +167,27 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
 {
   WHEN("and_then")
   {
+    using P = fn::optional<fn::pack<int, std::string_view>>;
+
+    // noexcept (extension): the spec is std::is_nothrow_invocable_v on the whole pack
+    // (optional.hpp:146), never satisfied by a multi-argument visitor -- conservatively
+    // noexcept(false) even with nothrow handlers; fn-native noexcept for sum/pack dispatch is
+    // GH #254. A generic callback IS invocable on the whole pack, so the borrowed trait then
+    // reports true from a call shape the pack-apply dispatch never makes.
+    constexpr auto nothrow_two = [](int &, std::string_view &) noexcept -> fn::optional<bool> { return {true}; };
+    static_assert(not noexcept(std::declval<P &>().and_then(nothrow_two)));
+    constexpr auto nothrow_generic = [](auto &&...) noexcept -> fn::optional<bool> { return {true}; };
+    static_assert(noexcept(std::declval<P &>().and_then(nothrow_generic)));
+
+    // constraints (extension): pack-apply invocability is a constraint (optional.hpp:147);
+    // wrong arity or a non-callable SFINAE-drops, and the pack's value category is tracked
+    constexpr auto can_and_then_lval = [](auto &&f) { return requires { std::declval<P &>().and_then(f); }; };
+    constexpr auto can_and_then_rval = [](auto &&f) { return requires { std::declval<P &&>().and_then(f); }; };
+    static_assert(can_and_then_lval(nothrow_two));
+    static_assert(not can_and_then_rval(nothrow_two));                                        // lvalue-only visitor
+    static_assert(not can_and_then_lval([](int &) -> fn::optional<bool> { return {true}; })); // wrong arity
+    static_assert(not can_and_then_lval(42));
+
     WHEN("value")
     {
       fn::optional<fn::pack<int, std::string_view>> s{
@@ -223,10 +244,35 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                                      [](int const &&, auto &&...) -> fn::optional<bool> { throw 0; }}) //
                     .has_value());
     }
+
+    WHEN("constexpr")
+    {
+      constexpr P a{fn::pack<int>{12}.append(std::in_place_type<std::string_view>, "bar")};
+      static_assert(a.and_then([](int const &i, std::string_view const &s) -> fn::optional<bool> {
+                       return {i == 12 && s == "bar"};
+                     }).value());
+      static_assert(not P{std::nullopt}.and_then([](auto &&...) -> fn::optional<bool> { return {true}; }).has_value());
+      SUCCEED();
+    }
   }
 
   WHEN("transform")
   {
+    using P = fn::optional<fn::pack<int, std::string_view>>;
+
+    // noexcept and constraints mirror and_then above (optional.hpp:219-220): the non-sum
+    // _transform is constrained on pack-apply invocability -- contrast the sum case, whose
+    // callback is checked only in its deduced-return body (see "optional transform sum")
+    constexpr auto nothrow_two = [](int &, std::string_view &) noexcept -> bool { return true; };
+    static_assert(not noexcept(std::declval<P &>().transform(nothrow_two)));
+    constexpr auto nothrow_generic = [](auto &&...) noexcept -> bool { return true; };
+    static_assert(noexcept(std::declval<P &>().transform(nothrow_generic)));
+
+    constexpr auto can_transform = [](auto &&f) { return requires { std::declval<P &>().transform(f); }; };
+    static_assert(can_transform(nothrow_two));
+    static_assert(not can_transform([](int &) -> bool { return true; })); // wrong arity
+    static_assert(not can_transform(42));
+
     WHEN("value")
     {
       fn::optional<fn::pack<int, std::string_view>> s{
@@ -269,10 +315,35 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       CHECK(not std::move(std::as_const(s)).transform([](auto...) -> bool { throw 0; }).has_value());
       CHECK(not std::move(s).transform([](auto...) -> bool { throw 0; }).has_value());
     }
+
+    WHEN("constexpr")
+    {
+      constexpr P a{fn::pack<int>{12}.append(std::in_place_type<std::string_view>, "bar")};
+      static_assert(
+          a.transform([](int const &i, std::string_view const &s) -> bool { return i == 12 && s == "bar"; }).value());
+      static_assert(not P{std::nullopt}.transform([](auto &&...) -> bool { return true; }).has_value());
+      SUCCEED();
+    }
   }
 
   WHEN("operator &")
   {
+    // noexcept: operator& is declared unconditionally noexcept (optional.hpp:881) though
+    // joining copies/moves the operands' values into the result pack -- for a throwing-copy
+    // value type this is a promise the join cannot keep (make_optional, by contrast, spells
+    // conditional noexcept). GAP: asserts current behaviour; flip to `not noexcept` when fixed.
+    struct throwing_copy {
+      // defined, not just declared: the instantiated join references it (-Wundefined-internal)
+      throwing_copy(throwing_copy const &) noexcept(false) {}
+    };
+    static_assert(noexcept(std::declval<fn::optional<double> &>() & std::declval<fn::optional<int> &>()));
+    static_assert(noexcept(std::declval<fn::optional<throwing_copy> &>() & std::declval<fn::optional<int> &>()));
+
+    // constraints: both operands must be optionals
+    constexpr auto can_amp = [](auto &&rh) { return requires { std::declval<fn::optional<int> &>() & rh; }; };
+    static_assert(can_amp(fn::optional<double>{0.5}));
+    static_assert(not can_amp(42));
+
     WHEN("value & value yield pack")
     {
       static_assert(std::same_as<decltype(std::declval<fn::optional<int>>() & std::declval<fn::optional<double>>()),
@@ -469,11 +540,51 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
         CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
       }
     }
+
+    WHEN("constexpr")
+    {
+      static_assert((fn::optional<double>{0.5} & fn::optional<int>{12})
+                        .transform([](double d, int i) constexpr -> bool { return d == 0.5 && i == 12; })
+                        .value());
+      static_assert(not(fn::optional<double>{std::nullopt} & fn::optional<int>{12}).has_value());
+      using Lh = fn::optional<fn::sum<double, int>>;
+      using Rh = fn::optional<fn::sum<bool, int>>;
+      static_assert((Lh{fn::sum{0.5}} & Rh{fn::sum{12}})
+                        .transform([](auto i, auto j) constexpr -> bool {
+                          return 0.5 == static_cast<double>(i) && 12 == static_cast<int>(j);
+                        })
+                        .value()
+                    == fn::sum{true});
+      SUCCEED();
+    }
   }
 }
 
 TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
 {
+  using S = fn::optional<fn::sum_for<Xint, int>>;
+
+  // noexcept (extension): the spec is std::is_nothrow_invocable_v on the whole sum
+  // (optional.hpp:146); a visitor set is not invocable on the sum itself, so and_then over a
+  // sum is conservatively noexcept(false) even with nothrow handlers -- fn-native noexcept for
+  // sum dispatch is GH #254. A generic callback IS invocable on the whole sum, so the borrowed
+  // trait then reports true from a call shape the per-alternative dispatch never makes.
+  constexpr auto nothrow_lval = fn::overload{[](int &) noexcept -> fn::optional<bool> { return {true}; },
+                                             [](Xint &) noexcept -> fn::optional<bool> { return {false}; }};
+  static_assert(not noexcept(std::declval<S &>().and_then(nothrow_lval)));
+  constexpr auto nothrow_generic = [](auto &&) noexcept -> fn::optional<bool> { return {true}; };
+  static_assert(noexcept(std::declval<S &>().and_then(nothrow_generic)));
+
+  // constraints (extension): exhaustive invocability over the sum's alternatives is a
+  // constraint (optional.hpp:147) -- a partial or non-invocable visitor SFINAE-drops, and the
+  // alternatives' value category is tracked
+  constexpr auto can_and_then_lval = [](auto &&f) { return requires { std::declval<S &>().and_then(f); }; };
+  constexpr auto can_and_then_rval = [](auto &&f) { return requires { std::declval<S &&>().and_then(f); }; };
+  static_assert(can_and_then_lval(nothrow_lval));
+  static_assert(not can_and_then_rval(nothrow_lval)); // no rvalue handlers
+  static_assert(not can_and_then_lval(fn::overload{[](int &) -> fn::optional<bool> { return {true}; }})); // partial
+  static_assert(not can_and_then_lval(42));
+
   WHEN("value")
   {
     fn::optional<fn::sum_for<Xint, int>> s{12};
@@ -574,6 +685,27 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
 
 TEST_CASE("optional transform sum", "[optional][sum][transform]")
 {
+  using S = fn::optional<fn::sum_for<Xint, int>>;
+
+  // noexcept: the sum-case _transform (optional.hpp:233) carries no noexcept spec at all, so
+  // transform over a sum is noexcept(false) even for a whole-sum-invocable nothrow callback
+  // that and_then reports noexcept(true) for -- fn-native noexcept for sum dispatch is GH #254
+  constexpr auto nothrow_visitor = fn::overload{[](int const &) noexcept -> bool { return true; },
+                                                [](Xint const &) noexcept -> bool { return false; }};
+  static_assert(not noexcept(std::declval<S &>().transform(nothrow_visitor)));
+  constexpr auto nothrow_generic = [](auto &&) noexcept -> bool { return true; };
+  static_assert(not noexcept(std::declval<S &>().transform(nothrow_generic)));
+
+  // GAP: unlike and_then (optional.hpp:147) and the non-sum transform (:220), the sum-case
+  // _transform (:233) has no callback-invocability constraint; validity surfaces in its
+  // deduced-return body (:236) during candidate-signature formation, outside the immediate
+  // context. A bad callback is a hard error instead of SFINAE-dropping (so no negative probe
+  // here), and a category-partial visitor poisons overload resolution outright: on a non-const
+  // lvalue even the losing const& candidate must instantiate, which is why the visitors above
+  // take const& (serving every candidate) where and_then's can take int&/Xint&.
+  constexpr auto can_transform = [](auto &&f) { return requires { std::declval<S &>().transform(f); }; };
+  static_assert(can_transform(nothrow_visitor));
+
   WHEN("value")
   {
     fn::optional<fn::sum_for<Xint, int>> s{12};
