@@ -6,6 +6,7 @@
 #ifndef INCLUDE_FN_RECOVER
 #define INCLUDE_FN_RECOVER
 
+#include <fn/concepts.hpp>
 #include <fn/functional.hpp>
 #include <fn/functor.hpp>
 
@@ -20,16 +21,26 @@ namespace fn {
  * @tparam Fn TODO
  * @tparam V TODO
  */
+// The recovered value builds the RESULT, not merely its value type: for an `optional<T&>` those
+// differ - the value type is the referent, which a prvalue can construct, but the result binds a
+// reference to it, which a prvalue cannot. The success branch carries the existing value over, so
+// that must survive the trip too.
 template <typename Fn, typename V>
 concept invocable_recover //
     = (some_expected_non_void<V> && requires(Fn &&fn, V &&v) {
         {
           ::fn::invoke(FWD(fn), FWD(v).error())
         } -> ::std::convertible_to<typename ::std::remove_cvref_t<V>::value_type>;
+        requires ::std::is_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t,
+                                           decltype(::fn::invoke(FWD(fn), FWD(v).error()))>;
+        requires detail::_relocatable_value<V>;
       }) || (some_expected_void<V> && requires(Fn &&fn, V &&v) {
         { ::fn::invoke(FWD(fn), FWD(v).error()) } -> ::std::same_as<void>;
       }) || (some_optional<V> && requires(Fn &&fn, V &&v) {
         { ::fn::invoke(FWD(fn)) } -> ::std::convertible_to<typename ::std::remove_cvref_t<V>::value_type>;
+        requires ::std::is_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t,
+                                           decltype(::fn::invoke(FWD(fn)))>;
+        requires detail::_relocatable_value<V>;
       });
 
 /**
