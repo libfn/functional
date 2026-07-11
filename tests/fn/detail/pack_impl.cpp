@@ -69,6 +69,50 @@ TEST_CASE("pack_impl size and aggregate construction", "[pack_impl]")
   using PN = pack_impl<std::index_sequence_for<NonCopyable>, NonCopyable>;
   constexpr PN pn{NonCopyable{99}};
   static_assert(PN::_invoke(pn, [](NonCopyable const &n) { return n.v; }) == 99);
+
+  SUCCEED();
+}
+
+TEST_CASE("pack_impl noexcept", "[pack_impl][noexcept]")
+{
+  using fn::detail::pack_impl;
+
+  // An element whose copy and move can both throw, so that what the members promise can be compared
+  // with what they actually do.
+  struct Throwing final {
+    int v;
+
+    constexpr Throwing(int i) noexcept : v(i) {}
+    constexpr Throwing(Throwing const &o) noexcept(false) : v(o.v) {}
+    constexpr Throwing(Throwing &&o) noexcept(false) : v(o.v) {}
+  };
+  static_assert(not std::is_nothrow_copy_constructible_v<Throwing>);
+
+  using P = pack_impl<std::index_sequence_for<int, double>, int, double>;
+  using PT = pack_impl<std::index_sequence_for<Throwing>, Throwing>;
+
+  constexpr auto throwing_fn = [](auto &&...) noexcept(false) -> int { return 0; };
+
+  // GAP #285: _swap_invoke is the third of the pipeline's four unconditional noexcept boundaries -
+  // functor::operator| dispatches through it - and _invoke is declared the same way, so a callback
+  // that may throw is promised not to.
+  static_assert(noexcept(P::_swap_invoke(std::declval<P const &>(), throwing_fn)));
+  static_assert(noexcept(P::_invoke(std::declval<P const &>(), throwing_fn)));
+
+  // GAP #280: _append is unconditionally noexcept as well, though it constructs the appended element
+  // AND relocates every existing one into the new pack - each of which can throw here.
+  static_assert(noexcept(PT::template _append<int>(std::declval<PT const &>(), 1)));
+  static_assert(noexcept(P::template _append<Throwing>(std::declval<P const &>(), 1)));
+
+  // _get's promise is accurate: it only forms a reference to an element, touching nothing.
+  static_assert(noexcept(P::template _get<0>(std::declval<P const &>())));
+  static_assert(noexcept(PT::template _get<0>(std::declval<PT &>())));
+
+  // #282: a pack never holds a sum, and _append deletes the overload that would - but the deletion is
+  // dead code, because append_type<sum> is an ambiguous partial specialization and fails first.
+  // No probe is portable until that is fixed (it hard-errors on gcc, SFINAEs cleanly on clang).
+
+  SUCCEED();
 }
 
 TEST_CASE("pack_impl _swap_invoke", "[pack_impl][swap_invoke]")
