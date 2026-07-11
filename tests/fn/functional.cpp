@@ -214,3 +214,35 @@ TEST_CASE("invoke_r sum", "[invoke_r][sum]")
   CHECK(invoke_r<int>(fn, std::move(std::as_const(p))) == 1415);
   CHECK(invoke_r<int>(fn, std::move(p)) == 1415);
 }
+
+TEST_CASE("is_nothrow_invocable", "[is_nothrow_invocable][is_nothrow_invocable_r][invoke][noexcept]")
+{
+  constexpr auto fnNothrow = [](int i) noexcept -> int { return i; };
+  constexpr auto fnThrows = [](int i) noexcept(false) -> int { return i; };
+
+  // GAP #45: these two traits are exported alongside their std counterparts, but their value is
+  // stubbed false - so they answer false for a callable that plainly cannot throw, where std answers
+  // true. They are the only nothrow-invocability oracle fn has, and everything keyed on them inherits
+  // the wrong answer.
+  static_assert(std::is_nothrow_invocable_v<decltype(fnNothrow), int>);
+  static_assert(not fn::is_nothrow_invocable_v<decltype(fnNothrow), int>);
+  static_assert(not fn::is_nothrow_invocable_v<decltype(fnThrows), int>);
+
+  static_assert(std::is_nothrow_invocable_r_v<long, decltype(fnNothrow), int>);
+  static_assert(not fn::is_nothrow_invocable_r_v<long, decltype(fnNothrow), int>);
+
+  // The pack and sum dispatch paths have no std counterpart to fall back on, which is why the traits
+  // exist at all - and there the stub is the whole answer.
+  static_assert(not fn::is_nothrow_invocable_v<decltype(fnNothrow), fn::pack<int>>);
+  static_assert(not fn::is_nothrow_invocable_v<decltype(fnNothrow), fn::sum<int>>);
+
+  // So fn::invoke reports potentially-throwing whatever it is handed. This is the conservative
+  // direction, unlike the verbs, which promise noexcept and terminate (#285) - and it is why the
+  // self-implementing half of those cannot compute an honest spec until #45 lands.
+  static_assert(fn::is_invocable_v<decltype(fnNothrow), int>);
+  static_assert(not noexcept(fn::invoke(fnNothrow, 1)));
+  static_assert(not noexcept(fn::invoke_r<long>(fnNothrow, 1)));
+
+  CHECK(fn::invoke(fnNothrow, 1) == 1);
+  CHECK(fn::invoke_r<long>(fnNothrow, 1) == 1L);
+}
