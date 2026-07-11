@@ -634,9 +634,9 @@ public:
 
   // Convert to graded monad. A lifting overload wraps one side in a sum and relocates the other
   // untouched, so it weighs both; the ones whose side already is a sum only return *this.
-  auto sum_error() const & noexcept(::std::is_nothrow_constructible_v<value_type, value_type const &>
-                                    && ::std::is_nothrow_constructible_v<sum<error_type>, error_type const &>
-                                    && ::std::is_nothrow_move_constructible_v<sum<error_type>>) // extension
+  constexpr auto sum_error() const & noexcept(::std::is_nothrow_constructible_v<value_type, value_type const &>
+                                              && ::std::is_nothrow_constructible_v<sum<error_type>, error_type const &>
+                                              && ::std::is_nothrow_move_constructible_v<sum<error_type>>) // extension
       -> expected<value_type, sum<error_type>>
     requires(not some_sum<error_type>)
   {
@@ -646,9 +646,9 @@ public:
     else
       return type{::fn::unexpect, sum<error_type>(this->error())};
   }
-  auto sum_error() && noexcept(::std::is_nothrow_constructible_v<value_type, value_type>
-                               && ::std::is_nothrow_constructible_v<sum<error_type>, error_type>
-                               && ::std::is_nothrow_move_constructible_v<sum<error_type>>) // extension
+  constexpr auto sum_error() && noexcept(::std::is_nothrow_constructible_v<value_type, value_type>
+                                         && ::std::is_nothrow_constructible_v<sum<error_type>, error_type>
+                                         && ::std::is_nothrow_move_constructible_v<sum<error_type>>) // extension
       -> expected<value_type, sum<error_type>>
     requires(not some_sum<error_type>)
   {
@@ -658,30 +658,31 @@ public:
     else
       return type{::fn::unexpect, sum<error_type>(::std::move(*this).error())};
   }
-  auto sum_error() & noexcept -> decltype(auto)
+  constexpr auto sum_error() & noexcept -> decltype(auto)
     requires(some_sum<error_type>)
   {
     return *this;
   }
-  auto sum_error() const & noexcept -> decltype(auto)
+  constexpr auto sum_error() const & noexcept -> decltype(auto)
     requires(some_sum<error_type>)
   {
     return *this;
   }
-  auto sum_error() && noexcept -> decltype(auto)
+  constexpr auto sum_error() && noexcept -> decltype(auto)
     requires(some_sum<error_type>)
   {
     return ::std::move(*this);
   }
-  auto sum_error() const && noexcept -> decltype(auto)
+  constexpr auto sum_error() const && noexcept -> decltype(auto)
     requires(some_sum<error_type>)
   {
     return ::std::move(*this);
   }
 
-  auto sum_value() const & noexcept(::std::is_nothrow_constructible_v<sum<value_type>, value_type const &>
-                                    && ::std::is_nothrow_move_constructible_v<sum<value_type>>
-                                    && ::std::is_nothrow_constructible_v<error_type, error_type const &>) // extension
+  constexpr auto
+  sum_value() const & noexcept(::std::is_nothrow_constructible_v<sum<value_type>, value_type const &>
+                               && ::std::is_nothrow_move_constructible_v<sum<value_type>>
+                               && ::std::is_nothrow_constructible_v<error_type, error_type const &>) // extension
       -> expected<sum<value_type>, error_type>
     requires(not some_sum<value_type>)
   {
@@ -691,9 +692,9 @@ public:
     else
       return type{::fn::unexpect, this->error()};
   }
-  auto sum_value() && noexcept(::std::is_nothrow_constructible_v<sum<value_type>, value_type>
-                               && ::std::is_nothrow_move_constructible_v<sum<value_type>>
-                               && ::std::is_nothrow_constructible_v<error_type, error_type>) // extension
+  constexpr auto sum_value() && noexcept(::std::is_nothrow_constructible_v<sum<value_type>, value_type>
+                                         && ::std::is_nothrow_move_constructible_v<sum<value_type>>
+                                         && ::std::is_nothrow_constructible_v<error_type, error_type>) // extension
       -> expected<sum<value_type>, error_type>
     requires(not some_sum<value_type>)
   {
@@ -703,22 +704,22 @@ public:
     else
       return type{::fn::unexpect, ::std::move(*this).error()};
   }
-  auto sum_value() & noexcept -> decltype(auto)
+  constexpr auto sum_value() & noexcept -> decltype(auto)
     requires(some_sum<value_type>)
   {
     return *this;
   }
-  auto sum_value() const & noexcept -> decltype(auto)
+  constexpr auto sum_value() const & noexcept -> decltype(auto)
     requires(some_sum<value_type>)
   {
     return *this;
   }
-  auto sum_value() && noexcept -> decltype(auto)
+  constexpr auto sum_value() && noexcept -> decltype(auto)
     requires(some_sum<value_type>)
   {
     return ::std::move(*this);
   }
-  auto sum_value() const && noexcept -> decltype(auto)
+  constexpr auto sum_value() const && noexcept -> decltype(auto)
     requires(some_sum<value_type>)
   {
     return ::std::move(*this);
@@ -985,8 +986,8 @@ public:
   }
 
   // Convert to graded monad. There is no value to relocate here, so only the error's lift weighs.
-  auto sum_error() const & noexcept(::std::is_nothrow_constructible_v<sum<error_type>, error_type const &>
-                                    && ::std::is_nothrow_move_constructible_v<sum<error_type>>) // extension
+  constexpr auto sum_error() const & noexcept(::std::is_nothrow_constructible_v<sum<error_type>, error_type const &>
+                                              && ::std::is_nothrow_move_constructible_v<sum<error_type>>) // extension
       -> expected<value_type, sum<error_type>>
     requires(not some_sum<error_type>)
   {
@@ -996,8 +997,8 @@ public:
     else
       return type{::fn::unexpect, sum<error_type>(this->error())};
   }
-  auto sum_error() && noexcept(::std::is_nothrow_constructible_v<sum<error_type>, error_type>
-                               && ::std::is_nothrow_move_constructible_v<sum<error_type>>) // extension
+  constexpr auto sum_error() && noexcept(::std::is_nothrow_constructible_v<sum<error_type>, error_type>
+                                         && ::std::is_nothrow_move_constructible_v<sum<error_type>>) // extension
       -> expected<value_type, sum<error_type>>
     requires(not some_sum<error_type>)
   {
@@ -1007,22 +1008,22 @@ public:
     else
       return type{::fn::unexpect, sum<error_type>(::std::move(*this).error())};
   }
-  auto sum_error() & noexcept -> decltype(auto)
+  constexpr auto sum_error() & noexcept -> decltype(auto)
     requires(some_sum<error_type>)
   {
     return *this;
   }
-  auto sum_error() const & noexcept -> decltype(auto)
+  constexpr auto sum_error() const & noexcept -> decltype(auto)
     requires(some_sum<error_type>)
   {
     return *this;
   }
-  auto sum_error() && noexcept -> decltype(auto)
+  constexpr auto sum_error() && noexcept -> decltype(auto)
     requires(some_sum<error_type>)
   {
     return ::std::move(*this);
   }
-  auto sum_error() const && noexcept -> decltype(auto)
+  constexpr auto sum_error() const && noexcept -> decltype(auto)
     requires(some_sum<error_type>)
   {
     return ::std::move(*this);
