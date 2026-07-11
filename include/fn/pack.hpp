@@ -106,7 +106,8 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    */
   template <typename Arg>
   [[nodiscard]] constexpr auto append(Arg &&arg) & noexcept -> append_type<Arg>
-    requires requires { append_type<Arg>{_impl::template _append<Arg>(*this, FWD(arg))}; }
+    requires(not some_in_place_type<Arg>)
+            && requires { append_type<Arg>{_impl::template _append<Arg>(*this, FWD(arg))}; }
   {
     return {_impl::template _append<Arg>(*this, FWD(arg))};
   }
@@ -120,7 +121,8 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    */
   template <typename Arg>
   [[nodiscard]] constexpr auto append(Arg &&arg) const & noexcept -> append_type<Arg>
-    requires requires { append_type<Arg>{_impl::template _append<Arg>(*this, FWD(arg))}; }
+    requires(not some_in_place_type<Arg>)
+            && requires { append_type<Arg>{_impl::template _append<Arg>(*this, FWD(arg))}; }
   {
     return {_impl::template _append<Arg>(*this, FWD(arg))};
   }
@@ -134,7 +136,8 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    */
   template <typename Arg>
   [[nodiscard]] constexpr auto append(Arg &&arg) && noexcept -> append_type<Arg>
-    requires requires { append_type<Arg>{_impl::template _append<Arg>(::std::move(*this), FWD(arg))}; }
+    requires(not some_in_place_type<Arg>)
+            && requires { append_type<Arg>{_impl::template _append<Arg>(::std::move(*this), FWD(arg))}; }
   {
     return {_impl::template _append<Arg>(::std::move(*this), FWD(arg))};
   }
@@ -148,7 +151,8 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    */
   template <typename Arg>
   [[nodiscard]] constexpr auto append(Arg &&arg) const && noexcept -> append_type<Arg>
-    requires requires { append_type<Arg>{_impl::template _append<Arg>(::std::move(*this), FWD(arg))}; }
+    requires(not some_in_place_type<Arg>)
+            && requires { append_type<Arg>{_impl::template _append<Arg>(::std::move(*this), FWD(arg))}; }
   {
     return {_impl::template _append<Arg>(::std::move(*this), FWD(arg))};
   }
