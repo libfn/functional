@@ -18,10 +18,17 @@ namespace fn {
  * @tparam V TODO
  * @tparam Args TODO
  */
+// The fallback builds the RESULT, not merely its value type: for an `optional<T&>` those differ -
+// the value type is the referent, which a prvalue can construct, but the result binds a reference to
+// it, which a prvalue cannot. And the existing value is carried over when there is one, so it must
+// be able to survive that: an immovable value type would otherwise satisfy this and then fail inside
+// the body.
 template <typename V, typename... Args>
-concept invocable_value_or //
-    = (some_expected_non_void<V> && ::std::is_constructible_v<typename ::std::remove_cvref_t<V>::value_type, Args...>)
-      || (some_optional<V> && ::std::is_constructible_v<typename ::std::remove_cvref_t<V>::value_type, Args...>);
+concept invocable_value_or                                                                                          //
+    = (some_expected_non_void<V> && ::std::is_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, Args...> //
+       && detail::_relocatable_value<V>)
+      || (some_optional<V> && ::std::is_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, Args...>
+          && detail::_relocatable_value<V>);
 
 /**
  * @brief TODO

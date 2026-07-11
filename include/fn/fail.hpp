@@ -6,6 +6,7 @@
 #ifndef INCLUDE_FN_FAIL
 #define INCLUDE_FN_FAIL
 
+#include <fn/concepts.hpp>
 #include <fn/functor.hpp>
 #include <fn/optional.hpp>
 
@@ -27,8 +28,10 @@ concept invocable_fail //
         {
           ::fn::invoke(FWD(fn), FWD(v).value())
         } -> ::std::convertible_to<typename ::std::remove_cvref_t<V>::error_type>;
+        requires detail::_relocatable_error<V>; // the error branch carries the existing error over
       }) || (some_expected_void<V> && requires(Fn &&fn) {
         { ::fn::invoke(FWD(fn)) } -> ::std::convertible_to<typename ::std::remove_cvref_t<V>::error_type>;
+        requires detail::_relocatable_error<V>;
       }) || (some_optional<V> && requires(Fn &&fn, V &&v) {
         { ::fn::invoke(FWD(fn), FWD(v).value()) } -> ::std::same_as<void>;
       });
