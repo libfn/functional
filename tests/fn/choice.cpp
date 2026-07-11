@@ -30,6 +30,18 @@ struct NonCopyable final {
   NonCopyable &operator=(NonCopyable const &) = delete;
 };
 
+// Every operation choice performs on an alternative - copy, move, compare - can throw here, while
+// the member wrapping it promises noexcept regardless. Witnesses the #280 tripwires below.
+struct Throwing final {
+  int v;
+
+  constexpr operator int() const { return v; }
+  constexpr Throwing(int i) noexcept : v(i) {}
+  constexpr Throwing(Throwing const &o) noexcept(false) : v(o.v) {}
+  constexpr Throwing(Throwing &&o) noexcept(false) : v(o.v) {}
+  constexpr bool operator==(Throwing const &o) const noexcept(false) { return v == o.v; }
+};
+
 } // anonymous namespace
 
 TEST_CASE("choice non-monadic functionality", "[choice]")
@@ -540,6 +552,52 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       }
     }
   }
+}
+
+TEST_CASE("choice noexcept", "[choice][noexcept]")
+{
+  using fn::choice;
+  using T = choice<Throwing>;
+
+  static_assert(not std::is_nothrow_copy_constructible_v<Throwing>);
+  static_assert(not std::is_nothrow_move_constructible_v<Throwing>);
+
+  // GAP #280: choice inherits sum's unconditional promise and adds its own. The copy and move
+  // constructors are defaulted noexcept over an alternative whose own copy and move can throw.
+  static_assert(std::is_nothrow_copy_constructible_v<T>);
+  static_assert(std::is_nothrow_move_constructible_v<T>);
+
+  // The monadic members are unconditionally noexcept whatever the callback promises. This is where
+  // choice parts company with fn::optional and fn::expected, whose specs for the same operations are
+  // precise - so the same monadic operation has different exception behaviour depending on which
+  // monad it is written against: those two propagate, choice terminates.
+  constexpr auto fnChoice = [](Throwing const &t) noexcept(false) -> choice<int> { return {t.v}; };
+  static_assert(noexcept(std::declval<T &>().and_then(fnChoice)));
+  static_assert(noexcept(std::declval<T const &>().and_then(fnChoice)));
+  static_assert(noexcept(std::declval<T &&>().and_then(fnChoice)));
+  static_assert(noexcept(std::declval<T const &&>().and_then(fnChoice)));
+
+  constexpr auto fnInt = [](Throwing const &t) noexcept(false) -> int { return t.v; };
+  static_assert(noexcept(std::declval<T &>().transform(fnInt)));
+  static_assert(noexcept(std::declval<T const &>().transform(fnInt)));
+  static_assert(noexcept(std::declval<T &>().invoke(fnInt)));
+  static_assert(noexcept(std::declval<T &>().template invoke_r<long>(fnInt)));
+
+  // The constructors that widen a sum into a choice carry it too - each copies or moves every
+  // alternative of the source across.
+  using W = fn::choice_for<Throwing, int>;
+  static_assert(noexcept(W{std::declval<fn::sum<Throwing> const &>()}));
+  static_assert(noexcept(W{std::declval<fn::sum<Throwing> &&>()}));
+
+  // The value constructors, as in sum, carry no noexcept specifier at all - the converse
+  // under-promise, reported potentially-throwing even where nothing can throw.
+  static_assert(not noexcept(choice<int>{42}));
+
+  // Inherited from sum, and accurate: reading the discriminator touches no alternative.
+  static_assert(noexcept(std::declval<T const &>().has_value(std::in_place_type<Throwing>)));
+  static_assert(noexcept(std::declval<T &>().get_ptr(std::in_place_type<Throwing>)));
+
+  SUCCEED();
 }
 
 TEST_CASE("choice and_then", "[choice][and_then]")
