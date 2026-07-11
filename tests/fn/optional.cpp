@@ -331,7 +331,8 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
     // noexcept: operator& is declared unconditionally noexcept (optional.hpp:881) though
     // joining copies/moves the operands' values into the result pack -- for a throwing-copy
     // value type this is a promise the join cannot keep (make_optional, by contrast, spells
-    // conditional noexcept). GAP: asserts current behaviour; flip to `not noexcept` when fixed.
+    // conditional noexcept). GAP: asserts current behaviour; flip to `not noexcept` when
+    // fixed (issue #279).
     struct throwing_copy {
       // defined, not just declared: the instantiated join references it (-Wundefined-internal)
       throwing_copy(throwing_copy const &) noexcept(false) {}
@@ -702,7 +703,7 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
   // context. A bad callback is a hard error instead of SFINAE-dropping (so no negative probe
   // here), and a category-partial visitor poisons overload resolution outright: on a non-const
   // lvalue even the losing const& candidate must instantiate, which is why the visitors above
-  // take const& (serving every candidate) where and_then's can take int&/Xint&.
+  // take const& (serving every candidate) where and_then's can take int&/Xint& (issue #277).
   constexpr auto can_transform = [](auto &&f) { return requires { std::declval<S &>().transform(f); }; };
   static_assert(can_transform(nothrow_visitor));
 

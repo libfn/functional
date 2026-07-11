@@ -945,7 +945,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
     // noexcept: all eight operator& overloads are declared unconditionally noexcept
     // (expected.hpp:1032-1183) though joining copies/moves the operands' values into the
     // result -- for a throwing-copy value type this is a promise the join cannot keep. GAP:
-    // asserts current behaviour; flip to `not noexcept` when fixed.
+    // asserts current behaviour; flip to `not noexcept` when fixed (issue #279).
     struct throwing_copy {
       // defined, not just declared: the instantiated join references it (-Wundefined-internal)
       throwing_copy(throwing_copy const &) noexcept(false) {}
@@ -2463,7 +2463,7 @@ TEST_CASE("expected sum support or_else", "[expected][sum][or_else]")
   // constraints (extension, :167-168): invocability over the error sum's alternatives, tracking
   // their value category, AND copyability of the untouched value -- a move-only value type
   // cleanly drops every overload whose self would copy it (contrast transform_error, which
-  // lacks this conjunct; see "expected sum support transform_error")
+  // lacks this conjunct -- issue #278; see "expected sum support transform_error")
   constexpr auto can_or_else_lval = [](auto &&f) { return requires { std::declval<S &>().or_else(f); }; };
   constexpr auto can_or_else_rval = [](auto &&f) { return requires { std::declval<S &&>().or_else(f); }; };
   static_assert(can_or_else_lval(nothrow_lval));
@@ -2688,6 +2688,7 @@ TEST_CASE("expected sum support transform", "[expected][sum][transform]")
   // deduced-return body (:241) during candidate-signature formation, outside the immediate
   // context -- a bad callback is a hard error instead of SFINAE-dropping (no negative probe
   // here), and the visitors above take const& to serve every candidate, as in fn/optional.cpp
+  // (issue #277)
   constexpr auto can_transform = [](auto &&f) { return requires { std::declval<S &>().transform(f); }; };
   static_assert(can_transform(nothrow_visitor));
   // the error-copy conjunct (:239) IS constrained: a move-only error cleanly drops the
@@ -2804,7 +2805,8 @@ TEST_CASE("expected sum support transform_error", "[expected][sum][transform_err
   // spells it (pfn/detail/expected_base.hpp:904). With a move-only value type NO transform_error
   // call compiles from any category -- const& binds rvalues, so even an rvalue call forms the
   // const& candidate whose body copies the value -- where or_else's conjunct (:168) cleanly
-  // drops those candidates (see "expected sum support or_else"). Positive probe only.
+  // drops those candidates (see "expected sum support or_else"). Positive probe only
+  // (issues #277, #278).
   constexpr auto can_transform_error = [](auto &&f) { return requires { std::declval<S &>().transform_error(f); }; };
   static_assert(can_transform_error(nothrow_visitor));
 
@@ -3082,7 +3084,7 @@ TEST_CASE("expected pack support transform_error", "[expected][transform_error][
 
   // constraints (:283-284): pack-apply invocability -- but NOT the untouched value's copy
   // (:290), which pfn constrains (pfn/detail/expected_base.hpp:904); see the GAP note in
-  // "expected sum support transform_error"
+  // "expected sum support transform_error" (issue #278)
   constexpr auto can_te_lval = [](auto &&f) { return requires { std::declval<S &>().transform_error(f); }; };
   constexpr auto can_te_rval = [](auto &&f) { return requires { std::declval<S &&>().transform_error(f); }; };
   static_assert(can_te_lval(nothrow_two));
