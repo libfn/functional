@@ -12,6 +12,7 @@
 
 #include <catch2/catch_all.hpp>
 
+#include <array>
 #include <tuple>
 #include <utility>
 
@@ -250,6 +251,12 @@ TEST_CASE("append value categories", "[pack][append]")
     static_assert(can_append_in_place<T &, B, int>);
     static_assert(can_append_in_place<T &, B, int, int>);
     static_assert(not can_append_in_place<T &, B, char const *>); // B is not constructible from it
+
+    // the element is brace-initialized, so an aggregate is appended element-wise, exactly as `sum`
+    // constructs one - a constraint spelled with is_constructible_v would reject this
+    static_assert(can_append_in_place<T &, std::array<int, 3>, int, int, int>);
+    static_assert(not can_append_in_place<T &, std::array<int, 3>, int, int, int, int>); // one too many
+    static_assert(not can_append_in_place<T &, int, double>);                            // narrowing
 
     // in_place_type selects the element type, it is never itself an element: with no arguments and
     // no default constructor there is nothing to construct, and the deduced-Arg overload must not

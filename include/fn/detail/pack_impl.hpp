@@ -86,7 +86,7 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
   template <typename T, typename Self>
   static constexpr auto _append(Self &&self, auto &&...args) noexcept //
       -> pack_impl<::std::index_sequence<Is..., size>, Ts..., T>
-    requires(not _some_sum<T>) && (not _some_pack<T>) && ::std::is_constructible_v<T, decltype(args)...>
+    requires(not _some_sum<T>) && (not _some_pack<T>) && _initializable<T, decltype(args)...>
   {
     return {static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., T{FWD(args)...}};
   }
