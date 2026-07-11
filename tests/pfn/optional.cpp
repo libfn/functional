@@ -133,7 +133,8 @@ TEST_CASE("optional", "[optional][polyfill]")
       static_assert(std::is_constructible_v<T, std::in_place_t, int>);
       static_assert(not std::is_constructible_v<T, std::in_place_t>); // helper has no default ctor
       static_assert(not extension || not std::is_nothrow_constructible_v<T, std::in_place_t, int>);
-      static_assert(not extension || std::is_nothrow_constructible_v<optional<helper_t<8>>, std::in_place_t, int>);
+      static_assert(not extension
+                    || std::is_nothrow_constructible_v<optional<helper_t<prop::regular>>, std::in_place_t, int>);
 
       // value ctor path is witnessed by helper_t::state
       int const s0 = helper::state;
@@ -283,8 +284,8 @@ TEST_CASE("optional", "[optional][polyfill]")
       (void)b;
       (void)c;
 
-      // move of the engaged state is witnessed via helper_t<30>::state
-      using H = helper_t<30>;
+      // move of the engaged state is witnessed via helper_t<prop::runtime_move>::state
+      using H = helper_t<prop::runtime_move>;
       static_assert(not std::is_trivially_move_constructible_v<optional<H>>);
       int const s0 = H::state;
       optional<H> d(std::in_place, 7); // value ctor: state += 7
@@ -294,7 +295,7 @@ TEST_CASE("optional", "[optional][polyfill]")
 
     SECTION("noexcept(false) from value type")
     {
-      using T = optional<helper_t<2>>; // throwing copy ctor, nothrow move ctor
+      using T = optional<helper_t<prop::throw_copy>>; // throwing copy ctor, nothrow move ctor
       static_assert(std::is_copy_constructible_v<T>);
       static_assert(not std::is_trivially_copy_constructible_v<T>);
       static_assert(not std::is_nothrow_copy_constructible_v<T>);
@@ -400,10 +401,11 @@ TEST_CASE("optional", "[optional][polyfill]")
   SECTION("assignment")
   {
     // helper_t<V> fixtures used below (see helper_types.hpp for the full nothrow table)
-    using M = helper_t<2>;  // nothrow move constructible, throwing copy constructible
-    using E = helper_t<3>;  // may throw on move and copy
-    using C = helper_t<4>;  // nothrow copy constructible, throwing move constructible
-    using H = helper_t<40>; // nothrow copy/move constructible; throwing copy/move assignable
+    using M = helper_t<prop::throw_copy>;                    // nothrow move constructible, throwing copy constructible
+    using E = helper_t<prop::throw_copy | prop::throw_move>; // may throw on move and copy
+    using C = helper_t<prop::throw_move>;                    // nothrow copy constructible, throwing move constructible
+    using H = helper_t<prop::throw_copy_assign
+                       | prop::throw_move_assign>; // nothrow copy/move constructible; throwing copy/move assignable
     static_assert(not std::is_nothrow_copy_constructible_v<M>);
     static_assert(std::is_nothrow_move_constructible_v<M>);
     static_assert(not std::is_nothrow_copy_constructible_v<E>);
@@ -801,8 +803,8 @@ TEST_CASE("optional", "[optional][polyfill]")
       static_assert(not std::is_nothrow_constructible_v<helper, int>);
       static_assert(not noexcept(std::declval<T &>().emplace(1)));
 
-      static_assert(std::is_nothrow_constructible_v<helper_t<8>, int>);
-      static_assert(not extension || not noexcept(std::declval<optional<helper_t<8>> &>().emplace(1)));
+      static_assert(std::is_nothrow_constructible_v<helper_t<prop::regular>, int>);
+      static_assert(not extension || not noexcept(std::declval<optional<helper_t<prop::regular>> &>().emplace(1)));
       SUCCEED();
     }
 
@@ -969,8 +971,8 @@ TEST_CASE("optional", "[optional][polyfill]")
     SECTION("exception")
     {
       // a throwing move during the cross-state transfer: engagement states unchanged
-      using T = optional<helper_t<3>>;
-      static_assert(not std::is_nothrow_move_constructible_v<helper_t<3>>);
+      using T = optional<helper_t<prop::throw_copy | prop::throw_move>>;
+      static_assert(not std::is_nothrow_move_constructible_v<helper_t<prop::throw_copy | prop::throw_move>>);
 
       // constructed via the initializer_list ctor (no V<8 throw-check there) to get a
       // stored 0 without the value ctor itself throwing first
