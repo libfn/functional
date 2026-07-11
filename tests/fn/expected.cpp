@@ -232,6 +232,25 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     static_assert(std::is_same_v<decltype(fn::sum_error(s)), T &>);
   }
 
+  WHEN("constexpr")
+  {
+    static_assert([] {
+      fn::expected<int, Error> const a{::fn::unexpect, Unknown};
+      return a.sum_error().error() == fn::sum{Unknown};
+    }());
+    static_assert([] { return fn::expected<int, Error>{12}.sum_error().value() == 12; }());
+    static_assert([] { return fn::expected<int, Error>{12}.sum_value().value() == fn::sum{12}; }());
+    static_assert([] {
+      fn::expected<void, Error> const a{::fn::unexpect, Unknown};
+      return a.sum_error().error() == fn::sum{Unknown};
+    }());
+    static_assert([] {
+      fn::expected<int, Error> a{12};
+      return fn::sum_value(a).value() == fn::sum{12};
+    }());
+    SUCCEED();
+  }
+
   WHEN("noexcept")
   {
     using S = fn::expected<int, fn::sum<Error>>; // error already a sum

@@ -479,8 +479,8 @@ public:
 
   // Convert to graded monad. The lifting overloads wrap the value in a sum and that sum in the
   // result, so they weigh both; the ones whose value type already is a sum only return *this.
-  auto sum_value() const & noexcept(::std::is_nothrow_constructible_v<sum<value_type>, value_type const &>
-                                    && ::std::is_nothrow_move_constructible_v<sum<value_type>>) // extension
+  constexpr auto sum_value() const & noexcept(::std::is_nothrow_constructible_v<sum<value_type>, value_type const &>
+                                              && ::std::is_nothrow_move_constructible_v<sum<value_type>>) // extension
       -> optional<sum<value_type>>
     requires(not some_sum<value_type>)
   {
@@ -490,8 +490,8 @@ public:
     else
       return type{::std::nullopt};
   }
-  auto sum_value() && noexcept(::std::is_nothrow_constructible_v<sum<value_type>, value_type>
-                               && ::std::is_nothrow_move_constructible_v<sum<value_type>>) // extension
+  constexpr auto sum_value() && noexcept(::std::is_nothrow_constructible_v<sum<value_type>, value_type>
+                                         && ::std::is_nothrow_move_constructible_v<sum<value_type>>) // extension
       -> optional<sum<value_type>>
     requires(not some_sum<value_type>)
   {
@@ -501,22 +501,22 @@ public:
     else
       return type{::std::nullopt};
   }
-  auto sum_value() & noexcept -> decltype(auto)
+  constexpr auto sum_value() & noexcept -> decltype(auto)
     requires(some_sum<value_type>)
   {
     return *this;
   }
-  auto sum_value() const & noexcept -> decltype(auto)
+  constexpr auto sum_value() const & noexcept -> decltype(auto)
     requires(some_sum<value_type>)
   {
     return *this;
   }
-  auto sum_value() && noexcept -> decltype(auto)
+  constexpr auto sum_value() && noexcept -> decltype(auto)
     requires(some_sum<value_type>)
   {
     return ::std::move(*this);
   }
-  auto sum_value() const && noexcept -> decltype(auto)
+  constexpr auto sum_value() const && noexcept -> decltype(auto)
     requires(some_sum<value_type>)
   {
     return ::std::move(*this);

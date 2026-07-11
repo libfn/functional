@@ -79,6 +79,21 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     }
 
     static_assert(std::is_same_v<decltype(fn::sum_value(s)), fn::optional<fn::sum<int>>>);
+
+    WHEN("constexpr")
+    {
+      static_assert([] {
+        fn::optional<int> const a{12};
+        return a.sum_value().value() == fn::sum{12};
+      }());
+      static_assert([] { return fn::optional<int>{12}.sum_value().value() == fn::sum{12}; }());
+      static_assert([] { return not fn::optional<int>{std::nullopt}.sum_value().has_value(); }());
+      static_assert([] {
+        fn::optional<int> a{12};
+        return fn::sum_value(a).value() == fn::sum{12};
+      }());
+      SUCCEED();
+    }
   }
 
   WHEN("noexcept")
