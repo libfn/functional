@@ -244,7 +244,7 @@ struct sum<Ts...> {
    */
   template <typename T>
   constexpr explicit sum(::std::in_place_type_t<T>, auto &&...args)
-    requires has_type<T> && detail::_brace_constructible<T, decltype(args)...>
+    requires has_type<T> && detail::_initializable<T, decltype(args)...>
       : data(detail::make_variadic_union<T, data_t>(FWD(args)...)), index(detail::type_index<T, Ts...>)
   {
   }
@@ -629,7 +629,7 @@ template <typename T> explicit sum(T) -> sum<::std::remove_cvref_t<T>>;
  */
 template <typename T>
 [[nodiscard]] constexpr auto as_sum(::std::in_place_type_t<T>, auto &&...args) -> decltype(auto)
-  requires detail::_brace_constructible<T, decltype(args)...>
+  requires detail::_initializable<T, decltype(args)...>
 {
   return sum<T>(::std::in_place_type<T>, FWD(args)...);
 }
