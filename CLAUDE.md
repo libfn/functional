@@ -15,7 +15,7 @@ Conventions for AI agents in this repo (you are the primary reader — keep this
 
 - Trailer `Assisted-by: Claude:<exact session model id>` (Linux-kernel convention), e.g. `claude-opus-4-8`. No `Co-Authored-By:`.
 - Offer commits; never commit without confirmation. Terse messages: imperative topic, body only if needed.
-- A feature and its tests written together land as one commit.
+- A feature or fix and its tests written together land as one commit.
 - Never `git push` or sign commits — the user signs (GPG) and pushes.
 
 ## Git state
