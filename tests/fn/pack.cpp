@@ -3,6 +3,7 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
+#include "util/helper_types.hpp"
 #include "util/static_check.hpp"
 
 #include <fn/functional.hpp>
@@ -26,6 +27,16 @@ concept pack_check = requires(V v, Fn fn) { FWD(v).invoke(FWD(fn), A{}); };
 template <fn::pack<int, double> P> struct pack_nttp final {};
 template <fn::some_pack auto P> struct some_pack_nttp final {};
 template <fn::some_pack auto P> auto read_nttp() { return fn::get<0>(P); }
+
+template <typename V, typename R, typename Fn>
+concept can_invoke_r = requires(V v, Fn fn) { FWD(v).template invoke_r<R>(FWD(fn)); };
+
+template <typename V, typename T, typename... Args>
+concept can_append_in_place = requires(V v, Args... args) { FWD(v).append(std::in_place_type<T>, args...); };
+
+// A pack element whose copy and move can both throw, while the pack member relocating it promises
+// noexcept regardless. Witnesses the #280 tripwires below.
+using Throwing = helper_t<prop::throw_copy | prop::throw_move>;
 
 } // namespace
 
@@ -132,6 +143,38 @@ TEST_CASE("pack", "[pack]")
   static_assert(std::is_same_v<some_pack_nttp<s1>, some_pack_nttp<s2>>);
   static_assert(not std::is_same_v<some_pack_nttp<s1>, some_pack_nttp<s3>>);
   CHECK(read_nttp<s1>() == 3); // the template-parameter object is usable at runtime
+
+  WHEN("invoke_r return conversion")
+  {
+    struct NotFromInt final {
+      explicit NotFromInt(std::nullptr_t) {}
+    };
+    constexpr auto sum_fn = [](auto... args) noexcept -> int { return (0 + ... + args); };
+
+    static_assert(can_invoke_r<T &, long, decltype(sum_fn)>);
+    static_assert(not can_invoke_r<T &, NotFromInt, decltype(sum_fn)>); // int does not convert to it
+    SUCCEED();
+  }
+
+  WHEN("noexcept")
+  {
+    // GAP #280: invoke and invoke_r are unconditionally noexcept whatever the callback promises,
+    // so a throwing callback terminates instead of propagating.
+    constexpr auto throwing = [](auto &&...) noexcept(false) -> int { return 0; };
+    static_assert(not noexcept(throwing()));
+    static_assert(noexcept(v.invoke(throwing)));
+    static_assert(noexcept(std::as_const(v).invoke(throwing)));
+    static_assert(noexcept(std::move(v).invoke(throwing)));
+    static_assert(noexcept(std::move(std::as_const(v)).invoke(throwing)));
+    static_assert(noexcept(v.invoke_r<long>(throwing)));
+    static_assert(noexcept(std::move(v).invoke_r<long>(throwing)));
+
+    // GAP #280 (converse): the as_pack lifts carry no noexcept specifier, so they report
+    // noexcept(false) even where nothing can throw.
+    static_assert(not noexcept(fn::as_pack()));
+    static_assert(not noexcept(fn::as_pack(true, 12)));
+    SUCCEED();
+  }
 }
 
 TEST_CASE("append value categories", "[pack][append]")
@@ -237,6 +280,48 @@ TEST_CASE("append value categories", "[pack][append]")
     CHECK(c2.invoke([](bool i, int j, B const &b1, C const &c, B const &b2) {
       return i && j == 3 && b1.v == 14 && c.v == 30 && b2.v == 20;
     }));
+  }
+
+  WHEN("constraints")
+  {
+    static_assert(can_append_in_place<T &, B, int>);
+    static_assert(can_append_in_place<T &, B, int, int>);
+    static_assert(not can_append_in_place<T &, B, char const *>); // B is not constructible from it
+
+    // GAP #283: given no arguments and an element with no default constructor, the in_place overload
+    // drops out on its is_constructible_v conjunct and the deduced-Arg overload picks the call up
+    // instead - silently appending the TAG as an element rather than failing. So the call below is
+    // "viable" for entirely the wrong reason, and the element type says so.
+    static_assert(can_append_in_place<T &, B>);
+    static_assert(std::same_as<decltype(std::declval<T &>().append(std::in_place_type<B>)),
+                               T::append_type<std::in_place_type_t<B> const &>>);
+    // A default-constructible element takes the intended path - see WHEN("default constructor").
+    static_assert(std::same_as<decltype(std::declval<T &>().append(std::in_place_type<C>)), T::append_type<C>>);
+
+    // GAP #282: a pack never holds a sum, but merely ASKING whether one can be appended is a hard
+    // error on gcc (ambiguous partial specialization of _pack_append), so no negative probe is
+    // portable here until that is fixed.
+
+    SUCCEED();
+  }
+
+  WHEN("noexcept")
+  {
+    // GAP #280: every append overload is unconditionally noexcept, though _append both constructs
+    // the new element and relocates every existing one into the new pack.
+    using P = pack<Throwing>;
+    static_assert(not std::is_nothrow_copy_constructible_v<Throwing>);
+    static_assert(not std::is_nothrow_move_constructible_v<Throwing>);
+
+    // constructing the appended element by a throwing copy
+    static_assert(
+        noexcept(std::declval<pack<int> &>().append(std::in_place_type<Throwing>, std::declval<Throwing const &>())));
+    // ... and relocating an existing throwing element, even where the appended one cannot throw
+    static_assert(noexcept(std::declval<P &>().append(std::in_place_type<int>, 1)));
+    static_assert(noexcept(std::declval<P const &>().append(std::in_place_type<int>, 1)));
+    static_assert(noexcept(std::declval<P &&>().append(std::in_place_type<int>, 1)));
+    static_assert(noexcept(std::declval<P &>().append(1))); // deduced form
+    SUCCEED();
   }
 }
 
@@ -693,6 +778,16 @@ TEST_CASE("operator &", "[pack][sum][operator_and]")
                     fn::pack<int, int, double, double, bool, double, int>> const>);
   static_assert(r2.invoke([](auto &&...args) -> double { return (1 * ... * static_cast<double>(args)); })
                 == 12. * 3 * 2.5 * 0.5 * 1 * 1.5 * 12);
+
+  WHEN("noexcept")
+  {
+    // This operator& carries no noexcept specifier, so it never over-promises - in contrast with
+    // optional's and expected's, which are unconditionally noexcept although the join copies the
+    // operands' values into the result pack (#279).
+    static_assert(not noexcept(std::declval<fn::pack<int> &>() & 2));
+    static_assert(not noexcept(std::declval<fn::sum<int> &>() & 2));
+    SUCCEED();
+  }
 }
 
 namespace {
@@ -726,6 +821,11 @@ TEST_CASE("pack get and tuple protocol", "[pack][get][tuple]")
   CHECK(get<1>(p) == 4.0);
   get<0>(p) = 7;
   CHECK(get<0>(p) == 7);
+
+  // accurate, unlike the members that relocate elements: get only forms a reference
+  static_assert(noexcept(get<0>(p)));
+  static_assert(noexcept(get<0>(std::move(p))));
+  static_assert(noexcept(get<0>(std::declval<pack<Throwing> &>())));
 
   // out-of-range index is not viable (SFINAE-clean, not a hard error)
   static_assert(can_get<pack<int, double> &, 0>);
