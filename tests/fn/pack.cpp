@@ -251,6 +251,15 @@ TEST_CASE("append value categories", "[pack][append]")
     static_assert(can_append_in_place<T &, B, int, int>);
     static_assert(not can_append_in_place<T &, B, char const *>); // B is not constructible from it
 
+    // in_place_type selects the element type, it is never itself an element: with no arguments and
+    // no default constructor there is nothing to construct, and the deduced-Arg overload must not
+    // pick the call up and append the tag instead
+    static_assert(not can_append_in_place<T &, B>);
+    static_assert(not can_append<T &, std::in_place_type_t<B> const &>);
+    // C has a default constructor, so the same call still means "construct the element"
+    static_assert(can_append_in_place<T &, C>);
+    static_assert(std::same_as<decltype(std::declval<T &>().append(std::in_place_type<C>)), T::append_type<C>>);
+
     // A pack never holds a sum, in either spelling - and asking must answer, not hard-error
     static_assert(not can_append<T &, fn::sum<int>>);
     static_assert(not can_append<T &, fn::sum<int> &>);
