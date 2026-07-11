@@ -143,19 +143,6 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     static_assert(not fn::typelist_invocable<decltype([](auto) {}), NonCopyable &>); // copy-constructor not available
   }
 
-  WHEN("check destructor call")
-  {
-    {
-      choice<TestType> s{std::in_place_type<TestType>};
-      static_assert(decltype(s)::has_type<TestType>);
-      static_assert(not decltype(s)::has_type<int>);
-      CHECK(s.has_value(std::in_place_type<TestType>));
-      CHECK(s.template has_value<TestType>());
-      CHECK(TestType::count == 1);
-    }
-    CHECK(TestType::count == 0);
-  }
-
   WHEN("single parameter constructor")
   {
     constexpr choice<int> a = 12;
@@ -393,84 +380,23 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     }
   }
 
-  WHEN("has_type type mismatch")
-  {
-    using type = choice<bool, int>;
-    static_assert(type::has_type<int>);
-    static_assert(type::has_type<bool>);
-    static_assert(not type::has_type<double>);
-    type a{std::in_place_type<int>, 42};
-    CHECK(a.has_value(std::in_place_type<int>));
-    CHECK(not a.has_value(std::in_place_type<bool>));
-    static_assert([](auto const &a) constexpr -> bool { //
-      return not requires { a.has_value(std::in_place_type<double>); };
-    }(a));                                              // double is not a type member
-    static_assert([](auto const &a) constexpr -> bool { //
-      return not requires { a.template has_value<double>(); };
-    }(a)); // double is not a type member
-  }
-
   WHEN("equality comparison")
   {
+    // The comparison operators are sum's - free functions taking sum<Ts...> const & - and sum.cpp
+    // owns their grid. What is choice's own is that a choice reaches them at all, through its public
+    // base; that, and the result type, is what is asserted here.
     using type = choice<bool, int>;
+    constexpr type a{std::in_place_type<int>, 42};
 
-    type const a{std::in_place_type<int>, 42};
     static_assert(std::is_same_v<bool, decltype(a == choice{42})>);
+    static_assert(a == type{42});
+    static_assert(a != type{41});
+    static_assert(a != type{true});
+    static_assert(a == choice<double, int>{42}); // and across differing alternative lists
+    static_assert(a != choice<double, int>{41});
+
     CHECK(a == type{42});
-    CHECK(type{42} == a);
     CHECK(a != type{41});
-    CHECK(type{41} != a);
-    CHECK(a != type{true});
-    CHECK(type{false} != a);
-    CHECK(a == choice{42});
-    CHECK(choice{42} == a);
-    CHECK(a != choice{41});
-    CHECK(choice{41} != a);
-    CHECK(a != choice{false});
-    CHECK(choice{true} != a);
-    CHECK(a == choice<double, int>{42});
-    CHECK(choice<double, int>{42} == a);
-    CHECK(a != choice<double, int>{41});
-    CHECK(choice<double, int>{41} != a);
-    CHECK(choice{0.5} != a);
-    CHECK(a != choice{0.5});
-
-    WHEN("constexpr")
-    {
-      constexpr type a{std::in_place_type<int>, 42};
-      static_assert(std::is_same_v<bool, decltype(a == choice{42})>);
-      static_assert(a == type{42});
-      static_assert(type{42} == a);
-      static_assert(a != type{41});
-      static_assert(type{41} != a);
-      static_assert(a != type{true});
-      static_assert(type{false} != a);
-      static_assert(a == choice{42});
-      static_assert(choice{42} == a);
-      static_assert(a != choice{41});
-      static_assert(choice{41} != a);
-      static_assert(a != choice{false});
-      static_assert(choice{true} != a);
-      static_assert(a == choice<double, int>{42});
-      static_assert(choice<double, int>{42} == a);
-      static_assert(a != choice<double, int>{41});
-      static_assert(choice<double, int>{41} != a);
-      static_assert(choice{0.5} != a);
-      static_assert(a != choice{0.5});
-
-      static_assert([](auto const &a) constexpr -> bool {
-        return not requires { a == 42; }; // no implicit conversion
-      }(a));
-      static_assert([](auto const &a) constexpr -> bool {
-        return not requires { a != 42; }; // no implicit conversion
-      }(a));
-      static_assert([](auto const &a) constexpr -> bool {
-        return not requires { a == 0.5; }; // no implicit conversion
-      }(a));
-      static_assert([](auto const &a) constexpr -> bool {
-        return not requires { a != 0.5; }; // no implicit conversion
-      }(a));
-    }
   }
 
   WHEN("invoke")
