@@ -619,4 +619,25 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
     static_assert(std::is_same_v<decltype(a.transform(fn)), fn::optional<fn::sum<bool, int>>>);
     static_assert(a.transform(fn).value() == fn::sum{true});
   }
+
+  WHEN("constraints")
+  {
+    using T = fn::optional<fn::sum_for<Xint, int>>;
+    constexpr auto can_transform_lval = [](auto &&f) { return requires { std::declval<T &>().transform(f); }; };
+    constexpr auto can_transform_clval = [](auto &&f) { return requires { std::declval<T const &>().transform(f); }; };
+
+    // a callback no alternative can take drops the candidate, rather than failing inside the body
+    static_assert(not can_transform_lval([](std::string_view) -> bool { throw 0; }));
+    static_assert(not can_transform_lval([](int &) -> bool { throw 0; })); // Xint is unhandled
+
+    // a visitor need only serve the value category the call actually selects: the losing const&
+    // candidate is now dropped by its own constraint, where it used to form its signature and poison
+    // the call. This is why every visitor above spells all four categories - they no longer have to.
+    constexpr auto lval_only = fn::overload{[](int &i) -> bool { return i == 12; }, [](Xint &) -> bool { throw 0; }};
+    static_assert(can_transform_lval(lval_only));
+    static_assert(not can_transform_clval(lval_only));
+
+    T s{12};
+    CHECK(s.transform(lval_only).value() == fn::sum{true});
+  }
 }

@@ -233,10 +233,12 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       return type(::fn::unexpect, _pfn_base::_error(FWD(self)));
   }
 
-  // transform, value type is a sum (delegates to sum::transform)
+  // transform, value type is a sum (delegates to sum::transform). The callback is constrained here,
+  // in the immediate context, for the reason given on optional's sum-case _transform.
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn)
-    requires some_sum<T> && ::std::is_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
+    requires some_sum<T> && ::fn::detail::_typelist_invocable<Fn, decltype(_pfn_base::_value(FWD(self)))>
+             && ::std::is_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
   {
     using new_value_type = decltype(_pfn_base::_value(FWD(self)).transform(FWD(fn)));
     using type = ::fn::expected<new_value_type, E>;
@@ -296,10 +298,11 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       });
   }
 
-  // transform_error, error type is a sum (delegates to sum::transform)
+  // transform_error, error type is a sum (delegates to sum::transform). The callback is constrained
+  // here, in the immediate context, for the reason given on optional's sum-case _transform.
   template <typename Self, typename Fn>
   static constexpr auto _transform_error(Self &&self, Fn &&fn)
-    requires some_sum<E>
+    requires some_sum<E> && ::fn::detail::_typelist_invocable<Fn, decltype(_pfn_base::_error(FWD(self)))>
   {
     using new_error_type = decltype(_pfn_base::_error(FWD(self)).transform(FWD(fn)));
     using type = ::fn::expected<T, new_error_type>;
