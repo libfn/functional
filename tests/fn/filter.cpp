@@ -589,6 +589,24 @@ TEST_CASE("filter member function", "[filter][optional]")
   }
 }
 
+TEST_CASE("filter noexcept", "[filter][noexcept]")
+{
+  using namespace fn;
+
+  constexpr auto predThrows = [](int) noexcept(false) -> bool { return true; };
+  constexpr auto onErrThrows = [](int) noexcept(false) -> Error { return {}; };
+  constexpr auto predThrows0 = []() noexcept(false) -> bool { return true; };
+  constexpr auto onErrThrows0 = []() noexcept(false) -> Error { return {}; };
+
+  // GAP #285: filter's apply is the implementation, and it has three ways to throw that it promises
+  // nothing about - the predicate, the on-error callback, and constructing the result - all under an
+  // unconditional noexcept. It is the widest instance of the defect among the verbs.
+  static_assert(noexcept(filter_t::apply{}(std::declval<fn::expected<int, Error> &>(), predThrows, onErrThrows)));
+  static_assert(noexcept(filter_t::apply{}(std::declval<fn::expected<void, Error> &>(), predThrows0, onErrThrows0)));
+
+  SUCCEED();
+}
+
 TEST_CASE("constexpr filter expected", "[filter][constexpr][expected]")
 {
   enum class Error { ThresholdExceeded, SomethingElse };

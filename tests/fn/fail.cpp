@@ -322,6 +322,23 @@ TEST_CASE("fail", "[fail][optional][pack]")
   }
 }
 
+TEST_CASE("fail noexcept", "[fail][noexcept]")
+{
+  using namespace fn;
+
+  constexpr auto fnThrows = [](int) noexcept(false) -> Error { return {}; };
+  constexpr auto fnThrows0 = []() noexcept(false) -> Error { return {}; };
+  constexpr auto fnThrowsOpt = [](int) noexcept(false) -> void {};
+
+  // GAP #285: as with recover, the apply invokes the callback and constructs the failed result from
+  // what comes back, both under an unconditional noexcept, with no member spec behind it.
+  static_assert(noexcept(fail_t::apply{}(std::declval<fn::expected<int, Error> &>(), fnThrows)));
+  static_assert(noexcept(fail_t::apply{}(std::declval<fn::expected<void, Error> &>(), fnThrows0)));
+  static_assert(noexcept(fail_t::apply{}(std::declval<fn::optional<int> &>(), fnThrowsOpt)));
+
+  SUCCEED();
+}
+
 TEST_CASE("constexpr fail expected", "[fail][constexpr][expected]")
 {
   enum class Error { ThresholdExceeded, SomethingElse };

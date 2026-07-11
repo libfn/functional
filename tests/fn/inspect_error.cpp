@@ -176,6 +176,21 @@ TEST_CASE("inspect_error optional", "[inspect_error][optional]")
   }
 }
 
+TEST_CASE("inspect_error noexcept", "[inspect_error][noexcept]")
+{
+  using namespace fn;
+
+  constexpr auto fnThrows = [](Error const &) noexcept(false) -> void {};
+  constexpr auto fnThrows0 = []() noexcept(false) -> void {};
+
+  // GAP #285: as with inspect, the apply is the implementation and invokes the callback itself, so
+  // there is no member spec for it to discard - the operation has no honest noexcept anywhere.
+  static_assert(noexcept(inspect_error_t::apply{}(std::declval<fn::expected<int, Error> &>(), fnThrows)));
+  static_assert(noexcept(inspect_error_t::apply{}(std::declval<fn::optional<int> &>(), fnThrows0)));
+
+  SUCCEED();
+}
+
 TEST_CASE("constexpr inspect_error expected", "[inspect_error][constexpr][expected]")
 {
   enum class Error { ThresholdExceeded, SomethingElse };

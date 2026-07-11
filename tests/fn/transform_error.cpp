@@ -110,6 +110,36 @@ TEST_CASE("transform_error", "[transform_error][expected]")
   }
 }
 
+TEST_CASE("transform_error noexcept", "[transform_error][expected][noexcept]")
+{
+  using namespace fn;
+
+  using operand_t = fn::expected<int, Error>;
+
+  constexpr auto fnNothrow = [](Error const &) noexcept -> Xerror { return {0}; };
+  constexpr auto fnThrows = [](Error const &) noexcept(false) -> Xerror { return {0}; };
+
+  // transform_error leaves the VALUE alone, so - mirroring or_else - the member weighs the callback
+  // together with the copy of that value. Here the value is an int, whose copy cannot throw, so the
+  // callback alone decides.
+  static_assert(noexcept(std::declval<operand_t &>().transform_error(fnNothrow)));
+  static_assert(not noexcept(std::declval<operand_t &>().transform_error(fnThrows)));
+
+  // Give it a value whose copy can throw, and the member says so even for a noexcept callback - the
+  // body really does copy the value across (which is what #278 is about: the requires-clause omits
+  // the conjunct that would let a move-only value SFINAE out cleanly, though the noexcept spec below
+  // does account for the copy).
+  using throwing_value_t = fn::expected<std::string, Error>;
+  constexpr auto fnNothrow2 = [](Error const &) noexcept -> Xerror { return {0}; };
+  static_assert(not std::is_nothrow_copy_constructible_v<std::string>);
+  static_assert(not noexcept(std::declval<throwing_value_t &>().transform_error(fnNothrow2)));
+
+  // GAP #285: transform_error_t::apply discards all of it, being unconditionally noexcept.
+  static_assert(noexcept(transform_error_t::apply{}(std::declval<operand_t &>(), fnThrows)));
+
+  SUCCEED();
+}
+
 TEST_CASE("transform_error", "[transform_error][optional]")
 {
   using namespace fn;

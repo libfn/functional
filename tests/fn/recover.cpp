@@ -211,6 +211,24 @@ TEST_CASE("recover", "[recover][optional]")
   }
 }
 
+TEST_CASE("recover noexcept", "[recover][noexcept]")
+{
+  using namespace fn;
+
+  constexpr auto fnThrows = [](Error const &) noexcept(false) -> int { return 0; };
+  constexpr auto fnThrows0 = [](Error const &) noexcept(false) -> void {};
+  constexpr auto fnThrowsOpt = []() noexcept(false) -> int { return 0; };
+
+  // GAP #285: recover's apply is the implementation too - it invokes the callback AND constructs the
+  // recovered result from what comes back, both under an unconditional noexcept. So it has two ways
+  // to throw and promises neither, with no member spec anywhere to appeal to.
+  static_assert(noexcept(recover_t::apply{}(std::declval<fn::expected<int, Error> &>(), fnThrows)));
+  static_assert(noexcept(recover_t::apply{}(std::declval<fn::expected<void, Error> &>(), fnThrows0)));
+  static_assert(noexcept(recover_t::apply{}(std::declval<fn::optional<int> &>(), fnThrowsOpt)));
+
+  SUCCEED();
+}
+
 TEST_CASE("constexpr recover expected", "[recover][constexpr][expected]")
 {
   enum class Error { ThresholdExceeded, SomethingElse };

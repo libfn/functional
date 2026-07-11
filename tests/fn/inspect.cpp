@@ -376,6 +376,29 @@ TEST_CASE("inspect choice", "[inspect][choice]")
   CHECK(value == 12);
 }
 
+TEST_CASE("inspect noexcept", "[inspect][noexcept]")
+{
+  using namespace fn;
+
+  constexpr auto fnThrows = [](int) noexcept(false) -> void {};
+  constexpr auto fnThrows0 = []() noexcept(false) -> void {};
+  static_assert(not noexcept(fnThrows(1)));
+
+  // GAP #285, and the worse half of it. inspect has no monadic member to delegate to - its apply IS
+  // the implementation, invoking the callback itself (inspect.hpp:61-69). So unlike and_then, there
+  // is no honest spec anywhere for the verb to discard: the operation is simply declared noexcept
+  // while calling code that may throw. Fixing this group means COMPUTING the spec rather than
+  // propagating one, which needs the nothrow-invocable traits stubbed false by #45.
+  //
+  // One test case for every monad, not one each: nothing here differs between them, because no
+  // member is consulted.
+  static_assert(noexcept(inspect_t::apply{}(std::declval<fn::expected<int, Error> &>(), fnThrows)));
+  static_assert(noexcept(inspect_t::apply{}(std::declval<fn::expected<void, Error> &>(), fnThrows0)));
+  static_assert(noexcept(inspect_t::apply{}(std::declval<fn::optional<int> &>(), fnThrows)));
+
+  SUCCEED();
+}
+
 TEST_CASE("constexpr inspect expected", "[inspect][constexpr][expected]")
 {
   enum class Error { ThresholdExceeded, SomethingElse };

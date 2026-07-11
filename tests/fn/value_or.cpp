@@ -132,6 +132,24 @@ TEST_CASE("value_or", "[value_or][optional]")
   }
 }
 
+TEST_CASE("value_or noexcept", "[value_or][noexcept]")
+{
+  using namespace fn;
+
+  // value_or takes no callback, but its apply still builds the fallback value from the arguments -
+  // inside a lambda it hands to or_else - and that construction can throw: making a std::string from
+  // a literal allocates. GAP #285: the apply is unconditionally noexcept regardless.
+  static_assert(not std::is_nothrow_constructible_v<std::string, char const *>);
+  static_assert(noexcept(value_or_t::apply{}(std::declval<fn::expected<std::string, Error> &>(), "abc")));
+  static_assert(noexcept(value_or_t::apply{}(std::declval<fn::optional<std::string> &>(), "abc")));
+
+  // Where the fallback cannot throw to build, the promise happens to be right.
+  static_assert(std::is_nothrow_constructible_v<int, int>);
+  static_assert(noexcept(value_or_t::apply{}(std::declval<fn::expected<int, Error> &>(), 42)));
+
+  SUCCEED();
+}
+
 TEST_CASE("constexpr value_or expected", "[value_or][constexpr][expected]")
 {
   enum class Error { ThresholdExceeded, SomethingElse };
