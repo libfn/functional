@@ -232,6 +232,29 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     static_assert(std::is_same_v<decltype(fn::sum_error(s)), T &>);
   }
 
+  WHEN("noexcept")
+  {
+    using S = fn::expected<int, fn::sum<Error>>; // error already a sum
+    using V = fn::expected<fn::sum<int>, Error>; // value already a sum
+
+    // the overloads whose side already is a sum only return *this
+    static_assert(noexcept(std::declval<S &>().sum_error()));
+    static_assert(noexcept(std::declval<S const &&>().sum_error()));
+    static_assert(noexcept(std::declval<V &>().sum_value()));
+    static_assert(noexcept(std::declval<V const &&>().sum_value()));
+    static_assert(noexcept(fn::sum_error(std::declval<S &>())));
+    static_assert(noexcept(fn::sum_value(std::declval<V &>())));
+
+    // a lifting overload wraps one side in a sum and relocates the other, so it weighs both. sum's
+    // own value constructor carries no noexcept specifier yet (#280), so these are conservatively
+    // false, and sharpen when it does
+    static_assert(not noexcept(std::declval<fn::expected<int, Error> &>().sum_error()));
+    static_assert(not noexcept(std::declval<fn::expected<int, Error> &&>().sum_value()));
+    static_assert(not noexcept(std::declval<fn::expected<void, Error> &>().sum_error()));
+    static_assert(not noexcept(fn::sum_error(std::declval<fn::expected<int, Error> &>())));
+    SUCCEED();
+  }
+
   WHEN("sum_value from sum")
   {
     using T = fn::expected<fn::sum<int>, Error>;

@@ -81,6 +81,27 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     static_assert(std::is_same_v<decltype(fn::sum_value(s)), fn::optional<fn::sum<int>>>);
   }
 
+  WHEN("noexcept")
+  {
+    using T = fn::optional<int>;
+    using S = fn::optional<fn::sum<int>>;
+
+    // the sum-valued overloads only return *this
+    static_assert(noexcept(std::declval<S &>().sum_value()));
+    static_assert(noexcept(std::declval<S const &>().sum_value()));
+    static_assert(noexcept(std::declval<S &&>().sum_value()));
+    static_assert(noexcept(std::declval<S const &&>().sum_value()));
+    static_assert(noexcept(fn::sum_value(std::declval<S &>())));
+
+    // the lifting overloads wrap the value in a sum, so they weigh that construction: sum's own
+    // value constructor carries no noexcept specifier yet (#280), so they are conservatively false
+    // even for int, and sharpen when it does
+    static_assert(not noexcept(std::declval<T &>().sum_value()));
+    static_assert(not noexcept(std::declval<T &&>().sum_value()));
+    static_assert(not noexcept(fn::sum_value(std::declval<T &>())));
+    SUCCEED();
+  }
+
   WHEN("or_else")
   {
     fn::optional<fn::sum<int>> s{std::nullopt};
