@@ -2206,6 +2206,38 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
 
 TEST_CASE("expected sum support and_then", "[expected][sum][and_then]")
 {
+  using S = fn::expected<fn::sum_for<int, std::string_view>, Error>;
+
+  // noexcept (extension, expected.hpp:77-81): same-error-type result AND nothrow invoke AND
+  // nothrow error copy. A visitor set is not invocable on the whole sum, so the borrowed std
+  // trait is conservatively false even with nothrow handlers (GH #254); a generic callback IS
+  // invocable on the whole sum, and the spec then reports true from a call shape the
+  // per-alternative dispatch never makes.
+  constexpr auto nothrow_lval
+      = fn::overload{[](int &) noexcept -> fn::expected<bool, Error> { return {true}; },
+                     [](std::string_view &) noexcept -> fn::expected<bool, Error> { return {false}; }};
+  static_assert(not noexcept(std::declval<S &>().and_then(nothrow_lval)));
+  constexpr auto nothrow_generic = [](auto &&) noexcept -> fn::expected<bool, Error> { return {true}; };
+  static_assert(noexcept(std::declval<S &>().and_then(nothrow_generic)));
+
+  // constraints (extension, :82-83): exhaustive invocability over the sum's alternatives,
+  // tracking their value category, AND copyability of the untouched error
+  constexpr auto can_and_then_lval = [](auto &&f) { return requires { std::declval<S &>().and_then(f); }; };
+  constexpr auto can_and_then_rval = [](auto &&f) { return requires { std::declval<S &&>().and_then(f); }; };
+  static_assert(can_and_then_lval(nothrow_lval));
+  static_assert(not can_and_then_rval(nothrow_lval)); // no rvalue handlers
+  static_assert(not can_and_then_lval(fn::overload{[](int &) -> fn::expected<bool, Error> { throw 0; }})); // partial
+  static_assert(not can_and_then_lval(42));
+  struct move_only_error {
+    move_only_error(move_only_error &&) = default;
+  };
+  using M = fn::expected<fn::sum<int>, move_only_error>;
+  constexpr auto generic_fn = [](auto &&) -> fn::expected<bool, move_only_error> { throw 0; };
+  constexpr auto can_and_then_M_lval = [](auto &&f) { return requires { std::declval<M &>().and_then(f); }; };
+  constexpr auto can_and_then_M_rval = [](auto &&f) { return requires { std::declval<M &&>().and_then(f); }; };
+  static_assert(not can_and_then_M_lval(generic_fn)); // error copy required, E move-only
+  static_assert(can_and_then_M_rval(generic_fn));     // error moved
+
   WHEN("value")
   {
     fn::expected<fn::sum_for<int, std::string_view>, Error> s{fn::sum{12}};
@@ -2300,6 +2332,38 @@ TEST_CASE("expected sum support and_then", "[expected][sum][and_then]")
 
 TEST_CASE("expected sum support or_else", "[expected][sum][or_else]")
 {
+  using S = fn::expected<double, fn::sum_for<int, std::string_view>>;
+
+  // noexcept (extension, expected.hpp:159-166): same-value-type result AND nothrow invoke AND
+  // nothrow value copy. A visitor set is not invocable on the whole sum, so the borrowed std
+  // trait is conservatively false (GH #254); a generic same-value-type callback reports true.
+  constexpr auto nothrow_lval
+      = fn::overload{[](int &) noexcept -> fn::expected<double, Error> { return {0.5}; },
+                     [](std::string_view &) noexcept -> fn::expected<double, Error> { return {0.5}; }};
+  static_assert(not noexcept(std::declval<S &>().or_else(nothrow_lval)));
+  constexpr auto nothrow_generic = [](auto &&) noexcept -> fn::expected<double, Error> { return {0.5}; };
+  static_assert(noexcept(std::declval<S &>().or_else(nothrow_generic)));
+
+  // constraints (extension, :167-168): invocability over the error sum's alternatives, tracking
+  // their value category, AND copyability of the untouched value -- a move-only value type
+  // cleanly drops every overload whose self would copy it (contrast transform_error, which
+  // lacks this conjunct; see "expected sum support transform_error")
+  constexpr auto can_or_else_lval = [](auto &&f) { return requires { std::declval<S &>().or_else(f); }; };
+  constexpr auto can_or_else_rval = [](auto &&f) { return requires { std::declval<S &&>().or_else(f); }; };
+  static_assert(can_or_else_lval(nothrow_lval));
+  static_assert(not can_or_else_rval(nothrow_lval)); // no rvalue handlers
+  static_assert(not can_or_else_lval(fn::overload{[](int &) -> fn::expected<double, Error> { throw 0; }})); // partial
+  static_assert(not can_or_else_lval(42));
+  struct move_only {
+    move_only(move_only &&) = default;
+  };
+  using M = fn::expected<move_only, fn::sum<int>>;
+  constexpr auto generic_fn = [](auto &&) -> fn::expected<move_only, Error> { throw 0; };
+  constexpr auto can_or_else_M_lval = [](auto &&f) { return requires { std::declval<M &>().or_else(f); }; };
+  constexpr auto can_or_else_M_rval = [](auto &&f) { return requires { std::declval<M &&>().or_else(f); }; };
+  static_assert(not can_or_else_M_lval(generic_fn)); // value copy required, T move-only
+  static_assert(can_or_else_M_rval(generic_fn));     // value moved
+
   WHEN("value")
   {
     fn::expected<double, fn::sum_for<int, std::string_view>> s{::fn::unexpect, fn::sum{12}};
@@ -2493,6 +2557,34 @@ TEST_CASE("expected sum support or_else", "[expected][sum][or_else]")
 
 TEST_CASE("expected sum support transform", "[expected][sum][transform]")
 {
+  using S = fn::expected<fn::sum_for<int, std::string_view>, Error>;
+
+  // noexcept: the sum-case _transform (expected.hpp:238) carries no noexcept spec at all --
+  // noexcept(false) even for callbacks whose and_then counterpart reports true (GH #254)
+  constexpr auto nothrow_visitor = fn::overload{[](int const &) noexcept -> bool { return true; },
+                                                [](std::string_view const &) noexcept -> bool { return false; }};
+  static_assert(not noexcept(std::declval<S &>().transform(nothrow_visitor)));
+  constexpr auto nothrow_generic = [](auto &&) noexcept -> bool { return true; };
+  static_assert(not noexcept(std::declval<S &>().transform(nothrow_generic)));
+
+  // GAP: unlike and_then (expected.hpp:82) and the non-sum transform (:219), the sum-case
+  // _transform (:239) has no callback-invocability constraint; validity surfaces in its
+  // deduced-return body (:241) during candidate-signature formation, outside the immediate
+  // context -- a bad callback is a hard error instead of SFINAE-dropping (no negative probe
+  // here), and the visitors above take const& to serve every candidate, as in fn/optional.cpp
+  constexpr auto can_transform = [](auto &&f) { return requires { std::declval<S &>().transform(f); }; };
+  static_assert(can_transform(nothrow_visitor));
+  // the error-copy conjunct (:239) IS constrained: a move-only error cleanly drops the
+  // overloads whose self would copy it, before the unconstrained body could hard-error
+  struct move_only_error {
+    move_only_error(move_only_error &&) = default;
+  };
+  using M = fn::expected<fn::sum<int>, move_only_error>;
+  constexpr auto can_transform_M_lval = [](auto &&f) { return requires { std::declval<M &>().transform(f); }; };
+  constexpr auto can_transform_M_rval = [](auto &&f) { return requires { std::declval<M &&>().transform(f); }; };
+  static_assert(not can_transform_M_lval(nothrow_visitor));
+  static_assert(can_transform_M_rval(nothrow_visitor));
+
   WHEN("value")
   {
     fn::expected<fn::sum_for<int, std::string_view>, Error> s{fn::sum{12}};
@@ -2580,6 +2672,26 @@ TEST_CASE("expected sum support transform", "[expected][sum][transform]")
 
 TEST_CASE("expected sum support transform_error", "[expected][sum][transform_error]")
 {
+  using S = fn::expected<double, fn::sum_for<int, std::string_view>>;
+
+  // noexcept: the sum-case _transform_error (expected.hpp:301) carries no noexcept spec at all
+  // (GH #254)
+  constexpr auto nothrow_visitor = fn::overload{[](int const &) noexcept -> bool { return true; },
+                                                [](std::string_view const &) noexcept -> bool { return false; }};
+  static_assert(not noexcept(std::declval<S &>().transform_error(nothrow_visitor)));
+  constexpr auto nothrow_generic = [](auto &&) noexcept -> bool { return true; };
+  static_assert(not noexcept(std::declval<S &>().transform_error(nothrow_generic)));
+
+  // GAP: the sum-case _transform_error (:302) is constrained only on some_sum<E> -- neither the
+  // callback (checked in the deduced-return body :304, hard error instead of SFINAE) nor the
+  // untouched value's copy (:308), which the non-sum overload (:283-284) also omits where pfn
+  // spells it (pfn/detail/expected_base.hpp:904). With a move-only value type NO transform_error
+  // call compiles from any category -- const& binds rvalues, so even an rvalue call forms the
+  // const& candidate whose body copies the value -- where or_else's conjunct (:168) cleanly
+  // drops those candidates (see "expected sum support or_else"). Positive probe only.
+  constexpr auto can_transform_error = [](auto &&f) { return requires { std::declval<S &>().transform_error(f); }; };
+  static_assert(can_transform_error(nothrow_visitor));
+
   WHEN("value")
   {
     fn::expected<double, fn::sum_for<int, std::string_view>> s{::fn::unexpect, fn::sum{12}};
@@ -2745,6 +2857,25 @@ TEST_CASE("expected sum support transform_error", "[expected][sum][transform_err
 
 TEST_CASE("expected pack support or_else", "[expected][or_else][pack]")
 {
+  using S = fn::expected<int, fn::pack<int, Error>>;
+
+  // noexcept (extension, expected.hpp:159-166): a multi-argument visitor is not invocable on
+  // the whole pack, so the borrowed std trait is conservatively false (GH #254); a generic
+  // same-value-type callback IS, and reports true
+  constexpr auto nothrow_two = [](int, Error &) noexcept -> fn::expected<int, Error> { return {1}; };
+  static_assert(not noexcept(std::declval<S &>().or_else(nothrow_two)));
+  constexpr auto nothrow_generic = [](auto &&...) noexcept -> fn::expected<int, Error> { return {1}; };
+  static_assert(noexcept(std::declval<S &>().or_else(nothrow_generic)));
+
+  // constraints (extension, :167-168): pack-apply invocability tracking the pack's value
+  // category; wrong arity or a non-callable SFINAE-drops
+  constexpr auto can_or_else_lval = [](auto &&f) { return requires { std::declval<S &>().or_else(f); }; };
+  constexpr auto can_or_else_rval = [](auto &&f) { return requires { std::declval<S &&>().or_else(f); }; };
+  static_assert(can_or_else_lval(nothrow_two));
+  static_assert(not can_or_else_rval(nothrow_two));                                          // lvalue-only visitor
+  static_assert(not can_or_else_lval([](Error &) -> fn::expected<int, Error> { throw 0; })); // wrong arity
+  static_assert(not can_or_else_lval(42));
+
   WHEN("value")
   {
     fn::expected<int, fn::pack<int, Error>> s{::fn::unexpect, fn::pack{12, FileNotFound}};
@@ -2808,10 +2939,41 @@ TEST_CASE("expected pack support or_else", "[expected][or_else][pack]")
                                [](int, Error const &&) -> fn::expected<void, Error> { throw 0; }})
               .has_value());
   }
+
+  WHEN("constexpr")
+  {
+    constexpr S a{::fn::unexpect, fn::pack{12, FileNotFound}};
+    static_assert(a.or_else([](int i, Error const &e) -> fn::expected<int, Error> {
+                     return {i == 12 && e == FileNotFound};
+                   }).value());
+    constexpr S b{1};
+    static_assert(b.or_else([](auto &&...) -> fn::expected<int, Error> { throw 0; }).value() == 1);
+    SUCCEED();
+  }
 }
 
 TEST_CASE("expected pack support transform_error", "[expected][transform_error][pack]")
 {
+  using S = fn::expected<int, fn::pack<int, Error>>;
+
+  // noexcept (extension, expected.hpp:279-282): nothrow invoke AND nothrow value copy; a
+  // multi-argument visitor is not invocable on the whole pack, so conservatively false (GH
+  // #254); a generic callback reports true (int value, nothrow copy)
+  constexpr auto nothrow_two = [](int, Error &) noexcept -> bool { return true; };
+  static_assert(not noexcept(std::declval<S &>().transform_error(nothrow_two)));
+  constexpr auto nothrow_generic = [](auto &&...) noexcept -> bool { return true; };
+  static_assert(noexcept(std::declval<S &>().transform_error(nothrow_generic)));
+
+  // constraints (:283-284): pack-apply invocability -- but NOT the untouched value's copy
+  // (:290), which pfn constrains (pfn/detail/expected_base.hpp:904); see the GAP note in
+  // "expected sum support transform_error"
+  constexpr auto can_te_lval = [](auto &&f) { return requires { std::declval<S &>().transform_error(f); }; };
+  constexpr auto can_te_rval = [](auto &&f) { return requires { std::declval<S &&>().transform_error(f); }; };
+  static_assert(can_te_lval(nothrow_two));
+  static_assert(not can_te_rval(nothrow_two));                      // lvalue-only visitor
+  static_assert(not can_te_lval([](Error &) -> bool { throw 0; })); // wrong arity
+  static_assert(not can_te_lval(42));
+
   WHEN("value")
   {
     fn::expected<int, fn::pack<int, Error>> s{::fn::unexpect, fn::pack{12, FileNotFound}};
@@ -2864,5 +3026,15 @@ TEST_CASE("expected pack support transform_error", "[expected][transform_error][
                 fn::overload{[](int, Error &) -> bool { throw 0; }, [](int, Error const &) -> bool { throw 0; },
                              [](int, Error &&) -> bool { return true; }, [](int, Error const &&) -> bool { throw 0; }})
             .error());
+  }
+
+  WHEN("constexpr")
+  {
+    constexpr S a{::fn::unexpect, fn::pack{12, FileNotFound}};
+    static_assert(
+        a.transform_error([](int i, Error const &e) -> bool { return i == 12 && e == FileNotFound; }).error());
+    constexpr S b{1};
+    static_assert(b.transform_error([](auto &&...) -> bool { throw 0; }).value() == 1);
+    SUCCEED();
   }
 }
