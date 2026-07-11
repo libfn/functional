@@ -229,6 +229,37 @@ TEST_CASE("append value categories", "[pack][append]")
     CHECK(std::move(s).append(B{30}).invoke(check));
   }
 
+  WHEN("reference element")
+  {
+    // Evaluated, not merely decltype'd: a reference element must BIND to the argument, and the
+    // element-initializing expression is only instantiated when the call is actually made
+    C c{};
+    auto q = s.append(std::in_place_type<B &>, c);
+    static_assert(std::same_as<decltype(q), T::append_type<B &>>);
+    CHECK(q.invoke([&c](int, std::string_view, A, B &b) { return &b == static_cast<B *>(&c); }));
+
+    auto r = s.append(c); // deduced, so the element type is C &
+    static_assert(std::same_as<decltype(r), T::append_type<C &>>);
+    CHECK(r.invoke([&c](int, std::string_view, A, C &x) { return &x == &c; }));
+
+    c.v = 77; // the same object, observed through both packs
+    CHECK(q.invoke([](int, std::string_view, A, B &b) { return b.v == 77; }));
+    CHECK(r.invoke([](int, std::string_view, A, C &x) { return x.v == 77; }));
+
+    WHEN("constexpr")
+    {
+      static_assert([] {
+        fn::pack<int> p{1};
+        B b{5, 6};
+        auto q = p.append(std::in_place_type<B &>, b);
+        auto r = p.append(b);
+        b.v = 9;
+        return q.invoke([](int, B &x) { return x.v == 9; }) && r.invoke([](int, B &x) { return x.v == 9; });
+      }());
+      SUCCEED();
+    }
+  }
+
   WHEN("pack on the right side, deduced")
   {
     constexpr fn::pack<bool, int, B> a{true, 3, B{14}};

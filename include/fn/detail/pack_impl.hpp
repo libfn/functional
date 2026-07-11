@@ -21,6 +21,20 @@ template <::std::size_t I, typename T> struct _element {
   T v; // NOSONAR cpp:S6226 MSVC ignores the attribute
 };
 
+// Initializes one element. A reference element is spelled as a cast rather than `T{arg}`: the two
+// are the same thing ([expr.type.conv]/1.3 defines the latter as direct-initializing an invented
+// variable of type T, and [dcl.init.list]/3.9 initializes a reference from a single element whose
+// type is reference-related to it, i.e. binds), but gcc reads the braced form as materializing a
+// temporary and rejects the bind - while accepting the equivalent declaration. The cast keeps both
+// compilers on the binding path.
+template <typename T> [[nodiscard]] constexpr auto _make_element(auto &&...args) -> T
+{
+  if constexpr (::std::is_reference_v<T>)
+    return T(FWD(args)...); // a single argument, so this is a cast expression: it binds
+  else
+    return T{FWD(args)...};
+}
+
 template <typename, typename... Ts> struct pack_impl;
 
 template <typename... Ts> struct _pack_append;
@@ -88,7 +102,8 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
       -> pack_impl<::std::index_sequence<Is..., size>, Ts..., T>
     requires(not _some_sum<T>) && (not _some_pack<T>) && _initializable<T, decltype(args)...>
   {
-    return {static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., T{FWD(args)...}};
+    return {static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)...,
+            _make_element<T>(FWD(args)...)};
   }
 
   template <typename T, typename Self>
