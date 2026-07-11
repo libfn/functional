@@ -39,6 +39,25 @@ template <fn::some_sum auto S> auto read_nttp()
 {
   return S.invoke([](auto const &...args) { return (0.0 + ... + static_cast<double>(args)); });
 }
+
+// Every operation sum performs on an alternative - copy, move, compare - can throw here, while the
+// sum member wrapping it promises noexcept regardless. Witnesses the #280 tripwires below.
+struct Throwing final {
+  int v;
+
+  constexpr operator int() const { return v; }
+  constexpr Throwing(int i) noexcept : v(i) {}
+  constexpr Throwing(Throwing const &o) noexcept(false) : v(o.v) {}
+  constexpr Throwing(Throwing &&o) noexcept(false) : v(o.v) {}
+  constexpr bool operator==(Throwing const &o) const noexcept(false) { return v == o.v; }
+};
+
+// Comparison probes are type-keyed rather than the file's usual value-taking lambda: sum<> has no
+// values to pass one (its default constructor is deleted, by design).
+template <typename L, typename R>
+concept can_eq = requires { std::declval<L const &>() == std::declval<R const &>(); };
+template <typename L, typename R>
+concept can_ne = requires { std::declval<L const &>() != std::declval<R const &>(); };
 } // anonymous namespace
 
 TEST_CASE("sum basic functionality tests", "[sum]")
@@ -52,6 +71,11 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     static_assert(sum<>::size == 0);
     static_assert(sum<>::has_type<bool> == false);
     static_assert(std::same_as<fn::sum_for<sum<>, sum<>>, sum<>>);
+    static_assert(not std::is_default_constructible_v<sum<>>); // the deleted default ctor is the point
+    static_assert(std::is_nothrow_copy_constructible_v<sum<>>);
+    static_assert(std::is_nothrow_move_constructible_v<sum<>>);
+    static_assert(std::is_nothrow_destructible_v<sum<>>);
+    SUCCEED();
   }
 
   WHEN("as_sum")
@@ -63,6 +87,11 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     constexpr auto b = fn::as_sum(std::in_place_type<long>, 12);
     static_assert(std::same_as<decltype(b), fn::sum<long> const>);
     static_assert(b == fn::sum{12l});
+
+    // GAP #280 (converse): neither lift carries a noexcept specifier, so both report noexcept(false)
+    // even where nothing can throw. The same conditional-noexcept work fixes over- and under-promise.
+    static_assert(not noexcept(fn::as_sum(12)));
+    static_assert(not noexcept(fn::as_sum(std::in_place_type<long>, 12)));
   }
 
   WHEN("sum_for")
@@ -151,6 +180,17 @@ TEST_CASE("sum basic functionality tests", "[sum]")
 
     constexpr sum<bool> b{false};
     static_assert(b == sum{false});
+
+    WHEN("noexcept")
+    {
+      // GAP #280 (converse): the value constructors carry no noexcept specifier at all, so they
+      // report noexcept(false) even for an alternative that cannot throw. This under-promise is the
+      // safe direction - an unnecessary EH edge, not a terminate - but it is equally inaccurate.
+      static_assert(std::is_nothrow_constructible_v<int, int>);
+      static_assert(not noexcept(sum<int>{42}));
+      static_assert(not noexcept(sum<int>{std::in_place_type<int>, 42}));
+      SUCCEED();
+    }
 
     WHEN("CTAD")
     {
@@ -261,6 +301,12 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     static_assert([](auto const &a) constexpr -> bool { //
       return not requires { a.template has_value<double>(); };
     }(a)); // double is not a type member
+
+    // Accurate, unlike the members below: reading the discriminator touches no alternative, so the
+    // promise holds even when every operation on that alternative can throw.
+    static_assert(noexcept(a.has_value(std::in_place_type<int>)));
+    static_assert(noexcept(a.template has_value<int>()));
+    static_assert(noexcept(std::declval<sum<Throwing> const &>().has_value(std::in_place_type<Throwing>)));
   }
 
   WHEN("equality comparison")
@@ -324,11 +370,50 @@ TEST_CASE("sum basic functionality tests", "[sum]")
         return not requires { a != 0.5; }; // no implicit conversion
       }(a));
     }
+
+    WHEN("noexcept")
+    {
+      using T = sum<Throwing>;
+
+      // GAP #280: both operators are unconditionally noexcept, yet operator== reaches into the
+      // alternative's own comparison - a throwing one terminates rather than propagating.
+      static_assert(not noexcept(std::declval<Throwing const &>() == std::declval<Throwing const &>()));
+      static_assert(noexcept(std::declval<T const &>() == std::declval<T const &>()));
+      static_assert(noexcept(std::declval<T const &>() != std::declval<T const &>()));
+
+      // GAP #281: operator!= drops the two sizeof...>0 conjuncts operator== carries, so against a
+      // sum<> operand it reports itself viable and then fails to compile in its own body (which
+      // calls operator==). Benign only because no object of sum<> can exist to call it with.
+      static_assert(can_eq<sum<int>, sum<int>>);
+      static_assert(can_ne<sum<int>, sum<int>>);
+      static_assert(not can_eq<sum<int>, sum<>>);
+      static_assert(can_ne<sum<int>, sum<>>);
+      static_assert(not can_eq<sum<>, sum<>>);
+      static_assert(can_ne<sum<>, sum<>>);
+
+      SUCCEED();
+    }
   }
 
   WHEN("invoke")
   {
     sum<int> a{std::in_place_type<int>, 42};
+
+    WHEN("noexcept")
+    {
+      // GAP #280: invoke's noexcept is unconditional, so a callback that can throw - every visitor
+      // in the sections below throws - still reports noexcept(true); the throw is std::terminate.
+      constexpr auto throwing = [](int i) noexcept(false) -> bool { return i == 42; };
+      static_assert(not noexcept(throwing(42)));
+      static_assert(noexcept(a.invoke(throwing)));
+      static_assert(noexcept(std::as_const(a).invoke(throwing)));
+      static_assert(noexcept(std::move(a).invoke(throwing)));
+      static_assert(noexcept(std::move(std::as_const(a)).invoke(throwing)));
+
+      constexpr auto throwing2 = [](int i, std::monostate) noexcept(false) -> bool { return i == 42; };
+      static_assert(noexcept(a.invoke(throwing2, std::monostate{}))); // extra arguments, same promise
+      SUCCEED();
+    }
 
     WHEN("value only")
     {
@@ -423,6 +508,18 @@ TEST_CASE("sum basic functionality tests", "[sum]")
   WHEN("invoke_r")
   {
     sum<int> a{std::in_place_type<int>, 42};
+
+    WHEN("noexcept")
+    {
+      // GAP #280: the same unconditional promise as invoke, the conversion to Ret included.
+      constexpr auto throwing = [](int i) noexcept(false) -> bool { return i == 42; };
+      static_assert(noexcept(a.template invoke_r<bool>(throwing)));
+      static_assert(noexcept(std::as_const(a).template invoke_r<bool>(throwing)));
+      static_assert(noexcept(std::move(a).template invoke_r<bool>(throwing)));
+      static_assert(noexcept(std::move(std::as_const(a)).template invoke_r<bool>(throwing)));
+      static_assert(noexcept(a.template invoke_r<long>(throwing))); // converting the result, too
+      SUCCEED();
+    }
 
     WHEN("value only")
     {
@@ -701,6 +798,28 @@ TEST_CASE("sum transform", "[sum][transform]")
                          [](double const &) -> bool { throw 0; }, [](double &&i) -> bool { return i == 0.5; },
                          [](double const &&) -> bool { throw 0; }})
         == sum<bool, int>{true});
+
+  WHEN("noexcept")
+  {
+    // GAP #280: transform promises noexcept in every value category no matter what the callback
+    // promises - the visitors above all throw. The typed-dispatch internals behind operator& and
+    // the widening constructors carry the same unconditional promise.
+    constexpr auto throwing = [](double i) noexcept(false) -> bool { return i == 0.5; };
+    static_assert(noexcept(a.transform(throwing)));
+    static_assert(noexcept(std::as_const(a).transform(throwing)));
+    static_assert(noexcept(std::move(a).transform(throwing)));
+    static_assert(noexcept(std::move(std::as_const(a)).transform(throwing)));
+
+    constexpr auto typed = []<typename T>(std::in_place_type_t<T>, auto &&v) noexcept(false) -> bool {
+      return static_cast<double>(v) == 0.5;
+    };
+    static_assert(noexcept(std::as_const(a)._transform(typed)));
+    static_assert(noexcept(std::move(a)._transform(typed)));
+    static_assert(noexcept(std::as_const(a).template _invoke<bool>(typed)));
+    static_assert(noexcept(std::move(a).template _invoke<bool>(typed)));
+
+    SUCCEED();
+  }
 }
 
 namespace {
@@ -978,6 +1097,19 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
       }(std::move(std::as_const(a))));
     }
   }
+
+  WHEN("noexcept")
+  {
+    // GAP #280: the copy and move constructors are declared unconditionally noexcept, so an
+    // alternative whose own copy or move throws terminates instead of propagating. The destructor's
+    // promise, by contrast, is accurate - destroying the alternatives here cannot throw.
+    static_assert(not std::is_nothrow_copy_constructible_v<Throwing>);
+    static_assert(not std::is_nothrow_move_constructible_v<Throwing>);
+    static_assert(std::is_nothrow_copy_constructible_v<sum<Throwing>>);
+    static_assert(std::is_nothrow_move_constructible_v<sum<Throwing>>);
+    static_assert(std::is_nothrow_destructible_v<sum<Throwing>>);
+    SUCCEED();
+  }
 }
 
 TEST_CASE("sum", "[sum][has_value][get_ptr]")
@@ -1028,6 +1160,8 @@ TEST_CASE("sum", "[sum][has_value][get_ptr]")
   static_assert(std::is_same_v<decltype(std::as_const(b).get_ptr(std::in_place_type<int>)), int const *>);
   CHECK(std::as_const(b).get_ptr(std::in_place_type<int>) == &b.data.v1);
   CHECK(std::as_const(b).get_ptr(std::in_place_type<double>) == nullptr);
+  static_assert(noexcept(b.get_ptr(std::in_place_type<int>))); // accurate: no alternative is touched
+  static_assert(noexcept(std::as_const(b).get_ptr(std::in_place_type<int>)));
 
   T const c{std::in_place_type<double>, 4.25};
   CHECK(c.get_ptr(std::in_place_type<int>) == nullptr);
