@@ -361,6 +361,50 @@ TEST_CASE("and_then", "[and_then][expected][expected_value][pack]")
   static_assert(is::not_invocable_with_any([]() -> operand_t { throw 0; }));                      // bad arity
   static_assert(is::not_invocable_with_any([](int, int) -> operand_t { throw 0; }));              // bad arity
 
+  WHEN("noexcept")
+  {
+    constexpr auto fnNothrow = [](int i) noexcept -> operand_t { return {i + 1}; };
+    constexpr auto fnThrows = [](int i) noexcept(false) -> operand_t { return {i + 1}; };
+
+    // The member's spec is precise, and weighs BOTH sides: the callback, and the copy of the
+    // untouched error. Error carries a std::string, whose copy can throw on its own - so even a
+    // noexcept callback leaves the member potentially-throwing here.
+    static_assert(not std::is_nothrow_copy_constructible_v<Error>);
+    static_assert(not noexcept(std::declval<operand_t &>().and_then(fnNothrow)));
+    static_assert(not noexcept(std::declval<operand_t &>().and_then(fnThrows)));
+
+    // Give it an error whose copy cannot throw, and the callback alone decides.
+    using nothrow_t = fn::expected<int, int>;
+    constexpr auto fnNothrow2 = [](int i) noexcept -> nothrow_t { return {i + 1}; };
+    constexpr auto fnThrows2 = [](int i) noexcept(false) -> nothrow_t { return {i + 1}; };
+    static_assert(noexcept(std::declval<nothrow_t &>().and_then(fnNothrow2)));
+    static_assert(not noexcept(std::declval<nothrow_t &>().and_then(fnThrows2)));
+
+    // GAP #285: the verb then discards that answer. Every step of the pipeline - the nielbloid,
+    // operator|, _swap_invoke and apply - is unconditionally noexcept, so a throwing callback the
+    // member would propagate instead crosses a noexcept boundary and terminates.
+    static_assert(noexcept(std::declval<nothrow_t &>() | and_then(fnThrows2)));
+    static_assert(noexcept(std::declval<operand_t &>() | and_then(fnThrows)));
+    static_assert(noexcept(std::declval<operand_t &&>() | and_then(fnThrows)));
+
+    // Constructing the functor copies the callable into a pack, and that copy can throw too.
+    struct ThrowingCopy final {
+      ThrowingCopy() = default;
+      ThrowingCopy(ThrowingCopy const &) noexcept(false) {}
+      ThrowingCopy(ThrowingCopy &&) noexcept(false) {}
+      auto operator()(int i) const noexcept -> operand_t { return {i + 1}; }
+    };
+    static_assert(not std::is_nothrow_copy_constructible_v<ThrowingCopy>);
+    static_assert(noexcept(and_then(std::declval<ThrowingCopy const &>()))); // GAP #285
+
+    // fn::invoke reaches the very same apply, yet reports noexcept(false) even for a callback that
+    // cannot throw - the #45 traits behind it are stubbed false. The library's two entry points to
+    // one operation disagree, and each is wrong in the opposite direction.
+    static_assert(not noexcept(fn::invoke(and_then_t::apply{}, std::declval<operand_t &>(), fnNothrow)));
+
+    SUCCEED();
+  }
+
   WHEN("operand is lvalue")
   {
     WHEN("operand is value")
@@ -488,6 +532,28 @@ TEST_CASE("and_then", "[and_then][expected][expected_void]")
   static_assert(is::not_invocable_with_any([](int) -> operand_t { throw 0; }));        // bad arity
   static_assert(is::not_invocable_with_any([](int, int) -> operand_t { throw 0; }));   // bad arity
 
+  WHEN("noexcept")
+  {
+    constexpr auto fnNothrow = []() noexcept -> operand_t { return {}; };
+    constexpr auto fnThrows = []() noexcept(false) -> operand_t { return {}; };
+
+    // As for a non-void value: the member weighs the untouched error's copy too, and Error's can
+    // throw - so give it a nothrow error to see the callback alone decide.
+    static_assert(not noexcept(std::declval<operand_t &>().and_then(fnNothrow)));
+
+    using nothrow_t = fn::expected<void, int>;
+    constexpr auto fnNothrow2 = []() noexcept -> nothrow_t { return {}; };
+    constexpr auto fnThrows2 = []() noexcept(false) -> nothrow_t { return {}; };
+    static_assert(noexcept(std::declval<nothrow_t &>().and_then(fnNothrow2)));
+    static_assert(not noexcept(std::declval<nothrow_t &>().and_then(fnThrows2)));
+
+    // GAP #285: the verb is unconditionally noexcept regardless.
+    static_assert(noexcept(std::declval<nothrow_t &>() | and_then(fnThrows2)));
+    static_assert(noexcept(std::declval<operand_t &>() | and_then(fnThrows)));
+    static_assert(noexcept(std::declval<operand_t &&>() | and_then(fnThrows)));
+    SUCCEED();
+  }
+
   WHEN("operand is lvalue")
   {
     WHEN("operand is value")
@@ -591,6 +657,19 @@ TEST_CASE("and_then", "[and_then][optional][pack]")
   static_assert(is::not_invocable_with_any([](std::string) -> operand_t { throw 0; }));           // bad type
   static_assert(is::not_invocable_with_any([]() -> operand_t { throw 0; }));                      // bad arity
   static_assert(is::not_invocable_with_any([](int, int) -> operand_t { throw 0; }));              // bad arity
+
+  WHEN("noexcept")
+  {
+    constexpr auto fnNothrow = [](int i) noexcept -> operand_t { return {i + 1}; };
+    constexpr auto fnThrows = [](int i) noexcept(false) -> operand_t { return {i + 1}; };
+
+    // As for expected: the member is precise, the verb is not (GAP #285).
+    static_assert(noexcept(std::declval<operand_t &>().and_then(fnNothrow)));
+    static_assert(not noexcept(std::declval<operand_t &>().and_then(fnThrows)));
+    static_assert(noexcept(std::declval<operand_t &>() | and_then(fnThrows)));
+    static_assert(noexcept(std::declval<operand_t &&>() | and_then(fnThrows)));
+    SUCCEED();
+  }
 
   WHEN("operand is lvalue")
   {
@@ -718,6 +797,22 @@ TEST_CASE("and_then choice", "[and_then][choice]")
   static_assert(is::not_invocable_with_any([](int &) -> operand_t { throw 0; }));    // not enough types
   static_assert(is::not_invocable_with_any([]() -> operand_t { throw 0; }));         // bad arity
   static_assert(is::not_invocable_with_any([](int, int) -> operand_t { throw 0; })); // bad arity
+
+  WHEN("noexcept")
+  {
+    constexpr auto fnThrows = [](auto i) noexcept(false) -> operand_t { return {i + 1}; };
+
+    // GAP #280: choice differs from its siblings - its own and_then is unconditionally noexcept too
+    // (it dispatches through sum::invoke), so here even the MEMBER over-promises. The same monadic
+    // operation therefore has different exception behaviour depending on which monad it is written
+    // against: optional and expected propagate, choice terminates.
+    static_assert(noexcept(std::declval<operand_t &>().and_then(fnThrows)));
+
+    // GAP #285: the verb layer over-promises for every monad, choice included.
+    static_assert(noexcept(std::declval<operand_t &>() | and_then(fnThrows)));
+    static_assert(noexcept(std::declval<operand_t &&>() | and_then(fnThrows)));
+    SUCCEED();
+  }
 
   WHEN("operand is lvalue")
   {
@@ -1045,5 +1140,24 @@ static_assert(not invocable_and_then<decltype(fn_int_lvalue<expected<Value, Erro
 static_assert(invocable_and_then<decltype(fn_int_lvalue<expected<Value, Error>>), expected<int, Error> &>);
 static_assert(invocable_and_then<decltype(fn_int_rvalue<expected<Value, Error>>), expected<int, Error>>);
 static_assert(not invocable_and_then<decltype(fn_int_rvalue<expected<Value, Error>>), expected<int, Error> &>); // cannot bind lvalue to rvalue-ref
+
+// A sum error type grades the monad: the callback may then return an expected with a DIFFERENT error,
+// which the operation widens into the sum. Without one, the error types must match exactly - the two
+// disjuncts above and below are what tell those cases apart.
+static_assert(invocable_and_then<decltype(fn_int<expected<Value, sum<Error>>>), expected<int, sum<Error>>>);
+static_assert(invocable_and_then<decltype(fn_int<expected<Value, Xerror>>), expected<int, sum<Error>>>);         // widens the error
+static_assert(invocable_and_then<decltype(fn_int<expected<Value, Error>>), expected<int, sum<Error, Xerror>>>);  // already covered by the sum
+static_assert(not invocable_and_then<decltype(fn_int<expected<Value, Xerror>>), expected<int, Error>>);          // no sum: error must match
+static_assert(invocable_and_then<decltype(fn_generic<expected<Value, Xerror>>), expected<void, sum<Error>>>);    // ... and the same for void
+static_assert(not invocable_and_then<decltype(fn_generic<expected<Value, Xerror>>), expected<void, Error>>);
+
+// choice - the concept's remaining disjunct
+static_assert(invocable_and_then<decltype(fn_generic<choice<int>>), choice<int>>);
+static_assert(invocable_and_then<decltype(fn_generic<choice<Value>>), choice<int>>);                            // may change the type
+static_assert(not invocable_and_then<decltype(fn_generic<optional<int>>), choice<int>>);                        // must stay a choice
+static_assert(not invocable_and_then<decltype(fn_generic<expected<int, Error>>), choice<int>>);
+static_assert(not invocable_and_then<decltype(fn_generic<choice<int>>), optional<int>>);                        // mixed choice and optional
+static_assert(not invocable_and_then<decltype(fn_int_lvalue<choice<int>>), choice<int>>);                       // cannot bind temporary to lvalue
+static_assert(invocable_and_then<decltype(fn_int_lvalue<choice<int>>), choice<int> &>);
 // clang-format on
 } // namespace fn
