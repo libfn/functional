@@ -50,8 +50,9 @@ constexpr inline struct filter_t final {
    * @param on_err The error handler, takes the value by const reference and returns the error type
    * @return A functor that will filter the value of the monadic type
    */
-  [[nodiscard]] constexpr auto operator()(auto &&pred, auto &&on_err) const noexcept
-      -> functor<filter_t, decltype(pred), decltype(on_err)>
+  [[nodiscard]] constexpr auto operator()(auto &&pred, auto &&on_err) const
+      noexcept(noexcept(functor<filter_t, decltype(pred), decltype(on_err)>{FWD(pred), FWD(on_err)}))
+          -> functor<filter_t, decltype(pred), decltype(on_err)>
   {
     return {FWD(pred), FWD(on_err)};
   }
@@ -61,7 +62,8 @@ constexpr inline struct filter_t final {
    * @param pred The predicate to filter the value, takes the value by const reference and returns bool
    * @return A functor that will filter the value of the monadic type
    */
-  [[nodiscard]] constexpr auto operator()(auto &&pred) const noexcept -> functor<filter_t, decltype(pred)>
+  [[nodiscard]] constexpr auto operator()(auto &&pred) const
+      noexcept(noexcept(functor<filter_t, decltype(pred)>{FWD(pred)})) -> functor<filter_t, decltype(pred)>
   {
     return {FWD(pred)};
   }
@@ -82,7 +84,14 @@ struct filter_t::apply final {
    * @return TODO
    */
   template <some_expected_non_void V, typename Pred, typename OnErr>
-  [[nodiscard]] constexpr auto operator()(V &&v, Pred &&pred, OnErr &&on_err) const noexcept -> ::std::remove_cvref_t<V>
+  [[nodiscard]] constexpr auto operator()(V &&v, Pred &&pred, OnErr &&on_err) const //
+      noexcept(
+          ::fn::is_nothrow_invocable_v<Pred, decltype(::std::as_const(v).value())>
+          && ::fn::is_nothrow_invocable_v<OnErr, decltype(FWD(v).value())>
+          && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, decltype(FWD(v).value())>
+          && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::fn::unexpect_t,
+                                               ::fn::invoke_result_t<OnErr, decltype(FWD(v).value())>>
+          && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, V>) -> ::std::remove_cvref_t<V>
     requires invocable_filter<Pred &&, OnErr &&, V &&>
   {
     using type = ::std::remove_cvref_t<V>;
@@ -103,7 +112,12 @@ struct filter_t::apply final {
    * @return TODO
    */
   template <some_expected_void V, typename Pred, typename OnErr>
-  [[nodiscard]] constexpr auto operator()(V &&v, Pred &&pred, OnErr &&on_err) const noexcept -> ::std::remove_cvref_t<V>
+  [[nodiscard]] constexpr auto operator()(V &&v, Pred &&pred, OnErr &&on_err) const //
+      noexcept(
+          ::fn::is_nothrow_invocable_v<Pred> && ::fn::is_nothrow_invocable_v<OnErr>
+          && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t>
+          && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::fn::unexpect_t, ::fn::invoke_result_t<OnErr>>
+          && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, V>) -> ::std::remove_cvref_t<V>
     requires invocable_filter<Pred &&, OnErr &&, V &&>
   {
     using type = ::std::remove_cvref_t<V>;
@@ -123,7 +137,12 @@ struct filter_t::apply final {
    * @return TODO
    */
   template <some_optional V, typename Pred>
-  [[nodiscard]] constexpr auto operator()(V &&v, Pred &&pred) const noexcept -> ::std::remove_cvref_t<V>
+  [[nodiscard]] constexpr auto operator()(V &&v, Pred &&pred) const //
+      noexcept(
+          ::fn::is_nothrow_invocable_v<Pred, decltype(::std::as_const(v).value())>
+          && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, decltype(FWD(v).value())>
+          && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::nullopt_t>
+          && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, V>) -> ::std::remove_cvref_t<V>
     requires invocable_filter<Pred &&, void, V &&>
   {
     using type = ::std::remove_cvref_t<V>;

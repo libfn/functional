@@ -260,3 +260,14 @@ static_assert(not invocable_inspect_error<decltype(fn_int_const_rvalue), expecte
 // cannot bind lvalue to rvalue-ref
 static_assert(not invocable_inspect_error<decltype(fn_int_rvalue), expected<void, int>>);
 } // namespace fn
+
+TEST_CASE("inspect_error noexcept", "[inspect_error][noexcept]")
+{
+  using E = fn::expected<int, int>;
+  using O = fn::optional<int>;
+  static_assert(noexcept(std::declval<E &>() | fn::inspect_error([](int) noexcept {})));
+  static_assert(not noexcept(std::declval<E &>() | fn::inspect_error([](int) {})));
+  static_assert(noexcept(std::declval<O &>() | fn::inspect_error([]() noexcept {})));
+  static_assert(not noexcept(std::declval<O &>() | fn::inspect_error([]() {})));
+  SUCCEED();
+}

@@ -37,7 +37,8 @@ concept invocable_fail //
  * @brief TODO
  */
 constexpr inline struct fail_t final {
-  [[nodiscard]] constexpr auto operator()(auto &&fn) const noexcept -> functor<fail_t, decltype(fn)> //
+  [[nodiscard]] constexpr auto operator()(auto &&fn) const noexcept(noexcept(functor<fail_t, decltype(fn)>{FWD(fn)}))
+      -> functor<fail_t, decltype(fn)> //
   {
     return {FWD(fn)};
   }
@@ -57,7 +58,13 @@ struct fail_t::apply final {
    * @return TODO
    */
   template <some_expected_non_void V, typename Fn>
-  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept -> ::std::remove_cvref_t<V>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //
+      noexcept(
+          ::fn::is_nothrow_invocable_v<Fn, decltype(FWD(v).value())>
+          && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::fn::unexpect_t,
+                                               ::fn::invoke_result_t<Fn, decltype(FWD(v).value())>>
+          && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::fn::unexpect_t, decltype(FWD(v).error())>)
+          -> ::std::remove_cvref_t<V>
     requires invocable_fail<Fn &&, V &&>
   {
     using type = ::std::remove_cvref_t<V>;
@@ -75,7 +82,12 @@ struct fail_t::apply final {
    * @return TODO
    */
   template <some_expected_void V, typename Fn>
-  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept -> ::std::remove_cvref_t<V>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //
+      noexcept(
+          ::fn::is_nothrow_invocable_v<Fn>
+          && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::fn::unexpect_t, ::fn::invoke_result_t<Fn>>
+          && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::fn::unexpect_t, decltype(FWD(v).error())>)
+          -> ::std::remove_cvref_t<V>
     requires invocable_fail<Fn &&, V &&>
   {
     using type = ::std::remove_cvref_t<V>;
@@ -93,7 +105,10 @@ struct fail_t::apply final {
    * @return TODO
    */
   template <some_optional V, typename Fn>
-  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept -> ::std::remove_cvref_t<V>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //
+      noexcept(::fn::is_nothrow_invocable_v<Fn, decltype(FWD(v).value())>
+               && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::nullopt_t>)
+          -> ::std::remove_cvref_t<V>
     requires invocable_fail<Fn &&, V &&>
   {
     using type = ::std::remove_cvref_t<V>;

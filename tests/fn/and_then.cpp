@@ -1047,3 +1047,25 @@ static_assert(invocable_and_then<decltype(fn_int_rvalue<expected<Value, Error>>)
 static_assert(not invocable_and_then<decltype(fn_int_rvalue<expected<Value, Error>>), expected<int, Error> &>); // cannot bind lvalue to rvalue-ref
 // clang-format on
 } // namespace fn
+
+TEST_CASE("and_then noexcept", "[and_then][noexcept]")
+{
+  // the pipeline propagates the member's own spec (the pipeline itself is pinned in functor.cpp)
+  using O = fn::optional<int>;
+  constexpr auto nothrow_fn = [](int i) noexcept -> O { return {i}; };
+  constexpr auto throwing_fn = [](int i) -> O { return {i}; };
+
+  static_assert(noexcept(std::declval<O &>().and_then(nothrow_fn)));
+  static_assert(noexcept(std::declval<O &>() | fn::and_then(nothrow_fn)));
+  static_assert(not noexcept(std::declval<O &>().and_then(throwing_fn)));
+  static_assert(not noexcept(std::declval<O &>() | fn::and_then(throwing_fn)));
+
+  // and_then weighs the untouched ERROR's relocation too: a std::string error cannot be copied
+  // without throwing, so even a noexcept callback yields noexcept(false)
+  using E = fn::expected<int, std::string>;
+  constexpr auto nothrow_e = [](int i) noexcept -> E { return {i}; };
+  static_assert(not noexcept(std::declval<E &>() | fn::and_then(nothrow_e)));
+  static_assert(noexcept(std::declval<fn::expected<int, int> &>()
+                         | fn::and_then([](int i) noexcept -> fn::expected<int, int> { return {i}; })));
+  SUCCEED();
+}
