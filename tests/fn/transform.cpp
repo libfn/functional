@@ -560,3 +560,17 @@ TEST_CASE("constexpr transform choice", "[transform][constexpr][choice]")
 
   SUCCEED();
 }
+
+TEST_CASE("transform noexcept", "[transform][noexcept]")
+{
+  using O = fn::optional<int>;
+  static_assert(noexcept(std::declval<O &>() | fn::transform([](int i) noexcept { return i + 1; })));
+  static_assert(not noexcept(std::declval<O &>() | fn::transform([](int i) { return i + 1; })));
+
+  // ... and the untouched error's relocation, as and_then does
+  using E = fn::expected<int, std::string>;
+  static_assert(not noexcept(std::declval<E &>() | fn::transform([](int i) noexcept { return i + 1; })));
+  static_assert(
+      noexcept(std::declval<fn::expected<int, int> &>() | fn::transform([](int i) noexcept { return i + 1; })));
+  SUCCEED();
+}

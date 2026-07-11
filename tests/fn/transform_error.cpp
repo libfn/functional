@@ -196,3 +196,15 @@ TEST_CASE("constexpr transform_error expected with sum", "[transform_error][cons
 
   SUCCEED();
 }
+
+TEST_CASE("transform_error noexcept", "[transform_error][noexcept]")
+{
+  using E = fn::expected<int, int>;
+  static_assert(noexcept(std::declval<E &>() | fn::transform_error([](int i) noexcept { return i + 1; })));
+  static_assert(not noexcept(std::declval<E &>() | fn::transform_error([](int i) { return i + 1; })));
+
+  // the untouched value is relocated into the result, so its copy weighs too
+  using S = fn::expected<std::string, int>;
+  static_assert(not noexcept(std::declval<S const &>() | fn::transform_error([](int i) noexcept { return i + 1; })));
+  SUCCEED();
+}

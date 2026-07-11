@@ -37,7 +37,8 @@ constexpr inline struct inspect_error_t final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] constexpr auto operator()(auto &&fn) const noexcept -> functor<inspect_error_t, decltype(fn)> //
+  [[nodiscard]] constexpr auto operator()(auto &&fn) const
+      noexcept(noexcept(functor<inspect_error_t, decltype(fn)>{FWD(fn)})) -> functor<inspect_error_t, decltype(fn)> //
   {
     return {FWD(fn)};
   }
@@ -57,7 +58,8 @@ struct inspect_error_t::apply final {
    * @return TODO
    */
   template <some_expected V, typename Fn>
-  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept -> V &&
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const
+      noexcept(::fn::is_nothrow_invocable_v<Fn, decltype(::std::as_const(v).error())>) -> V &&
     requires invocable_inspect_error<Fn &&, V &&>
   {
     if (not v.has_value()) {
@@ -74,7 +76,7 @@ struct inspect_error_t::apply final {
    * @return TODO
    */
   template <some_optional V, typename Fn>
-  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept -> V &&
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept(::fn::is_nothrow_invocable_v<Fn>) -> V &&
     requires invocable_inspect_error<Fn &&, V &&>
   {
     if (not v.has_value()) {

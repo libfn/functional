@@ -44,8 +44,48 @@ static_assert(is::not_invocable_with_any(fn2)); // arity mismatch
 } // namespace check_optional
 } // namespace
 
+namespace {
+// A second verb whose apply is honestly noexcept(false), to pin what the PIPELINE promises apart
+// from what any real verb promises. Each verb file asserts only its own member's spec.
+constexpr inline struct throwing_t final {
+  auto operator()(auto &&fn) const noexcept -> fn::functor<throwing_t, decltype(fn)> { return {FWD(fn)}; }
+
+  struct apply final {
+    auto operator()(fn::some_monadic_type auto &&v, auto &&fn) const noexcept(false) -> decltype(auto)
+      requires requires { fn(v.value()); }
+    {
+      return FWD(v).transform([&fn](auto &&v) noexcept { return FWD(fn)(FWD(v)); });
+    }
+  };
+} throwing = {};
+
+constexpr inline struct nothrow_t final {
+  auto operator()(auto &&fn) const noexcept -> fn::functor<nothrow_t, decltype(fn)> { return {FWD(fn)}; }
+
+  struct apply final {
+    auto operator()(fn::some_monadic_type auto &&v, auto &&fn) const noexcept -> decltype(auto)
+      requires requires { fn(v.value()); }
+    {
+      return FWD(v).transform([&fn](auto &&v) noexcept { return FWD(fn)(FWD(v)); });
+    }
+  };
+} nothrow_verb = {};
+} // namespace
+
 TEST_CASE("user-defined monadic operation", "[functor]")
 {
   CHECK((fn::expected<int, std::runtime_error>{12} | dummy(fn1)).value() == 13);
   CHECK((fn::optional{42} | dummy(fn1)).value() == 43);
+}
+
+TEST_CASE("pipeline noexcept", "[functor][noexcept]")
+{
+  // operator| propagates what the operation promises, rather than promising noexcept regardless -
+  // which would turn an exception the operation would propagate into a call to std::terminate
+  using O = fn::optional<int>;
+  static_assert(noexcept(std::declval<O &>() | nothrow_verb(fn1)));
+  static_assert(not noexcept(std::declval<O &>() | throwing(fn1)));
+  static_assert(noexcept(std::declval<O &&>() | nothrow_verb(fn1)));
+  static_assert(not noexcept(std::declval<O &&>() | throwing(fn1)));
+  SUCCEED();
 }

@@ -155,3 +155,16 @@ TEST_CASE("constexpr value_or optional", "[value_or][constexpr][optional]")
 
   SUCCEED();
 }
+
+TEST_CASE("value_or noexcept", "[value_or][noexcept]")
+{
+  using E = fn::expected<int, int>;
+  using O = fn::optional<int>;
+  static_assert(noexcept(std::declval<E &>() | fn::value_or(1)));
+  static_assert(noexcept(std::declval<O &>() | fn::value_or(1)));
+
+  // building the fallback value can throw
+  using S = fn::optional<std::string>;
+  static_assert(not noexcept(std::declval<S &>() | fn::value_or("x")));
+  SUCCEED();
+}

@@ -38,7 +38,11 @@ template <typename Functor, typename... Args> struct functor final {
    * @param self TODO
    * @return TODO
    */
-  [[nodiscard]] constexpr friend auto operator|(some_monadic_type auto &&v, auto &&self) noexcept -> decltype(auto)
+  // The pipeline propagates what the operation itself promises: the verb's `apply` knows, and
+  // `_swap_invoke` carries that answer up. Promising `noexcept` here regardless would turn an
+  // exception the monad's own member would propagate into a call to std::terminate.
+  [[nodiscard]] constexpr friend auto operator|(some_monadic_type auto &&v, auto &&self) //
+      noexcept(noexcept(data_t::_swap_invoke(FWD(self).data, functor_apply{}, FWD(v)))) -> decltype(auto)
     requires ::std::same_as<::std::remove_cvref_t<decltype(self)>, functor>
              && monadic_invocable<functor_type, decltype(v), Args...>
   {

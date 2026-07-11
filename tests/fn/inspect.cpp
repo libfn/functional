@@ -479,3 +479,19 @@ static_assert(not invocable_inspect<decltype(fn_int_const_rvalue), expected<int,
 // cannot bind lvalue to rvalue-ref
 static_assert(not invocable_inspect<decltype(fn_int_rvalue), expected<int, Error>>);
 } // namespace fn
+
+TEST_CASE("inspect noexcept", "[inspect][noexcept]")
+{
+  // inspect's apply IS the implementation - nothing else computed a spec for it to propagate
+  using E = fn::expected<int, int>;
+  using O = fn::optional<int>;
+  static_assert(noexcept(std::declval<E &>() | fn::inspect([](int) noexcept {})));
+  static_assert(not noexcept(std::declval<E &>() | fn::inspect([](int) {})));
+  static_assert(noexcept(std::declval<O &>() | fn::inspect([](int) noexcept {})));
+  static_assert(not noexcept(std::declval<O &>() | fn::inspect([](int) {})));
+
+  // the operand is returned unchanged, so only the callback can throw - not the accessor, which
+  // the body only reaches when there is a value
+  static_assert(noexcept(std::declval<fn::expected<std::string, int> &>() | fn::inspect([](auto const &) noexcept {})));
+  SUCCEED();
+}
