@@ -51,26 +51,6 @@ constexpr prop operator&(prop a, prop b) noexcept
   return static_cast<prop>(static_cast<U>(a) & static_cast<U>(b));
 }
 
-// Transitional: map the legacy helper_t<int> selector onto flags, so unconverted call sites keep
-// compiling while their tests migrate to the named flags. Remove the int overload (and this comment)
-// once no call site instantiates a fixture with an integer.
-constexpr prop prop_of(prop p) noexcept { return p; }
-constexpr prop prop_of(int V) noexcept
-{
-  prop f = prop::regular;
-  if (V >= 2 && V < 4)
-    f = f | prop::throw_copy;
-  if ((V >= 3 && V < 5) || (V >= 33 && V < 35))
-    f = f | prop::throw_move;
-  if (V >= 40 && V < 41)
-    f = f | prop::throw_copy_assign | prop::throw_move_assign;
-  if (V < 8)
-    f = f | prop::throw_value;
-  if (V >= 30)
-    f = f | prop::runtime_move;
-  return f;
-}
-
 // Common value storage and value constructors shared by the three fixtures; the copy/move behaviour
 // (witnessed, deleted, or throwing) is layered on by the derived templates below.
 template <prop F> struct helper_value_base {
@@ -124,8 +104,7 @@ protected:
 
 // Fully copyable and movable witness. Each special member multiplies `v` by its prime and,
 // per the flags in F, may be noexcept(false) and throw on a zero result.
-template <auto Cfg> struct helper_t : helper_value_base<prop_of(Cfg)> {
-  static constexpr prop F = prop_of(Cfg);
+template <prop F> struct helper_t : helper_value_base<F> {
   using base = helper_value_base<F>;
   static constexpr bool throws_copy = (F & prop::throw_copy) != prop::regular;
   static constexpr bool throws_move = (F & prop::throw_move) != prop::regular;
@@ -147,7 +126,7 @@ template <auto Cfg> struct helper_t : helper_value_base<prop_of(Cfg)> {
   }
 
   constexpr helper_t(helper_t &&o) noexcept(not throws_move)
-    requires((prop_of(Cfg) & prop::runtime_move) == prop::regular)
+    requires((F & prop::runtime_move) == prop::regular)
       : base(typename base::raw_t{}, o.v)
   {
     v *= from_rval;
@@ -158,7 +137,7 @@ template <auto Cfg> struct helper_t : helper_value_base<prop_of(Cfg)> {
   }
 
   helper_t(helper_t &&o) noexcept(not throws_move)
-    requires((prop_of(Cfg) & prop::runtime_move) != prop::regular)
+    requires((F & prop::runtime_move) != prop::regular)
       : base(typename base::raw_t{}, o.v)
   {
     v *= from_rval;
@@ -224,8 +203,7 @@ template <auto Cfg> struct helper_t : helper_value_base<prop_of(Cfg)> {
 
 // Move-only witness: copy construction/assignment deleted, moves witnessed. runtime_move does not
 // apply (the move constructor is always constexpr, matching the fixture's only historical use).
-template <auto Cfg> struct helper_move_only_t : helper_value_base<prop_of(Cfg)> {
-  static constexpr prop F = prop_of(Cfg);
+template <prop F> struct helper_move_only_t : helper_value_base<F> {
   using base = helper_value_base<F>;
   static constexpr bool throws_move = (F & prop::throw_move) != prop::regular;
   static constexpr bool throws_move_assign = (F & prop::throw_move_assign) != prop::regular;
@@ -265,8 +243,8 @@ template <auto Cfg> struct helper_move_only_t : helper_value_base<prop_of(Cfg)> 
 };
 
 // Immovable witness: all copy/move deleted; only in-place constructible (from a value) and observable.
-template <auto Cfg> struct helper_immovable_t : helper_value_base<prop_of(Cfg)> {
-  using base = helper_value_base<prop_of(Cfg)>;
+template <prop F> struct helper_immovable_t : helper_value_base<F> {
+  using base = helper_value_base<F>;
 
   using base::base;
   using base::v;
@@ -280,7 +258,7 @@ template <auto Cfg> struct helper_immovable_t : helper_value_base<prop_of(Cfg)> 
 };
 
 // Swap multiplies each witness by its prime.
-template <auto Cfg> constexpr void swap(helper_t<Cfg> &l, helper_t<Cfg> &r)
+template <prop F> constexpr void swap(helper_t<F> &l, helper_t<F> &r)
 {
   std::swap(l.v, r.v);
   l.v *= swapped;
@@ -316,11 +294,5 @@ static_assert(not std::is_copy_constructible_v<helper_immovable>);
 static_assert(not std::is_move_constructible_v<helper_immovable>);
 static_assert(not std::is_copy_assignable_v<helper_immovable>);
 static_assert(not std::is_move_assignable_v<helper_immovable>);
-
-// Legacy shim sanity: a few representative integer selectors still map to the right behaviour.
-// Remove together with the prop_of(int) overload once no call site uses an integer selector.
-static_assert(not std::is_nothrow_copy_constructible_v<helper_t<2>>);
-static_assert(not std::is_nothrow_move_constructible_v<helper_t<3>>);
-static_assert(not std::is_nothrow_move_assignable_v<helper_t<40>>);
 
 #endif // INCLUDE_TESTS_UTIL_HELPER_TYPES
