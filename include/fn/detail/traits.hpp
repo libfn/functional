@@ -7,8 +7,16 @@
 #define INCLUDE_FN_DETAIL_TRAITS
 
 #include <type_traits>
+#include <utility>
 
 namespace fn::detail {
+
+// The storage constructs an element as `T{args...}`, so a constraint on that construction must ask
+// the same question: `is_constructible_v` spells parenthesized initialization, which for an
+// aggregate performs no brace elision (`std::array<int, 3>` is not "constructible" from 3 ints) and
+// permits narrowing where brace initialization rejects it.
+template <typename T, typename... Args>
+concept _brace_constructible = requires { T{::std::declval<Args>()...}; };
 
 // Change any rvalue or empty value to prvalue, but leave lvalues unchanged.
 // This is meant to find the type of data members which won't bind to rvalues.
