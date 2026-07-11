@@ -12,6 +12,7 @@
 #include <fn/detail/variadic_union.hpp>
 #include <fn/functional.hpp>
 
+#include <memory>
 #include <type_traits>
 #include <utility>
 
@@ -370,6 +371,75 @@ struct sum<Ts...> {
         this->data, index, [this]<typename T>(::std::in_place_type_t<T>, auto &&) {
           ::std::destroy_at(detail::ptr_variadic_union<T, data_t>(this->data));
         });
+  }
+
+  // Replaces the alternative in hand with a `T` built from `args`, mirroring reinit-expected
+  // ([expected.object.assign]): a sum always holds one of its alternatives - there is no valueless
+  // state to fall back on - so the one it holds is destroyed only once its replacement is certain.
+  // Which arm applies is decided per alternative, not for the sum as a whole: a nothrow-copyable one
+  // is built straight over the old, and one whose copy can throw is copied into a temporary first,
+  // where only its (nothrow) move goes near the storage.
+  //
+  // The standard's third arm - snapshot the old alternative, roll back on throw - has nothing to
+  // offer here, which is why the constraints below leave no room for it. It would exist for an
+  // alternative that can neither be built nor moved without throwing; but every alternative is also
+  // a possible OLD alternative (one is assigned over itself whenever the sum already holds it), and
+  // snapshotting that same type would throw in turn. So there is no safe path, and such an
+  // alternative is constrained away rather than half-served.
+  template <typename T, typename... Args>
+  constexpr void _reinit(Args &&...args) noexcept(detail::_nothrow_initializable<T, Args...>)
+    requires has_type<T> && detail::_initializable<T, Args...>
+             && (detail::_nothrow_initializable<T, Args...> || ::std::is_nothrow_move_constructible_v<T>)
+  {
+    if constexpr (detail::_nothrow_initializable<T, Args...>) {
+      ::std::destroy_at(this);
+      ::std::construct_at(this, ::std::in_place_type<T>, FWD(args)...);
+    } else {
+      T tmp{FWD(args)...}; // may throw, and the storage is untouched until it cannot
+      ::std::destroy_at(this);
+      ::std::construct_at(this, ::std::in_place_type<T>, ::std::move(tmp));
+    }
+  }
+
+  /**
+   * @brief Copy assignment, with the strong exception guarantee
+   *
+   * @param other TODO
+   * @return TODO
+   */
+  // The alternative that changes is CONSTRUCTED, never assigned to: assignment asks nothing of `Ts`
+  // beyond what construction already asks, so a type with no assignment operator at all is still
+  // assignable through the sum.
+  constexpr sum &operator=(sum const &other) noexcept((... && ::std::is_nothrow_copy_constructible_v<Ts>))
+    requires(...
+             && (::std::is_copy_constructible_v<Ts>
+                 && (::std::is_nothrow_copy_constructible_v<Ts> || ::std::is_nothrow_move_constructible_v<Ts>)))
+  {
+    if (this != &other) {
+      detail::invoke_type_variadic_union<void, data_t>( //
+          other.data, other.index,
+          [this]<typename T>(::std::in_place_type_t<T>, auto const &v) { this->template _reinit<T>(v); });
+    }
+    return *this;
+  }
+
+  /**
+   * @brief Move assignment, with the strong exception guarantee
+   *
+   * @param other TODO
+   * @return TODO
+   */
+  // Moving is offered only where it cannot throw, for the reason given on _reinit - and where it can,
+  // a nothrow-copyable sum is still assignable from an rvalue, by copy.
+  constexpr sum &operator=(sum &&other) noexcept
+    requires(... && ::std::is_nothrow_move_constructible_v<Ts>)
+  {
+    if (this != &other) {
+      detail::invoke_type_variadic_union<void, data_t>( //
+          ::std::move(other).data, other.index,
+          [this]<typename T>(::std::in_place_type_t<T>, auto &&v) { this->template _reinit<T>(FWD(v)); });
+    }
+    return *this;
   }
 
   /**
