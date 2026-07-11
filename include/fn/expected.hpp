@@ -1051,13 +1051,61 @@ private:
   return FWD(src).sum_error();
 }
 
+namespace detail {
+template <typename E> struct _expected_type {
+  template <typename T> using type = ::fn::expected<T, E>;
+};
+
+// `error()` throws when the expected holds a value, but every arm below is reached only once
+// `has_value()` has answered - so these ask what constructing the result promises, with the accessor
+// spelled as a type rather than as a call which would drag its own throw in.
+template <typename Type, typename Lh, typename Rh, typename... Vs>
+constexpr inline bool _nothrow_join_expected
+    = _nothrow_initializable<Type, ::std::in_place_t, Vs...>
+      && _nothrow_initializable<Type, ::fn::unexpect_t, decltype(::std::declval<Lh>().error())>
+      && _nothrow_initializable<Type, ::fn::unexpect_t, decltype(::std::declval<Rh>().error())>;
+
+// Lifting an operand's error into a widened error type. A sum<> operand can never hold an error, so
+// its arm is unreachable - the joins below assert as much - and what cannot run cannot throw.
+template <typename Src, typename Err>
+constexpr inline bool _nothrow_error_lift = _nothrow_initializable<Err, decltype(::std::declval<Src>().error())>;
+template <typename Src, typename Err>
+  requires ::std::is_same_v<typename ::std::remove_cvref_t<Src>::error_type, sum<>>
+constexpr inline bool _nothrow_error_lift<Src, Err> = true;
+
+template <typename Type, typename Err, typename Lh, typename Rh, typename... Vs>
+constexpr inline bool _nothrow_join_widened = _nothrow_initializable<Type, ::std::in_place_t, Vs...>
+                                              && (_nothrow_error_lift<Lh, Err> && _nothrow_error_lift<Rh, Err>)
+                                              && _nothrow_initializable<Type, ::fn::unexpect_t, Err>;
+
+// A named type, not a lambda: `operator&` specifies itself in terms of what lifting the error
+// promises, and a lambda can be named neither in a noexcept-specifier nor (before clang 17) in any
+// unevaluated operand at all.
+template <typename E> struct _expected_efn final {
+  // Explicit return type: for a sum<> (never-erroring) operand the else branch is the only one
+  // instantiated, and without this it would deduce void - poisoning _join's return-type deduction.
+  [[nodiscard]] constexpr auto operator()(auto &&v) const noexcept(_nothrow_error_lift<decltype(v), unexpected<E>>)
+      -> ::fn::unexpected<E>
+  {
+    if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<decltype(v)>::error_type, sum<>>) {
+      return ::fn::unexpected<E>(FWD(v).error());
+    } else {
+      ::pfn::unreachable(); // LCOV_EXCL_LINE
+    }
+  }
+};
+} // namespace detail
+
 // When any of the sides is expected<void, ...>, we do not produce expected<pack<...>, ...>
 // Instead just elide void and carry non-void (or elide both voids if that's what we get)
 template <typename Lh, typename Rh>
   requires some_expected_void<Lh> && (not some_expected_void<Rh>)
            && ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type,
                                typename ::std::remove_cvref_t<Rh>::error_type>
-[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
+    noexcept(detail::_nothrow_join_expected<
+             expected<typename ::std::remove_cvref_t<Rh>::value_type, typename ::std::remove_cvref_t<Lh>::error_type>,
+             Lh, Rh, decltype(FWD(rh).value())>)
 {
   using error_type = ::std::remove_cvref_t<Lh>::error_type;
   using value_type = ::std::remove_cvref_t<Rh>::value_type;
@@ -1076,7 +1124,13 @@ template <typename Lh, typename Rh>
                                     typename ::std::remove_cvref_t<Rh>::error_type>)
            && (some_sum<typename ::std::remove_cvref_t<Lh>::error_type>
                || some_sum<typename ::std::remove_cvref_t<Rh>::error_type>)
-[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
+    noexcept(detail::_nothrow_join_widened<
+             expected<typename ::std::remove_cvref_t<Rh>::value_type,
+                      sum_for<typename ::std::remove_cvref_t<Lh>::error_type,
+                              typename ::std::remove_cvref_t<Rh>::error_type>>,
+             sum_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>,
+             Lh, Rh, decltype(FWD(rh).value())>)
 {
   using new_error_type
       = sum_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>;
@@ -1101,7 +1155,10 @@ template <typename Lh, typename Rh>
   requires(not some_expected_void<Lh>) && some_expected_void<Rh>
           && ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type,
                               typename ::std::remove_cvref_t<Rh>::error_type>
-[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
+    noexcept(detail::_nothrow_join_expected<
+             expected<typename ::std::remove_cvref_t<Lh>::value_type, typename ::std::remove_cvref_t<Lh>::error_type>,
+             Lh, Rh, decltype(FWD(lh).value())>)
 {
   using error_type = ::std::remove_cvref_t<Lh>::error_type;
   using value_type = ::std::remove_cvref_t<Lh>::value_type;
@@ -1120,7 +1177,13 @@ template <typename Lh, typename Rh>
                                    typename ::std::remove_cvref_t<Rh>::error_type>)
           && (some_sum<typename ::std::remove_cvref_t<Lh>::error_type>
               || some_sum<typename ::std::remove_cvref_t<Rh>::error_type>)
-[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
+    noexcept(detail::_nothrow_join_widened<
+             expected<typename ::std::remove_cvref_t<Lh>::value_type,
+                      sum_for<typename ::std::remove_cvref_t<Lh>::error_type,
+                              typename ::std::remove_cvref_t<Rh>::error_type>>,
+             sum_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>,
+             Lh, Rh, decltype(FWD(lh).value())>)
 {
   using new_error_type
       = sum_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>;
@@ -1145,7 +1208,8 @@ template <typename Lh, typename Rh>
   requires some_expected_void<Lh> && some_expected_void<Rh>
            && ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type,
                                typename ::std::remove_cvref_t<Rh>::error_type>
-[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
+    noexcept(detail::_nothrow_join_expected<expected<void, typename ::std::remove_cvref_t<Lh>::error_type>, Lh, Rh>)
 {
   using error_type = ::std::remove_cvref_t<Lh>::error_type;
   using type = expected<void, error_type>;
@@ -1163,7 +1227,12 @@ template <typename Lh, typename Rh>
                                     typename ::std::remove_cvref_t<Rh>::error_type>)
            && (some_sum<typename ::std::remove_cvref_t<Lh>::error_type>
                || some_sum<typename ::std::remove_cvref_t<Rh>::error_type>)
-[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
+    noexcept(detail::_nothrow_join_widened<
+             expected<void, sum_for<typename ::std::remove_cvref_t<Lh>::error_type,
+                                    typename ::std::remove_cvref_t<Rh>::error_type>>,
+             sum_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>,
+             Lh, Rh>)
 {
   using new_error_type
       = sum_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>;
@@ -1185,21 +1254,18 @@ template <typename Lh, typename Rh>
 
 // Overloads when both sides are non-void, producing either of
 // expected<pack<...>, ...> or expected<sum<pack<...>, pack...>, ...>
-namespace detail {
-template <typename E> struct _expected_type {
-  template <typename T> using type = ::fn::expected<T, E>;
-};
-} // namespace detail
-
 template <typename Lh, typename Rh>
   requires(not some_expected_void<Lh>) && (not some_expected_void<Rh>)
           && ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type,
                               typename ::std::remove_cvref_t<Rh>::error_type>
-[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
+    noexcept(noexcept(::fn::detail::_join<
+                      detail::template _expected_type<typename ::std::remove_cvref_t<Lh>::error_type>::template type>(
+        FWD(lh), FWD(rh), detail::_expected_efn<typename ::std::remove_cvref_t<Lh>::error_type>{})))
 {
   using error_type = ::std::remove_cvref_t<Lh>::error_type;
-  constexpr auto efn = [](auto &&v) { return ::fn::unexpected<error_type>(FWD(v).error()); };
-  return ::fn::detail::_join<detail::template _expected_type<error_type>::template type>(FWD(lh), FWD(rh), efn);
+  return ::fn::detail::_join<detail::template _expected_type<error_type>::template type>(
+      FWD(lh), FWD(rh), detail::_expected_efn<error_type>{});
 }
 
 template <typename Lh, typename Rh>
@@ -1208,20 +1274,19 @@ template <typename Lh, typename Rh>
                                    typename ::std::remove_cvref_t<Rh>::error_type>)
           && (some_sum<typename ::std::remove_cvref_t<Lh>::error_type>
               || some_sum<typename ::std::remove_cvref_t<Rh>::error_type>)
-[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
+    noexcept(noexcept(
+        ::fn::detail::_join<
+            detail::template _expected_type<sum_for<typename ::std::remove_cvref_t<Lh>::error_type,
+                                                    typename ::std::remove_cvref_t<Rh>::error_type>>::template type>(
+            FWD(lh), FWD(rh),
+            detail::_expected_efn<sum_for<typename ::std::remove_cvref_t<Lh>::error_type,
+                                          typename ::std::remove_cvref_t<Rh>::error_type>>{})))
 {
   using new_error_type
       = sum_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>;
-  // Explicit return type: for a sum<> (never-erroring) operand the else branch is the only one
-  // instantiated, and without this it would deduce void — poisoning _join's return-type deduction.
-  constexpr auto efn = [](auto &&v) -> ::fn::unexpected<new_error_type> {
-    if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<decltype(v)>::error_type, sum<>>) {
-      return ::fn::unexpected<new_error_type>(FWD(v).error());
-    } else {
-      ::pfn::unreachable(); // LCOV_EXCL_LINE
-    }
-  };
-  return ::fn::detail::_join<detail::template _expected_type<new_error_type>::template type>(FWD(lh), FWD(rh), efn);
+  return ::fn::detail::_join<detail::template _expected_type<new_error_type>::template type>(
+      FWD(lh), FWD(rh), detail::_expected_efn<new_error_type>{});
 }
 
 } // namespace fn

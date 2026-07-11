@@ -891,10 +891,19 @@ constexpr optional<T> make_optional(::std::initializer_list<U> il, Args &&...arg
   return FWD(src).sum_value();
 }
 
-template <some_optional Lh, some_optional Rh> [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
+namespace detail {
+// A named type, not a lambda: `operator&`'s specification has to name it, and a lambda cannot be
+// spelled in an unevaluated operand before C++20's P0315, which our floor compilers predate.
+struct _optional_efn final {
+  [[nodiscard]] constexpr auto operator()(auto const &) const noexcept -> ::std::nullopt_t { return ::std::nullopt; }
+};
+} // namespace detail
+
+template <some_optional Lh, some_optional Rh>
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
+    noexcept(noexcept(::fn::detail::_join<fn::optional>(FWD(lh), FWD(rh), detail::_optional_efn{})))
 {
-  constexpr auto efn = [](auto const &) { return ::std::nullopt; };
-  return ::fn::detail::_join<fn::optional>(FWD(lh), FWD(rh), efn);
+  return ::fn::detail::_join<fn::optional>(FWD(lh), FWD(rh), detail::_optional_efn{});
 }
 
 } // namespace fn

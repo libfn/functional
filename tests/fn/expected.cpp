@@ -21,6 +21,14 @@ struct Xint {
   constexpr bool operator==(Xint const &) const noexcept = default;
 };
 
+// Nothrow move, throwing copy: joining lvalue operands copies the value or error, joining rvalues
+// moves it
+struct MoveNothrow {
+  MoveNothrow() = default;
+  MoveNothrow(MoveNothrow const &) noexcept(false) {}
+  MoveNothrow(MoveNothrow &&) noexcept = default;
+};
+
 // Sums whose alternatives include a non-builtin (Error/Xint/std::string_view/fn::pack — any
 // class/struct/enum) have platform-specific order (see sum.cpp); pure-builtin sums keep `sum<...>`.
 } // namespace
@@ -2246,6 +2254,49 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
         CHECK((Rh{5} & VoidUnit{}).value() == 5);
         CHECK((Rh{::fn::unexpect, FileNotFound} & VoidUnit{}).error() == fn::sum{FileNotFound});
       }
+    }
+
+    WHEN("noexcept")
+    {
+      // the join relocates both operands' values and errors into the result, so it promises only
+      // what relocating them promises
+      using Lh = fn::expected<MoveNothrow, Error>;
+      using Rh = fn::expected<int, Error>;
+      static_assert(noexcept(std::declval<Rh &>() & std::declval<Rh &>()));
+      static_assert(not noexcept(std::declval<Lh &>() & std::declval<Rh &>())); // copies the value
+      static_assert(noexcept(std::declval<Lh &&>() & std::declval<Rh &&>()));   // moves it
+
+      using Eh = fn::expected<int, MoveNothrow>;
+      static_assert(not noexcept(std::declval<Eh &>() & std::declval<Eh &>())); // copies the error
+      static_assert(noexcept(std::declval<Eh &&>() & std::declval<Eh &&>()));
+
+      WHEN("void operand")
+      {
+        using Vh = fn::expected<void, Error>;
+        static_assert(noexcept(std::declval<Vh &>() & std::declval<Rh &>()));
+        static_assert(not noexcept(std::declval<Vh &>() & std::declval<Lh &>())); // carries the value
+        static_assert(noexcept(std::declval<Vh &&>() & std::declval<Lh &&>()));
+        static_assert(noexcept(std::declval<Vh &>() & std::declval<Vh &>()));
+      }
+
+      WHEN("widening the error")
+      {
+        using Wh = fn::expected<int, fn::sum<MoveNothrow>>;
+        static_assert(not noexcept(std::declval<Wh &>() & std::declval<Rh &>())); // copies the error
+        static_assert(noexcept(std::declval<Wh &&>() & std::declval<Rh &&>()));
+      }
+
+      WHEN("unit error operand")
+      {
+        // sum<> can hold no error, so the arm lifting it is unreachable and cannot throw - but the
+        // value is still relocated, and still weighs
+        using Uh = fn::expected<int, fn::sum<>>;
+        using Ut = fn::expected<MoveNothrow, fn::sum<>>;
+        static_assert(noexcept(std::declval<Uh &>() & std::declval<Rh &>()));
+        static_assert(noexcept(std::declval<fn::expected<void, fn::sum<>> &>() & std::declval<Rh &>()));
+        static_assert(not noexcept(std::declval<Ut &>() & std::declval<Rh &>()));
+      }
+      SUCCEED();
     }
   }
 }
