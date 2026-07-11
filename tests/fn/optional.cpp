@@ -35,6 +35,12 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     static_assert(std::is_same_v<decltype(std::as_const(s).sum_value()), T const &>);
     static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_value()), T const &&>);
     static_assert(std::is_same_v<decltype(std::move(s).sum_value()), T &&>);
+    // GAP: these overloads return *this by reference but are not declared noexcept
+    // (include/fn/optional.hpp:495-510, issue #276); asserts current behaviour until fixed.
+    static_assert(not noexcept(s.sum_value()));
+    static_assert(not noexcept(std::as_const(s).sum_value()));
+    static_assert(not noexcept(std::move(std::as_const(s)).sum_value()));
+    static_assert(not noexcept(std::move(s).sum_value()));
     WHEN("value")
     {
       CHECK(s.sum_value().value() == fn::sum{12});
@@ -62,6 +68,12 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     static_assert(std::is_same_v<decltype(std::as_const(s).sum_value()), fn::optional<fn::sum<int>>>);
     static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_value()), fn::optional<fn::sum<int>>>);
     static_assert(std::is_same_v<decltype(std::move(s).sum_value()), fn::optional<fn::sum<int>>>);
+    // GAP: sum_value() here wraps the value in a fresh optional<sum<int>> and is likewise not
+    // declared noexcept (include/fn/optional.hpp:477/486, issue #276), even for a nothrow value type.
+    static_assert(not noexcept(s.sum_value()));
+    static_assert(not noexcept(std::as_const(s).sum_value()));
+    static_assert(not noexcept(std::move(std::as_const(s)).sum_value()));
+    static_assert(not noexcept(std::move(s).sum_value()));
     WHEN("value")
     {
       CHECK(s.sum_value().value() == fn::sum{12});
