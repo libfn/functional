@@ -190,6 +190,8 @@ TEST_CASE("sum basic functionality tests", "[sum]")
 
   WHEN("single parameter constructor")
   {
+    static_assert(sum<int>::size == 1);
+
     constexpr sum<int> a = 12;
     static_assert(a == sum{12});
 
@@ -556,19 +558,25 @@ TEST_CASE("sum basic functionality tests", "[sum]")
       static_assert(std::is_same_v<bool, decltype(a.invoke(fn::overload{[](auto) -> bool { throw 1; },
                                                                         [](int) -> bool { return true; }}))>);
 
-      CHECK(a.invoke(fn::overload{[](auto) -> bool { throw 1; }, [](int &) -> bool { return true; },
+      // a result type other than bool, to witness the deduced return
+      constexpr auto fn1 = [](auto i) noexcept -> std::size_t { return sizeof(i); };
+      static_assert(std::is_same_v<std::size_t, decltype(a.invoke(fn1))>);
+      CHECK(a.invoke(fn1) == sizeof(int));
+      CHECK(a.data.v0 == 42); // white-box: the value went into the first alternative
+
+      CHECK(a.invoke(fn::overload{[](auto) -> bool { throw 1; }, [](int &i) -> bool { return i == 42; },
                                   [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
                                   [](int const &&) -> bool { throw 0; }}));
       CHECK(std::as_const(a).invoke(fn::overload{
-          [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { return true; },
+          [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &i) -> bool { return i == 42; },
           [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; }}));
       CHECK(std::move(std::as_const(a))
                 .invoke(fn::overload{[](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
                                      [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
-                                     [](int const &&) -> bool { return true; }}));
-      CHECK(std::move(a).invoke(fn::overload{[](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
-                                             [](int const &) -> bool { throw 0; }, [](int &&) -> bool { return true; },
-                                             [](int const &&) -> bool { throw 0; }}));
+                                     [](int const &&i) -> bool { return i == 42; }}));
+      CHECK(std::move(a).invoke(fn::overload{
+          [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
+          [](int &&i) -> bool { return i == 42; }, [](int const &&) -> bool { throw 0; }}));
 
       WHEN("constexpr")
       {
@@ -1002,38 +1010,6 @@ struct CopyOnly final {
   constexpr CopyOnly &operator=(CopyOnly &&s) = delete;
 };
 } // anonymous namespace
-
-TEST_CASE("sum functions", "[sum][invoke]")
-{
-  using namespace fn;
-  constexpr auto fn1 = [](auto i) noexcept -> std::size_t { return sizeof(i); };
-
-  sum<int> a{std::in_place_type<int>, 42};
-  static_assert(decltype(a)::size == 1);
-  CHECK(a.data.v0 == 42);
-
-  CHECK(a.invoke(fn1) == 4);
-  CHECK(a.invoke(  //
-      fn::overload{//
-                   [](auto) -> bool { throw 1; }, [](int &i) -> bool { return i == 42; },
-                   [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
-                   [](int const &&) -> bool { throw 0; }}));
-  CHECK(std::as_const(a).invoke( //
-      fn::overload{              //
-                   [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
-                   [](int const &i) -> bool { return i == 42; }, [](int &&) -> bool { throw 0; },
-                   [](int const &&) -> bool { throw 0; }}));
-  CHECK(std::move(std::as_const(a))
-            .invoke(         //
-                fn::overload{//
-                             [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
-                             [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
-                             [](int const &&i) -> bool { return i == 42; }}));
-  CHECK(std::move(a).invoke( //
-      fn::overload{          //
-                   [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
-                   [](int &&i) -> bool { return i == 42; }, [](int const &&) -> bool { throw 0; }}));
-}
 
 TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
 {
