@@ -73,6 +73,9 @@ concept can_as_sum = requires(Args... args) { fn::as_sum(std::in_place_type<T>, 
 
 template <typename T>
 concept can_as_sum_value = requires(T v) { fn::as_sum(FWD(v)); };
+
+template <typename S, typename Fn>
+concept can_transform = requires(S s, Fn fn) { FWD(s).transform(fn); };
 } // anonymous namespace
 
 // A sum brace-initializes the alternative it stores. That is a DESIGN DIRECTION, not an
@@ -870,6 +873,17 @@ TEST_CASE("sum type collapsing", "[sum][transform][normalized]")
     using type = sum<double>;
     static_assert(
         std::same_as<typename _sum_invoke_result<_collapsing_sum_tag, decltype(fn), type &>::type, sum<double>>);
+  }
+
+  WHEN("a result no sum can hold")
+  {
+    // a void-returning callback must drop the caller's candidate in the immediate context: the
+    // collapsing machinery would hard-error where no requires-expression can absorb it
+    constexpr auto fnVoid = [](auto &&...) {};
+    static_assert(not can_transform<sum<double, int> &, decltype(fnVoid)>);
+    static_assert(not can_transform<sum<double, int> &&, decltype(fnVoid)>);
+    static_assert(can_transform<sum<double, int> &, PassThrough>); // the same sum, a holdable result
+    SUCCEED();
   }
 
   WHEN("two elements")
