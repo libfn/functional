@@ -174,6 +174,11 @@ TEST_CASE("constexpr transform_error expected with sum", "[transform_error][cons
   enum class Error { ThresholdExceeded, SomethingElse };
   using T = fn::expected<int, fn::sum_for<Error, bool>>;
 
+  // a void-returning callback: the sum arm's error().transform(fn) must be non-viable, so the
+  // concept answers false instead of exploding in the collapsing machinery
+  constexpr auto fnVoid = [](auto &&...) {};
+  static_assert(not fn::invocable_transform_error<decltype(fnVoid), T>);
+
   WHEN("same value type")
   {
     constexpr auto fn = fn::overload{[](bool i) constexpr noexcept -> fn::sum_for<Error, bool> { return not i; },

@@ -365,7 +365,7 @@ struct choice<Ts...> : sum<Ts...> {
   [[nodiscard]] constexpr auto transform(Fn &&fn) & noexcept(
       detail::_is_nothrow_rts_invocable<
           typename detail::_sum_invoke_result<detail::_collapsing_sum_tag, decltype(fn), choice &>::type, Fn &&,
-          choice &>)
+          choice &>) -> typename detail::_sum_invoke_result<detail::_collapsing_sum_tag, Fn &&, choice &>::type
     requires typelist_invocable<Fn, choice &>
   {
     using type = detail::_sum_invoke_result<detail::_collapsing_sum_tag, decltype(fn), choice &>::type;
@@ -383,7 +383,8 @@ struct choice<Ts...> : sum<Ts...> {
   [[nodiscard]] constexpr auto transform(Fn &&fn) const & noexcept(
       detail::_is_nothrow_rts_invocable<
           typename detail::_sum_invoke_result<detail::_collapsing_sum_tag, decltype(fn), choice const &>::type, Fn &&,
-          choice const &>)
+          choice const &>) ->
+      typename detail::_sum_invoke_result<detail::_collapsing_sum_tag, Fn &&, choice const &>::type
     requires typelist_invocable<Fn, choice const &>
   {
     using type = detail::_sum_invoke_result<detail::_collapsing_sum_tag, decltype(fn), choice const &>::type;
@@ -401,7 +402,7 @@ struct choice<Ts...> : sum<Ts...> {
   [[nodiscard]] constexpr auto transform(Fn &&fn) && noexcept(
       detail::_is_nothrow_rts_invocable<
           typename detail::_sum_invoke_result<detail::_collapsing_sum_tag, decltype(fn), choice &&>::type, Fn &&,
-          choice &&>)
+          choice &&>) -> typename detail::_sum_invoke_result<detail::_collapsing_sum_tag, Fn &&, choice &&>::type
     requires typelist_invocable<Fn, choice &&>
   {
     using type = detail::_sum_invoke_result<detail::_collapsing_sum_tag, decltype(fn), choice &&>::type;
@@ -419,7 +420,8 @@ struct choice<Ts...> : sum<Ts...> {
   [[nodiscard]] constexpr auto transform(Fn &&fn) const && noexcept(
       detail::_is_nothrow_rts_invocable<
           typename detail::_sum_invoke_result<detail::_collapsing_sum_tag, decltype(fn), choice const &&>::type, Fn &&,
-          choice const &&>)
+          choice const &&>) ->
+      typename detail::_sum_invoke_result<detail::_collapsing_sum_tag, Fn &&, choice const &&>::type
     requires typelist_invocable<Fn, choice const &&>
   {
     using type = detail::_sum_invoke_result<detail::_collapsing_sum_tag, decltype(fn), choice const &&>::type;
