@@ -88,9 +88,13 @@ concept same_monadic_type_as = same_kind<T, U> && same_value_kind<T, U>;
  *
  * @tparam T TODO
  */
+// The void conjunct is load-bearing: `unexpected<void>` is ill-formed by a class-body mandate,
+// which fires during instantiation - outside any immediate context - so without it the question
+// hard-errors instead of answering false.
 template <class T>
-concept convertible_to_unexpected
-    = requires { static_cast<::fn::unexpected<::std::remove_cvref_t<T>>>(::std::declval<T>()); };
+concept convertible_to_unexpected = (not ::std::same_as<T, void>) && requires {
+  static_cast<::fn::unexpected<::std::remove_cvref_t<T>>>(::std::declval<T>());
+};
 
 /**
  * @brief TODO
