@@ -9,6 +9,7 @@
 
 #include <catch2/catch_all.hpp>
 
+#include <array>
 #include <concepts>
 #include <stdexcept>
 #include <string>
@@ -16,6 +17,7 @@
 #include <type_traits>
 #include <utility>
 #include <variant>
+#include <vector>
 
 namespace {
 struct TestType final {
@@ -72,6 +74,106 @@ concept can_as_sum = requires(Args... args) { fn::as_sum(std::in_place_type<T>, 
 template <typename T>
 concept can_as_sum_value = requires(T v) { fn::as_sum(FWD(v)); };
 } // anonymous namespace
+
+// A sum brace-initializes the alternative it stores. That is a DESIGN DIRECTION, not an
+// implementation detail, and this TEST_CASE exists to fail if it is ever switched to the
+// parenthesized initialization `std::variant` uses. Many other tests would fail with it, but
+// incidentally - this one is here to say what was chosen, and why.
+//
+// What braces buy:
+//   * Aggregate forwarding, through brace elision: `sum{in_place_type<array<int,3>>, 1, 2, 3}`.
+//     `std::variant` cannot express this, and neither can parenthesized initialization - P0960
+//     admits aggregates but forbids brace elision.
+//   * Coherence with `sum` being a structural type. A structural type's alternatives must themselves
+//     be structural - public-member types, written with braces, exactly as one writes them as a
+//     template argument. Storing them any other way would put the two spellings at odds.
+//   * Narrowing is rejected outright rather than silently truncating.
+//
+// What braces cost:
+//   * An initializer-list constructor wins where `std::variant` would call the (count, value) one:
+//     `sum<vector<int>>{in_place_type<vector<int>>, 3, 0}` holds `{3, 0}`, where a variant would hold
+//     `{0, 0, 0}`. This divergence is the cost of giving `sum` a capability which `std::variant` lacks.
+//
+// And the consequence that actually bites, which is why the last section is here: every trait that
+// constrains or specifies the construction of an alternative must ask the BRACE question
+// (`fn::detail::_initializable` / `_nothrow_initializable`), never `std::is_[nothrow_]constructible`,
+// which asks about parentheses. Where the two disagree, the parenthesized answer is a lie.
+TEST_CASE("design: braces, not parentheses", "[sum][design]")
+{
+  using fn::sum;
+
+  WHEN("aggregate forwarding")
+  {
+    using A = std::array<int, 3>;
+    static_assert(can_in_place<sum<A>, A, int, int, int>);        // braces elide; parentheses cannot
+    static_assert(not std::is_constructible_v<A, int, int, int>); // ... which is why the std trait misleads
+    static_assert(fn::detail::_initializable<A, int, int, int>);  // ... and this is the trait that does not
+
+    sum<A> a{std::in_place_type<A>, 1, 2, 3};
+    CHECK(a.invoke([](A const &v) { return v[0] * 100 + v[1] * 10 + v[2]; }) == 123);
+    static_assert(sum<A>{std::in_place_type<A>, 1, 2, 3}.invoke([](A const &v) { return v[2]; }) == 3);
+  }
+
+  WHEN("narrowing")
+  {
+    static_assert(not can_in_place<sum<int>, int, double>); // braces reject it ...
+    static_assert(std::is_constructible_v<int, double>);    // ... where parentheses would truncate in silence
+    SUCCEED();
+  }
+
+  WHEN("initializer-list constructors win")
+  {
+    // the price of the above, and the same mechanism as the trap below: `std::variant` would hold
+    // three zeroes here, and a sum holds the two elements it was written with
+    using V = std::vector<int>;
+    sum<V> v{std::in_place_type<V>, 3, 0};
+    CHECK(v.invoke([](V const &x) { return x.size(); }) == 2);
+    CHECK(v.invoke([](V const &x) { return x[0]; }) == 3);
+  }
+
+  WHEN("the traits must ask the brace question")
+  {
+    // Braced initialization considers initializer-list constructors FIRST, so the two questions can
+    // answer differently - and the parenthesized answer is not the one the storage acts on.
+    struct Listy final {
+      Listy(int) noexcept {}                               // parentheses select this ...
+      Listy(std::initializer_list<int>) noexcept(false) {} // ... braces select this
+    };
+    static_assert(std::is_nothrow_constructible_v<Listy, int>);            // the parenthesized question: nothrow
+    static_assert(not fn::detail::_nothrow_initializable<Listy, int>);     // the braced question: it can throw
+    static_assert(not noexcept(sum<Listy>{std::in_place_type<Listy>, 1})); // the sum promises what it does
+  }
+
+  WHEN("... including where a compiler answers it differently")
+  {
+    // The divergence also reaches the copy and move constructors, and the assignment built on them.
+    // `Evil` converts to double only as an rvalue, so `Evil{lvalue}` copies while `Evil{rvalue}`
+    // selects the throwing initializer-list constructor - which is what [over.match.list]/1 requires,
+    // [dcl.init.list]/3.2's same-type carve-out being for AGGREGATES only, and Evil is not one.
+    // gcc and clang>=20 have it so; clang<=19, AppleClang and MSVC pick the move constructor instead.
+    //
+    // So these pin the INVARIANT rather than the answer: whatever a compiler makes of the braces is
+    // what the sum must promise. Reading the parenthesized answer instead - which is always "nothrow
+    // move" here - declared a `noexcept` that std::terminate had to keep, and offered an assignment
+    // that destroyed the alternative it held and then failed to replace it.
+    struct Tag final {};
+    struct Evil final {
+      int v;
+      Evil(Tag, int i) noexcept : v(i) {} // NOLINT: constructs without touching either trap
+      operator double() && noexcept { return v; }
+      Evil(std::initializer_list<double>) { throw std::runtime_error("init-list"); }
+      Evil(Evil &&o) noexcept : v(o.v) {}
+      Evil(Evil const &o) noexcept(false) : v(o.v) {}
+    };
+    static_assert(std::is_nothrow_move_constructible_v<Evil>); // the parenthesized question, everywhere
+
+    static_assert(std::is_nothrow_move_constructible_v<sum<Evil>> == fn::detail::_nothrow_initializable<Evil, Evil>);
+    static_assert(std::is_nothrow_copy_constructible_v<sum<Evil>>
+                  == fn::detail::_nothrow_initializable<Evil, Evil const &>);
+    static_assert(std::is_move_assignable_v<sum<Evil>> == fn::detail::_nothrow_initializable<Evil, Evil>);
+    SUCCEED();
+  }
+}
 
 TEST_CASE("sum basic functionality tests", "[sum]")
 {
@@ -1280,21 +1382,35 @@ TEST_CASE("sum assignment", "[sum][assignment]")
     // throw, it is made into a temporary first, and only the (nothrow) move touches the storage.
     struct ThrowingCopy final {
       int v;
-      ThrowingCopy(int i) noexcept : v(i) {} // NOLINT: implicit on purpose
-      ThrowingCopy(ThrowingCopy const &o) : v(o.v)
+      constexpr ThrowingCopy(int i) noexcept : v(i) {} // NOLINT: implicit on purpose
+      constexpr ThrowingCopy(ThrowingCopy const &o) : v(o.v)
       {
         if (v == 0)
           throw std::runtime_error("copy");
       }
-      ThrowingCopy(ThrowingCopy &&o) noexcept : v(o.v) {}
+      constexpr ThrowingCopy(ThrowingCopy &&o) noexcept : v(o.v) {}
     };
     static_assert(std::is_copy_assignable_v<sum<ThrowingCopy>>);
     static_assert(not std::is_nothrow_copy_assignable_v<sum<ThrowingCopy>>);
+    constexpr auto value = [](ThrowingCopy const &t) { return t.v; };
 
     sum<ThrowingCopy> a{ThrowingCopy{7}};
     sum<ThrowingCopy> const bad{ThrowingCopy{0}};
     CHECK_THROWS_AS(a = bad, std::runtime_error);
-    CHECK(a.invoke([](ThrowingCopy const &t) { return t.v; }) == 7); // untouched
+    CHECK(a.invoke(value) == 7); // untouched
+
+    // the same arm, completing: the copy into the temporary succeeds, and only then is the old
+    // alternative destroyed and the temporary moved into the storage
+    sum<ThrowingCopy> const good{ThrowingCopy{5}};
+    a = good;
+    CHECK(a.invoke(value) == 5);
+
+    static_assert([] {
+      sum<ThrowingCopy> a{ThrowingCopy{7}};
+      sum<ThrowingCopy> const good{ThrowingCopy{5}};
+      a = good; // the temporary arm, in a constant expression
+      return a.invoke([](ThrowingCopy const &t) { return t.v; }) == 5;
+    }());
 
     WHEN("the two arms in one sum")
     {
