@@ -112,8 +112,11 @@ concept convertible_to_expected = (not ::std::same_as<T, void> && requires {
  *
  * @tparam T TODO
  */
+// The same load-bearing void conjunct as `convertible_to_unexpected`'s: `optional<void>` and
+// `choice<void>` (below) are likewise ill-formed to instantiate, by a class-body mandate.
 template <class T>
-concept convertible_to_optional = requires { static_cast<optional<::std::remove_cvref_t<T>>>(::std::declval<T>()); };
+concept convertible_to_optional = (not ::std::same_as<T, void>)
+                                  && requires { static_cast<optional<::std::remove_cvref_t<T>>>(::std::declval<T>()); };
 
 /**
  * @brief TODO
@@ -121,7 +124,8 @@ concept convertible_to_optional = requires { static_cast<optional<::std::remove_
  * @tparam T TODO
  */
 template <class T>
-concept convertible_to_choice = requires { static_cast<choice<::std::remove_cvref_t<T>>>(::std::declval<T>()); };
+concept convertible_to_choice
+    = (not ::std::same_as<T, void>) && requires { static_cast<choice<::std::remove_cvref_t<T>>>(::std::declval<T>()); };
 
 /**
  * @brief TODO

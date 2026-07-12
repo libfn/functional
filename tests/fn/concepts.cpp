@@ -285,6 +285,18 @@ static_assert(not same_kind<expected<void, Error> const && , expected<void, Xerr
 static_assert(not same_kind<expected<void, Error> const && , expected<void, Xerror> &&>);
 static_assert(not same_kind<expected<void, Error> const && , expected<void, Xerror> const &&>);
 // clang-format on
+
+// void can never convert to any of these - and each concept must answer so, rather than
+// instantiate unexpected<void>, optional<void> or choice<void>, whose validity mandates are hard
+// errors. Contrast expected, where a void value is legitimate and carries its own arm.
+static_assert(not convertible_to_unexpected<void>);
+static_assert(not convertible_to_optional<void>);
+static_assert(not convertible_to_choice<void>);
+static_assert(convertible_to_unexpected<int>);
+static_assert(convertible_to_optional<int>);
+static_assert(convertible_to_choice<int>);
+static_assert(convertible_to_expected<void, Error>); // the legitimate void: expected<void, E>
+static_assert(convertible_to_expected<int, Error>);
 } // namespace fn
 
 TEST_CASE("Dummy") { SUCCEED(); }

@@ -211,6 +211,12 @@ TEST_CASE("transform", "[transform][optional][pack]")
   constexpr auto fnValue = [](int i) -> int { return i + 1; };
   constexpr auto wrong = [](int) -> int { throw 0; };
   constexpr auto fnXabs = [](int i) -> Xint { return {std::abs(8 - i)}; };
+  constexpr auto fnVoid = [](int) {};
+
+  // void return: optional::transform mandates a value, so the callback is rejected - and asking
+  // must answer false, not instantiate optional<void>, whose validity mandate is a hard error
+  static_assert(not invocable_transform<decltype(fnVoid), operand_t>);
+  static_assert(is::not_invocable_with_any(fnVoid));
 
   static_assert(is::invocable_with_any(fnValue));
   static_assert(is::invocable_with_any([](auto...) -> int { throw 0; }));                    // allow generic call
