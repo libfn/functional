@@ -70,7 +70,10 @@ jobs:
       with:
         # Strict only when a token is set; a tokenless fork's throttled upload must not fail its CI.
         fail_ci_if_error: ${{ secrets.CODECOV_TOKEN != '' }}
-        disable_search: false
+        # Only the gcovr aggregate: searching would also pick up the restored raw .gcov files, whose
+        # template instantiation records codecov misparses into false missed lines.
+        files: .build/coverage.xml
+        disable_search: true
         verbose: true
         plugins: noop
         token: ${{ secrets.CODECOV_TOKEN }}

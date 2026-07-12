@@ -1,6 +1,7 @@
 name: collect-pr-workspace
 description: >
-  Build the project with coverage instrumentation and a compilation database and generate gcov reports.
+  Build the project with coverage instrumentation and a compilation database and generate coverage
+  reports: raw gcov text (for the sonarcloud scanner) and an aggregated cobertura XML (for codecov).
   On `pull_request` events, package the `.build` outputs and PR metadata into the inputs artifact that
   the privileged downstream `*-pr-scan` workflows validate (`.github/scripts/validate-pr-artifact.sh`)
   and restore.
@@ -56,7 +57,9 @@ runs:
       run: |
         mkdir .build
         cd .build
-        cmake -DLIBFN_COVERAGE=ON -DCMAKE_BUILD_TYPE=Debug ..
+        # Pin gcovr's gcov to $GCOV: the image carries a distro toolchain besides /usr/local, and a
+        # mismatched gcov cannot read the newer gcno format.
+        cmake -DLIBFN_COVERAGE=ON -DCMAKE_BUILD_TYPE=Debug -DCODE_COVERAGE_GCOV_TOOL="$GCOV" ..
         COMPILER=$( grep -iE "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
         printf "C++ compiler path: %s\n" "$COMPILER"
         $COMPILER --version
@@ -70,6 +73,16 @@ runs:
         ctest -L 'tests_p?fn' -j1 # generate .gcda files
         # shellcheck disable=SC2046  # find emits one path per result; intentional word-splitting into gcov arg list
         $GCOV -pbc -r -s "$(realpath ..)" $(find tests -type f -name '*.gcno') # generate .gcov files
+
+    # codecov consumes this gcovr aggregate (coverage.xml) rather than the raw .gcov text above: gcov
+    # emits per-instantiation records for template code, which codecov's parser misreads as missed
+    # lines. The .gcov files remain the input for the sonarcloud scanner. The `coverage` target only
+    # runs gcovr — the tests already ran above.
+    - name: Aggregate coverage report with gcovr
+      shell: bash
+      run: |
+        cd .build
+        cmake --build . --target coverage
 
     # Uniform artifact contract for both tools: always carry compile_commands.json and base_ref even
     # though codecov ignores them, so the downstream restore needs no per-tool branching.
@@ -92,6 +105,7 @@ runs:
         # shellcheck disable=SC2046  # find emits one path per result; intentional word-splitting into tar arg list
         tar -czf "$ARTIFACT_NAME.tar.gz" \
           .build/compile_commands.json \
+          .build/coverage.xml \
           $(find .build -name '*.gcov' -print) \
           .pr-meta
 

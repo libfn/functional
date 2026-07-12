@@ -16,9 +16,11 @@ set(GCOVR_ADDITIONAL_ARGS
 --print-summary
 --gcov-ignore-errors=no_working_dir_found)
 
+# The build tree lives inside the repository, so fetched third-party sources
+# (_deps) would otherwise be reported as project code.
 setup_target_for_coverage_gcovr(
     NAME coverage
     FORMAT ${CODE_COVERAGE_FORMAT}
-    EXCLUDE "tests" "examples"
+    EXCLUDE "tests" "examples" "${PROJECT_BINARY_DIR}"
     DEPENDENCIES tests
 )

@@ -27,6 +27,10 @@ github_checks:
 slack_app: false
 
 parsers:
+  cobertura:
+    # Coverage is judged on lines, not branches (same intent as the gcov branch_detection block
+    # below): without this, partially-taken branches on covered lines count against coverage.
+    partials_as_hits: true
   gcov:
     branch_detection:
       conditional: false
