@@ -7,9 +7,11 @@
 
 set(CODE_COVERAGE_VERBOSE ON)
 set(CODE_COVERAGE_FORMAT "xml" CACHE STRING "Format of the coverage report.")
-set(CODE_COVERAGE_TEST "ctest" CACHE STRING "Command to run tests.")
-set(CODE_COVERAGE_TEST_ARGS -L tests_fn -j1 CACHE STRING "Parameters to the test command.")
+# --merge-lines: gcovr emits one line record per template instantiation, and a consumer which does
+# not merge them (sonarcloud) counts every record of a line some instantiation never ran as a miss.
+# Requires gcovr 8.4 or newer.
 set(GCOVR_ADDITIONAL_ARGS
+--merge-lines
 --exclude-noncode-lines
 --exclude-unreachable-branches
 --exclude-throw-branches
@@ -19,6 +21,6 @@ set(GCOVR_ADDITIONAL_ARGS
 setup_target_for_coverage_gcovr(
     NAME coverage
     FORMAT ${CODE_COVERAGE_FORMAT}
-    EXCLUDE "tests" "examples"
+    EXCLUDE "tests" "examples" "${PROJECT_BINARY_DIR}/_deps"
     DEPENDENCIES tests
 )

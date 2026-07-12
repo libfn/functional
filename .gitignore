@@ -12,7 +12,7 @@ __pycache__/**
 .devcontainer/
 .venv/
 .vscode/
-.claude*/
+.claude*
 *.iws
 *.swp
 *.swo

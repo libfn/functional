@@ -2,6 +2,12 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## Codecov reads coverage from the `gcovr` aggregate — 12 July 2026
+
+- **Codecov ingests an aggregated cobertura report rather than the raw `.gcov` text.** `gcov` reports template code once per instantiation, and codecov's parser counted the unexecuted instantiation records as missed lines: it reported ~98.9% where the aggregate over the same `.gcda` reports every line of `include/` covered. For a library which is almost entirely templates that is not a rounding error, and it is not fixable from this side — reported upstream in April 2024 and still unanswered: [codecov/feedback#334](https://github.com/codecov/feedback/issues/334). The aggregating is `--merge-lines`: since gcovr 8 a line record is kept per instantiation, which would have carried the same defect into the new report.
+- **SonarCloud keeps reading the raw `.gcov` files.** Given the same cobertura report it counts 267 covered lines as missed, because its own parse of the sources marks as executable many lines for which no runtime code is ever emitted — template and constant-evaluated code that gcov cannot report on. So the two tools read different inputs, and the `.gcov` text is generated for sonarcloud alone. What an accurate SonarCloud report would need is not yet understood.
+- **Branch coverage no longer counts the exception paths.** The aggregate excludes throw and unreachable branches, so the condition count reflects decisions written in the source rather than artefacts of the exception model. `parsers.cobertura.partials_as_hits` states for the parser in use the same lines-not-branches policy that the retired `parsers.gcov.branch_detection` block encoded.
+
 ## `expected`'s associated types joined namespace `fn` — 10 July 2026
 
 - **`fn` re-exports `unexpected`, `unexpect`, `unexpect_t` and `bad_expected_access` from `pfn`.** Nothing is added — these are using-declarations, so both spellings name the same types — but the `<expected>` vocabulary is complete under one namespace, and constructing the error state in otherwise pure-`fn` code no longer reaches into `pfn` (previously every example returned `pfn::unexpected`). No `optional` counterparts: `optional`'s associated types are already in C++20's `std`, so no polyfills and nothing to bring from `pfn` to `fn` namespace.

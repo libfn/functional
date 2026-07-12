@@ -70,7 +70,8 @@ jobs:
       with:
         # Strict only when a token is set; a tokenless fork's throttled upload must not fail its CI.
         fail_ci_if_error: ${{ secrets.CODECOV_TOKEN != '' }}
-        disable_search: false
+        files: .build/coverage.xml
+        disable_search: true
         verbose: true
         plugins: noop
         token: ${{ secrets.CODECOV_TOKEN }}
