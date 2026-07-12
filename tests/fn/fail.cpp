@@ -66,16 +66,16 @@ TEST_CASE("fail", "[fail][expected][expected_value][pack]")
   static_assert(is::not_invocable_with_any([]() -> Error { throw 0; }));            // bad arity
   static_assert(is::not_invocable_with_any([](int, int) -> Error { throw 0; }));    // bad arity
 
-  WHEN("operand is lvalue")
+  SECTION("lvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       operand_t a{std::in_place, 12};
       using T = decltype(a | fail(fnValue));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a | fail(fnValue)).error().what == "Got 12");
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       operand_t a{::fn::unexpect, Error{"Not good"}};
       using T = decltype(a | fail(wrong));
@@ -86,7 +86,7 @@ TEST_CASE("fail", "[fail][expected][expected_value][pack]")
                   .what
               == "Not good");
     }
-    WHEN("calling member function")
+    SECTION("member function")
     {
       using operand_t = fn::expected<Value, Error>;
       operand_t a{std::in_place, Value{12}};
@@ -96,10 +96,10 @@ TEST_CASE("fail", "[fail][expected][expected_value][pack]")
     }
   }
 
-  WHEN("operand is pack")
+  SECTION("pack")
   {
     using operand_t = fn::expected<fn::pack<int, double>, Error>;
-    WHEN("operand is value")
+    SECTION("value")
     {
       operand_t a{std::in_place, fn::pack{84, 0.5}};
       constexpr auto fnPack = [](int i, double d) constexpr -> Error {
@@ -110,22 +110,22 @@ TEST_CASE("fail", "[fail][expected][expected_value][pack]")
       REQUIRE((a | fail(fnPack)).error().what == "Got 84 and 0.500000");
     }
 
-    WHEN("operand is error")
+    SECTION("error")
     {
       constexpr auto wrong = [](auto...) -> Error { throw 0; };
       REQUIRE((operand_t{::fn::unexpect, Error{"Not good"}} | fail(wrong)).error().what == "Not good");
     }
   }
 
-  WHEN("operand is rvalue")
+  SECTION("rvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       using T = decltype(operand_t{std::in_place, 12} | fail(fnValue));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((operand_t{std::in_place, 12} | fail(fnValue)).error().what == "Got 12");
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | fail(wrong));
       static_assert(std::is_same_v<T, operand_t>);
@@ -135,12 +135,47 @@ TEST_CASE("fail", "[fail][expected][expected_value][pack]")
                   .what
               == "Not good");
     }
-    WHEN("calling member function")
+    SECTION("member function")
     {
       using operand_t = fn::expected<Value, Error>;
       using T = decltype(operand_t{std::in_place, Value{12}} | fail(&Value::fn));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((operand_t{std::in_place, Value{12}} | fail(&Value::fn)).error().what == "Was 12");
+    }
+  }
+
+  SECTION("constexpr")
+  {
+    enum class Error { ThresholdExceeded, SomethingElse };
+    using T = fn::expected<int, Error>;
+    constexpr auto fn = [](int i) constexpr noexcept -> Error {
+      if (i < 3)
+        return Error::SomethingElse;
+      return Error::ThresholdExceeded;
+    };
+    constexpr auto r1 = T{0} | fn::fail(fn);
+    static_assert(r1.error() == Error::SomethingElse);
+    constexpr auto r2 = T{3} | fn::fail(fn);
+    static_assert(r2.error() == Error::ThresholdExceeded);
+
+    SUCCEED();
+
+    SECTION("sum")
+    {
+      enum class Error { ThresholdExceeded, SomethingElse, Reserved };
+      using T = fn::expected<fn::sum_for<Value, int>, Error>;
+      constexpr auto fn = fn::overload{[](int) constexpr noexcept -> Error { return Error::ThresholdExceeded; },
+                                       [](Value const &) { return Error::SomethingElse; }};
+      constexpr auto r1 = T{0} | fn::fail(fn);
+      static_assert(r1.error() == Error::ThresholdExceeded);
+      constexpr auto r2 = T{Value{13}} | fn::fail(fn);
+      static_assert(r2.error() == Error::SomethingElse);
+      constexpr auto r3 = T{3} | fn::fail(fn);
+      static_assert(r3.error() == Error::ThresholdExceeded);
+      constexpr auto r4 = T{::fn::unexpect, Error::Reserved} | fn::fail(fn);
+      static_assert(r4.error() == Error::Reserved);
+
+      SUCCEED();
     }
   }
 }
@@ -170,16 +205,16 @@ TEST_CASE("fail", "[fail][expected][expected_void]")
   static_assert(is::not_invocable_with_any([](int) -> Error { throw 0; }));           // bad arity
   static_assert(is::not_invocable_with_any([](int, int) -> Error { throw 0; }));      // bad arity
 
-  WHEN("operand is lvalue")
+  SECTION("lvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       operand_t a{std::in_place};
       using T = decltype(a | fail(fnValue));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a | fail(fnValue)).error().what == "Got 1");
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       operand_t a{::fn::unexpect, Error{"Not good"}};
       using T = decltype(a | fail(wrong));
@@ -192,15 +227,15 @@ TEST_CASE("fail", "[fail][expected][expected_void]")
     }
   }
 
-  WHEN("operand is rvalue")
+  SECTION("rvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       using T = decltype(operand_t{std::in_place} | fail(fnValue));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((operand_t{std::in_place} | fail(fnValue)).error().what == "Got 1");
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | fail(wrong));
       static_assert(std::is_same_v<T, operand_t>);
@@ -240,9 +275,9 @@ TEST_CASE("fail", "[fail][optional][pack]")
   static_assert(is::not_invocable_with_any([]() { throw 0; }));                                // bad arity
   static_assert(is::not_invocable_with_any([](int, int) { throw 0; }));                        // bad arity
 
-  WHEN("operand is lvalue")
+  SECTION("lvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       operand_t a{12};
       using T = decltype(a | fail(fnValue));
@@ -250,7 +285,7 @@ TEST_CASE("fail", "[fail][optional][pack]")
       REQUIRE(not(a | fail(fnValue)).has_value());
       CHECK(count == 1);
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       operand_t a{std::nullopt};
       using T = decltype(a | fail(wrong));
@@ -258,7 +293,7 @@ TEST_CASE("fail", "[fail][optional][pack]")
       REQUIRE(not(a | fail(wrong)).has_value());
       CHECK(count == 0);
     }
-    WHEN("calling member function")
+    SECTION("member function")
     {
       using operand_t = fn::optional<Value>;
       operand_t a{std::in_place, Value{12}};
@@ -270,10 +305,10 @@ TEST_CASE("fail", "[fail][optional][pack]")
     }
   }
 
-  WHEN("operand is pack")
+  SECTION("pack")
   {
     using operand_t = fn::optional<fn::pack<int, double>>;
-    WHEN("operand is value")
+    SECTION("value")
     {
       operand_t a{std::in_place, fn::pack{84, 0.5}};
       std::string what;
@@ -285,23 +320,23 @@ TEST_CASE("fail", "[fail][optional][pack]")
       CHECK(what == "Got 84 and 0.500000");
     }
 
-    WHEN("operand is error")
+    SECTION("error")
     {
       constexpr auto wrong = [](auto...) -> void { throw 0; };
       REQUIRE(not(operand_t{std::nullopt} | fail(wrong)).has_value());
     }
   }
 
-  WHEN("operand is rvalue")
+  SECTION("rvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       using T = decltype(operand_t{std::in_place, 12} | fail(fnValue));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE(not(operand_t{std::in_place, 12} | fail(fnValue)).has_value());
       CHECK(count == 1);
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       using T = decltype(operand_t{std::nullopt} | fail(wrong));
       static_assert(std::is_same_v<T, operand_t>);
@@ -310,7 +345,7 @@ TEST_CASE("fail", "[fail][optional][pack]")
                      .has_value());
       CHECK(count == 0);
     }
-    WHEN("calling member function")
+    SECTION("member function")
     {
       using operand_t = fn::optional<Value>;
       using T = decltype(operand_t{std::in_place, Value{12}} | fail(&Value::finalize));
@@ -318,6 +353,29 @@ TEST_CASE("fail", "[fail][optional][pack]")
       auto const before = Value::count;
       REQUIRE(not(operand_t{std::in_place, Value{12}} | fail(&Value::finalize)).has_value());
       CHECK(Value::count == before + 12);
+    }
+  }
+
+  SECTION("constexpr")
+  {
+    using T = fn::optional<int>;
+    constexpr auto fn = [](int) constexpr noexcept -> void {};
+    constexpr auto r1 = T{0} | fn::fail(fn);
+    static_assert(not r1.has_value());
+
+    SUCCEED();
+
+    SECTION("sum")
+    {
+      using T = fn::optional<fn::sum_for<Value, int>>;
+      constexpr auto fn
+          = fn::overload{[](int) constexpr noexcept -> void {}, [](Value const &) constexpr noexcept -> void {}};
+      constexpr auto r1 = T{0} | fn::fail(fn);
+      static_assert(not r1.has_value());
+      constexpr auto r2 = T{Value{12}} | fn::fail(fn);
+      static_assert(not r2.has_value());
+
+      SUCCEED();
     }
   }
 }
@@ -335,64 +393,6 @@ TEST_CASE("fail noexcept", "[fail][noexcept]")
   static_assert(noexcept(fail_t::apply{}(std::declval<fn::expected<int, Error> &>(), fnThrows)));
   static_assert(noexcept(fail_t::apply{}(std::declval<fn::expected<void, Error> &>(), fnThrows0)));
   static_assert(noexcept(fail_t::apply{}(std::declval<fn::optional<int> &>(), fnThrowsOpt)));
-
-  SUCCEED();
-}
-
-TEST_CASE("constexpr fail expected", "[fail][constexpr][expected]")
-{
-  enum class Error { ThresholdExceeded, SomethingElse };
-  using T = fn::expected<int, Error>;
-  constexpr auto fn = [](int i) constexpr noexcept -> Error {
-    if (i < 3)
-      return Error::SomethingElse;
-    return Error::ThresholdExceeded;
-  };
-  constexpr auto r1 = T{0} | fn::fail(fn);
-  static_assert(r1.error() == Error::SomethingElse);
-  constexpr auto r2 = T{3} | fn::fail(fn);
-  static_assert(r2.error() == Error::ThresholdExceeded);
-
-  SUCCEED();
-}
-
-TEST_CASE("constexpr fail expected with sum", "[fail][constexpr][expected][sum]")
-{
-  enum class Error { ThresholdExceeded, SomethingElse, Reserved };
-  using T = fn::expected<fn::sum_for<Value, int>, Error>;
-  constexpr auto fn = fn::overload{[](int) constexpr noexcept -> Error { return Error::ThresholdExceeded; },
-                                   [](Value const &) { return Error::SomethingElse; }};
-  constexpr auto r1 = T{0} | fn::fail(fn);
-  static_assert(r1.error() == Error::ThresholdExceeded);
-  constexpr auto r2 = T{Value{13}} | fn::fail(fn);
-  static_assert(r2.error() == Error::SomethingElse);
-  constexpr auto r3 = T{3} | fn::fail(fn);
-  static_assert(r3.error() == Error::ThresholdExceeded);
-  constexpr auto r4 = T{::fn::unexpect, Error::Reserved} | fn::fail(fn);
-  static_assert(r4.error() == Error::Reserved);
-
-  SUCCEED();
-}
-
-TEST_CASE("constexpr fail optional", "[fail][constexpr][optional]")
-{
-  using T = fn::optional<int>;
-  constexpr auto fn = [](int) constexpr noexcept -> void {};
-  constexpr auto r1 = T{0} | fn::fail(fn);
-  static_assert(not r1.has_value());
-
-  SUCCEED();
-}
-
-TEST_CASE("constexpr fail optional with sum", "[fail][constexpr][optional][sum]")
-{
-  using T = fn::optional<fn::sum_for<Value, int>>;
-  constexpr auto fn
-      = fn::overload{[](int) constexpr noexcept -> void {}, [](Value const &) constexpr noexcept -> void {}};
-  constexpr auto r1 = T{0} | fn::fail(fn);
-  static_assert(not r1.has_value());
-  constexpr auto r2 = T{Value{12}} | fn::fail(fn);
-  static_assert(not r2.has_value());
 
   SUCCEED();
 }
