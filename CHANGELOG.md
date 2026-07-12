@@ -2,6 +2,11 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## Coverage is read from the `gcovr` aggregate — 12 July 2026
+
+- **Both codecov and SonarCloud read one aggregated cobertura report.** `gcov` reports template code once per instantiation, and neither parser honours the aggregate record that precedes those per-instantiation ones, so a line executed hundreds of times is counted as missed and a branch taken in one instantiation as untaken. For a library that is almost all templates this is not a rounding error: codecov reported ~98.9% and SonarCloud 97.1% of lines, where `gcovr` over the same `.gcda` reports every line in `include/` covered. Obsoletes ingesting raw `.gcov` text — it is no longer generated, and the pull request artifact introduced with the fork-friendly scanning (#240) carries `coverage.xml` in its place. Reported upstream in April 2024 and still unanswered: [codecov/feedback#334](https://github.com/codecov/feedback/issues/334).
+- **Branch coverage no longer counts the exception paths.** The aggregate excludes throw and unreachable branches, so the condition count reflects decisions written in the source rather than artefacts of the exception model. For codecov, `parsers.cobertura.partials_as_hits` states the same lines-not-branches policy that the retired `parsers.gcov.branch_detection` block encoded.
+
 ## `expected`'s associated types joined namespace `fn` — 10 July 2026
 
 - **`fn` re-exports `unexpected`, `unexpect`, `unexpect_t` and `bad_expected_access` from `pfn`.** Nothing is added — these are using-declarations, so both spellings name the same types — but the `<expected>` vocabulary is complete under one namespace, and constructing the error state in otherwise pure-`fn` code no longer reaches into `pfn` (previously every example returned `pfn::unexpected`). No `optional` counterparts: `optional`'s associated types are already in C++20's `std`, so no polyfills and nothing to bring from `pfn` to `fn` namespace.
