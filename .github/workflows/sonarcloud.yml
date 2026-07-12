@@ -47,5 +47,5 @@ jobs:
           -Dsonar.host.url=https://sonarcloud.io
           -Dsonar.organization=${{ steps.sonar.outputs.organization }}
           -Dsonar.projectKey=${{ steps.sonar.outputs.project-key }}
-          -Dsonar.cfamily.gcov.reportsPath=.build
+          -Dsonar.cfamily.cobertura.reportPaths=.build/coverage.xml
           -Dsonar.cfamily.compile-commands=.build/compile_commands.json
