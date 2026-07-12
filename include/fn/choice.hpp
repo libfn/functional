@@ -86,8 +86,9 @@ struct choice<Ts...> : sum<Ts...> {
    */
   template <typename T>
   constexpr choice(T &&v) // NOSONAR cpp:S1709,S6458 implicit arm of the explicit pair; has_type excludes self
-      noexcept(detail::_nothrow_initializable<::std::remove_cvref_t<T>, decltype(v)>)
-    requires has_type<::std::remove_cvref_t<T>> && (detail::_initializable<::std::remove_cvref_t<T>, decltype(v)>)
+      noexcept(::std::is_nothrow_constructible_v<_impl, ::std::in_place_type_t<::std::remove_cvref_t<T>>, decltype(v)>)
+    requires has_type<::std::remove_cvref_t<T>>
+             && (::std::is_constructible_v<_impl, ::std::in_place_type_t<::std::remove_cvref_t<T>>, decltype(v)>)
              && (::std::is_convertible_v<decltype(v), ::std::remove_cvref_t<T>>)
       : _impl(::std::in_place_type<::std::remove_cvref_t<T>>, FWD(v))
   {
@@ -101,8 +102,9 @@ struct choice<Ts...> : sum<Ts...> {
    */
   template <typename T>
   constexpr explicit choice(T &&v) // NOSONAR cpp:S6458 has_type excludes self
-      noexcept(detail::_nothrow_initializable<::std::remove_cvref_t<T>, decltype(v)>)
-    requires has_type<::std::remove_cvref_t<T>> && (detail::_initializable<::std::remove_cvref_t<T>, decltype(v)>)
+      noexcept(::std::is_nothrow_constructible_v<_impl, ::std::in_place_type_t<::std::remove_cvref_t<T>>, decltype(v)>)
+    requires has_type<::std::remove_cvref_t<T>>
+             && (::std::is_constructible_v<_impl, ::std::in_place_type_t<::std::remove_cvref_t<T>>, decltype(v)>)
              && (not ::std::is_convertible_v<decltype(v), ::std::remove_cvref_t<T>>)
       : _impl(::std::in_place_type<::std::remove_cvref_t<T>>, FWD(v))
   {
@@ -117,8 +119,8 @@ struct choice<Ts...> : sum<Ts...> {
    */
   template <typename T>
   constexpr explicit choice(::std::in_place_type_t<T> d, auto &&...args) //
-      noexcept(detail::_nothrow_initializable<T, decltype(args)...>)
-    requires has_type<T> && detail::_initializable<T, decltype(args)...>
+      noexcept(::std::is_nothrow_constructible_v<_impl, ::std::in_place_type_t<T>, decltype(args)...>)
+    requires has_type<T> && ::std::is_constructible_v<_impl, ::std::in_place_type_t<T>, decltype(args)...>
       : _impl(d, FWD(args)...)
   {
   }
@@ -131,8 +133,9 @@ struct choice<Ts...> : sum<Ts...> {
    */
   template <typename... Tx>
   constexpr choice(sum<Tx...> const &v) // NOSONAR cpp:S1709 implicit widening by design
-      noexcept((... && detail::_nothrow_initializable<Tx, Tx const &>))
-    requires detail::is_superset_of<choice, choice<Tx...>> && (... && detail::_initializable<Tx, Tx const &>)
+      noexcept(::std::is_nothrow_constructible_v<_impl, ::std::in_place_type_t<sum<Tx...>>, sum<Tx...> const &>)
+    requires detail::is_superset_of<choice, choice<Tx...>>
+             && (::std::is_constructible_v<_impl, ::std::in_place_type_t<sum<Tx...>>, sum<Tx...> const &>)
       : _impl(::std::in_place_type<sum<Tx...>>, FWD(v))
   {
   }
@@ -145,8 +148,9 @@ struct choice<Ts...> : sum<Ts...> {
    */
   template <typename... Tx>
   constexpr choice(sum<Tx...> &&v) // NOSONAR cpp:S1709 implicit widening by design
-      noexcept((... && detail::_nothrow_initializable<Tx, Tx>))
-    requires detail::is_superset_of<choice, choice<Tx...>> && (... && detail::_initializable<Tx, Tx>)
+      noexcept(::std::is_nothrow_constructible_v<_impl, ::std::in_place_type_t<sum<Tx...>>, sum<Tx...>>)
+    requires detail::is_superset_of<choice, choice<Tx...>>
+             && (::std::is_constructible_v<_impl, ::std::in_place_type_t<sum<Tx...>>, sum<Tx...>>)
       : _impl(::std::in_place_type<sum<Tx...>>, FWD(v))
   {
   }
@@ -159,7 +163,7 @@ struct choice<Ts...> : sum<Ts...> {
    */
   template <typename... Tx>
   constexpr choice(::std::in_place_type_t<sum<Tx...>>, some_sum auto &&v) //
-      noexcept((... && detail::_nothrow_initializable<Tx, apply_const_lvalue_t<decltype(v), Tx &&>>))
+      noexcept(::std::is_nothrow_constructible_v<_impl, ::std::in_place_type_t<sum<Tx...>>, decltype(v)>)
     requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, sum<Tx...>>
              && detail::is_superset_of<choice, choice<Tx...>>
       : _impl(::std::in_place_type<sum<Tx...>>, FWD(v))
