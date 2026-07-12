@@ -8,26 +8,25 @@ Functional programming in C++
 
 ## Why
 
-The purpose of this library is to exercise an approach to functional programming in C++ on top of the existing `std` C++ vocabulary types (such as `std::expected` and `std::optional`), with the aim of eventually extending the future versions of the C++ standard library with the functionality found to work well.
+The purpose of this library is to exercise an approach to functional programming in C++ on top of the existing standard vocabulary types (such as `std::expected` and `std::optional`), with the aim of eventually extending future revisions of the C++ standard library with the functionality found to work well.
 
 ## Example
 
 ```cpp
-#include <fn/and_then.hpp>
-#include <fn/utility.hpp>
+// Various error types.
+enum class NotANumber {};
+enum class DivByZero {};
+enum class Overflow {};
 
-#include <charconv>
-#include <climits>
-#include <numeric>
-#include <string_view>
-#include <type_traits>
+// Operations on rational numbers.
+enum class Add {};
+enum class Sub {};
+enum class Mul {};
+enum class Div {};
 
-enum NotANumber { notANumber };
-enum DivByZero { divByZero };
-enum Overflow { overflow };
-enum Add { add };
-enum Mul { mul };
-enum Side { num, den };
+// `parse` turns a '/' delimited string into a pair of numbers (a numerator and denominator)
+constexpr auto parse(std::string_view s) noexcept
+    -> fn::expected<fn::pack<int, int>, fn::sum<NotANumber>>;
 
 class Rational {
   int n_, d_;
@@ -35,88 +34,103 @@ class Rational {
 
 public:
   constexpr bool operator==(Rational const &) const noexcept = default;
-  template <Side S> constexpr friend int get(Rational const &r) noexcept
-  {
-    return S == num ? r.n_ : r.d_;
-  }
+  constexpr int num() const noexcept { return n_; }
+  constexpr int den() const noexcept { return d_; }
 
-  // The invariant lives in the type: `make` is the only way to build one, so every
-  // Rational is reduced, sign-normalized and representable — callers receive a value they
-  // never have to re-check.
-  static constexpr auto make(long long n, long long d)
-      -> fn::expected<Rational, fn::sum_for<DivByZero, Overflow>>
+  // The invariants live in the type: `make` is the only way to build a `Rational`, and every one is
+  // reduced, sign-normalized and representable. Callers receive a value they never need re-check.
+  static constexpr struct make_t {
+    constexpr auto operator()(long long n, long long d) const noexcept
+        -> fn::expected<Rational, fn::sum_for<DivByZero, Overflow>>
+    {
+      if (d == 0) return fn::unexpected{fn::sum{DivByZero{}}};
+      if (n == std::numeric_limits<long long>::min() || d == std::numeric_limits<long long>::min())
+        return fn::unexpected{fn::sum{Overflow{}}};
+
+      auto const g = (d < 0 ? -1 : 1) * std::gcd(n, d);
+      n /= g;
+      d /= g;
+      if (n < std::numeric_limits<int>::min() || n > std::numeric_limits<int>::max()
+          || d > std::numeric_limits<int>::max()) {
+        return fn::unexpected{fn::sum{Overflow{}}};
+      }
+
+      return Rational(static_cast<int>(n), static_cast<int>(d));
+    }
+
+    constexpr auto operator()(std::string_view s) const noexcept
+    {
+      return parse(s) | fn::and_then(*this);
+    }
+  } make{};
+
+  constexpr auto neg() const noexcept { return make(-1LL * n_, d_); }
+  constexpr auto inv() const noexcept { return make(d_, n_); }
+  constexpr auto add(Rational const &other) const noexcept
   {
-    if (d == 0) return fn::unexpected{fn::sum{divByZero}};
-    if (n == LLONG_MIN || d == LLONG_MIN) return fn::unexpected{fn::sum{overflow}};
-    auto const g = (d < 0 ? -1 : 1) * std::gcd(n, d);
-    n /= g;
-    d /= g;
-    if (n < INT_MIN || n > INT_MAX || d > INT_MAX) return fn::unexpected{fn::sum{overflow}};
-    return Rational(int(n), int(d));
+    return make(1LL * n_ * other.d_ + 1LL * other.n_ * d_, //
+                1LL * d_ * other.d_);
+  }
+  constexpr auto sub(Rational const &other) const noexcept
+  {
+    return other.neg() | fn::and_then([*this](Rational y) { return add(y); });
+  }
+  constexpr auto mul(Rational const &other) const noexcept
+  {
+    return make(1LL * n_ * other.n_, 1LL * d_ * other.d_);
+  }
+  constexpr auto div(Rational const &other) const noexcept
+  {
+    return other.inv() | fn::and_then([*this](Rational y) { return mul(y); });
   }
 };
 
-// `parse` turns a string into a pair of numbers (a numerator and denominator)
-auto parse(std::string_view s) -> fn::expected<fn::pack<int, int>, fn::sum<NotANumber>>
+// `evaluate` parses each operand, applies the operator, and lets `make` re-check the result.
+// Each stage fails its own way, and the library folds error types into one sum of types.
+constexpr auto evaluate(std::string_view a, fn::sum_for<Add, Sub, Mul, Div> op,
+                        std::string_view b) noexcept
 {
-  int n = 0, d = 1;
-  auto const bar = s.find('/');
-  auto const head = s.substr(0, bar);
-  auto const [p, e] = std::from_chars(head.data(), head.data() + head.size(), n);
-  if (e != std::errc{} || p != head.data() + head.size())
-    return fn::unexpected{fn::sum{notANumber}};
-  if (bar != std::string_view::npos) {
-    auto const tail = s.substr(bar + 1);
-    auto const [q, f] = std::from_chars(tail.data(), tail.data() + tail.size(), d);
-    if (f != std::errc{} || q != tail.data() + tail.size())
-      return fn::unexpected{fn::sum{notANumber}};
-  }
-  return fn::pack<int, int>{n, d};
-}
-
-// Helper, does not need to name any error types — let the library compose them.
-constexpr auto number = [](std::string_view s) { return parse(s) | fn::and_then(Rational::make); };
-
-// `evaluate` parses both operands, applies the operator, and lets `make` re-check the
-// result. Each stage fails its own way, and the library folds those failures into one
-// error sum, never spelled by hand:
-auto evaluate(std::string_view a, fn::sum_for<Add, Mul> op, std::string_view b)
-{
-  constexpr auto apply = fn::overload{
-      [](Rational x, Add, Rational y) {
-        return Rational::make(1LL * get<num>(x) * get<den>(y) + 1LL * get<num>(y) * get<den>(x),
-                              1LL * get<den>(x) * get<den>(y));
-      },
-      [](Rational x, Mul, Rational y) {
-        return Rational::make(1LL * get<num>(x) * get<num>(y), 1LL * get<den>(x) * get<den>(y));
-      }};
   using Op = fn::expected<decltype(op), fn::sum<>>;
-  return (number(a) & Op{op} & number(b)) | fn::and_then(apply);
+  return (Rational::make(a) & Op{op} & Rational::make(b)) //
+         | fn::and_then(fn::overload{[](Rational x, Add, Rational y) { return x.add(y); },
+                                     [](Rational x, Sub, Rational y) { return x.sub(y); },
+                                     [](Rational x, Mul, Rational y) { return x.mul(y); },
+                                     [](Rational x, Div, Rational y) { return x.div(y); }});
 }
 
-// Result is a Rational, over the sum of every way a stage can fail:
-static_assert(std::is_same_v<decltype(evaluate("1/2", add, "3/4")),
+// The error type of a sequence is the derived sum of all failure modes, never spelled by hand:
+static_assert(std::is_same_v<decltype(Rational::make("1/1")),
                              fn::expected<Rational, fn::sum<DivByZero, NotANumber, Overflow>>>);
-
+static_assert(std::is_same_v<decltype(evaluate("1/2", Add{}, "3/4")),
+                             fn::expected<Rational, fn::sum<DivByZero, NotANumber, Overflow>>>);
+// Constant evaluated calculations used to verify both values and errors during compilation:
+static_assert(evaluate("1/2", Add{}, "1/3").value() == Rational::make(5, 6));
+static_assert(evaluate("2/3", Div{}, "0/1").error().has_value<DivByZero>());
 ```
 
 ### What
 
 The library features demonstrated by the code example above:
 
-* **Smart constructors** — `Rational`'s constructor is private; the only way to build one is the static `make`, which enforces invariants and returns `fn::expected`. An invalid `Rational` cannot exist, so callers don't need to check what the type already guarantees.
-* **Monadic pipelines** — `operator|` pipes `fn::expected` (and `fn::optional`) through operations: `and_then` above; also `or_else`, `transform`, `filter`, `inspect`, `recover`, `fail`, `transform_error` and more.
-* **Composition** — `operator&` accumulates both operands and the operator, as monadic values, into a `fn::pack` — which the next operation receives as separate arguments.
-* **Graded errors** — each stage fails in its own way — a malformed string, a zero denominator, an out-of-range result — and the library widens these into a single `fn::sum`, here `fn::sum<DivByZero, NotANumber, Overflow>`: the whole pipeline's error, composed by the library and never written by hand.
-* **Multidispatch** — `fn::sum` is indexed by type, not by position like `std::variant`, and `fn::overload` dispatches over its alternatives (`Add` and `Mul`) by ordinary overload resolution — exhaustively, so a missing handler is a compile error.
+* **Monadic sequences** — `operator|` pipes a `fn::expected` (or `fn::optional`) through operations: `and_then` and `transform` act on the value, `or_else`, `recover` and `transform_error` on the error, with `filter`, `inspect`, `fail` and more besides.
+* **Graded errors** — each stage fails its own way — a malformed string, a zero denominator, an out-of-range result — and the library folds these into one `fn::sum` whose type it derives for you: here `fn::sum<DivByZero, NotANumber, Overflow>`, never spelled by hand.
+* **Composing values** — `operator&` gathers successful operands left to right: two values become a `fn::pack`, a third appends to it. A `fn::pack` is a heterogeneous product — the operands as one value, spread into the next call; for example in `make`, where a `pack<int, int>` returned from `parse` is passed to an overload taking two numbers.
+* **Composing alternatives** — when a side is a `fn::sum` (a co-product — one of several types, indexed by type, not by position like `std::variant`), `&` distributes over it, pairing every alternative with the other operand. Two sums yield the full cartesian product. The result type is flattened, deduplicated and sorted for you.
+* **Multidispatch** — the pack (or sum of packs) flows into the next stage as separate arguments. An `fn::overload` — or any function — dispatches on the runtime alternative by ordinary overload resolution. Dispatch is exhaustive: a missing handler is a compile error.
+* **Identity monad** — `fn::expected<T, fn::sum<>>` cannot hold an error (enforced at compile time), a spelling of the identity monad; the example lifts `op` into it as `Op`.
+* **No surprises** — libfn throws no exceptions of its own (only `value()`, as the standard mandates), and composes safely with callables that do; it allocates no memory of its own and performs no I/O. Being fully `constexpr`, it can drive a program evaluated entirely at compile time, where the compiler diagnoses any undefined behaviour.
 
-Beyond the example: `fn::choice` (a monad over `fn::sum`), dispatch across any combination of `fn::pack` and `fn::sum`, and more — see [examples/](examples/) and the [API reference][docs].
+The example also demonstrates how well libfn works with general programming idioms. `make` is a *smart constructor* — the only way to build a `Rational` — enforcing the type's invariants and returning `fn::expected`: callers never need to re-check what the type guarantees. Treating *callables as values* lets operations such as `and_then` accept `make` whole, carrying its overload set.
+
+These properties also make libfn a natural fit for asynchronous composition, such as coroutines or senders/receivers. Operations and monadic types alike are plain values: `and_then(f)` is a *description* of a step, executed only when a monad is piped into it (an input to the sequence, or the result of the preceding operation). A framework can hold the steps of a computation and apply them as results arrive, with a strongly typed error channel and no hidden control flow — exactly what such programming models need.
+
+Beyond the example: `fn::choice` (a monad over `fn::sum`); the same operations over `fn::optional` as over `fn::expected`; tuple protocol in `fn::pack` (`get<I>(p)` or structured bindings); `fn::pack` and `fn::sum` are both structural types (a `constexpr` value which may be used as a template parameter); support for immovable values and callables; and more — see [examples/](examples/) and the [API reference][docs].
 
 ## How
 
 The library comes as two parts in one repository:
 
-* **`pfn`** (`include/pfn`, namespace `pfn`) — a faithful polyfill of standard-library vocabulary types: `std::expected` (as specified for C++26, including `has_error()`) and `std::optional` (as specified for C++26, including monadic functions, `optional<T&>` and range support), plus smaller utilities such as `std::invoke_r` and `std::unreachable`. It adds nothing of its own on top of what's mandated by the [C++ standard](https://eel.is/c++draft/).
+* **`pfn`** (`include/pfn`, namespace `pfn`) — a faithful polyfill of standard-library vocabulary types as specified for C++26: `std::expected`, `std::optional` (including the monadic functions, `optional<T&>` and range support), plus smaller utilities such as `std::invoke_r` and `std::unreachable`. It adds nothing of its own on top of what's mandated by the [C++ standard](https://eel.is/c++draft/) or accepted for a future revision — such as `has_error()`.
 * **`fn`** (`include/fn`, namespace `fn`) — the functional-programming library. It extends the vocabulary types with the facilities useful in writing functional style programs — monadic operations composable with `operator|`, such as `and_then`, `transform`, `or_else`, `inspect`, `recover`, `filter` — and adds new vocabulary types: `sum`, `choice`, `pack`.
 
 Every `fn` type with a `pfn` counterpart is a strict superset of it: switching a valid program using `pfn` types to use `fn` instead changes neither compilation nor program behaviour.
@@ -142,7 +156,7 @@ Every packaging route above except Bazel also delivers the compile options the h
 
 ## Backwards compatibility
 
-The maintainers will aim to maintain compatibility with the proposed changes in the C++ standard library, **rather than with the existing uses** of the code in this repo. In practice, this means that all code in this repo should be considered "under intensive development and unstable" until the standardization of the proposed facilities.
+The maintainers aim for compatibility with the proposed changes to the C++ standard library, **rather than with the existing uses** of the code in this repo. In practice, this means that all code in this repo should be considered "under intensive development and unstable" until the standardization of the proposed facilities.
 
 ## Versioning and ABI
 

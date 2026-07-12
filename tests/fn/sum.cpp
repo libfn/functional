@@ -32,6 +32,13 @@ struct NonCopyable final {
   NonCopyable(NonCopyable const &) = delete;
   NonCopyable &operator=(NonCopyable const &) = delete;
 };
+
+template <fn::sum<bool, int> S> struct sum_nttp final {};
+template <fn::some_sum auto S> struct some_sum_nttp final {};
+template <fn::some_sum auto S> auto read_nttp()
+{
+  return S.invoke([](auto const &...args) { return (0.0 + ... + static_cast<double>(args)); });
+}
 } // anonymous namespace
 
 TEST_CASE("sum basic functionality tests", "[sum]")
@@ -543,6 +550,39 @@ TEST_CASE("sum basic functionality tests", "[sum]")
       constexpr sum<pack<int, int, int, int>, pack<int, int, int>, pack<int, int>, pack<int>> c = pack{3, 14, 15, 92};
       CHECK(c.invoke([](std::integral auto... args) -> int { return (... + args); }) == 3 + 14 + 15 + 92);
     }
+  }
+
+  WHEN("structural type")
+  {
+    // sum is a structural type: a constexpr sum can be a template parameter, with
+    // template-argument equivalence comparing the active alternative and its value
+    constexpr sum<bool, int> a{42};
+    constexpr sum<bool, int> b{42};
+    constexpr sum<bool, int> c{17};
+    constexpr sum<bool, int> d{true};
+    static_assert(std::is_same_v<sum_nttp<a>, sum_nttp<b>>);
+    static_assert(not std::is_same_v<sum_nttp<a>, sum_nttp<c>>);
+    static_assert(not std::is_same_v<sum_nttp<a>, sum_nttp<d>>);
+    static_assert(std::is_same_v<some_sum_nttp<a>, some_sum_nttp<b>>);
+    static_assert(not std::is_same_v<some_sum_nttp<a>, some_sum_nttp<d>>);
+
+    // the property composes: alternatives may be packs of different sizes mixed with a scalar
+    using fn::pack;
+    using S = fn::sum_for<pack<int, bool>, pack<double>, long>;
+    constexpr S e{pack<int, bool>{42, true}};
+    constexpr S f{pack<int, bool>{42, true}};
+    constexpr S g{pack<int, bool>{43, true}};
+    constexpr S h{pack<double>{0.5}};
+    constexpr S i{42L};
+    static_assert(std::is_same_v<some_sum_nttp<e>, some_sum_nttp<f>>);
+    static_assert(not std::is_same_v<some_sum_nttp<e>, some_sum_nttp<g>>);
+    static_assert(not std::is_same_v<some_sum_nttp<e>, some_sum_nttp<h>>);
+    static_assert(not std::is_same_v<some_sum_nttp<h>, some_sum_nttp<i>>);
+
+    // the template-parameter object is usable at runtime
+    CHECK(read_nttp<a>() == 42.0);
+    CHECK(read_nttp<e>() == 43.0); // the pack alternative spreads: 42 + true
+    CHECK(read_nttp<i>() == 42.0);
   }
 }
 
