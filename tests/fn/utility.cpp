@@ -149,7 +149,7 @@ TEST_CASE("overload", "[overload]")
 
 TEST_CASE("make lift", "[make]")
 {
-  WHEN("aggregate constructor")
+  SECTION("aggregate constructor")
   {
     constexpr auto a = fn::make<std::array<int, 2>>(3, 5);
     static_assert(std::is_same_v<decltype(a), std::array<int, 2> const>);
@@ -160,7 +160,7 @@ TEST_CASE("make lift", "[make]")
     CHECK(b[1] == 5);
   }
 
-  WHEN("aggregate class")
+  SECTION("aggregate class")
   {
     constexpr auto a = fn::make<Agg>(12);
     static_assert(std::is_same_v<decltype(a), Agg const>);
@@ -169,7 +169,7 @@ TEST_CASE("make lift", "[make]")
     CHECK(fn::make<Agg>(12).i == 12);
   }
 
-  WHEN("paren fallback")
+  SECTION("paren fallback")
   {
     // The second overload takes over only where the first is not viable, which is the one thing the
     // pair of them is for - and ParenOnly is the case that separates them.
@@ -184,7 +184,7 @@ TEST_CASE("make lift", "[make]")
     CHECK(fn::make<ParenOnly>(1).i == 1);
   }
 
-  WHEN("constraints")
+  SECTION("constraints")
   {
     static_assert(can_make<Agg, int>);
     static_assert(not can_make<Agg, char const *>); // not constructible from it

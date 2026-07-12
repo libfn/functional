@@ -69,7 +69,7 @@ TEST_CASE("user-defined monadic operation", "[functor]")
   CHECK((fn::expected<int, std::runtime_error>{12} | throwing_dummy(fn1)).value() == 13);
   CHECK((fn::optional{42} | throwing_dummy(fn1)).value() == 43);
 
-  WHEN("noexcept")
+  SECTION("noexcept")
   {
     using O = fn::optional<int>;
 
