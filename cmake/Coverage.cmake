@@ -18,10 +18,9 @@ set(GCOVR_ADDITIONAL_ARGS
 --print-summary
 --gcov-ignore-errors=no_working_dir_found)
 
-# Do not count fetched third-party sources (_deps) as project code.
 setup_target_for_coverage_gcovr(
     NAME coverage
     FORMAT ${CODE_COVERAGE_FORMAT}
-    EXCLUDE "tests" "examples" "${PROJECT_BINARY_DIR}"
+    EXCLUDE "tests" "examples" "${PROJECT_BINARY_DIR}/_deps"
     DEPENDENCIES tests
 )
