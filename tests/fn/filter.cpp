@@ -673,3 +673,33 @@ TEST_CASE("filter noexcept", "[filter][noexcept]")
 
   SUCCEED();
 }
+
+namespace fn {
+namespace {
+struct Error {};
+struct Value final {};
+
+constexpr auto pred_int = [](int) -> bool { throw 0; };
+constexpr auto pred_int_lvalue = [](int &) -> bool { throw 0; };
+constexpr auto pred_nullary = []() -> bool { throw 0; };
+constexpr auto pred_opaque = [](int) -> Value { throw 0; }; // not convertible to bool
+template <typename T> constexpr auto err_int = [](int) -> T { throw 0; };
+template <typename T> constexpr auto err_nullary = []() -> T { throw 0; };
+} // namespace
+
+// clang-format off
+static_assert(invocable_filter<decltype(pred_int), decltype(err_int<Error>), expected<int, Error>>);
+static_assert(not invocable_filter<decltype(pred_opaque), decltype(err_int<Error>), expected<int, Error>>);   // predicate must convert to bool
+static_assert(not invocable_filter<decltype(pred_int), decltype(err_int<Value>), expected<int, Error>>);      // no conversion to error
+static_assert(not invocable_filter<decltype(pred_nullary), decltype(err_int<Error>), expected<int, Error>>);  // bad arity
+// The predicate sees the value as const, whatever the operand's category.
+static_assert(not invocable_filter<decltype(pred_int_lvalue), decltype(err_int<Error>), expected<int, Error> &>);
+static_assert(invocable_filter<decltype(pred_nullary), decltype(err_nullary<Error>), expected<void, Error>>);
+static_assert(not invocable_filter<decltype(pred_int), decltype(err_int<Error>), expected<void, Error>>);     // void: nullary only
+// filter over optional takes NO error callback: the Err parameter is void, and only void.
+static_assert(invocable_filter<decltype(pred_int), void, optional<int>>);
+static_assert(not invocable_filter<decltype(pred_int), decltype(err_int<Error>), optional<int>>);
+static_assert(not invocable_filter<decltype(pred_int), void, optional<Value>>);                               // wrong parameter type
+static_assert(not invocable_filter<decltype(pred_int), void, choice<int>>);                                   // no choice disjunct
+// clang-format on
+} // namespace fn

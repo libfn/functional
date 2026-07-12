@@ -21,6 +21,7 @@ struct Error final {
   std::string what;
 
   operator std::string_view() const { return what; }
+  auto fn() const & -> int { return static_cast<int>(what.size()); }
 };
 } // namespace
 
@@ -71,6 +72,13 @@ TEST_CASE("recover", "[recover][expected][expected_value]")
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a | recover(fnError)).value() == 8);
     }
+    SECTION("member function")
+    {
+      operand_t a{::fn::unexpect, Error{"Not good"}};
+      using T = decltype(a | recover(&Error::fn));
+      static_assert(std::is_same_v<T, operand_t>);
+      REQUIRE((a | recover(&Error::fn)).value() == 8);
+    }
   }
 
   SECTION("rvalue")
@@ -86,6 +94,12 @@ TEST_CASE("recover", "[recover][expected][expected_value]")
       using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | recover(fnError));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((operand_t{::fn::unexpect, Error{"Not good"}} | recover(fnError)).value() == 8);
+    }
+    SECTION("member function")
+    {
+      using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | recover(&Error::fn));
+      static_assert(std::is_same_v<T, operand_t>);
+      REQUIRE((operand_t{::fn::unexpect, Error{"Not good"}} | recover(&Error::fn)).value() == 8);
     }
   }
 
@@ -282,3 +296,34 @@ TEST_CASE("recover noexcept", "[recover][noexcept]")
 
   SUCCEED();
 }
+
+namespace fn {
+namespace {
+struct Error {};
+struct Value final {};
+
+template <typename T> constexpr auto fn_Error = [](Error) -> T { throw 0; };
+template <typename T> constexpr auto fn_nullary = []() -> T { throw 0; };
+template <typename T> constexpr auto fn_generic = [](auto &&...) -> T { throw 0; };
+constexpr auto fn_Error_lvalue = [](Error &) -> int { throw 0; };
+constexpr auto fn_Error_rvalue = [](Error &&) -> int { throw 0; };
+} // namespace
+
+// clang-format off
+// The callback consumes the error and must produce the operand's own value type.
+static_assert(invocable_recover<decltype(fn_Error<int>), expected<int, Error>>);
+static_assert(invocable_recover<decltype(fn_Error<unsigned>), expected<int, Error>>);    // conversion to value is enough
+static_assert(not invocable_recover<decltype(fn_Error<Value>), expected<int, Error>>);   // no conversion found
+static_assert(not invocable_recover<decltype(fn_nullary<int>), expected<int, Error>>);   // bad arity
+static_assert(invocable_recover<decltype(fn_generic<int>), expected<int, Error>>);
+static_assert(invocable_recover<decltype(fn_Error<void>), expected<void, Error>>);       // a void value wants void back
+static_assert(not invocable_recover<decltype(fn_Error<int>), expected<void, Error>>);    // never quietly discard a result
+static_assert(invocable_recover<decltype(fn_nullary<int>), optional<int>>);              // optional has no error: nullary
+static_assert(not invocable_recover<decltype(fn_Error<int>), optional<int>>);            // bad arity
+static_assert(not invocable_recover<decltype(fn_generic<int>), choice<int>>);            // no choice disjunct
+static_assert(not invocable_recover<decltype(fn_Error_lvalue), expected<int, Error>>);   // cannot bind temporary to lvalue
+static_assert(invocable_recover<decltype(fn_Error_lvalue), expected<int, Error> &>);
+static_assert(invocable_recover<decltype(fn_Error_rvalue), expected<int, Error>>);
+static_assert(not invocable_recover<decltype(fn_Error_rvalue), expected<int, Error> &>); // cannot bind lvalue to rvalue-ref
+// clang-format on
+} // namespace fn

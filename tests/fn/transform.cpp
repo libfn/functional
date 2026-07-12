@@ -22,6 +22,8 @@ struct Error final {
 
 struct Xint final {
   int value;
+
+  auto fn() const & -> int { return value + 1; }
 };
 } // namespace
 
@@ -78,6 +80,14 @@ TEST_CASE("transform", "[transform][expected][expected_value][pack]")
                   .what
               == "Not good");
     }
+    SECTION("member function")
+    {
+      using operand_t = fn::expected<Xint, Error>;
+      operand_t a{std::in_place, Xint{12}};
+      using T = decltype(a | transform(&Xint::fn));
+      static_assert(std::is_same_v<T, fn::expected<int, Error>>);
+      REQUIRE((a | transform(&Xint::fn)).value() == 13);
+    }
   }
 
   SECTION("pack")
@@ -120,6 +130,13 @@ TEST_CASE("transform", "[transform][expected][expected_value][pack]")
                   .error()
                   .what
               == "Not good");
+    }
+    SECTION("member function")
+    {
+      using operand_t = fn::expected<Xint, Error>;
+      using T = decltype(operand_t{std::in_place, Xint{12}} | transform(&Xint::fn));
+      static_assert(std::is_same_v<T, fn::expected<int, Error>>);
+      REQUIRE((operand_t{std::in_place, Xint{12}} | transform(&Xint::fn)).value() == 13);
     }
   }
 
@@ -380,6 +397,14 @@ TEST_CASE("transform", "[transform][optional][pack]")
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE(not(a | transform(wrong)).has_value());
     }
+    SECTION("member function")
+    {
+      using operand_t = fn::optional<Xint>;
+      operand_t a{std::in_place, Xint{12}};
+      using T = decltype(a | transform(&Xint::fn));
+      static_assert(std::is_same_v<T, fn::optional<int>>);
+      REQUIRE((a | transform(&Xint::fn)).value() == 13);
+    }
   }
 
   SECTION("pack")
@@ -421,6 +446,13 @@ TEST_CASE("transform", "[transform][optional][pack]")
       REQUIRE(not(operand_t{std::nullopt} //
                   | transform(wrong))
                      .has_value());
+    }
+    SECTION("member function")
+    {
+      using operand_t = fn::optional<Xint>;
+      using T = decltype(operand_t{std::in_place, Xint{12}} | transform(&Xint::fn));
+      static_assert(std::is_same_v<T, fn::optional<int>>);
+      REQUIRE((operand_t{std::in_place, Xint{12}} | transform(&Xint::fn)).value() == 13);
     }
   }
 
@@ -654,3 +686,42 @@ TEST_CASE("transform noexcept", "[transform][choice][noexcept]")
 
   SUCCEED();
 }
+
+namespace fn {
+namespace {
+struct Error {};
+struct Value final {};
+
+template <typename T> constexpr auto fn_int = [](int) -> T { throw 0; };
+template <typename T> constexpr auto fn_generic = [](auto &&...) -> T { throw 0; };
+constexpr auto fn_int_lvalue = [](int &) -> int { throw 0; };
+constexpr auto fn_int_rvalue = [](int &&) -> int { throw 0; };
+} // namespace
+
+// clang-format off
+// The callback returns a plain value, which must convert into the operand's own monad.
+static_assert(invocable_transform<decltype(fn_int<int>), expected<int, Error>>);
+static_assert(invocable_transform<decltype(fn_int<Value>), expected<int, Error>>);              // may change the type
+static_assert(not invocable_transform<decltype(fn_int<int>), expected<Value, Error>>);          // wrong parameter type
+static_assert(invocable_transform<decltype(fn_generic<int>), expected<Value, Error>>);
+static_assert(invocable_transform<decltype(fn_generic<int>), expected<void, Error>>);           // void: nullary callback
+static_assert(not invocable_transform<decltype(fn_int<int>), expected<void, Error>>);           // void: unary is bad arity
+static_assert(invocable_transform<decltype(fn_int<void>), expected<int, Error>>); // a void return transforms the value
+                                                                                  // side to expected<void, Error>
+static_assert(invocable_transform<decltype(fn_int<int>), optional<int>>);
+static_assert(not invocable_transform<decltype(fn_int<int>), optional<Value>>);                 // wrong parameter type
+static_assert(invocable_transform<decltype(fn_generic<int>), optional<Value>>);
+static_assert(invocable_transform<decltype(fn_generic<int>), choice<int>>);
+static_assert(not invocable_transform<decltype(fn_int<int>), choice<Value>>);            // must serve every alternative
+static_assert(not invocable_transform<decltype(fn_int_lvalue), expected<int, Error>>);   // cannot bind temporary to lvalue
+static_assert(invocable_transform<decltype(fn_int_lvalue), expected<int, Error> &>);
+static_assert(invocable_transform<decltype(fn_int_rvalue), expected<int, Error>>);
+static_assert(not invocable_transform<decltype(fn_int_rvalue), expected<int, Error> &>); // cannot bind lvalue to rvalue-ref
+
+// A sum value dispatches through sum::transform, which requires the callback to cover ALL alternatives.
+static_assert(invocable_transform<decltype(fn_generic<int>), expected<sum<Value, int>, Error>>);
+static_assert(not invocable_transform<decltype(fn_int<int>), expected<sum<Value, int>, Error>>); // int alone is not exhaustive
+static_assert(invocable_transform<decltype(fn_generic<int>), optional<sum<Value, int>>>);
+static_assert(not invocable_transform<decltype(fn_int<int>), optional<sum<Value, int>>>);
+// clang-format on
+} // namespace fn

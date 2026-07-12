@@ -16,14 +16,15 @@
 using namespace util;
 
 namespace {
+struct Xerror final {
+  std::size_t value;
+};
+
 struct Error final {
   std::string what;
 
   operator std::string_view() const { return what; }
-};
-
-struct Xerror final {
-  std::size_t value;
+  auto fn() const & -> Xerror { return {what.size()}; }
 };
 } // namespace
 
@@ -79,6 +80,13 @@ TEST_CASE("transform_error", "[transform_error][expected]")
         static_assert(std::is_same_v<T, fn::expected<int, Xerror>>);
         REQUIRE((a | transform_error(fnXerror)).error().value == 8);
       }
+
+      SECTION("member function")
+      {
+        using T = decltype(a | transform_error(&Error::fn));
+        static_assert(std::is_same_v<T, fn::expected<int, Xerror>>);
+        REQUIRE((a | transform_error(&Error::fn)).error().value == 8);
+      }
     }
   }
 
@@ -105,6 +113,13 @@ TEST_CASE("transform_error", "[transform_error][expected]")
         using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | transform_error(fnXerror));
         static_assert(std::is_same_v<T, fn::expected<int, Xerror>>);
         REQUIRE((operand_t{::fn::unexpect, Error{"Not good"}} | transform_error(fnXerror)).error().value == 8);
+      }
+
+      SECTION("member function")
+      {
+        using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | transform_error(&Error::fn));
+        static_assert(std::is_same_v<T, fn::expected<int, Xerror>>);
+        REQUIRE((operand_t{::fn::unexpect, Error{"Not good"}} | transform_error(&Error::fn)).error().value == 8);
       }
     }
   }
@@ -231,3 +246,39 @@ TEST_CASE("transform_error", "[transform_error][optional]")
 
   SUCCEED();
 }
+
+namespace fn {
+namespace {
+struct Error {};
+struct Xerror final : Error {};
+struct Value final {};
+
+template <typename T> constexpr auto fn_Error = [](Error) -> T { throw 0; };
+template <typename T> constexpr auto fn_generic = [](auto &&...) -> T { throw 0; };
+constexpr auto fn_Error_lvalue = [](Error &) -> Xerror { throw 0; };
+constexpr auto fn_Error_rvalue = [](Error &&) -> Xerror { throw 0; };
+} // namespace
+
+// clang-format off
+// The callback maps the error; what it returns must convert into an unexpected.
+static_assert(invocable_transform_error<decltype(fn_Error<Xerror>), expected<int, Error>>);
+static_assert(invocable_transform_error<decltype(fn_Error<Xerror>), expected<void, Error>>);      // void value is fine
+static_assert(invocable_transform_error<decltype(fn_generic<Xerror>), expected<Value, Error>>);
+static_assert(not invocable_transform_error<decltype(fn_Error<Xerror>), expected<int, Value>>);   // wrong parameter type
+// GAP #290: a void-returning callback should be rejected here, but the concept HARD-ERRORS instead
+// of yielding false - convertible_to_unexpected instantiates unexpected<void>, whose validity
+// mandate is a class-body static_assert, outside any immediate context. Contrast transform, where a
+// void return is legitimate and convertible_to_expected guards void with its own arm. No negative
+// probe is possible until #290 is fixed.
+static_assert(not invocable_transform_error<decltype(fn_generic<Xerror>), optional<int>>);        // optional has no error to map
+static_assert(not invocable_transform_error<decltype(fn_generic<Xerror>), choice<int>>);          // neither has choice
+static_assert(not invocable_transform_error<decltype(fn_Error_lvalue), expected<int, Error>>);    // cannot bind temporary to lvalue
+static_assert(invocable_transform_error<decltype(fn_Error_lvalue), expected<int, Error> &>);
+static_assert(invocable_transform_error<decltype(fn_Error_rvalue), expected<int, Error>>);
+static_assert(not invocable_transform_error<decltype(fn_Error_rvalue), expected<int, Error> &>);  // cannot bind lvalue to rvalue-ref
+
+// A sum error dispatches through sum::transform - the callback must cover ALL alternatives.
+static_assert(invocable_transform_error<decltype(fn_generic<Xerror>), expected<int, sum<Error, Value>>>);
+static_assert(not invocable_transform_error<decltype(fn_Error<Xerror>), expected<int, sum<Error, Value>>>); // not exhaustive
+// clang-format on
+} // namespace fn

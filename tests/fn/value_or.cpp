@@ -173,3 +173,24 @@ TEST_CASE("value_or noexcept", "[value_or][noexcept]")
 
   SUCCEED();
 }
+
+namespace fn {
+namespace {
+struct Error {};
+struct Value final {};
+} // namespace
+
+// clang-format off
+// Not a callable verb: the arguments must construct the operand's own value type.
+static_assert(invocable_value_or<expected<int, Error>, int>);
+static_assert(invocable_value_or<expected<int, Error>, unsigned>);                 // conversion is enough
+static_assert(invocable_value_or<expected<helper_move_only, Error>, int, int>);    // multi-argument construction
+static_assert(not invocable_value_or<expected<int, Error>, char const *>);         // no conversion found
+static_assert(not invocable_value_or<expected<int, Error>, int, int>);             // too many initialisers
+static_assert(not invocable_value_or<expected<Value, Error>, int>);                // wrong type
+static_assert(not invocable_value_or<expected<void, Error>, int>);                 // void has no value to fall back to
+static_assert(invocable_value_or<optional<int>, int>);
+static_assert(not invocable_value_or<optional<int>, char const *>);
+static_assert(not invocable_value_or<choice<int>, int>);                           // no choice disjunct
+// clang-format on
+} // namespace fn
