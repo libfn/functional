@@ -177,10 +177,12 @@ constexpr auto evaluate(std::string_view a, fn::sum_for<Add, Sub, Mul, Div> op,
                                      [](Rational x, Div, Rational y) { return x.div(y); }});
 }
 
-// Result is a Rational, over the sum of every way a stage can fail:
+// The error type of a sequence is the derived sum of all failure modes, never spelled by hand:
+static_assert(std::is_same_v<decltype(Rational::make("1/1")),
+                             fn::expected<Rational, fn::sum<NotANumber, Overflow>>>);
 static_assert(std::is_same_v<decltype(evaluate("1/2", Add{}, "3/4")),
                              fn::expected<Rational, fn::sum<DivByZero, NotANumber, Overflow>>>);
-// Fully constant-evaluated example, with compile-time checks of the result and error types:
+// Constant evaluated calculations used to verify both values and errors during compilation:
 static_assert(evaluate("1/2", Add{}, "1/3").value() == Rational::make(5, 6));
 static_assert(evaluate("2/3", Div{}, "0/1").error().has_value<DivByZero>());
 // readme-example
