@@ -176,6 +176,22 @@ struct sum<Ts...> {
 
   static constexpr ::std::size_t size = sizeof...(Ts);
 
+  // What copying and moving a sum cost, asked of the storage that performs them - see the concepts
+  // in detail/variadic_union.hpp. Everything below is specified and constrained in these terms, so
+  // that no declaration has to restate what the storage does, and none can drift from it.
+  static constexpr bool _copyable = (... && detail::_makeable<data_t, Ts, Ts const &>);
+  static constexpr bool _movable = (... && detail::_makeable<data_t, Ts, Ts>);
+  static constexpr bool _nothrow_copyable = (... && detail::_nothrow_makeable<data_t, Ts, Ts const &>);
+  static constexpr bool _nothrow_movable = (... && detail::_nothrow_makeable<data_t, Ts, Ts>);
+
+  // Copy assignment reinitializes ONE alternative, and `_reinit` chooses its arm per alternative - so
+  // the choice belongs INSIDE the fold. Hoisting it out would demand that one arm serve them all, and
+  // would reject a sum whose alternatives simply need different ones.
+  static constexpr bool _copy_assignable
+      = (...
+         && (detail::_makeable<data_t, Ts, Ts const &>
+             && (detail::_nothrow_makeable<data_t, Ts, Ts const &> || detail::_nothrow_makeable<data_t, Ts, Ts>)));
+
   /**
    * @brief TODO
    *
@@ -235,8 +251,8 @@ struct sum<Ts...> {
    */
   template <typename T>
   constexpr sum(T &&v) // NOSONAR cpp:S1709,S6458 implicit arm of the explicit pair; has_type excludes self
-      noexcept(detail::_nothrow_initializable<::std::remove_cvref_t<T>, decltype(v)>)
-    requires has_type<::std::remove_cvref_t<T>> && (detail::_initializable<::std::remove_cvref_t<T>, decltype(v)>)
+      noexcept(detail::_nothrow_makeable<data_t, ::std::remove_cvref_t<T>, decltype(v)>)
+    requires has_type<::std::remove_cvref_t<T>> && (detail::_makeable<data_t, ::std::remove_cvref_t<T>, decltype(v)>)
                  && (::std::is_convertible_v<decltype(v), ::std::remove_cvref_t<T>>)
       : data(detail::make_variadic_union<::std::remove_cvref_t<T>, data_t>(FWD(v))),
         index(detail::type_index<::std::remove_cvref_t<T>, Ts...>)
@@ -251,8 +267,8 @@ struct sum<Ts...> {
    */
   template <typename T>
   constexpr explicit sum(T &&v) // NOSONAR cpp:S6458 has_type excludes self
-      noexcept(detail::_nothrow_initializable<::std::remove_cvref_t<T>, decltype(v)>)
-    requires has_type<::std::remove_cvref_t<T>> && (detail::_initializable<::std::remove_cvref_t<T>, decltype(v)>)
+      noexcept(detail::_nothrow_makeable<data_t, ::std::remove_cvref_t<T>, decltype(v)>)
+    requires has_type<::std::remove_cvref_t<T>> && (detail::_makeable<data_t, ::std::remove_cvref_t<T>, decltype(v)>)
                  && (not ::std::is_convertible_v<decltype(v), ::std::remove_cvref_t<T>>)
       : data(detail::make_variadic_union<::std::remove_cvref_t<T>, data_t>(FWD(v))),
         index(detail::type_index<::std::remove_cvref_t<T>, Ts...>)
@@ -267,8 +283,8 @@ struct sum<Ts...> {
    */
   template <typename T>
   constexpr explicit sum(::std::in_place_type_t<T>,
-                         auto &&...args) noexcept(detail::_nothrow_initializable<T, decltype(args)...>)
-    requires has_type<T> && detail::_initializable<T, decltype(args)...>
+                         auto &&...args) noexcept(detail::_nothrow_makeable<data_t, T, decltype(args)...>)
+    requires has_type<T> && detail::_makeable<data_t, T, decltype(args)...>
       : data(detail::make_variadic_union<T, data_t>(FWD(args)...)), index(detail::type_index<T, Ts...>)
   {
   }
@@ -281,9 +297,9 @@ struct sum<Ts...> {
    */
   template <typename... Tx>
   constexpr sum(sum<Tx...> const &arg) // NOSONAR cpp:S1709 implicit widening by design
-      noexcept((... && detail::_nothrow_initializable<Tx, Tx const &>))
+      noexcept((... && detail::_nothrow_makeable<data_t, Tx, Tx const &>))
     requires detail::is_superset_of<sum, sum<Tx...>> && (not ::std::is_same_v<sum, sum<Tx...>>)
-                 && (... && detail::_initializable<Tx, Tx const &>) && (sizeof...(Tx) > 0)
+                 && (... && detail::_makeable<data_t, Tx, Tx const &>) && (sizeof...(Tx) > 0)
       : data(FWD(arg).template _invoke<data_t>([]<typename T>(::std::in_place_type_t<T>, auto &&v) {
           return detail::make_variadic_union<T, data_t>(FWD(v));
         })),
@@ -301,9 +317,9 @@ struct sum<Ts...> {
    */
   template <typename... Tx>
   constexpr sum(sum<Tx...> &&arg) // NOSONAR cpp:S1709 implicit widening by design
-      noexcept((... && detail::_nothrow_initializable<Tx, Tx>))
+      noexcept((... && detail::_nothrow_makeable<data_t, Tx, Tx>))
     requires detail::is_superset_of<sum, sum<Tx...>> && (not ::std::is_same_v<sum, sum<Tx...>>)
-                 && (... && detail::_initializable<Tx, Tx>) && (sizeof...(Tx) > 0)
+                 && (... && detail::_makeable<data_t, Tx, Tx>) && (sizeof...(Tx) > 0)
       : data(FWD(arg).template _invoke<data_t>([]<typename T>(::std::in_place_type_t<T>, auto &&v) {
           return detail::make_variadic_union<T, data_t>(FWD(v));
         })),
@@ -321,7 +337,7 @@ struct sum<Ts...> {
    */
   template <typename... Tx>
   constexpr sum(::std::in_place_type_t<sum<Tx...>>, some_sum auto &&arg) //
-      noexcept((... && detail::_nothrow_initializable<Tx, apply_const_lvalue_t<decltype(arg), Tx &&>>))
+      noexcept((... && detail::_nothrow_makeable<data_t, Tx, apply_const_lvalue_t<decltype(arg), Tx &&>>))
     requires ::std::is_same_v<::std::remove_cvref_t<decltype(arg)>, sum<Tx...>>
                  && detail::is_superset_of<sum, sum<Tx...>> && (sizeof...(Tx) > 0)
       : data(FWD(arg).template _invoke<data_t>([]<typename T>(::std::in_place_type_t<T>, auto &&v) {
@@ -338,8 +354,8 @@ struct sum<Ts...> {
    *
    * @param other TODO
    */
-  constexpr sum(sum const &other) noexcept((... && detail::_nothrow_initializable<Ts, Ts const &>))
-    requires(... && detail::_initializable<Ts, Ts const &>)
+  constexpr sum(sum const &other) noexcept(_nothrow_copyable)
+    requires _copyable
       : data(detail::invoke_type_variadic_union<data_t, data_t>(       //
             other.data, other.index,                                   //
             []<typename T>(::std::in_place_type_t<T>, auto const &v) { //
@@ -354,8 +370,8 @@ struct sum<Ts...> {
    *
    * @param other TODO
    */
-  constexpr sum(sum &&other) noexcept((... && detail::_nothrow_initializable<Ts, Ts>))
-    requires(... && detail::_initializable<Ts, Ts>)
+  constexpr sum(sum &&other) noexcept(_nothrow_movable)
+    requires _movable
       : data(detail::invoke_type_variadic_union<data_t, data_t>(  //
             ::std::move(other).data, other.index,                 //
             []<typename T>(::std::in_place_type_t<T>, auto &&v) { //
@@ -387,17 +403,17 @@ struct sum<Ts...> {
   // snapshotting that same type would throw in turn. So there is no safe path, and such an
   // alternative is constrained away rather than half-served.
   //
-  // Every question below is asked of BRACE initialization (`_initializable`), because that is what
-  // the storage performs - `std::is_nothrow_move_constructible_v` asks about `T(T&&)` instead, and
-  // the two can disagree: braced initialization considers initializer-list constructors first, so a
-  // type can promise a nothrow move and still throw from `T{std::move(t)}`. Believing the parens
-  // answer here would destroy the old alternative and then fail to replace it.
+  // The arm is chosen by asking the storage what it can do, never by a trait that restates it:
+  // `std::is_nothrow_move_constructible_v` asks about `T(T&&)`, the storage performs `T{...}`, and
+  // the two can disagree - braced initialization considers initializer-list constructors first, so a
+  // type can promise a nothrow move and still throw from `T{std::move(t)}`. Believing that promise
+  // here would destroy the old alternative and then fail to replace it.
   template <typename T, typename... Args>
-  constexpr void _reinit(Args &&...args) noexcept(detail::_nothrow_initializable<T, Args...>)
-    requires has_type<T> && detail::_initializable<T, Args...>
-             && (detail::_nothrow_initializable<T, Args...> || detail::_nothrow_initializable<T, T>)
+  constexpr void _reinit(Args &&...args) noexcept(detail::_nothrow_makeable<data_t, T, Args...>)
+    requires has_type<T> && detail::_makeable<data_t, T, Args...>
+             && (detail::_nothrow_makeable<data_t, T, Args...> || detail::_nothrow_makeable<data_t, T, T>)
   {
-    if constexpr (detail::_nothrow_initializable<T, Args...>) {
+    if constexpr (detail::_nothrow_makeable<data_t, T, Args...>) {
       ::std::destroy_at(this);
       ::std::construct_at(this, ::std::in_place_type<T>, FWD(args)...);
     } else {
@@ -416,10 +432,8 @@ struct sum<Ts...> {
   // The alternative that changes is CONSTRUCTED, never assigned to: assignment asks nothing of `Ts`
   // beyond what construction already asks, so a type with no assignment operator at all is still
   // assignable through the sum.
-  constexpr sum &operator=(sum const &other) noexcept((... && detail::_nothrow_initializable<Ts, Ts const &>))
-    requires(...
-             && (detail::_initializable<Ts, Ts const &>
-                 && (detail::_nothrow_initializable<Ts, Ts const &> || detail::_nothrow_initializable<Ts, Ts>)))
+  constexpr sum &operator=(sum const &other) noexcept(_nothrow_copyable)
+    requires _copy_assignable
   {
     if (this != &other) {
       detail::invoke_type_variadic_union<void, data_t>( //
@@ -438,7 +452,7 @@ struct sum<Ts...> {
   // Moving is offered only where it cannot throw, for the reason given on _reinit - and where it can,
   // a nothrow-copyable sum is still assignable from an rvalue, by copy.
   constexpr sum &operator=(sum &&other) noexcept
-    requires(... && detail::_nothrow_initializable<Ts, Ts>)
+    requires _nothrow_movable
   {
     if (this != &other) {
       detail::invoke_type_variadic_union<void, data_t>( //
@@ -747,7 +761,8 @@ template <typename T> explicit sum(T) -> sum<::std::remove_cvref_t<T>>;
  * @return TODO
  */
 [[nodiscard]] constexpr auto as_sum(auto &&src) //
-    noexcept(detail::_nothrow_initializable<::std::remove_cvref_t<decltype(src)>, decltype(src)>) -> decltype(auto)
+    noexcept(::std::is_nothrow_constructible_v<sum<::std::remove_cvref_t<decltype(src)>>, decltype(src)>)
+        -> decltype(auto)
   requires(not some_in_place_type<decltype(src)>)
 {
   return sum<::std::remove_cvref_t<decltype(src)>>(FWD(src));
@@ -761,8 +776,8 @@ template <typename T> explicit sum(T) -> sum<::std::remove_cvref_t<T>>;
  */
 template <typename T>
 [[nodiscard]] constexpr auto as_sum(::std::in_place_type_t<T>, auto &&...args) //
-    noexcept(detail::_nothrow_initializable<T, decltype(args)...>) -> decltype(auto)
-  requires detail::_initializable<T, decltype(args)...>
+    noexcept(::std::is_nothrow_constructible_v<sum<T>, ::std::in_place_type_t<T>, decltype(args)...>) -> decltype(auto)
+  requires ::std::is_constructible_v<sum<T>, ::std::in_place_type_t<T>, decltype(args)...>
 {
   return sum<T>(::std::in_place_type<T>, FWD(args)...);
 }

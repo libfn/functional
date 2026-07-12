@@ -306,39 +306,50 @@ template <typename T, typename U>
 }
 
 template <typename T, typename U>
-[[nodiscard]] constexpr auto make_variadic_union(auto &&...args)
-  requires(U::template has_type<T>) && ::std::is_same_v<T, typename U::t0>
+[[nodiscard]] constexpr U make_variadic_union(auto &&...args) noexcept(noexcept(T{FWD(args)...}))
+  requires(U::template has_type<T>) && ::std::is_same_v<T, typename U::t0> && requires { T{FWD(args)...}; }
 {
   return U{.v0 = T{FWD(args)...}};
 }
 
 template <typename T, typename U>
-[[nodiscard]] constexpr auto make_variadic_union(auto &&...args)
-  requires(U::template has_type<T>) && ::std::is_same_v<T, typename U::t1>
+[[nodiscard]] constexpr U make_variadic_union(auto &&...args) noexcept(noexcept(T{FWD(args)...}))
+  requires(U::template has_type<T>) && ::std::is_same_v<T, typename U::t1> && requires { T{FWD(args)...}; }
 {
   return U{.v1 = T{FWD(args)...}};
 }
 
 template <typename T, typename U>
-[[nodiscard]] constexpr auto make_variadic_union(auto &&...args)
-  requires(U::template has_type<T>) && ::std::is_same_v<T, typename U::t2>
+[[nodiscard]] constexpr U make_variadic_union(auto &&...args) noexcept(noexcept(T{FWD(args)...}))
+  requires(U::template has_type<T>) && ::std::is_same_v<T, typename U::t2> && requires { T{FWD(args)...}; }
 {
   return U{.v2 = T{FWD(args)...}};
 }
 
 template <typename T, typename U>
-[[nodiscard]] constexpr auto make_variadic_union(auto &&...args)
-  requires(U::template has_type<T>) && ::std::is_same_v<T, typename U::t3>
+[[nodiscard]] constexpr U make_variadic_union(auto &&...args) noexcept(noexcept(T{FWD(args)...}))
+  requires(U::template has_type<T>) && ::std::is_same_v<T, typename U::t3> && requires { T{FWD(args)...}; }
 {
   return U{.v3 = T{FWD(args)...}};
 }
 
 template <typename T, typename U>
-[[nodiscard]] constexpr U make_variadic_union(auto &&...args)
-  requires(U::template has_type<T>) && (U::more_t::template has_type<T>)
+[[nodiscard]] constexpr U make_variadic_union(auto &&...args) noexcept(noexcept(T{FWD(args)...}))
+  requires(U::template has_type<T>) && (U::more_t::template has_type<T>) && requires { T{FWD(args)...}; }
 {
   return U{.more = make_variadic_union<T, typename U::more_t>(FWD(args)...)};
 }
+
+// The two questions anyone above may ask about storing an alternative, asked OF the function that
+// stores it rather than restated in terms of a trait. Restating is how the answer drifts from the
+// deed: `make_variadic_union` brace-initializes, and `std::is_[nothrow_]constructible` is a question
+// about parentheses - the two can disagree, and where they do the trait is wrong. Nothing here needs
+// to know that, and nothing above needs to remember it.
+template <typename U, typename T, typename... Args>
+concept _makeable = requires { make_variadic_union<T, U>(::std::declval<Args>()...); };
+
+template <typename U, typename T, typename... Args>
+concept _nothrow_makeable = requires { requires noexcept(make_variadic_union<T, U>(::std::declval<Args>()...)); };
 
 template <typename R, typename U, typename Fn, typename... Args>
 [[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn,
