@@ -37,6 +37,7 @@ TEST_CASE("transform_error", "[transform_error][expected]")
   constexpr auto fnError = [](Error v) -> Error { return {"Got: " + v.what}; };
   constexpr auto wrong = [](Error) -> Error { throw 0; };
   constexpr auto fnXerror = [](Error v) -> Xerror { return {v.what.size()}; };
+  constexpr auto fnVoid = [](Error) {};
 
   static_assert(is::invocable_with_any(fnError));
   static_assert(is::invocable_with_any([](auto...) -> Error { throw 0; }));                // allow generic call
@@ -52,6 +53,11 @@ TEST_CASE("transform_error", "[transform_error][expected]")
   static_assert(is::not_invocable_with_any([](std::string) -> Error { throw 0; }));                       // bad type
   static_assert(is::not_invocable_with_any([]() -> Error { throw 0; }));                                  // bad arity
   static_assert(is::not_invocable_with_any([](int, int) -> Error { throw 0; }));                          // bad arity
+
+  // void return: there is no unexpected<void> to convert to - and asking must answer false, not
+  // instantiate unexpected<void>, whose validity mandate is a hard error
+  static_assert(not invocable_transform_error<decltype(fnVoid), operand_t>);
+  static_assert(is::not_invocable_with_any(fnVoid));
 
   WHEN("operand is lvalue")
   {
