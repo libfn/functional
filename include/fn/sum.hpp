@@ -753,6 +753,17 @@ struct sum<Ts...> {
 template <typename T> explicit sum(::std::in_place_type_t<T>, auto &&...) -> sum<T>;
 template <typename T> explicit sum(T) -> sum<::std::remove_cvref_t<T>>;
 
+namespace detail {
+// The value lift builds `sum<remove_cvref_t<Src>>` - a class whose body refuses an in_place tag as
+// an alternative. MSVC (C++20 mode) compiles a candidate's noexcept-specifier once deduction
+// succeeds, BEFORE the constraint rejects the tag, so the specifier must not name that sum unless
+// the guard holds: a guarded specialization, as `_nothrow_eq_with` is, and for the same reason.
+template <typename Src> constexpr inline bool _nothrow_sum_lift = false;
+template <typename Src>
+  requires(not some_in_place_type<Src>)
+constexpr inline bool _nothrow_sum_lift<Src> = ::std::is_nothrow_constructible_v<sum<::std::remove_cvref_t<Src>>, Src>;
+} // namespace detail
+
 // Lifts
 /**
  * @brief TODO
@@ -761,8 +772,7 @@ template <typename T> explicit sum(T) -> sum<::std::remove_cvref_t<T>>;
  * @return TODO
  */
 [[nodiscard]] constexpr auto as_sum(auto &&src) //
-    noexcept(::std::is_nothrow_constructible_v<sum<::std::remove_cvref_t<decltype(src)>>, decltype(src)>)
-        -> decltype(auto)
+    noexcept(detail::_nothrow_sum_lift<decltype(src)>) -> decltype(auto)
   requires(not some_in_place_type<decltype(src)>)
 {
   return sum<::std::remove_cvref_t<decltype(src)>>(FWD(src));
