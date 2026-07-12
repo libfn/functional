@@ -13,6 +13,8 @@
 #include <catch2/catch_all.hpp>
 
 #include <array>
+#include <memory>
+#include <stdexcept>
 #include <tuple>
 #include <utility>
 
@@ -33,6 +35,9 @@ concept can_append_in_place = requires(V v, Args... args) { FWD(v).append(std::i
 
 template <typename V, typename Arg>
 concept can_append = requires(V v, Arg arg) { FWD(v).append(FWD(arg)); };
+
+template <typename... Args>
+concept can_as_pack = requires(Args &&...args) { fn::as_pack(FWD(args)...); };
 
 } // namespace
 
@@ -209,6 +214,19 @@ TEST_CASE("append value categories", "[pack][append]")
       CHECK(std::move(std::as_const(s)).append(std::in_place_type<C>).invoke_r<int>(check) == 1);
       CHECK(std::move(s).append(std::in_place_type<C>).invoke_r<int>(check) == 1);
     }
+
+    WHEN("aggregate forwarding")
+    {
+      // braces elide through the aggregate: three ints construct the array element in place
+      auto q = s.append(std::in_place_type<std::array<int, 3>>, 5, 6, 7);
+      static_assert(std::same_as<decltype(q), T::append_type<std::array<int, 3>>>);
+      CHECK(q.invoke([](int, std::string_view, A, std::array<int, 3> const &a) //
+                     { return a[0] * 100 + a[1] * 10 + a[2]; })
+            == 567);
+      static_assert(fn::pack<>{}.append(std::in_place_type<std::array<int, 3>>, 5, 6, 7).invoke([](auto const &a) {
+        return a[0] * 100 + a[1] * 10 + a[2];
+      }) == 567);
+    }
   }
 
   WHEN("deduced type")
@@ -304,6 +322,22 @@ TEST_CASE("append value categories", "[pack][append]")
     static_assert(not can_append_in_place<T &, fn::sum<int>, fn::sum<int>>);
     static_assert(not can_append_in_place<T &, fn::sum_for<bool, int>, fn::sum_for<bool, int>>);
 
+    // relocation is part of the question: the elements already held move into the new pack in the
+    // pack's own value category, and an element which cannot make that move rejects the append
+    // instead of hard-erroring inside it
+    static_assert(can_append_in_place<pack<std::unique_ptr<int>> &&, int, int>);
+    static_assert(not can_append_in_place<pack<std::unique_ptr<int>> &, int, int>);
+    static_assert(not can_append_in_place<pack<std::unique_ptr<int>> const &, int, int>);
+    static_assert(not can_append<pack<std::unique_ptr<int>> const &, int>);
+    // the same guard covers both operands when appending a whole pack
+    static_assert(can_append<pack<int> &, pack<std::unique_ptr<int>>>);
+    static_assert(not can_append<pack<int> &, pack<std::unique_ptr<int>> const &>);
+    static_assert(not can_append<pack<std::unique_ptr<int>> const &, pack<int>>);
+    // const propagates through a reference element, so a const pack cannot rebind it into the new
+    // pack's non-const reference element - the same pack, non-const, can
+    static_assert(can_append_in_place<pack<int &> &, int, int>);
+    static_assert(not can_append_in_place<pack<int &> const &, int, int>);
+
     SUCCEED();
   }
 }
@@ -322,6 +356,11 @@ TEST_CASE("pack noexcept", "[pack][noexcept]")
     Quiet(Quiet const &) noexcept {}
     Quiet(Quiet &&) noexcept {}
   };
+  struct Evil {
+    Evil() = default;
+    explicit Evil(Evil &&) noexcept {}
+    Evil(Evil const &) { throw std::runtime_error{"copied"}; }
+  };
 
   WHEN("append")
   {
@@ -334,7 +373,33 @@ TEST_CASE("pack noexcept", "[pack][noexcept]")
     // ... and so can relocating an element the pack already holds, even where the new one cannot
     static_assert(not noexcept(std::declval<pack<Throwy> &>().append(std::in_place_type<int>, 1)));
     static_assert(not noexcept(std::declval<pack<Throwy> &>().append(1))); // deduced form
+
+    // relocation copy-initializes ([dcl.init.aggr]/4.3), and copy-initialization cannot reach an
+    // explicit constructor - a promise computed from is_nothrow_constructible_v would see the
+    // explicit nothrow move and promise what the deed cannot keep: this throw must propagate
+    static_assert(std::is_nothrow_constructible_v<Evil, Evil>); // the questions disagree here ...
+    static_assert(not noexcept(std::declval<pack<Evil> &&>().append(std::in_place_type<int>, 1))); // ... deed answers
+    pack<Evil> p{Evil{}}; // elided, nothing copied yet
+    CHECK_THROWS_AS(std::move(p).append(std::in_place_type<int>, 1), std::runtime_error);
     SUCCEED();
+  }
+
+  WHEN("as_pack")
+  {
+    // asked of the braces as_pack performs - a question about pack's (nonexistent) constructors
+    // would answer false for every argument list
+    static_assert(noexcept(fn::as_pack(true, 12)));
+    static_assert(std::same_as<decltype(fn::as_pack(true, 12)), fn::pack<bool, int>>);
+    static_assert(not noexcept(fn::as_pack(Throwy{}))); // moving the argument in can throw ...
+    Throwy t{};
+    static_assert(noexcept(fn::as_pack(t))); // ... but an lvalue binds, and binding cannot
+    struct NoMove {
+      NoMove() = default;
+      NoMove(NoMove &&) = delete;
+    };
+    static_assert(not can_as_pack<NoMove>); // constrained on the same initialization ...
+    static_assert(can_as_pack<NoMove &>);   // ... which a binding reference element satisfies
+    CHECK(fn::as_pack(t, 12).invoke([&t](Throwy const &x, int i) { return &x == &t && i == 12; }));
   }
 
   WHEN("invoke")
@@ -345,7 +410,21 @@ TEST_CASE("pack noexcept", "[pack][noexcept]")
     static_assert(not noexcept(std::declval<pack<int, bool> &>().invoke(throwing_fn)));
     static_assert(noexcept(std::declval<pack<int, bool> &>().template invoke_r<int>(nothrow_fn)));
     static_assert(not noexcept(std::declval<pack<int, bool> &>().template invoke_r<int>(throwing_fn)));
-    SUCCEED();
+
+    // Ret is entered by INVOKE<R>'s implicit conversion; the promise asks that call rather than
+    // is_nothrow_constructible_v, whose direct-initialization would reach the explicit move
+    static_assert(std::is_nothrow_constructible_v<Evil, Evil &&>);
+    pack<int> p{1};
+    Evil ev{};
+    auto give_evil = [&ev](int) noexcept -> Evil && { return std::move(ev); };
+    static_assert(not noexcept(std::declval<pack<int> &>().template invoke_r<Evil>(give_evil)));
+    CHECK_THROWS_AS(p.invoke_r<Evil>(give_evil), std::runtime_error);
+    // exactly std::invoke_r's own promise - conservative for a prvalue result (the deed elides,
+    // and indeed nothing throws below), but never a lie
+    auto make_evil = [](int) noexcept -> Evil { return {}; };
+    static_assert(noexcept(std::declval<pack<int> &>().template invoke_r<Evil>(make_evil))
+                  == std::is_nothrow_invocable_r_v<Evil, decltype(make_evil) &, int &>);
+    CHECK_NOTHROW(p.invoke_r<Evil>(make_evil));
   }
 }
 

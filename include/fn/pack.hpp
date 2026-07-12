@@ -46,10 +46,8 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    */
   template <typename T>
   [[nodiscard]] constexpr auto append(::std::in_place_type_t<T>, auto &&...args) & //
-      noexcept(_impl::template _nothrow_relocatable<pack &> && detail::_nothrow_initializable<T, decltype(args)...>)
-          -> append_type<T>
-    requires detail::_initializable<T, decltype(args)...>
-             && requires { append_type<T>{_impl::template _append<T>(*this, FWD(args)...)}; }
+      noexcept(noexcept(_impl::template _append<T>(::std::declval<pack &>(), FWD(args)...))) -> append_type<T>
+    requires requires { append_type<T>{_impl::template _append<T>(*this, FWD(args)...)}; }
   {
     return {_impl::template _append<T>(*this, FWD(args)...)};
   }
@@ -63,10 +61,8 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    */
   template <typename T>
   [[nodiscard]] constexpr auto append(::std::in_place_type_t<T>, auto &&...args) const & //
-      noexcept(_impl::template _nothrow_relocatable<pack const &>
-               && detail::_nothrow_initializable<T, decltype(args)...>) -> append_type<T>
-    requires detail::_initializable<T, decltype(args)...>
-             && requires { append_type<T>{_impl::template _append<T>(*this, FWD(args)...)}; }
+      noexcept(noexcept(_impl::template _append<T>(::std::declval<pack const &>(), FWD(args)...))) -> append_type<T>
+    requires requires { append_type<T>{_impl::template _append<T>(*this, FWD(args)...)}; }
   {
     return {_impl::template _append<T>(*this, FWD(args)...)};
   }
@@ -80,10 +76,8 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    */
   template <typename T>
   [[nodiscard]] constexpr auto append(::std::in_place_type_t<T>, auto &&...args) && //
-      noexcept(_impl::template _nothrow_relocatable<pack &&> && detail::_nothrow_initializable<T, decltype(args)...>)
-          -> append_type<T>
-    requires detail::_initializable<T, decltype(args)...>
-             && requires { append_type<T>{_impl::template _append<T>(::std::move(*this), FWD(args)...)}; }
+      noexcept(noexcept(_impl::template _append<T>(::std::declval<pack &&>(), FWD(args)...))) -> append_type<T>
+    requires requires { append_type<T>{_impl::template _append<T>(::std::move(*this), FWD(args)...)}; }
   {
     return {_impl::template _append<T>(::std::move(*this), FWD(args)...)};
   }
@@ -97,10 +91,8 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    */
   template <typename T>
   [[nodiscard]] constexpr auto append(::std::in_place_type_t<T>, auto &&...args) const && //
-      noexcept(_impl::template _nothrow_relocatable<pack const &&>
-               && detail::_nothrow_initializable<T, decltype(args)...>) -> append_type<T>
-    requires detail::_initializable<T, decltype(args)...>
-             && requires { append_type<T>{_impl::template _append<T>(::std::move(*this), FWD(args)...)}; }
+      noexcept(noexcept(_impl::template _append<T>(::std::declval<pack const &&>(), FWD(args)...))) -> append_type<T>
+    requires requires { append_type<T>{_impl::template _append<T>(::std::move(*this), FWD(args)...)}; }
   {
     return {_impl::template _append<T>(::std::move(*this), FWD(args)...)};
   }
@@ -248,12 +240,10 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    */
   template <typename Ret, typename Fn>
   [[nodiscard]] constexpr auto invoke_r(Fn &&fn, auto &&...args) & //
-      noexcept(noexcept(_impl::_invoke(::std::declval<pack &>(), FWD(fn), FWD(args)...))
-               && ::std::is_nothrow_constructible_v<Ret, decltype(_impl::_invoke(*this, FWD(fn), FWD(args)...))>) -> Ret
-    requires requires { _impl::_invoke(*this, FWD(fn), FWD(args)...); }
-             && ::std::is_convertible_v<decltype(_impl::_invoke(*this, FWD(fn), FWD(args)...)), Ret>
+      noexcept(noexcept(_impl::template _invoke_r<Ret>(::std::declval<pack &>(), FWD(fn), FWD(args)...))) -> Ret
+    requires requires { _impl::template _invoke_r<Ret>(*this, FWD(fn), FWD(args)...); }
   {
-    return _impl::_invoke(*this, FWD(fn), FWD(args)...);
+    return _impl::template _invoke_r<Ret>(*this, FWD(fn), FWD(args)...);
   }
 
   /**
@@ -267,12 +257,10 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    */
   template <typename Ret, typename Fn>
   [[nodiscard]] constexpr auto invoke_r(Fn &&fn, auto &&...args) const & //
-      noexcept(noexcept(_impl::_invoke(::std::declval<pack const &>(), FWD(fn), FWD(args)...))
-               && ::std::is_nothrow_constructible_v<Ret, decltype(_impl::_invoke(*this, FWD(fn), FWD(args)...))>) -> Ret
-    requires requires { _impl::_invoke(*this, FWD(fn), FWD(args)...); }
-             && ::std::is_convertible_v<decltype(_impl::_invoke(*this, FWD(fn), FWD(args)...)), Ret>
+      noexcept(noexcept(_impl::template _invoke_r<Ret>(::std::declval<pack const &>(), FWD(fn), FWD(args)...))) -> Ret
+    requires requires { _impl::template _invoke_r<Ret>(*this, FWD(fn), FWD(args)...); }
   {
-    return _impl::_invoke(*this, FWD(fn), FWD(args)...);
+    return _impl::template _invoke_r<Ret>(*this, FWD(fn), FWD(args)...);
   }
 
   /**
@@ -286,13 +274,10 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    */
   template <typename Ret, typename Fn>
   [[nodiscard]] constexpr auto invoke_r(Fn &&fn, auto &&...args) && //
-      noexcept(noexcept(_impl::_invoke(::std::declval<pack &&>(), FWD(fn), FWD(args)...))
-               && ::std::is_nothrow_constructible_v<Ret, decltype(_impl::_invoke(::std::move(*this), FWD(fn),
-                                                                                 FWD(args)...))>) -> Ret
-    requires requires { _impl::_invoke(::std::move(*this), FWD(fn), FWD(args)...); }
-             && ::std::is_convertible_v<decltype(_impl::_invoke(::std::move(*this), FWD(fn), FWD(args)...)), Ret>
+      noexcept(noexcept(_impl::template _invoke_r<Ret>(::std::declval<pack &&>(), FWD(fn), FWD(args)...))) -> Ret
+    requires requires { _impl::template _invoke_r<Ret>(::std::move(*this), FWD(fn), FWD(args)...); }
   {
-    return _impl::_invoke(::std::move(*this), FWD(fn), FWD(args)...);
+    return _impl::template _invoke_r<Ret>(::std::move(*this), FWD(fn), FWD(args)...);
   }
 
   /**
@@ -306,13 +291,10 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    */
   template <typename Ret, typename Fn>
   [[nodiscard]] constexpr auto invoke_r(Fn &&fn, auto &&...args) const && //
-      noexcept(noexcept(_impl::_invoke(::std::declval<pack const &&>(), FWD(fn), FWD(args)...))
-               && ::std::is_nothrow_constructible_v<Ret, decltype(_impl::_invoke(::std::move(*this), FWD(fn),
-                                                                                 FWD(args)...))>) -> Ret
-    requires requires { _impl::_invoke(::std::move(*this), FWD(fn), FWD(args)...); }
-             && ::std::is_convertible_v<decltype(_impl::_invoke(::std::move(*this), FWD(fn), FWD(args)...)), Ret>
+      noexcept(noexcept(_impl::template _invoke_r<Ret>(::std::declval<pack const &&>(), FWD(fn), FWD(args)...))) -> Ret
+    requires requires { _impl::template _invoke_r<Ret>(::std::move(*this), FWD(fn), FWD(args)...); }
   {
-    return _impl::_invoke(::std::move(*this), FWD(fn), FWD(args)...);
+    return _impl::template _invoke_r<Ret>(::std::move(*this), FWD(fn), FWD(args)...);
   }
 };
 
@@ -348,9 +330,9 @@ template <::std::size_t I, some_pack P>
  */
 [[nodiscard]] constexpr auto as_pack() noexcept -> pack<> { return {}; }
 template <typename T, typename... Args>
-  requires(not some_in_place_type<T>)
+  requires(not some_in_place_type<T>) && detail::_initializable<pack<T, Args...>, T, Args...>
 [[nodiscard]] constexpr auto as_pack(T &&src, Args &&...args) //
-    noexcept(::std::is_nothrow_constructible_v<pack<T, Args...>, T, Args...>) -> decltype(auto)
+    noexcept(detail::_nothrow_initializable<pack<T, Args...>, T, Args...>) -> pack<T, Args...>
 {
   return pack<T, Args...>{FWD(src), FWD(args)...};
 }
