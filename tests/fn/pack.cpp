@@ -143,7 +143,7 @@ TEST_CASE("pack", "[pack]")
   static_assert(not std::is_same_v<some_pack_nttp<s1>, some_pack_nttp<s3>>);
   CHECK(read_nttp<s1>() == 3); // the template-parameter object is usable at runtime
 
-  WHEN("invoke_r return conversion")
+  SECTION("invoke_r return conversion")
   {
     struct NotFromInt final {
       explicit NotFromInt(std::nullptr_t) {}
@@ -155,7 +155,7 @@ TEST_CASE("pack", "[pack]")
     SUCCEED();
   }
 
-  WHEN("noexcept")
+  SECTION("noexcept")
   {
     // GAP #280: invoke and invoke_r are unconditionally noexcept whatever the callback promises,
     // so a throwing callback terminates instead of propagating.
@@ -172,6 +172,14 @@ TEST_CASE("pack", "[pack]")
     // noexcept(false) even where nothing can throw.
     static_assert(not noexcept(fn::as_pack()));
     static_assert(not noexcept(fn::as_pack(true, 12)));
+    SUCCEED();
+  }
+
+  SECTION("constexpr")
+  {
+    constexpr fn::pack<int, int> v2{3, 14};
+    constexpr auto r2 = v2.invoke([](auto &&...args) constexpr noexcept -> int { return (0 + ... + args); });
+    static_assert(r2 == 3 + 14);
     SUCCEED();
   }
 }
@@ -199,7 +207,7 @@ TEST_CASE("append value categories", "[pack][append]")
     return i == 12 && s == std::string("bar") && a.v == 42 && b.v == 30;
   };
 
-  WHEN("explicit type selection")
+  SECTION("explicit type selection")
   {
     static_assert(std::same_as<decltype(s.append(std::in_place_type<B>, 5, 6)), T::append_type<B>>);
     static_assert(std::same_as<T::append_type<B>, pack<int, std::string_view, A, B>>);
@@ -213,7 +221,7 @@ TEST_CASE("append value categories", "[pack][append]")
     static_assert(std::same_as<decltype(s.append(std::in_place_type<B &>, c2)), T::append_type<B &>>);
     static_assert(std::same_as<T::append_type<B &>, pack<int, std::string_view, A, B &>>);
 
-    WHEN("constructor takes parameters")
+    SECTION("constructor takes parameters")
     {
       CHECK(s.append(std::in_place_type<B>, 5, 6).invoke(check));
       CHECK(std::as_const(s).append(std::in_place_type<B>, 5, 6).invoke(check));
@@ -221,7 +229,7 @@ TEST_CASE("append value categories", "[pack][append]")
       CHECK(std::move(s).append(std::in_place_type<B>, 5, 6).invoke(check));
     }
 
-    WHEN("constructor takes parameters invoke_r")
+    SECTION("constructor takes parameters invoke_r")
     {
       CHECK(s.append(std::in_place_type<B>, 5, 6).invoke_r<bool>(check));
       CHECK(std::as_const(s).append(std::in_place_type<B>, 5, 6).invoke_r<bool>(check));
@@ -229,7 +237,7 @@ TEST_CASE("append value categories", "[pack][append]")
       CHECK(std::move(s).append(std::in_place_type<B>, 5, 6).invoke_r<bool>(check));
     }
 
-    WHEN("default constructor")
+    SECTION("default constructor")
     {
       CHECK(s.append(std::in_place_type<C>).invoke(check));
       CHECK(std::as_const(s).append(std::in_place_type<C>).invoke(check));
@@ -237,7 +245,7 @@ TEST_CASE("append value categories", "[pack][append]")
       CHECK(std::move(s).append(std::in_place_type<C>).invoke(check));
     }
 
-    WHEN("default constructor invoke_r")
+    SECTION("default constructor invoke_r")
     {
       CHECK(s.append(std::in_place_type<C>).invoke_r<int>(check) == 1);
       CHECK(std::as_const(s).append(std::in_place_type<C>).invoke_r<int>(check) == 1);
@@ -246,7 +254,7 @@ TEST_CASE("append value categories", "[pack][append]")
     }
   }
 
-  WHEN("deduced type")
+  SECTION("deduced type")
   {
     static_assert(std::same_as<decltype(s.append(B{5, 6})), T::append_type<B>>);
 
@@ -264,7 +272,7 @@ TEST_CASE("append value categories", "[pack][append]")
     CHECK(std::move(s).append(B{30}).invoke(check));
   }
 
-  WHEN("pack on the right side, deduced")
+  SECTION("pack on the right side, deduced")
   {
     constexpr fn::pack<bool, int, B> a{true, 3, B{14}};
     constexpr fn::pack<C, B> b{C{}, B{3, 4}};
@@ -281,7 +289,7 @@ TEST_CASE("append value categories", "[pack][append]")
     }));
   }
 
-  WHEN("constraints")
+  SECTION("constraints")
   {
     static_assert(can_append_in_place<T &, B, int>);
     static_assert(can_append_in_place<T &, B, int, int>);
@@ -294,7 +302,7 @@ TEST_CASE("append value categories", "[pack][append]")
     static_assert(can_append_in_place<T &, B>);
     static_assert(std::same_as<decltype(std::declval<T &>().append(std::in_place_type<B>)),
                                T::append_type<std::in_place_type_t<B> const &>>);
-    // A default-constructible element takes the intended path - see WHEN("default constructor").
+    // A default-constructible element takes the intended path - see SECTION("default constructor").
     static_assert(std::same_as<decltype(std::declval<T &>().append(std::in_place_type<C>)), T::append_type<C>>);
 
     // GAP #282: a pack never holds a sum, but merely ASKING whether one can be appended is a hard
@@ -304,7 +312,7 @@ TEST_CASE("append value categories", "[pack][append]")
     SUCCEED();
   }
 
-  WHEN("noexcept")
+  SECTION("noexcept")
   {
     // GAP #280: every append overload is unconditionally noexcept, though _append both constructs
     // the new element and relocates every existing one into the new pack.
@@ -358,14 +366,6 @@ TEST_CASE("pack with immovable data", "[pack][immovable]")
   CHECK(v.invoke([](auto &&...args) noexcept -> int { return (0 + ... + args.value); }) == 3 + 14 + 15 + 92);
 }
 
-TEST_CASE("constexpr pack", "[pack][constexpr]")
-{
-  constexpr fn::pack<int, int> v2{3, 14};
-  constexpr auto r2 = v2.invoke([](auto &&...args) constexpr noexcept -> int { return (0 + ... + args); });
-  static_assert(r2 == 3 + 14);
-  SUCCEED();
-}
-
 namespace {
 struct Alef final {
   int value;
@@ -387,373 +387,152 @@ struct Zayn final {
 };
 } // namespace
 
-TEST_CASE("detail::_join on constexpr optional", "[detail][pack][sum][optional][constexpr]")
+namespace {
+constexpr auto join_witness = [](auto &&...v) -> int { return (0 + ... + v.value); };
+
+// One join algebra, two layers walking the same shape grid: the TEMPLATE_TEST_CASE below runs the
+// battery through each subject, in both constant and runtime evaluation.
+struct join_via_optional final { // fn::detail::_join over engaged optionals - the monads' layer
+  template <typename R, typename LH, typename RH> static constexpr auto join(LH const &lh, RH const &rh)
+  {
+    constexpr auto efn = [](auto &&...) { return std::nullopt; };
+    auto const r = fn::detail::_join<fn::optional>(fn::optional<LH>{lh}, fn::optional<RH>{rh}, efn);
+    static_assert(std::is_same_v<decltype(r), fn::optional<R> const>);
+    return r.value();
+  }
+};
+
+struct join_via_operator final { // the public operator& over bare sums, packs and values
+  template <typename R, typename LH, typename RH> static constexpr auto join(LH const &lh, RH const &rh)
+  {
+    auto const r = lh & rh;
+    static_assert(std::is_same_v<decltype(r), R const>);
+    return r;
+  }
+};
+
+template <typename S> constexpr bool join_battery()
 {
-  WHEN("sum of packs join sum of scalars")
-  {
-    constexpr fn::optional<fn::sum<fn::pack<Alef, Gimel>, fn::pack<Bet, Gimel>>> lh{fn::pack{Alef{3}, Gimel{14}}};
-    constexpr fn::optional<fn::sum<Heh, Vav, Zayn>> rh{Vav{15}};
-    static constexpr auto efn = [](auto &&...) { return std::nullopt; };
-    constexpr auto r = fn::detail::_join<fn::optional>(lh, rh, efn);
-    static_assert(
-        std::is_same_v<decltype(r),          //
-                       fn::optional<fn::sum< //
-                           fn::pack<Alef, Gimel, Heh>, fn::pack<Alef, Gimel, Vav>, fn::pack<Alef, Gimel, Zayn>,
-                           fn::pack<Bet, Gimel, Heh>, fn::pack<Bet, Gimel, Vav>, fn::pack<Bet, Gimel, Zayn>>> const>);
-    static_assert(r.has_value());
-    static_assert(r.value().has_value<fn::pack<Alef, Gimel, Vav>>());
-    static_assert(r.value().invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14 + 15);
-  }
+  using fn::pack;
+  using fn::sum;
 
-  WHEN("sum of packs join sum of packs")
-  {
-    constexpr fn::optional<fn::sum<fn::pack<Alef, Gimel>, fn::pack<Bet, Gimel>>> lh{fn::pack{Alef{3}, Gimel{14}}};
-    constexpr fn::optional<fn::sum<fn::pack<Heh, Zayn>, fn::pack<Vav>>> rh{fn::pack{Vav{15}}};
-    static constexpr auto efn = [](auto &&...) { return std::nullopt; };
-    constexpr auto r = fn::detail::_join<fn::optional>(lh, rh, efn);
-    static_assert(std::is_same_v<decltype(r),          //
-                                 fn::optional<fn::sum< //
-                                     fn::pack<Alef, Gimel, Heh, Zayn>, fn::pack<Alef, Gimel, Vav>,
-                                     fn::pack<Bet, Gimel, Heh, Zayn>, fn::pack<Bet, Gimel, Vav>>> const>);
-    static_assert(r.has_value());
-    static_assert(r.value().has_value<fn::pack<Alef, Gimel, Vav>>());
-    static_assert(r.value().invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14 + 15);
+  bool ok = true;
+  { // sum of packs join sum of scalars
+    using R = sum<pack<Alef, Gimel, Heh>, pack<Alef, Gimel, Vav>, pack<Alef, Gimel, Zayn>, //
+                  pack<Bet, Gimel, Heh>, pack<Bet, Gimel, Vav>, pack<Bet, Gimel, Zayn>>;
+    auto const r = S::template join<R>(sum<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}},
+                                       sum<Heh, Vav, Zayn>{Vav{15}});
+    ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.invoke(join_witness) == 3 + 14 + 15;
   }
+  {                                                                     // sum of packs join sum of packs
+    using R = sum<pack<Alef, Gimel, Heh, Zayn>, pack<Alef, Gimel, Vav>, //
+                  pack<Bet, Gimel, Heh, Zayn>, pack<Bet, Gimel, Vav>>;
+    auto const r = S::template join<R>(sum<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}},
+                                       sum<pack<Heh, Zayn>, pack<Vav>>{pack{Vav{15}}});
+    ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.invoke(join_witness) == 3 + 14 + 15;
+  }
+  { // sum of scalars join sum of scalars
+    using R = sum<pack<Alef, Heh>, pack<Alef, Vav>, pack<Alef, Zayn>, pack<Bet, Heh>, pack<Bet, Vav>, pack<Bet, Zayn>,
+                  pack<Gimel, Heh>, pack<Gimel, Vav>, pack<Gimel, Zayn>>;
+    auto const r = S::template join<R>(sum<Alef, Bet, Gimel>{Gimel{3}}, sum<Heh, Vav, Zayn>{Vav{14}});
+    ok = ok && r.template has_value<pack<Gimel, Vav>>() && r.invoke(join_witness) == 3 + 14;
+  }
+  {                                                                             // sum of scalars join sum of packs
+    using R = sum<pack<Alef, Heh, Zayn>, pack<Alef, Vav>, pack<Bet, Heh, Zayn>, //
+                  pack<Bet, Vav>, pack<Gimel, Heh, Zayn>, pack<Gimel, Vav>>;
+    auto const r = S::template join<R>(sum<Alef, Bet, Gimel>{Gimel{3}}, sum<pack<Heh, Zayn>, pack<Vav>>{pack{Vav{14}}});
+    ok = ok && r.template has_value<pack<Gimel, Vav>>() && r.invoke(join_witness) == 3 + 14;
+  }
+  { // sum of packs join scalar
+    using R = sum<pack<Alef, Gimel, Vav>, pack<Bet, Gimel, Vav>>;
+    auto const r = S::template join<R>(sum<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}}, Vav{15});
+    ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.invoke(join_witness) == 3 + 14 + 15;
+  }
+  { // sum of packs join pack
+    using R = sum<pack<Alef, Gimel, Vav>, pack<Bet, Gimel, Vav>>;
+    auto const r = S::template join<R>(sum<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}},
+                                       pack<Vav>{pack{Vav{15}}});
+    ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.invoke(join_witness) == 3 + 14 + 15;
+  }
+  { // sum of scalars join scalar
+    using R = sum<pack<Alef, Vav>, pack<Bet, Vav>, pack<Gimel, Vav>>;
+    auto const r = S::template join<R>(sum<Alef, Bet, Gimel>{Gimel{3}}, Vav{14});
+    ok = ok && r.template has_value<pack<Gimel, Vav>>() && r.invoke(join_witness) == 3 + 14;
+  }
+  { // sum of scalars join pack
+    using R = sum<pack<Alef, Vav>, pack<Bet, Vav>, pack<Gimel, Vav>>;
+    auto const r = S::template join<R>(sum<Alef, Bet, Gimel>{Gimel{3}}, pack<Vav>{pack{Vav{14}}});
+    ok = ok && r.template has_value<pack<Gimel, Vav>>() && r.invoke(join_witness) == 3 + 14;
+  }
+  { // pack join sum of scalars
+    using R = sum<pack<Alef, Gimel, Heh>, pack<Alef, Gimel, Vav>, pack<Alef, Gimel, Zayn>>;
+    auto const r = S::template join<R>(pack<Alef, Gimel>{pack{Alef{3}, Gimel{14}}}, sum<Heh, Vav, Zayn>{Vav{15}});
+    ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.invoke(join_witness) == 3 + 14 + 15;
+  }
+  { // pack join sum of packs
+    using R = sum<pack<Alef, Gimel, Heh, Zayn>, pack<Alef, Gimel, Vav>>;
+    auto const r = S::template join<R>(pack<Alef, Gimel>{pack{Alef{3}, Gimel{14}}},
+                                       sum<pack<Heh, Zayn>, pack<Vav>>{pack{Vav{15}}});
+    ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.invoke(join_witness) == 3 + 14 + 15;
+  }
+  { // pack join scalar
+    auto const r = S::template join<pack<Alef, Gimel, Vav>>(pack<Alef, Gimel>{pack{Alef{3}, Gimel{14}}}, Vav{15});
+    ok = ok && r.invoke(join_witness) == 3 + 14 + 15;
+  }
+  { // pack join pack
+    auto const r = S::template join<pack<Alef, Gimel, Vav>>(pack<Alef, Gimel>{pack{Alef{3}, Gimel{14}}},
+                                                            pack<Vav>{pack{Vav{15}}});
+    ok = ok && r.invoke(join_witness) == 3 + 14 + 15;
+  }
+  return ok;
+}
 
-  WHEN("sum of scalars join sum of scalars")
-  {
-    constexpr fn::optional<fn::sum<Alef, Bet, Gimel>> lh{Gimel{3}};
-    constexpr fn::optional<fn::sum<Heh, Vav, Zayn>> rh{Vav{14}};
-    static constexpr auto efn = [](auto &&...) { return std::nullopt; };
-    constexpr auto r = fn::detail::_join<fn::optional>(lh, rh, efn);
-    static_assert(
-        std::is_same_v<
-            decltype(r),          //
-            fn::optional<fn::sum< //
-                fn::pack<Alef, Heh>, fn::pack<Alef, Vav>, fn::pack<Alef, Zayn>, fn::pack<Bet, Heh>, fn::pack<Bet, Vav>,
-                fn::pack<Bet, Zayn>, fn::pack<Gimel, Heh>, fn::pack<Gimel, Vav>, fn::pack<Gimel, Zayn>>> const>);
-    static_assert(r.has_value());
-    static_assert(r.value().has_value<fn::pack<Gimel, Vav>>());
-    static_assert(r.value().invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14);
-  }
+// A bare value can sit on the LEFT of the monad-level join only - operator& has no overload for it,
+// so these four shapes belong to join_via_optional alone.
+constexpr bool join_value_lhs_battery()
+{
+  using fn::pack;
+  using fn::sum;
+  using S = join_via_optional;
 
-  WHEN("sum of scalars join sum of packs")
-  {
-    constexpr fn::optional<fn::sum<Alef, Bet, Gimel>> lh{Gimel{3}};
-    constexpr fn::optional<fn::sum<fn::pack<Heh, Zayn>, fn::pack<Vav>>> rh{fn::pack{Vav{14}}};
-    static constexpr auto efn = [](auto &&...) { return std::nullopt; };
-    constexpr auto r = fn::detail::_join<fn::optional>(lh, rh, efn);
-    static_assert(std::is_same_v<decltype(r),          //
-                                 fn::optional<fn::sum< //
-                                     fn::pack<Alef, Heh, Zayn>, fn::pack<Alef, Vav>, fn::pack<Bet, Heh, Zayn>,
-                                     fn::pack<Bet, Vav>, fn::pack<Gimel, Heh, Zayn>, fn::pack<Gimel, Vav>>> const>);
-    static_assert(r.has_value());
-    static_assert(r.value().has_value<fn::pack<Gimel, Vav>>());
-    static_assert(r.value().invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14);
+  bool ok = true;
+  { // scalar join sum of scalars
+    using R = sum<pack<Alef, Heh>, pack<Alef, Vav>, pack<Alef, Zayn>>;
+    auto const r = S::join<R>(Alef{3}, sum<Heh, Vav, Zayn>{Vav{14}});
+    ok = ok && r.template has_value<pack<Alef, Vav>>() && r.invoke(join_witness) == 3 + 14;
   }
+  { // scalar join sum of packs
+    using R = sum<pack<Alef, Heh, Zayn>, pack<Alef, Vav>>;
+    auto const r = S::join<R>(Alef{3}, sum<pack<Heh, Zayn>, pack<Vav>>{pack{Vav{14}}});
+    ok = ok && r.template has_value<pack<Alef, Vav>>() && r.invoke(join_witness) == 3 + 14;
+  }
+  { // scalar join scalar
+    auto const r = S::join<pack<Alef, Vav>>(Alef{3}, Vav{14});
+    ok = ok && r.invoke(join_witness) == 3 + 14;
+  }
+  { // scalar join pack
+    auto const r = S::join<pack<Alef, Vav>>(Alef{3}, pack<Vav>{pack{Vav{14}}});
+    ok = ok && r.invoke(join_witness) == 3 + 14;
+  }
+  return ok;
+}
+} // namespace
 
-  WHEN("sum of packs join scalar")
-  {
-    constexpr fn::optional<fn::sum<fn::pack<Alef, Gimel>, fn::pack<Bet, Gimel>>> lh{fn::pack{Alef{3}, Gimel{14}}};
-    constexpr fn::optional<Vav> rh{Vav{15}};
-    static constexpr auto efn = [](auto &&...) { return std::nullopt; };
-    constexpr auto r = fn::detail::_join<fn::optional>(lh, rh, efn);
-    static_assert(std::is_same_v<decltype(r),          //
-                                 fn::optional<fn::sum< //
-                                     fn::pack<Alef, Gimel, Vav>, fn::pack<Bet, Gimel, Vav>>> const>);
-    static_assert(r.has_value());
-    static_assert(r.value().has_value<fn::pack<Alef, Gimel, Vav>>());
-    static_assert(r.value().invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14 + 15);
-  }
+TEMPLATE_TEST_CASE("join of sums, packs and values", "[pack][sum][detail][optional][operator_and]", join_via_optional,
+                   join_via_operator)
+{
+  static_assert(join_battery<TestType>());
+  REQUIRE(join_battery<TestType>());
+}
 
-  WHEN("sum of packs join pack")
-  {
-    constexpr fn::optional<fn::sum<fn::pack<Alef, Gimel>, fn::pack<Bet, Gimel>>> lh{fn::pack{Alef{3}, Gimel{14}}};
-    constexpr fn::optional<fn::pack<Vav>> rh{fn::pack{Vav{15}}};
-    static constexpr auto efn = [](auto &&...) { return std::nullopt; };
-    constexpr auto r = fn::detail::_join<fn::optional>(lh, rh, efn);
-    static_assert(std::is_same_v<decltype(r),          //
-                                 fn::optional<fn::sum< //
-                                     fn::pack<Alef, Gimel, Vav>, fn::pack<Bet, Gimel, Vav>>> const>);
-    static_assert(r.has_value());
-    static_assert(r.value().has_value<fn::pack<Alef, Gimel, Vav>>());
-    static_assert(r.value().invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14 + 15);
-  }
-
-  WHEN("sum of scalars join scalar")
-  {
-    constexpr fn::optional<fn::sum<Alef, Bet, Gimel>> lh{Gimel{3}};
-    constexpr fn::optional<Vav> rh{Vav{14}};
-    static constexpr auto efn = [](auto &&...) { return std::nullopt; };
-    constexpr auto r = fn::detail::_join<fn::optional>(lh, rh, efn);
-    static_assert(std::is_same_v<decltype(r),          //
-                                 fn::optional<fn::sum< //
-                                     fn::pack<Alef, Vav>, fn::pack<Bet, Vav>, fn::pack<Gimel, Vav>>> const>);
-    static_assert(r.has_value());
-    static_assert(r.value().has_value<fn::pack<Gimel, Vav>>());
-    static_assert(r.value().invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14);
-  }
-
-  WHEN("sum of scalars join pack")
-  {
-    constexpr fn::optional<fn::sum<Alef, Bet, Gimel>> lh{Gimel{3}};
-    constexpr fn::optional<fn::pack<Vav>> rh{fn::pack{Vav{14}}};
-    static constexpr auto efn = [](auto &&...) { return std::nullopt; };
-    constexpr auto r = fn::detail::_join<fn::optional>(lh, rh, efn);
-    static_assert(std::is_same_v<decltype(r),          //
-                                 fn::optional<fn::sum< //
-                                     fn::pack<Alef, Vav>, fn::pack<Bet, Vav>, fn::pack<Gimel, Vav>>> const>);
-    static_assert(r.has_value());
-    static_assert(r.value().has_value<fn::pack<Gimel, Vav>>());
-    static_assert(r.value().invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14);
-  }
-
-  WHEN("pack join sum of scalars")
-  {
-    constexpr fn::optional<fn::pack<Alef, Gimel>> lh{fn::pack{Alef{3}, Gimel{14}}};
-    constexpr fn::optional<fn::sum<Heh, Vav, Zayn>> rh{Vav{15}};
-    static constexpr auto efn = [](auto &&...) { return std::nullopt; };
-    constexpr auto r = fn::detail::_join<fn::optional>(lh, rh, efn);
-    static_assert(std::is_same_v<
-                  decltype(r),          //
-                  fn::optional<fn::sum< //
-                      fn::pack<Alef, Gimel, Heh>, fn::pack<Alef, Gimel, Vav>, fn::pack<Alef, Gimel, Zayn>>> const>);
-    static_assert(r.has_value());
-    static_assert(r.value().has_value<fn::pack<Alef, Gimel, Vav>>());
-    static_assert(r.value().invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14 + 15);
-  }
-
-  WHEN("pack join sum of packs")
-  {
-    constexpr fn::optional<fn::pack<Alef, Gimel>> lh{fn::pack{Alef{3}, Gimel{14}}};
-    constexpr fn::optional<fn::sum<fn::pack<Heh, Zayn>, fn::pack<Vav>>> rh{fn::pack{Vav{15}}};
-    static constexpr auto efn = [](auto &&...) { return std::nullopt; };
-    constexpr auto r = fn::detail::_join<fn::optional>(lh, rh, efn);
-    static_assert(std::is_same_v<decltype(r),          //
-                                 fn::optional<fn::sum< //
-                                     fn::pack<Alef, Gimel, Heh, Zayn>, fn::pack<Alef, Gimel, Vav>>> const>);
-    static_assert(r.has_value());
-    static_assert(r.value().has_value<fn::pack<Alef, Gimel, Vav>>());
-    static_assert(r.value().invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14 + 15);
-  }
-
-  WHEN("scalar join sum of scalars")
-  {
-    constexpr fn::optional<Alef> lh{Alef{3}};
-    constexpr fn::optional<fn::sum<Heh, Vav, Zayn>> rh{Vav{14}};
-    static constexpr auto efn = [](auto &&...) { return std::nullopt; };
-    constexpr auto r = fn::detail::_join<fn::optional>(lh, rh, efn);
-    static_assert(std::is_same_v<decltype(r),          //
-                                 fn::optional<fn::sum< //
-                                     fn::pack<Alef, Heh>, fn::pack<Alef, Vav>, fn::pack<Alef, Zayn>>> const>);
-    static_assert(r.has_value());
-    static_assert(r.value().has_value<fn::pack<Alef, Vav>>());
-    static_assert(r.value().invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14);
-  }
-
-  WHEN("scalar join sum of packs")
-  {
-    constexpr fn::optional<Alef> lh{Alef{3}};
-    constexpr fn::optional<fn::sum<fn::pack<Heh, Zayn>, fn::pack<Vav>>> rh{fn::pack{Vav{14}}};
-    static constexpr auto efn = [](auto &&...) { return std::nullopt; };
-    constexpr auto r = fn::detail::_join<fn::optional>(lh, rh, efn);
-    static_assert(std::is_same_v<decltype(r),          //
-                                 fn::optional<fn::sum< //
-                                     fn::pack<Alef, Heh, Zayn>, fn::pack<Alef, Vav>>> const>);
-    static_assert(r.has_value());
-    static_assert(r.value().has_value<fn::pack<Alef, Vav>>());
-    static_assert(r.value().invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14);
-  }
-
-  WHEN("pack join scalar")
-  {
-    constexpr fn::optional<fn::pack<Alef, Gimel>> lh{fn::pack{Alef{3}, Gimel{14}}};
-    constexpr fn::optional<Vav> rh{Vav{15}};
-    static constexpr auto efn = [](auto &&...) { return std::nullopt; };
-    constexpr auto r = fn::detail::_join<fn::optional>(lh, rh, efn);
-    static_assert(std::is_same_v<decltype(r), //
-                                 fn::optional<fn::pack<Alef, Gimel, Vav>> const>);
-    static_assert(r.has_value());
-    static_assert(r.value().invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14 + 15);
-  }
-
-  WHEN("pack join pack")
-  {
-    constexpr fn::optional<fn::pack<Alef, Gimel>> lh{fn::pack{Alef{3}, Gimel{14}}};
-    constexpr fn::optional<fn::pack<Vav>> rh{fn::pack{Vav{15}}};
-    static constexpr auto efn = [](auto &&...) { return std::nullopt; };
-    constexpr auto r = fn::detail::_join<fn::optional>(lh, rh, efn);
-    static_assert(std::is_same_v<decltype(r), //
-                                 fn::optional<fn::pack<Alef, Gimel, Vav>> const>);
-    static_assert(r.has_value());
-    static_assert(r.value().invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14 + 15);
-  }
-
-  WHEN("scalar join scalar")
-  {
-    constexpr fn::optional<Alef> lh{Alef{3}};
-    constexpr fn::optional<Vav> rh{Vav{14}};
-    static constexpr auto efn = [](auto &&...) { return std::nullopt; };
-    constexpr auto r = fn::detail::_join<fn::optional>(lh, rh, efn);
-    static_assert(std::is_same_v<decltype(r), //
-                                 fn::optional<fn::pack<Alef, Vav>> const>);
-    static_assert(r.has_value());
-    static_assert(r.value().invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14);
-  }
-
-  WHEN("scalar join pack")
-  {
-    constexpr fn::optional<Alef> lh{Alef{3}};
-    constexpr fn::optional<fn::pack<Vav>> rh{fn::pack{Vav{14}}};
-    static constexpr auto efn = [](auto &&...) { return std::nullopt; };
-    constexpr auto r = fn::detail::_join<fn::optional>(lh, rh, efn);
-    static_assert(std::is_same_v<decltype(r), //
-                                 fn::optional<fn::pack<Alef, Vav>> const>);
-    static_assert(r.has_value());
-    static_assert(r.value().invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14);
-  }
+TEST_CASE("detail::_join with value operands", "[detail][pack][sum][optional]")
+{
+  static_assert(join_value_lhs_battery());
+  REQUIRE(join_value_lhs_battery());
 }
 
 TEST_CASE("operator &", "[pack][sum][operator_and]")
 {
-  WHEN("sum of packs join sum of scalars")
-  {
-    constexpr fn::sum<fn::pack<Alef, Gimel>, fn::pack<Bet, Gimel>> lh{fn::pack{Alef{3}, Gimel{14}}};
-    constexpr fn::sum<Heh, Vav, Zayn> rh{Vav{15}};
-    auto r = lh & rh;
-    static_assert(
-        std::is_same_v<decltype(r), //
-                       fn::sum<     //
-                           fn::pack<Alef, Gimel, Heh>, fn::pack<Alef, Gimel, Vav>, fn::pack<Alef, Gimel, Zayn>,
-                           fn::pack<Bet, Gimel, Heh>, fn::pack<Bet, Gimel, Vav>, fn::pack<Bet, Gimel, Zayn>>>);
-    CHECK(r.invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14 + 15);
-  }
-
-  WHEN("sum of packs join sum of packs")
-  {
-    constexpr fn::sum<fn::pack<Alef, Gimel>, fn::pack<Bet, Gimel>> lh{fn::pack{Alef{3}, Gimel{14}}};
-    constexpr fn::sum<fn::pack<Heh, Zayn>, fn::pack<Vav>> rh{fn::pack{Vav{15}}};
-    auto r = lh & rh;
-    static_assert(std::is_same_v<decltype(r), //
-                                 fn::sum<     //
-                                     fn::pack<Alef, Gimel, Heh, Zayn>, fn::pack<Alef, Gimel, Vav>,
-                                     fn::pack<Bet, Gimel, Heh, Zayn>, fn::pack<Bet, Gimel, Vav>>>);
-    CHECK(r.invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14 + 15);
-  }
-
-  WHEN("sum of scalars join sum of scalars")
-  {
-    constexpr fn::sum<Alef, Bet, Gimel> lh{Gimel{3}};
-    constexpr fn::sum<Heh, Vav, Zayn> rh{Vav{14}};
-    auto r = lh & rh;
-    static_assert(
-        std::is_same_v<
-            decltype(r), //
-            fn::sum<     //
-                fn::pack<Alef, Heh>, fn::pack<Alef, Vav>, fn::pack<Alef, Zayn>, fn::pack<Bet, Heh>, fn::pack<Bet, Vav>,
-                fn::pack<Bet, Zayn>, fn::pack<Gimel, Heh>, fn::pack<Gimel, Vav>, fn::pack<Gimel, Zayn>>>);
-    CHECK(r.invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14);
-  }
-
-  WHEN("sum of scalars join sum of packs")
-  {
-    constexpr fn::sum<Alef, Bet, Gimel> lh{Gimel{3}};
-    constexpr fn::sum<fn::pack<Heh, Zayn>, fn::pack<Vav>> rh{fn::pack{Vav{14}}};
-    auto r = lh & rh;
-    static_assert(std::is_same_v<decltype(r), //
-                                 fn::sum<     //
-                                     fn::pack<Alef, Heh, Zayn>, fn::pack<Alef, Vav>, fn::pack<Bet, Heh, Zayn>,
-                                     fn::pack<Bet, Vav>, fn::pack<Gimel, Heh, Zayn>, fn::pack<Gimel, Vav>>>);
-    CHECK(r.invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14);
-  }
-
-  WHEN("sum of packs join scalar")
-  {
-    constexpr fn::sum<fn::pack<Alef, Gimel>, fn::pack<Bet, Gimel>> lh{fn::pack{Alef{3}, Gimel{14}}};
-    constexpr Vav rh{Vav{15}};
-    auto r = lh & rh;
-    static_assert(std::is_same_v<decltype(r), //
-                                 fn::sum<     //
-                                     fn::pack<Alef, Gimel, Vav>, fn::pack<Bet, Gimel, Vav>>>);
-    CHECK(r.invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14 + 15);
-  }
-
-  WHEN("sum of packs join pack")
-  {
-    constexpr fn::sum<fn::pack<Alef, Gimel>, fn::pack<Bet, Gimel>> lh{fn::pack{Alef{3}, Gimel{14}}};
-    constexpr fn::pack<Vav> rh{fn::pack{Vav{15}}};
-    auto r = lh & rh;
-    static_assert(std::is_same_v<decltype(r), //
-                                 fn::sum<     //
-                                     fn::pack<Alef, Gimel, Vav>, fn::pack<Bet, Gimel, Vav>>>);
-    CHECK(r.invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14 + 15);
-  }
-
-  WHEN("sum of scalars join scalar")
-  {
-    constexpr fn::sum<Alef, Bet, Gimel> lh{Gimel{3}};
-    constexpr Vav rh{Vav{14}};
-    auto r = lh & rh;
-    static_assert(std::is_same_v<decltype(r), //
-                                 fn::sum<     //
-                                     fn::pack<Alef, Vav>, fn::pack<Bet, Vav>, fn::pack<Gimel, Vav>>>);
-    CHECK(r.invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14);
-  }
-
-  WHEN("sum of scalars join pack")
-  {
-    constexpr fn::sum<Alef, Bet, Gimel> lh{Gimel{3}};
-    constexpr fn::pack<Vav> rh{fn::pack{Vav{14}}};
-    auto r = lh & rh;
-    static_assert(std::is_same_v<decltype(r), //
-                                 fn::sum<     //
-                                     fn::pack<Alef, Vav>, fn::pack<Bet, Vav>, fn::pack<Gimel, Vav>>>);
-    CHECK(r.invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14);
-  }
-
-  WHEN("pack join sum of scalars")
-  {
-    constexpr fn::pack<Alef, Gimel> lh{fn::pack{Alef{3}, Gimel{14}}};
-    constexpr fn::sum<Heh, Vav, Zayn> rh{Vav{15}};
-    auto r = lh & rh;
-    static_assert(
-        std::is_same_v<decltype(r), //
-                       fn::sum<     //
-                           fn::pack<Alef, Gimel, Heh>, fn::pack<Alef, Gimel, Vav>, fn::pack<Alef, Gimel, Zayn>>>);
-    CHECK(r.invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14 + 15);
-  }
-
-  WHEN("pack join sum of packs")
-  {
-    constexpr fn::pack<Alef, Gimel> lh{fn::pack{Alef{3}, Gimel{14}}};
-    constexpr fn::sum<fn::pack<Heh, Zayn>, fn::pack<Vav>> rh{fn::pack{Vav{15}}};
-    auto r = lh & rh;
-    static_assert(std::is_same_v<decltype(r), //
-                                 fn::sum<     //
-                                     fn::pack<Alef, Gimel, Heh, Zayn>, fn::pack<Alef, Gimel, Vav>>>);
-    CHECK(r.invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14 + 15);
-  }
-
-  WHEN("pack join scalar")
-  {
-    constexpr fn::pack<Alef, Gimel> lh{fn::pack{Alef{3}, Gimel{14}}};
-    constexpr Vav rh{Vav{15}};
-    auto r = lh & rh;
-    static_assert(std::is_same_v<decltype(r), //
-                                 fn::pack<Alef, Gimel, Vav>>);
-    CHECK(r.invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14 + 15);
-  }
-
-  WHEN("pack join pack")
-  {
-    constexpr fn::pack<Alef, Gimel> lh{fn::pack{Alef{3}, Gimel{14}}};
-    constexpr fn::pack<Vav> rh{fn::pack{Vav{15}}};
-    auto r = lh & rh;
-    static_assert(std::is_same_v<decltype(r), //
-                                 fn::pack<Alef, Gimel, Vav>>);
-    CHECK(r.invoke([](auto &&...v) -> int { return (0 + ... + v.value); }) == 3 + 14 + 15);
-  }
-
   constexpr auto r1 = fn::as_sum(12) & 3 & 2.5 & fn::pack{0.5, true}
                       & fn::sum_for<bool, int, fn::pack<double, int>>(fn::pack{1.5, 12});
   static_assert(std::is_same_v<                                     //
@@ -776,7 +555,7 @@ TEST_CASE("operator &", "[pack][sum][operator_and]")
   static_assert(r2.invoke([](auto &&...args) -> double { return (1 * ... * static_cast<double>(args)); })
                 == 12. * 3 * 2.5 * 0.5 * 1 * 1.5 * 12);
 
-  WHEN("noexcept")
+  SECTION("noexcept")
   {
     // This operator& carries no noexcept specifier, so it never over-promises - in contrast with
     // optional's and expected's, which are unconditionally noexcept although the join copies the
