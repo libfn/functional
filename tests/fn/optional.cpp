@@ -27,7 +27,7 @@ struct Xint {
 
 TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]")
 {
-  WHEN("sum_value from sum")
+  SECTION("sum_value from sum")
   {
     using T = fn::optional<fn::sum<int>>;
     T s{12};
@@ -41,14 +41,14 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     static_assert(not noexcept(std::as_const(s).sum_value()));
     static_assert(not noexcept(std::move(std::as_const(s)).sum_value()));
     static_assert(not noexcept(std::move(s).sum_value()));
-    WHEN("value")
+    SECTION("value")
     {
       CHECK(s.sum_value().value() == fn::sum{12});
       CHECK(std::as_const(s).sum_value().value() == fn::sum{12});
       CHECK(std::move(std::as_const(s)).sum_value().value() == fn::sum{12});
       CHECK(std::move(s).sum_value().value() == fn::sum{12});
     }
-    WHEN("error")
+    SECTION("error")
     {
       T s{std::nullopt};
       CHECK(not s.sum_value().has_value());
@@ -60,7 +60,7 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     static_assert(std::is_same_v<decltype(fn::sum_value(s)), T &>);
   }
 
-  WHEN("sum_value from non-sum")
+  SECTION("sum_value from non-sum")
   {
     using T = fn::optional<int>;
     T s{12};
@@ -74,14 +74,14 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     static_assert(not noexcept(std::as_const(s).sum_value()));
     static_assert(not noexcept(std::move(std::as_const(s)).sum_value()));
     static_assert(not noexcept(std::move(s).sum_value()));
-    WHEN("value")
+    SECTION("value")
     {
       CHECK(s.sum_value().value() == fn::sum{12});
       CHECK(std::as_const(s).sum_value().value() == fn::sum{12});
       CHECK(std::move(std::as_const(s)).sum_value().value() == fn::sum{12});
       CHECK(std::move(s).sum_value().value() == fn::sum{12});
     }
-    WHEN("error")
+    SECTION("error")
     {
       T s{std::nullopt};
       CHECK(not s.sum_value().has_value());
@@ -93,7 +93,7 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     static_assert(std::is_same_v<decltype(fn::sum_value(s)), fn::optional<fn::sum<int>>>);
   }
 
-  WHEN("or_else")
+  SECTION("or_else")
   {
     fn::optional<fn::sum<int>> s{std::nullopt};
 
@@ -130,7 +130,7 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     static_assert(can_or_else(nothrow_same));
     static_assert(not can_or_else(42));
 
-    WHEN("error to value")
+    SECTION("error to value")
     {
       constexpr auto fn = []() -> fn::optional<Xint> { return {Xint{12}}; };
       static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::optional<fn::sum_for<Xint, int>>>);
@@ -140,7 +140,7 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
       CHECK(std::move(s).or_else(fn).value() == fn::sum{Xint{12}});
     }
 
-    WHEN("error to error")
+    SECTION("error to error")
     {
       constexpr auto fn = []() -> fn::optional<Xint> { return {std::nullopt}; };
       static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::optional<fn::sum_for<Xint, int>>>);
@@ -150,7 +150,7 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
       CHECK(not std::move(s).or_else(fn).has_value());
     }
 
-    WHEN("value")
+    SECTION("value")
     {
       fn::optional<fn::sum<int>> s{fn::sum{12}};
       constexpr auto fn = []() -> fn::optional<Xint> { throw 0; };
@@ -165,7 +165,7 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
 
 TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operator_and]")
 {
-  WHEN("and_then")
+  SECTION("and_then")
   {
     using P = fn::optional<fn::pack<int, std::string_view>>;
 
@@ -188,7 +188,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
     static_assert(not can_and_then_lval([](int &) -> fn::optional<bool> { return {true}; })); // wrong arity
     static_assert(not can_and_then_lval(42));
 
-    WHEN("value")
+    SECTION("value")
     {
       fn::optional<fn::pack<int, std::string_view>> s{
           fn::pack<int>{12}.append(std::in_place_type<std::string_view>, "bar")};
@@ -222,7 +222,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                 .value());
     }
 
-    WHEN("error")
+    SECTION("error")
     {
       fn::optional<fn::pack<int, std::string_view>> s{std::nullopt};
       CHECK(not s.and_then( //
@@ -245,7 +245,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                     .has_value());
     }
 
-    WHEN("constexpr")
+    SECTION("constexpr")
     {
       constexpr P a{fn::pack<int>{12}.append(std::in_place_type<std::string_view>, "bar")};
       static_assert(a.and_then([](int const &i, std::string_view const &s) -> fn::optional<bool> {
@@ -256,7 +256,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
     }
   }
 
-  WHEN("transform")
+  SECTION("transform")
   {
     using P = fn::optional<fn::pack<int, std::string_view>>;
 
@@ -273,7 +273,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
     static_assert(not can_transform([](int &) -> bool { return true; })); // wrong arity
     static_assert(not can_transform(42));
 
-    WHEN("value")
+    SECTION("value")
     {
       fn::optional<fn::pack<int, std::string_view>> s{
           fn::pack<int>{12}.append(std::in_place_type<std::string_view>, "bar")};
@@ -307,7 +307,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                 .value());
     }
 
-    WHEN("error")
+    SECTION("error")
     {
       fn::optional<fn::pack<int, std::string_view>> s{std::nullopt};
       CHECK(not s.transform([](auto...) -> bool { throw 0; }).has_value());
@@ -316,7 +316,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       CHECK(not std::move(s).transform([](auto...) -> bool { throw 0; }).has_value());
     }
 
-    WHEN("constexpr")
+    SECTION("constexpr")
     {
       constexpr P a{fn::pack<int>{12}.append(std::in_place_type<std::string_view>, "bar")};
       static_assert(
@@ -326,7 +326,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
     }
   }
 
-  WHEN("operator &")
+  SECTION("operator &")
   {
     // noexcept: operator& is declared unconditionally noexcept (optional.hpp:881) though
     // joining copies/moves the operands' values into the result pack -- for a throwing-copy
@@ -345,7 +345,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
     static_assert(can_amp(fn::optional<double>{0.5}));
     static_assert(not can_amp(42));
 
-    WHEN("value & value yield pack")
+    SECTION("value & value yield pack")
     {
       static_assert(std::same_as<decltype(std::declval<fn::optional<int>>() & std::declval<fn::optional<double>>()),
                                  fn::optional<fn::pack<int, double>>>);
@@ -365,7 +365,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                    .has_value());
     }
 
-    WHEN("value & pack yield pack")
+    SECTION("value & pack yield pack")
     {
       static_assert(std::same_as<decltype(std::declval<fn::optional<int>>()
                                           & std::declval<fn::optional<fn::pack<double, bool>>>()),
@@ -386,7 +386,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                    .has_value());
     }
 
-    WHEN("pack & value yield pack")
+    SECTION("pack & value yield pack")
     {
       static_assert(std::same_as<decltype(std::declval<fn::optional<fn::pack<double, bool>>>()
                                           & std::declval<fn::optional<int>>()),
@@ -407,7 +407,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                    .has_value());
     }
 
-    WHEN("pack & pack yield pack")
+    SECTION("pack & pack yield pack")
     {
       static_assert(std::same_as<decltype(std::declval<fn::optional<fn::pack<double, bool>>>()
                                           & std::declval<fn::optional<fn::pack<bool, int>>>()),
@@ -429,7 +429,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                    .has_value());
     }
 
-    WHEN("sum on both sides")
+    SECTION("sum on both sides")
     {
       using Lh = fn::optional<fn::sum<double, int>>;
       using Rh = fn::optional<fn::sum<bool, int>>;
@@ -448,7 +448,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       CHECK(not(Lh{fn::sum{0.5}} & Rh{std::nullopt}).has_value());
       CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
 
-      WHEN("sum of packs on left")
+      SECTION("sum of packs on left")
       {
         using Lh = fn::optional<fn::sum_for<fn::pack<double, bool>, fn::pack<double, int>>>;
         static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
@@ -468,7 +468,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       }
     }
 
-    WHEN("sum on left side only")
+    SECTION("sum on left side only")
     {
       using Lh = fn::optional<fn::sum<double, int>>;
       using Rh = fn::optional<int>;
@@ -486,7 +486,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       CHECK(not(Lh{fn::sum{0.5}} & Rh{std::nullopt}).has_value());
       CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
 
-      WHEN("sum of packs on left")
+      SECTION("sum of packs on left")
       {
         using Lh = fn::optional<fn::sum_for<fn::pack<double, bool>, fn::pack<double, int>>>;
         static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
@@ -505,7 +505,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       }
     }
 
-    WHEN("sum on right side only")
+    SECTION("sum on right side only")
     {
       using Lh = fn::optional<double>;
       using Rh = fn::optional<fn::sum<bool, int>>;
@@ -523,7 +523,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       CHECK(not(Lh{0.5} & Rh{std::nullopt}).has_value());
       CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
 
-      WHEN("pack on left")
+      SECTION("pack on left")
       {
         using Lh = fn::optional<fn::pack<double, int>>;
         static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
@@ -542,7 +542,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       }
     }
 
-    WHEN("constexpr")
+    SECTION("constexpr")
     {
       static_assert((fn::optional<double>{0.5} & fn::optional<int>{12})
                         .transform([](double d, int i) constexpr -> bool { return d == 0.5 && i == 12; })
@@ -586,7 +586,7 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
   static_assert(not can_and_then_lval(fn::overload{[](int &) -> fn::optional<bool> { return {true}; }})); // partial
   static_assert(not can_and_then_lval(42));
 
-  WHEN("value")
+  SECTION("value")
   {
     fn::optional<fn::sum_for<Xint, int>> s{12};
     CHECK(s.and_then( //
@@ -634,7 +634,7 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
             .value());
   }
 
-  WHEN("error")
+  SECTION("error")
   {
     fn::optional<fn::sum_for<Xint, int>> s{};
     CHECK(not s.and_then( //
@@ -653,7 +653,7 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
                       [](auto) -> fn::optional<bool> { throw 0; })
                   .has_value());
 
-    WHEN("immovable result type")
+    SECTION("immovable result type")
     {
       // the disengaged path must compile even though the result cannot be moved (the
       // clang<=18 miscompile workaround must not force a move)
@@ -668,7 +668,7 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
     }
   }
 
-  WHEN("constexpr")
+  SECTION("constexpr")
   {
     constexpr auto fn = fn::overload{[](int &) -> fn::optional<bool> { throw 0; },
                                      [](int const &i) -> fn::optional<bool> { return i == 42; },
@@ -707,7 +707,7 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
   constexpr auto can_transform = [](auto &&f) { return requires { std::declval<S &>().transform(f); }; };
   static_assert(can_transform(nothrow_visitor));
 
-  WHEN("value")
+  SECTION("value")
   {
     fn::optional<fn::sum_for<Xint, int>> s{12};
     CHECK(s.transform( //
@@ -746,7 +746,7 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
           == fn::sum{true});
   }
 
-  WHEN("error")
+  SECTION("error")
   {
     fn::optional<fn::sum_for<Xint, int>> s{};
     CHECK(not s.transform( //
@@ -766,7 +766,7 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
                   .has_value());
   }
 
-  WHEN("constexpr")
+  SECTION("constexpr")
   {
     constexpr auto fn = fn::overload{[](int &) -> bool { throw 0; },
                                      [](int const &i) -> bool { return i == 42; },
