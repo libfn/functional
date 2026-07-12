@@ -65,9 +65,11 @@ template <prop F> struct helper_value_base {
 
   // Non-constexpr on purpose: guarantees the constructor is emitted (never folded away) so a test
   // relying on it shows up in coverage, and lets `state` witness that construction actually ran.
-  helper_value_base(std::integral auto... a) noexcept(not throws_value)
-    requires(sizeof...(a) > 0) // intentionally implicit when sizeof...(a) == 1
-      : v((1 * ... * a))
+  // First argument peeled rather than `std::integral auto...` + requires(sizeof...(a) > 0): clang 16
+  // (and AppleClang 15) crashes or mis-evaluates a constraint naming the pack once the constructor
+  // is inherited. Intentionally implicit when called with a single argument.
+  template <std::integral A0, std::integral... A>
+  helper_value_base(A0 a0, A... a) noexcept(not throws_value) : v((a0 * ... * a))
   {
     if constexpr (throws_value) {
       if (v == 0)
@@ -78,9 +80,8 @@ template <prop F> struct helper_value_base {
 
   helper_value_base(helper_list_t list) noexcept : v(init(list)) { state += v; }
 
-  constexpr helper_value_base(helper_list_t list, std::integral auto... a) noexcept
-    requires(sizeof...(a) > 0)
-      : v(init(list, a...)) //
+  template <std::integral A0, std::integral... A>
+  constexpr helper_value_base(helper_list_t list, A0 a0, A... a) noexcept : v(init(list, a0, a...))
   {
   }
 
