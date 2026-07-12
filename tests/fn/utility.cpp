@@ -192,8 +192,10 @@ TEST_CASE("make lift", "[make]")
 
     // make carries no noexcept specifier, so it reports potentially-throwing even where the
     // construction cannot throw - the same converse accuracy gap as the as_sum and as_pack lifts.
-    static_assert(std::is_nothrow_constructible_v<Agg, int>);
-    static_assert(not noexcept(fn::make<Agg>(12)));
+    static_assert(std::is_nothrow_constructible_v<int, int>);
+    static_assert(not noexcept(fn::make<int>(12))); // brace overload
+    static_assert(std::is_nothrow_constructible_v<ParenOnly, int>);
+    static_assert(not noexcept(fn::make<ParenOnly>(1))); // paren fallback overload
 
     SUCCEED();
   }
