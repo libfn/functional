@@ -7,7 +7,9 @@
 
 set(CODE_COVERAGE_VERBOSE ON)
 set(CODE_COVERAGE_FORMAT "xml" CACHE STRING "Format of the coverage report.")
+# --merge-lines requires gcovr 8.4 or newer.
 set(GCOVR_ADDITIONAL_ARGS
+--merge-lines
 --exclude-noncode-lines
 --exclude-unreachable-branches
 --exclude-throw-branches
@@ -17,6 +19,6 @@ set(GCOVR_ADDITIONAL_ARGS
 setup_target_for_coverage_gcovr(
     NAME coverage
     FORMAT ${CODE_COVERAGE_FORMAT}
-    EXCLUDE "tests" "examples"
+    EXCLUDE "tests" "examples" "${PROJECT_BINARY_DIR}/_deps"
     DEPENDENCIES tests
 )

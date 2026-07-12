@@ -27,12 +27,9 @@ github_checks:
 slack_app: false
 
 parsers:
-  gcov:
-    branch_detection:
-      conditional: false
-      loop: false
-      method: false
-      macro: false
+  cobertura:
+    # Coverage is counted on lines, not branches.
+    partials_as_hits: true
 
 ignore:
   - "tests/"

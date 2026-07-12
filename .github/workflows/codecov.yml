@@ -40,13 +40,14 @@ jobs:
 
     # Non-PR events carry secrets and upload inline; PRs hand off via the artifact above. Not gated on
     # CODECOV_TOKEN since tokenless uploads work but are throttled; a set token lifts the throttling.
-    - name: Upload .gcov files
+    - name: Upload coverage report
       if: ${{ github.event_name != 'pull_request' }}
       uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
       with:
         # Strict only when a token is set; a tokenless fork's throttled upload must not fail its CI.
         fail_ci_if_error: ${{ secrets.CODECOV_TOKEN != '' }}
-        disable_search: false
+        files: .build/coverage.xml
+        disable_search: true
         verbose: true
         plugins: noop
         token: ${{ secrets.CODECOV_TOKEN }}
