@@ -57,8 +57,7 @@ runs:
       run: |
         mkdir .build
         cd .build
-        # Pin gcovr's gcov to $GCOV: the image carries a distro toolchain besides /usr/local, and a
-        # mismatched gcov cannot read the newer gcno format.
+        # Pin gcovr's gcov to $GCOV: mismatched gcov cannot read the newer gcno format.
         cmake -DLIBFN_COVERAGE=ON -DCMAKE_BUILD_TYPE=Debug -DCODE_COVERAGE_GCOV_TOOL="$GCOV" ..
         COMPILER=$( grep -iE "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
         printf "C++ compiler path: %s\n" "$COMPILER"
@@ -66,26 +65,22 @@ runs:
         printf "gcov version: %s\n" "$( $GCOV --version | head -1 )"
         cmake --build . --target tests -- -j"$(nproc)"
 
-    - name: Generate coverage data with gcov
+    - name: Run unit tests to generate .gcda files for coverage
       shell: bash
       run: |
         cd .build
         ctest -L 'tests_p?fn' -j1 # generate .gcda files
-        # shellcheck disable=SC2046  # find emits one path per result; intentional word-splitting into gcov arg list
-        $GCOV -pbc -r -s "$(realpath ..)" $(find tests -type f -name '*.gcno') # generate .gcov files
 
-    # codecov consumes this gcovr aggregate (coverage.xml) rather than the raw .gcov text above: gcov
-    # emits per-instantiation records for template code, which codecov's parser misreads as missed
-    # lines. The .gcov files remain the input for the sonarcloud scanner. The `coverage` target only
-    # runs gcovr — the tests already ran above.
-    - name: Aggregate coverage report with gcovr
+    # Prepare .gcov files for sonarcloud scanner and coverage.xml report for codecov.
+    - name: Generate coverage data with gcov and gcovr
       shell: bash
       run: |
         cd .build
+        # shellcheck disable=SC2046  # find emits one path per result; intentional word-splitting into gcov arg list
+        $GCOV -pbc -r -s "$(realpath ..)" $(find tests -type f -name '*.gcno') # generate .gcov files
         cmake --build . --target coverage
 
-    # Uniform artifact contract for both tools: always carry compile_commands.json and base_ref even
-    # though codecov ignores them, so the downstream restore needs no per-tool branching.
+    # Uniform artifact contract for all tools: always carry compile_commands.json and base_ref
     - name: Package pull request workspace
       if: github.event_name == 'pull_request'
       shell: bash

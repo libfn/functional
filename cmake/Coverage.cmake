@@ -7,8 +7,6 @@
 
 set(CODE_COVERAGE_VERBOSE ON)
 set(CODE_COVERAGE_FORMAT "xml" CACHE STRING "Format of the coverage report.")
-set(CODE_COVERAGE_TEST "ctest" CACHE STRING "Command to run tests.")
-set(CODE_COVERAGE_TEST_ARGS -L tests_fn -j1 CACHE STRING "Parameters to the test command.")
 set(GCOVR_ADDITIONAL_ARGS
 --exclude-noncode-lines
 --exclude-unreachable-branches
@@ -16,8 +14,7 @@ set(GCOVR_ADDITIONAL_ARGS
 --print-summary
 --gcov-ignore-errors=no_working_dir_found)
 
-# The build tree lives inside the repository, so fetched third-party sources
-# (_deps) would otherwise be reported as project code.
+# Do not count fetched third-party sources (_deps) as project code.
 setup_target_for_coverage_gcovr(
     NAME coverage
     FORMAT ${CODE_COVERAGE_FORMAT}
