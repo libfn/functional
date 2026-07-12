@@ -278,7 +278,7 @@ static_assert(invocable_transform_error<decltype(fn_Error_rvalue), expected<int,
 static_assert(not invocable_transform_error<decltype(fn_Error_rvalue), expected<int, Error> &>);  // cannot bind lvalue to rvalue-ref
 
 // A sum error dispatches through sum::transform - the callback must cover ALL alternatives.
-static_assert(invocable_transform_error<decltype(fn_generic<Xerror>), expected<int, sum<Error, Value>>>);
-static_assert(not invocable_transform_error<decltype(fn_Error<Xerror>), expected<int, sum<Error, Value>>>); // not exhaustive
+static_assert(invocable_transform_error<decltype(fn_generic<Xerror>), expected<int, sum_for<Error, Value>>>);
+static_assert(not invocable_transform_error<decltype(fn_Error<Xerror>), expected<int, sum_for<Error, Value>>>); // not exhaustive
 // clang-format on
 } // namespace fn
