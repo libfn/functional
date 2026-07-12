@@ -98,7 +98,8 @@ template <typename U, std::size_t I> constexpr auto check_alternative() -> bool
 
   // invoke_type additionally passes in_place_type<T>, naming the alternative it dispatched to - and
   // passes exactly those two arguments
-  constexpr auto arity = [](auto &&...args) -> std::size_t { return sizeof...(args); };
+  // [[maybe_unused]]: only the pack's arity is read, and MSVC /W4 flags each expanded parameter
+  constexpr auto arity = []([[maybe_unused]] auto &&...args) -> std::size_t { return sizeof...(args); };
   ok = ok && invoke_type_variadic_union<std::size_t, U>(u, I, arity) == 2;
   ok = ok && invoke_type_variadic_union<bool, U>(u, I, []<typename X>(std::in_place_type_t<X>, auto) -> bool {
          return std::same_as<X, T>;
