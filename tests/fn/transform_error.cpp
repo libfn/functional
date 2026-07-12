@@ -53,16 +53,16 @@ TEST_CASE("transform_error", "[transform_error][expected]")
   static_assert(is::not_invocable_with_any([]() -> Error { throw 0; }));                                  // bad arity
   static_assert(is::not_invocable_with_any([](int, int) -> Error { throw 0; }));                          // bad arity
 
-  WHEN("operand is lvalue")
+  SECTION("lvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       operand_t a{std::in_place, 12};
       using T = decltype(a | transform_error(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a | transform_error(wrong)).value() == 12);
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       operand_t a{::fn::unexpect, Error{"Not good"}};
       using T = decltype(a | transform_error(fnError));
@@ -73,7 +73,7 @@ TEST_CASE("transform_error", "[transform_error][expected]")
                   .what
               == "Got: Not good");
 
-      WHEN("change type")
+      SECTION("change type")
       {
         using T = decltype(a | transform_error(fnXerror));
         static_assert(std::is_same_v<T, fn::expected<int, Xerror>>);
@@ -82,15 +82,15 @@ TEST_CASE("transform_error", "[transform_error][expected]")
     }
   }
 
-  WHEN("operand is rvalue")
+  SECTION("rvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       using T = decltype(operand_t{std::in_place, 12} | transform_error(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((operand_t{std::in_place, 12} | transform_error(wrong)).value() == 12);
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | transform_error(fnError));
       static_assert(std::is_same_v<T, operand_t>);
@@ -100,11 +100,89 @@ TEST_CASE("transform_error", "[transform_error][expected]")
                   .what
               == "Got: Not good");
 
-      WHEN("change type")
+      SECTION("change type")
       {
         using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | transform_error(fnXerror));
         static_assert(std::is_same_v<T, fn::expected<int, Xerror>>);
         REQUIRE((operand_t{::fn::unexpect, Error{"Not good"}} | transform_error(fnXerror)).error().value == 8);
+      }
+    }
+  }
+
+  SECTION("constexpr")
+  {
+    enum class Error { ThresholdExceeded, SomethingElse, Unknown };
+    using T = fn::expected<int, Error>;
+
+    SECTION("same error type")
+    {
+      constexpr auto fn = [](Error e) constexpr noexcept -> Error {
+        if (e == Error::ThresholdExceeded)
+          return e;
+        return Error::SomethingElse;
+      };
+      constexpr auto r1 = T{0} | fn::transform_error(fn);
+      static_assert(r1.value() == 0);
+      constexpr auto r2 = T{::fn::unexpect, Error::ThresholdExceeded} | fn::transform_error(fn);
+      static_assert(r2.error() == Error::ThresholdExceeded);
+      constexpr auto r3 = T{::fn::unexpect, Error::SomethingElse} | fn::transform_error(fn);
+      static_assert(r3.error() == Error::SomethingElse);
+      constexpr auto r4 = T{::fn::unexpect, Error::Unknown} | fn::transform_error(fn);
+      static_assert(r4.error() == Error::SomethingElse);
+
+      SUCCEED();
+    }
+
+    SECTION("different error type")
+    {
+      struct UnrecoverableError final {
+        constexpr UnrecoverableError() {}
+        constexpr bool operator==(UnrecoverableError const &) const noexcept = default;
+      };
+      constexpr auto fn = [](Error) constexpr noexcept -> UnrecoverableError { return {}; };
+      constexpr auto r1 = T{0} | fn::transform_error(fn);
+      static_assert(std::is_same_v<decltype(r1), fn::expected<int, UnrecoverableError> const>);
+      static_assert(r1.value() == 0);
+      constexpr auto r2 = T{::fn::unexpect, Error::ThresholdExceeded} | fn::transform_error(fn);
+      static_assert(r2.error() == UnrecoverableError{});
+      constexpr auto r3 = T{::fn::unexpect, Error::SomethingElse} | fn::transform_error(fn);
+      static_assert(r3.error() == UnrecoverableError{});
+
+      SUCCEED();
+    }
+
+    SECTION("sum")
+    {
+      using T = fn::expected<int, fn::sum_for<Error, bool>>;
+
+      SECTION("same error type")
+      {
+        constexpr auto fn = fn::overload{[](bool i) constexpr noexcept -> fn::sum_for<Error, bool> { return not i; },
+                                         [](Error v) constexpr noexcept -> fn::sum_for<Error, bool> { return v; }};
+        constexpr auto r1 = T{::fn::unexpect, fn::sum{Error::SomethingElse}} | fn::transform_error(fn);
+        static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::sum_for<Error, bool>> const>);
+        static_assert(r1.error() == fn::sum{Error::SomethingElse});
+        constexpr auto r2 = T{::fn::unexpect, fn::sum{true}} | fn::transform_error(fn);
+        static_assert(r2.error() == fn::sum{false});
+        constexpr auto r3 = T{42} | fn::transform_error(fn);
+        static_assert(r3.value() == 42);
+
+        SUCCEED();
+      }
+
+      SECTION("different error type")
+      {
+        constexpr auto fn = fn::overload{[](bool i) constexpr noexcept -> bool { return not i; },
+                                         [](Error v) constexpr noexcept -> int { return static_cast<int>(v) + 1; }};
+        constexpr auto r1 = T{::fn::unexpect, fn::sum{Error::SomethingElse}} | fn::transform_error(fn);
+        static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::sum<bool, int>> const>);
+        static_assert(r1.error() == fn::sum{2});
+        constexpr auto r2 = T{::fn::unexpect, fn::sum{true}} | fn::transform_error(fn);
+        static_assert(r2.error() == fn::sum{false});
+        constexpr auto r3 = T{42} | fn::transform_error(fn);
+        static_assert(r3.value() == 42);
+
+        SUCCEED();
       }
     }
   }
@@ -150,79 +228,6 @@ TEST_CASE("transform_error", "[transform_error][optional]")
   // That's all testing needed. Cannot use tranform_error with optional, since
   // there is no error type to operate on
   static_assert(not monadic_invocable<transform_error_t, operand_t, decltype(fnError)>);
-}
-
-TEST_CASE("constexpr transform_error expected", "[transform_error][constexpr][expected]")
-{
-  enum class Error { ThresholdExceeded, SomethingElse, Unknown };
-  using T = fn::expected<int, Error>;
-
-  WHEN("same error type")
-  {
-    constexpr auto fn = [](Error e) constexpr noexcept -> Error {
-      if (e == Error::ThresholdExceeded)
-        return e;
-      return Error::SomethingElse;
-    };
-    constexpr auto r1 = T{0} | fn::transform_error(fn);
-    static_assert(r1.value() == 0);
-    constexpr auto r2 = T{::fn::unexpect, Error::ThresholdExceeded} | fn::transform_error(fn);
-    static_assert(r2.error() == Error::ThresholdExceeded);
-    constexpr auto r3 = T{::fn::unexpect, Error::SomethingElse} | fn::transform_error(fn);
-    static_assert(r3.error() == Error::SomethingElse);
-    constexpr auto r4 = T{::fn::unexpect, Error::Unknown} | fn::transform_error(fn);
-    static_assert(r4.error() == Error::SomethingElse);
-  }
-
-  WHEN("different error type")
-  {
-    struct UnrecoverableError final {
-      constexpr UnrecoverableError() {}
-      constexpr bool operator==(UnrecoverableError const &) const noexcept = default;
-    };
-    constexpr auto fn = [](Error) constexpr noexcept -> UnrecoverableError { return {}; };
-    constexpr auto r1 = T{0} | fn::transform_error(fn);
-    static_assert(std::is_same_v<decltype(r1), fn::expected<int, UnrecoverableError> const>);
-    static_assert(r1.value() == 0);
-    constexpr auto r2 = T{::fn::unexpect, Error::ThresholdExceeded} | fn::transform_error(fn);
-    static_assert(r2.error() == UnrecoverableError{});
-    constexpr auto r3 = T{::fn::unexpect, Error::SomethingElse} | fn::transform_error(fn);
-    static_assert(r3.error() == UnrecoverableError{});
-  }
-
-  SUCCEED();
-}
-
-TEST_CASE("constexpr transform_error expected with sum", "[transform_error][constexpr][expected][sum]")
-{
-  enum class Error { ThresholdExceeded, SomethingElse };
-  using T = fn::expected<int, fn::sum_for<Error, bool>>;
-
-  WHEN("same value type")
-  {
-    constexpr auto fn = fn::overload{[](bool i) constexpr noexcept -> fn::sum_for<Error, bool> { return not i; },
-                                     [](Error v) constexpr noexcept -> fn::sum_for<Error, bool> { return v; }};
-    constexpr auto r1 = T{::fn::unexpect, fn::sum{Error::SomethingElse}} | fn::transform_error(fn);
-    static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::sum_for<Error, bool>> const>);
-    static_assert(r1.error() == fn::sum{Error::SomethingElse});
-    constexpr auto r2 = T{::fn::unexpect, fn::sum{true}} | fn::transform_error(fn);
-    static_assert(r2.error() == fn::sum{false});
-    constexpr auto r3 = T{42} | fn::transform_error(fn);
-    static_assert(r3.value() == 42);
-  }
-
-  WHEN("different value type")
-  {
-    constexpr auto fn = fn::overload{[](bool i) constexpr noexcept -> bool { return not i; },
-                                     [](Error v) constexpr noexcept -> int { return static_cast<int>(v) + 1; }};
-    constexpr auto r1 = T{::fn::unexpect, fn::sum{Error::SomethingElse}} | fn::transform_error(fn);
-    static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::sum<bool, int>> const>);
-    static_assert(r1.error() == fn::sum{2});
-    constexpr auto r2 = T{::fn::unexpect, fn::sum{true}} | fn::transform_error(fn);
-    static_assert(r2.error() == fn::sum{false});
-    constexpr auto r3 = T{42} | fn::transform_error(fn);
-    static_assert(r3.value() == 42);
-  }
 
   SUCCEED();
 }
