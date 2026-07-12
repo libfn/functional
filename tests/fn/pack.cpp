@@ -15,6 +15,7 @@
 #include <array>
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <tuple>
 #include <utility>
 
@@ -39,7 +40,85 @@ concept can_append = requires(V v, Arg arg) { FWD(v).append(FWD(arg)); };
 template <typename... Args>
 concept can_as_pack = requires(Args &&...args) { fn::as_pack(FWD(args)...); };
 
+// pack declares no special member, so each one is implicit - composed from the _element bases which
+// hold the data. Ask the elements, not the element types: a holder of a reference or of a const
+// member answers assignment differently than the bare type would.
+template <typename T> using elem = fn::detail::_element<0, T>;
+template <typename... Ts> consteval bool special_members_follow_elements()
+{
+  using P = fn::pack<Ts...>;
+  bool ok = std::is_copy_constructible_v<P> == (... && std::is_copy_constructible_v<elem<Ts>>);
+  ok = ok && std::is_nothrow_copy_constructible_v<P> == (... && std::is_nothrow_copy_constructible_v<elem<Ts>>);
+  ok = ok && std::is_move_constructible_v<P> == (... && std::is_move_constructible_v<elem<Ts>>);
+  ok = ok && std::is_nothrow_move_constructible_v<P> == (... && std::is_nothrow_move_constructible_v<elem<Ts>>);
+  ok = ok && std::is_copy_assignable_v<P> == (... && std::is_copy_assignable_v<elem<Ts>>);
+  ok = ok && std::is_nothrow_copy_assignable_v<P> == (... && std::is_nothrow_copy_assignable_v<elem<Ts>>);
+  ok = ok && std::is_move_assignable_v<P> == (... && std::is_move_assignable_v<elem<Ts>>);
+  ok = ok && std::is_nothrow_move_assignable_v<P> == (... && std::is_nothrow_move_assignable_v<elem<Ts>>);
+  ok = ok && std::is_destructible_v<P> == (... && std::is_destructible_v<elem<Ts>>);
+  ok = ok && std::is_nothrow_destructible_v<P> == (... && std::is_nothrow_destructible_v<elem<Ts>>);
+  ok = ok && std::is_trivially_destructible_v<P> == (... && std::is_trivially_destructible_v<elem<Ts>>);
+  return ok;
+}
+
 } // namespace
+
+// pack is an aggregate at every layer - the element holder, the implementation, and pack itself.
+// Everything above rests on that: brace initialization with elision, the structural type, and
+// special members composed from the elements' own. A constructor added anywhere in the stack would
+// change all of it in silence; these assertions fail instead.
+TEST_CASE("design: an aggregate, at every layer", "[pack][design]")
+{
+  using fn::pack;
+
+  WHEN("aggregates")
+  {
+    static_assert(std::is_aggregate_v<fn::detail::_element<0, int>>);
+    static_assert(std::is_aggregate_v<fn::detail::_element<1, int &>>);
+    static_assert(std::is_aggregate_v<fn::detail::pack_impl<std::index_sequence<0, 1>, int, int &>>);
+    static_assert(std::is_aggregate_v<pack<>>);
+    static_assert(std::is_aggregate_v<pack<int, int &, int const, std::string>>);
+    SUCCEED();
+  }
+
+  WHEN("brace elision")
+  {
+    // flat initializers reach the elements through two layers of subaggregate without written braces
+    constexpr pack<int, double> p{3, 0.5};
+    static_assert(fn::get<0>(p) == 3);
+    CHECK(fn::get<1>(p) == 0.5);
+  }
+
+  WHEN("special members follow the elements")
+  {
+    static_assert(special_members_follow_elements<>());
+    static_assert(special_members_follow_elements<int>());
+    static_assert(special_members_follow_elements<int, double>());
+    static_assert(special_members_follow_elements<std::string>());
+    static_assert(special_members_follow_elements<std::unique_ptr<int>>());
+    static_assert(special_members_follow_elements<int &>());
+    static_assert(special_members_follow_elements<int const>());
+    static_assert(special_members_follow_elements<int, std::string, std::unique_ptr<int>, int &>());
+
+    struct Immovable {
+      Immovable(Immovable &&) = delete;
+    };
+    static_assert(special_members_follow_elements<Immovable>());
+
+    // anchors, so the equalities above cannot be satisfied by both sides being wrong at once
+    static_assert(std::is_nothrow_move_constructible_v<pack<std::string>>);
+    static_assert(not std::is_nothrow_copy_constructible_v<pack<std::string>>);
+    static_assert(not std::is_copy_constructible_v<pack<std::unique_ptr<int>>>);
+    static_assert(std::is_nothrow_move_constructible_v<pack<std::unique_ptr<int>>>);
+    static_assert(not std::is_move_constructible_v<pack<Immovable>>);
+    static_assert(std::is_copy_constructible_v<pack<int &>>);
+    static_assert(not std::is_copy_assignable_v<pack<int &>>);
+    static_assert(not std::is_copy_assignable_v<pack<int const>>);
+    static_assert(std::is_trivially_destructible_v<pack<int, int &>>);
+    static_assert(not std::is_trivially_destructible_v<pack<std::string>>);
+    SUCCEED();
+  }
+}
 
 TEST_CASE("pack", "[pack]")
 {
