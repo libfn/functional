@@ -357,16 +357,36 @@ template <typename T, typename... Args>
 
 namespace detail {
 
+// `value()` throws when the monad holds no value, but the join only reaches it once `has_value()`
+// has answered - so the specification below asks what folding and lifting the value promise, with
+// the accessor spelled as a type rather than as a call which would drag its own throw in.
+template <typename Monad> using _value_of_t = decltype(::std::declval<Monad>().value());
+
+template <typename Lh, typename Rh>
+using _joined_t = decltype(::fn::detail::_fold_detail::fold<typename ::std::remove_cvref_t<Lh>::value_type,
+                                                            typename ::std::remove_cvref_t<Rh>::value_type>(
+    ::std::declval<_value_of_t<Lh>>(), ::std::declval<_value_of_t<Rh>>()));
+
+// `_join` invokes `efn` as an lvalue - a named parameter - so the `Efn &` questions ask about the
+// call the body performs; the reference collapses to it whatever category the callable arrived in.
+template <template <typename> typename Tpl, typename Lh, typename Rh, typename Efn>
+constexpr inline bool _nothrow_join
+    = noexcept(::fn::detail::_fold_detail::fold<typename ::std::remove_cvref_t<Lh>::value_type,
+                                                typename ::std::remove_cvref_t<Rh>::value_type>(
+          ::std::declval<_value_of_t<Lh>>(), ::std::declval<_value_of_t<Rh>>()))
+      && _nothrow_initializable<Tpl<_joined_t<Lh, Rh>>, ::std::in_place_t, _joined_t<Lh, Rh>>
+      && ::std::is_nothrow_invocable_v<Efn &, Lh> && ::std::is_nothrow_invocable_v<Efn &, Rh>
+      && _nothrow_initializable<Tpl<_joined_t<Lh, Rh>>, ::std::invoke_result_t<Efn &, Lh>>
+      && _nothrow_initializable<Tpl<_joined_t<Lh, Rh>>, ::std::invoke_result_t<Efn &, Rh>>;
+
 template <template <typename> typename Tpl>
-[[nodiscard]] constexpr auto _join(auto &&lh, auto &&rh, auto &&efn)
-    -> Tpl<decltype(::fn::detail::_fold_detail::fold<typename ::std::remove_cvref_t<decltype(lh)>::value_type,
-                                                     typename ::std::remove_cvref_t<decltype(rh)>::value_type>(
-        FWD(lh).value(), FWD(rh).value()))>
+[[nodiscard]] constexpr auto _join(auto &&lh, auto &&rh, auto &&efn) //
+    noexcept(_nothrow_join<Tpl, decltype(lh), decltype(rh), decltype(efn)>)
+        -> Tpl<_joined_t<decltype(lh), decltype(rh)>>
 {
   using Lh = ::std::remove_cvref_t<decltype(lh)>::value_type;
   using Rh = ::std::remove_cvref_t<decltype(rh)>::value_type;
-  using value_type = decltype(::fn::detail::_fold_detail::fold<Lh, Rh>(FWD(lh).value(), FWD(rh).value()));
-  using type = Tpl<value_type>;
+  using type = Tpl<_joined_t<decltype(lh), decltype(rh)>>;
   if (lh.has_value() && rh.has_value())
     return type{::std::in_place, ::fn::detail::_fold_detail::fold<Lh, Rh>(FWD(lh).value(), FWD(rh).value())};
   else if (not lh.has_value())
@@ -384,7 +404,9 @@ template <template <typename> typename Tpl>
  * @param rh TODO
  * @return TODO
  */
-[[nodiscard]] constexpr auto operator&(auto &&lh, auto &&rh)
+[[nodiscard]] constexpr auto operator&(auto &&lh, auto &&rh) //
+    noexcept(noexcept(::fn::detail::_fold_detail::fold<::std::remove_cvref_t<decltype(lh)>,
+                                                       ::std::remove_cvref_t<decltype(rh)>>(FWD(lh), FWD(rh))))
   requires(some_sum<decltype(lh)> || some_pack<decltype(lh)>)
 {
   using Lh = ::std::remove_cvref_t<decltype(lh)>;

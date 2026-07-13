@@ -127,23 +127,52 @@ struct optional_policy {
   template <class X> static constexpr bool is_specialization = _is_some_optional<X &>;
 };
 
+// `or_else` has two arms - the callback's own optional is returned, or its value type and T are
+// widened into a sum - and `if constexpr` picks between them. A noexcept-specifier is an ordinary
+// constant expression, so it cannot pick: the untaken arm's spelling would have to be well-formed
+// too, and it is not. Hence a trait, whose constrained specializations mirror the body's arms. The
+// unconstrained primary answers for a callback returning something that is not an optional at all -
+// the body's static_assert is the diagnostic there, and it must not be pre-empted by a hard error
+// in the specification.
+template <typename T, typename Fn, typename ValArg> struct _nothrow_optional_or_else : ::std::false_type {};
+
+template <typename T, typename Fn, typename ValArg>
+  requires ::std::is_same_v<::std::remove_cvref_t<typename _invoke_result<Fn>::type>, ::fn::optional<T>>
+struct _nothrow_optional_or_else<T, Fn, ValArg>
+    : ::std::bool_constant<_is_nothrow_invocable<Fn>::value
+                               && ::std::is_nothrow_constructible_v<::fn::optional<T>, ::std::in_place_t, ValArg>> {};
+
+template <typename T, typename Fn, typename ValArg>
+  requires _is_some_optional<::std::remove_cvref_t<typename _invoke_result<Fn>::type> &>
+           && (not ::std::is_same_v<::std::remove_cvref_t<typename _invoke_result<Fn>::type>, ::fn::optional<T>>)
+struct _nothrow_optional_or_else<T, Fn, ValArg> {
+  using type = ::std::remove_cvref_t<typename _invoke_result<Fn>::type>;
+  using new_type = ::fn::optional<sum_for<T, typename type::value_type>>;
+
+  static constexpr bool value
+      = _is_nothrow_invocable<Fn>::value                               // the callback
+        && _nothrow_initializable<new_type, ::std::in_place_t, ValArg> // self's value
+        && _nothrow_initializable<new_type, ::std::in_place_t, decltype(::std::declval<type>().value())>; // its value
+};
+
 // Storage layer for ::fn::optional. Inherits the standard-conformant base from
 // pfn, then hides the three monadic static helpers with sum-aware variants that
 // materialise their result via `optional_policy::template type<U>`.
 // The transform helpers hand pfn's _optional_from_invoke constructor a zero-argument
 // thunk, so the result's contained value is direct-non-list-initialized from fn's own
 // _invoke (or sum::transform) result: no extra move, and immovable result types work.
-// The statics carry the same extension noexcept as pfn's, spelled with the std traits: for
-// the sum/pack dispatch extensions std::is_nothrow_invocable_v is false (the callable is not
-// directly invocable on a sum or pack), so those are conservatively noexcept(false).
+// The statics carry the same extension noexcept as pfn's, computed through fn's own machinery:
+// the callback of a sum/pack dispatch is invoked through `_invoke`, not called directly, so it is
+// `_is_nothrow_invocable` - not the std trait, which is false for a callable that is not directly
+// invocable on a sum or a pack - that answers for it.
 template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, optional_policy> {
   using _pfn_base = ::pfn::detail::_optional_base<T, optional_policy>;
   using _pfn_base::_pfn_base;
 
   // and_then
   template <typename Self, typename Fn>
-  static constexpr auto _and_then(Self &&self, Fn &&fn)                 //
-      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(*FWD(self))>) // extension
+  static constexpr auto _and_then(Self &&self, Fn &&fn)                              //
+      noexcept(::fn::detail::_is_nothrow_invocable<Fn, decltype(*FWD(self))>::value) // extension
     requires ::fn::detail::_is_invocable<Fn, decltype(*FWD(self))>::value
   {
     using type = ::std::remove_cvref_t<typename ::fn::detail::_invoke_result<Fn, decltype(*FWD(self))>::type>;
@@ -169,11 +198,8 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
 
   // or_else (with value-widening into a sum)
   template <typename Self, typename Fn>
-  static constexpr auto _or_else(Self &&self, Fn &&fn) //
-      noexcept(
-          ::std::is_same_v<::std::remove_cvref_t<typename ::fn::detail::_invoke_result<Fn>::type>, ::fn::optional<T>>
-          && ::std::is_nothrow_invocable_v<Fn>
-          && ::std::is_nothrow_constructible_v<::fn::optional<T>, Self>) // extension
+  static constexpr auto _or_else(Self &&self, Fn &&fn)                                      //
+      noexcept(::fn::detail::_nothrow_optional_or_else<T, Fn, decltype(*FWD(self))>::value) // extension
     requires ::fn::detail::_is_invocable<Fn>::value && ::std::is_constructible_v<T, decltype(*FWD(self))>
   {
     using type = ::std::remove_cvref_t<typename ::fn::detail::_invoke_result<Fn>::type>;
@@ -215,8 +241,8 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
   // transform, value type is not a sum. In the noexcept spec, only the invoke can throw: the
   // result is direct-non-list-initialized from the thunk's result (guaranteed elision).
   template <typename Self, typename Fn>
-  static constexpr auto _transform(Self &&self, Fn &&fn)                //
-      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(*FWD(self))>) // extension
+  static constexpr auto _transform(Self &&self, Fn &&fn)                             //
+      noexcept(::fn::detail::_is_nothrow_invocable<Fn, decltype(*FWD(self))>::value) // extension
     requires(not some_sum<T>) && ::fn::detail::_is_invocable_if<not some_sum<T>, Fn, decltype(*FWD(self))>::value
   {
     using new_value_type = ::std::remove_cv_t<typename ::fn::detail::_invoke_result<Fn, decltype(*FWD(self))>::type>;
@@ -234,7 +260,8 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
   // candidate - and would poison overload resolution, since the losing candidates form their
   // signatures too.
   template <typename Self, typename Fn>
-  static constexpr auto _transform(Self &&self, Fn &&fn)
+  static constexpr auto _transform(Self &&self, Fn &&fn)  //
+      noexcept(noexcept((*FWD(self)).transform(FWD(fn)))) // extension
     requires some_sum<T> && ::fn::detail::_typelist_invocable<Fn, decltype(*FWD(self))>
   {
     using new_value_type = decltype((*FWD(self)).transform(FWD(fn)));
@@ -891,10 +918,19 @@ constexpr optional<T> make_optional(::std::initializer_list<U> il, Args &&...arg
   return FWD(src).sum_value();
 }
 
-template <some_optional Lh, some_optional Rh> [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
+namespace detail {
+// A named type, not a lambda: `operator&`'s specification has to name it, and a lambda cannot be
+// spelled in an unevaluated operand before C++20's P0315, which our floor compilers predate.
+struct _optional_efn final {
+  [[nodiscard]] constexpr auto operator()(auto const &) const noexcept -> ::std::nullopt_t { return ::std::nullopt; }
+};
+} // namespace detail
+
+template <some_optional Lh, some_optional Rh>
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
+    noexcept(noexcept(::fn::detail::_join<fn::optional>(FWD(lh), FWD(rh), detail::_optional_efn{})))
 {
-  constexpr auto efn = [](auto const &) { return ::std::nullopt; };
-  return ::fn::detail::_join<fn::optional>(FWD(lh), FWD(rh), efn);
+  return ::fn::detail::_join<fn::optional>(FWD(lh), FWD(rh), detail::_optional_efn{});
 }
 
 } // namespace fn

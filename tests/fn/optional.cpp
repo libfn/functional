@@ -21,6 +21,30 @@ struct Xint {
   constexpr Xint &operator=(Xint const &) = default;
 };
 
+// Nothrow move, throwing copy: joining lvalue operands copies the value, joining rvalues moves it
+struct MoveNothrow {
+  MoveNothrow() = default;
+  MoveNothrow(MoveNothrow const &) noexcept(false) {}
+  MoveNothrow(MoveNothrow &&) noexcept = default;
+};
+
+// The join invokes its error-continuation as an lvalue - a named parameter - whatever the value
+// category it was passed in, and its specification must ask about that call. These answer the
+// lvalue and the rvalue question differently, in both directions - and the third offers only the
+// call the body performs. Namespace scope: a local class cannot have member templates.
+struct EfnLvalueNothrow {
+  constexpr auto operator()(auto const &) & noexcept -> std::nullopt_t { return std::nullopt; }
+  auto operator()(auto const &) && noexcept(false) -> std::nullopt_t { throw 0; }
+};
+struct EfnRvalueNothrow {
+  auto operator()(auto const &) & noexcept(false) -> std::nullopt_t { throw 0; }
+  constexpr auto operator()(auto const &) && noexcept -> std::nullopt_t { return std::nullopt; }
+};
+struct EfnLvalueOnly {
+  constexpr auto operator()(auto const &) & noexcept -> std::nullopt_t { return std::nullopt; }
+  auto operator()(auto const &) && -> std::nullopt_t = delete;
+};
+
 // Sums whose alternatives include a non-builtin (Xint/std::string_view/fn::pack — any
 // class/struct/enum) have platform-specific order (see sum.cpp); pure-builtin sums keep sum<...>.
 } // namespace
@@ -176,6 +200,25 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
       CHECK(std::move(std::as_const(s)).or_else(fn).value() == fn::sum{12});
       CHECK(std::move(s).or_else(fn).value() == fn::sum{12});
     }
+
+    WHEN("noexcept")
+    {
+      // the widening arm builds a sum from either side's value, and weighs both
+      using T = fn::optional<fn::sum<int>>;
+      constexpr auto widen = []() noexcept -> fn::optional<double> { return {0.5}; };
+      static_assert(std::is_same_v<decltype(std::declval<T &>().or_else(widen)), fn::optional<fn::sum<double, int>>>);
+      static_assert(noexcept(std::declval<T &>().or_else(widen)));
+      static_assert(not noexcept(std::declval<T &>().or_else([]() -> fn::optional<double> { return {0.5}; })));
+
+      // ... including relocating self's value into it
+      using W = fn::optional<fn::sum_for<MoveNothrow, int>>;
+      static_assert(not noexcept(std::declval<W &>().or_else(widen))); // copies
+      static_assert(noexcept(std::declval<W &&>().or_else(widen)));    // moves
+
+      // the same-shape arm, which pfn's own or_else would take
+      static_assert(noexcept(std::declval<T &>().or_else([]() noexcept -> T { return {fn::sum{1}}; })));
+      SUCCEED();
+    }
   }
 }
 
@@ -239,6 +282,18 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                                      [](int const &&, auto &&...) -> fn::optional<bool> { throw 0; }}) //
                     .has_value());
     }
+
+    WHEN("noexcept")
+    {
+      // a pack's callback is invoked through fn's own dispatch, taking one argument per element: it
+      // is not directly invocable on the pack, so only fn's nothrow-invocable trait can answer
+      using T = fn::optional<fn::pack<int, double>>;
+      static_assert(
+          noexcept(std::declval<T &>().and_then([](int, double) noexcept -> fn::optional<bool> { return {true}; })));
+      static_assert(
+          not noexcept(std::declval<T &>().and_then([](int, double) -> fn::optional<bool> { return {true}; })));
+      SUCCEED();
+    }
   }
 
   WHEN("transform")
@@ -284,6 +339,14 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       CHECK(not std::as_const(s).transform([](auto...) -> bool { throw 0; }).has_value());
       CHECK(not std::move(std::as_const(s)).transform([](auto...) -> bool { throw 0; }).has_value());
       CHECK(not std::move(s).transform([](auto...) -> bool { throw 0; }).has_value());
+    }
+
+    WHEN("noexcept")
+    {
+      using T = fn::optional<fn::pack<int, double>>;
+      static_assert(noexcept(std::declval<T &>().transform([](int, double) noexcept -> bool { return true; })));
+      static_assert(not noexcept(std::declval<T &>().transform([](int, double) -> bool { return true; })));
+      SUCCEED();
     }
   }
 
@@ -485,6 +548,47 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
         CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
       }
     }
+
+    WHEN("noexcept")
+    {
+      // the join relocates both operands' values into the result, so it promises only what
+      // relocating them promises - the nullopt arm is a tag, and cannot throw
+      using Lh = fn::optional<MoveNothrow>;
+      using Rh = fn::optional<int>;
+      static_assert(noexcept(std::declval<Rh &>() & std::declval<Rh &>()));
+      static_assert(not noexcept(std::declval<Lh &>() & std::declval<Rh &>())); // copies
+      static_assert(not noexcept(std::declval<Rh &>() & std::declval<Lh &>()));
+      static_assert(noexcept(std::declval<Lh &&>() & std::declval<Rh &&>())); // moves
+      static_assert(noexcept(std::declval<Rh &&>() & std::declval<Lh &&>()));
+
+      // the same, dispatched through a sum
+      using Sh = fn::optional<fn::sum<MoveNothrow>>;
+      static_assert(not noexcept(std::declval<Sh &>() & std::declval<Rh &>()));
+      static_assert(noexcept(std::declval<Sh &&>() & std::declval<Rh &&>()));
+
+      WHEN("_join")
+      {
+        // the join invokes its error-continuation as an lvalue, and its specification asks about
+        // that call - whether the callable arrives as a temporary or an lvalue
+        using fn::detail::_join;
+        static_assert(noexcept(_join<fn::optional>(std::declval<Rh &>(), std::declval<Rh &>(), EfnLvalueNothrow{})));
+        static_assert(
+            not noexcept(_join<fn::optional>(std::declval<Rh &>(), std::declval<Rh &>(), EfnRvalueNothrow{})));
+        static_assert(noexcept(_join<fn::optional>(std::declval<Rh &>(), std::declval<Rh &>(), EfnLvalueOnly{})));
+        static_assert(noexcept(
+            _join<fn::optional>(std::declval<Rh &>(), std::declval<Rh &>(), std::declval<EfnLvalueNothrow &>())));
+        static_assert(not noexcept(
+            _join<fn::optional>(std::declval<Rh &>(), std::declval<Rh &>(), std::declval<EfnRvalueNothrow &>())));
+
+        // the body performs the lvalue call: the rvalue overload throws, or does not exist
+        CHECK(not _join<fn::optional>(Rh{std::nullopt}, Rh{12}, EfnLvalueNothrow{}).has_value());
+        CHECK(not _join<fn::optional>(Rh{12}, Rh{std::nullopt}, EfnLvalueOnly{}).has_value());
+        CHECK(_join<fn::optional>(Rh{3}, Rh{4}, EfnLvalueOnly{}).has_value());
+        static_assert(not _join<fn::optional>(Rh{std::nullopt}, Rh{12}, EfnLvalueNothrow{}).has_value());
+        static_assert(not _join<fn::optional>(Rh{12}, Rh{std::nullopt}, EfnLvalueOnly{}).has_value());
+        static_assert(_join<fn::optional>(Rh{3}, Rh{4}, EfnLvalueOnly{}).has_value());
+      }
+    }
   }
 }
 
@@ -586,6 +690,19 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
     static_assert(std::is_same_v<decltype(a.and_then(fn)), fn::optional<bool>>);
     static_assert(a.and_then(fn).value());
   }
+
+  WHEN("noexcept")
+  {
+    // the callback is invoked through fn's own dispatch, so only fn's nothrow-invocable trait can
+    // answer for it - and it is nothrow only if EVERY alternative's call is
+    using T = fn::optional<fn::sum<double, int>>;
+    static_assert(noexcept(std::declval<T &>().and_then([](auto) noexcept -> fn::optional<bool> { return {true}; })));
+    static_assert(not noexcept(std::declval<T &>().and_then([](auto) -> fn::optional<bool> { return {true}; })));
+    static_assert(not noexcept(std::declval<T &>().and_then(
+        fn::overload{[](int) noexcept -> fn::optional<bool> { return {true}; },
+                     [](double) -> fn::optional<bool> { return {true}; }}))); // one throwing alternative is enough
+    SUCCEED();
+  }
 }
 
 TEST_CASE("optional transform sum", "[optional][sum][transform]")
@@ -683,5 +800,20 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
 
     T s{12};
     CHECK(s.transform(lval_only).value() == fn::sum{true});
+  }
+
+  WHEN("noexcept")
+  {
+    // the dispatch is nothrow only if every alternative's call is, and only if relocating what each
+    // returns into the result sum is
+    using T = fn::optional<fn::sum<double, int>>;
+    static_assert(noexcept(std::declval<T &>().transform([](auto) noexcept -> bool { return true; })));
+    static_assert(not noexcept(std::declval<T &>().transform([](auto) -> bool { return true; })));
+    static_assert(not noexcept(std::declval<T &>().transform(
+        fn::overload{[](double) noexcept -> bool { return true; },
+                     [](int) -> bool { return true; }}))); // one throwing alternative is enough
+    static_assert(not noexcept(
+        std::declval<fn::optional<fn::sum_for<MoveNothrow, int>> &>().transform([](auto v) noexcept { return v; })));
+    SUCCEED();
   }
 }
