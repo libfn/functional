@@ -684,8 +684,6 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
   }
 
   SECTION("noexcept")
-
-  SECTION("noexcept")
   {
     // the widening arms relocate BOTH sides into the summed result - self's, and the callback's -
     // and weigh both, rather than reporting potentially-throwing merely because the shape changed
