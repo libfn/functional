@@ -88,13 +88,28 @@ template <template <typename...> typename Tpl, typename... Ts> struct normalized
 };
 } // namespace _collapsing_sum
 
+// A result no sum can hold - void above all - must drop the caller's candidate, not explode:
+// everything behind the gate (flattening, normalization, the sum they name) hard-errors OUTSIDE
+// any immediate context. The false gate has no `type`, and the collapsing traits pass that absence
+// through by inheritance, so it surfaces where a return type names `::type` - in the immediate
+// context, as a clean substitution failure.
+template <bool, template <typename...> typename Tpl, typename... Rs> struct _collapsing_sum_gate {};
+template <template <typename...> typename Tpl, typename... Rs> struct _collapsing_sum_gate<true, Tpl, Rs...> {
+  using type = _collapsing_sum::normalized<Tpl, _collapsing_sum::flattened<Rs...>>::type;
+};
+
+template <typename R> constexpr inline bool _collapsible_result = some_sum<R> || _is_valid_sum_subtype<R>;
+
 template <typename Fn, typename Self, typename T, typename... Args> struct _typelist_collapsing_sum;
 template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts, typename... Args>
-struct _typelist_collapsing_sum<Fn, Self, Tpl<Ts...>, Args...> {
-  using type = _collapsing_sum::normalized<
-      Tpl, _collapsing_sum::flattened<::std::remove_cvref_t<
-               typename ::fn::detail::_invoke_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...>>::type;
-};
+struct _typelist_collapsing_sum<Fn, Self, Tpl<Ts...>, Args...>
+    : _collapsing_sum_gate<
+          (...
+           && _collapsible_result<::std::remove_cvref_t<
+               typename ::fn::detail::_invoke_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>>),
+          Tpl,
+          ::std::remove_cvref_t<
+              typename ::fn::detail::_invoke_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...> {};
 
 template <typename T, typename Fn, typename Self, typename... Args> struct _sum_invoke_result final {
   using type = T;
@@ -104,9 +119,8 @@ struct _sum_invoke_result<_invoke_autodetect_tag, Fn, Self, Args...> final {
   using type = _typelist_select_invoke_result<Fn, Self, ::std::remove_cvref_t<Self>, Args...>::type;
 };
 template <typename Fn, typename Self, typename... Args>
-struct _sum_invoke_result<_collapsing_sum_tag, Fn, Self, Args...> final {
-  using type = _typelist_collapsing_sum<Fn, Self, ::std::remove_cvref_t<Self>, Args...>::type;
-};
+struct _sum_invoke_result<_collapsing_sum_tag, Fn, Self, Args...> final
+    : _typelist_collapsing_sum<Fn, Self, ::std::remove_cvref_t<Self>, Args...> {};
 
 template <typename Fn, typename Self, typename T> struct _typelist_type_select_invoke_result;
 template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts>
@@ -121,11 +135,14 @@ struct _typelist_type_select_invoke_result<Fn, Self, Tpl<Ts...>> {
 
 template <typename Fn, typename Self, typename T> struct _typelist_type_collapsing_sum;
 template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts>
-struct _typelist_type_collapsing_sum<Fn, Self, Tpl<Ts...>> {
-  using type = _collapsing_sum::normalized<
-      Tpl, _collapsing_sum::flattened<::std::remove_cvref_t<
-               typename ::fn::detail::_invoke_type_result<Ts, Fn, apply_const_lvalue_t<Self, Ts>>::type>...>>::type;
-};
+struct _typelist_type_collapsing_sum<Fn, Self, Tpl<Ts...>>
+    : _collapsing_sum_gate<
+          (...
+           && _collapsible_result<::std::remove_cvref_t<
+               typename ::fn::detail::_invoke_type_result<Ts, Fn, apply_const_lvalue_t<Self, Ts>>::type>>),
+          Tpl,
+          ::std::remove_cvref_t<
+              typename ::fn::detail::_invoke_type_result<Ts, Fn, apply_const_lvalue_t<Self, Ts>>::type>...> {};
 
 template <typename T, typename Fn, typename Self> struct _sum_invoke_type_result final {
   using type = T;
@@ -133,9 +150,9 @@ template <typename T, typename Fn, typename Self> struct _sum_invoke_type_result
 template <typename Fn, typename Self> struct _sum_invoke_type_result<_invoke_autodetect_tag, Fn, Self> final {
   using type = _typelist_type_select_invoke_result<Fn, Self, ::std::remove_cvref_t<Self>>::type;
 };
-template <typename Fn, typename Self> struct _sum_invoke_type_result<_collapsing_sum_tag, Fn, Self> final {
-  using type = _typelist_type_collapsing_sum<Fn, Self, ::std::remove_cvref_t<Self>>::type;
-};
+template <typename Fn, typename Self>
+struct _sum_invoke_type_result<_collapsing_sum_tag, Fn, Self> final
+    : _typelist_type_collapsing_sum<Fn, Self, ::std::remove_cvref_t<Self>> {};
 
 } // namespace detail
 
