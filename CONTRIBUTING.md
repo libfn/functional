@@ -18,11 +18,32 @@ For a quick check of a single example without the full CMake/Catch2 setup:
 g++ -std=c++20 -Iinclude examples/polygon/main.cpp -o /tmp/polygon
 ```
 
-## Test coverage
+## Unit tests
 
 In this project, 100% tests coverage does not actually mean much, because the most useful tests cases are around compile-time language elements, such as overload resolution, built-in conversions etc. Any meaningful tests must execute the same set of functions in many, subtly different ways, rather than simply execute each function and branch at least once.
 
-Two rules: every behaviour gets both a runtime `CHECK` and a constant-evaluation twin (`static_assert`), and a new check belongs in the existing `TEST_CASE`/`SECTION` covering that member or behaviour, matching the local idiom. The twin, because constant evaluation diagnoses UB at compile time — users rely on it — while a `static_assert`-only branch is a coverage hole; the placement, because a check in the right named section is self-documenting.
+An entity's tests span four dimensions: its observable behaviour at runtime, the same behaviour in constant evaluation, the exactness of its `noexcept` specification, and the accuracy of its constraints — positive and negative. (Entities that exist only at compile time — traits, concepts — have only the compile-time dimensions.)
+
+### Structure
+
+A `TEST_CASE` covers one entity, a top-level `SECTION` covers one member function or overload set, and nested `SECTION`s cover the product of dimensions that member spans — value category first, then type properties. Keep section names short, and use plain `SECTION` rather than the BDD macros (`WHEN`, `GIVEN`, `THEN`). `tests/pfn/expected.cpp` is the reference shape; when unsure how to organise a test, imitate it.
+
+* Declare the subject alias and the probe lambdas once, at `TEST_CASE` scope; nested sections use them rather than re-declaring their own.
+* A new check belongs in the existing `TEST_CASE`/`SECTION` covering that member or behaviour, matching the local idiom — not the nearest convenient spot or a catch-all case. A check in the right named section is self-documenting.
+
+### The kind of fact decides the assertion
+
+* **A fact the compiler decides** — a `noexcept` specification, a type or a trait, overload viability, concept satisfaction — is asserted with `static_assert` alone. A runtime `CHECK` of such a fact cannot fail once the file compiles, and executes no library code: `CHECK(noexcept(f()))` is `CHECK(true)`. There is no coverage hole to fill either — a specifier has no executable lines. This is the rule to cite when a review asks for a runtime `CHECK` of a compile-time fact.
+
+* **Behaviour the program performs** — a value computed, a side effect, a state change, an exception thrown — gets both a runtime `CHECK` and a constant-evaluation twin replaying the same operations inside a `static_assert`. The runtime check executes the instrumented lines — a `static_assert`-only executable branch is a coverage hole — and the twin is a UB detector: constant evaluation is required to diagnose UB, and users rely on the library in `constexpr` for exactly this. When a branch exists to give a guarantee, exercise both its failure and its success — a path tested only through `CHECK_THROWS_AS` never runs to completion.
+
+* A `SECTION` containing only compile-time checks ends with `SUCCEED()` — it satisfies Catch2's no-assertion warning and makes such sections easy to find.
+
+### Negative assertions
+
+* **Every negative wants its converse.** `static_assert(not noexcept(expr))` alone also passes when the specification is unconditionally false — which is precisely the defect it exists to catch. Pair it with a witness that makes the specification true, so the pair shows the specification conditional rather than merely absent. Constraints likewise: a non-viability probe wants its positive control.
+
+* **Negative viability probes must be dependent.** A requires-expression written directly over concrete types hard-errors when a requirement is invalid — false-on-invalid applies only during template-argument substitution. Wrap the probe in a generic lambda returning `requires { … }`, or in a type-keyed concept, so the failure lands in an immediate context and yields `false`.
 
 ## Versioning
 

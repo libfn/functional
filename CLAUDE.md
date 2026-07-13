@@ -45,8 +45,9 @@ C++20 is the sole export surface — fn + pfn build and pass tests as C++20 on a
 
 ## Tests
 
+- Test standards: CONTRIBUTING.md `## Unit tests` (reference shape, assertion kinds, probe idioms) — read before writing tests; the two below are load-bearing.
+- The kind of fact decides the assertion: a fact the compiler decides (noexcept, a trait, overload viability, concept satisfaction) is `static_assert` ALONE — `CHECK(noexcept(…))` is `CHECK(true)`, never add or request one. Behaviour the program performs gets BOTH a runtime `CHECK` (a `static_assert`-only executable branch is a codecov hole) and a constant-evaluation twin (constexpr diagnoses UB; users rely on it). CT-only `SECTION`s end with `SUCCEED()`.
 - Add each check to the existing `TEST_CASE`/`SECTION` (or file) covering that member/behaviour, matching local idiom — not the nearest spot or a catch-all. A check in the right named section is self-documenting.
-- Every behaviour gets both a runtime `CHECK` (a `static_assert`-only branch is a codecov hole) and a constant-evaluation twin (`static_assert`) — constexpr diagnoses UB at compile time, and users rely on it.
 
 ## Tooling
 
