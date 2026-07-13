@@ -654,6 +654,70 @@ struct PassThrough {
 };
 } // namespace
 
+TEST_CASE("sum noexcept", "[sum][noexcept]")
+{
+  using fn::sum;
+
+  struct Throwy {
+    Throwy() = default;
+    Throwy(Throwy const &) noexcept(false) {}
+    Throwy(Throwy &&) noexcept(false) {}
+    bool operator==(Throwy const &) const noexcept(false) { return true; }
+  };
+  struct Quiet {
+    Quiet() = default;
+    Quiet(Quiet const &) noexcept {}
+    Quiet(Quiet &&) noexcept {}
+    bool operator==(Quiet const &) const noexcept { return true; }
+  };
+
+  WHEN("constructors")
+  {
+    static_assert(noexcept(sum<int>{42}));
+    static_assert(noexcept(sum<int>{std::in_place_type<int>, 42}));
+    static_assert(noexcept(fn::as_sum(42)));
+    static_assert(not noexcept(sum<Throwy>{std::declval<Throwy const &>()}));
+
+    static_assert(std::is_nothrow_copy_constructible_v<sum<int>>);
+    static_assert(std::is_nothrow_copy_constructible_v<sum<Quiet>>);
+    static_assert(not std::is_nothrow_copy_constructible_v<sum<Throwy>>);
+    static_assert(not std::is_nothrow_move_constructible_v<sum<Throwy>>);
+    SUCCEED();
+  }
+
+  WHEN("dispatch")
+  {
+    using S = sum<bool, int>;
+    constexpr auto nothrow_fn = [](auto) noexcept { return 0; };
+    constexpr auto throwing_fn = [](auto) { return 0; };
+
+    static_assert(noexcept(std::declval<S &>().invoke(nothrow_fn)));
+    static_assert(not noexcept(std::declval<S &>().invoke(throwing_fn)));
+    static_assert(noexcept(std::declval<S &>().template invoke_r<int>(nothrow_fn)));
+    static_assert(not noexcept(std::declval<S &>().template invoke_r<int>(throwing_fn)));
+    static_assert(noexcept(std::declval<S &>().transform(nothrow_fn)));
+    static_assert(not noexcept(std::declval<S &>().transform(throwing_fn)));
+
+    // which alternative runs is a run-time choice, so one throwing handler makes the whole
+    // dispatch throwing
+    constexpr auto mixed = fn::overload{[](int) noexcept { return 0; }, [](bool) { return 0; }};
+    static_assert(not noexcept(std::declval<S &>().invoke(mixed)));
+    SUCCEED();
+  }
+
+  WHEN("comparison")
+  {
+    static_assert(noexcept(std::declval<sum<int> const &>() == std::declval<sum<int> const &>()));
+    static_assert(noexcept(std::declval<sum<Quiet> const &>() == std::declval<sum<Quiet> const &>()));
+    static_assert(not noexcept(std::declval<sum<Throwy> const &>() == std::declval<sum<Throwy> const &>()));
+
+    // the rewritten != inherits it
+    static_assert(noexcept(std::declval<sum<int> const &>() != std::declval<sum<int> const &>()));
+    static_assert(not noexcept(std::declval<sum<Throwy> const &>() != std::declval<sum<Throwy> const &>()));
+    SUCCEED();
+  }
+}
+
 TEST_CASE("sum type collapsing", "[sum][transform][normalized]")
 {
   using ::fn::overload;
