@@ -367,15 +367,17 @@ using _joined_t = decltype(::fn::detail::_fold_detail::fold<typename ::std::remo
                                                             typename ::std::remove_cvref_t<Rh>::value_type>(
     ::std::declval<_value_of_t<Lh>>(), ::std::declval<_value_of_t<Rh>>()));
 
+// `_join` invokes `efn` as an lvalue - a named parameter - so the `Efn &` questions ask about the
+// call the body performs; the reference collapses to it whatever category the callable arrived in.
 template <template <typename> typename Tpl, typename Lh, typename Rh, typename Efn>
 constexpr inline bool _nothrow_join
     = noexcept(::fn::detail::_fold_detail::fold<typename ::std::remove_cvref_t<Lh>::value_type,
                                                 typename ::std::remove_cvref_t<Rh>::value_type>(
           ::std::declval<_value_of_t<Lh>>(), ::std::declval<_value_of_t<Rh>>()))
       && _nothrow_initializable<Tpl<_joined_t<Lh, Rh>>, ::std::in_place_t, _joined_t<Lh, Rh>>
-      && ::std::is_nothrow_invocable_v<Efn, Lh> && ::std::is_nothrow_invocable_v<Efn, Rh>
-      && _nothrow_initializable<Tpl<_joined_t<Lh, Rh>>, ::std::invoke_result_t<Efn, Lh>>
-      && _nothrow_initializable<Tpl<_joined_t<Lh, Rh>>, ::std::invoke_result_t<Efn, Rh>>;
+      && ::std::is_nothrow_invocable_v<Efn &, Lh> && ::std::is_nothrow_invocable_v<Efn &, Rh>
+      && _nothrow_initializable<Tpl<_joined_t<Lh, Rh>>, ::std::invoke_result_t<Efn &, Lh>>
+      && _nothrow_initializable<Tpl<_joined_t<Lh, Rh>>, ::std::invoke_result_t<Efn &, Rh>>;
 
 template <template <typename> typename Tpl>
 [[nodiscard]] constexpr auto _join(auto &&lh, auto &&rh, auto &&efn) //

@@ -28,6 +28,23 @@ struct MoveNothrow {
   MoveNothrow(MoveNothrow &&) noexcept = default;
 };
 
+// The join invokes its error-continuation as an lvalue - a named parameter - whatever the value
+// category it was passed in, and its specification must ask about that call. These answer the
+// lvalue and the rvalue question differently, in both directions - and the third offers only the
+// call the body performs. Namespace scope: a local class cannot have member templates.
+struct EfnLvalueNothrow {
+  constexpr auto operator()(auto const &) & noexcept -> std::nullopt_t { return std::nullopt; }
+  auto operator()(auto const &) && noexcept(false) -> std::nullopt_t { throw 0; }
+};
+struct EfnRvalueNothrow {
+  auto operator()(auto const &) & noexcept(false) -> std::nullopt_t { throw 0; }
+  constexpr auto operator()(auto const &) && noexcept -> std::nullopt_t { return std::nullopt; }
+};
+struct EfnLvalueOnly {
+  constexpr auto operator()(auto const &) & noexcept -> std::nullopt_t { return std::nullopt; }
+  auto operator()(auto const &) && -> std::nullopt_t = delete;
+};
+
 // Sums whose alternatives include a non-builtin (Xint/std::string_view/fn::pack — any
 // class/struct/enum) have platform-specific order (see sum.cpp); pure-builtin sums keep sum<...>.
 } // namespace
@@ -548,7 +565,29 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       using Sh = fn::optional<fn::sum<MoveNothrow>>;
       static_assert(not noexcept(std::declval<Sh &>() & std::declval<Rh &>()));
       static_assert(noexcept(std::declval<Sh &&>() & std::declval<Rh &&>()));
-      SUCCEED();
+
+      WHEN("_join")
+      {
+        // the join invokes its error-continuation as an lvalue, and its specification asks about
+        // that call - whether the callable arrives as a temporary or an lvalue
+        using fn::detail::_join;
+        static_assert(noexcept(_join<fn::optional>(std::declval<Rh &>(), std::declval<Rh &>(), EfnLvalueNothrow{})));
+        static_assert(
+            not noexcept(_join<fn::optional>(std::declval<Rh &>(), std::declval<Rh &>(), EfnRvalueNothrow{})));
+        static_assert(noexcept(_join<fn::optional>(std::declval<Rh &>(), std::declval<Rh &>(), EfnLvalueOnly{})));
+        static_assert(noexcept(
+            _join<fn::optional>(std::declval<Rh &>(), std::declval<Rh &>(), std::declval<EfnLvalueNothrow &>())));
+        static_assert(not noexcept(
+            _join<fn::optional>(std::declval<Rh &>(), std::declval<Rh &>(), std::declval<EfnRvalueNothrow &>())));
+
+        // the body performs the lvalue call: the rvalue overload throws, or does not exist
+        CHECK(not _join<fn::optional>(Rh{std::nullopt}, Rh{12}, EfnLvalueNothrow{}).has_value());
+        CHECK(not _join<fn::optional>(Rh{12}, Rh{std::nullopt}, EfnLvalueOnly{}).has_value());
+        CHECK(_join<fn::optional>(Rh{3}, Rh{4}, EfnLvalueOnly{}).has_value());
+        static_assert(not _join<fn::optional>(Rh{std::nullopt}, Rh{12}, EfnLvalueNothrow{}).has_value());
+        static_assert(not _join<fn::optional>(Rh{12}, Rh{std::nullopt}, EfnLvalueOnly{}).has_value());
+        static_assert(_join<fn::optional>(Rh{3}, Rh{4}, EfnLvalueOnly{}).has_value());
+      }
     }
   }
 }
