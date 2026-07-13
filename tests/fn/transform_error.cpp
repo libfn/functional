@@ -38,6 +38,7 @@ TEST_CASE("transform_error", "[transform_error][expected]")
   constexpr auto fnError = [](Error v) -> Error { return {"Got: " + v.what}; };
   constexpr auto wrong = [](Error) -> Error { throw 0; };
   constexpr auto fnXerror = [](Error v) -> Xerror { return {v.what.size()}; };
+  constexpr auto fnVoid = [](Error) {};
 
   static_assert(is::invocable_with_any(fnError));
   static_assert(is::invocable_with_any([](auto...) -> Error { throw 0; }));                // allow generic call
@@ -53,6 +54,7 @@ TEST_CASE("transform_error", "[transform_error][expected]")
   static_assert(is::not_invocable_with_any([](std::string) -> Error { throw 0; }));                       // bad type
   static_assert(is::not_invocable_with_any([]() -> Error { throw 0; }));                                  // bad arity
   static_assert(is::not_invocable_with_any([](int, int) -> Error { throw 0; }));                          // bad arity
+  static_assert(is::not_invocable_with_any(fnVoid)); // void return: no unexpected<void> to convert to
 
   SECTION("lvalue")
   {
@@ -263,11 +265,7 @@ static_assert(invocable_transform_error<decltype(fn_Error<Xerror>), expected<int
 static_assert(invocable_transform_error<decltype(fn_Error<Xerror>), expected<void, Error>>);      // void value is fine
 static_assert(invocable_transform_error<decltype(fn_generic<Xerror>), expected<Value, Error>>);
 static_assert(not invocable_transform_error<decltype(fn_Error<Xerror>), expected<int, Value>>);   // wrong parameter type
-// GAP #290: a void-returning callback should be rejected here, but the concept HARD-ERRORS instead
-// of yielding false - convertible_to_unexpected instantiates unexpected<void>, whose validity
-// mandate is a class-body static_assert, outside any immediate context. Contrast transform, where a
-// void return is legitimate and convertible_to_expected guards void with its own arm. No negative
-// probe is possible until #290 is fixed.
+static_assert(not invocable_transform_error<decltype(fn_Error<void>), expected<int, Error>>);     // no unexpected<void> to convert to
 static_assert(not invocable_transform_error<decltype(fn_generic<Xerror>), optional<int>>);        // optional has no error to map
 static_assert(not invocable_transform_error<decltype(fn_generic<Xerror>), choice<int>>);          // neither has choice
 static_assert(not invocable_transform_error<decltype(fn_Error_lvalue), expected<int, Error>>);    // cannot bind temporary to lvalue

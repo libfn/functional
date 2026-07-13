@@ -358,6 +358,7 @@ TEST_CASE("transform", "[transform][optional][pack]")
   constexpr auto fnValue = [](int i) -> int { return i + 1; };
   constexpr auto wrong = [](int) -> int { throw 0; };
   constexpr auto fnXabs = [](int i) -> Xint { return {std::abs(8 - i)}; };
+  constexpr auto fnVoid = [](int) {};
 
   static_assert(is::invocable_with_any(fnValue));
   static_assert(is::invocable_with_any([](auto...) -> int { throw 0; }));                    // allow generic call
@@ -373,6 +374,7 @@ TEST_CASE("transform", "[transform][optional][pack]")
   static_assert(is::not_invocable_with_any([](std::string) -> int { throw 0; }));                     // bad type
   static_assert(is::not_invocable_with_any([]() -> int { throw 0; }));                                // bad arity
   static_assert(is::not_invocable_with_any([](int, int) -> int { throw 0; }));                        // bad arity
+  static_assert(is::not_invocable_with_any(fnVoid)); // void return: no optional<void> to convert to
 
   SECTION("lvalue")
   {
@@ -708,6 +710,7 @@ static_assert(invocable_transform<decltype(fn_int<void>), expected<int, Error>>)
 static_assert(invocable_transform<decltype(fn_int<int>), optional<int>>);
 static_assert(not invocable_transform<decltype(fn_int<int>), optional<Value>>);                 // wrong parameter type
 static_assert(invocable_transform<decltype(fn_generic<int>), optional<Value>>);
+static_assert(not invocable_transform<decltype(fn_int<void>), optional<int>>);                 // void return: no optional<void>
 static_assert(invocable_transform<decltype(fn_generic<int>), choice<int>>);
 static_assert(not invocable_transform<decltype(fn_int<int>), choice<Value>>);            // must serve every alternative
 static_assert(not invocable_transform<decltype(fn_int_lvalue), expected<int, Error>>);   // cannot bind temporary to lvalue
