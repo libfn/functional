@@ -5,6 +5,8 @@
 
 #include "util/static_check.hpp"
 
+#include <util/helper_types.hpp>
+
 #include <fn/fail.hpp>
 
 #include <catch2/catch_all.hpp>
@@ -442,3 +444,26 @@ static_assert(invocable_fail<decltype(fn_int_rvalue<Error>), expected<int, Error
 static_assert(
     not invocable_fail<decltype(fn_int_rvalue<Error>), expected<int, Error> &>); // cannot bind lvalue to rvalue-ref
 } // namespace fn
+
+TEST_CASE("fail constraints", "[fail][constraints]")
+{
+  using namespace fn;
+
+  // The error branch carries the existing error over, so it must be able to
+  constexpr auto from_value = [](int) -> int { return 1; }; // converts to either helper below
+  using immovable_t = fn::expected<int, helper_immovable>;
+  static_assert(std::is_constructible_v<immovable_t, fn::unexpect_t, int>);
+  static_assert(monadic_static_check<fail_t, immovable_t>::not_invocable_with_any(from_value));
+  static_assert(monadic_static_check<fail_t, fn::expected<void, helper_immovable>>::not_invocable_with_any(
+      []() -> int { return 1; }));
+
+  // ... and a move-only error only where it can be moved out of
+  using is = monadic_static_check<fail_t, fn::expected<int, helper_move_only>>;
+  static_assert(is::invocable<rvalue, prvalue>(from_value));     // moved
+  static_assert(is::invocable<crvalue, cvalue>(from_value));     // const-moved
+  static_assert(is::not_invocable<lvalue, clvalue>(from_value)); // would have to copy
+
+  // An optional discards its value and returns nullopt, relocating nothing
+  static_assert(monadic_static_check<fail_t, fn::optional<helper_immovable>>::invocable_with_any([](auto const &) {}));
+  SUCCEED();
+}

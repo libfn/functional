@@ -3,6 +3,8 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
+#include "util/static_check.hpp"
+
 #include <fn/value_or.hpp>
 
 #include <util/helper_types.hpp>
@@ -12,6 +14,8 @@
 #include <string>
 #include <string_view>
 #include <utility>
+
+using namespace util;
 
 namespace {
 struct Error final {
@@ -167,15 +171,63 @@ TEST_CASE("value_or noexcept", "[value_or][noexcept]")
   static_assert(not noexcept(value_or_t::apply{}(std::declval<fn::expected<std::string, Error> &>(), "abc")));
   static_assert(not noexcept(value_or_t::apply{}(std::declval<fn::optional<std::string> &>(), "abc")));
 
-  // ... as it weighs the error it relocates on the way: Error carries a std::string, so even an int
-  // fallback that cannot throw to build leaves the operation potentially-throwing here
+  // ... and nothing else: the error is discarded rather than carried into the result, so its copy
+  // never weighs, however throwing it is - Error here holds a std::string
   static_assert(std::is_nothrow_constructible_v<int, int>);
-  static_assert(not noexcept(value_or_t::apply{}(std::declval<fn::expected<int, Error> &>(), 42)));
-
-  // Give it an error that cannot throw, and nothing in the operation can
+  static_assert(not std::is_nothrow_copy_constructible_v<Error>);
+  static_assert(noexcept(value_or_t::apply{}(std::declval<fn::expected<int, Error> &>(), 42)));
   static_assert(noexcept(value_or_t::apply{}(std::declval<fn::expected<int, int> &>(), 42)));
   static_assert(noexcept(value_or_t::apply{}(std::declval<fn::optional<int> &>(), 42)));
 
+  // building the fallback value can throw
+  using S = fn::optional<std::string>;
+  static_assert(not noexcept(std::declval<S &>() | fn::value_or("x")));
+
+  // the untouched error is never relocated, so its throwing copy does not weigh
+  using X = fn::expected<int, std::string>;
+  static_assert(noexcept(std::declval<X &>() | fn::value_or(1)));
+
+  // the carried value is relocated in the operand's category, and that weighs
+  struct MoveNothrow {
+    MoveNothrow(int) noexcept {}
+    MoveNothrow(MoveNothrow const &) noexcept(false) {}
+    MoveNothrow(MoveNothrow &&) noexcept {}
+  };
+  using W = fn::expected<MoveNothrow, int>;
+  static_assert(not noexcept(std::declval<W &>() | fn::value_or(1))); // copies
+  static_assert(noexcept(std::declval<W &&>() | fn::value_or(1)));    // moves
+  SUCCEED();
+}
+
+TEST_CASE("value_or constraints", "[value_or][constraints]")
+{
+  using namespace fn;
+
+  // The result carries the existing value over, so it must be able to. An immovable value type can
+  // still be built in place - which is not the question - but never carried: the candidate must
+  // drop, not fail inside the body.
+  using immovable_t = fn::expected<helper_immovable, Error>;
+  static_assert(std::is_constructible_v<immovable_t, std::in_place_t, int>);
+  static_assert(monadic_static_check<value_or_t, immovable_t>::not_invocable_with_any(1));
+  static_assert(monadic_static_check<value_or_t, fn::optional<helper_immovable>>::not_invocable_with_any(1));
+
+  // A move-only value type is carried only where it can be moved out of. This is what makes the
+  // question `is_constructible_v<T, decltype(carried)>` and not `is_move_constructible_v<T>` - the
+  // latter would accept every category below, including the two that would have to copy.
+  using move_only_t = fn::expected<helper_move_only, Error>;
+  using is = monadic_static_check<value_or_t, move_only_t>;
+  static_assert(is::invocable<rvalue, prvalue>(1));     // moved
+  static_assert(is::invocable<crvalue, cvalue>(1));     // const-moved
+  static_assert(is::not_invocable<lvalue, clvalue>(1)); // would have to copy
+
+  // A reference optional binds its referent rather than carrying it - so an immovable referent is
+  // fine, but the fallback builds the RESULT, and a reference cannot bind to a prvalue. The value
+  // type alone cannot answer this: it is the referent, which a prvalue constructs happily.
+  using ref_t = fn::optional<int &>;
+  static_assert(std::is_constructible_v<ref_t::value_type, int>);
+  static_assert(not invocable_value_or<ref_t &, int>); // a temporary to bind to: rejected
+  static_assert(invocable_value_or<ref_t &, int &>);
+  static_assert(invocable_value_or<fn::optional<helper_immovable &> &, helper_immovable &>);
   SUCCEED();
 }
 

@@ -11,6 +11,8 @@
 
 #include <catch2/catch_all.hpp>
 
+#include <string>
+#include <type_traits>
 #include <utility>
 
 namespace {
@@ -755,5 +757,41 @@ TEST_CASE("choice transform", "[choice][transform]")
               == choice{true});
       }
     }
+  }
+}
+
+TEST_CASE("choice assignment", "[choice][assignment]")
+{
+  using fn::choice;
+
+  // choice adds no state of its own, so its assignment is the base sum's: same strong guarantee,
+  // same constraints, same noexcept - it only has to be declared, since choice's move constructor
+  // would otherwise delete the implicit copy assignment and suppress the implicit move assignment
+  static_assert(std::is_copy_assignable_v<choice<bool, int>>);
+  static_assert(std::is_move_assignable_v<choice<bool, int>>);
+  static_assert(std::is_nothrow_copy_assignable_v<choice<bool, int>>);
+  static_assert(not std::is_nothrow_copy_assignable_v<choice<std::string>>);
+  static_assert(std::is_nothrow_move_assignable_v<choice<std::string>>);
+
+  SECTION("the alternative changes")
+  {
+    choice<bool, int> a{42};
+    choice<bool, int> const b{true};
+    a = b;
+    CHECK(a == choice{true});
+    CHECK(a.has_value(std::in_place_type<bool>));
+
+    a = choice<bool, int>{12};
+    CHECK(a == choice{12});
+  }
+
+  SECTION("constexpr")
+  {
+    static_assert([] {
+      choice<bool, int> a{42};
+      a = choice<bool, int>{true};
+      return a == choice{true};
+    }());
+    SUCCEED();
   }
 }

@@ -5,6 +5,8 @@
 
 #include "util/static_check.hpp"
 
+#include <util/helper_types.hpp>
+
 #include <fn/functor.hpp>
 #include <fn/recover.hpp>
 
@@ -294,6 +296,40 @@ TEST_CASE("recover noexcept", "[recover][noexcept]")
   static_assert(not noexcept(recover_t::apply{}(std::declval<fn::expected<void, Error> &>(), fnThrows0)));
   static_assert(not noexcept(recover_t::apply{}(std::declval<fn::optional<int> &>(), fnThrowsOpt)));
 
+  SUCCEED();
+}
+
+TEST_CASE("recover constraints", "[recover][constraints]")
+{
+  using namespace fn;
+
+  // The success branch carries the existing value over, so it must be able to: an immovable value
+  // type must be dropped by the concept, not fail inside the body.
+  constexpr auto from_error = [](Error) -> int { return 1; }; // converts to either helper below
+  using immovable_t = fn::expected<helper_immovable, Error>;
+  static_assert(std::is_constructible_v<immovable_t, std::in_place_t, int>);
+  static_assert(monadic_static_check<recover_t, immovable_t>::not_invocable_with_any(from_error));
+
+  // A move-only value type is carried only where it can be moved out of - which is why the question
+  // is `is_constructible_v<T, decltype(carried)>` and not `is_move_constructible_v<T>`
+  using is = monadic_static_check<recover_t, fn::expected<helper_move_only, Error>>;
+  static_assert(is::invocable<rvalue, prvalue>(from_error));     // moved
+  static_assert(is::invocable<crvalue, cvalue>(from_error));     // const-moved
+  static_assert(is::not_invocable<lvalue, clvalue>(from_error)); // would have to copy
+
+  // A void-valued expected has no value to carry, so nothing constrains it
+  static_assert(monadic_static_check<recover_t, fn::expected<void, Error>>::invocable_with_any([](Error) {}));
+
+  // A reference optional binds its referent: the recovered value builds the RESULT, and a reference
+  // cannot bind to the prvalue a callback returns
+  using ref_t = fn::optional<int &>;
+  static_assert(std::is_constructible_v<ref_t::value_type, int>);
+  static_assert(not invocable_recover<decltype([]() -> int { return 1; }) &, ref_t &>);
+  static_assert(invocable_recover<decltype([]() -> int & {
+                                    static int i = 1;
+                                    return i;
+                                  }) &,
+                                  ref_t &>);
   SUCCEED();
 }
 

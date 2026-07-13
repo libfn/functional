@@ -661,6 +661,30 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     }
   }
 
+  SECTION("assignment")
+  {
+    // a graded monad is assignable because its summed error is: without sum::operator= the whole
+    // expected<T, sum<...>> would not be assignable at all
+    using T = fn::expected<int, fn::sum_for<Error, bool>>; // Error is an enum: the order is per-platform
+    static_assert(std::is_copy_assignable_v<T>);
+    static_assert(std::is_move_assignable_v<T>);
+
+    T a{12};
+    T const b{::fn::unexpect, fn::sum{FileNotFound}};
+    a = b;
+    CHECK(a.error() == fn::sum{FileNotFound});
+    a = T{42};
+    CHECK(a.value() == 42);
+
+    static_assert([] {
+      T a{12};
+      a = T{::fn::unexpect, fn::sum{true}};
+      return a.error() == fn::sum{true};
+    }());
+  }
+
+  SECTION("noexcept")
+
   SECTION("noexcept")
   {
     // the widening arms relocate BOTH sides into the summed result - self's, and the callback's -

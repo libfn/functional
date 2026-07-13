@@ -21,6 +21,8 @@ namespace fn {
  * @tparam Err The error handler
  * @tparam V The monadic type
  */
+// A rejected operand is returned whole (`return FWD(v)`), and a kept one is rebuilt around its
+// existing value - so both sides must survive the trip.
 template <typename Pred, typename Err, typename V>
 concept invocable_filter //
     = (some_expected_non_void<V> && requires(Pred &&pred, Err &&on_err, V &&v) {
@@ -28,11 +30,14 @@ concept invocable_filter //
         {
           ::fn::invoke(FWD(on_err), FWD(v).value())
         } -> ::std::convertible_to<typename ::std::remove_cvref_t<V>::error_type>;
+        requires detail::_relocatable<V> && detail::_relocatable_value<V>;
       }) || (some_expected_void<V> && requires(Pred &&pred, Err &&on_err, V &&v) {
         { ::fn::invoke(FWD(pred)) } -> convertible_to_bool;
         { ::fn::invoke(FWD(on_err)) } -> ::std::convertible_to<typename ::std::remove_cvref_t<V>::error_type>;
+        requires detail::_relocatable<V>;
       }) || (some_optional<V> && ::std::same_as<Err, void> && requires(Pred &&pred, V &&v) {
         { ::fn::invoke(FWD(pred), ::std::as_const(v).value()) } -> convertible_to_bool;
+        requires detail::_relocatable<V> && detail::_relocatable_value<V>;
       });
 
 /**

@@ -5,6 +5,8 @@
 
 #include "util/static_check.hpp"
 
+#include <util/helper_types.hpp>
+
 #include <fn/filter.hpp>
 
 #include <catch2/catch_all.hpp>
@@ -671,6 +673,27 @@ TEST_CASE("filter noexcept", "[filter][noexcept]")
   static_assert(
       not noexcept(filter_t::apply{}(std::declval<fn::expected<void, Error> &>(), predThrows0, onErrThrows0)));
 
+  SUCCEED();
+}
+
+TEST_CASE("filter constraints", "[filter][constraints]")
+{
+  using namespace fn;
+
+  // A rejected operand is returned whole and a kept one is rebuilt around its existing value, so
+  // BOTH sides must survive the trip - an immovable value or error is rejected either way
+  constexpr auto keep = [](auto const &) -> bool { return true; };
+  constexpr auto on_err = [](auto const &) -> int { return 1; };
+  static_assert(
+      monadic_static_check<filter_t, fn::expected<helper_immovable, int>>::not_invocable_with_any(keep, on_err));
+  static_assert(monadic_static_check<filter_t, fn::expected<int, helper_immovable>>::not_invocable_with_any(
+      [](int) -> bool { return true; }, [](int) -> int { return 1; }));
+  static_assert(monadic_static_check<filter_t, fn::optional<helper_immovable>>::not_invocable_with_any(keep));
+
+  // ... and a move-only one only where it can be moved out of
+  using is = monadic_static_check<filter_t, fn::expected<helper_move_only, int>>;
+  static_assert(is::invocable<rvalue, prvalue>(keep, on_err));     // moved
+  static_assert(is::not_invocable<lvalue, clvalue>(keep, on_err)); // would have to copy
   SUCCEED();
 }
 
