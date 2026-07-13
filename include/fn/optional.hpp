@@ -477,8 +477,11 @@ public:
     return _base::_transform(::std::move(*this), FWD(f));
   }
 
-  // Convert to graded monad
-  auto sum_value() const & -> optional<sum<value_type>>
+  // Convert to graded monad. The lifting overloads wrap the value in a sum and that sum in the
+  // result, so they weigh both; the ones whose value type already is a sum only return *this.
+  constexpr auto sum_value() const & noexcept(::std::is_nothrow_constructible_v<sum<value_type>, value_type const &>
+                                              && ::std::is_nothrow_move_constructible_v<sum<value_type>>) // extension
+      -> optional<sum<value_type>>
     requires(not some_sum<value_type>)
   {
     using type = optional<sum<value_type>>;
@@ -487,7 +490,9 @@ public:
     else
       return type{::std::nullopt};
   }
-  auto sum_value() && -> optional<sum<value_type>>
+  constexpr auto sum_value() && noexcept(::std::is_nothrow_constructible_v<sum<value_type>, value_type>
+                                         && ::std::is_nothrow_move_constructible_v<sum<value_type>>) // extension
+      -> optional<sum<value_type>>
     requires(not some_sum<value_type>)
   {
     using type = optional<sum<value_type>>;
@@ -496,22 +501,22 @@ public:
     else
       return type{::std::nullopt};
   }
-  auto sum_value() & -> decltype(auto)
+  constexpr auto sum_value() & noexcept -> decltype(auto)
     requires(some_sum<value_type>)
   {
     return *this;
   }
-  auto sum_value() const & -> decltype(auto)
+  constexpr auto sum_value() const & noexcept -> decltype(auto)
     requires(some_sum<value_type>)
   {
     return *this;
   }
-  auto sum_value() && -> decltype(auto)
+  constexpr auto sum_value() && noexcept -> decltype(auto)
     requires(some_sum<value_type>)
   {
     return ::std::move(*this);
   }
-  auto sum_value() const && -> decltype(auto)
+  constexpr auto sum_value() const && noexcept -> decltype(auto)
     requires(some_sum<value_type>)
   {
     return ::std::move(*this);
@@ -880,7 +885,11 @@ constexpr optional<T> make_optional(::std::initializer_list<U> il, Args &&...arg
 }
 
 // Lifts for sum transformation functions
-[[nodiscard]] constexpr auto sum_value(some_optional auto &&src) -> decltype(auto) { return FWD(src).sum_value(); }
+[[nodiscard]] constexpr auto sum_value(some_optional auto &&src) noexcept(noexcept(FWD(src).sum_value()))
+    -> decltype(auto)
+{
+  return FWD(src).sum_value();
+}
 
 template <some_optional Lh, some_optional Rh> [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) noexcept
 {
