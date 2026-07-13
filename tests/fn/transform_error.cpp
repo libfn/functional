@@ -276,5 +276,6 @@ static_assert(not invocable_transform_error<decltype(fn_Error_rvalue), expected<
 // A sum error dispatches through sum::transform - the callback must cover ALL alternatives.
 static_assert(invocable_transform_error<decltype(fn_generic<Xerror>), expected<int, sum_for<Error, Value>>>);
 static_assert(not invocable_transform_error<decltype(fn_Error<Xerror>), expected<int, sum_for<Error, Value>>>); // not exhaustive
+static_assert(not invocable_transform_error<decltype(fn_generic<void>), expected<int, sum_for<Error, Value>>>); // a void result has no place in a sum
 // clang-format on
 } // namespace fn

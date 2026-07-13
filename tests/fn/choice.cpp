@@ -47,6 +47,9 @@ struct Throwing final {
 template <typename S, typename T, typename... Args>
 concept can_in_place = requires(Args... args) { S{std::in_place_type<T>, args...}; };
 
+template <typename S, typename Fn>
+concept can_transform = requires(S s, Fn fn) { FWD(s).transform(fn); };
+
 // Every special member of choice is defaulted, and choice adds no state to sum - so each must behave
 // exactly as sum's, down to its noexcept and its constraints.
 template <typename... Ts> consteval bool special_members_follow_sum()
@@ -786,6 +789,18 @@ TEST_CASE("choice transform", "[choice][transform]")
               == choice{true});
       }
     }
+  }
+
+  SECTION("a result no choice can hold")
+  {
+    // a void-returning callback must drop the caller's candidate in the immediate context: the
+    // collapsing machinery would hard-error where no requires-expression can absorb it
+    constexpr auto fnVoid = [](auto &&...) {};
+    static_assert(not can_transform<fn::choice<bool, int> &, decltype(fnVoid)>);
+    static_assert(not can_transform<fn::choice<bool, int> const &, decltype(fnVoid)>);
+    static_assert(not can_transform<fn::choice<bool, int> &&, decltype(fnVoid)>);
+    static_assert(not can_transform<fn::choice<bool, int> const &&, decltype(fnVoid)>);
+    SUCCEED();
   }
 }
 

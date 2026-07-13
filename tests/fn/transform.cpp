@@ -713,6 +713,7 @@ static_assert(invocable_transform<decltype(fn_generic<int>), optional<Value>>);
 static_assert(not invocable_transform<decltype(fn_int<void>), optional<int>>);                 // void return: no optional<void>
 static_assert(invocable_transform<decltype(fn_generic<int>), choice<int>>);
 static_assert(not invocable_transform<decltype(fn_int<int>), choice<Value>>);            // must serve every alternative
+static_assert(not invocable_transform<decltype(fn_int<void>), choice<int>>);             // a void result has no place in a choice
 static_assert(not invocable_transform<decltype(fn_int_lvalue), expected<int, Error>>);   // cannot bind temporary to lvalue
 static_assert(invocable_transform<decltype(fn_int_lvalue), expected<int, Error> &>);
 static_assert(invocable_transform<decltype(fn_int_rvalue), expected<int, Error>>);
@@ -723,5 +724,7 @@ static_assert(invocable_transform<decltype(fn_generic<int>), expected<sum_for<Va
 static_assert(not invocable_transform<decltype(fn_int<int>), expected<sum_for<Value, int>, Error>>); // int alone is not exhaustive
 static_assert(invocable_transform<decltype(fn_generic<int>), optional<sum_for<Value, int>>>);
 static_assert(not invocable_transform<decltype(fn_int<int>), optional<sum_for<Value, int>>>);
+static_assert(not invocable_transform<decltype(fn_generic<void>), expected<sum_for<Value, int>, Error>>); // a void result has no place in a sum
+static_assert(not invocable_transform<decltype(fn_generic<void>), optional<sum_for<Value, int>>>);
 // clang-format on
 } // namespace fn
