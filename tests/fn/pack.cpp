@@ -33,6 +33,9 @@ concept can_invoke_r = requires(V v, Fn fn) { FWD(v).template invoke_r<R>(FWD(fn
 template <typename V, typename T, typename... Args>
 concept can_append_in_place = requires(V v, Args... args) { FWD(v).append(std::in_place_type<T>, args...); };
 
+template <typename V, typename Arg>
+concept can_append = requires(V v, Arg arg) { FWD(v).append(FWD(arg)); };
+
 // A pack element whose copy and move can both throw, while the pack member relocating it promises
 // noexcept regardless. Witnesses the #280 tripwires below.
 using Throwing = helper_t<prop::throw_copy | prop::throw_move>;
@@ -295,19 +298,20 @@ TEST_CASE("append value categories", "[pack][append]")
     static_assert(can_append_in_place<T &, B, int, int>);
     static_assert(not can_append_in_place<T &, B, char const *>); // B is not constructible from it
 
-    // GAP #283: given no arguments and an element with no default constructor, the in_place overload
-    // drops out on its is_constructible_v conjunct and the deduced-Arg overload picks the call up
-    // instead - silently appending the TAG as an element rather than failing. So the call below is
-    // "viable" for entirely the wrong reason, and the element type says so.
-    static_assert(can_append_in_place<T &, B>);
-    static_assert(std::same_as<decltype(std::declval<T &>().append(std::in_place_type<B>)),
-                               T::append_type<std::in_place_type_t<B> const &>>);
-    // A default-constructible element takes the intended path - see SECTION("default constructor").
+    // in_place_type selects the element type, it is never itself an element: with no arguments and
+    // no default constructor there is nothing to construct, and the deduced-Arg overload must not
+    // pick the call up and append the tag instead
+    static_assert(not can_append_in_place<T &, B>);
+    static_assert(not can_append<T &, std::in_place_type_t<B> const &>);
+    // C has a default constructor, so the same call still means "construct the element"
+    static_assert(can_append_in_place<T &, C>);
     static_assert(std::same_as<decltype(std::declval<T &>().append(std::in_place_type<C>)), T::append_type<C>>);
 
-    // GAP #282: a pack never holds a sum, but merely ASKING whether one can be appended is a hard
-    // error on gcc (ambiguous partial specialization of _pack_append), so no negative probe is
-    // portable here until that is fixed.
+    // A pack never holds a sum, in either spelling - and asking must answer, not hard-error
+    static_assert(not can_append<T &, fn::sum<int>>);
+    static_assert(not can_append<T &, fn::sum<int> &>);
+    static_assert(not can_append_in_place<T &, fn::sum<int>, fn::sum<int>>);
+    static_assert(not can_append_in_place<T &, fn::sum_for<bool, int>, fn::sum_for<bool, int>>);
 
     SUCCEED();
   }
