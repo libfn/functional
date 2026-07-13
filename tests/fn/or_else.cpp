@@ -511,3 +511,21 @@ static_assert(invocable_or_else<decltype(fn_int_rvalue<expected<int, int>>), exp
 static_assert(not invocable_or_else<decltype(fn_int_rvalue<expected<int, int>>), expected<int, int> &>); // cannot bind lvalue to rvalue-ref
 // clang-format on
 } // namespace fn
+
+TEST_CASE("or_else noexcept", "[or_else][noexcept]")
+{
+  using E = fn::expected<int, int>;
+  constexpr auto nothrow_fn = [](int i) noexcept -> E { return {i}; };
+  constexpr auto throwing_fn = [](int i) -> E { return {i}; };
+
+  static_assert(noexcept(std::declval<E const &>().or_else(nothrow_fn)));
+  static_assert(noexcept(std::declval<E const &>() | fn::or_else(nothrow_fn)));
+  static_assert(not noexcept(std::declval<E const &>().or_else(throwing_fn)));
+  static_assert(not noexcept(std::declval<E const &>() | fn::or_else(throwing_fn)));
+
+  // or_else weighs the untouched VALUE's relocation
+  using S = fn::expected<std::string, int>;
+  constexpr auto nothrow_s = [](int) noexcept -> S { return S{std::in_place}; };
+  static_assert(not noexcept(std::declval<S const &>() | fn::or_else(nothrow_s)));
+  SUCCEED();
+}

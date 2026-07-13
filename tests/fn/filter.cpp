@@ -658,3 +658,19 @@ TEST_CASE("constexpr filter optional with sum", "[filter][constexpr][optional][s
 
   SUCCEED();
 }
+
+TEST_CASE("filter noexcept", "[filter][noexcept]")
+{
+  // filter invokes the predicate, may invoke the error handler, and constructs the result
+  using E = fn::expected<int, int>;
+  using O = fn::optional<int>;
+  static_assert(
+      noexcept(std::declval<E &>() | fn::filter([](int) noexcept { return true; }, [](int) noexcept { return 0; })));
+  static_assert(
+      not noexcept(std::declval<E &>() | fn::filter([](int) { return true; }, [](int) noexcept { return 0; })));
+  static_assert(
+      not noexcept(std::declval<E &>() | fn::filter([](int) noexcept { return true; }, [](int) { return 0; })));
+  static_assert(noexcept(std::declval<O &>() | fn::filter([](int) noexcept { return true; })));
+  static_assert(not noexcept(std::declval<O &>() | fn::filter([](int) { return true; })));
+  SUCCEED();
+}

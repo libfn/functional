@@ -49,7 +49,8 @@ constexpr inline struct or_else_t final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] constexpr auto operator()(auto &&fn) const noexcept -> functor<or_else_t, decltype(fn)> //
+  [[nodiscard]] constexpr auto operator()(auto &&fn) const noexcept(noexcept(functor<or_else_t, decltype(fn)>{FWD(fn)}))
+      -> functor<or_else_t, decltype(fn)> //
   {
     return {FWD(fn)};
   }
@@ -69,7 +70,8 @@ struct or_else_t::apply final {
    * @return TODO
    */
   template <some_monadic_type V, typename Fn>
-  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept //
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //
+      noexcept(noexcept(FWD(v).or_else(FWD(fn))))               //
       -> same_value_kind<V &&> auto
     requires invocable_or_else<Fn &&, V &&>
   {

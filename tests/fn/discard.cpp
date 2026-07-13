@@ -229,3 +229,13 @@ TEST_CASE("constexpr discard optional", "[discard][constexpr][optional]")
 
   SUCCEED();
 }
+
+TEST_CASE("discard noexcept", "[discard][noexcept]")
+{
+  // discard is the one verb whose unconditional noexcept is accurate by construction: it invokes
+  // nothing and returns void. Asserted positively, not as a tripwire.
+  using E = fn::expected<int, int>;
+  static_assert(noexcept(std::declval<E &>() | fn::discard()));
+  static_assert(noexcept(std::declval<fn::optional<std::string> &>() | fn::discard()));
+  SUCCEED();
+}

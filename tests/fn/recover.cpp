@@ -265,3 +265,19 @@ TEST_CASE("constexpr recover optional", "[recover][constexpr][optional]")
 
   SUCCEED();
 }
+
+TEST_CASE("recover noexcept", "[recover][noexcept]")
+{
+  // recover invokes AND constructs the result, so it weighs both
+  using E = fn::expected<int, int>;
+  using O = fn::optional<int>;
+  static_assert(noexcept(std::declval<E &>() | fn::recover([](int) noexcept { return 0; })));
+  static_assert(not noexcept(std::declval<E &>() | fn::recover([](int) { return 0; })));
+  static_assert(noexcept(std::declval<O &>() | fn::recover([]() noexcept { return 0; })));
+  static_assert(not noexcept(std::declval<O &>() | fn::recover([]() { return 0; })));
+
+  // constructing the result can throw even where the callback cannot
+  using S = fn::expected<std::string, int>;
+  static_assert(not noexcept(std::declval<S const &>() | fn::recover([](int) noexcept { return std::string{}; })));
+  SUCCEED();
+}
