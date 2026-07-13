@@ -21,6 +21,14 @@ struct Xint {
   constexpr bool operator==(Xint const &) const noexcept = default;
 };
 
+// Nothrow move, throwing copy: joining lvalue operands copies the value or error, joining rvalues
+// moves it
+struct MoveNothrow {
+  MoveNothrow() = default;
+  MoveNothrow(MoveNothrow const &) noexcept(false) {}
+  MoveNothrow(MoveNothrow &&) noexcept = default;
+};
+
 // Sums whose alternatives include a non-builtin (Error/Xint/std::string_view/fn::pack — any
 // class/struct/enum) have platform-specific order (see sum.cpp); pure-builtin sums keep `sum<...>`.
 } // namespace
@@ -652,6 +660,47 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
       CHECK(r.has_value());
     }
   }
+
+  SECTION("noexcept")
+  {
+    // the widening arms relocate BOTH sides into the summed result - self's, and the callback's -
+    // and weigh both, rather than reporting potentially-throwing merely because the shape changed
+    SECTION("and_then widens the error")
+    {
+      using T = fn::expected<int, fn::sum<Error>>;
+      constexpr auto widen = [](int) noexcept -> fn::expected<bool, bool> { return {true}; };
+      static_assert(
+          std::is_same_v<decltype(std::declval<T &>().and_then(widen)), fn::expected<bool, fn::sum_for<Error, bool>>>);
+      static_assert(noexcept(std::declval<T &>().and_then(widen)));
+      static_assert(not noexcept(std::declval<T &>().and_then([](int) -> fn::expected<bool, bool> { return {true}; })));
+
+      using W = fn::expected<int, fn::sum_for<MoveNothrow, Error>>;
+      static_assert(not noexcept(std::declval<W &>().and_then(widen))); // copies self's error
+      static_assert(noexcept(std::declval<W &&>().and_then(widen)));    // moves it
+    }
+
+    SECTION("or_else widens the value")
+    {
+      using T = fn::expected<fn::sum<int>, Error>;
+      constexpr auto widen = [](Error) noexcept -> fn::expected<bool, bool> { return {true}; };
+      static_assert(noexcept(std::declval<T &>().or_else(widen)));
+      static_assert(
+          not noexcept(std::declval<T &>().or_else([](Error) -> fn::expected<bool, bool> { return {true}; })));
+
+      using W = fn::expected<fn::sum_for<MoveNothrow, int>, Error>;
+      static_assert(not noexcept(std::declval<W &>().or_else(widen))); // copies self's value
+      static_assert(noexcept(std::declval<W &&>().or_else(widen)));    // moves it
+    }
+
+    SECTION("the unit error grade")
+    {
+      // sum<> can hold no error, so the arm lifting self's error is unreachable, and cannot throw
+      using T = fn::expected<int, fn::sum<>>;
+      static_assert(
+          noexcept(std::declval<T &>().and_then([](int) noexcept -> fn::expected<bool, Error> { return {true}; })));
+    }
+    SUCCEED();
+  }
 }
 
 TEST_CASE("graded monad constexpr and runtime", "[constexpr][and_then][or_else][expected][graded][sum]")
@@ -802,11 +851,10 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
   {
     using S = fn::expected<fn::pack<int, std::string_view>, Error>;
 
-    // noexcept (extension, expected.hpp:77-81): a multi-argument visitor is not invocable on
-    // the whole pack, so the borrowed std trait is conservatively false (GH #254); a generic
-    // same-error-type callback IS, and reports true
+    // noexcept (extension): the spec asks fn's own nothrow-invocable trait, which asks the
+    // pack-apply dispatch that will actually run - one argument per element
     constexpr auto nothrow_two = [](int &, std::string_view &) noexcept -> fn::expected<bool, Error> { return {true}; };
-    static_assert(not noexcept(std::declval<S &>().and_then(nothrow_two)));
+    static_assert(noexcept(std::declval<S &>().and_then(nothrow_two)));
     constexpr auto nothrow_generic = [](auto &&...) noexcept -> fn::expected<bool, Error> { return {true}; };
     static_assert(noexcept(std::declval<S &>().and_then(nothrow_generic)));
 
@@ -876,6 +924,18 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
                 .error()
             == FileNotFound);
     }
+
+    SECTION("noexcept")
+    {
+      // a pack's callback is invoked through fn's own dispatch, taking one argument per element: it
+      // is not directly invocable on the pack, so only fn's nothrow-invocable trait can answer
+      using T = fn::expected<fn::pack<int, double>, Error>;
+      static_assert(noexcept(
+          std::declval<T &>().and_then([](int, double) noexcept -> fn::expected<bool, Error> { return {true}; })));
+      static_assert(
+          not noexcept(std::declval<T &>().and_then([](int, double) -> fn::expected<bool, Error> { return {true}; })));
+      SUCCEED();
+    }
   }
 
   SECTION("transform")
@@ -886,7 +946,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
     // _transform is constrained on pack-apply invocability AND the untouched error's copy --
     // contrast the sum case (see "expected sum support transform")
     constexpr auto nothrow_two = [](int &, std::string_view &) noexcept -> bool { return true; };
-    static_assert(not noexcept(std::declval<S &>().transform(nothrow_two)));
+    static_assert(noexcept(std::declval<S &>().transform(nothrow_two)));
     constexpr auto nothrow_generic = [](auto &&...) noexcept -> bool { return true; };
     static_assert(noexcept(std::declval<S &>().transform(nothrow_generic)));
 
@@ -970,21 +1030,28 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
             == FileNotFound);
       CHECK(std::move(std::as_const(s)).transform([](auto...) -> bool { throw 0; }).error() == FileNotFound);
     }
+
+    SECTION("noexcept")
+    {
+      using T = fn::expected<fn::pack<int, double>, Error>;
+      static_assert(noexcept(std::declval<T &>().transform([](int, double) noexcept -> bool { return true; })));
+      static_assert(not noexcept(std::declval<T &>().transform([](int, double) -> bool { return true; })));
+      SUCCEED();
+    }
   }
 
   SECTION("operator &")
   {
-    // noexcept: all eight operator& overloads are declared unconditionally noexcept
-    // (expected.hpp:1032-1183) though joining copies/moves the operands' values into the
-    // result -- for a throwing-copy value type this is a promise the join cannot keep. GAP:
-    // asserts current behaviour; flip to `not noexcept` when fixed (issue #279).
+    // noexcept: the join relocates both operands' values and errors into the result, and promises
+    // only what relocating them promises - so a throwing-copy value type makes the lvalue join
+    // throwing.
     struct throwing_copy {
       // defined, not just declared: the instantiated join references it (-Wundefined-internal)
       throwing_copy(throwing_copy const &) noexcept(false) {}
     };
     static_assert(noexcept(std::declval<fn::expected<int, Error> &>() & std::declval<fn::expected<void, Error> &>()));
-    static_assert(
-        noexcept(std::declval<fn::expected<throwing_copy, Error> &>() & std::declval<fn::expected<int, Error> &>()));
+    static_assert(not noexcept(std::declval<fn::expected<throwing_copy, Error> &>()
+                               & std::declval<fn::expected<int, Error> &>()));
 
     // constraints: both operands are expected, and their error types must match or be graded
     constexpr auto can_amp = [](auto &&rh) { return requires { std::declval<fn::expected<int, Error> &>() & rh; }; };
@@ -2338,6 +2405,50 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
       }
     }
 
+    SECTION("noexcept")
+    {
+      // the join relocates both operands' values and errors into the result, so it promises only
+      // what relocating them promises
+      using Lh = fn::expected<MoveNothrow, Error>;
+      using Rh = fn::expected<int, Error>;
+      static_assert(noexcept(std::declval<Rh &>() & std::declval<Rh &>()));
+      static_assert(not noexcept(std::declval<Lh &>() & std::declval<Rh &>())); // copies the value
+      static_assert(noexcept(std::declval<Lh &&>() & std::declval<Rh &&>()));   // moves it
+
+      using Eh = fn::expected<int, MoveNothrow>;
+      static_assert(not noexcept(std::declval<Eh &>() & std::declval<Eh &>())); // copies the error
+      static_assert(noexcept(std::declval<Eh &&>() & std::declval<Eh &&>()));
+
+      SECTION("void operand")
+      {
+        using Vh = fn::expected<void, Error>;
+        static_assert(noexcept(std::declval<Vh &>() & std::declval<Rh &>()));
+        static_assert(not noexcept(std::declval<Vh &>() & std::declval<Lh &>())); // carries the value
+        static_assert(noexcept(std::declval<Vh &&>() & std::declval<Lh &&>()));
+        static_assert(noexcept(std::declval<Vh &>() & std::declval<Vh &>()));
+      }
+
+      SECTION("widening the error")
+      {
+        using Wh = fn::expected<int, fn::sum<MoveNothrow>>;
+        static_assert(not noexcept(std::declval<Wh &>() & std::declval<Rh &>())); // copies the error
+        static_assert(noexcept(std::declval<Wh &&>() & std::declval<Rh &&>()));
+      }
+
+      SECTION("unit error operand")
+      {
+        // sum<> can hold no error, so the arm lifting it is unreachable and cannot throw - but the
+        // value is still relocated, and still weighs
+        using Uh = fn::expected<int, fn::sum<>>;
+        using Ut = fn::expected<MoveNothrow, fn::sum<>>;
+        static_assert(noexcept(std::declval<Uh &>() & std::declval<Rh &>()));
+        static_assert(noexcept(std::declval<fn::expected<void, fn::sum<>> &>() & std::declval<Rh &>()));
+        static_assert(not noexcept(std::declval<Ut &>() & std::declval<Rh &>()));
+      }
+
+      SUCCEED();
+    }
+
     SECTION("constexpr")
     {
       // the graded/unit shapes have constant-evaluation asserts above; these cover the plain
@@ -2356,15 +2467,13 @@ TEST_CASE("expected sum support and_then", "[expected][sum][and_then]")
 {
   using S = fn::expected<fn::sum_for<int, std::string_view>, Error>;
 
-  // noexcept (extension, expected.hpp:77-81): same-error-type result AND nothrow invoke AND
-  // nothrow error copy. A visitor set is not invocable on the whole sum, so the borrowed std
-  // trait is conservatively false even with nothrow handlers (GH #254); a generic callback IS
-  // invocable on the whole sum, and the spec then reports true from a call shape the
-  // per-alternative dispatch never makes.
+  // noexcept (extension): same-error-type result AND nothrow invoke AND nothrow error copy - and
+  // the invoke is weighed by fn's own trait, which asks the per-alternative dispatch that will run,
+  // so a visitor set is weighed alternative by alternative.
   constexpr auto nothrow_lval
       = fn::overload{[](int &) noexcept -> fn::expected<bool, Error> { return {true}; },
                      [](std::string_view &) noexcept -> fn::expected<bool, Error> { return {false}; }};
-  static_assert(not noexcept(std::declval<S &>().and_then(nothrow_lval)));
+  static_assert(noexcept(std::declval<S &>().and_then(nothrow_lval)));
   constexpr auto nothrow_generic = [](auto &&) noexcept -> fn::expected<bool, Error> { return {true}; };
   static_assert(noexcept(std::declval<S &>().and_then(nothrow_generic)));
 
@@ -2476,19 +2585,32 @@ TEST_CASE("expected sum support and_then", "[expected][sum][and_then]")
     static_assert(std::is_same_v<decltype(a.and_then(fn)), fn::expected<bool, Error>>);
     static_assert(a.and_then(fn).value());
   }
+
+  SECTION("noexcept")
+  {
+    // the callback is invoked through fn's own dispatch, so only fn's nothrow-invocable trait can
+    // answer for it - and it is nothrow only if EVERY alternative's call is
+    using T = fn::expected<fn::sum<double, int>, Error>;
+    static_assert(
+        noexcept(std::declval<T &>().and_then([](auto) noexcept -> fn::expected<bool, Error> { return {true}; })));
+    static_assert(not noexcept(std::declval<T &>().and_then([](auto) -> fn::expected<bool, Error> { return {true}; })));
+    static_assert(not noexcept(std::declval<T &>().and_then(
+        fn::overload{[](int) noexcept -> fn::expected<bool, Error> { return {true}; },
+                     [](double) -> fn::expected<bool, Error> { return {true}; }}))); // one throwing arm is enough
+    SUCCEED();
+  }
 }
 
 TEST_CASE("expected sum support or_else", "[expected][sum][or_else]")
 {
   using S = fn::expected<double, fn::sum_for<int, std::string_view>>;
 
-  // noexcept (extension, expected.hpp:159-166): same-value-type result AND nothrow invoke AND
-  // nothrow value copy. A visitor set is not invocable on the whole sum, so the borrowed std
-  // trait is conservatively false (GH #254); a generic same-value-type callback reports true.
+  // noexcept (extension): same-value-type result AND nothrow invoke AND nothrow value copy, with
+  // the invoke weighed per alternative by fn's own trait.
   constexpr auto nothrow_lval
       = fn::overload{[](int &) noexcept -> fn::expected<double, Error> { return {0.5}; },
                      [](std::string_view &) noexcept -> fn::expected<double, Error> { return {0.5}; }};
-  static_assert(not noexcept(std::declval<S &>().or_else(nothrow_lval)));
+  static_assert(noexcept(std::declval<S &>().or_else(nothrow_lval)));
   constexpr auto nothrow_generic = [](auto &&) noexcept -> fn::expected<double, Error> { return {0.5}; };
   static_assert(noexcept(std::declval<S &>().or_else(nothrow_generic)));
 
@@ -2706,13 +2828,12 @@ TEST_CASE("expected sum support transform", "[expected][sum][transform]")
 {
   using S = fn::expected<fn::sum_for<int, std::string_view>, Error>;
 
-  // noexcept: the sum-case _transform (expected.hpp:238) carries no noexcept spec at all --
-  // noexcept(false) even for callbacks whose and_then counterpart reports true (GH #254)
+  // noexcept: the sum-case _transform weighs the per-alternative dispatch, as and_then does
   constexpr auto nothrow_visitor = fn::overload{[](int const &) noexcept -> bool { return true; },
                                                 [](std::string_view const &) noexcept -> bool { return false; }};
-  static_assert(not noexcept(std::declval<S &>().transform(nothrow_visitor)));
+  static_assert(noexcept(std::declval<S &>().transform(nothrow_visitor)));
   constexpr auto nothrow_generic = [](auto &&) noexcept -> bool { return true; };
-  static_assert(not noexcept(std::declval<S &>().transform(nothrow_generic)));
+  static_assert(noexcept(std::declval<S &>().transform(nothrow_generic)));
 
   constexpr auto can_transform = [](auto &&f) { return requires { std::declval<S &>().transform(f); }; };
   static_assert(can_transform(nothrow_visitor));
@@ -2828,19 +2949,33 @@ TEST_CASE("expected sum support transform", "[expected][sum][transform]")
     S s{fn::sum{12}};
     CHECK(s.transform(lval_only).value() == fn::sum{true});
   }
+
+  SECTION("noexcept")
+  {
+    // the dispatch is nothrow only if every alternative's call is, and only if relocating what each
+    // returns into the result sum is - and, as ever, if lifting the untouched error is
+    using T = fn::expected<fn::sum<double, int>, Error>;
+    static_assert(noexcept(std::declval<T &>().transform([](auto) noexcept -> bool { return true; })));
+    static_assert(not noexcept(std::declval<T &>().transform([](auto) -> bool { return true; })));
+    static_assert(not noexcept(std::declval<fn::expected<fn::sum_for<MoveNothrow, int>, Error> &>().transform(
+        [](auto v) noexcept { return v; })));
+    static_assert(not noexcept(std::declval<fn::expected<fn::sum<double, int>, MoveNothrow> &>().transform(
+        [](auto) noexcept -> bool { return true; }))); // copies the error
+    SUCCEED();
+  }
 }
 
 TEST_CASE("expected sum support transform_error", "[expected][sum][transform_error]")
 {
   using S = fn::expected<double, fn::sum_for<int, std::string_view>>;
 
-  // noexcept: the sum-case _transform_error (expected.hpp:301) carries no noexcept spec at all
-  // (GH #254)
+  // noexcept: the sum-case _transform_error weighs the per-alternative dispatch over the error,
+  // and the untouched value it relocates
   constexpr auto nothrow_visitor = fn::overload{[](int const &) noexcept -> bool { return true; },
                                                 [](std::string_view const &) noexcept -> bool { return false; }};
-  static_assert(not noexcept(std::declval<S &>().transform_error(nothrow_visitor)));
+  static_assert(noexcept(std::declval<S &>().transform_error(nothrow_visitor)));
   constexpr auto nothrow_generic = [](auto &&) noexcept -> bool { return true; };
-  static_assert(not noexcept(std::declval<S &>().transform_error(nothrow_generic)));
+  static_assert(noexcept(std::declval<S &>().transform_error(nothrow_generic)));
 
   constexpr auto can_transform_error = [](auto &&f) { return requires { std::declval<S &>().transform_error(f); }; };
   static_assert(can_transform_error(nothrow_visitor));
@@ -3049,17 +3184,27 @@ TEST_CASE("expected sum support transform_error", "[expected][sum][transform_err
     static_assert(std::is_same_v<decltype(r), fn::expected<std::unique_ptr<int>, bool>>);
     CHECK(*r.value() == 7);
   }
+
+  SECTION("noexcept")
+  {
+    // the error side dispatches through the sum exactly as the value side does
+    using T = fn::expected<int, fn::sum<double, int>>;
+    static_assert(noexcept(std::declval<T &>().transform_error([](auto) noexcept -> bool { return true; })));
+    static_assert(not noexcept(std::declval<T &>().transform_error([](auto) -> bool { return true; })));
+    static_assert(not noexcept(std::declval<fn::expected<MoveNothrow, fn::sum<double, int>> &>().transform_error(
+        [](auto) noexcept -> bool { return true; }))); // copies the untouched value
+    SUCCEED();
+  }
 }
 
 TEST_CASE("expected pack support or_else", "[expected][or_else][pack]")
 {
   using S = fn::expected<int, fn::pack<int, Error>>;
 
-  // noexcept (extension, expected.hpp:159-166): a multi-argument visitor is not invocable on
-  // the whole pack, so the borrowed std trait is conservatively false (GH #254); a generic
-  // same-value-type callback IS, and reports true
+  // noexcept (extension): the invoke is weighed by fn's own trait, which asks the pack-apply
+  // dispatch that will run - one argument per element
   constexpr auto nothrow_two = [](int, Error &) noexcept -> fn::expected<int, Error> { return {1}; };
-  static_assert(not noexcept(std::declval<S &>().or_else(nothrow_two)));
+  static_assert(noexcept(std::declval<S &>().or_else(nothrow_two)));
   constexpr auto nothrow_generic = [](auto &&...) noexcept -> fn::expected<int, Error> { return {1}; };
   static_assert(noexcept(std::declval<S &>().or_else(nothrow_generic)));
 
@@ -3152,11 +3297,10 @@ TEST_CASE("expected pack support transform_error", "[expected][transform_error][
 {
   using S = fn::expected<int, fn::pack<int, Error>>;
 
-  // noexcept (extension, expected.hpp:279-282): nothrow invoke AND nothrow value copy; a
-  // multi-argument visitor is not invocable on the whole pack, so conservatively false (GH
-  // #254); a generic callback reports true (int value, nothrow copy)
+  // noexcept (extension): nothrow invoke AND nothrow value copy, with the invoke weighed by fn's
+  // own trait against the pack-apply dispatch that will run
   constexpr auto nothrow_two = [](int, Error &) noexcept -> bool { return true; };
-  static_assert(not noexcept(std::declval<S &>().transform_error(nothrow_two)));
+  static_assert(noexcept(std::declval<S &>().transform_error(nothrow_two)));
   constexpr auto nothrow_generic = [](auto &&...) noexcept -> bool { return true; };
   static_assert(noexcept(std::declval<S &>().transform_error(nothrow_generic)));
 

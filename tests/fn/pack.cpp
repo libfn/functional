@@ -651,11 +651,10 @@ TEST_CASE("operator &", "[pack][sum][operator_and]")
 
   SECTION("noexcept")
   {
-    // This operator& carries no noexcept specifier, so it never over-promises - in contrast with
-    // optional's and expected's, which are unconditionally noexcept although the join copies the
-    // operands' values into the result pack (#279).
-    static_assert(not noexcept(std::declval<fn::pack<int> &>() & 2));
-    static_assert(not noexcept(std::declval<fn::sum<int> &>() & 2));
+    // This operator& builds a pack from operands it relocates, and weighs that: nothing here can
+    // throw, so it promises noexcept - as optional's and expected's joins now do.
+    static_assert(noexcept(std::declval<fn::pack<int> &>() & 2));
+    static_assert(noexcept(std::declval<fn::sum<int> &>() & 2));
     SUCCEED();
   }
 }
