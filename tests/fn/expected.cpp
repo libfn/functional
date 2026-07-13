@@ -8,6 +8,7 @@
 
 #include <catch2/catch_all.hpp>
 
+#include <memory>
 #include <utility>
 #include <variant>
 
@@ -2576,6 +2577,26 @@ TEST_CASE("expected sum support transform", "[expected][sum][transform]")
     // TODO Switch bool to std::monostate or similar user-defined type
     static_assert(a.transform(fn).value().has_value<bool>());
   }
+
+  WHEN("constraints")
+  {
+    using T = fn::expected<fn::sum_for<int, std::string_view>, Error>;
+    constexpr auto can_transform_lval = [](auto &&f) { return requires { std::declval<T &>().transform(f); }; };
+    constexpr auto can_transform_clval = [](auto &&f) { return requires { std::declval<T const &>().transform(f); }; };
+
+    // a callback no alternative can take drops the candidate, rather than failing inside the body
+    static_assert(not can_transform_lval([](double) -> bool { throw 0; }));
+    static_assert(not can_transform_lval([](int &) -> bool { throw 0; })); // string_view is unhandled
+
+    // a visitor need only serve the value category the call actually selects
+    constexpr auto lval_only
+        = fn::overload{[](int &i) -> bool { return i == 12; }, [](std::string_view &) -> bool { throw 0; }};
+    static_assert(can_transform_lval(lval_only));
+    static_assert(not can_transform_clval(lval_only));
+
+    T s{fn::sum{12}};
+    CHECK(s.transform(lval_only).value() == fn::sum{true});
+  }
 }
 
 TEST_CASE("expected sum support transform_error", "[expected][sum][transform_error]")
@@ -2740,6 +2761,50 @@ TEST_CASE("expected sum support transform_error", "[expected][sum][transform_err
       static_assert(std::is_same_v<decltype(a.transform_error(fn)), fn::expected<void, fn::sum<int>>>);
       static_assert(a.transform_error(fn).error() == fn::sum{42});
     }
+  }
+
+  WHEN("constraints")
+  {
+    using T = fn::expected<double, fn::sum_for<int, std::string_view>>;
+    constexpr auto can_lval = [](auto &&f) { return requires { std::declval<T &>().transform_error(f); }; };
+    constexpr auto can_clval = [](auto &&f) { return requires { std::declval<T const &>().transform_error(f); }; };
+
+    // a callback no alternative can take drops the candidate, rather than failing inside the body
+    static_assert(not can_lval([](double) -> bool { throw 0; }));
+    static_assert(not can_lval([](int &) -> bool { throw 0; })); // string_view is unhandled
+
+    // a visitor need only serve the value category the call actually selects
+    constexpr auto lval_only
+        = fn::overload{[](int &i) -> bool { return i == 12; }, [](std::string_view &) -> bool { throw 0; }};
+    static_assert(can_lval(lval_only));
+    static_assert(not can_clval(lval_only));
+
+    T s{::fn::unexpect, fn::sum{12}};
+    CHECK(s.transform_error(lval_only).error() == fn::sum{true});
+  }
+
+  WHEN("untouched value is relocated, so a move-only value type drops the copying overloads")
+  {
+    // the conjunct or_else carries and pfn's transform_error requires: the untouched value goes
+    // into the result, so only the overloads whose self can be moved from survive
+    constexpr auto generic = [](auto &&) -> bool { throw 0; };
+
+    using M = fn::expected<std::unique_ptr<int>, fn::sum<int>>; // sum-case overload
+    constexpr auto can_M_lval = [](auto &&f) { return requires { std::declval<M &>().transform_error(f); }; };
+    constexpr auto can_M_rval = [](auto &&f) { return requires { std::declval<M &&>().transform_error(f); }; };
+    static_assert(not can_M_lval(generic)); // would copy the value
+    static_assert(can_M_rval(generic));     // moves it
+
+    using N = fn::expected<std::unique_ptr<int>, Error>; // non-sum overload
+    constexpr auto can_N_lval = [](auto &&f) { return requires { std::declval<N &>().transform_error(f); }; };
+    constexpr auto can_N_rval = [](auto &&f) { return requires { std::declval<N &&>().transform_error(f); }; };
+    static_assert(not can_N_lval(generic));
+    static_assert(can_N_rval(generic));
+
+    N n{std::make_unique<int>(7)};
+    auto r = std::move(n).transform_error([](Error const &) -> bool { throw 0; });
+    static_assert(std::is_same_v<decltype(r), fn::expected<std::unique_ptr<int>, bool>>);
+    CHECK(*r.value() == 7);
   }
 }
 
