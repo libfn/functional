@@ -90,9 +90,10 @@ concept same_monadic_type_as = same_kind<T, U> && same_value_kind<T, U>;
  */
 // The void conjunct is load-bearing: `unexpected<void>` is ill-formed by a class-body mandate,
 // which fires during instantiation - outside any immediate context - so without it the question
-// hard-errors instead of answering false.
+// hard-errors instead of answering false. `remove_cvref_t` folds cv-qualified void back to plain
+// `void`, so the guard must cover every cv-flavour - `is_void_v`, not a `same_as` test.
 template <class T>
-concept convertible_to_unexpected = (not ::std::same_as<T, void>) && requires {
+concept convertible_to_unexpected = (not ::std::is_void_v<T>) && requires {
   static_cast<::fn::unexpected<::std::remove_cvref_t<T>>>(::std::declval<T>());
 };
 
@@ -103,9 +104,9 @@ concept convertible_to_unexpected = (not ::std::same_as<T, void>) && requires {
  * @tparam E TODO
  */
 template <class T, typename E>
-concept convertible_to_expected = (not ::std::same_as<T, void> && requires {
-                                    static_cast<expected<::std::remove_cvref_t<T>, E>>(::std::declval<T>());
-                                  }) || (::std::same_as<T, void>);
+concept convertible_to_expected
+    = (not ::std::is_void_v<T> && requires { static_cast<expected<::std::remove_cvref_t<T>, E>>(::std::declval<T>()); })
+      || (::std::is_void_v<T>);
 
 /**
  * @brief TODO
@@ -115,8 +116,8 @@ concept convertible_to_expected = (not ::std::same_as<T, void> && requires {
 // The same load-bearing void conjunct as `convertible_to_unexpected`'s: `optional<void>` and
 // `choice<void>` (below) are likewise ill-formed to instantiate, by a class-body mandate.
 template <class T>
-concept convertible_to_optional = (not ::std::same_as<T, void>)
-                                  && requires { static_cast<optional<::std::remove_cvref_t<T>>>(::std::declval<T>()); };
+concept convertible_to_optional
+    = (not ::std::is_void_v<T>) && requires { static_cast<optional<::std::remove_cvref_t<T>>>(::std::declval<T>()); };
 
 /**
  * @brief TODO
@@ -125,7 +126,7 @@ concept convertible_to_optional = (not ::std::same_as<T, void>)
  */
 template <class T>
 concept convertible_to_choice
-    = (not ::std::same_as<T, void>) && requires { static_cast<choice<::std::remove_cvref_t<T>>>(::std::declval<T>()); };
+    = (not ::std::is_void_v<T>) && requires { static_cast<choice<::std::remove_cvref_t<T>>>(::std::declval<T>()); };
 
 /**
  * @brief TODO
