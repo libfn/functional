@@ -170,6 +170,20 @@ TEST_CASE("value_or noexcept", "[value_or][noexcept]")
   // building the fallback value can throw
   using S = fn::optional<std::string>;
   static_assert(not noexcept(std::declval<S &>() | fn::value_or("x")));
+
+  // the untouched error is never relocated, so its throwing copy does not weigh
+  using X = fn::expected<int, std::string>;
+  static_assert(noexcept(std::declval<X &>() | fn::value_or(1)));
+
+  // the carried value is relocated in the operand's category, and that weighs
+  struct MoveNothrow {
+    MoveNothrow(int) noexcept {}
+    MoveNothrow(MoveNothrow const &) noexcept(false) {}
+    MoveNothrow(MoveNothrow &&) noexcept {}
+  };
+  using W = fn::expected<MoveNothrow, int>;
+  static_assert(not noexcept(std::declval<W &>() | fn::value_or(1))); // copies
+  static_assert(noexcept(std::declval<W &&>() | fn::value_or(1)));    // moves
   SUCCEED();
 }
 

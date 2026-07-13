@@ -65,8 +65,10 @@ struct value_or_t::apply final {
   // callable or_else receives is a lambda, which cannot be named in this specification.
   template <some_monadic_type V, typename... Args>
   [[nodiscard]] constexpr auto operator()(V &&v, Args &&...args) const //
-      noexcept(::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, Args...>
-               && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, V>) -> ::std::remove_cvref_t<V>
+      noexcept(
+          ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, Args...>
+          && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, decltype(FWD(v).value())>)
+          -> ::std::remove_cvref_t<V>
     requires invocable_value_or<V &&, Args...>
   {
     using type = ::std::remove_cvref_t<V>;
