@@ -131,13 +131,11 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     static_assert(std::is_same_v<decltype(std::as_const(s).sum_error()), T const &>);
     static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_error()), T const &&>);
     static_assert(std::is_same_v<decltype(std::move(s).sum_error()), T &&>);
-    // GAP: these overloads return *this by reference but are not declared noexcept
-    // (include/fn/expected.hpp:649-664; issue #276 -- filed for sum_value, sum_error is the
-    // same gap); asserts current behaviour until fixed.
-    static_assert(not noexcept(s.sum_error()));
-    static_assert(not noexcept(std::as_const(s).sum_error()));
-    static_assert(not noexcept(std::move(std::as_const(s)).sum_error()));
-    static_assert(not noexcept(std::move(s).sum_error()));
+    // these overloads only return *this
+    static_assert(noexcept(s.sum_error()));
+    static_assert(noexcept(std::as_const(s).sum_error()));
+    static_assert(noexcept(std::move(std::as_const(s)).sum_error()));
+    static_assert(noexcept(std::move(s).sum_error()));
     SECTION("value")
     {
       CHECK(s.sum_error().value() == 12);
@@ -155,6 +153,7 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     }
 
     static_assert(std::is_same_v<decltype(fn::sum_error(s)), T &>);
+    static_assert(noexcept(fn::sum_error(s))); // the free function propagates what the member says
   }
 
   SECTION("sum_error from non-sum")
@@ -165,8 +164,9 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     static_assert(std::is_same_v<decltype(std::as_const(s).sum_error()), fn::expected<int, fn::sum<Error>>>);
     static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_error()), fn::expected<int, fn::sum<Error>>>);
     static_assert(std::is_same_v<decltype(std::move(s).sum_error()), fn::expected<int, fn::sum<Error>>>);
-    // GAP: sum_error() here wraps into a fresh expected and is likewise not declared noexcept
-    // (include/fn/expected.hpp:631/640, issue #276), even for nothrow value and error types.
+    // GAP #280: this overload wraps the error in a sum and relocates the value, so it weighs both -
+    // and sum's own value constructor carries no noexcept specifier, so it is conservatively false
+    // even for nothrow value and error types. It sharpens when #280 lands.
     static_assert(not noexcept(s.sum_error()));
     static_assert(not noexcept(std::as_const(s).sum_error()));
     static_assert(not noexcept(std::move(std::as_const(s)).sum_error()));
@@ -188,6 +188,7 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     }
 
     static_assert(std::is_same_v<decltype(fn::sum_error(s)), fn::expected<int, fn::sum<Error>>>);
+    static_assert(not noexcept(fn::sum_error(s))); // the free function propagates what the member says
   }
 
   SECTION("sum_error from non-sum, void value")
@@ -199,8 +200,7 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     static_assert(
         std::is_same_v<decltype(std::move(std::as_const(s)).sum_error()), fn::expected<void, fn::sum<Error>>>);
     static_assert(std::is_same_v<decltype(std::move(s).sum_error()), fn::expected<void, fn::sum<Error>>>);
-    // GAP: the void-value constructing overloads are not declared noexcept either
-    // (include/fn/expected.hpp:970/979, issue #276).
+    // GAP #280: the void-value lifting overloads weigh sum's unspecified value constructor too
     static_assert(not noexcept(s.sum_error()));
     static_assert(not noexcept(std::as_const(s).sum_error()));
     static_assert(not noexcept(std::move(std::as_const(s)).sum_error()));
@@ -222,6 +222,7 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     }
 
     static_assert(std::is_same_v<decltype(fn::sum_error(s)), fn::expected<void, fn::sum<Error>>>);
+    static_assert(not noexcept(fn::sum_error(s))); // the free function propagates what the member says
   }
 
   SECTION("sum_error from sum, void value")
@@ -232,12 +233,11 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     static_assert(std::is_same_v<decltype(std::as_const(s).sum_error()), T const &>);
     static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_error()), T const &&>);
     static_assert(std::is_same_v<decltype(std::move(s).sum_error()), T &&>);
-    // GAP: the void-value self-return overloads are not declared noexcept either
-    // (include/fn/expected.hpp:988-1003, issue #276).
-    static_assert(not noexcept(s.sum_error()));
-    static_assert(not noexcept(std::as_const(s).sum_error()));
-    static_assert(not noexcept(std::move(std::as_const(s)).sum_error()));
-    static_assert(not noexcept(std::move(s).sum_error()));
+    // the void-value self-return overloads only return *this
+    static_assert(noexcept(s.sum_error()));
+    static_assert(noexcept(std::as_const(s).sum_error()));
+    static_assert(noexcept(std::move(std::as_const(s)).sum_error()));
+    static_assert(noexcept(std::move(s).sum_error()));
     SECTION("value")
     {
       CHECK(s.sum_error().has_value());
@@ -255,6 +255,26 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     }
 
     static_assert(std::is_same_v<decltype(fn::sum_error(s)), T &>);
+    static_assert(noexcept(fn::sum_error(s))); // the free function propagates what the member says
+  }
+
+  SECTION("constexpr")
+  {
+    static_assert([] {
+      fn::expected<int, Error> const a{::fn::unexpect, Unknown};
+      return a.sum_error().error() == fn::sum{Unknown};
+    }());
+    static_assert([] { return fn::expected<int, Error>{12}.sum_error().value() == 12; }());
+    static_assert([] { return fn::expected<int, Error>{12}.sum_value().value() == fn::sum{12}; }());
+    static_assert([] {
+      fn::expected<void, Error> const a{::fn::unexpect, Unknown};
+      return a.sum_error().error() == fn::sum{Unknown};
+    }());
+    static_assert([] {
+      fn::expected<int, Error> a{12};
+      return fn::sum_value(a).value() == fn::sum{12};
+    }());
+    SUCCEED();
   }
 
   SECTION("sum_value from sum")
@@ -265,12 +285,11 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     static_assert(std::is_same_v<decltype(std::as_const(s).sum_value()), T const &>);
     static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_value()), T const &&>);
     static_assert(std::is_same_v<decltype(std::move(s).sum_value()), T &&>);
-    // GAP: these overloads return *this by reference but are not declared noexcept
-    // (include/fn/expected.hpp:688-703, issue #276); asserts current behaviour until fixed.
-    static_assert(not noexcept(s.sum_value()));
-    static_assert(not noexcept(std::as_const(s).sum_value()));
-    static_assert(not noexcept(std::move(std::as_const(s)).sum_value()));
-    static_assert(not noexcept(std::move(s).sum_value()));
+    // these overloads only return *this
+    static_assert(noexcept(s.sum_value()));
+    static_assert(noexcept(std::as_const(s).sum_value()));
+    static_assert(noexcept(std::move(std::as_const(s)).sum_value()));
+    static_assert(noexcept(std::move(s).sum_value()));
     SECTION("value")
     {
       CHECK(s.sum_value().value() == fn::sum{12});
@@ -288,6 +307,7 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     }
 
     static_assert(std::is_same_v<decltype(fn::sum_value(s)), T &>);
+    static_assert(noexcept(fn::sum_value(s))); // the free function propagates what the member says
   }
 
   SECTION("sum_value from non-sum")
@@ -298,8 +318,9 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     static_assert(std::is_same_v<decltype(std::as_const(s).sum_value()), fn::expected<fn::sum<int>, Error>>);
     static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_value()), fn::expected<fn::sum<int>, Error>>);
     static_assert(std::is_same_v<decltype(std::move(s).sum_value()), fn::expected<fn::sum<int>, Error>>);
-    // GAP: sum_value() here wraps into a fresh expected and is likewise not declared noexcept
-    // (include/fn/expected.hpp:670/679, issue #276), even for nothrow value and error types.
+    // GAP #280: this overload wraps the value in a sum and relocates the error, so it weighs both -
+    // and sum's own value constructor carries no noexcept specifier, so it is conservatively false
+    // even for nothrow value and error types. It sharpens when #280 lands.
     static_assert(not noexcept(s.sum_value()));
     static_assert(not noexcept(std::as_const(s).sum_value()));
     static_assert(not noexcept(std::move(std::as_const(s)).sum_value()));
@@ -321,6 +342,7 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     }
 
     static_assert(std::is_same_v<decltype(fn::sum_value(s)), fn::expected<fn::sum<int>, Error>>);
+    static_assert(not noexcept(fn::sum_value(s))); // the free function propagates what the member says
   }
 
   SECTION("sum_value absent for void value")

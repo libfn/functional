@@ -35,12 +35,11 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     static_assert(std::is_same_v<decltype(std::as_const(s).sum_value()), T const &>);
     static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_value()), T const &&>);
     static_assert(std::is_same_v<decltype(std::move(s).sum_value()), T &&>);
-    // GAP: these overloads return *this by reference but are not declared noexcept
-    // (include/fn/optional.hpp:495-510, issue #276); asserts current behaviour until fixed.
-    static_assert(not noexcept(s.sum_value()));
-    static_assert(not noexcept(std::as_const(s).sum_value()));
-    static_assert(not noexcept(std::move(std::as_const(s)).sum_value()));
-    static_assert(not noexcept(std::move(s).sum_value()));
+    // these overloads only return *this
+    static_assert(noexcept(s.sum_value()));
+    static_assert(noexcept(std::as_const(s).sum_value()));
+    static_assert(noexcept(std::move(std::as_const(s)).sum_value()));
+    static_assert(noexcept(std::move(s).sum_value()));
     SECTION("value")
     {
       CHECK(s.sum_value().value() == fn::sum{12});
@@ -58,6 +57,7 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     }
 
     static_assert(std::is_same_v<decltype(fn::sum_value(s)), T &>);
+    static_assert(noexcept(fn::sum_value(s))); // the free function propagates what the member says
   }
 
   SECTION("sum_value from non-sum")
@@ -68,8 +68,9 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     static_assert(std::is_same_v<decltype(std::as_const(s).sum_value()), fn::optional<fn::sum<int>>>);
     static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_value()), fn::optional<fn::sum<int>>>);
     static_assert(std::is_same_v<decltype(std::move(s).sum_value()), fn::optional<fn::sum<int>>>);
-    // GAP: sum_value() here wraps the value in a fresh optional<sum<int>> and is likewise not
-    // declared noexcept (include/fn/optional.hpp:477/486, issue #276), even for a nothrow value type.
+    // GAP #280: these overloads wrap the value in a sum, so they weigh that construction - and sum's
+    // own value constructor carries no noexcept specifier, so they are conservatively false even for
+    // a nothrow value type. They sharpen when #280 lands.
     static_assert(not noexcept(s.sum_value()));
     static_assert(not noexcept(std::as_const(s).sum_value()));
     static_assert(not noexcept(std::move(std::as_const(s)).sum_value()));
@@ -91,6 +92,22 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     }
 
     static_assert(std::is_same_v<decltype(fn::sum_value(s)), fn::optional<fn::sum<int>>>);
+    static_assert(not noexcept(fn::sum_value(s))); // the free function propagates what the member says
+
+    SECTION("constexpr")
+    {
+      static_assert([] {
+        fn::optional<int> const a{12};
+        return a.sum_value().value() == fn::sum{12};
+      }());
+      static_assert([] { return fn::optional<int>{12}.sum_value().value() == fn::sum{12}; }());
+      static_assert([] { return not fn::optional<int>{std::nullopt}.sum_value().has_value(); }());
+      static_assert([] {
+        fn::optional<int> a{12};
+        return fn::sum_value(a).value() == fn::sum{12};
+      }());
+      SUCCEED();
+    }
   }
 
   SECTION("or_else")
