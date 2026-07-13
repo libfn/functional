@@ -4,9 +4,8 @@ project(tests)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# tests_util: shared test helpers. Links include_pfn so static_check.hpp's fn
-# includes resolve at cxx_std_20 (include_pfn exposes include/, containing fn/).
-# Pls keep the filenames sorted
+### tests/util
+
 set(TESTS_UTIL_HEADERS
     util/helper_types.hpp
     util/static_check.hpp
@@ -14,12 +13,12 @@ set(TESTS_UTIL_HEADERS
 
 add_library(tests_util INTERFACE)
 set_property(TARGET tests_util PROPERTY CXX_STANDARD 20)
+target_compile_features(tests_util INTERFACE cxx_std_20)
 target_sources(tests_util INTERFACE
     FILE_SET tests_util_headers
     TYPE HEADERS
     FILES ${TESTS_UTIL_HEADERS})
 target_include_directories(tests_util INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
-# No libfn dependency by design: the test utilities must not be built on what they are used to test.
 target_compile_features(tests_util INTERFACE cxx_std_20)
 
 # Generate sentinel target for each individual header, as a basic sanity check
