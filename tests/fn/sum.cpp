@@ -1560,6 +1560,13 @@ TEST_CASE("sum assignment", "[sum][assignment]")
     CHECK_THROWS_AS(a = bad, std::runtime_error);
     CHECK(a.invoke([](ThrowingCopy const &t) { return t.v; }) == 7); // untouched
 
+    // ... and where the copy does not throw, that same arm runs to completion: the temporary is
+    // built, only then is the old alternative destroyed, and the storage is rebuilt from the
+    // temporary's (nothrow) move
+    sum<ThrowingCopy> const good{ThrowingCopy{5}};
+    a = good;
+    CHECK(a.invoke([](ThrowingCopy const &t) { return t.v; }) == 5);
+
     SECTION("the two arms in one sum")
     {
       // whichever arm the incoming alternative needs, the one being replaced survives a throw

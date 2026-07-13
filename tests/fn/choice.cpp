@@ -411,8 +411,18 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     static_assert(a == choice<double, int>{42}); // and across differing alternative lists
     static_assert(a != choice<double, int>{41});
 
+    // the alternative held is absent from the other choice's list, so there is nothing to compare
+    // and the answer is false whatever it holds
+    constexpr type b{std::in_place_type<bool>, true};
+    static_assert(not(b == choice<double, int>{42}));
+    static_assert(b != choice<double, int>{42});
+
     CHECK(a == type{42});
     CHECK(a != type{41});
+    CHECK(a == choice<double, int>{42});
+    CHECK(a != choice<double, int>{41});
+    CHECK(not(b == choice<double, int>{42}));
+    CHECK(b != choice<double, int>{42});
   }
 
   SECTION("invoke")
