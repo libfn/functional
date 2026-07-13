@@ -27,13 +27,34 @@ template <::std::size_t I, typename T> struct _element {
 // type is reference-related to it, i.e. binds), but gcc reads the braced form as materializing a
 // temporary and rejects the bind - while accepting the equivalent declaration. The cast keeps both
 // compilers on the binding path.
-template <typename T> [[nodiscard]] constexpr auto _make_element(auto &&...args) -> T
+template <typename T>
+[[nodiscard]] constexpr auto _make_element(auto &&...args) noexcept(_nothrow_initializable<T, decltype(args)...>) -> T
+  requires _initializable<T, decltype(args)...>
 {
   if constexpr (::std::is_reference_v<T>)
     return T(FWD(args)...); // a single argument, so this is a cast expression: it binds
   else
     return T{FWD(args)...};
 }
+
+// The two questions anyone above may ask about constructing an element, asked OF the function that
+// constructs it rather than restated in terms of a trait - the same discipline as `_makeable` beside
+// `make_variadic_union`, and for the same reason: a restatement can drift from the deed.
+template <typename T, typename... Args>
+concept _makeable_element = requires { _make_element<T>(::std::declval<Args>()...); };
+
+template <typename T, typename... Args>
+concept _nothrow_makeable_element = requires { requires noexcept(_make_element<T>(::std::declval<Args>()...)); };
+
+// One element's relocation into a new pack: the copy-initialization its holder performs
+// ([dcl.init.aggr]/4.3, reached through brace elision), asked of the holder one element at a time -
+// `_element<I, T>{src}` elides into the same member copy-initialization. This excludes explicit
+// constructors, where `is_[nothrow_]constructible_v` would admit them.
+template <typename E, typename Src>
+concept _relocatable_element = requires { E{::std::declval<Src>()}; };
+
+template <typename E, typename Src>
+concept _nothrow_relocatable_element = requires { requires noexcept(E{::std::declval<Src>()}); };
 
 template <typename, typename... Ts> struct pack_impl;
 
@@ -89,6 +110,16 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
         FWD(fn), static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., FWD(args)...);
   }
 
+  template <typename Ret, typename Self, typename Fn, typename... Args>
+    requires(not(... || (_some_pack<Args> || _some_sum<Args>)))
+  static constexpr auto _invoke_r(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(_is_nothrow_invocable_r<Ret, Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args &&...>::value) -> Ret
+    requires(_is_invocable_r<Ret, Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args && ...>::value)
+  {
+    return ::fn::detail::_invoke_r<Ret>(
+        FWD(fn), static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., FWD(args)...);
+  }
+
   template <::std::size_t I, typename Self>
   static constexpr decltype(auto) _get(Self &&self) noexcept
     requires(I < size)
@@ -102,14 +133,18 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
   // Every existing element is relocated into the new pack, so appending weighs that as well as the
   // construction of the element being appended.
   template <typename Self>
+  static constexpr bool _relocatable
+      = (... && _relocatable_element<_element<Is, Ts>, apply_const_lvalue_t<Self, Ts &&>>);
+
+  template <typename Self>
   static constexpr bool _nothrow_relocatable
-      = (... && ::std::is_nothrow_constructible_v<Ts, apply_const_lvalue_t<Self, Ts &&>>);
+      = (... && _nothrow_relocatable_element<_element<Is, Ts>, apply_const_lvalue_t<Self, Ts &&>>);
 
   template <typename T, typename Self>
   static constexpr auto _append(Self &&self, auto &&...args) //
-      noexcept(_nothrow_relocatable<Self> && _nothrow_initializable<T, decltype(args)...>)
+      noexcept(_nothrow_relocatable<Self> && _nothrow_makeable_element<T, decltype(args)...>)
           -> pack_impl<::std::index_sequence<Is..., size>, Ts..., T>
-    requires(not _some_sum<T>) && (not _some_pack<T>) && _initializable<T, decltype(args)...>
+    requires(not _some_sum<T>) && (not _some_pack<T>) && _relocatable<Self> && _makeable_element<T, decltype(args)...>
   {
     return {static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)...,
             _make_element<T>(FWD(args)...)};
@@ -121,6 +156,8 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
                && ::std::remove_cvref_t<T>::_impl::template _nothrow_relocatable<decltype(other)>) -> //
       typename _pack_append<::std::remove_cvref_t<T>, Ts...>::impl
     requires _some_pack<T> && (::std::is_same_v<::std::remove_cvref_t<decltype(other)>, ::std::remove_cvref_t<T>>)
+             && _relocatable<Self> && ::std::remove_cvref_t<T>::_impl::template
+  _relocatable<decltype(other)>
   {
     using type = _pack_append<::std::remove_cvref_t<T>, Ts...>::impl;
     return FWD(other)._invoke(FWD(other), [&self](auto &&...args) {

@@ -35,6 +35,25 @@ struct NonCopyable final {
 template <typename S, typename T, typename... Args>
 concept can_in_place = requires(Args... args) { S{std::in_place_type<T>, args...}; };
 
+// Every special member of choice is defaulted, and choice adds no state to sum - so each must behave
+// exactly as sum's, down to its noexcept and its constraints.
+template <typename... Ts> consteval bool special_members_follow_sum()
+{
+  using C = fn::choice<Ts...>;
+  using S = fn::sum<Ts...>;
+  return std::is_copy_constructible_v<C> == std::is_copy_constructible_v<S>                    //
+         && std::is_nothrow_copy_constructible_v<C> == std::is_nothrow_copy_constructible_v<S> //
+         && std::is_move_constructible_v<C> == std::is_move_constructible_v<S>                 //
+         && std::is_nothrow_move_constructible_v<C> == std::is_nothrow_move_constructible_v<S> //
+         && std::is_copy_assignable_v<C> == std::is_copy_assignable_v<S>                       //
+         && std::is_nothrow_copy_assignable_v<C> == std::is_nothrow_copy_assignable_v<S>       //
+         && std::is_move_assignable_v<C> == std::is_move_assignable_v<S>                       //
+         && std::is_nothrow_move_assignable_v<C> == std::is_nothrow_move_assignable_v<S>       //
+         && std::is_destructible_v<C> == std::is_destructible_v<S>                             //
+         && std::is_nothrow_destructible_v<C> == std::is_nothrow_destructible_v<S>             //
+         && std::is_trivially_destructible_v<C> == std::is_trivially_destructible_v<S>;
+}
+
 } // anonymous namespace
 
 TEST_CASE("choice non-monadic functionality", "[choice]")
@@ -820,4 +839,47 @@ TEST_CASE("choice assignment", "[choice][assignment]")
     }());
     SUCCEED();
   }
+}
+
+TEST_CASE("choice special members", "[choice]")
+{
+  using fn::choice;
+
+  // choice declares all five, and defaults all five: the copy constructor because a user-declared
+  // move constructor would otherwise delete it, and the two assignments because they would otherwise
+  // be deleted and suppressed in turn. Removing a `= default`, adding a `noexcept` the base does not
+  // promise, or narrowing a requires-clause would all break the equalities below.
+  static_assert(special_members_follow_sum<int>());
+  static_assert(special_members_follow_sum<bool, int>());
+  static_assert(special_members_follow_sum<std::string>());
+  static_assert(special_members_follow_sum<helper_move_only>());
+  static_assert(special_members_follow_sum<helper_immovable>());
+
+  // ... and what they follow it TO, so that the equalities cannot be satisfied by both being wrong
+  static_assert(std::is_nothrow_copy_constructible_v<choice<int>>);
+  static_assert(std::is_nothrow_move_constructible_v<choice<int>>);
+  static_assert(std::is_nothrow_copy_assignable_v<choice<int>>);
+  static_assert(std::is_nothrow_move_assignable_v<choice<int>>);
+  static_assert(std::is_nothrow_destructible_v<choice<int>>);
+  static_assert(not std::is_trivially_destructible_v<choice<int>>); // the base destroys its alternative
+
+  // a throwing copy is reported as one, rather than promised away
+  static_assert(std::is_copy_constructible_v<choice<std::string>>);
+  static_assert(not std::is_nothrow_copy_constructible_v<choice<std::string>>);
+  static_assert(std::is_nothrow_move_constructible_v<choice<std::string>>);
+  static_assert(not std::is_nothrow_copy_assignable_v<choice<std::string>>);
+  static_assert(std::is_nothrow_move_assignable_v<choice<std::string>>);
+
+  // an alternative that cannot be copied takes copy construction and copy assignment with it
+  static_assert(not std::is_copy_constructible_v<choice<helper_move_only>>);
+  static_assert(not std::is_copy_assignable_v<choice<helper_move_only>>);
+  static_assert(std::is_nothrow_move_constructible_v<choice<helper_move_only>>);
+  static_assert(std::is_nothrow_move_assignable_v<choice<helper_move_only>>);
+
+  // ... and one that can be neither copied nor moved leaves none of the four
+  static_assert(not std::is_copy_constructible_v<choice<helper_immovable>>);
+  static_assert(not std::is_move_constructible_v<choice<helper_immovable>>);
+  static_assert(not std::is_copy_assignable_v<choice<helper_immovable>>);
+  static_assert(not std::is_move_assignable_v<choice<helper_immovable>>);
+  SUCCEED();
 }
