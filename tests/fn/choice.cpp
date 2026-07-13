@@ -42,6 +42,9 @@ struct Throwing final {
   constexpr bool operator==(Throwing const &o) const noexcept(false) { return v == o.v; }
 };
 
+template <typename S, typename T, typename... Args>
+concept can_in_place = requires(Args... args) { S{std::in_place_type<T>, args...}; };
+
 } // anonymous namespace
 
 TEST_CASE("choice non-monadic functionality", "[choice]")
@@ -340,6 +343,17 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
       auto b = choice{std::in_place_type<NonCopyable>, 42};
       static_assert(std::is_same_v<decltype(b), choice<NonCopyable>>);
+    }
+
+    SECTION("constraints")
+    {
+      static_assert(can_in_place<choice<NonCopyable>, NonCopyable, int>);
+      static_assert(not can_in_place<choice<NonCopyable>, int, int>); // int is not an alternative
+
+      // the constructor forwards to sum's, and rejects what sum rejects
+      static_assert(not can_in_place<choice<NonCopyable>, NonCopyable>);               // no default ctor
+      static_assert(not can_in_place<choice<NonCopyable>, NonCopyable, char const *>); // not constructible from
+      SUCCEED();
     }
   }
 

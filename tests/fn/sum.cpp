@@ -73,6 +73,12 @@ concept can_ne = requires { std::declval<L const &>() != std::declval<R const &>
 
 template <typename S, typename T, typename... Args>
 concept can_in_place = requires(Args... args) { S{std::in_place_type<T>, args...}; };
+
+template <typename T, typename... Args>
+concept can_as_sum = requires(Args... args) { fn::as_sum(std::in_place_type<T>, args...); };
+
+template <typename T>
+concept can_as_sum_value = requires(T v) { fn::as_sum(FWD(v)); };
 } // anonymous namespace
 
 TEST_CASE("sum basic functionality tests", "[sum]")
@@ -107,6 +113,20 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     // even where nothing can throw. The same conditional-noexcept work fixes over- and under-promise.
     static_assert(not noexcept(fn::as_sum(12)));
     static_assert(not noexcept(fn::as_sum(std::in_place_type<long>, 12)));
+
+    SECTION("constraints")
+    {
+      static_assert(can_as_sum<long, int>);
+      static_assert(can_as_sum<std::array<int, 3>, int, int, int>); // an aggregate, brace-initialized
+      static_assert(not can_as_sum<NonCopyable>);                   // no default constructor
+      static_assert(not can_as_sum<NonCopyable, char const *>);     // not constructible from it
+
+      // the tag selects the alternative, it is never itself one: with nothing to construct there is
+      // no viable lift at all, rather than a sum whose alternative is the tag
+      static_assert(not can_as_sum_value<std::in_place_type_t<NonCopyable> const &>);
+      static_assert(can_as_sum_value<long>);
+      SUCCEED();
+    }
   }
 
   SECTION("sum_for")
@@ -312,12 +332,10 @@ TEST_CASE("sum basic functionality tests", "[sum]")
       static_assert(can_in_place<sum<NonCopyable>, NonCopyable, int>);
       static_assert(not can_in_place<sum<NonCopyable>, int, int>); // int is not an alternative
 
-      // GAP #284: the constructor requires only has_type<T> - it never checks that T is
-      // constructible from the arguments. So a bad argument list is reported viable here and then
-      // fails to compile inside variadic_union, outside the immediate context and beyond SFINAE's
-      // reach. Both of these should read `not`, and will once the conjunct is added.
-      static_assert(can_in_place<sum<NonCopyable>, NonCopyable>);               // no default ctor
-      static_assert(can_in_place<sum<NonCopyable>, NonCopyable, char const *>); // not constructible from
+      // an argument list the alternative cannot be constructed from is not viable - viability must
+      // answer here, not fail to compile inside variadic_union, beyond SFINAE's reach
+      static_assert(not can_in_place<sum<NonCopyable>, NonCopyable>);               // no default ctor
+      static_assert(not can_in_place<sum<NonCopyable>, NonCopyable, char const *>); // not constructible from
       SUCCEED();
     }
   }
@@ -356,6 +374,17 @@ TEST_CASE("sum basic functionality tests", "[sum]")
 
       auto b = sum{std::in_place_type<std::array<int, 3>>, 1, 2, 3};
       static_assert(std::is_same_v<decltype(b), sum<std::array<int, 3>>>);
+    }
+
+    SECTION("constraints")
+    {
+      using T = std::array<int, 3>;
+      // the element is brace-initialized, which elides braces for an aggregate - a constraint
+      // spelled with is_constructible_v (parenthesized init) would reject this very construction
+      static_assert(can_in_place<sum<T>, T, int, int, int>);
+      static_assert(not can_in_place<sum<T>, T, int, int, int, int>); // one too many
+      static_assert(not can_in_place<sum<int>, int, double>);         // narrowing, rejected by braces
+      SUCCEED();
     }
   }
 
