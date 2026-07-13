@@ -4,6 +4,7 @@
 // or copy at https://opensource.org/licenses/ISC
 
 #include <fn/detail/pack_impl.hpp>
+#include <fn/sum.hpp>
 
 #include <catch2/catch_all.hpp>
 
@@ -107,10 +108,6 @@ TEST_CASE("pack_impl noexcept", "[pack_impl][noexcept]")
   // _get's promise is accurate: it only forms a reference to an element, touching nothing.
   static_assert(noexcept(P::template _get<0>(std::declval<P const &>())));
   static_assert(noexcept(PT::template _get<0>(std::declval<PT &>())));
-
-  // #282: a pack never holds a sum, and _append deletes the overload that would - but the deletion is
-  // dead code, because append_type<sum> is an ambiguous partial specialization and fails first.
-  // No probe is portable until that is fixed (it hard-errors on gcc, SFINAEs cleanly on clang).
 
   SUCCEED();
 }
@@ -238,6 +235,8 @@ TEST_CASE("pack_impl _append and append_type", "[pack_impl][append][append_type]
   static_assert(not can_append<P0, int, int, int>);
   // positive control: single-arg int ctor accepted
   static_assert(can_append<P0, int, int>);
+  // SFINAE: a pack never holds a sum, so append_type<sum> names no type and the overload drops out
+  static_assert(not can_append<P0, ::fn::sum<int>, ::fn::sum<int>>);
 
   // append_type<T> alias resolves to ::fn::pack<Ts..., T>
   static_assert(std::same_as<P2::append_type<bool>, ::fn::pack<int, double, bool>>);
