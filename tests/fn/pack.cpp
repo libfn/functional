@@ -12,6 +12,7 @@
 
 #include <catch2/catch_all.hpp>
 
+#include <array>
 #include <tuple>
 #include <utility>
 
@@ -228,6 +229,37 @@ TEST_CASE("append value categories", "[pack][append]")
     CHECK(std::move(s).append(B{30}).invoke(check));
   }
 
+  WHEN("reference element")
+  {
+    // Evaluated, not merely decltype'd: a reference element must BIND to the argument, and the
+    // element-initializing expression is only instantiated when the call is actually made
+    C c{};
+    auto q = s.append(std::in_place_type<B &>, c);
+    static_assert(std::same_as<decltype(q), T::append_type<B &>>);
+    CHECK(q.invoke([&c](int, std::string_view, A, B &b) { return &b == static_cast<B *>(&c); }));
+
+    auto r = s.append(c); // deduced, so the element type is C &
+    static_assert(std::same_as<decltype(r), T::append_type<C &>>);
+    CHECK(r.invoke([&c](int, std::string_view, A, C &x) { return &x == &c; }));
+
+    c.v = 77; // the same object, observed through both packs
+    CHECK(q.invoke([](int, std::string_view, A, B &b) { return b.v == 77; }));
+    CHECK(r.invoke([](int, std::string_view, A, C &x) { return x.v == 77; }));
+
+    WHEN("constexpr")
+    {
+      static_assert([] {
+        fn::pack<int> p{1};
+        B b{5, 6};
+        auto q = p.append(std::in_place_type<B &>, b);
+        auto r = p.append(b);
+        b.v = 9;
+        return q.invoke([](int, B &x) { return x.v == 9; }) && r.invoke([](int, B &x) { return x.v == 9; });
+      }());
+      SUCCEED();
+    }
+  }
+
   WHEN("pack on the right side, deduced")
   {
     constexpr fn::pack<bool, int, B> a{true, 3, B{14}};
@@ -250,6 +282,12 @@ TEST_CASE("append value categories", "[pack][append]")
     static_assert(can_append_in_place<T &, B, int>);
     static_assert(can_append_in_place<T &, B, int, int>);
     static_assert(not can_append_in_place<T &, B, char const *>); // B is not constructible from it
+
+    // the element is brace-initialized, so an aggregate is appended element-wise, exactly as `sum`
+    // constructs one - a constraint spelled with is_constructible_v would reject this
+    static_assert(can_append_in_place<T &, std::array<int, 3>, int, int, int>);
+    static_assert(not can_append_in_place<T &, std::array<int, 3>, int, int, int, int>); // one too many
+    static_assert(not can_append_in_place<T &, int, double>);                            // narrowing
 
     // in_place_type selects the element type, it is never itself an element: with no arguments and
     // no default constructor there is nothing to construct, and the deduced-Arg overload must not
