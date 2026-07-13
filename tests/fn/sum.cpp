@@ -540,6 +540,17 @@ TEST_CASE("sum basic functionality tests", "[sum]")
   {
     using type = sum<bool, int>;
 
+    // != is synthesized by C++20 rewriting from ==, so it cannot claim to be viable where == is not.
+    // Against the uninstantiable sum<> both must drop out of overload resolution together
+    static_assert(can_eq<type, type>);
+    static_assert(can_ne<type, type>);
+    static_assert(not can_eq<sum<int>, sum<>>);
+    static_assert(not can_ne<sum<int>, sum<>>);
+    static_assert(not can_eq<sum<>, sum<int>>);
+    static_assert(not can_ne<sum<>, sum<int>>);
+    static_assert(not can_eq<sum<>, sum<>>);
+    static_assert(not can_ne<sum<>, sum<>>);
+
     type const a{std::in_place_type<int>, 42};
     static_assert(std::is_same_v<bool, decltype(sum{42} == a)>);
     CHECK(a == type{42});
@@ -607,16 +618,6 @@ TEST_CASE("sum basic functionality tests", "[sum]")
       static_assert(not noexcept(std::declval<Throwing const &>() == std::declval<Throwing const &>()));
       static_assert(noexcept(std::declval<T const &>() == std::declval<T const &>()));
       static_assert(noexcept(std::declval<T const &>() != std::declval<T const &>()));
-
-      // GAP #281: operator!= drops the two sizeof...>0 conjuncts operator== carries, so against a
-      // sum<> operand it reports itself viable and then fails to compile in its own body (which
-      // calls operator==). Benign only because no object of sum<> can exist to call it with.
-      static_assert(can_eq<sum<int>, sum<int>>);
-      static_assert(can_ne<sum<int>, sum<int>>);
-      static_assert(not can_eq<sum<int>, sum<>>);
-      static_assert(can_ne<sum<int>, sum<>>);
-      static_assert(not can_eq<sum<>, sum<>>);
-      static_assert(can_ne<sum<>, sum<>>);
 
       SUCCEED();
     }
