@@ -657,21 +657,8 @@ template <typename... Ts, typename... Tx>
   });
 }
 
-/**
- * @brief TODO
- *
- * @tparam Ts TODO
- * @tparam Tx TODO
- * @param lh TODO
- * @param rh TODO
- * @return TODO
- */
-template <typename... Ts, typename... Tx>
-[[nodiscard]] constexpr bool operator!=(sum<Ts...> const &lh, sum<Tx...> const &rh) noexcept
-  requires(... && (::std::equality_comparable<Ts> || not detail::type_one_of<Ts, Tx...>))
-{
-  return not(lh == rh);
-}
+// No operator!=: C++20 rewrites `a != b` as `!(a == b)`, so the synthesized candidate inherits
+// operator=='s constraints and the two cannot drift apart.
 
 /**
  * @brief TODO

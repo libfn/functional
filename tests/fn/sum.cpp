@@ -40,6 +40,13 @@ template <fn::some_sum auto S> auto read_nttp()
   return S.invoke([](auto const &...args) { return (0.0 + ... + static_cast<double>(args)); });
 }
 
+// Comparison probes are type-keyed rather than the file's usual value-taking lambda: sum<> has no
+// values to pass one (its default constructor is deleted, by design).
+template <typename L, typename R>
+concept can_eq = requires { std::declval<L const &>() == std::declval<R const &>(); };
+template <typename L, typename R>
+concept can_ne = requires { std::declval<L const &>() != std::declval<R const &>(); };
+
 template <typename S, typename T, typename... Args>
 concept can_in_place = requires(Args... args) { S{std::in_place_type<T>, args...}; };
 
@@ -312,6 +319,15 @@ TEST_CASE("sum basic functionality tests", "[sum]")
   WHEN("equality comparison")
   {
     using type = sum<bool, int>;
+
+    // != is synthesized by C++20 rewriting from ==, so it cannot claim to be viable where == is not.
+    // Against the uninstantiable sum<> both must drop out of overload resolution together
+    static_assert(can_eq<type, type>);
+    static_assert(can_ne<type, type>);
+    static_assert(not can_eq<sum<int>, sum<>>);
+    static_assert(not can_ne<sum<int>, sum<>>);
+    static_assert(not can_eq<sum<>, sum<int>>);
+    static_assert(not can_ne<sum<>, sum<int>>);
 
     type const a{std::in_place_type<int>, 42};
     static_assert(std::is_same_v<bool, decltype(sum{42} == a)>);
