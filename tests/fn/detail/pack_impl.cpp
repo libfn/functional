@@ -94,15 +94,14 @@ TEST_CASE("pack_impl noexcept", "[pack_impl][noexcept]")
 
   constexpr auto throwing_fn = [](auto &&...) noexcept(false) -> int { return 0; };
 
-  // GAP #285: _swap_invoke is the third of the pipeline's four unconditional noexcept boundaries -
-  // functor::operator| dispatches through it - and _invoke is declared the same way, so a callback
-  // that may throw is promised not to.
-  static_assert(noexcept(P::_swap_invoke(std::declval<P const &>(), throwing_fn)));
-  static_assert(noexcept(P::_invoke(std::declval<P const &>(), throwing_fn)));
+  // both dispatchers weigh the callback they invoke
+  static_assert(not noexcept(P::_swap_invoke(std::declval<P const &>(), throwing_fn)));
+  static_assert(not noexcept(P::_invoke(std::declval<P const &>(), throwing_fn)));
 
-  // GAP #280: _append is unconditionally noexcept as well, though it constructs the appended element
-  // AND relocates every existing one into the new pack - each of which can throw here.
-  static_assert(noexcept(PT::template _append<int>(std::declval<PT const &>(), 1)));
+  // _append weighs the element it constructs AND every element it relocates into the new pack: here
+  // the appended int cannot throw, but the Throwing already in the pack must be moved across ...
+  static_assert(not noexcept(PT::template _append<int>(std::declval<PT const &>(), 1)));
+  // ... while constructing a Throwing from an int cannot throw, and nothing relocated can either
   static_assert(noexcept(P::template _append<Throwing>(std::declval<P const &>(), 1)));
 
   // _get's promise is accurate: it only forms a reference to an element, touching nothing.

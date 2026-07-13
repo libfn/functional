@@ -284,10 +284,10 @@ TEST_CASE("and_then", "[and_then][expected][expected_value][pack]")
     static_assert(not std::is_nothrow_copy_constructible_v<ThrowingCopy>);
     static_assert(noexcept(and_then(std::declval<ThrowingCopy const &>()))); // GAP #285
 
-    // fn::invoke reaches the very same apply, yet reports noexcept(false) even for a callback that
-    // cannot throw - the #45 traits behind it are stubbed false. The library's two entry points to
-    // one operation disagree, and each is wrong in the opposite direction.
-    static_assert(not noexcept(fn::invoke(and_then_t::apply{}, std::declval<operand_t &>(), fnNothrow)));
+    // GAP #285: fn::invoke reaches the very same apply and now faithfully reports what apply
+    // promises - so both entry points to the operation agree, and both are wrong until apply's
+    // promise is computed rather than asserted.
+    static_assert(noexcept(fn::invoke(and_then_t::apply{}, std::declval<operand_t &>(), fnThrows)));
 
     SUCCEED();
   }
@@ -911,11 +911,8 @@ TEST_CASE("and_then choice", "[and_then][choice]")
   {
     constexpr auto fnThrows = [](auto i) noexcept(false) -> operand_t { return {i + 1}; };
 
-    // GAP #280: choice differs from its siblings - its own and_then is unconditionally noexcept too
-    // (it dispatches through sum::invoke), so here even the MEMBER over-promises. The same monadic
-    // operation therefore has different exception behaviour depending on which monad it is written
-    // against: optional and expected propagate, choice terminates.
-    static_assert(noexcept(std::declval<operand_t &>().and_then(fnThrows)));
+    // the member propagates, as optional's and expected's do
+    static_assert(not noexcept(std::declval<operand_t &>().and_then(fnThrows)));
 
     // GAP #285: the verb layer over-promises for every monad, choice included.
     static_assert(noexcept(std::declval<operand_t &>() | and_then(fnThrows)));

@@ -37,8 +37,8 @@ concept can_append_in_place = requires(V v, Args... args) { FWD(v).append(std::i
 template <typename V, typename Arg>
 concept can_append = requires(V v, Arg arg) { FWD(v).append(FWD(arg)); };
 
-// A pack element whose copy and move can both throw, while the pack member relocating it promises
-// noexcept regardless. Witnesses the #280 tripwires below.
+// A pack element whose const-lvalue copy and rvalue move can both throw, so the member relocating it
+// must say so. Its non-const-lvalue copy is noexcept, which is what makes the promise category-wise.
 using Throwing = helper_t<prop::throw_copy | prop::throw_move>;
 
 } // namespace
@@ -161,20 +161,25 @@ TEST_CASE("pack", "[pack]")
 
   SECTION("noexcept")
   {
-    // GAP #280: invoke and invoke_r are unconditionally noexcept whatever the callback promises,
-    // so a throwing callback terminates instead of propagating.
+    // invoke and invoke_r weigh the callback they dispatch to, in every value category
     constexpr auto throwing = [](auto &&...) noexcept(false) -> int { return 0; };
     static_assert(not noexcept(throwing()));
-    static_assert(noexcept(v.invoke(throwing)));
-    static_assert(noexcept(std::as_const(v).invoke(throwing)));
-    static_assert(noexcept(std::move(v).invoke(throwing)));
-    static_assert(noexcept(std::move(std::as_const(v)).invoke(throwing)));
-    static_assert(noexcept(v.invoke_r<long>(throwing)));
-    static_assert(noexcept(std::move(v).invoke_r<long>(throwing)));
+    static_assert(not noexcept(v.invoke(throwing)));
+    static_assert(not noexcept(std::as_const(v).invoke(throwing)));
+    static_assert(not noexcept(std::move(v).invoke(throwing)));
+    static_assert(not noexcept(std::move(std::as_const(v)).invoke(throwing)));
+    static_assert(not noexcept(v.invoke_r<long>(throwing)));
+    static_assert(not noexcept(std::move(v).invoke_r<long>(throwing)));
 
-    // GAP #280 (converse): the as_pack lifts carry no noexcept specifier, so they report
-    // noexcept(false) even where nothing can throw.
-    static_assert(not noexcept(fn::as_pack()));
+    constexpr auto nothrow = [](auto &&...) noexcept -> int { return 0; };
+    static_assert(noexcept(v.invoke(nothrow)));
+    static_assert(noexcept(v.invoke_r<long>(nothrow)));
+
+    // GAP #291: as_pack's noexcept asks is_nothrow_constructible_v - a question about parenthesized
+    // initialization - where its body brace-initializes the pack. A pack is not parenthesized-
+    // constructible at all, so the answer is false for every argument list: a permanent
+    // under-promise, where as_sum asks _nothrow_initializable and gets it right.
+    static_assert(noexcept(fn::as_pack()));
     static_assert(not noexcept(fn::as_pack(true, 12)));
     SUCCEED();
   }
@@ -356,20 +361,67 @@ TEST_CASE("append value categories", "[pack][append]")
 
   SECTION("noexcept")
   {
-    // GAP #280: every append overload is unconditionally noexcept, though _append both constructs
-    // the new element and relocates every existing one into the new pack.
+    // append weighs both what it constructs and every element it relocates into the new pack
     using P = pack<Throwing>;
     static_assert(not std::is_nothrow_copy_constructible_v<Throwing>);
     static_assert(not std::is_nothrow_move_constructible_v<Throwing>);
 
     // constructing the appended element by a throwing copy
-    static_assert(
-        noexcept(std::declval<pack<int> &>().append(std::in_place_type<Throwing>, std::declval<Throwing const &>())));
-    // ... and relocating an existing throwing element, even where the appended one cannot throw
+    static_assert(not noexcept(
+        std::declval<pack<int> &>().append(std::in_place_type<Throwing>, std::declval<Throwing const &>())));
+    // ... and relocating an existing throwing element, even where the appended one cannot throw.
+    // Which relocation that is depends on the source's value category, and helper_t declares one
+    // constructor per category: only its const-lvalue copy and its rvalue move can throw, while the
+    // non-const-lvalue copy is noexcept - so the promise tracks the constructor actually selected.
     static_assert(noexcept(std::declval<P &>().append(std::in_place_type<int>, 1)));
-    static_assert(noexcept(std::declval<P const &>().append(std::in_place_type<int>, 1)));
-    static_assert(noexcept(std::declval<P &&>().append(std::in_place_type<int>, 1)));
-    static_assert(noexcept(std::declval<P &>().append(1))); // deduced form
+    static_assert(not noexcept(std::declval<P const &>().append(std::in_place_type<int>, 1)));
+    static_assert(not noexcept(std::declval<P &&>().append(std::in_place_type<int>, 1)));
+    static_assert(noexcept(std::declval<P &>().append(1))); // deduced form, same relocation
+
+    // neither constructed nor relocated element can throw here
+    static_assert(noexcept(std::declval<pack<int> &>().append(std::in_place_type<int>, 1)));
+    static_assert(noexcept(std::declval<pack<int> &>().append(1)));
+    SUCCEED();
+  }
+}
+
+TEST_CASE("pack noexcept", "[pack][noexcept]")
+{
+  using fn::pack;
+
+  struct Throwy {
+    Throwy() = default;
+    Throwy(Throwy const &) noexcept(false) {}
+    Throwy(Throwy &&) noexcept(false) {}
+  };
+  struct Quiet {
+    Quiet() = default;
+    Quiet(Quiet const &) noexcept {}
+    Quiet(Quiet &&) noexcept {}
+  };
+
+  SECTION("append")
+  {
+    static_assert(noexcept(std::declval<pack<int> &>().append(std::in_place_type<int>, 1)));
+    static_assert(noexcept(std::declval<pack<Quiet> &>().append(std::in_place_type<int>, 1)));
+
+    // the element being appended can throw on construction ...
+    static_assert(
+        not noexcept(std::declval<pack<int> &>().append(std::in_place_type<Throwy>, std::declval<Throwy const &>())));
+    // ... and so can relocating an element the pack already holds, even where the new one cannot
+    static_assert(not noexcept(std::declval<pack<Throwy> &>().append(std::in_place_type<int>, 1)));
+    static_assert(not noexcept(std::declval<pack<Throwy> &>().append(1))); // deduced form
+    SUCCEED();
+  }
+
+  SECTION("invoke")
+  {
+    constexpr auto nothrow_fn = [](auto &&...) noexcept { return 0; };
+    constexpr auto throwing_fn = [](auto &&...) { return 0; };
+    static_assert(noexcept(std::declval<pack<int, bool> &>().invoke(nothrow_fn)));
+    static_assert(not noexcept(std::declval<pack<int, bool> &>().invoke(throwing_fn)));
+    static_assert(noexcept(std::declval<pack<int, bool> &>().template invoke_r<int>(nothrow_fn)));
+    static_assert(not noexcept(std::declval<pack<int, bool> &>().template invoke_r<int>(throwing_fn)));
     SUCCEED();
   }
 }

@@ -447,7 +447,7 @@ TEST_CASE("inspect noexcept", "[inspect][noexcept]")
   // the implementation, invoking the callback itself (inspect.hpp:61-69). So unlike and_then, there
   // is no honest spec anywhere for the verb to discard: the operation is simply declared noexcept
   // while calling code that may throw. Fixing this group means COMPUTING the spec rather than
-  // propagating one, which needs the nothrow-invocable traits stubbed false by #45.
+  // propagating one, which the nothrow-invocable traits now make possible.
   //
   // One test case for every monad, not one each: nothing here differs between them, because no
   // member is consulted.

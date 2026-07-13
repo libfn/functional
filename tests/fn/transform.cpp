@@ -676,11 +676,8 @@ TEST_CASE("transform noexcept", "[transform][choice][noexcept]")
 
   constexpr auto fnThrows = [](auto i) noexcept(false) -> int { return static_cast<int>(i) + 1; };
 
-  // GAP #280: choice parts company with optional and expected here - its own transform is
-  // unconditionally noexcept, dispatching through sum::transform, so even the MEMBER over-promises.
-  // The same operation therefore has different exception behaviour depending on the monad it is
-  // written against.
-  static_assert(noexcept(std::declval<operand_t &>().transform(fnThrows)));
+  // the member propagates, as optional's and expected's do
+  static_assert(not noexcept(std::declval<operand_t &>().transform(fnThrows)));
 
   static_assert(noexcept(transform_t::apply{}(std::declval<operand_t &>(), fnThrows))); // GAP #285
 

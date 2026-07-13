@@ -68,13 +68,12 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     static_assert(std::is_same_v<decltype(std::as_const(s).sum_value()), fn::optional<fn::sum<int>>>);
     static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_value()), fn::optional<fn::sum<int>>>);
     static_assert(std::is_same_v<decltype(std::move(s).sum_value()), fn::optional<fn::sum<int>>>);
-    // GAP #280: these overloads wrap the value in a sum, so they weigh that construction - and sum's
-    // own value constructor carries no noexcept specifier, so they are conservatively false even for
-    // a nothrow value type. They sharpen when #280 lands.
-    static_assert(not noexcept(s.sum_value()));
-    static_assert(not noexcept(std::as_const(s).sum_value()));
-    static_assert(not noexcept(std::move(std::as_const(s)).sum_value()));
-    static_assert(not noexcept(std::move(s).sum_value()));
+    // these overloads wrap the value in a sum, so they weigh that construction - which for int
+    // cannot throw
+    static_assert(noexcept(s.sum_value()));
+    static_assert(noexcept(std::as_const(s).sum_value()));
+    static_assert(noexcept(std::move(std::as_const(s)).sum_value()));
+    static_assert(noexcept(std::move(s).sum_value()));
     SECTION("value")
     {
       CHECK(s.sum_value().value() == fn::sum{12});
@@ -92,7 +91,21 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     }
 
     static_assert(std::is_same_v<decltype(fn::sum_value(s)), fn::optional<fn::sum<int>>>);
-    static_assert(not noexcept(fn::sum_value(s))); // the free function propagates what the member says
+    static_assert(noexcept(fn::sum_value(s))); // the free function propagates what the member says
+
+    SECTION("throwing value")
+    {
+      // the lift weighs the value it relocates, so the spec tracks the category it relocates by
+      struct throwing_copy {
+        throwing_copy() = default;
+        throwing_copy(throwing_copy const &) noexcept(false);
+        throwing_copy(throwing_copy &&) noexcept;
+      };
+      using W = fn::optional<throwing_copy>;
+      static_assert(not noexcept(std::declval<W const &>().sum_value())); // copies
+      static_assert(noexcept(std::declval<W &&>().sum_value()));          // moves
+      SUCCEED();
+    }
 
     SECTION("constexpr")
     {

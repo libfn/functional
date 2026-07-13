@@ -98,6 +98,41 @@ constexpr inline bool _is_rtst_invocable<R, Fn, Tpl<Ts...> const &&>
 template <typename R, typename Fn, typename T>
 concept _typelist_type_invocable_r = _is_rtst_invocable<R, Fn, T &&>;
 
+// Nothrow twins: the alternative that runs is a run-time choice, so the dispatch is nothrow only if
+// the call on every alternative is. These pass the type tag through `std::invoke` / `pfn::invoke_r`,
+// so the std traits answer exactly.
+template <typename Fn, typename T> constexpr inline bool _is_nothrow_tst_invocable = false;
+template <typename Fn, template <typename...> typename Tpl, typename... Ts>
+constexpr inline bool _is_nothrow_tst_invocable<Fn, Tpl<Ts...> &>
+    = (... && ::std::is_nothrow_invocable_v<Fn, ::std::in_place_type_t<Ts>, Ts &>);
+template <typename Fn, template <typename...> typename Tpl, typename... Ts>
+constexpr inline bool _is_nothrow_tst_invocable<Fn, Tpl<Ts...> const &>
+    = (... && ::std::is_nothrow_invocable_v<Fn, ::std::in_place_type_t<Ts>, Ts const &>);
+template <typename Fn, template <typename...> typename Tpl, typename... Ts>
+constexpr inline bool _is_nothrow_tst_invocable<Fn, Tpl<Ts...> &&>
+    = (... && ::std::is_nothrow_invocable_v<Fn, ::std::in_place_type_t<Ts>, Ts &&>);
+template <typename Fn, template <typename...> typename Tpl, typename... Ts>
+constexpr inline bool _is_nothrow_tst_invocable<Fn, Tpl<Ts...> const &&>
+    = (... && ::std::is_nothrow_invocable_v<Fn, ::std::in_place_type_t<Ts>, Ts const &&>);
+template <typename Fn, typename T>
+concept _typelist_type_nothrow_invocable = _is_nothrow_tst_invocable<Fn, T &&>;
+
+template <typename R, typename Fn, typename T> constexpr inline bool _is_nothrow_rtst_invocable = false;
+template <typename R, typename Fn, template <typename...> typename Tpl, typename... Ts>
+constexpr inline bool _is_nothrow_rtst_invocable<R, Fn, Tpl<Ts...> &>
+    = (... && ::std::is_nothrow_invocable_r_v<R, Fn, ::std::in_place_type_t<Ts>, Ts &>);
+template <typename R, typename Fn, template <typename...> typename Tpl, typename... Ts>
+constexpr inline bool _is_nothrow_rtst_invocable<R, Fn, Tpl<Ts...> const &>
+    = (... && ::std::is_nothrow_invocable_r_v<R, Fn, ::std::in_place_type_t<Ts>, Ts const &>);
+template <typename R, typename Fn, template <typename...> typename Tpl, typename... Ts>
+constexpr inline bool _is_nothrow_rtst_invocable<R, Fn, Tpl<Ts...> &&>
+    = (... && ::std::is_nothrow_invocable_r_v<R, Fn, ::std::in_place_type_t<Ts>, Ts &&>);
+template <typename R, typename Fn, template <typename...> typename Tpl, typename... Ts>
+constexpr inline bool _is_nothrow_rtst_invocable<R, Fn, Tpl<Ts...> const &&>
+    = (... && ::std::is_nothrow_invocable_r_v<R, Fn, ::std::in_place_type_t<Ts>, Ts const &&>);
+template <typename R, typename Fn, typename T>
+concept _typelist_type_nothrow_invocable_r = _is_nothrow_rtst_invocable<R, Fn, T &&>;
+
 template <typename... Ts> union variadic_union;
 template <> union variadic_union<>; // Intentionally incomplete
 

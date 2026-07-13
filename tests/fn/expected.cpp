@@ -9,6 +9,7 @@
 #include <catch2/catch_all.hpp>
 
 #include <memory>
+#include <string>
 #include <utility>
 #include <variant>
 
@@ -164,13 +165,12 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     static_assert(std::is_same_v<decltype(std::as_const(s).sum_error()), fn::expected<int, fn::sum<Error>>>);
     static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_error()), fn::expected<int, fn::sum<Error>>>);
     static_assert(std::is_same_v<decltype(std::move(s).sum_error()), fn::expected<int, fn::sum<Error>>>);
-    // GAP #280: this overload wraps the error in a sum and relocates the value, so it weighs both -
-    // and sum's own value constructor carries no noexcept specifier, so it is conservatively false
-    // even for nothrow value and error types. It sharpens when #280 lands.
-    static_assert(not noexcept(s.sum_error()));
-    static_assert(not noexcept(std::as_const(s).sum_error()));
-    static_assert(not noexcept(std::move(std::as_const(s)).sum_error()));
-    static_assert(not noexcept(std::move(s).sum_error()));
+    // this overload wraps the error in a sum and relocates the value, so it weighs both - neither of
+    // which can throw here
+    static_assert(noexcept(s.sum_error()));
+    static_assert(noexcept(std::as_const(s).sum_error()));
+    static_assert(noexcept(std::move(std::as_const(s)).sum_error()));
+    static_assert(noexcept(std::move(s).sum_error()));
     SECTION("value")
     {
       CHECK(s.sum_error().value() == 12);
@@ -188,7 +188,17 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     }
 
     static_assert(std::is_same_v<decltype(fn::sum_error(s)), fn::expected<int, fn::sum<Error>>>);
-    static_assert(not noexcept(fn::sum_error(s))); // the free function propagates what the member says
+    static_assert(noexcept(fn::sum_error(s))); // the free function propagates what the member says
+
+    SECTION("throwing value")
+    {
+      // the lift weighs the side it does not touch: relocating the value is what can throw here, so
+      // the promise tracks the category that value is relocated by
+      using W = fn::expected<std::string, Error>;
+      static_assert(not noexcept(std::declval<W const &>().sum_error())); // copies
+      static_assert(noexcept(std::declval<W &&>().sum_error()));          // moves
+      SUCCEED();
+    }
   }
 
   SECTION("sum_error from non-sum, void value")
@@ -200,11 +210,11 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     static_assert(
         std::is_same_v<decltype(std::move(std::as_const(s)).sum_error()), fn::expected<void, fn::sum<Error>>>);
     static_assert(std::is_same_v<decltype(std::move(s).sum_error()), fn::expected<void, fn::sum<Error>>>);
-    // GAP #280: the void-value lifting overloads weigh sum's unspecified value constructor too
-    static_assert(not noexcept(s.sum_error()));
-    static_assert(not noexcept(std::as_const(s).sum_error()));
-    static_assert(not noexcept(std::move(std::as_const(s)).sum_error()));
-    static_assert(not noexcept(std::move(s).sum_error()));
+    // with a void value there is nothing to relocate, so the lift weighs only the error it wraps
+    static_assert(noexcept(s.sum_error()));
+    static_assert(noexcept(std::as_const(s).sum_error()));
+    static_assert(noexcept(std::move(std::as_const(s)).sum_error()));
+    static_assert(noexcept(std::move(s).sum_error()));
     SECTION("value")
     {
       CHECK(s.sum_error().has_value());
@@ -222,7 +232,7 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     }
 
     static_assert(std::is_same_v<decltype(fn::sum_error(s)), fn::expected<void, fn::sum<Error>>>);
-    static_assert(not noexcept(fn::sum_error(s))); // the free function propagates what the member says
+    static_assert(noexcept(fn::sum_error(s))); // the free function propagates what the member says
   }
 
   SECTION("sum_error from sum, void value")
@@ -318,13 +328,12 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     static_assert(std::is_same_v<decltype(std::as_const(s).sum_value()), fn::expected<fn::sum<int>, Error>>);
     static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_value()), fn::expected<fn::sum<int>, Error>>);
     static_assert(std::is_same_v<decltype(std::move(s).sum_value()), fn::expected<fn::sum<int>, Error>>);
-    // GAP #280: this overload wraps the value in a sum and relocates the error, so it weighs both -
-    // and sum's own value constructor carries no noexcept specifier, so it is conservatively false
-    // even for nothrow value and error types. It sharpens when #280 lands.
-    static_assert(not noexcept(s.sum_value()));
-    static_assert(not noexcept(std::as_const(s).sum_value()));
-    static_assert(not noexcept(std::move(std::as_const(s)).sum_value()));
-    static_assert(not noexcept(std::move(s).sum_value()));
+    // this overload wraps the value in a sum and relocates the error, so it weighs both - neither of
+    // which can throw here
+    static_assert(noexcept(s.sum_value()));
+    static_assert(noexcept(std::as_const(s).sum_value()));
+    static_assert(noexcept(std::move(std::as_const(s)).sum_value()));
+    static_assert(noexcept(std::move(s).sum_value()));
     SECTION("value")
     {
       CHECK(s.sum_value().value() == fn::sum{12});
@@ -342,7 +351,7 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
     }
 
     static_assert(std::is_same_v<decltype(fn::sum_value(s)), fn::expected<fn::sum<int>, Error>>);
-    static_assert(not noexcept(fn::sum_value(s))); // the free function propagates what the member says
+    static_assert(noexcept(fn::sum_value(s))); // the free function propagates what the member says
   }
 
   SECTION("sum_value absent for void value")
