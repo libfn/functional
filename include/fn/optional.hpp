@@ -228,10 +228,14 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
       return type(::std::nullopt);
   }
 
-  // transform, value type is a sum (delegates to sum::transform)
+  // transform, value type is a sum (delegates to sum::transform). The callback is constrained here,
+  // in the immediate context: the deduced return type instantiates the body, so leaving it to
+  // sum::transform's own constraint would make a bad callback a hard error instead of dropping the
+  // candidate - and would poison overload resolution, since the losing candidates form their
+  // signatures too.
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn)
-    requires some_sum<T>
+    requires some_sum<T> && ::fn::detail::_typelist_invocable<Fn, decltype(*FWD(self))>
   {
     using new_value_type = decltype((*FWD(self)).transform(FWD(fn)));
     using type = ::fn::optional<new_value_type>;

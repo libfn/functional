@@ -219,9 +219,7 @@ TEST_CASE("transform_error noexcept", "[transform_error][expected][noexcept]")
   static_assert(not noexcept(std::declval<operand_t &>().transform_error(fnThrows)));
 
   // Give it a value whose copy can throw, and the member says so even for a noexcept callback - the
-  // body really does copy the value across (which is what #278 is about: the requires-clause omits
-  // the conjunct that would let a move-only value SFINAE out cleanly, though the noexcept spec below
-  // does account for the copy).
+  // body really does copy the value across.
   using throwing_value_t = fn::expected<std::string, Error>;
   constexpr auto fnNothrow2 = [](Error const &) noexcept -> Xerror { return {0}; };
   static_assert(not std::is_nothrow_copy_constructible_v<std::string>);

@@ -697,13 +697,6 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
   constexpr auto nothrow_generic = [](auto &&) noexcept -> bool { return true; };
   static_assert(not noexcept(std::declval<S &>().transform(nothrow_generic)));
 
-  // GAP: unlike and_then (optional.hpp:147) and the non-sum transform (:220), the sum-case
-  // _transform (:233) has no callback-invocability constraint; validity surfaces in its
-  // deduced-return body (:236) during candidate-signature formation, outside the immediate
-  // context. A bad callback is a hard error instead of SFINAE-dropping (so no negative probe
-  // here), and a category-partial visitor poisons overload resolution outright: on a non-const
-  // lvalue even the losing const& candidate must instantiate, which is why the visitors above
-  // take const& (serving every candidate) where and_then's can take int&/Xint& (issue #277).
   constexpr auto can_transform = [](auto &&f) { return requires { std::declval<S &>().transform(f); }; };
   static_assert(can_transform(nothrow_visitor));
 
@@ -779,5 +772,24 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
     constexpr fn::optional<fn::sum_for<int, std::string_view>> a{fn::sum{42}};
     static_assert(std::is_same_v<decltype(a.transform(fn)), fn::optional<fn::sum<bool, int>>>);
     static_assert(a.transform(fn).value() == fn::sum{true});
+  }
+
+  SECTION("constraints")
+  {
+    constexpr auto can_transform_clval = [](auto &&f) { return requires { std::declval<S const &>().transform(f); }; };
+
+    // a callback no alternative can take drops the candidate, rather than failing inside the body
+    static_assert(not can_transform([](std::string_view) -> bool { throw 0; }));
+    static_assert(not can_transform([](int &) -> bool { throw 0; })); // Xint is unhandled
+
+    // a visitor need only serve the value category the call actually selects: the losing const&
+    // candidate is dropped by its own constraint rather than forming its signature and poisoning
+    // the call. The four-category visitors above are a spelling choice, not a requirement.
+    constexpr auto lval_only = fn::overload{[](int &i) -> bool { return i == 12; }, [](Xint &) -> bool { throw 0; }};
+    static_assert(can_transform(lval_only));
+    static_assert(not can_transform_clval(lval_only));
+
+    S s{12};
+    CHECK(s.transform(lval_only).value() == fn::sum{true});
   }
 }
