@@ -18,10 +18,17 @@ namespace fn {
  * @tparam V TODO
  * @tparam Args TODO
  */
+// The fallback builds the RESULT, not merely its value type: for an `optional<T&>` those differ -
+// the value type is the referent, which a prvalue can construct, but the result binds a reference to
+// it, which a prvalue cannot. And the existing value is carried over when there is one, so it must
+// be able to survive that: an immovable value type would otherwise satisfy this and then fail inside
+// the body.
 template <typename V, typename... Args>
-concept invocable_value_or //
-    = (some_expected_non_void<V> && ::std::is_constructible_v<typename ::std::remove_cvref_t<V>::value_type, Args...>)
-      || (some_optional<V> && ::std::is_constructible_v<typename ::std::remove_cvref_t<V>::value_type, Args...>);
+concept invocable_value_or                                                                                          //
+    = (some_expected_non_void<V> && ::std::is_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, Args...> //
+       && detail::_relocatable_value<V>)
+      || (some_optional<V> && ::std::is_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, Args...>
+          && detail::_relocatable_value<V>);
 
 /**
  * @brief TODO
@@ -58,8 +65,10 @@ struct value_or_t::apply final {
   // callable or_else receives is a lambda, which cannot be named in this specification.
   template <some_monadic_type V, typename... Args>
   [[nodiscard]] constexpr auto operator()(V &&v, Args &&...args) const //
-      noexcept(::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, Args...>
-               && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, V>) -> ::std::remove_cvref_t<V>
+      noexcept(
+          ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, Args...>
+          && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, decltype(FWD(v).value())>)
+          -> ::std::remove_cvref_t<V>
     requires invocable_value_or<V &&, Args...>
   {
     using type = ::std::remove_cvref_t<V>;

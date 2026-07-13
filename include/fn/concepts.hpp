@@ -17,6 +17,26 @@
 
 namespace fn {
 
+namespace detail {
+// A verb that returns a fresh monad BY VALUE relocates what the source carries into it, in the value
+// category the source is piped in - an lvalue is copied, an rvalue moved. So the question is not
+// whether the carried type is movable: `is_move_constructible_v` would accept a move-only value
+// piped as an lvalue, which the body then cannot copy. It is whether the result can be built from
+// what the body actually reaches for, which is what these ask - and what the verbs' noexcept specs
+// weigh, one asking "can it", the other "can it throw".
+template <typename V>
+concept _relocatable_value // `type{::std::in_place, FWD(v).value()}`
+    = ::std::is_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, decltype(::std::declval<V>().value())>;
+
+template <typename V>
+concept _relocatable_error // `type{::fn::unexpect, FWD(v).error()}`
+    = ::std::is_constructible_v<::std::remove_cvref_t<V>, ::fn::unexpect_t, decltype(::std::declval<V>().error())>;
+
+template <typename V>
+concept _relocatable // `return FWD(v);` - the whole monad, hence both sides
+    = ::std::is_constructible_v<::std::remove_cvref_t<V>, V>;
+} // namespace detail
+
 /**
  * @brief TODO
  * @note `same_kind` is a fundamental concept in category theory; it allows
