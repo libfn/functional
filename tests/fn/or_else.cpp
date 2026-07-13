@@ -285,9 +285,9 @@ TEST_CASE("or_else noexcept", "[or_else][expected][expected_value][noexcept]")
   static_assert(not std::is_nothrow_copy_constructible_v<std::string>);
   static_assert(not noexcept(std::declval<throwing_value_t &>().or_else(fnNothrow2)));
 
-  // GAP #285: or_else_t::apply then discards all of that, being unconditionally noexcept - as is the
-  // rest of the pipeline it is reached through (pinned in tests/fn/functor.cpp).
-  static_assert(noexcept(or_else_t::apply{}(std::declval<operand_t &>(), fnThrows)));
+  // and or_else_t::apply carries all of that through, as does the rest of the pipeline it is
+  // reached through (pinned in tests/fn/functor.cpp).
+  static_assert(not noexcept(or_else_t::apply{}(std::declval<operand_t &>(), fnThrows)));
 
   SUCCEED();
 }
@@ -423,7 +423,7 @@ TEST_CASE("or_else noexcept", "[or_else][expected][expected_void][noexcept]")
   static_assert(noexcept(std::declval<operand_t &>().or_else(fnNothrow)));
   static_assert(not noexcept(std::declval<operand_t &>().or_else(fnThrows)));
 
-  static_assert(noexcept(or_else_t::apply{}(std::declval<operand_t &>(), fnThrows))); // GAP #285
+  static_assert(not noexcept(or_else_t::apply{}(std::declval<operand_t &>(), fnThrows)));
 
   SUCCEED();
 }
@@ -537,7 +537,7 @@ TEST_CASE("or_else noexcept", "[or_else][optional][noexcept]")
   static_assert(noexcept(std::declval<operand_t &>().or_else(fnNothrow)));
   static_assert(not noexcept(std::declval<operand_t &>().or_else(fnThrows)));
 
-  static_assert(noexcept(or_else_t::apply{}(std::declval<operand_t &>(), fnThrows))); // GAP #285
+  static_assert(not noexcept(or_else_t::apply{}(std::declval<operand_t &>(), fnThrows)));
 
   SUCCEED();
 }

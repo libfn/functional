@@ -443,17 +443,29 @@ TEST_CASE("inspect noexcept", "[inspect][noexcept]")
   constexpr auto fnThrows0 = []() noexcept(false) -> void {};
   static_assert(not noexcept(fnThrows(1)));
 
-  // GAP #285, and the worse half of it. inspect has no monadic member to delegate to - its apply IS
-  // the implementation, invoking the callback itself (inspect.hpp:61-69). So unlike and_then, there
-  // is no honest spec anywhere for the verb to discard: the operation is simply declared noexcept
-  // while calling code that may throw. Fixing this group means COMPUTING the spec rather than
-  // propagating one, which the nothrow-invocable traits now make possible.
+  // inspect has no monadic member to delegate to - its apply IS the implementation, invoking the
+  // callback itself (inspect.hpp:61-69). So there was never a spec for it to propagate: it computes
+  // one, from the callback it is about to invoke.
   //
   // One test case for every monad, not one each: nothing here differs between them, because no
   // member is consulted.
-  static_assert(noexcept(inspect_t::apply{}(std::declval<fn::expected<int, Error> &>(), fnThrows)));
-  static_assert(noexcept(inspect_t::apply{}(std::declval<fn::expected<void, Error> &>(), fnThrows0)));
-  static_assert(noexcept(inspect_t::apply{}(std::declval<fn::optional<int> &>(), fnThrows)));
+  constexpr auto fnNothrow = [](int) noexcept -> void {};
+  static_assert(not noexcept(inspect_t::apply{}(std::declval<fn::expected<int, Error> &>(), fnThrows)));
+  static_assert(not noexcept(inspect_t::apply{}(std::declval<fn::expected<void, Error> &>(), fnThrows0)));
+  static_assert(not noexcept(inspect_t::apply{}(std::declval<fn::optional<int> &>(), fnThrows)));
+  static_assert(noexcept(inspect_t::apply{}(std::declval<fn::expected<int, Error> &>(), fnNothrow)));
+
+  // and the pipeline propagates what apply computes
+  using E = fn::expected<int, int>;
+  using O = fn::optional<int>;
+  static_assert(noexcept(std::declval<E &>() | fn::inspect([](int) noexcept {})));
+  static_assert(not noexcept(std::declval<E &>() | fn::inspect([](int) {})));
+  static_assert(noexcept(std::declval<O &>() | fn::inspect([](int) noexcept {})));
+  static_assert(not noexcept(std::declval<O &>() | fn::inspect([](int) {})));
+
+  // the operand is returned unchanged, so only the callback can throw - not the accessor, which
+  // the body only reaches when there is a value
+  static_assert(noexcept(std::declval<fn::expected<std::string, int> &>() | fn::inspect([](auto const &) noexcept {})));
 
   SUCCEED();
 }

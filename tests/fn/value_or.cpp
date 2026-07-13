@@ -162,14 +162,19 @@ TEST_CASE("value_or noexcept", "[value_or][noexcept]")
 
   // value_or takes no callback, but its apply still builds the fallback value from the arguments -
   // inside a lambda it hands to or_else - and that construction can throw: making a std::string from
-  // a literal allocates. GAP #285: the apply is unconditionally noexcept regardless.
+  // a literal allocates. The apply weighs it.
   static_assert(not std::is_nothrow_constructible_v<std::string, char const *>);
-  static_assert(noexcept(value_or_t::apply{}(std::declval<fn::expected<std::string, Error> &>(), "abc")));
-  static_assert(noexcept(value_or_t::apply{}(std::declval<fn::optional<std::string> &>(), "abc")));
+  static_assert(not noexcept(value_or_t::apply{}(std::declval<fn::expected<std::string, Error> &>(), "abc")));
+  static_assert(not noexcept(value_or_t::apply{}(std::declval<fn::optional<std::string> &>(), "abc")));
 
-  // Where the fallback cannot throw to build, the promise happens to be right.
+  // ... as it weighs the error it relocates on the way: Error carries a std::string, so even an int
+  // fallback that cannot throw to build leaves the operation potentially-throwing here
   static_assert(std::is_nothrow_constructible_v<int, int>);
-  static_assert(noexcept(value_or_t::apply{}(std::declval<fn::expected<int, Error> &>(), 42)));
+  static_assert(not noexcept(value_or_t::apply{}(std::declval<fn::expected<int, Error> &>(), 42)));
+
+  // Give it an error that cannot throw, and nothing in the operation can
+  static_assert(noexcept(value_or_t::apply{}(std::declval<fn::expected<int, int> &>(), 42)));
+  static_assert(noexcept(value_or_t::apply{}(std::declval<fn::optional<int> &>(), 42)));
 
   SUCCEED();
 }

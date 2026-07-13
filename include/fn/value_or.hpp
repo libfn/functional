@@ -34,7 +34,8 @@ constexpr inline struct value_or_t final {
    * @return TODO
    */
   template <typename... Args>
-  [[nodiscard]] constexpr auto operator()(Args &&...args) const noexcept -> functor<value_or_t, Args &&...> //
+  [[nodiscard]] constexpr auto operator()(Args &&...args) const
+      noexcept(noexcept(functor<value_or_t, Args &&...>{FWD(args)...})) -> functor<value_or_t, Args &&...> //
   {
     return {FWD(args)...};
   }
@@ -53,9 +54,12 @@ struct value_or_t::apply final {
    * @param args TODO
    * @return TODO
    */
+  // The fallback is built inside, so its construction is weighed here rather than propagated: the
+  // callable or_else receives is a lambda, which cannot be named in this specification.
   template <some_monadic_type V, typename... Args>
-  [[nodiscard]] constexpr auto operator()(V &&v, Args &&...args) const noexcept //
-      -> ::std::remove_cvref_t<V>
+  [[nodiscard]] constexpr auto operator()(V &&v, Args &&...args) const //
+      noexcept(::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, Args...>
+               && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, V>) -> ::std::remove_cvref_t<V>
     requires invocable_value_or<V &&, Args...>
   {
     using type = ::std::remove_cvref_t<V>;

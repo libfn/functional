@@ -63,7 +63,8 @@ constexpr inline struct and_then_t final {
    * @param fn The function to execute on the value
    * @return A functor that will execute the function on the value
    */
-  [[nodiscard]] constexpr auto operator()(auto &&fn) const noexcept -> functor<and_then_t, decltype(fn)> //
+  [[nodiscard]] constexpr auto operator()(auto &&fn) const
+      noexcept(noexcept(functor<and_then_t, decltype(fn)>{FWD(fn)})) -> functor<and_then_t, decltype(fn)> //
   {
     return {FWD(fn)};
   }
@@ -79,7 +80,8 @@ struct and_then_t::apply final {
    * @param fn The function to apply
    */
   template <some_monadic_type V, typename Fn>
-  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept //
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //
+      noexcept(noexcept(FWD(v).and_then(FWD(fn))))              //
       -> same_kind<V &&> auto
     requires invocable_and_then<Fn &&, V &&>
   {

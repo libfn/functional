@@ -223,10 +223,20 @@ TEST_CASE("inspect_error noexcept", "[inspect_error][noexcept]")
   constexpr auto fnThrows = [](Error const &) noexcept(false) -> void {};
   constexpr auto fnThrows0 = []() noexcept(false) -> void {};
 
-  // GAP #285: as with inspect, the apply is the implementation and invokes the callback itself, so
-  // there is no member spec for it to discard - the operation has no honest noexcept anywhere.
-  static_assert(noexcept(inspect_error_t::apply{}(std::declval<fn::expected<int, Error> &>(), fnThrows)));
-  static_assert(noexcept(inspect_error_t::apply{}(std::declval<fn::optional<int> &>(), fnThrows0)));
+  // as with inspect, the apply is the implementation and invokes the callback itself, so it computes
+  // its spec from that callback rather than propagating a member's
+  constexpr auto fnNothrow = [](Error const &) noexcept -> void {};
+  static_assert(not noexcept(inspect_error_t::apply{}(std::declval<fn::expected<int, Error> &>(), fnThrows)));
+  static_assert(not noexcept(inspect_error_t::apply{}(std::declval<fn::optional<int> &>(), fnThrows0)));
+  static_assert(noexcept(inspect_error_t::apply{}(std::declval<fn::expected<int, Error> &>(), fnNothrow)));
+
+  // and the pipeline propagates what apply computes
+  using E = fn::expected<int, int>;
+  using O = fn::optional<int>;
+  static_assert(noexcept(std::declval<E &>() | fn::inspect_error([](int) noexcept {})));
+  static_assert(not noexcept(std::declval<E &>() | fn::inspect_error([](int) {})));
+  static_assert(noexcept(std::declval<O &>() | fn::inspect_error([]() noexcept {})));
+  static_assert(not noexcept(std::declval<O &>() | fn::inspect_error([]() {})));
 
   SUCCEED();
 }

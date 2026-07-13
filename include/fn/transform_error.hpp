@@ -37,7 +37,9 @@ constexpr inline struct transform_error_t final {
    * @param fn TODO
    * @return TODO
    */
-  [[nodiscard]] constexpr auto operator()(auto &&fn) const noexcept -> functor<transform_error_t, decltype(fn)> //
+  [[nodiscard]] constexpr auto operator()(auto &&fn) const
+      noexcept(noexcept(functor<transform_error_t, decltype(fn)>{FWD(fn)}))
+          -> functor<transform_error_t, decltype(fn)> //
   {
     return {FWD(fn)};
   }
@@ -57,7 +59,8 @@ struct transform_error_t::apply final {
    * @return TODO
    */
   template <some_expected V, typename Fn>
-  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept -> same_value_kind<V &&> auto
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept(noexcept(FWD(v).transform_error(FWD(fn))))
+      -> same_value_kind<V &&> auto
     requires invocable_transform_error<Fn &&, V &&>
   {
     return FWD(v).transform_error(FWD(fn));

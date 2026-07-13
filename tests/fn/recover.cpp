@@ -287,12 +287,12 @@ TEST_CASE("recover noexcept", "[recover][noexcept]")
   constexpr auto fnThrows0 = [](Error const &) noexcept(false) -> void {};
   constexpr auto fnThrowsOpt = []() noexcept(false) -> int { return 0; };
 
-  // GAP #285: recover's apply is the implementation too - it invokes the callback AND constructs the
-  // recovered result from what comes back, both under an unconditional noexcept. So it has two ways
-  // to throw and promises neither, with no member spec anywhere to appeal to.
-  static_assert(noexcept(recover_t::apply{}(std::declval<fn::expected<int, Error> &>(), fnThrows)));
-  static_assert(noexcept(recover_t::apply{}(std::declval<fn::expected<void, Error> &>(), fnThrows0)));
-  static_assert(noexcept(recover_t::apply{}(std::declval<fn::optional<int> &>(), fnThrowsOpt)));
+  // recover's apply is the implementation - it invokes the callback AND constructs the recovered
+  // result from what comes back - so with no member spec to appeal to it computes its own, weighing
+  // both.
+  static_assert(not noexcept(recover_t::apply{}(std::declval<fn::expected<int, Error> &>(), fnThrows)));
+  static_assert(not noexcept(recover_t::apply{}(std::declval<fn::expected<void, Error> &>(), fnThrows0)));
+  static_assert(not noexcept(recover_t::apply{}(std::declval<fn::optional<int> &>(), fnThrowsOpt)));
 
   SUCCEED();
 }

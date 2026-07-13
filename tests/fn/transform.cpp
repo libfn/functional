@@ -242,9 +242,9 @@ TEST_CASE("transform noexcept", "[transform][expected][expected_value][noexcept]
   static_assert(noexcept(std::declval<nothrow_t &>().transform(fnNothrow)));
   static_assert(not noexcept(std::declval<nothrow_t &>().transform(fnThrows)));
 
-  // GAP #285: transform_t::apply discards that, being unconditionally noexcept - as is the rest of
-  // the pipeline it is reached through (pinned in tests/fn/functor.cpp).
-  static_assert(noexcept(transform_t::apply{}(std::declval<nothrow_t &>(), fnThrows)));
+  // and transform_t::apply carries it through, as does the rest of the pipeline it is reached
+  // through (pinned in tests/fn/functor.cpp).
+  static_assert(not noexcept(transform_t::apply{}(std::declval<nothrow_t &>(), fnThrows)));
 
   SUCCEED();
 }
@@ -343,7 +343,7 @@ TEST_CASE("transform noexcept", "[transform][expected][expected_void][noexcept]"
   static_assert(noexcept(std::declval<nothrow_t &>().transform(fnNothrow)));
   static_assert(not noexcept(std::declval<nothrow_t &>().transform(fnThrows)));
 
-  static_assert(noexcept(transform_t::apply{}(std::declval<nothrow_t &>(), fnThrows))); // GAP #285
+  static_assert(not noexcept(transform_t::apply{}(std::declval<nothrow_t &>(), fnThrows)));
 
   SUCCEED();
 }
@@ -557,7 +557,7 @@ TEST_CASE("transform noexcept", "[transform][optional][noexcept]")
   static_assert(noexcept(std::declval<operand_t &>().transform(fnNothrow)));
   static_assert(not noexcept(std::declval<operand_t &>().transform(fnThrows)));
 
-  static_assert(noexcept(transform_t::apply{}(std::declval<operand_t &>(), fnThrows))); // GAP #285
+  static_assert(not noexcept(transform_t::apply{}(std::declval<operand_t &>(), fnThrows)));
 
   SUCCEED();
 }
@@ -679,7 +679,7 @@ TEST_CASE("transform noexcept", "[transform][choice][noexcept]")
   // the member propagates, as optional's and expected's do
   static_assert(not noexcept(std::declval<operand_t &>().transform(fnThrows)));
 
-  static_assert(noexcept(transform_t::apply{}(std::declval<operand_t &>(), fnThrows))); // GAP #285
+  static_assert(not noexcept(transform_t::apply{}(std::declval<operand_t &>(), fnThrows)));
 
   SUCCEED();
 }

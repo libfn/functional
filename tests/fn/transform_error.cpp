@@ -225,8 +225,8 @@ TEST_CASE("transform_error noexcept", "[transform_error][expected][noexcept]")
   static_assert(not std::is_nothrow_copy_constructible_v<std::string>);
   static_assert(not noexcept(std::declval<throwing_value_t &>().transform_error(fnNothrow2)));
 
-  // GAP #285: transform_error_t::apply discards all of it, being unconditionally noexcept.
-  static_assert(noexcept(transform_error_t::apply{}(std::declval<operand_t &>(), fnThrows)));
+  // and transform_error_t::apply carries all of it through.
+  static_assert(not noexcept(transform_error_t::apply{}(std::declval<operand_t &>(), fnThrows)));
 
   SUCCEED();
 }

@@ -267,12 +267,13 @@ TEST_CASE("and_then", "[and_then][expected][expected_value][pack]")
     static_assert(noexcept(std::declval<nothrow_t &>().and_then(fnNothrow2)));
     static_assert(not noexcept(std::declval<nothrow_t &>().and_then(fnThrows2)));
 
-    // GAP #285: the verb then discards that answer. Every step of the pipeline - the nielbloid,
-    // operator|, _swap_invoke and apply - is unconditionally noexcept, so a throwing callback the
-    // member would propagate instead crosses a noexcept boundary and terminates.
-    static_assert(noexcept(std::declval<nothrow_t &>() | and_then(fnThrows2)));
-    static_assert(noexcept(std::declval<operand_t &>() | and_then(fnThrows)));
-    static_assert(noexcept(std::declval<operand_t &&>() | and_then(fnThrows)));
+    // and the verb carries that answer through: every step of the pipeline - the nielbloid,
+    // operator|, _swap_invoke and apply - weighs what it dispatches to, so the pipe promises exactly
+    // what the member does
+    static_assert(noexcept(std::declval<nothrow_t &>() | and_then(fnNothrow2)));
+    static_assert(not noexcept(std::declval<nothrow_t &>() | and_then(fnThrows2)));
+    static_assert(not noexcept(std::declval<operand_t &>() | and_then(fnThrows)));
+    static_assert(not noexcept(std::declval<operand_t &&>() | and_then(fnThrows)));
 
     // Constructing the functor copies the callable into a pack, and that copy can throw too.
     struct ThrowingCopy final {
@@ -282,12 +283,12 @@ TEST_CASE("and_then", "[and_then][expected][expected_value][pack]")
       auto operator()(int i) const noexcept -> operand_t { return {i + 1}; }
     };
     static_assert(not std::is_nothrow_copy_constructible_v<ThrowingCopy>);
-    static_assert(noexcept(and_then(std::declval<ThrowingCopy const &>()))); // GAP #285
+    static_assert(not noexcept(and_then(std::declval<ThrowingCopy const &>())));
 
-    // GAP #285: fn::invoke reaches the very same apply and now faithfully reports what apply
-    // promises - so both entry points to the operation agree, and both are wrong until apply's
-    // promise is computed rather than asserted.
-    static_assert(noexcept(fn::invoke(and_then_t::apply{}, std::declval<operand_t &>(), fnThrows)));
+    // fn::invoke reaches the very same apply and reports the same answer: the library's two entry
+    // points to one operation agree, where they once disagreed in opposite directions
+    static_assert(not noexcept(fn::invoke(and_then_t::apply{}, std::declval<operand_t &>(), fnThrows)));
+    static_assert(noexcept(fn::invoke(and_then_t::apply{}, std::declval<nothrow_t &>(), fnNothrow2)));
 
     SUCCEED();
   }
@@ -572,10 +573,10 @@ TEST_CASE("and_then", "[and_then][expected][expected_void]")
     static_assert(noexcept(std::declval<nothrow_t &>().and_then(fnNothrow2)));
     static_assert(not noexcept(std::declval<nothrow_t &>().and_then(fnThrows2)));
 
-    // GAP #285: the verb is unconditionally noexcept regardless.
-    static_assert(noexcept(std::declval<nothrow_t &>() | and_then(fnThrows2)));
-    static_assert(noexcept(std::declval<operand_t &>() | and_then(fnThrows)));
-    static_assert(noexcept(std::declval<operand_t &&>() | and_then(fnThrows)));
+    // and the verb carries it through.
+    static_assert(not noexcept(std::declval<nothrow_t &>() | and_then(fnThrows2)));
+    static_assert(not noexcept(std::declval<operand_t &>() | and_then(fnThrows)));
+    static_assert(not noexcept(std::declval<operand_t &&>() | and_then(fnThrows)));
     SUCCEED();
   }
 
@@ -688,11 +689,11 @@ TEST_CASE("and_then", "[and_then][optional][pack]")
     constexpr auto fnNothrow = [](int i) noexcept -> operand_t { return {i + 1}; };
     constexpr auto fnThrows = [](int i) noexcept(false) -> operand_t { return {i + 1}; };
 
-    // As for expected: the member is precise, the verb is not (GAP #285).
+    // As for expected: the member is precise, and the verb propagates it.
     static_assert(noexcept(std::declval<operand_t &>().and_then(fnNothrow)));
     static_assert(not noexcept(std::declval<operand_t &>().and_then(fnThrows)));
-    static_assert(noexcept(std::declval<operand_t &>() | and_then(fnThrows)));
-    static_assert(noexcept(std::declval<operand_t &&>() | and_then(fnThrows)));
+    static_assert(not noexcept(std::declval<operand_t &>() | and_then(fnThrows)));
+    static_assert(not noexcept(std::declval<operand_t &&>() | and_then(fnThrows)));
     SUCCEED();
   }
 
@@ -914,9 +915,9 @@ TEST_CASE("and_then choice", "[and_then][choice]")
     // the member propagates, as optional's and expected's do
     static_assert(not noexcept(std::declval<operand_t &>().and_then(fnThrows)));
 
-    // GAP #285: the verb layer over-promises for every monad, choice included.
-    static_assert(noexcept(std::declval<operand_t &>() | and_then(fnThrows)));
-    static_assert(noexcept(std::declval<operand_t &&>() | and_then(fnThrows)));
+    // and the verb layer propagates it, for every monad, choice included.
+    static_assert(not noexcept(std::declval<operand_t &>() | and_then(fnThrows)));
+    static_assert(not noexcept(std::declval<operand_t &&>() | and_then(fnThrows)));
     SUCCEED();
   }
 

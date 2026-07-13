@@ -388,11 +388,25 @@ TEST_CASE("fail noexcept", "[fail][noexcept]")
   constexpr auto fnThrows0 = []() noexcept(false) -> Error { return {}; };
   constexpr auto fnThrowsOpt = [](int) noexcept(false) -> void {};
 
-  // GAP #285: as with recover, the apply invokes the callback and constructs the failed result from
-  // what comes back, both under an unconditional noexcept, with no member spec behind it.
-  static_assert(noexcept(fail_t::apply{}(std::declval<fn::expected<int, Error> &>(), fnThrows)));
-  static_assert(noexcept(fail_t::apply{}(std::declval<fn::expected<void, Error> &>(), fnThrows0)));
-  static_assert(noexcept(fail_t::apply{}(std::declval<fn::optional<int> &>(), fnThrowsOpt)));
+  // as with recover, the apply invokes the callback and constructs the failed result from what comes
+  // back, so it weighs both
+  static_assert(not noexcept(fail_t::apply{}(std::declval<fn::expected<int, Error> &>(), fnThrows)));
+  static_assert(not noexcept(fail_t::apply{}(std::declval<fn::expected<void, Error> &>(), fnThrows0)));
+  static_assert(not noexcept(fail_t::apply{}(std::declval<fn::optional<int> &>(), fnThrowsOpt)));
+
+  // Error carries a std::string, so constructing the failed result can throw whatever the callback
+  // promises - give it an error that cannot throw and the callback alone decides
+  constexpr auto fnNothrow = [](int) noexcept -> int { return 0; };
+  static_assert(noexcept(fail_t::apply{}(std::declval<fn::expected<int, int> &>(), fnNothrow)));
+  static_assert(not noexcept(fail_t::apply{}(std::declval<fn::expected<int, int> &>(), [](int) -> int { return 0; })));
+
+  // and the pipeline propagates what apply computes
+  using E = fn::expected<int, int>;
+  using O = fn::optional<int>;
+  static_assert(noexcept(std::declval<E &>() | fn::fail([](int) noexcept { return 0; })));
+  static_assert(not noexcept(std::declval<E &>() | fn::fail([](int) { return 0; })));
+  static_assert(noexcept(std::declval<O &>() | fn::fail([](int) noexcept {})));
+  static_assert(not noexcept(std::declval<O &>() | fn::fail([](int) {})));
 
   SUCCEED();
 }

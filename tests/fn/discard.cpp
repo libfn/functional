@@ -230,13 +230,17 @@ TEST_CASE("discard noexcept", "[discard][noexcept]")
 {
   using namespace fn;
 
-  // The one verb whose unconditional noexcept is ACCURATE, and asserted here as such rather than as a
-  // tripwire: discard's apply takes the operand by reference, invokes no callback and returns void,
-  // so there is nothing in it that can throw. Contrast every other verb (#285).
+  // The one verb whose unconditional noexcept is accurate by construction: discard's apply takes the
+  // operand by reference, invokes no callback and returns void, so there is nothing in it that can
+  // throw. Asserted positively, where every other verb had to compute a spec.
   static_assert(noexcept(discard_t::apply{}(std::declval<fn::expected<int, Error> &>())));
   static_assert(noexcept(discard_t::apply{}(std::declval<fn::expected<void, Error> &>())));
   static_assert(noexcept(discard_t::apply{}(std::declval<fn::optional<int> &>())));
   static_assert(std::is_same_v<void, decltype(discard_t::apply{}(std::declval<fn::optional<int> &>()))>);
+
+  // and it holds through the pipeline, whatever the operand carries
+  static_assert(noexcept(std::declval<fn::expected<int, int> &>() | fn::discard()));
+  static_assert(noexcept(std::declval<fn::optional<std::string> &>() | fn::discard()));
 
   SUCCEED();
 }
