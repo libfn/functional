@@ -27,6 +27,12 @@ template <fn::pack<int, double> P> struct pack_nttp final {};
 template <fn::some_pack auto P> struct some_pack_nttp final {};
 template <fn::some_pack auto P> auto read_nttp() { return fn::get<0>(P); }
 
+template <typename V, typename T, typename... Args>
+concept can_append_in_place = requires(V v, Args... args) { FWD(v).append(std::in_place_type<T>, args...); };
+
+template <typename V, typename Arg>
+concept can_append = requires(V v, Arg arg) { FWD(v).append(FWD(arg)); };
+
 } // namespace
 
 TEST_CASE("pack", "[pack]")
@@ -237,6 +243,30 @@ TEST_CASE("append value categories", "[pack][append]")
     CHECK(c2.invoke([](bool i, int j, B const &b1, C const &c, B const &b2) {
       return i && j == 3 && b1.v == 14 && c.v == 30 && b2.v == 20;
     }));
+  }
+
+  WHEN("constraints")
+  {
+    static_assert(can_append_in_place<T &, B, int>);
+    static_assert(can_append_in_place<T &, B, int, int>);
+    static_assert(not can_append_in_place<T &, B, char const *>); // B is not constructible from it
+
+    // in_place_type selects the element type, it is never itself an element: with no arguments and
+    // no default constructor there is nothing to construct, and the deduced-Arg overload must not
+    // pick the call up and append the tag instead
+    static_assert(not can_append_in_place<T &, B>);
+    static_assert(not can_append<T &, std::in_place_type_t<B> const &>);
+    // C has a default constructor, so the same call still means "construct the element"
+    static_assert(can_append_in_place<T &, C>);
+    static_assert(std::same_as<decltype(std::declval<T &>().append(std::in_place_type<C>)), T::append_type<C>>);
+
+    // A pack never holds a sum, in either spelling - and asking must answer, not hard-error
+    static_assert(not can_append<T &, fn::sum<int>>);
+    static_assert(not can_append<T &, fn::sum<int> &>);
+    static_assert(not can_append_in_place<T &, fn::sum<int>, fn::sum<int>>);
+    static_assert(not can_append_in_place<T &, fn::sum_for<bool, int>, fn::sum_for<bool, int>>);
+
+    SUCCEED();
   }
 }
 

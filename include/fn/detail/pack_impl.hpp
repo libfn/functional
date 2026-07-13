@@ -24,11 +24,14 @@ template <::std::size_t I, typename T> struct _element {
 template <typename, typename... Ts> struct pack_impl;
 
 template <typename... Ts> struct _pack_append;
+// A pack never holds a sum. The specialization is defined but has no `type`, so naming
+// `append_type<sum>` is a substitution failure rather than a use of an incomplete type; and the
+// two specializations must exclude each other, or both match a sum and the choice is ambiguous.
 template <typename T, typename... Ts>
   requires _some_sum<T>
-struct _pack_append<T, Ts...>;
+struct _pack_append<T, Ts...> {};
 template <typename T, typename... Ts>
-  requires(not _some_pack<T>)
+  requires(not _some_pack<T>) && (not _some_sum<T>)
 struct _pack_append<T, Ts...> {
   using impl = pack_impl<::std::index_sequence_for<Ts..., T>, Ts..., T>;
   using type = ::fn::pack<Ts..., T>;
@@ -98,11 +101,6 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
       return type{static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., FWD(args)...};
     });
   }
-
-  template <typename T, typename Self>
-  static constexpr auto _append(Self &&self, auto &&...args) noexcept
-    requires _some_sum<T>
-  = delete;
 };
 
 } // namespace fn::detail
