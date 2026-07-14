@@ -1897,6 +1897,12 @@ TEST_CASE("sum assignment", "[sum][assignment]")
       M const good{std::in_place_type<ThrowingMove>, 3};
       m = good; // the same alternative: assigned in place, its throwing move never used
       CHECK(m.invoke(value) == 3);
+
+      // ... and the same temporary arm run to completion: a throwing-path test alone never lets
+      // the replacement finish, so this copy succeeds and the old alternative is destroyed
+      M const good_copy{ThrowingCopy{5}};
+      m = good_copy;
+      CHECK(m.invoke(value) == 5);
     }
   }
 
