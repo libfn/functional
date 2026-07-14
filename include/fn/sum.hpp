@@ -401,9 +401,9 @@ struct sum<Ts...> {
   = default;
   constexpr sum(sum const &other) noexcept(_nothrow_copyable)
     requires(not _trivially_copy_constructible) && _copyable
-      : data(detail::invoke_type_variadic_union<data_t, data_t>(       //
-            other.data, other.index,                                   //
-            []<typename T>(::std::in_place_type_t<T>, auto const &v) { //
+      : data(detail::invoke_type_variadic_union<data_t, data_t>(                 //
+            other.data, other.index,                                             //
+            []<typename T>(::std::in_place_type_t<T>, auto const &v) -> data_t { //
               return detail::make_variadic_union<T, data_t>(v);
             })),
         index(other.index)
@@ -420,9 +420,9 @@ struct sum<Ts...> {
   = default;
   constexpr sum(sum &&other) noexcept(_nothrow_movable)
     requires(not _trivially_move_constructible) && _movable
-      : data(detail::invoke_type_variadic_union<data_t, data_t>(  //
-            ::std::move(other).data, other.index,                 //
-            []<typename T>(::std::in_place_type_t<T>, auto &&v) { //
+      : data(detail::invoke_type_variadic_union<data_t, data_t>(            //
+            ::std::move(other).data, other.index,                           //
+            []<typename T>(::std::in_place_type_t<T>, auto &&v) -> data_t { //
               return detail::make_variadic_union<T, data_t>(FWD(v));
             })),
         index(other.index)
