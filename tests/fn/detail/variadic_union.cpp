@@ -168,8 +168,17 @@ TEMPLATE_TEST_CASE("variadic_union",
 TEST_CASE("variadic_union with a non-copyable alternative", "[variadic_union][make_variadic_union][ptr_variadic_union]")
 {
   // The templated battery above copies its witness into the union, so a type that cannot be copied
-  // needs its own case: it is constructed in place from the arguments instead. A const alternative
-  // sits alongside a non-const one of the same underlying type, which the union must keep distinct.
+  // needs its own case: it is constructed in place from the arguments instead.
+  using T1 = variadic_union<NonCopyable const, int>;
+  constexpr T1 a1 = make_variadic_union<NonCopyable const, T1>(7);
+  static_assert(ptr_variadic_union<NonCopyable const, T1>(a1)->v == 7);
+  static_assert(T1::has_type<NonCopyable const>);
+  static_assert(not T1::has_type<Absent>);
+
+#ifndef _MSC_VER
+  // A const alternative can sit alongside a non-const one of the same underlying type, which the
+  // union keeps distinct - except on MSVC, which deems the cv-twin arms' tagged constructors
+  // redeclarations of one another (C2535), so the type does not compile there at all.
   using T2 = variadic_union<NonCopyable, NonCopyable const>;
   constexpr T2 a2 = make_variadic_union<NonCopyable, T2>(12);
   static_assert(ptr_variadic_union<NonCopyable, T2>(a2)->v == 12);
@@ -177,7 +186,7 @@ TEST_CASE("variadic_union with a non-copyable alternative", "[variadic_union][ma
   static_assert(ptr_variadic_union<NonCopyable const, T2>(a3)->v == 36);
   static_assert(T2::has_type<NonCopyable>);
   static_assert(T2::has_type<NonCopyable const>);
-  static_assert(not T2::has_type<Absent>);
+#endif
 
   // and in the recursive specialization, where it lands past the fourth alternative
   using T6 = variadic_union<int, bool, double, float, NonCopyable>;

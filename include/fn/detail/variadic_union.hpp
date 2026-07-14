@@ -8,7 +8,6 @@
 
 #include <fn/detail/functional.hpp>
 #include <fn/detail/macro_fwd.hpp>
-#include <pfn/functional.hpp>
 #include <pfn/utility.hpp>
 
 #include <type_traits>
@@ -26,12 +25,6 @@ template <typename T, typename... Args>
 [[nodiscard]] constexpr auto _invoke_type(auto &&fn, Args &&...args) -> decltype(auto)
 {
   return ::std::invoke(FWD(fn), ::std::in_place_type<T>, FWD(args)...);
-}
-
-template <typename T, typename Ret, typename... Args>
-[[nodiscard]] constexpr auto _invoke_type_r(auto &&fn, Args &&...args) -> decltype(auto)
-{
-  return ::pfn::invoke_r<Ret>(FWD(fn), ::std::in_place_type<T>, FWD(args)...);
 }
 
 template <typename T, typename Fn, typename... Args>
@@ -73,17 +66,25 @@ constexpr inline bool _is_tst_invocable<Fn, Tpl<Ts...> const &&>
 template <typename Fn, typename T>
 concept _typelist_type_invocable = _is_tst_invocable<Fn, T &&>;
 
+// The dispatch returns std::invoke(...)'s result as Ret: a same-type result is the returned
+// prvalue itself, and any other converts as a return statement does. This asks those questions as
+// type computations, and the same-type answer is a partial specialization so that no conversion
+// machinery is even named - the deed consults no copy and no move, and MSVC mis-answers conversion
+// questions about a union whose copy and move are constrained when they are asked inside a nested
+// unevaluated context.
+template <bool Same, typename Ret, typename R0>
+struct _type_conversion_to : ::std::bool_constant<::std::is_convertible_v<R0, Ret>> {};
+template <typename Ret, typename R0> struct _type_conversion_to<true, Ret, R0> : ::std::true_type {};
+
+template <bool Invocable, typename T, typename Ret, typename Fn, typename... Args>
+struct _type_invocable_r_gate : ::std::false_type {};
 template <typename T, typename Ret, typename Fn, typename... Args>
-constexpr auto _is_type_invocable_r_result(
-    Fn &&, Args &&...,
-    ::std::type_identity<decltype(_invoke_type_r<T, Ret>(::std::declval<Fn>(), ::std::declval<Args>()...))> = {})
-    -> ::std::true_type;
+struct _type_invocable_r_gate<true, T, Ret, Fn, Args...>
+    : _type_conversion_to<::std::is_same_v<::std::invoke_result_t<Fn, ::std::in_place_type_t<T>, Args...>, Ret>, Ret,
+                          ::std::invoke_result_t<Fn, ::std::in_place_type_t<T>, Args...>> {};
+
 template <typename T, typename Ret, typename Fn, typename... Args>
-constexpr auto _is_type_invocable_r_result(auto &&...) -> ::std::false_type;
-template <typename T, typename Ret, typename Fn, typename... Args> struct _is_type_invocable_r {
-  static constexpr bool value = decltype(_is_type_invocable_r_result<T, Ret, Fn, Args...>(
-      ::std::declval<Fn>(), ::std::declval<Args>()...))::value;
-};
+struct _is_type_invocable_r : _type_invocable_r_gate<_is_type_invocable<T, Fn, Args...>::value, T, Ret, Fn, Args...> {};
 
 template <typename R, typename Fn, typename T> constexpr inline bool _is_rtst_invocable = false;
 template <typename R, typename Fn, template <typename...> typename Tpl, typename... Ts>
@@ -100,8 +101,8 @@ template <typename R, typename Fn, typename T>
 concept _typelist_type_invocable_r = _is_rtst_invocable<R, Fn, T &&>;
 
 // Nothrow twins: the alternative that runs is a run-time choice, so the dispatch is nothrow only if
-// the call on every alternative is. These pass the type tag through `std::invoke` / `pfn::invoke_r`,
-// so the std traits answer exactly.
+// the call on every alternative is. These ask the std traits with the type tag in the argument
+// list, and INVOKE and INVOKE<R> are exactly what the dispatch performs.
 template <typename Fn, typename T> constexpr inline bool _is_nothrow_tst_invocable = false;
 template <typename Fn, template <typename...> typename Tpl, typename... Ts>
 constexpr inline bool _is_nothrow_tst_invocable<Fn, Tpl<Ts...> &>
@@ -543,14 +544,18 @@ template <typename R, typename U, typename Fn, typename... Args>
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
+// The explicit return type makes each branch convert as a return statement: the constructors'
+// lambdas return R itself, and MSVC refuses static_cast's spelling of that same-type prvalue when
+// R is a union with constrained copy and move, where the return statement's guaranteed elision it
+// accepts.
 template <typename R, typename U, typename Fn>
-[[nodiscard]] constexpr auto invoke_type_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn)
+[[nodiscard]] constexpr auto invoke_type_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn) -> R
   requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U> //
            && (U::size == 1) && (not ::std::is_same_v<void, R>)    //
            && _typelist_type_invocable_r<R, Fn, decltype(v)>       //
 {
   if (index == 0)
-    return static_cast<R>(_invoke_type<typename U::t0>(FWD(fn), FWD(v).v0));
+    return _invoke_type<typename U::t0>(FWD(fn), FWD(v).v0);
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -591,15 +596,15 @@ template <typename R, typename U, typename Fn, typename... Args>
 }
 
 template <typename R, typename U, typename Fn>
-[[nodiscard]] constexpr auto invoke_type_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn)
+[[nodiscard]] constexpr auto invoke_type_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn) -> R
   requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U> //
            && (U::size == 2) && (not ::std::is_same_v<void, R>)    //
            && _typelist_type_invocable_r<R, Fn, decltype(v)>       //
 {
   if (index == 0)
-    return static_cast<R>(_invoke_type<typename U::t0>(FWD(fn), FWD(v).v0));
+    return _invoke_type<typename U::t0>(FWD(fn), FWD(v).v0);
   else if (index == 1)
-    return static_cast<R>(_invoke_type<typename U::t1>(FWD(fn), FWD(v).v1));
+    return _invoke_type<typename U::t1>(FWD(fn), FWD(v).v1);
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -646,17 +651,17 @@ template <typename R, typename U, typename Fn, typename... Args>
 }
 
 template <typename R, typename U, typename Fn>
-[[nodiscard]] constexpr auto invoke_type_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn)
+[[nodiscard]] constexpr auto invoke_type_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn) -> R
   requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U> //
            && (U::size == 3) && (not ::std::is_same_v<void, R>)    //
            && _typelist_type_invocable_r<R, Fn, decltype(v)>       //
 {
   if (index == 0)
-    return static_cast<R>(_invoke_type<typename U::t0>(FWD(fn), FWD(v).v0));
+    return _invoke_type<typename U::t0>(FWD(fn), FWD(v).v0);
   else if (index == 1)
-    return static_cast<R>(_invoke_type<typename U::t1>(FWD(fn), FWD(v).v1));
+    return _invoke_type<typename U::t1>(FWD(fn), FWD(v).v1);
   else if (index == 2)
-    return static_cast<R>(_invoke_type<typename U::t2>(FWD(fn), FWD(v).v2));
+    return _invoke_type<typename U::t2>(FWD(fn), FWD(v).v2);
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -709,19 +714,19 @@ template <typename R, typename U, typename Fn, typename... Args>
 }
 
 template <typename R, typename U, typename Fn>
-[[nodiscard]] constexpr auto invoke_type_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn)
+[[nodiscard]] constexpr auto invoke_type_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn) -> R
   requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U> //
            && (U::size == 4) && (not ::std::is_same_v<void, R>)    //
            && _typelist_type_invocable_r<R, Fn, decltype(v)>       //
 {
   if (index == 0)
-    return static_cast<R>(_invoke_type<typename U::t0>(FWD(fn), FWD(v).v0));
+    return _invoke_type<typename U::t0>(FWD(fn), FWD(v).v0);
   else if (index == 1)
-    return static_cast<R>(_invoke_type<typename U::t1>(FWD(fn), FWD(v).v1));
+    return _invoke_type<typename U::t1>(FWD(fn), FWD(v).v1);
   else if (index == 2)
-    return static_cast<R>(_invoke_type<typename U::t2>(FWD(fn), FWD(v).v2));
+    return _invoke_type<typename U::t2>(FWD(fn), FWD(v).v2);
   else if (index == 3)
-    return static_cast<R>(_invoke_type<typename U::t3>(FWD(fn), FWD(v).v3));
+    return _invoke_type<typename U::t3>(FWD(fn), FWD(v).v3);
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -779,19 +784,19 @@ template <typename R, typename U, typename Fn, typename... Args>
 }
 
 template <typename R, typename U, typename Fn>
-[[nodiscard]] constexpr auto invoke_type_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn)
+[[nodiscard]] constexpr auto invoke_type_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn) -> R
   requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U> //
            && (U::size > 4) && (not ::std::is_same_v<void, R>)     //
            && _typelist_type_invocable_r<R, Fn, decltype(v)>       //
 {
   if (index == 0)
-    return static_cast<R>(_invoke_type<typename U::t0>(FWD(fn), FWD(v).v0));
+    return _invoke_type<typename U::t0>(FWD(fn), FWD(v).v0);
   else if (index == 1)
-    return static_cast<R>(_invoke_type<typename U::t1>(FWD(fn), FWD(v).v1));
+    return _invoke_type<typename U::t1>(FWD(fn), FWD(v).v1);
   else if (index == 2)
-    return static_cast<R>(_invoke_type<typename U::t2>(FWD(fn), FWD(v).v2));
+    return _invoke_type<typename U::t2>(FWD(fn), FWD(v).v2);
   else if (index == 3)
-    return static_cast<R>(_invoke_type<typename U::t3>(FWD(fn), FWD(v).v3));
+    return _invoke_type<typename U::t3>(FWD(fn), FWD(v).v3);
   else
     return invoke_type_variadic_union<R, typename U::more_t>(FWD(v).more, index - 4, FWD(fn));
 }
