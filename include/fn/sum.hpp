@@ -201,13 +201,22 @@ struct sum<Ts...> {
   static constexpr bool _nothrow_copyable = (... && detail::_nothrow_makeable<data_t, Ts, Ts const &>);
   static constexpr bool _nothrow_movable = (... && detail::_nothrow_makeable<data_t, Ts, Ts>);
 
-  // Copy assignment reinitializes ONE alternative, and `_reinit` chooses its arm per alternative - so
-  // the choice belongs INSIDE the fold. Hoisting it out would demand that one arm serve them all, and
-  // would reject a sum whose alternatives simply need different ones.
+  // Assignment requires of every alternative its own `operator=`, and `_reassign` uses it whenever
+  // the incoming alternative is the one already held; a different alternative is replaced by
+  // construction, through `_reinit`. Each helper chooses its arm per alternative - so the choice
+  // belongs INSIDE the fold: hoisting it out would demand that one arm serve them all, and would
+  // reject a sum whose alternatives simply need different ones. The nothrow disjunct is what keeps
+  // the strong guarantee without a valueless state - some arm must be unable to lose the value in
+  // hand.
   static constexpr bool _copy_assignable
       = (...
-         && (detail::_makeable<data_t, Ts, Ts const &>
+         && (::std::is_copy_assignable_v<Ts> && detail::_makeable<data_t, Ts, Ts const &>
              && (detail::_nothrow_makeable<data_t, Ts, Ts const &> || detail::_nothrow_makeable<data_t, Ts, Ts>)));
+  static constexpr bool _nothrow_copy_assignable
+      = (... && (::std::is_nothrow_copy_assignable_v<Ts> && detail::_nothrow_makeable<data_t, Ts, Ts const &>));
+  static constexpr bool _move_assignable
+      = (... && (::std::is_move_assignable_v<Ts> && detail::_nothrow_makeable<data_t, Ts, Ts>));
+  static constexpr bool _nothrow_move_assignable = (... && ::std::is_nothrow_move_assignable_v<Ts>);
 
   /**
    * @brief TODO
@@ -413,12 +422,10 @@ struct sum<Ts...> {
   // is built straight over the old, and one whose copy can throw is copied into a temporary first,
   // where only its (nothrow) move goes near the storage.
   //
-  // The standard's third arm - snapshot the old alternative, roll back on throw - has nothing to
-  // offer here, which is why the constraints below leave no room for it. It would exist for an
-  // alternative that can neither be built nor moved without throwing; but every alternative is also
-  // a possible OLD alternative (one is assigned over itself whenever the sum already holds it), and
-  // snapshotting that same type would throw in turn. So there is no safe path, and such an
-  // alternative is constrained away rather than half-served.
+  // The standard's third arm - snapshot the old, roll back on throw - belongs to assignment of the
+  // SAME alternative, which is `_reassign`'s job; here the old alternative is a different type, and
+  // admitting a snapshot arm would gate the incoming alternative on the outgoing one's movability.
+  // An alternative that can be neither built nor moved without throwing is constrained away instead.
   //
   // The arm is chosen by asking the storage what it can do, never by a trait that restates it:
   // `std::is_nothrow_move_constructible_v` asks about `T(T&&)`, the storage performs `T{...}`, and
@@ -440,22 +447,63 @@ struct sum<Ts...> {
     }
   }
 
+  // Assigns the incoming alternative with its own `operator=` when it is the one already held: the
+  // arms mirror `_reinit`'s shape, and the third is the standard's snapshot-and-restore - live here,
+  // where old and new are the same type, so the constraint that admits the alternative also
+  // guarantees its snapshot.
+  template <typename T, typename V> constexpr void _reassign(V &&v) noexcept(::std::is_nothrow_assignable_v<T &, V>)
+  {
+    T *held = detail::ptr_variadic_union<T, data_t>(this->data);
+    if constexpr (::std::is_nothrow_assignable_v<T &, V>) {
+      *held = FWD(v);
+    } else if constexpr (::std::is_nothrow_assignable_v<T &, T>) {
+      T tmp{FWD(v)}; // may throw, and the value in hand is untouched until it cannot
+      *held = ::std::move(tmp);
+    } else if constexpr (detail::_nothrow_makeable<data_t, T, T>) {
+      T snap{::std::move(*held)};
+      try {
+        *held = FWD(v);
+      } catch (...) {
+        ::std::destroy_at(this);
+        ::std::construct_at(this, ::std::in_place_type<T>, ::std::move(snap)); // cannot throw: see above
+        throw;
+      }
+    } else {
+      T snap{*held}; // the copy that cannot throw, where the move is the one that can
+      try {
+        *held = FWD(v);
+      } catch (...) {
+        ::std::destroy_at(this);
+        ::std::construct_at(this, ::std::in_place_type<T>, snap); // restored by that same nothrow copy
+        throw;
+      }
+    }
+  }
+
   /**
    * @brief Copy assignment, with the strong exception guarantee
    *
    * @param other TODO
    * @return TODO
    */
-  // The alternative that changes is CONSTRUCTED, never assigned to: assignment asks nothing of `Ts`
-  // beyond what construction already asks, so a type with no assignment operator at all is still
-  // assignable through the sum.
-  constexpr sum &operator=(sum const &other) noexcept(_nothrow_copyable)
+  // Assignment requires of every alternative its own `operator=`, and uses it when the incoming
+  // alternative is the one already held; a different alternative is replaced by construction, as
+  // [variant.assign] does. A sum therefore no longer offers an operation its alternative refuses -
+  // a pack holding a reference deletes assignment precisely because C++ cannot rebind a reference,
+  // and destroy-and-reconstruct would synthesize exactly that.
+  constexpr sum &operator=(sum const &other) noexcept(_nothrow_copy_assignable)
     requires _copy_assignable
   {
     if (this != &other) {
-      detail::invoke_type_variadic_union<void, data_t>( //
-          other.data, other.index,
-          [this]<typename T>(::std::in_place_type_t<T>, auto const &v) { this->template _reinit<T>(v); });
+      if (index == other.index) {
+        detail::invoke_type_variadic_union<void, data_t>( //
+            other.data, other.index,
+            [this]<typename T>(::std::in_place_type_t<T>, auto const &v) { this->template _reassign<T>(v); });
+      } else {
+        detail::invoke_type_variadic_union<void, data_t>( //
+            other.data, other.index,
+            [this]<typename T>(::std::in_place_type_t<T>, auto const &v) { this->template _reinit<T>(v); });
+      }
     }
     return *this;
   }
@@ -466,15 +514,23 @@ struct sum<Ts...> {
    * @param other TODO
    * @return TODO
    */
-  // Moving is offered only where it cannot throw, for the reason given on _reinit - and where it can,
-  // a nothrow-copyable sum is still assignable from an rvalue, by copy.
-  constexpr sum &operator=(sum &&other) noexcept
-    requires _nothrow_movable
+  // The nothrow move construction is still demanded - `_reinit`'s replacement arm and `_reassign`'s
+  // snapshot both rest on it - but the operator itself is only as nothrow as the alternatives' own
+  // move assignment. Where moving can throw, a nothrow-copy-assignable sum is still assignable from
+  // an rvalue, by copy.
+  constexpr sum &operator=(sum &&other) noexcept(_nothrow_move_assignable)
+    requires _move_assignable
   {
     if (this != &other) {
-      detail::invoke_type_variadic_union<void, data_t>( //
-          ::std::move(other).data, other.index,
-          [this]<typename T>(::std::in_place_type_t<T>, auto &&v) { this->template _reinit<T>(FWD(v)); });
+      if (index == other.index) {
+        detail::invoke_type_variadic_union<void, data_t>( //
+            ::std::move(other).data, other.index,
+            [this]<typename T>(::std::in_place_type_t<T>, auto &&v) { this->template _reassign<T>(FWD(v)); });
+      } else {
+        detail::invoke_type_variadic_union<void, data_t>( //
+            ::std::move(other).data, other.index,
+            [this]<typename T>(::std::in_place_type_t<T>, auto &&v) { this->template _reinit<T>(FWD(v)); });
+      }
     }
     return *this;
   }
