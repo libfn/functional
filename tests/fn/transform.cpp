@@ -22,6 +22,8 @@ struct Error final {
 
 struct Xint final {
   int value;
+
+  auto fn() const & -> int { return value + 1; }
 };
 } // namespace
 
@@ -51,23 +53,23 @@ TEST_CASE("transform", "[transform][expected][expected_value][pack]")
   static_assert(is::not_invocable_with_any([]() -> int { throw 0; }));                                // bad arity
   static_assert(is::not_invocable_with_any([](int, int) -> int { throw 0; }));                        // bad arity
 
-  WHEN("operand is lvalue")
+  SECTION("lvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       operand_t a{std::in_place, 12};
       using T = decltype(a | transform(fnValue));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a | transform(fnValue)).value() == 13);
 
-      WHEN("change type")
+      SECTION("change type")
       {
         using T = decltype(a | transform(fnXabs));
         static_assert(std::is_same_v<T, fn::expected<Xint, Error>>);
         REQUIRE((a | transform(fnXabs)).value().value == 4);
       }
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       operand_t a{::fn::unexpect, Error{"Not good"}};
       using T = decltype(a | transform(wrong));
@@ -78,40 +80,48 @@ TEST_CASE("transform", "[transform][expected][expected_value][pack]")
                   .what
               == "Not good");
     }
+    SECTION("member function")
+    {
+      using operand_t = fn::expected<Xint, Error>;
+      operand_t a{std::in_place, Xint{12}};
+      using T = decltype(a | transform(&Xint::fn));
+      static_assert(std::is_same_v<T, fn::expected<int, Error>>);
+      REQUIRE((a | transform(&Xint::fn)).value() == 13);
+    }
   }
 
-  WHEN("operand is pack")
+  SECTION("pack")
   {
     using operand_t = fn::expected<fn::pack<int, double>, Error>;
     operand_t a{std::in_place, fn::pack{84, 0.5}};
     constexpr auto fnPack = [](int i, double d) constexpr -> int { return i * d; };
     using T = decltype(a | transform(fnPack));
     static_assert(std::is_same_v<T, fn::expected<int, Error>>);
-    WHEN("operand is value") { REQUIRE((a | transform(fnPack)).value() == 42); }
+    SECTION("value") { REQUIRE((a | transform(fnPack)).value() == 42); }
 
-    WHEN("operand is error")
+    SECTION("error")
     {
       constexpr auto wrong = [](auto...) -> int { throw 0; };
       REQUIRE((operand_t{::fn::unexpect, Error{"Not good"}} | transform(wrong)).error().what == "Not good");
     }
   }
 
-  WHEN("operand is rvalue")
+  SECTION("rvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       using T = decltype(operand_t{std::in_place, 12} | transform(fnValue));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((operand_t{std::in_place, 12} | transform(fnValue)).value() == 13);
 
-      WHEN("change type")
+      SECTION("change type")
       {
         using T = decltype(operand_t{std::in_place, 12} | transform(fnXabs));
         static_assert(std::is_same_v<T, fn::expected<Xint, Error>>);
         REQUIRE((operand_t{std::in_place, 12} | transform(fnXabs)).value().value == 4);
       }
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | transform(wrong));
       static_assert(std::is_same_v<T, operand_t>);
@@ -121,7 +131,122 @@ TEST_CASE("transform", "[transform][expected][expected_value][pack]")
                   .what
               == "Not good");
     }
+    SECTION("member function")
+    {
+      using operand_t = fn::expected<Xint, Error>;
+      using T = decltype(operand_t{std::in_place, Xint{12}} | transform(&Xint::fn));
+      static_assert(std::is_same_v<T, fn::expected<int, Error>>);
+      REQUIRE((operand_t{std::in_place, Xint{12}} | transform(&Xint::fn)).value() == 13);
+    }
   }
+
+  SECTION("constexpr")
+  {
+    enum class Error { ThresholdExceeded, SomethingElse };
+    using T = fn::expected<int, Error>;
+
+    SECTION("same value type")
+    {
+      constexpr auto fn = [](int i) constexpr noexcept -> int {
+        if (i < 2)
+          return i + 1;
+        return i;
+      };
+      constexpr auto r1 = T{0} | fn::transform(fn);
+      static_assert(r1.value() == 1);
+      constexpr auto r2 = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
+      static_assert(r2.value() == 2);
+      constexpr auto r3 = T{::fn::unexpect, Error::SomethingElse} | fn::transform(fn);
+      static_assert(r3.error() == Error::SomethingElse);
+
+      SUCCEED();
+    }
+
+    SECTION("different value type")
+    {
+      constexpr auto fn = [](int i) constexpr noexcept -> bool { return (i == 1); };
+      constexpr auto r1 = T{1} | fn::transform(fn);
+      static_assert(std::is_same_v<decltype(r1), fn::expected<bool, Error> const>);
+      static_assert(r1.value() == true);
+      constexpr auto r2 = T{0} | fn::transform(fn);
+      static_assert(r2.value() == false);
+      constexpr auto r3 = T{2} | fn::transform(fn);
+      static_assert(r3.value() == false);
+      constexpr auto r4 = T{::fn::unexpect, Error::SomethingElse} | fn::transform(fn);
+      static_assert(r4.error() == Error::SomethingElse);
+
+      SUCCEED();
+    }
+
+    SECTION("sum")
+    {
+      using T = fn::expected<fn::sum_for<Xint, int>, Error>;
+
+      SECTION("same value type")
+      {
+        constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> fn::sum_for<Xint, int> {
+                                           if (i < 3)
+                                             return {i + 1};
+                                           return i;
+                                         },
+                                         [](Xint v) constexpr noexcept -> fn::sum_for<Xint, int> { return v.value; }};
+        constexpr auto r1 = T{0} | fn::transform(fn);
+        static_assert(std::is_same_v<decltype(r1), fn::expected<fn::sum_for<Xint, int>, Error> const>);
+        static_assert(r1.value() == fn::sum{1});
+        constexpr auto r2 = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
+        static_assert(r2.value() == fn::sum{3});
+        constexpr auto r3 = T{Xint{4}} | fn::transform(fn);
+        static_assert(r3.value() == fn::sum{4});
+        constexpr auto r4 = T{::fn::unexpect, Error::SomethingElse} | fn::transform(fn);
+        static_assert(r4.error() == Error::SomethingElse);
+
+        SUCCEED();
+      }
+
+      SECTION("different value type")
+      {
+        constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> bool { return i == 1; },
+                                         [](Xint v) constexpr noexcept -> int { return v.value; }};
+        constexpr auto r1 = T{1} | fn::transform(fn);
+        static_assert(std::is_same_v<decltype(r1), fn::expected<fn::sum<bool, int>, Error> const>);
+        static_assert(r1.value() == fn::sum{true});
+        constexpr auto r2 = T{0} | fn::transform(fn);
+        static_assert(r2.value() == fn::sum{false});
+        constexpr auto r3 = T{Xint{3}} | fn::transform(fn);
+        static_assert(r3.value() == fn::sum{3});
+        constexpr auto r4 = T{::fn::unexpect, Error::SomethingElse} | fn::transform(fn);
+        static_assert(r4.error() == Error::SomethingElse);
+
+        SUCCEED();
+      }
+    }
+  }
+}
+
+TEST_CASE("transform noexcept", "[transform][expected][expected_value][noexcept]")
+{
+  using namespace fn;
+
+  using operand_t = fn::expected<int, Error>;
+
+  constexpr auto fnNothrow = [](int i) noexcept -> int { return i + 1; };
+  constexpr auto fnThrows = [](int i) noexcept(false) -> int { return i + 1; };
+
+  // The member weighs the callback AND the copy of the untouched error. Error carries a std::string,
+  // whose copy can throw, so even a noexcept callback leaves the member potentially-throwing.
+  static_assert(not std::is_nothrow_copy_constructible_v<Error>);
+  static_assert(not noexcept(std::declval<operand_t &>().transform(fnNothrow)));
+
+  // Give it an error whose copy cannot throw, and the callback alone decides.
+  using nothrow_t = fn::expected<int, int>;
+  static_assert(noexcept(std::declval<nothrow_t &>().transform(fnNothrow)));
+  static_assert(not noexcept(std::declval<nothrow_t &>().transform(fnThrows)));
+
+  // and transform_t::apply carries it through, as does the rest of the pipeline it is reached
+  // through (pinned in tests/fn/functor.cpp).
+  static_assert(not noexcept(transform_t::apply{}(std::declval<nothrow_t &>(), fnThrows)));
+
+  SUCCEED();
 }
 
 TEST_CASE("transform", "[transform][expected][expected_void]")
@@ -142,9 +267,9 @@ TEST_CASE("transform", "[transform][expected][expected_void]")
   static_assert(is::not_invocable_with_any([](auto) -> int { throw 0; }));       // bad arity
   static_assert(is::not_invocable_with_any([](auto, auto) -> int { throw 0; })); // bad arity
 
-  WHEN("operand is lvalue")
+  SECTION("lvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       operand_t a{std::in_place};
       using T = decltype(a | transform(fnValue));
@@ -152,14 +277,14 @@ TEST_CASE("transform", "[transform][expected][expected_void]")
       (a | transform(fnValue)).value();
       REQUIRE(count == 1);
 
-      WHEN("change type")
+      SECTION("change type")
       {
         using T = decltype(a | transform(fnXabs));
         static_assert(std::is_same_v<T, fn::expected<Xint, Error>>);
         REQUIRE((a | transform(fnXabs)).value().value == 42);
       }
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       operand_t a{::fn::unexpect, Error{"Not good"}};
       using T = decltype(a | transform(wrong));
@@ -172,23 +297,23 @@ TEST_CASE("transform", "[transform][expected][expected_void]")
     }
   }
 
-  WHEN("operand is rvalue")
+  SECTION("rvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       using T = decltype(operand_t{std::in_place} | transform(fnValue));
       static_assert(std::is_same_v<T, operand_t>);
       (operand_t{std::in_place} | transform(fnValue)).value();
       REQUIRE(count == 1);
 
-      WHEN("change type")
+      SECTION("change type")
       {
         using T = decltype(operand_t{std::in_place} | transform(fnXabs));
         static_assert(std::is_same_v<T, fn::expected<Xint, Error>>);
         REQUIRE((operand_t{std::in_place} | transform(fnXabs)).value().value == 42);
       }
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | transform(wrong));
       static_assert(std::is_same_v<T, operand_t>);
@@ -199,6 +324,28 @@ TEST_CASE("transform", "[transform][expected][expected_void]")
               == "Not good");
     }
   }
+}
+
+TEST_CASE("transform noexcept", "[transform][expected][expected_void][noexcept]")
+{
+  using namespace fn;
+
+  using operand_t = fn::expected<void, Error>;
+
+  constexpr auto fnNothrow = []() noexcept -> int { return 1; };
+  constexpr auto fnThrows = []() noexcept(false) -> int { return 1; };
+
+  // As for a non-void value: the untouched Error's copy can throw, so isolate the callback with an
+  // error whose copy cannot.
+  static_assert(not noexcept(std::declval<operand_t &>().transform(fnNothrow)));
+
+  using nothrow_t = fn::expected<void, int>;
+  static_assert(noexcept(std::declval<nothrow_t &>().transform(fnNothrow)));
+  static_assert(not noexcept(std::declval<nothrow_t &>().transform(fnThrows)));
+
+  static_assert(not noexcept(transform_t::apply{}(std::declval<nothrow_t &>(), fnThrows)));
+
+  SUCCEED();
 }
 
 TEST_CASE("transform", "[transform][optional][pack]")
@@ -212,11 +359,6 @@ TEST_CASE("transform", "[transform][optional][pack]")
   constexpr auto wrong = [](int) -> int { throw 0; };
   constexpr auto fnXabs = [](int i) -> Xint { return {std::abs(8 - i)}; };
   constexpr auto fnVoid = [](int) {};
-
-  // void return: optional::transform mandates a value, so the callback is rejected - and asking
-  // must answer false, not instantiate optional<void>, whose validity mandate is a hard error
-  static_assert(not invocable_transform<decltype(fnVoid), operand_t>);
-  static_assert(is::not_invocable_with_any(fnVoid));
 
   static_assert(is::invocable_with_any(fnValue));
   static_assert(is::invocable_with_any([](auto...) -> int { throw 0; }));                    // allow generic call
@@ -232,33 +374,42 @@ TEST_CASE("transform", "[transform][optional][pack]")
   static_assert(is::not_invocable_with_any([](std::string) -> int { throw 0; }));                     // bad type
   static_assert(is::not_invocable_with_any([]() -> int { throw 0; }));                                // bad arity
   static_assert(is::not_invocable_with_any([](int, int) -> int { throw 0; }));                        // bad arity
+  static_assert(is::not_invocable_with_any(fnVoid)); // void return: no optional<void> to convert to
 
-  WHEN("operand is lvalue")
+  SECTION("lvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       operand_t a{12};
       using T = decltype(a | transform(fnValue));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a | transform(fnValue)).value() == 13);
 
-      WHEN("change type")
+      SECTION("change type")
       {
         using T = decltype(a | transform(fnXabs));
         static_assert(std::is_same_v<T, fn::optional<Xint>>);
         REQUIRE((a | transform(fnXabs)).value().value == 4);
       }
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       operand_t a{std::nullopt};
       using T = decltype(a | transform(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE(not(a | transform(wrong)).has_value());
     }
+    SECTION("member function")
+    {
+      using operand_t = fn::optional<Xint>;
+      operand_t a{std::in_place, Xint{12}};
+      using T = decltype(a | transform(&Xint::fn));
+      static_assert(std::is_same_v<T, fn::optional<int>>);
+      REQUIRE((a | transform(&Xint::fn)).value() == 13);
+    }
   }
 
-  WHEN("operand is pack")
+  SECTION("pack")
   {
     using operand_t = fn::optional<fn::pack<int, double>>;
     operand_t a{std::in_place, fn::pack{84, 0.5}};
@@ -266,31 +417,31 @@ TEST_CASE("transform", "[transform][optional][pack]")
     using T = decltype(a | transform(fnPack));
     static_assert(std::is_same_v<T, fn::optional<int>>);
 
-    WHEN("operand is value") { REQUIRE((a | transform(fnPack)).value() == 42); }
+    SECTION("value") { REQUIRE((a | transform(fnPack)).value() == 42); }
 
-    WHEN("operand is error")
+    SECTION("error")
     {
       constexpr auto wrong = [](auto...) -> int { throw 0; };
       REQUIRE(not(operand_t{std::nullopt} | transform(wrong)).has_value());
     }
   }
 
-  WHEN("operand is rvalue")
+  SECTION("rvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       using T = decltype(operand_t{12} | transform(fnValue));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((operand_t{12} | transform(fnValue)).value() == 13);
 
-      WHEN("change type")
+      SECTION("change type")
       {
         using T = decltype(operand_t{12} | transform(fnXabs));
         static_assert(std::is_same_v<T, fn::optional<Xint>>);
         REQUIRE((operand_t{12} | transform(fnXabs)).value().value == 4);
       }
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       using T = decltype(operand_t{std::nullopt} | transform(wrong));
       static_assert(std::is_same_v<T, operand_t>);
@@ -298,7 +449,119 @@ TEST_CASE("transform", "[transform][optional][pack]")
                   | transform(wrong))
                      .has_value());
     }
+    SECTION("member function")
+    {
+      using operand_t = fn::optional<Xint>;
+      using T = decltype(operand_t{std::in_place, Xint{12}} | transform(&Xint::fn));
+      static_assert(std::is_same_v<T, fn::optional<int>>);
+      REQUIRE((operand_t{std::in_place, Xint{12}} | transform(&Xint::fn)).value() == 13);
+    }
   }
+
+  SECTION("constexpr")
+  {
+    using T = fn::optional<int>;
+
+    SECTION("same value type")
+    {
+      constexpr auto fn = [](int i) constexpr noexcept -> int {
+        if (i < 2)
+          return i + 1;
+        return i;
+      };
+      constexpr auto r1 = T{0} | fn::transform(fn);
+      static_assert(r1.value() == 1);
+      constexpr auto r2 = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
+      static_assert(r2.value() == 2);
+      constexpr auto r4 = T{} | fn::transform(fn);
+      static_assert(not r4.has_value());
+
+      SUCCEED();
+    }
+
+    SECTION("different value type")
+    {
+      constexpr auto fn1 = [](int i) constexpr noexcept -> bool {
+        if (i == 1)
+          return true;
+        return false;
+      };
+      constexpr auto r1 = T{1} | fn::transform(fn1);
+      static_assert(std::is_same_v<decltype(r1), fn::optional<bool> const>);
+      static_assert(r1.value() == true);
+      constexpr auto r2 = T{0} | fn::transform(fn1);
+      static_assert(r2.value() == false);
+      constexpr auto r3 = T{2} | fn::transform(fn1);
+      static_assert(r3.value() == false);
+      constexpr auto r4 = T{} | fn::transform(fn1);
+      static_assert(not r4.has_value());
+
+      SUCCEED();
+    }
+
+    SECTION("sum")
+    {
+      using T = fn::optional<fn::sum_for<Xint, int>>;
+
+      SECTION("same value type")
+      {
+        constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> fn::sum_for<Xint, int> {
+                                           if (i < 3)
+                                             return {i + 1};
+                                           return i;
+                                         },
+                                         [](Xint v) constexpr noexcept -> fn::sum_for<Xint, int> { return v.value; }};
+        constexpr auto r1 = T{0} | fn::transform(fn);
+        static_assert(std::is_same_v<decltype(r1), fn::optional<fn::sum_for<Xint, int>> const>);
+        static_assert(r1.value() == fn::sum{1});
+        constexpr auto r2 = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
+        static_assert(r2.value() == fn::sum{3});
+        constexpr auto r3 = T{Xint{5}} | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
+        static_assert(r3.value() == fn::sum{5});
+        constexpr auto r4 = T{} | fn::transform(fn);
+        static_assert(not r4.has_value());
+
+        SUCCEED();
+      }
+
+      SECTION("different value type")
+      {
+        constexpr auto fn1 = fn::overload{[](int i) constexpr noexcept -> bool { return i == 1; },
+                                          [](Xint v) constexpr noexcept -> int { return v.value; }};
+        constexpr auto r1 = T{1} | fn::transform(fn1);
+        static_assert(std::is_same_v<decltype(r1), fn::optional<fn::sum<bool, int>> const>);
+        static_assert(r1.value() == fn::sum{true});
+        constexpr auto r2 = T{0} | fn::transform(fn1);
+        static_assert(r2.value() == fn::sum{false});
+        constexpr auto r3 = T{2} | fn::transform(fn1);
+        static_assert(r3.value() == fn::sum{false});
+        constexpr auto r4 = T{Xint{5}} | fn::transform(fn1);
+        static_assert(r4.value() == fn::sum{5});
+        constexpr auto r5 = T{} | fn::transform(fn1);
+        static_assert(not r5.has_value());
+
+        SUCCEED();
+      }
+    }
+  }
+}
+
+TEST_CASE("transform noexcept", "[transform][optional][noexcept]")
+{
+  using namespace fn;
+
+  using operand_t = fn::optional<int>;
+
+  constexpr auto fnNothrow = [](int i) noexcept -> int { return i + 1; };
+  constexpr auto fnThrows = [](int i) noexcept(false) -> int { return i + 1; };
+
+  // An optional has no error side to copy, so the callback alone decides.
+  static_assert(noexcept(std::declval<operand_t &>().transform(fnNothrow)));
+  static_assert(not noexcept(std::declval<operand_t &>().transform(fnThrows)));
+
+  static_assert(not noexcept(transform_t::apply{}(std::declval<operand_t &>(), fnThrows)));
+
+  SUCCEED();
 }
 
 TEST_CASE("transform choice", "[transform][choice]")
@@ -335,16 +598,16 @@ TEST_CASE("transform choice", "[transform][choice]")
   static_assert(is::not_invocable_with_any([]() -> operand_t { throw 0; }));         // bad arity
   static_assert(is::not_invocable_with_any([](int, int) -> operand_t { throw 0; })); // bad arity
 
-  WHEN("operand is lvalue")
+  SECTION("lvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       operand_t a{12};
       using T = decltype(a | transform(fnValue));
       static_assert(std::is_same_v<T, fn::choice<int>>);
       REQUIRE(*(a | transform(fnValue)).get_ptr<int>() == 13);
 
-      WHEN("change type")
+      SECTION("change type")
       {
         using T = decltype(a | transform(fnXabs));
         static_assert(std::is_same_v<T, fn::choice<Xint>>);
@@ -353,15 +616,15 @@ TEST_CASE("transform choice", "[transform][choice]")
     }
   }
 
-  WHEN("operand is rvalue")
+  SECTION("rvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       using T = decltype(operand_t{12} | transform(fnValue));
       static_assert(std::is_same_v<T, fn::choice<int>>);
       REQUIRE(*(operand_t{12} | transform(fnValue)).get_ptr<int>() == 13);
 
-      WHEN("change type")
+      SECTION("change type")
       {
         using T = decltype(operand_t{12} | transform(fnXabs));
         static_assert(std::is_same_v<T, fn::choice<Xint>>);
@@ -369,214 +632,99 @@ TEST_CASE("transform choice", "[transform][choice]")
       }
     }
   }
+
+  SECTION("constexpr")
+  {
+    using T = fn::choice<double, int>;
+
+    SECTION("same value type")
+    {
+      constexpr auto fn = [](int i) constexpr noexcept -> int {
+        if (i < 1)
+          return i + 1;
+        return i;
+      };
+      constexpr auto r1 = T{0} | fn::transform(fn);
+      static_assert(r1.transform([](int i) -> int { return i; }) == fn::choice{1});
+      constexpr auto r2 = T{0.5} | fn::transform(fn);
+      static_assert(r2.transform([](int i) -> int { return i; }) == fn::choice{1});
+      constexpr auto r3 = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
+      static_assert(r2.transform([](int i) -> int { return i; }) == fn::choice{1});
+
+      SUCCEED();
+    }
+
+    SECTION("different value type")
+    {
+      constexpr auto fn1 = [](int i) constexpr noexcept -> bool { return (i == 1); };
+      constexpr auto r1 = T{1} | fn::transform(fn1);
+      static_assert(std::is_same_v<decltype(r1), fn::choice<bool> const>);
+      static_assert(r1.transform([](bool i) -> bool { return i; }) == fn::choice{true});
+      constexpr auto r2 = T{0} | fn::transform(fn1);
+      static_assert(r2.transform([](bool i) -> bool { return i; }) == fn::choice{false});
+      constexpr auto r3 = T{2} | fn::transform(fn1);
+      static_assert(r3.transform([](bool i) -> bool { return i; }) == fn::choice{false});
+
+      SUCCEED();
+    }
+  }
 }
 
-TEST_CASE("constexpr transform expected", "[transform][constexpr][expected]")
+TEST_CASE("transform noexcept", "[transform][choice][noexcept]")
 {
-  enum class Error { ThresholdExceeded, SomethingElse };
-  using T = fn::expected<int, Error>;
+  using namespace fn;
 
-  WHEN("same value type")
-  {
-    constexpr auto fn = [](int i) constexpr noexcept -> int {
-      if (i < 2)
-        return i + 1;
-      return i;
-    };
-    constexpr auto r1 = T{0} | fn::transform(fn);
-    static_assert(r1.value() == 1);
-    constexpr auto r2 = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
-    static_assert(r2.value() == 2);
-    constexpr auto r3 = T{::fn::unexpect, Error::SomethingElse} | fn::transform(fn);
-    static_assert(r3.error() == Error::SomethingElse);
-  }
+  using operand_t = fn::choice<bool, double, int>;
 
-  WHEN("different value type")
-  {
-    constexpr auto fn = [](int i) constexpr noexcept -> bool { return (i == 1); };
-    constexpr auto r1 = T{1} | fn::transform(fn);
-    static_assert(std::is_same_v<decltype(r1), fn::expected<bool, Error> const>);
-    static_assert(r1.value() == true);
-    constexpr auto r2 = T{0} | fn::transform(fn);
-    static_assert(r2.value() == false);
-    constexpr auto r3 = T{2} | fn::transform(fn);
-    static_assert(r3.value() == false);
-    constexpr auto r4 = T{::fn::unexpect, Error::SomethingElse} | fn::transform(fn);
-    static_assert(r4.error() == Error::SomethingElse);
-  }
+  constexpr auto fnThrows = [](auto i) noexcept(false) -> int { return static_cast<int>(i) + 1; };
+
+  // the member propagates, as optional's and expected's do
+  static_assert(not noexcept(std::declval<operand_t &>().transform(fnThrows)));
+
+  static_assert(not noexcept(transform_t::apply{}(std::declval<operand_t &>(), fnThrows)));
 
   SUCCEED();
 }
 
-TEST_CASE("constexpr transform expected with sum", "[transform][constexpr][expected][sum]")
-{
-  enum class Error { ThresholdExceeded, SomethingElse };
-  using T = fn::expected<fn::sum_for<Xint, int>, Error>;
+namespace fn {
+namespace {
+struct Error {};
+struct Value final {};
 
-  WHEN("same value type")
-  {
-    constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> fn::sum_for<Xint, int> {
-                                       if (i < 3)
-                                         return {i + 1};
-                                       return i;
-                                     },
-                                     [](Xint v) constexpr noexcept -> fn::sum_for<Xint, int> { return v.value; }};
-    constexpr auto r1 = T{0} | fn::transform(fn);
-    static_assert(std::is_same_v<decltype(r1), fn::expected<fn::sum_for<Xint, int>, Error> const>);
-    static_assert(r1.value() == fn::sum{1});
-    constexpr auto r2 = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
-    static_assert(r2.value() == fn::sum{3});
-    constexpr auto r3 = T{Xint{4}} | fn::transform(fn);
-    static_assert(r3.value() == fn::sum{4});
-    constexpr auto r4 = T{::fn::unexpect, Error::SomethingElse} | fn::transform(fn);
-    static_assert(r4.error() == Error::SomethingElse);
-  }
+template <typename T> constexpr auto fn_int = [](int) -> T { throw 0; };
+template <typename T> constexpr auto fn_generic = [](auto &&...) -> T { throw 0; };
+constexpr auto fn_int_lvalue = [](int &) -> int { throw 0; };
+constexpr auto fn_int_rvalue = [](int &&) -> int { throw 0; };
+} // namespace
 
-  WHEN("different value type")
-  {
-    constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> bool { return i == 1; },
-                                     [](Xint v) constexpr noexcept -> int { return v.value; }};
-    constexpr auto r1 = T{1} | fn::transform(fn);
-    static_assert(std::is_same_v<decltype(r1), fn::expected<fn::sum<bool, int>, Error> const>);
-    static_assert(r1.value() == fn::sum{true});
-    constexpr auto r2 = T{0} | fn::transform(fn);
-    static_assert(r2.value() == fn::sum{false});
-    constexpr auto r3 = T{Xint{3}} | fn::transform(fn);
-    static_assert(r3.value() == fn::sum{3});
-    constexpr auto r4 = T{::fn::unexpect, Error::SomethingElse} | fn::transform(fn);
-    static_assert(r4.error() == Error::SomethingElse);
-  }
+// clang-format off
+// The callback returns a plain value, which must convert into the operand's own monad.
+static_assert(invocable_transform<decltype(fn_int<int>), expected<int, Error>>);
+static_assert(invocable_transform<decltype(fn_int<Value>), expected<int, Error>>);              // may change the type
+static_assert(not invocable_transform<decltype(fn_int<int>), expected<Value, Error>>);          // wrong parameter type
+static_assert(invocable_transform<decltype(fn_generic<int>), expected<Value, Error>>);
+static_assert(invocable_transform<decltype(fn_generic<int>), expected<void, Error>>);           // void: nullary callback
+static_assert(not invocable_transform<decltype(fn_int<int>), expected<void, Error>>);           // void: unary is bad arity
+static_assert(invocable_transform<decltype(fn_int<void>), expected<int, Error>>); // a void return transforms the value
+                                                                                  // side to expected<void, Error>
+static_assert(invocable_transform<decltype(fn_int<int>), optional<int>>);
+static_assert(not invocable_transform<decltype(fn_int<int>), optional<Value>>);                 // wrong parameter type
+static_assert(invocable_transform<decltype(fn_generic<int>), optional<Value>>);
+static_assert(not invocable_transform<decltype(fn_int<void>), optional<int>>);                 // void return: no optional<void>
+static_assert(invocable_transform<decltype(fn_generic<int>), choice<int>>);
+static_assert(not invocable_transform<decltype(fn_int<int>), choice<Value>>);            // must serve every alternative
+static_assert(not invocable_transform<decltype(fn_int<void>), choice<int>>);             // a void result has no place in a choice
+static_assert(not invocable_transform<decltype(fn_int_lvalue), expected<int, Error>>);   // cannot bind temporary to lvalue
+static_assert(invocable_transform<decltype(fn_int_lvalue), expected<int, Error> &>);
+static_assert(invocable_transform<decltype(fn_int_rvalue), expected<int, Error>>);
+static_assert(not invocable_transform<decltype(fn_int_rvalue), expected<int, Error> &>); // cannot bind lvalue to rvalue-ref
 
-  SUCCEED();
-}
-
-TEST_CASE("constexpr transform optional", "[transform][constexpr][optional]")
-{
-  using T = fn::optional<int>;
-
-  WHEN("same value type")
-  {
-    constexpr auto fn = [](int i) constexpr noexcept -> int {
-      if (i < 2)
-        return i + 1;
-      return i;
-    };
-    constexpr auto r1 = T{0} | fn::transform(fn);
-    static_assert(r1.value() == 1);
-    constexpr auto r2 = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
-    static_assert(r2.value() == 2);
-    constexpr auto r4 = T{} | fn::transform(fn);
-    static_assert(not r4.has_value());
-  }
-
-  WHEN("different value type")
-  {
-    constexpr auto fn1 = [](int i) constexpr noexcept -> bool {
-      if (i == 1)
-        return true;
-      return false;
-    };
-    constexpr auto r1 = T{1} | fn::transform(fn1);
-    static_assert(std::is_same_v<decltype(r1), fn::optional<bool> const>);
-    static_assert(r1.value() == true);
-    constexpr auto r2 = T{0} | fn::transform(fn1);
-    static_assert(r2.value() == false);
-    constexpr auto r3 = T{2} | fn::transform(fn1);
-    static_assert(r3.value() == false);
-    constexpr auto r4 = T{} | fn::transform(fn1);
-    static_assert(not r4.has_value());
-  }
-
-  SUCCEED();
-}
-
-TEST_CASE("constexpr transform optional with sum", "[transform][constexpr][optional][sum]")
-{
-  using T = fn::optional<fn::sum_for<Xint, int>>;
-
-  WHEN("same value type")
-  {
-    constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> fn::sum_for<Xint, int> {
-                                       if (i < 3)
-                                         return {i + 1};
-                                       return i;
-                                     },
-                                     [](Xint v) constexpr noexcept -> fn::sum_for<Xint, int> { return v.value; }};
-    constexpr auto r1 = T{0} | fn::transform(fn);
-    static_assert(std::is_same_v<decltype(r1), fn::optional<fn::sum_for<Xint, int>> const>);
-    static_assert(r1.value() == fn::sum{1});
-    constexpr auto r2 = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
-    static_assert(r2.value() == fn::sum{3});
-    constexpr auto r3 = T{Xint{5}} | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
-    static_assert(r3.value() == fn::sum{5});
-    constexpr auto r4 = T{} | fn::transform(fn);
-    static_assert(not r4.has_value());
-  }
-
-  WHEN("different value type")
-  {
-    constexpr auto fn1 = fn::overload{[](int i) constexpr noexcept -> bool { return i == 1; },
-                                      [](Xint v) constexpr noexcept -> int { return v.value; }};
-    constexpr auto r1 = T{1} | fn::transform(fn1);
-    static_assert(std::is_same_v<decltype(r1), fn::optional<fn::sum<bool, int>> const>);
-    static_assert(r1.value() == fn::sum{true});
-    constexpr auto r2 = T{0} | fn::transform(fn1);
-    static_assert(r2.value() == fn::sum{false});
-    constexpr auto r3 = T{2} | fn::transform(fn1);
-    static_assert(r3.value() == fn::sum{false});
-    constexpr auto r4 = T{Xint{5}} | fn::transform(fn1);
-    static_assert(r4.value() == fn::sum{5});
-    constexpr auto r5 = T{} | fn::transform(fn1);
-    static_assert(not r5.has_value());
-  }
-
-  SUCCEED();
-}
-
-TEST_CASE("constexpr transform choice", "[transform][constexpr][choice]")
-{
-  using T = fn::choice<double, int>;
-
-  WHEN("same value type")
-  {
-    constexpr auto fn = [](int i) constexpr noexcept -> int {
-      if (i < 1)
-        return i + 1;
-      return i;
-    };
-    constexpr auto r1 = T{0} | fn::transform(fn);
-    static_assert(r1.transform([](int i) -> int { return i; }) == fn::choice{1});
-    constexpr auto r2 = T{0.5} | fn::transform(fn);
-    static_assert(r2.transform([](int i) -> int { return i; }) == fn::choice{1});
-    constexpr auto r3 = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
-    static_assert(r2.transform([](int i) -> int { return i; }) == fn::choice{1});
-  }
-
-  WHEN("different value type")
-  {
-    constexpr auto fn1 = [](int i) constexpr noexcept -> bool { return (i == 1); };
-    constexpr auto r1 = T{1} | fn::transform(fn1);
-    static_assert(std::is_same_v<decltype(r1), fn::choice<bool> const>);
-    static_assert(r1.transform([](bool i) -> bool { return i; }) == fn::choice{true});
-    constexpr auto r2 = T{0} | fn::transform(fn1);
-    static_assert(r2.transform([](bool i) -> bool { return i; }) == fn::choice{false});
-    constexpr auto r3 = T{2} | fn::transform(fn1);
-    static_assert(r3.transform([](bool i) -> bool { return i; }) == fn::choice{false});
-  }
-
-  SUCCEED();
-}
-
-TEST_CASE("transform noexcept", "[transform][noexcept]")
-{
-  using O = fn::optional<int>;
-  static_assert(noexcept(std::declval<O &>() | fn::transform([](int i) noexcept { return i + 1; })));
-  static_assert(not noexcept(std::declval<O &>() | fn::transform([](int i) { return i + 1; })));
-
-  // ... and the untouched error's relocation, as and_then does
-  using E = fn::expected<int, std::string>;
-  static_assert(not noexcept(std::declval<E &>() | fn::transform([](int i) noexcept { return i + 1; })));
-  static_assert(
-      noexcept(std::declval<fn::expected<int, int> &>() | fn::transform([](int i) noexcept { return i + 1; })));
-  SUCCEED();
-}
+// A sum value dispatches through sum::transform, which requires the callback to cover ALL alternatives.
+static_assert(invocable_transform<decltype(fn_generic<int>), expected<sum_for<Value, int>, Error>>);
+static_assert(not invocable_transform<decltype(fn_int<int>), expected<sum_for<Value, int>, Error>>); // int alone is not exhaustive
+static_assert(invocable_transform<decltype(fn_generic<int>), optional<sum_for<Value, int>>>);
+static_assert(not invocable_transform<decltype(fn_int<int>), optional<sum_for<Value, int>>>);
+static_assert(not invocable_transform<decltype(fn_generic<void>), expected<sum_for<Value, int>, Error>>); // a void result has no place in a sum
+static_assert(not invocable_transform<decltype(fn_generic<void>), optional<sum_for<Value, int>>>);
+// clang-format on
+} // namespace fn

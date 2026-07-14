@@ -4,9 +4,8 @@ project(tests)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# tests_util: shared test helpers. Links include_pfn so static_check.hpp's fn
-# includes resolve at cxx_std_20 (include_pfn exposes include/, containing fn/).
-# Pls keep the filenames sorted
+### tests/util
+
 set(TESTS_UTIL_HEADERS
     util/helper_types.hpp
     util/static_check.hpp
@@ -19,7 +18,6 @@ target_sources(tests_util INTERFACE
     TYPE HEADERS
     FILES ${TESTS_UTIL_HEADERS})
 target_include_directories(tests_util INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(tests_util INTERFACE include_pfn)
 target_compile_features(tests_util INTERFACE cxx_std_20)
 
 # Generate sentinel target for each individual header, as a basic sanity check
@@ -149,7 +147,7 @@ foreach(mode 20 23)
         create_target_for_file(
             NAME "${target}"
             SOURCE "${source}"
-            DEPENDENCIES tests_util Catch2::Catch2WithMain
+            DEPENDENCIES include_fn tests_util Catch2::Catch2WithMain
         )
         append_compilation_options("${target}" WARNINGS OPTIMIZATION TESTS)
         add_dependencies("cxx${mode}" "${target}")

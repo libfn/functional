@@ -1097,7 +1097,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
     SECTION("non-trivial both")
     {
-      using T = expected<helper, helper_t<1>>;
+      using T = expected<helper, helper_t<prop::throw_value>>;
       static_assert(std::is_copy_constructible_v<T>);
       static_assert(not std::is_trivially_copy_constructible_v<T>);
       static_assert(not extension || std::is_nothrow_copy_constructible_v<T>);
@@ -1272,11 +1272,13 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
   SECTION("assignment")
   {
-    using M = helper_t<2>;  // nothrow move constructible
-    using E = helper_t<3>;  // may throw on move and copy
-    using C = helper_t<4>;  // nothrow copy constructible
-    using G = helper_t<33>; // nothrow copy constructible; throwing move constructible
-    using H = helper_t<40>; // nothrow copy/move constructible; throwing copy/move assignable
+    using M = helper_t<prop::throw_copy | prop::throw_value>;                    // nothrow move constructible
+    using E = helper_t<prop::throw_copy | prop::throw_move | prop::throw_value>; // may throw on move and copy
+    using C = helper_t<prop::throw_move | prop::throw_value>;                    // nothrow copy constructible
+    using G
+        = helper_t<prop::throw_move | prop::runtime_move>; // nothrow copy constructible; throwing move constructible
+    using H = helper_t<prop::throw_copy_assign
+                       | prop::throw_move_assign>; // nothrow copy/move constructible; throwing copy/move assignable
     static_assert(not std::is_nothrow_copy_constructible_v<M>);
     static_assert(std::is_nothrow_move_constructible_v<M>);
     static_assert(not std::is_nothrow_copy_constructible_v<E>);
@@ -2340,7 +2342,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
   SECTION("emplace")
   {
-    using T = expected<helper_t<8>, Error>;
+    using T = expected<helper_t<prop::regular>, Error>;
     SECTION("value to value")
     {
       {
@@ -2374,14 +2376,14 @@ TEST_CASE("expected non void", "[expected][polyfill]")
     SECTION("move-only value type")
     {
       // emplace constructs in place, so it needs neither copy nor move of the value.
-      expected<helper_move_only_t<8>, Error> a(unexpect, Error::file_not_found);
+      expected<helper_move_only_t<prop::regular>, Error> a(unexpect, Error::file_not_found);
       a.emplace(7);
       CHECK(a.value().v == 7);
     }
 
     SECTION("immovable value type")
     {
-      expected<helper_immovable_t<8>, Error> a(unexpect, Error::unknown);
+      expected<helper_immovable_t<prop::regular>, Error> a(unexpect, Error::unknown);
       a.emplace(6, 7);
       CHECK(a.value().v == 6 * 7);
     }
@@ -2697,7 +2699,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
     SECTION("swap error/value")
     {
-      using T = expected<helper, helper_t<1>>;
+      using T = expected<helper, helper_t<prop::throw_value>>;
       T a(unexpect, 19);
       T b(27);
       swap(a, b);
@@ -2709,7 +2711,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
     {
       SECTION("nothrow")
       {
-        using T = expected<helper, helper_t<1>>;
+        using T = expected<helper, helper_t<prop::throw_value>>;
         T a(17);
         T b(unexpect, 29);
         swap(a, b);
@@ -2717,11 +2719,11 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         CHECK(b.value().v == 17 * from_rval);
       }
 
-      static_assert(not std::is_nothrow_move_constructible_v<helper_t<33>>);
-      static_assert(std::is_nothrow_move_constructible_v<helper_t<30>>);
+      static_assert(not std::is_nothrow_move_constructible_v<helper_t<prop::throw_move | prop::runtime_move>>);
+      static_assert(std::is_nothrow_move_constructible_v<helper_t<prop::runtime_move>>);
       SECTION("nothrow error")
       {
-        using T = expected<helper_t<33>, helper_t<30>>;
+        using T = expected<helper_t<prop::throw_move | prop::runtime_move>, helper_t<prop::runtime_move>>;
         SECTION("happy path")
         {
           T a(13);
@@ -2747,7 +2749,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
       SECTION("nothrow value")
       {
-        using T = expected<helper_t<30>, helper_t<33>>;
+        using T = expected<helper_t<prop::runtime_move>, helper_t<prop::throw_move | prop::runtime_move>>;
         SECTION("happy path")
         {
           T a(7);
@@ -3000,7 +3002,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
       SECTION("noexcept extension")
       {
         {
-          using T = expected<helper_t<2>, Error>;
+          using T = expected<helper_t<prop::throw_copy | prop::throw_value>, Error>;
           static_assert(not std::is_nothrow_copy_constructible_v<T::value_type>);
           static_assert(std::is_nothrow_move_constructible_v<T::value_type>);
           static_assert(not std::is_nothrow_convertible_v<int, T::value_type>);
@@ -3013,7 +3015,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         }
 
         {
-          using T = expected<helper_t<4>, Error>;
+          using T = expected<helper_t<prop::throw_move | prop::throw_value>, Error>;
           static_assert(std::is_nothrow_copy_constructible_v<T::value_type>);
           static_assert(not std::is_nothrow_move_constructible_v<T::value_type>);
           static_assert(not std::is_nothrow_convertible_v<int, T::value_type>);
@@ -3101,7 +3103,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
       SECTION("noexcept extension")
       {
         {
-          using T = expected<int, helper_t<2>>;
+          using T = expected<int, helper_t<prop::throw_copy | prop::throw_value>>;
           static_assert(not std::is_nothrow_copy_constructible_v<T::error_type>);
           static_assert(std::is_nothrow_move_constructible_v<T::error_type>);
           static_assert(not std::is_nothrow_convertible_v<int, T::error_type>);
@@ -3114,7 +3116,7 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         }
 
         {
-          using T = expected<int, helper_t<4>>;
+          using T = expected<int, helper_t<prop::throw_move | prop::throw_value>>;
           static_assert(std::is_nothrow_copy_constructible_v<T::error_type>);
           static_assert(not std::is_nothrow_move_constructible_v<T::error_type>);
           static_assert(not std::is_nothrow_convertible_v<int, T::error_type>);
@@ -4194,11 +4196,13 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
   SECTION("assignment")
   {
-    using M = helper_t<2>;  // nothrow move constructible
-    using E = helper_t<3>;  // may throw on move and copy
-    using C = helper_t<4>;  // nothrow copy constructible
-    using G = helper_t<33>; // nothrow copy constructible; throwing move constructible
-    using H = helper_t<40>; // nothrow copy/move constructible; throwing copy/move assignable
+    using M = helper_t<prop::throw_copy | prop::throw_value>;                    // nothrow move constructible
+    using E = helper_t<prop::throw_copy | prop::throw_move | prop::throw_value>; // may throw on move and copy
+    using C = helper_t<prop::throw_move | prop::throw_value>;                    // nothrow copy constructible
+    using G
+        = helper_t<prop::throw_move | prop::runtime_move>; // nothrow copy constructible; throwing move constructible
+    using H = helper_t<prop::throw_copy_assign
+                       | prop::throw_move_assign>; // nothrow copy/move constructible; throwing copy/move assignable
     static_assert(not std::is_nothrow_copy_constructible_v<M>);
     static_assert(std::is_nothrow_move_constructible_v<M>);
     static_assert(not std::is_nothrow_copy_constructible_v<E>);
@@ -5045,7 +5049,7 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
     SECTION("swap error/value")
     {
-      using T = expected<void, helper_t<1>>;
+      using T = expected<void, helper_t<prop::throw_value>>;
       T a(unexpect, 19);
       T b;
       swap(a, b);
@@ -5061,7 +5065,7 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
     {
       SECTION("nothrow")
       {
-        using T = expected<void, helper_t<1>>;
+        using T = expected<void, helper_t<prop::throw_value>>;
         T a;
         T b(unexpect, 29);
         swap(a, b);
@@ -5073,12 +5077,12 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         CHECK(b.has_value());
       }
 
-      static_assert(not std::is_nothrow_move_constructible_v<helper_t<33>>);
-      static_assert(std::is_nothrow_move_constructible_v<helper_t<30>>);
+      static_assert(not std::is_nothrow_move_constructible_v<helper_t<prop::throw_move | prop::runtime_move>>);
+      static_assert(std::is_nothrow_move_constructible_v<helper_t<prop::runtime_move>>);
 
       SECTION("throw error")
       {
-        using T = expected<void, helper_t<33>>;
+        using T = expected<void, helper_t<prop::throw_move | prop::runtime_move>>;
         SECTION("happy path")
         {
           T a;
@@ -5313,7 +5317,7 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
       SECTION("noexcept extension")
       {
         {
-          using T = expected<void, helper_t<2>>;
+          using T = expected<void, helper_t<prop::throw_copy | prop::throw_value>>;
           static_assert(not std::is_nothrow_copy_constructible_v<T::error_type>);
           static_assert(std::is_nothrow_move_constructible_v<T::error_type>);
           static_assert(not std::is_nothrow_convertible_v<int, T::error_type>);
@@ -5326,7 +5330,7 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
         }
 
         {
-          using T = expected<void, helper_t<4>>;
+          using T = expected<void, helper_t<prop::throw_move | prop::throw_value>>;
           static_assert(std::is_nothrow_copy_constructible_v<T::error_type>);
           static_assert(not std::is_nothrow_move_constructible_v<T::error_type>);
           static_assert(not std::is_nothrow_convertible_v<int, T::error_type>);

@@ -22,6 +22,15 @@ struct Error {
 };
 struct DerivedError : Error {};
 struct IncompatibleError {};
+
+struct Value final {
+  int v;
+
+  constexpr bool ok() const noexcept { return v < 2; }
+  constexpr bool operator==(Value const &) const = default;
+  Error error() const { return {"Got " + std::to_string(v)}; }
+  Error error_() { return {"Got " + std::to_string(v)}; }
+};
 } // namespace
 
 TEST_CASE("filter", "[filter][expected][expected_value]")
@@ -63,11 +72,11 @@ TEST_CASE("filter", "[filter][expected][expected_value]")
   static_assert(e_is::not_invocable_with_any([]() -> Error { throw 0; }));                                // bad arity
   static_assert(e_is::not_invocable_with_any([](int, int) -> Error { throw 0; }));                        // bad arity
 
-  WHEN("operand is lvalue")
+  SECTION("lvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
-      WHEN("predicate returns true")
+      SECTION("predicate true")
       {
         operand_t a{std::in_place, 42};
         using T = decltype(a | filter(truePred, onError));
@@ -76,7 +85,7 @@ TEST_CASE("filter", "[filter][expected][expected_value]")
         REQUIRE((a | filter(truePred, onError)).value() == 42);
       }
 
-      WHEN("predicate returns false")
+      SECTION("predicate false")
       {
         operand_t a{std::in_place, 42};
         using T = decltype(a | filter(falsePred, onError));
@@ -86,7 +95,7 @@ TEST_CASE("filter", "[filter][expected][expected_value]")
       }
     }
 
-    WHEN("operand is error")
+    SECTION("error")
     {
       operand_t a{::fn::unexpect, Error{"Not good"}};
       using T = decltype(a | filter(truePred, wrong));
@@ -100,11 +109,11 @@ TEST_CASE("filter", "[filter][expected][expected_value]")
     }
   }
 
-  WHEN("operand is rvalue")
+  SECTION("rvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
-      WHEN("predicate returns true")
+      SECTION("predicate true")
       {
         using T = decltype(operand_t{std::in_place, 42} | filter(truePred, onError));
         static_assert(std::is_same_v<T, operand_t>);
@@ -112,7 +121,7 @@ TEST_CASE("filter", "[filter][expected][expected_value]")
         REQUIRE((operand_t{std::in_place, 42} | filter(truePred, onError)).value() == 42);
       }
 
-      WHEN("predicate returns false")
+      SECTION("predicate false")
       {
         using T = decltype(operand_t{std::in_place, 42} | filter(falsePred, onError));
         static_assert(std::is_same_v<T, operand_t>);
@@ -121,7 +130,7 @@ TEST_CASE("filter", "[filter][expected][expected_value]")
       }
     }
 
-    WHEN("operand is error")
+    SECTION("error")
     {
       using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | filter(truePred, wrong));
       static_assert(std::is_same_v<T, operand_t>);
@@ -133,18 +142,43 @@ TEST_CASE("filter", "[filter][expected][expected_value]")
               == "Not good");
     }
   }
+
+  SECTION("constexpr")
+  {
+    enum class Error { ThresholdExceeded, SomethingElse };
+    using T = fn::expected<int, Error>;
+
+    constexpr auto fn = [](int i) constexpr noexcept -> bool { return i < 3; };
+    constexpr auto error = [](int) -> Error { return Error::ThresholdExceeded; };
+    constexpr auto r1 = T{0} | fn::filter(fn, error);
+    static_assert(r1.value() == 0);
+    constexpr auto r2 = T{3} | fn::filter(fn, error);
+    static_assert(r2.error() == Error::ThresholdExceeded);
+
+    SUCCEED();
+
+    SECTION("sum")
+    {
+      using T = fn::expected<fn::sum_for<Value, int>, Error>;
+
+      constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> bool { return i < 3; },
+                                       [](Value const &v) constexpr noexcept -> bool { return v.v >= 5; }};
+      constexpr auto error = [](auto &&) -> Error { return Error::ThresholdExceeded; };
+      constexpr auto r1 = T{0} | fn::filter(fn, error);
+      static_assert(r1.value() == fn::sum{0});
+      constexpr auto r2 = T{3} | fn::filter(fn, error);
+      static_assert(r2.error() == Error::ThresholdExceeded);
+      constexpr auto r3 = T{Value{0}} | fn::filter(fn, error);
+      static_assert(r3.error() == Error::ThresholdExceeded);
+      constexpr auto r4 = T{Value{5}} | fn::filter(fn, error);
+      static_assert(r4.value() == fn::sum{Value{5}});
+      constexpr auto r5 = T{3} | fn::filter(fn, error);
+      static_assert(r5.error() == Error::ThresholdExceeded);
+
+      SUCCEED();
+    }
+  }
 }
-
-namespace {
-struct Value final {
-  int v;
-
-  constexpr bool ok() const noexcept { return v < 2; }
-  constexpr bool operator==(Value const &) const = default;
-  Error error() const { return {"Got " + std::to_string(v)}; }
-  Error error_() { return {"Got " + std::to_string(v)}; }
-};
-} // namespace
 
 TEST_CASE("filter member function", "[filter][expected][expected_value][member_functions][pack]")
 {
@@ -182,11 +216,11 @@ TEST_CASE("filter member function", "[filter][expected][expected_value][member_f
   static_assert(e_is::not_invocable_with_any([]() -> Error { throw 0; }));                                  // bad arity
   static_assert(e_is::not_invocable_with_any([](Value, int) -> Error { throw 0; }));                        // bad arity
 
-  WHEN("operand is lvalue")
+  SECTION("lvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
-      WHEN("predicate returns true")
+      SECTION("predicate true")
       {
         operand_t a{std::in_place, Value{1}};
         using T = decltype(a | filter(predicate, onError));
@@ -196,7 +230,7 @@ TEST_CASE("filter member function", "[filter][expected][expected_value][member_f
         REQUIRE((a | filter(predicate, &Value::error_)).value().v == 1);
       }
 
-      WHEN("predicate returns false")
+      SECTION("predicate false")
       {
         operand_t a{std::in_place, Value{42}};
         using T = decltype(a | filter(predicate, onError));
@@ -207,7 +241,7 @@ TEST_CASE("filter member function", "[filter][expected][expected_value][member_f
       }
     }
 
-    WHEN("operand is pack")
+    SECTION("pack")
     {
       using operand_t = fn::expected<fn::pack<int, double>, Error>;
       constexpr operand_t a{std::in_place, fn::pack{84, 0.5}};
@@ -216,11 +250,11 @@ TEST_CASE("filter member function", "[filter][expected][expected_value][member_f
       using T = decltype(a | filter(predPack, errPack));
       static_assert(std::is_same_v<T, operand_t>);
 
-      WHEN("operand is value")
+      SECTION("value")
       {
         REQUIRE((a | filter(predPack, errPack)).has_value());
 
-        WHEN("fail")
+        SECTION("fail")
         {
           constexpr auto fnFail = [](int, double) constexpr -> bool { return false; };
           using T = decltype(a | filter(fnFail, errPack));
@@ -230,13 +264,13 @@ TEST_CASE("filter member function", "[filter][expected][expected_value][member_f
         }
       }
 
-      WHEN("operand is error")
+      SECTION("error")
       {
         REQUIRE((operand_t{::fn::unexpect, Error{"Not good"}} | filter(predPack, errPack)).error().what == "Not good");
       }
     }
 
-    WHEN("operand is error")
+    SECTION("error")
     {
       operand_t a{::fn::unexpect, Error{"Not good"}};
       using T = decltype(a | filter(predicate, wrong));
@@ -250,11 +284,11 @@ TEST_CASE("filter member function", "[filter][expected][expected_value][member_f
     }
   }
 
-  WHEN("operand is rvalue")
+  SECTION("rvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
-      WHEN("predicate returns true")
+      SECTION("predicate true")
       {
         using T = decltype(operand_t{std::in_place, Value{1}} | filter(predicate, onError));
         static_assert(std::is_same_v<T, operand_t>);
@@ -263,7 +297,7 @@ TEST_CASE("filter member function", "[filter][expected][expected_value][member_f
         REQUIRE((operand_t{std::in_place, Value{1}} | filter(predicate, &Value::error_)).value().v == 1);
       }
 
-      WHEN("predicate returns false")
+      SECTION("predicate false")
       {
         using T = decltype(operand_t{std::in_place, Value{42}} | filter(predicate, onError));
         static_assert(std::is_same_v<T, operand_t>);
@@ -273,7 +307,7 @@ TEST_CASE("filter member function", "[filter][expected][expected_value][member_f
       }
     }
 
-    WHEN("operand is error")
+    SECTION("error")
     {
       using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | filter(predicate, wrong));
       static_assert(std::is_same_v<T, operand_t>);
@@ -310,11 +344,11 @@ TEST_CASE("filter", "[filter][expected][expected_void]")
   static_assert(e_is::not_invocable_with_any([](int) -> Error { throw 0; }));      // bad arity
   static_assert(e_is::not_invocable_with_any([](int, int) -> Error { throw 0; })); // bad arity
 
-  WHEN("operand is lvalue")
+  SECTION("lvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
-      WHEN("predicate returns true")
+      SECTION("predicate true")
       {
         operand_t a{std::in_place};
         using T = decltype(a | filter(truePred, onError));
@@ -323,7 +357,7 @@ TEST_CASE("filter", "[filter][expected][expected_void]")
         REQUIRE((a | filter(truePred, onError)).has_value());
       }
 
-      WHEN("predicate returns false")
+      SECTION("predicate false")
       {
         operand_t a{std::in_place};
         using T = decltype(a | filter(falsePred, onError));
@@ -333,7 +367,7 @@ TEST_CASE("filter", "[filter][expected][expected_void]")
       }
     }
 
-    WHEN("operand is error")
+    SECTION("error")
     {
       operand_t a{::fn::unexpect, Error{"Not good"}};
       using T = decltype(a | filter(truePred, wrong));
@@ -347,11 +381,11 @@ TEST_CASE("filter", "[filter][expected][expected_void]")
     }
   }
 
-  WHEN("operand is rvalue")
+  SECTION("rvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
-      WHEN("predicate returns true")
+      SECTION("predicate true")
       {
         using T = decltype(operand_t{std::in_place} | filter(truePred, onError));
         static_assert(std::is_same_v<T, operand_t>);
@@ -359,7 +393,7 @@ TEST_CASE("filter", "[filter][expected][expected_void]")
         REQUIRE((operand_t{std::in_place} | filter(truePred, onError)).has_value());
       }
 
-      WHEN("predicate returns false")
+      SECTION("predicate false")
       {
         using T = decltype(operand_t{std::in_place} | filter(falsePred, onError));
         static_assert(std::is_same_v<T, operand_t>);
@@ -368,7 +402,7 @@ TEST_CASE("filter", "[filter][expected][expected_void]")
       }
     }
 
-    WHEN("operand is error")
+    SECTION("error")
     {
       using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | filter(truePred, wrong));
       static_assert(std::is_same_v<T, operand_t>);
@@ -417,11 +451,11 @@ TEST_CASE("filter", "[filter][optional]")
   static_assert(is::not_invocable_with_any([]() -> bool { throw 0; }));            // bad arity
   static_assert(is::not_invocable_with_any([](int, int) -> bool { throw 0; }));    // bad arity
 
-  WHEN("operand is lvalue")
+  SECTION("lvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
-      WHEN("predicate returns true")
+      SECTION("predicate true")
       {
         operand_t a{42};
         using T = decltype(a | filter(truePred));
@@ -430,7 +464,7 @@ TEST_CASE("filter", "[filter][optional]")
         REQUIRE((a | filter(truePred)).has_value());
       }
 
-      WHEN("predicate returns false")
+      SECTION("predicate false")
       {
         operand_t a{42};
         using T = decltype(a | filter(falsePred));
@@ -440,7 +474,7 @@ TEST_CASE("filter", "[filter][optional]")
       }
     }
 
-    WHEN("operand is nullopt")
+    SECTION("nullopt")
     {
       operand_t a{std::nullopt};
       using T = decltype(a | filter(truePred));
@@ -450,7 +484,7 @@ TEST_CASE("filter", "[filter][optional]")
     }
   }
 
-  WHEN("operand is pack")
+  SECTION("pack")
   {
     using operand_t = fn::optional<fn::pack<int, double>>;
     constexpr operand_t a{std::in_place, fn::pack{84, 0.5}};
@@ -458,11 +492,11 @@ TEST_CASE("filter", "[filter][optional]")
     using T = decltype(a | filter(predPack));
     static_assert(std::is_same_v<T, operand_t>);
 
-    WHEN("operand is value")
+    SECTION("value")
     {
       REQUIRE((a | filter(predPack)).has_value());
 
-      WHEN("fail")
+      SECTION("fail")
       {
         constexpr auto fnFail = [](int, double) constexpr -> bool { return false; };
         using T = decltype(a | filter(fnFail));
@@ -472,14 +506,14 @@ TEST_CASE("filter", "[filter][optional]")
       }
     }
 
-    WHEN("operand is nullopt") { REQUIRE(not(operand_t{std::nullopt} | filter(predPack)).has_value()); }
+    SECTION("nullopt") { REQUIRE(not(operand_t{std::nullopt} | filter(predPack)).has_value()); }
   }
 
-  WHEN("operand is rvalue")
+  SECTION("rvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
-      WHEN("predicate returns true")
+      SECTION("predicate true")
       {
         using T = decltype(operand_t{42} | filter(truePred));
         static_assert(std::is_same_v<T, operand_t>);
@@ -487,7 +521,7 @@ TEST_CASE("filter", "[filter][optional]")
         REQUIRE((operand_t{42} | filter(truePred)).has_value());
       }
 
-      WHEN("predicate returns false")
+      SECTION("predicate false")
       {
         using T = decltype(operand_t{42} | filter(falsePred));
         static_assert(std::is_same_v<T, operand_t>);
@@ -496,7 +530,7 @@ TEST_CASE("filter", "[filter][optional]")
       }
     }
 
-    WHEN("operand is nullopt")
+    SECTION("nullopt")
     {
       using T = decltype(operand_t{std::nullopt} | filter(truePred));
       static_assert(std::is_same_v<T, operand_t>);
@@ -504,6 +538,39 @@ TEST_CASE("filter", "[filter][optional]")
       REQUIRE(not(operand_t{std::nullopt} //
                   | filter(truePred))
                      .has_value());
+    }
+  }
+
+  SECTION("constexpr")
+  {
+    using T = fn::optional<int>;
+
+    constexpr auto fn = [](int i) constexpr noexcept -> bool { return i < 3; };
+    constexpr auto r1 = T{0} | fn::filter(fn);
+    static_assert(r1.value() == 0);
+    constexpr auto r2 = T{3} | fn::filter(fn);
+    static_assert(not r2.has_value());
+
+    SUCCEED();
+
+    SECTION("sum")
+    {
+      using T = fn::optional<fn::sum_for<Value, int>>;
+
+      constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> bool { return i < 3; },
+                                       [](Value const &v) constexpr noexcept -> bool { return v.v >= 5; }};
+      constexpr auto r1 = T{0} | fn::filter(fn);
+      static_assert(r1.value() == fn::sum{0});
+      constexpr auto r2 = T{3} | fn::filter(fn);
+      static_assert(not r2.has_value());
+      constexpr auto r3 = T{Value{0}} | fn::filter(fn);
+      static_assert(not r3.has_value());
+      constexpr auto r4 = T{Value{5}} | fn::filter(fn);
+      static_assert(r4.value() == fn::sum{Value{5}});
+      constexpr auto r5 = T{3} | fn::filter(fn);
+      static_assert(not r5.has_value());
+
+      SUCCEED();
     }
   }
 }
@@ -527,11 +594,11 @@ TEST_CASE("filter member function", "[filter][optional]")
   static_assert(is::not_invocable_with_any([]() -> bool { throw 0; }));            // bad arity
   static_assert(is::not_invocable_with_any([](Value, int) -> bool { throw 0; }));  // bad arity
 
-  WHEN("operand is lvalue")
+  SECTION("lvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
-      WHEN("predicate returns true")
+      SECTION("predicate true")
       {
         operand_t a{Value{1}};
         using T = decltype(a | filter(predicate));
@@ -539,7 +606,7 @@ TEST_CASE("filter member function", "[filter][optional]")
 
         REQUIRE((a | filter(predicate)).value().v == 1);
       }
-      WHEN("predicate returns false")
+      SECTION("predicate false")
       {
         operand_t a{Value{42}};
         using T = decltype(a | filter(predicate));
@@ -548,7 +615,7 @@ TEST_CASE("filter member function", "[filter][optional]")
         REQUIRE(not(a | filter(predicate)).has_value());
       }
     }
-    WHEN("operand is nullopt")
+    SECTION("nullopt")
     {
       operand_t a{std::nullopt};
       using T = decltype(a | filter(predicate));
@@ -558,11 +625,11 @@ TEST_CASE("filter member function", "[filter][optional]")
     }
   }
 
-  WHEN("operand is rvalue")
+  SECTION("rvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
-      WHEN("predicate returns true")
+      SECTION("predicate true")
       {
         using T = decltype(operand_t{Value{1}} | filter(predicate));
         static_assert(std::is_same_v<T, operand_t>);
@@ -570,7 +637,7 @@ TEST_CASE("filter member function", "[filter][optional]")
         REQUIRE((operand_t{Value{1}} | filter(predicate)).value().v == 1);
       }
 
-      WHEN("predicate returns false")
+      SECTION("predicate false")
       {
         using T = decltype(operand_t{Value{42}} | filter(predicate));
         static_assert(std::is_same_v<T, operand_t>);
@@ -579,7 +646,7 @@ TEST_CASE("filter member function", "[filter][optional]")
       }
     }
 
-    WHEN("operand is nullopt")
+    SECTION("nullopt")
     {
       using T = decltype(operand_t{std::nullopt} | filter(predicate));
       static_assert(std::is_same_v<T, operand_t>);
@@ -591,89 +658,21 @@ TEST_CASE("filter member function", "[filter][optional]")
   }
 }
 
-TEST_CASE("constexpr filter expected", "[filter][constexpr][expected]")
-{
-  enum class Error { ThresholdExceeded, SomethingElse };
-  using T = fn::expected<int, Error>;
-
-  constexpr auto fn = [](int i) constexpr noexcept -> bool { return i < 3; };
-  constexpr auto error = [](int) -> Error { return Error::ThresholdExceeded; };
-  constexpr auto r1 = T{0} | fn::filter(fn, error);
-  static_assert(r1.value() == 0);
-  constexpr auto r2 = T{3} | fn::filter(fn, error);
-  static_assert(r2.error() == Error::ThresholdExceeded);
-
-  SUCCEED();
-}
-
-TEST_CASE("constexpr filter expected with sum", "[filter][constexpr][expected][sum]")
-{
-  enum class Error { ThresholdExceeded, SomethingElse };
-  using T = fn::expected<fn::sum_for<Value, int>, Error>;
-
-  constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> bool { return i < 3; },
-                                   [](Value const &v) constexpr noexcept -> bool { return v.v >= 5; }};
-  constexpr auto error = [](auto &&) -> Error { return Error::ThresholdExceeded; };
-  constexpr auto r1 = T{0} | fn::filter(fn, error);
-  static_assert(r1.value() == fn::sum{0});
-  constexpr auto r2 = T{3} | fn::filter(fn, error);
-  static_assert(r2.error() == Error::ThresholdExceeded);
-  constexpr auto r3 = T{Value{0}} | fn::filter(fn, error);
-  static_assert(r3.error() == Error::ThresholdExceeded);
-  constexpr auto r4 = T{Value{5}} | fn::filter(fn, error);
-  static_assert(r4.value() == fn::sum{Value{5}});
-  constexpr auto r5 = T{3} | fn::filter(fn, error);
-  static_assert(r5.error() == Error::ThresholdExceeded);
-
-  SUCCEED();
-}
-
-TEST_CASE("constexpr filter optional", "[filter][constexpr][optional]")
-{
-  using T = fn::optional<int>;
-
-  constexpr auto fn = [](int i) constexpr noexcept -> bool { return i < 3; };
-  constexpr auto r1 = T{0} | fn::filter(fn);
-  static_assert(r1.value() == 0);
-  constexpr auto r2 = T{3} | fn::filter(fn);
-  static_assert(not r2.has_value());
-
-  SUCCEED();
-}
-
-TEST_CASE("constexpr filter optional with sum", "[filter][constexpr][optional][sum]")
-{
-  using T = fn::optional<fn::sum_for<Value, int>>;
-
-  constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> bool { return i < 3; },
-                                   [](Value const &v) constexpr noexcept -> bool { return v.v >= 5; }};
-  constexpr auto r1 = T{0} | fn::filter(fn);
-  static_assert(r1.value() == fn::sum{0});
-  constexpr auto r2 = T{3} | fn::filter(fn);
-  static_assert(not r2.has_value());
-  constexpr auto r3 = T{Value{0}} | fn::filter(fn);
-  static_assert(not r3.has_value());
-  constexpr auto r4 = T{Value{5}} | fn::filter(fn);
-  static_assert(r4.value() == fn::sum{Value{5}});
-  constexpr auto r5 = T{3} | fn::filter(fn);
-  static_assert(not r5.has_value());
-
-  SUCCEED();
-}
-
 TEST_CASE("filter noexcept", "[filter][noexcept]")
 {
-  // filter invokes the predicate, may invoke the error handler, and constructs the result
-  using E = fn::expected<int, int>;
-  using O = fn::optional<int>;
+  using namespace fn;
+
+  constexpr auto predThrows = [](int) noexcept(false) -> bool { return true; };
+  constexpr auto onErrThrows = [](int) noexcept(false) -> Error { return {}; };
+  constexpr auto predThrows0 = []() noexcept(false) -> bool { return true; };
+  constexpr auto onErrThrows0 = []() noexcept(false) -> Error { return {}; };
+
+  // filter's apply is the implementation, and it has three ways to throw - the predicate, the
+  // on-error callback, and constructing the result - each of which it now weighs.
+  static_assert(not noexcept(filter_t::apply{}(std::declval<fn::expected<int, Error> &>(), predThrows, onErrThrows)));
   static_assert(
-      noexcept(std::declval<E &>() | fn::filter([](int) noexcept { return true; }, [](int) noexcept { return 0; })));
-  static_assert(
-      not noexcept(std::declval<E &>() | fn::filter([](int) { return true; }, [](int) noexcept { return 0; })));
-  static_assert(
-      not noexcept(std::declval<E &>() | fn::filter([](int) noexcept { return true; }, [](int) { return 0; })));
-  static_assert(noexcept(std::declval<O &>() | fn::filter([](int) noexcept { return true; })));
-  static_assert(not noexcept(std::declval<O &>() | fn::filter([](int) { return true; })));
+      not noexcept(filter_t::apply{}(std::declval<fn::expected<void, Error> &>(), predThrows0, onErrThrows0)));
+
   SUCCEED();
 }
 
@@ -697,3 +696,33 @@ TEST_CASE("filter constraints", "[filter][constraints]")
   static_assert(is::not_invocable<lvalue, clvalue>(keep, on_err)); // would have to copy
   SUCCEED();
 }
+
+namespace fn {
+namespace {
+struct Error {};
+struct Value final {};
+
+constexpr auto pred_int = [](int) -> bool { throw 0; };
+constexpr auto pred_int_lvalue = [](int &) -> bool { throw 0; };
+constexpr auto pred_nullary = []() -> bool { throw 0; };
+constexpr auto pred_opaque = [](int) -> Value { throw 0; }; // not convertible to bool
+template <typename T> constexpr auto err_int = [](int) -> T { throw 0; };
+template <typename T> constexpr auto err_nullary = []() -> T { throw 0; };
+} // namespace
+
+// clang-format off
+static_assert(invocable_filter<decltype(pred_int), decltype(err_int<Error>), expected<int, Error>>);
+static_assert(not invocable_filter<decltype(pred_opaque), decltype(err_int<Error>), expected<int, Error>>);   // predicate must convert to bool
+static_assert(not invocable_filter<decltype(pred_int), decltype(err_int<Value>), expected<int, Error>>);      // no conversion to error
+static_assert(not invocable_filter<decltype(pred_nullary), decltype(err_int<Error>), expected<int, Error>>);  // bad arity
+// The predicate sees the value as const, whatever the operand's category.
+static_assert(not invocable_filter<decltype(pred_int_lvalue), decltype(err_int<Error>), expected<int, Error> &>);
+static_assert(invocable_filter<decltype(pred_nullary), decltype(err_nullary<Error>), expected<void, Error>>);
+static_assert(not invocable_filter<decltype(pred_int), decltype(err_int<Error>), expected<void, Error>>);     // void: nullary only
+// filter over optional takes NO error callback: the Err parameter is void, and only void.
+static_assert(invocable_filter<decltype(pred_int), void, optional<int>>);
+static_assert(not invocable_filter<decltype(pred_int), decltype(err_int<Error>), optional<int>>);
+static_assert(not invocable_filter<decltype(pred_int), void, optional<Value>>);                               // wrong parameter type
+static_assert(not invocable_filter<decltype(pred_int), void, choice<int>>);                                   // no choice disjunct
+// clang-format on
+} // namespace fn

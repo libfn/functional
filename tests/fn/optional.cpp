@@ -51,7 +51,7 @@ struct EfnLvalueOnly {
 
 TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]")
 {
-  WHEN("sum_value from sum")
+  SECTION("sum_value from sum")
   {
     using T = fn::optional<fn::sum<int>>;
     T s{12};
@@ -59,14 +59,19 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     static_assert(std::is_same_v<decltype(std::as_const(s).sum_value()), T const &>);
     static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_value()), T const &&>);
     static_assert(std::is_same_v<decltype(std::move(s).sum_value()), T &&>);
-    WHEN("value")
+    // these overloads only return *this
+    static_assert(noexcept(s.sum_value()));
+    static_assert(noexcept(std::as_const(s).sum_value()));
+    static_assert(noexcept(std::move(std::as_const(s)).sum_value()));
+    static_assert(noexcept(std::move(s).sum_value()));
+    SECTION("value")
     {
       CHECK(s.sum_value().value() == fn::sum{12});
       CHECK(std::as_const(s).sum_value().value() == fn::sum{12});
       CHECK(std::move(std::as_const(s)).sum_value().value() == fn::sum{12});
       CHECK(std::move(s).sum_value().value() == fn::sum{12});
     }
-    WHEN("error")
+    SECTION("error")
     {
       T s{std::nullopt};
       CHECK(not s.sum_value().has_value());
@@ -76,9 +81,10 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     }
 
     static_assert(std::is_same_v<decltype(fn::sum_value(s)), T &>);
+    static_assert(noexcept(fn::sum_value(s))); // the free function propagates what the member says
   }
 
-  WHEN("sum_value from non-sum")
+  SECTION("sum_value from non-sum")
   {
     using T = fn::optional<int>;
     T s{12};
@@ -86,14 +92,20 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     static_assert(std::is_same_v<decltype(std::as_const(s).sum_value()), fn::optional<fn::sum<int>>>);
     static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_value()), fn::optional<fn::sum<int>>>);
     static_assert(std::is_same_v<decltype(std::move(s).sum_value()), fn::optional<fn::sum<int>>>);
-    WHEN("value")
+    // these overloads wrap the value in a sum, so they weigh that construction - which for int
+    // cannot throw
+    static_assert(noexcept(s.sum_value()));
+    static_assert(noexcept(std::as_const(s).sum_value()));
+    static_assert(noexcept(std::move(std::as_const(s)).sum_value()));
+    static_assert(noexcept(std::move(s).sum_value()));
+    SECTION("value")
     {
       CHECK(s.sum_value().value() == fn::sum{12});
       CHECK(std::as_const(s).sum_value().value() == fn::sum{12});
       CHECK(std::move(std::as_const(s)).sum_value().value() == fn::sum{12});
       CHECK(std::move(s).sum_value().value() == fn::sum{12});
     }
-    WHEN("error")
+    SECTION("error")
     {
       T s{std::nullopt};
       CHECK(not s.sum_value().has_value());
@@ -103,8 +115,23 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     }
 
     static_assert(std::is_same_v<decltype(fn::sum_value(s)), fn::optional<fn::sum<int>>>);
+    static_assert(noexcept(fn::sum_value(s))); // the free function propagates what the member says
 
-    WHEN("constexpr")
+    SECTION("throwing value")
+    {
+      // the lift weighs the value it relocates, so the spec tracks the category it relocates by
+      struct throwing_copy {
+        throwing_copy() = default;
+        throwing_copy(throwing_copy const &) noexcept(false);
+        throwing_copy(throwing_copy &&) noexcept;
+      };
+      using W = fn::optional<throwing_copy>;
+      static_assert(not noexcept(std::declval<W const &>().sum_value())); // copies
+      static_assert(noexcept(std::declval<W &&>().sum_value()));          // moves
+      SUCCEED();
+    }
+
+    SECTION("constexpr")
     {
       static_assert([] {
         fn::optional<int> const a{12};
@@ -120,36 +147,7 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     }
   }
 
-  WHEN("noexcept")
-  {
-    using T = fn::optional<int>;
-    using S = fn::optional<fn::sum<int>>;
-
-    // the sum-valued overloads only return *this
-    static_assert(noexcept(std::declval<S &>().sum_value()));
-    static_assert(noexcept(std::declval<S const &>().sum_value()));
-    static_assert(noexcept(std::declval<S &&>().sum_value()));
-    static_assert(noexcept(std::declval<S const &&>().sum_value()));
-    static_assert(noexcept(fn::sum_value(std::declval<S &>())));
-
-    // the lifting overloads wrap the value in a sum, so they weigh that construction
-    static_assert(noexcept(std::declval<T &>().sum_value()));
-    static_assert(noexcept(std::declval<T &&>().sum_value()));
-    static_assert(noexcept(fn::sum_value(std::declval<T &>())));
-
-    // ... and report it when the value's copy can throw
-    struct throwing_copy {
-      throwing_copy() = default;
-      throwing_copy(throwing_copy const &) noexcept(false);
-      throwing_copy(throwing_copy &&) noexcept;
-    };
-    using W = fn::optional<throwing_copy>;
-    static_assert(not noexcept(std::declval<W const &>().sum_value())); // copies
-    static_assert(noexcept(std::declval<W &&>().sum_value()));          // moves
-    SUCCEED();
-  }
-
-  WHEN("or_else")
+  SECTION("or_else")
   {
     fn::optional<fn::sum<int>> s{std::nullopt};
 
@@ -170,7 +168,23 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     constexpr auto fn8 = []() -> fn::optional<fn::sum_for<Xint, int, long>> { throw 0; };
     static_assert(std::is_same_v<decltype(s.or_else(fn8)), fn::optional<fn::sum_for<Xint, int, long>>>);
 
-    WHEN("error to value")
+    // noexcept (extension): true only when the callback is nothrow-invocable, returns exactly
+    // optional<sum<int>> (no widening), and *this is nothrow-constructible from itself.
+    constexpr auto nothrow_same = []() noexcept -> fn::optional<fn::sum<int>> { return {std::nullopt}; };
+    static_assert(noexcept(s.or_else(nothrow_same)));
+    static_assert(noexcept(std::move(s).or_else(nothrow_same)));
+    static_assert(not noexcept(s.or_else(fn3))); // fn3 throws
+    constexpr auto nothrow_widen = []() noexcept -> fn::optional<Xint> { return {std::nullopt}; };
+    static_assert(noexcept(s.or_else(nothrow_widen))); // nothrow but widens to sum_for<Xint, int>);
+
+    // constraints (extension): a non-invocable argument drops or_else from the overload set via
+    // SFINAE (the return-type-is-optional requirement is instead a Mandates static_assert inside).
+    constexpr auto can_or_else
+        = [](auto &&f) { return requires { std::declval<fn::optional<fn::sum<int>>>().or_else(f); }; };
+    static_assert(can_or_else(nothrow_same));
+    static_assert(not can_or_else(42));
+
+    SECTION("error to value")
     {
       constexpr auto fn = []() -> fn::optional<Xint> { return {Xint{12}}; };
       static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::optional<fn::sum_for<Xint, int>>>);
@@ -180,7 +194,7 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
       CHECK(std::move(s).or_else(fn).value() == fn::sum{Xint{12}});
     }
 
-    WHEN("error to error")
+    SECTION("error to error")
     {
       constexpr auto fn = []() -> fn::optional<Xint> { return {std::nullopt}; };
       static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::optional<fn::sum_for<Xint, int>>>);
@@ -190,7 +204,7 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
       CHECK(not std::move(s).or_else(fn).has_value());
     }
 
-    WHEN("value")
+    SECTION("value")
     {
       fn::optional<fn::sum<int>> s{fn::sum{12}};
       constexpr auto fn = []() -> fn::optional<Xint> { throw 0; };
@@ -201,7 +215,7 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
       CHECK(std::move(s).or_else(fn).value() == fn::sum{12});
     }
 
-    WHEN("noexcept")
+    SECTION("noexcept")
     {
       // the widening arm builds a sum from either side's value, and weighs both
       using T = fn::optional<fn::sum<int>>;
@@ -224,9 +238,28 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
 
 TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operator_and]")
 {
-  WHEN("and_then")
+  SECTION("and_then")
   {
-    WHEN("value")
+    using P = fn::optional<fn::pack<int, std::string_view>>;
+
+    // noexcept (extension): the spec asks fn's own nothrow-invocable trait, which asks the
+    // dispatch that will actually run - one argument per element - so a multi-argument visitor is
+    // weighed as it is called, not as std would call it on the pack itself.
+    constexpr auto nothrow_two = [](int &, std::string_view &) noexcept -> fn::optional<bool> { return {true}; };
+    static_assert(noexcept(std::declval<P &>().and_then(nothrow_two)));
+    constexpr auto nothrow_generic = [](auto &&...) noexcept -> fn::optional<bool> { return {true}; };
+    static_assert(noexcept(std::declval<P &>().and_then(nothrow_generic)));
+
+    // constraints (extension): pack-apply invocability is a constraint (optional.hpp:147);
+    // wrong arity or a non-callable SFINAE-drops, and the pack's value category is tracked
+    constexpr auto can_and_then_lval = [](auto &&f) { return requires { std::declval<P &>().and_then(f); }; };
+    constexpr auto can_and_then_rval = [](auto &&f) { return requires { std::declval<P &&>().and_then(f); }; };
+    static_assert(can_and_then_lval(nothrow_two));
+    static_assert(not can_and_then_rval(nothrow_two));                                        // lvalue-only visitor
+    static_assert(not can_and_then_lval([](int &) -> fn::optional<bool> { return {true}; })); // wrong arity
+    static_assert(not can_and_then_lval(42));
+
+    SECTION("value")
     {
       fn::optional<fn::pack<int, std::string_view>> s{
           fn::pack<int>{12}.append(std::in_place_type<std::string_view>, "bar")};
@@ -260,7 +293,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                 .value());
     }
 
-    WHEN("error")
+    SECTION("error")
     {
       fn::optional<fn::pack<int, std::string_view>> s{std::nullopt};
       CHECK(not s.and_then( //
@@ -283,7 +316,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                     .has_value());
     }
 
-    WHEN("noexcept")
+    SECTION("noexcept")
     {
       // a pack's callback is invoked through fn's own dispatch, taking one argument per element: it
       // is not directly invocable on the pack, so only fn's nothrow-invocable trait can answer
@@ -294,11 +327,36 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
           not noexcept(std::declval<T &>().and_then([](int, double) -> fn::optional<bool> { return {true}; })));
       SUCCEED();
     }
+
+    SECTION("constexpr")
+    {
+      constexpr P a{fn::pack<int>{12}.append(std::in_place_type<std::string_view>, "bar")};
+      static_assert(a.and_then([](int const &i, std::string_view const &s) -> fn::optional<bool> {
+                       return {i == 12 && s == "bar"};
+                     }).value());
+      static_assert(not P{std::nullopt}.and_then([](auto &&...) -> fn::optional<bool> { return {true}; }).has_value());
+      SUCCEED();
+    }
   }
 
-  WHEN("transform")
+  SECTION("transform")
   {
-    WHEN("value")
+    using P = fn::optional<fn::pack<int, std::string_view>>;
+
+    // noexcept and constraints mirror and_then above (optional.hpp:219-220): the non-sum
+    // _transform is constrained on pack-apply invocability -- contrast the sum case, whose
+    // callback is checked only in its deduced-return body (see "optional transform sum")
+    constexpr auto nothrow_two = [](int &, std::string_view &) noexcept -> bool { return true; };
+    static_assert(noexcept(std::declval<P &>().transform(nothrow_two)));
+    constexpr auto nothrow_generic = [](auto &&...) noexcept -> bool { return true; };
+    static_assert(noexcept(std::declval<P &>().transform(nothrow_generic)));
+
+    constexpr auto can_transform = [](auto &&f) { return requires { std::declval<P &>().transform(f); }; };
+    static_assert(can_transform(nothrow_two));
+    static_assert(not can_transform([](int &) -> bool { return true; })); // wrong arity
+    static_assert(not can_transform(42));
+
+    SECTION("value")
     {
       fn::optional<fn::pack<int, std::string_view>> s{
           fn::pack<int>{12}.append(std::in_place_type<std::string_view>, "bar")};
@@ -332,7 +390,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                 .value());
     }
 
-    WHEN("error")
+    SECTION("error")
     {
       fn::optional<fn::pack<int, std::string_view>> s{std::nullopt};
       CHECK(not s.transform([](auto...) -> bool { throw 0; }).has_value());
@@ -341,18 +399,41 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       CHECK(not std::move(s).transform([](auto...) -> bool { throw 0; }).has_value());
     }
 
-    WHEN("noexcept")
+    SECTION("noexcept")
     {
       using T = fn::optional<fn::pack<int, double>>;
       static_assert(noexcept(std::declval<T &>().transform([](int, double) noexcept -> bool { return true; })));
       static_assert(not noexcept(std::declval<T &>().transform([](int, double) -> bool { return true; })));
       SUCCEED();
     }
+
+    SECTION("constexpr")
+    {
+      constexpr P a{fn::pack<int>{12}.append(std::in_place_type<std::string_view>, "bar")};
+      static_assert(
+          a.transform([](int const &i, std::string_view const &s) -> bool { return i == 12 && s == "bar"; }).value());
+      static_assert(not P{std::nullopt}.transform([](auto &&...) -> bool { return true; }).has_value());
+      SUCCEED();
+    }
   }
 
-  WHEN("operator &")
+  SECTION("operator &")
   {
-    WHEN("value & value yield pack")
+    // noexcept: the join relocates both operands' values into the result pack, and promises only
+    // what relocating them promises - so a throwing-copy value type makes the lvalue join throwing.
+    struct throwing_copy {
+      // defined, not just declared: the instantiated join references it (-Wundefined-internal)
+      throwing_copy(throwing_copy const &) noexcept(false) {}
+    };
+    static_assert(noexcept(std::declval<fn::optional<double> &>() & std::declval<fn::optional<int> &>()));
+    static_assert(not noexcept(std::declval<fn::optional<throwing_copy> &>() & std::declval<fn::optional<int> &>()));
+
+    // constraints: both operands must be optionals
+    constexpr auto can_amp = [](auto &&rh) { return requires { std::declval<fn::optional<int> &>() & rh; }; };
+    static_assert(can_amp(fn::optional<double>{0.5}));
+    static_assert(not can_amp(42));
+
+    SECTION("value & value yield pack")
     {
       static_assert(std::same_as<decltype(std::declval<fn::optional<int>>() & std::declval<fn::optional<double>>()),
                                  fn::optional<fn::pack<int, double>>>);
@@ -372,7 +453,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                    .has_value());
     }
 
-    WHEN("value & pack yield pack")
+    SECTION("value & pack yield pack")
     {
       static_assert(std::same_as<decltype(std::declval<fn::optional<int>>()
                                           & std::declval<fn::optional<fn::pack<double, bool>>>()),
@@ -393,7 +474,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                    .has_value());
     }
 
-    WHEN("pack & value yield pack")
+    SECTION("pack & value yield pack")
     {
       static_assert(std::same_as<decltype(std::declval<fn::optional<fn::pack<double, bool>>>()
                                           & std::declval<fn::optional<int>>()),
@@ -414,7 +495,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                    .has_value());
     }
 
-    WHEN("pack & pack yield pack")
+    SECTION("pack & pack yield pack")
     {
       static_assert(std::same_as<decltype(std::declval<fn::optional<fn::pack<double, bool>>>()
                                           & std::declval<fn::optional<fn::pack<bool, int>>>()),
@@ -436,7 +517,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                    .has_value());
     }
 
-    WHEN("sum on both sides")
+    SECTION("sum on both sides")
     {
       using Lh = fn::optional<fn::sum<double, int>>;
       using Rh = fn::optional<fn::sum<bool, int>>;
@@ -455,7 +536,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       CHECK(not(Lh{fn::sum{0.5}} & Rh{std::nullopt}).has_value());
       CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
 
-      WHEN("sum of packs on left")
+      SECTION("sum of packs on left")
       {
         using Lh = fn::optional<fn::sum_for<fn::pack<double, bool>, fn::pack<double, int>>>;
         static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
@@ -475,7 +556,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       }
     }
 
-    WHEN("sum on left side only")
+    SECTION("sum on left side only")
     {
       using Lh = fn::optional<fn::sum<double, int>>;
       using Rh = fn::optional<int>;
@@ -493,7 +574,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       CHECK(not(Lh{fn::sum{0.5}} & Rh{std::nullopt}).has_value());
       CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
 
-      WHEN("sum of packs on left")
+      SECTION("sum of packs on left")
       {
         using Lh = fn::optional<fn::sum_for<fn::pack<double, bool>, fn::pack<double, int>>>;
         static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
@@ -512,7 +593,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       }
     }
 
-    WHEN("sum on right side only")
+    SECTION("sum on right side only")
     {
       using Lh = fn::optional<double>;
       using Rh = fn::optional<fn::sum<bool, int>>;
@@ -530,7 +611,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       CHECK(not(Lh{0.5} & Rh{std::nullopt}).has_value());
       CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
 
-      WHEN("pack on left")
+      SECTION("pack on left")
       {
         using Lh = fn::optional<fn::pack<double, int>>;
         static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
@@ -549,7 +630,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       }
     }
 
-    WHEN("noexcept")
+    SECTION("noexcept")
     {
       // the join relocates both operands' values into the result, so it promises only what
       // relocating them promises - the nullopt arm is a tag, and cannot throw
@@ -566,7 +647,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       static_assert(not noexcept(std::declval<Sh &>() & std::declval<Rh &>()));
       static_assert(noexcept(std::declval<Sh &&>() & std::declval<Rh &&>()));
 
-      WHEN("_join")
+      SECTION("_join")
       {
         // the join invokes its error-continuation as an lvalue, and its specification asks about
         // that call - whether the callable arrives as a temporary or an lvalue
@@ -588,13 +669,52 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
         static_assert(not _join<fn::optional>(Rh{12}, Rh{std::nullopt}, EfnLvalueOnly{}).has_value());
         static_assert(_join<fn::optional>(Rh{3}, Rh{4}, EfnLvalueOnly{}).has_value());
       }
+      SUCCEED();
+    }
+
+    SECTION("constexpr")
+    {
+      static_assert((fn::optional<double>{0.5} & fn::optional<int>{12})
+                        .transform([](double d, int i) constexpr -> bool { return d == 0.5 && i == 12; })
+                        .value());
+      static_assert(not(fn::optional<double>{std::nullopt} & fn::optional<int>{12}).has_value());
+      using Lh = fn::optional<fn::sum<double, int>>;
+      using Rh = fn::optional<fn::sum<bool, int>>;
+      static_assert((Lh{fn::sum{0.5}} & Rh{fn::sum{12}})
+                        .transform([](auto i, auto j) constexpr -> bool {
+                          return 0.5 == static_cast<double>(i) && 12 == static_cast<int>(j);
+                        })
+                        .value()
+                    == fn::sum{true});
+      SUCCEED();
     }
   }
 }
 
 TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
 {
-  WHEN("value")
+  using S = fn::optional<fn::sum_for<Xint, int>>;
+
+  // noexcept (extension): the spec asks fn's own nothrow-invocable trait, which asks the
+  // per-alternative dispatch that will actually run - so a visitor set is weighed alternative by
+  // alternative, and one throwing handler makes the whole dispatch throwing.
+  constexpr auto nothrow_lval = fn::overload{[](int &) noexcept -> fn::optional<bool> { return {true}; },
+                                             [](Xint &) noexcept -> fn::optional<bool> { return {false}; }};
+  static_assert(noexcept(std::declval<S &>().and_then(nothrow_lval)));
+  constexpr auto nothrow_generic = [](auto &&) noexcept -> fn::optional<bool> { return {true}; };
+  static_assert(noexcept(std::declval<S &>().and_then(nothrow_generic)));
+
+  // constraints (extension): exhaustive invocability over the sum's alternatives is a
+  // constraint (optional.hpp:147) -- a partial or non-invocable visitor SFINAE-drops, and the
+  // alternatives' value category is tracked
+  constexpr auto can_and_then_lval = [](auto &&f) { return requires { std::declval<S &>().and_then(f); }; };
+  constexpr auto can_and_then_rval = [](auto &&f) { return requires { std::declval<S &&>().and_then(f); }; };
+  static_assert(can_and_then_lval(nothrow_lval));
+  static_assert(not can_and_then_rval(nothrow_lval)); // no rvalue handlers
+  static_assert(not can_and_then_lval(fn::overload{[](int &) -> fn::optional<bool> { return {true}; }})); // partial
+  static_assert(not can_and_then_lval(42));
+
+  SECTION("value")
   {
     fn::optional<fn::sum_for<Xint, int>> s{12};
     CHECK(s.and_then( //
@@ -642,7 +762,7 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
             .value());
   }
 
-  WHEN("error")
+  SECTION("error")
   {
     fn::optional<fn::sum_for<Xint, int>> s{};
     CHECK(not s.and_then( //
@@ -661,7 +781,7 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
                       [](auto) -> fn::optional<bool> { throw 0; })
                   .has_value());
 
-    WHEN("immovable result type")
+    SECTION("immovable result type")
     {
       // the disengaged path must compile even though the result cannot be moved (the
       // clang<=18 miscompile workaround must not force a move)
@@ -676,7 +796,7 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
     }
   }
 
-  WHEN("constexpr")
+  SECTION("constexpr")
   {
     constexpr auto fn = fn::overload{[](int &) -> fn::optional<bool> { throw 0; },
                                      [](int const &i) -> fn::optional<bool> { return i == 42; },
@@ -691,7 +811,7 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
     static_assert(a.and_then(fn).value());
   }
 
-  WHEN("noexcept")
+  SECTION("noexcept")
   {
     // the callback is invoked through fn's own dispatch, so only fn's nothrow-invocable trait can
     // answer for it - and it is nothrow only if EVERY alternative's call is
@@ -707,7 +827,19 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
 
 TEST_CASE("optional transform sum", "[optional][sum][transform]")
 {
-  WHEN("value")
+  using S = fn::optional<fn::sum_for<Xint, int>>;
+
+  // noexcept: the sum-case _transform weighs the per-alternative dispatch, as and_then does
+  constexpr auto nothrow_visitor = fn::overload{[](int const &) noexcept -> bool { return true; },
+                                                [](Xint const &) noexcept -> bool { return false; }};
+  static_assert(noexcept(std::declval<S &>().transform(nothrow_visitor)));
+  constexpr auto nothrow_generic = [](auto &&) noexcept -> bool { return true; };
+  static_assert(noexcept(std::declval<S &>().transform(nothrow_generic)));
+
+  constexpr auto can_transform = [](auto &&f) { return requires { std::declval<S &>().transform(f); }; };
+  static_assert(can_transform(nothrow_visitor));
+
+  SECTION("value")
   {
     fn::optional<fn::sum_for<Xint, int>> s{12};
     CHECK(s.transform( //
@@ -746,7 +878,7 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
           == fn::sum{true});
   }
 
-  WHEN("error")
+  SECTION("error")
   {
     fn::optional<fn::sum_for<Xint, int>> s{};
     CHECK(not s.transform( //
@@ -766,7 +898,7 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
                   .has_value());
   }
 
-  WHEN("constexpr")
+  SECTION("constexpr")
   {
     constexpr auto fn = fn::overload{[](int &) -> bool { throw 0; },
                                      [](int const &i) -> bool { return i == 42; },
@@ -781,28 +913,26 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
     static_assert(a.transform(fn).value() == fn::sum{true});
   }
 
-  WHEN("constraints")
+  SECTION("constraints")
   {
-    using T = fn::optional<fn::sum_for<Xint, int>>;
-    constexpr auto can_transform_lval = [](auto &&f) { return requires { std::declval<T &>().transform(f); }; };
-    constexpr auto can_transform_clval = [](auto &&f) { return requires { std::declval<T const &>().transform(f); }; };
+    constexpr auto can_transform_clval = [](auto &&f) { return requires { std::declval<S const &>().transform(f); }; };
 
     // a callback no alternative can take drops the candidate, rather than failing inside the body
-    static_assert(not can_transform_lval([](std::string_view) -> bool { throw 0; }));
-    static_assert(not can_transform_lval([](int &) -> bool { throw 0; })); // Xint is unhandled
+    static_assert(not can_transform([](std::string_view) -> bool { throw 0; }));
+    static_assert(not can_transform([](int &) -> bool { throw 0; })); // Xint is unhandled
 
     // a visitor need only serve the value category the call actually selects: the losing const&
     // candidate is dropped by its own constraint rather than forming its signature and poisoning
     // the call. The four-category visitors above are a spelling choice, not a requirement.
     constexpr auto lval_only = fn::overload{[](int &i) -> bool { return i == 12; }, [](Xint &) -> bool { throw 0; }};
-    static_assert(can_transform_lval(lval_only));
+    static_assert(can_transform(lval_only));
     static_assert(not can_transform_clval(lval_only));
 
-    T s{12};
+    S s{12};
     CHECK(s.transform(lval_only).value() == fn::sum{true});
   }
 
-  WHEN("noexcept")
+  SECTION("noexcept")
   {
     // the dispatch is nothrow only if every alternative's call is, and only if relocating what each
     // returns into the result sum is

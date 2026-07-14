@@ -32,6 +32,18 @@ struct NonCopyable final {
   NonCopyable &operator=(NonCopyable const &) = delete;
 };
 
+// Every operation choice performs on an alternative - copy, move, compare - can throw here, so the
+// member wrapping it must say so. Witnesses the conditional noexcept below.
+struct Throwing final {
+  int v;
+
+  constexpr operator int() const { return v; }
+  constexpr Throwing(int i) noexcept : v(i) {}
+  constexpr Throwing(Throwing const &o) noexcept(false) : v(o.v) {}
+  constexpr Throwing(Throwing &&o) noexcept(false) : v(o.v) {}
+  constexpr bool operator==(Throwing const &o) const noexcept(false) { return v == o.v; }
+};
+
 template <typename S, typename T, typename... Args>
 concept can_in_place = requires(Args... args) { S{std::in_place_type<T>, args...}; };
 
@@ -65,10 +77,10 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
   using fn::choice;
 
-  WHEN("value")
+  SECTION("value")
   {
     // _for aliases: a choice's value_type is the sum of its alternatives, but the canonical order is
-    // platform-specific (see WHEN("choice_for") below), so normalize both sides per platform.
+    // platform-specific (see SECTION("choice_for") below), so normalize both sides per platform.
     static_assert(std::same_as<fn::sum_for<NonCopyable, int>, typename fn::choice_for<NonCopyable, int>::value_type>);
     static_assert(std::same_as<fn::sum<int>, typename choice<int>::value_type>);
 
@@ -93,7 +105,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     CHECK((std::move(s).value().invoke(fn)) == 45);
   }
 
-  WHEN("choice_for")
+  SECTION("choice_for")
   {
     static_assert(std::same_as<fn::choice_for<int>, fn::choice<int>>);
     static_assert(std::same_as<fn::choice_for<int, int>, fn::choice<int>>);
@@ -135,7 +147,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     static_assert(std::same_as<fn::choice_for<double, fn::sum<>, fn::sum<bool, int>>, fn::choice<bool, double, int>>);
   }
 
-  WHEN("invocable")
+  SECTION("invocable")
   {
     using type = fn::choice_for<TestType, int>; // choice<...> order is platform-specific; choice_for normalizes
     static_assert(fn::typelist_invocable<decltype([](auto) {}), type &>);
@@ -158,20 +170,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     static_assert(not fn::typelist_invocable<decltype([](auto) {}), NonCopyable &>); // copy-constructor not available
   }
 
-  WHEN("check destructor call")
-  {
-    {
-      choice<TestType> s{std::in_place_type<TestType>};
-      static_assert(decltype(s)::has_type<TestType>);
-      static_assert(not decltype(s)::has_type<int>);
-      CHECK(s.has_value(std::in_place_type<TestType>));
-      CHECK(s.template has_value<TestType>());
-      CHECK(TestType::count == 1);
-    }
-    CHECK(TestType::count == 0);
-  }
-
-  WHEN("single parameter constructor")
+  SECTION("single parameter constructor")
   {
     constexpr choice<int> a = 12;
     static_assert(a == choice{12});
@@ -179,7 +178,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     constexpr choice<bool> b{false};
     static_assert(b == choice{false});
 
-    WHEN("CTAD")
+    SECTION("CTAD")
     {
       choice a{42};
       static_assert(std::is_same_v<decltype(a), choice<int>>);
@@ -194,7 +193,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       static_assert(c.invoke([](auto &&a) -> bool { return a.size() == 3 && a[0] == 3 && a[1] == 14 && a[2] == 15; }));
     }
 
-    WHEN("constexpr move from rvalue")
+    SECTION("constexpr move from rvalue")
     {
       using T = fn::choice<bool, helper>;
       constexpr auto fn = [](auto i) constexpr noexcept -> T { return {std::move(i)}; };
@@ -209,7 +208,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       static_assert(b.value().get_ptr<helper>()->v == 19 * from_rval);
     }
 
-    WHEN("move from rvalue")
+    SECTION("move from rvalue")
     {
       using T = fn::choice<bool, helper>;
       constexpr auto fn = [](auto i) noexcept -> T { return {std::move(i)}; };
@@ -224,7 +223,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       CHECK(b.value() == fn::sum{true});
     }
 
-    WHEN("constexpr move from const rvalue")
+    SECTION("constexpr move from const rvalue")
     {
       using T = fn::choice<bool, helper>;
       constexpr auto fn = [](auto const i) constexpr noexcept -> T { return {std::move(i)}; };
@@ -239,7 +238,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       static_assert(b.value().get_ptr<helper>()->v == 17 * from_rval_const);
     }
 
-    WHEN("move from const rvalue")
+    SECTION("move from const rvalue")
     {
       using T = fn::choice<bool, helper>;
       constexpr auto fn = [](auto const i) noexcept -> T { return {std::move(i)}; };
@@ -254,7 +253,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       CHECK(b.value() == fn::sum{true});
     }
 
-    WHEN("constexpr copy from lvalue")
+    SECTION("constexpr copy from lvalue")
     {
       using T = fn::choice<bool, helper>;
       constexpr auto fn = [](auto i) constexpr noexcept -> T { return {i}; };
@@ -269,7 +268,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       static_assert(b.value().get_ptr<helper>()->v == 17 * from_lval);
     }
 
-    WHEN("copy from lvalue")
+    SECTION("copy from lvalue")
     {
       using T = fn::choice<bool, helper>;
       constexpr auto fn = [](auto i) noexcept -> T { return {i}; };
@@ -284,7 +283,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       CHECK(b.value().get_ptr<helper>()->v == 13 * from_lval);
     }
 
-    WHEN("constexpr copy from const lvalue")
+    SECTION("constexpr copy from const lvalue")
     {
       using T = fn::choice<bool, helper>;
       constexpr auto fn = [](auto const i) constexpr noexcept -> T { return {i}; };
@@ -299,7 +298,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       static_assert(b.value().get_ptr<helper>()->v == 15 * from_lval_const);
     }
 
-    WHEN("copy from const lvalue")
+    SECTION("copy from const lvalue")
     {
       using T = fn::choice<bool, helper>;
       constexpr auto fn = [](auto const i) noexcept -> T { return {i}; };
@@ -314,7 +313,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       CHECK(b.value().get_ptr<helper>()->v == 5 * from_lval_const);
     }
 
-    WHEN("copy ctor")
+    SECTION("copy ctor")
     {
       using T = fn::choice<bool, helper>;
       auto a = T{helper{1}};
@@ -325,7 +324,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       CHECK(b.value().get_ptr<helper>()->v == 23 * from_lval_const);
     }
 
-    WHEN("move ctor")
+    SECTION("move ctor")
     {
       using T = fn::choice<bool, helper>;
       auto a = T{helper{1}};
@@ -337,17 +336,17 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     }
   }
 
-  WHEN("constructor from sum")
+  SECTION("constructor from sum")
   {
     using T = fn::choice<bool, helper>;
-    WHEN("move from rvalue")
+    SECTION("move from rvalue")
     {
       fn::sum h{helper{1}};
       h.get_ptr<helper>()->v = 17;
       T const a{std::move(h)};
       CHECK(a.value().get_ptr<helper>()->v == 17 * from_rval);
     }
-    WHEN("copy from const lvalue")
+    SECTION("copy from const lvalue")
     {
       fn::sum h{helper{1}};
       h.get_ptr<helper>()->v = 19;
@@ -356,12 +355,12 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     }
   }
 
-  WHEN("forwarding constructors (immovable)")
+  SECTION("forwarding constructors (immovable)")
   {
     choice<NonCopyable> a{std::in_place_type<NonCopyable>, 42};
     CHECK(a.invoke([](auto &i) -> bool { return i.i == 42; }));
 
-    WHEN("CTAD")
+    SECTION("CTAD")
     {
       constexpr auto a = choice{std::in_place_type<NonCopyable>, 42};
       static_assert(std::is_same_v<decltype(a), choice<NonCopyable> const>);
@@ -370,7 +369,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       static_assert(std::is_same_v<decltype(b), choice<NonCopyable>>);
     }
 
-    WHEN("constraints")
+    SECTION("constraints")
     {
       static_assert(can_in_place<choice<NonCopyable>, NonCopyable, int>);
       static_assert(not can_in_place<choice<NonCopyable>, int, int>); // int is not an alternative
@@ -382,9 +381,9 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     }
   }
 
-  WHEN("forwarding constructors (aggregate)")
+  SECTION("forwarding constructors (aggregate)")
   {
-    WHEN("regular")
+    SECTION("regular")
     {
       choice<std::array<int, 3>> a{std::in_place_type<std::array<int, 3>>, 1, 2, 3};
       static_assert(decltype(a)::has_type<std::array<int, 3>>);
@@ -396,7 +395,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       }));
     }
 
-    WHEN("constexpr")
+    SECTION("constexpr")
     {
       constexpr choice<std::array<int, 3>> a{std::in_place_type<std::array<int, 3>>, 1, 2, 3};
       static_assert(decltype(a)::has_type<std::array<int, 3>>);
@@ -409,7 +408,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       }));
     }
 
-    WHEN("CTAD")
+    SECTION("CTAD")
     {
       constexpr auto a = choice{std::in_place_type<std::array<int, 3>>, 1, 2, 3};
       static_assert(std::is_same_v<decltype(a), choice<std::array<int, 3>> const>);
@@ -419,90 +418,39 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     }
   }
 
-  WHEN("has_type type mismatch")
+  SECTION("equality comparison")
   {
+    // The comparison operators are sum's - free functions taking sum<Ts...> const & - and sum.cpp
+    // owns their grid. What is choice's own is that a choice reaches them at all, through its public
+    // base; that, and the result type, is what is asserted here.
     using type = choice<bool, int>;
-    static_assert(type::has_type<int>);
-    static_assert(type::has_type<bool>);
-    static_assert(not type::has_type<double>);
-    type a{std::in_place_type<int>, 42};
-    CHECK(a.has_value(std::in_place_type<int>));
-    CHECK(not a.has_value(std::in_place_type<bool>));
-    static_assert([](auto const &a) constexpr -> bool { //
-      return not requires { a.has_value(std::in_place_type<double>); };
-    }(a));                                              // double is not a type member
-    static_assert([](auto const &a) constexpr -> bool { //
-      return not requires { a.template has_value<double>(); };
-    }(a)); // double is not a type member
-  }
+    constexpr type a{std::in_place_type<int>, 42};
 
-  WHEN("equality comparison")
-  {
-    using type = choice<bool, int>;
-
-    type const a{std::in_place_type<int>, 42};
     static_assert(std::is_same_v<bool, decltype(a == choice{42})>);
+    static_assert(a == type{42});
+    static_assert(a != type{41});
+    static_assert(a != type{true});
+    static_assert(a == choice<double, int>{42}); // and across differing alternative lists
+    static_assert(a != choice<double, int>{41});
+
+    // the alternative held is absent from the other choice's list, so there is nothing to compare
+    // and the answer is false whatever it holds
+    constexpr type b{std::in_place_type<bool>, true};
+    static_assert(not(b == choice<double, int>{42}));
+    static_assert(b != choice<double, int>{42});
+
     CHECK(a == type{42});
-    CHECK(type{42} == a);
     CHECK(a != type{41});
-    CHECK(type{41} != a);
-    CHECK(a != type{true});
-    CHECK(type{false} != a);
-    CHECK(a == choice{42});
-    CHECK(choice{42} == a);
-    CHECK(a != choice{41});
-    CHECK(choice{41} != a);
-    CHECK(a != choice{false});
-    CHECK(choice{true} != a);
     CHECK(a == choice<double, int>{42});
-    CHECK(choice<double, int>{42} == a);
     CHECK(a != choice<double, int>{41});
-    CHECK(choice<double, int>{41} != a);
-    CHECK(choice{0.5} != a);
-    CHECK(a != choice{0.5});
-
-    WHEN("constexpr")
-    {
-      constexpr type a{std::in_place_type<int>, 42};
-      static_assert(std::is_same_v<bool, decltype(a == choice{42})>);
-      static_assert(a == type{42});
-      static_assert(type{42} == a);
-      static_assert(a != type{41});
-      static_assert(type{41} != a);
-      static_assert(a != type{true});
-      static_assert(type{false} != a);
-      static_assert(a == choice{42});
-      static_assert(choice{42} == a);
-      static_assert(a != choice{41});
-      static_assert(choice{41} != a);
-      static_assert(a != choice{false});
-      static_assert(choice{true} != a);
-      static_assert(a == choice<double, int>{42});
-      static_assert(choice<double, int>{42} == a);
-      static_assert(a != choice<double, int>{41});
-      static_assert(choice<double, int>{41} != a);
-      static_assert(choice{0.5} != a);
-      static_assert(a != choice{0.5});
-
-      static_assert([](auto const &a) constexpr -> bool {
-        return not requires { a == 42; }; // no implicit conversion
-      }(a));
-      static_assert([](auto const &a) constexpr -> bool {
-        return not requires { a != 42; }; // no implicit conversion
-      }(a));
-      static_assert([](auto const &a) constexpr -> bool {
-        return not requires { a == 0.5; }; // no implicit conversion
-      }(a));
-      static_assert([](auto const &a) constexpr -> bool {
-        return not requires { a != 0.5; }; // no implicit conversion
-      }(a));
-    }
+    CHECK(not(b == choice<double, int>{42}));
+    CHECK(b != choice<double, int>{42});
   }
 
-  WHEN("invoke")
+  SECTION("invoke")
   {
     choice<int> a{std::in_place_type<int>, 42};
-    WHEN("value only")
+    SECTION("value only")
     {
       CHECK(a.invoke(  //
           fn::overload{//
@@ -524,7 +472,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
                        [](int const &) -> bool { throw 0; }, [](int &&) -> bool { return true; },
                        [](int const &&) -> bool { throw 0; }}));
 
-      WHEN("constexpr")
+      SECTION("constexpr")
       {
         constexpr choice<int> a{std::in_place_type<int>, 42};
         static_assert(a.invoke(fn::overload{
@@ -539,10 +487,10 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     }
   }
 
-  WHEN("invoke_r")
+  SECTION("invoke_r")
   {
     choice<int> a{std::in_place_type<int>, 42};
-    WHEN("value only")
+    SECTION("value only")
     {
       CHECK(a.invoke_r<int>( //
           fn::overload{      //
@@ -564,7 +512,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
                        [](int const &) -> bool { throw 0; }, [](int &&) -> bool { return true; },
                        [](int const &&) -> bool { throw 0; }}));
 
-      WHEN("constexpr")
+      SECTION("constexpr")
       {
         constexpr choice<int> a{std::in_place_type<int>, 42};
         static_assert(a.invoke_r<int>(fn::overload{
@@ -583,7 +531,17 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 TEST_CASE("choice noexcept", "[choice][noexcept]")
 {
   using fn::choice;
+  using T = choice<Throwing>;
   using C = choice<int>;
+
+  static_assert(not std::is_nothrow_copy_constructible_v<Throwing>);
+  static_assert(not std::is_nothrow_move_constructible_v<Throwing>);
+
+  // the copy and move constructors weigh the alternative they relocate
+  static_assert(not std::is_nothrow_copy_constructible_v<T>);
+  static_assert(not std::is_nothrow_move_constructible_v<T>);
+  static_assert(std::is_nothrow_copy_constructible_v<C>);
+  static_assert(std::is_nothrow_move_constructible_v<C>);
 
   // the same monadic operation must carry the same exception promise whichever monad it is written
   // against - choice's answers are pinned here to match optional's and expected's
@@ -600,6 +558,32 @@ TEST_CASE("choice noexcept", "[choice][noexcept]")
   static_assert(not noexcept(std::declval<C &>().transform(throwing_t)));
   static_assert(noexcept(std::declval<C &>().invoke(nothrow_t)));
   static_assert(not noexcept(std::declval<C &>().invoke(throwing_t)));
+
+  // a throwing callback is weighed in every value category
+  constexpr auto fnChoice = [](Throwing const &t) noexcept(false) -> choice<int> { return {t.v}; };
+  static_assert(not noexcept(std::declval<T &>().and_then(fnChoice)));
+  static_assert(not noexcept(std::declval<T const &>().and_then(fnChoice)));
+  static_assert(not noexcept(std::declval<T &&>().and_then(fnChoice)));
+  static_assert(not noexcept(std::declval<T const &&>().and_then(fnChoice)));
+
+  constexpr auto fnInt = [](Throwing const &t) noexcept(false) -> int { return t.v; };
+  static_assert(not noexcept(std::declval<T &>().transform(fnInt)));
+  static_assert(not noexcept(std::declval<T const &>().transform(fnInt)));
+  static_assert(not noexcept(std::declval<T &>().invoke(fnInt)));
+  static_assert(not noexcept(std::declval<T &>().template invoke_r<long>(fnInt)));
+
+  // the constructors that widen a sum into a choice copy or move every alternative across
+  using W = fn::choice_for<Throwing, int>;
+  static_assert(not noexcept(W{std::declval<fn::sum<Throwing> const &>()}));
+  static_assert(not noexcept(W{std::declval<fn::sum<Throwing> &&>()}));
+
+  // the value constructors weigh what they construct, rather than under-promising as they once did
+  static_assert(noexcept(choice<int>{42}));
+
+  // reading the discriminator touches no alternative
+  static_assert(noexcept(std::declval<T const &>().has_value(std::in_place_type<Throwing>)));
+  static_assert(noexcept(std::declval<T &>().get_ptr(std::in_place_type<Throwing>)));
+
   SUCCEED();
 }
 
@@ -666,19 +650,7 @@ TEST_CASE("choice and_then", "[choice][and_then]")
 
 TEST_CASE("choice transform", "[choice][transform]")
 {
-  WHEN("a result no choice can hold")
-  {
-    // a void-returning callback must drop the caller's candidate in the immediate context: the
-    // collapsing machinery would hard-error where no requires-expression can absorb it
-    constexpr auto fnVoid = [](auto &&...) {};
-    static_assert(not can_transform<fn::choice<bool, int> &, decltype(fnVoid)>);
-    static_assert(not can_transform<fn::choice<bool, int> const &, decltype(fnVoid)>);
-    static_assert(not can_transform<fn::choice<bool, int> &&, decltype(fnVoid)>);
-    static_assert(not can_transform<fn::choice<bool, int> const &&, decltype(fnVoid)>);
-    SUCCEED();
-  }
-
-  WHEN("size 2, only one set")
+  SECTION("size 2, only one set")
   {
     using type = fn::choice<bool, int>;
     constexpr auto init = std::in_place_type<int>;
@@ -738,7 +710,7 @@ TEST_CASE("choice transform", "[choice][transform]")
                   == fn::choice<double>{5.25});
   }
 
-  WHEN("size 2")
+  SECTION("size 2")
   {
     using ::fn::choice;
     using ::fn::sum;
@@ -747,11 +719,11 @@ TEST_CASE("choice transform", "[choice][transform]")
     using type = choice<double, int>;
     static_assert(type::size == 2);
 
-    WHEN("element v0 set")
+    SECTION("element v0 set")
     {
       type a{std::in_place_type<double>, 0.5};
       CHECK(a.data.v0 == 0.5);
-      WHEN("value only")
+      SECTION("value only")
       {
         static_assert(type{0.5}.transform(fn1) == choice{std::size_t{8}});
         CHECK(a.transform(     //
@@ -782,12 +754,12 @@ TEST_CASE("choice transform", "[choice][transform]")
       }
     }
 
-    WHEN("element v1 set")
+    SECTION("element v1 set")
     {
       type a{std::in_place_type<int>, 42};
       CHECK(a.data.v1 == 42);
 
-      WHEN("value only")
+      SECTION("value only")
       {
         static_assert(type{42}.transform(fn1) == choice{std::size_t{4}});
         CHECK(a.transform(     //
@@ -818,6 +790,18 @@ TEST_CASE("choice transform", "[choice][transform]")
       }
     }
   }
+
+  SECTION("a result no choice can hold")
+  {
+    // a void-returning callback must drop the caller's candidate in the immediate context: the
+    // collapsing machinery would hard-error where no requires-expression can absorb it
+    constexpr auto fnVoid = [](auto &&...) {};
+    static_assert(not can_transform<fn::choice<bool, int> &, decltype(fnVoid)>);
+    static_assert(not can_transform<fn::choice<bool, int> const &, decltype(fnVoid)>);
+    static_assert(not can_transform<fn::choice<bool, int> &&, decltype(fnVoid)>);
+    static_assert(not can_transform<fn::choice<bool, int> const &&, decltype(fnVoid)>);
+    SUCCEED();
+  }
 }
 
 TEST_CASE("choice assignment", "[choice][assignment]")
@@ -833,7 +817,7 @@ TEST_CASE("choice assignment", "[choice][assignment]")
   static_assert(not std::is_nothrow_copy_assignable_v<choice<std::string>>);
   static_assert(std::is_nothrow_move_assignable_v<choice<std::string>>);
 
-  WHEN("the alternative changes")
+  SECTION("the alternative changes")
   {
     choice<bool, int> a{42};
     choice<bool, int> const b{true};
@@ -845,7 +829,7 @@ TEST_CASE("choice assignment", "[choice][assignment]")
     CHECK(a == choice{12});
   }
 
-  WHEN("constexpr")
+  SECTION("constexpr")
   {
     static_assert([] {
       choice<bool, int> a{42};

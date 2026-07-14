@@ -38,9 +38,9 @@ TEST_CASE("discard", "[discard][expected][expected_value]")
   static_assert(is::invocable_with_any());
   static_assert(is::not_invocable_with_any([] {})); // no arguments allowed
 
-  WHEN("operand is lvalue")
+  SECTION("lvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       operand_t a{std::in_place, 42};
       a | discard();
@@ -48,7 +48,7 @@ TEST_CASE("discard", "[discard][expected][expected_value]")
       REQUIRE(a.value() == 42);
     }
 
-    WHEN("operand is error")
+    SECTION("error")
     {
       operand_t a{::fn::unexpect, Error{"Not good"}};
       a | discard();
@@ -57,19 +57,38 @@ TEST_CASE("discard", "[discard][expected][expected_value]")
     }
   }
 
-  WHEN("operand is rvalue")
+  SECTION("rvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       operand_t{std::in_place, 42} | discard();
       SUCCEED();
     }
 
-    WHEN("operand is error")
+    SECTION("error")
     {
       operand_t{::fn::unexpect, Error{"Not good"}} | discard();
       SUCCEED();
     }
+  }
+
+  SECTION("constexpr")
+  {
+    enum class Error { ThresholdExceeded, SomethingElse };
+    using T = fn::expected<int, Error>;
+
+    constexpr auto a = T{42};
+    constexpr auto b = T{::fn::unexpect, Error::ThresholdExceeded};
+
+    constexpr auto test = [](T v) {
+      v | discard();
+      return true;
+    };
+
+    static_assert(test(a));
+    static_assert(test(b));
+
+    SUCCEED();
   }
 }
 
@@ -77,25 +96,24 @@ TEST_CASE("discard with pack", "[discard][expected][expected_value][pack]")
 {
   using namespace fn;
 
-  WHEN("operand is a pack")
+  using operand_t = fn::expected<fn::pack<int, double>, Error>;
+  using is = monadic_static_check<discard_t, operand_t>;
+  static_assert(is::invocable_with_any());
+
+  SECTION("value")
   {
-    using operand_t = fn::expected<fn::pack<int, double>, Error>;
     constexpr operand_t a{std::in_place, fn::pack{84, 0.5}};
-
-    using is = monadic_static_check<discard_t, operand_t>;
-    static_assert(is::invocable_with_any());
-
     a | discard();
 
     REQUIRE(a.has_value());
+  }
 
-    WHEN("operand is error")
-    {
-      operand_t b{::fn::unexpect, Error{"Pack error"}};
-      b | discard();
+  SECTION("error")
+  {
+    operand_t b{::fn::unexpect, Error{"Pack error"}};
+    b | discard();
 
-      REQUIRE(b.error().what == "Pack error");
-    }
+    REQUIRE(b.error().what == "Pack error");
   }
 }
 
@@ -109,9 +127,9 @@ TEST_CASE("discard", "[discard][expected][expected_void]")
   static_assert(is::invocable_with_any());
   static_assert(is::not_invocable_with_any([] {})); // no arguments allowed
 
-  WHEN("operand is lvalue")
+  SECTION("lvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       operand_t a{std::in_place};
       a | discard();
@@ -119,7 +137,7 @@ TEST_CASE("discard", "[discard][expected][expected_void]")
       REQUIRE(a.has_value());
     }
 
-    WHEN("operand is error")
+    SECTION("error")
     {
       operand_t a{::fn::unexpect, Error{"Not good"}};
       a | discard();
@@ -128,15 +146,15 @@ TEST_CASE("discard", "[discard][expected][expected_void]")
     }
   }
 
-  WHEN("operand is rvalue")
+  SECTION("rvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       operand_t{std::in_place} | discard();
       SUCCEED();
     }
 
-    WHEN("operand is error")
+    SECTION("error")
     {
       operand_t{::fn::unexpect, Error{"Not good"}} | discard();
       SUCCEED();
@@ -154,9 +172,9 @@ TEST_CASE("discard", "[discard][optional]")
   static_assert(is::invocable_with_any());
   static_assert(is::not_invocable_with_any([] {})); // no arguments allowed
 
-  WHEN("operand is lvalue")
+  SECTION("lvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       operand_t a{42};
       a | discard();
@@ -165,7 +183,7 @@ TEST_CASE("discard", "[discard][optional]")
       REQUIRE(a.value() == 42);
     }
 
-    WHEN("operand is nullopt")
+    SECTION("nullopt")
     {
       operand_t a{std::nullopt};
       a | discard();
@@ -174,68 +192,55 @@ TEST_CASE("discard", "[discard][optional]")
     }
   }
 
-  WHEN("operand is rvalue")
+  SECTION("rvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       operand_t{42} | discard();
       SUCCEED();
     }
 
-    WHEN("operand is nullopt")
+    SECTION("nullopt")
     {
       operand_t{std::nullopt} | discard();
       SUCCEED();
     }
   }
-}
 
-TEST_CASE("constexpr discard expected", "[discard][constexpr][expected]")
-{
-  using namespace fn;
+  SECTION("constexpr")
+  {
+    using T = fn::optional<int>;
 
-  enum class Error { ThresholdExceeded, SomethingElse };
-  using T = fn::expected<int, Error>;
+    constexpr auto a = T{42};
+    constexpr auto b = T{std::nullopt};
 
-  constexpr auto a = T{42};
-  constexpr auto b = T{::fn::unexpect, Error::ThresholdExceeded};
+    constexpr auto test = [](T v) {
+      v | discard();
+      return true;
+    };
 
-  constexpr auto test = [](T v) {
-    v | discard();
-    return true;
-  };
+    static_assert(test(a));
+    static_assert(test(b));
 
-  static_assert(test(a));
-  static_assert(test(b));
-
-  SUCCEED();
-}
-
-TEST_CASE("constexpr discard optional", "[discard][constexpr][optional]")
-{
-  using namespace fn;
-  using T = fn::optional<int>;
-
-  constexpr auto a = T{42};
-  constexpr auto b = T{std::nullopt};
-
-  constexpr auto test = [](T v) {
-    v | discard();
-    return true;
-  };
-
-  static_assert(test(a));
-  static_assert(test(b));
-
-  SUCCEED();
+    SUCCEED();
+  }
 }
 
 TEST_CASE("discard noexcept", "[discard][noexcept]")
 {
-  // discard is the one verb whose unconditional noexcept is accurate by construction: it invokes
-  // nothing and returns void. Asserted positively, not as a tripwire.
-  using E = fn::expected<int, int>;
-  static_assert(noexcept(std::declval<E &>() | fn::discard()));
+  using namespace fn;
+
+  // The one verb whose unconditional noexcept is accurate by construction: discard's apply takes the
+  // operand by reference, invokes no callback and returns void, so there is nothing in it that can
+  // throw. Asserted positively, where every other verb had to compute a spec.
+  static_assert(noexcept(discard_t::apply{}(std::declval<fn::expected<int, Error> &>())));
+  static_assert(noexcept(discard_t::apply{}(std::declval<fn::expected<void, Error> &>())));
+  static_assert(noexcept(discard_t::apply{}(std::declval<fn::optional<int> &>())));
+  static_assert(std::is_same_v<void, decltype(discard_t::apply{}(std::declval<fn::optional<int> &>()))>);
+
+  // and it holds through the pipeline, whatever the operand carries
+  static_assert(noexcept(std::declval<fn::expected<int, int> &>() | fn::discard()));
   static_assert(noexcept(std::declval<fn::optional<std::string> &>() | fn::discard()));
+
   SUCCEED();
 }

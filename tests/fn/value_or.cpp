@@ -30,16 +30,16 @@ TEST_CASE("value_or", "[value_or][expected][expected_value]")
   using namespace fn;
 
   using operand_t = fn::expected<int, Error>;
-  WHEN("operand is lvalue")
+  SECTION("lvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       operand_t a{std::in_place, 12};
       using T = decltype(a | value_or(3));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a | value_or(3)).value() == 12);
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       operand_t a{::fn::unexpect, Error{"Not good"}};
       using T = decltype(a | value_or(3));
@@ -48,15 +48,15 @@ TEST_CASE("value_or", "[value_or][expected][expected_value]")
     }
   }
 
-  WHEN("operand is rvalue")
+  SECTION("rvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       using T = decltype(operand_t{std::in_place, 12} | value_or(3));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((operand_t{std::in_place, 12} | value_or(3)).value() == 12);
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | value_or(3));
       static_assert(std::is_same_v<T, operand_t>);
@@ -64,27 +64,40 @@ TEST_CASE("value_or", "[value_or][expected][expected_value]")
     }
   }
 
-  WHEN("move only argument")
+  SECTION("move-only")
   {
     using operand_t = fn::expected<helper_move_only, Error>;
-    WHEN("pass multiple constructor arguments")
+    SECTION("multiple ctor args")
     {
-      WHEN("operand is value")
+      SECTION("value")
       {
         operand_t a{std::in_place, 2, 3};
         REQUIRE((std::move(a) | value_or(3, 5)).value().v == 2 * 3 * from_rval);
       }
-      WHEN("operand is error")
+      SECTION("error")
       {
         operand_t a{::fn::unexpect, Error{"Not good"}};
         REQUIRE((std::move(a) | value_or(3, 5)).value().v == 3 * 5);
       }
     }
-    WHEN("use move ctor")
+    SECTION("move ctor")
     {
       operand_t a{::fn::unexpect, Error{"Not good"}};
       REQUIRE((std::move(a) | value_or(helper_move_only{3, 7})).value().v == 21 * from_rval * from_rval);
     }
+  }
+
+  SECTION("constexpr")
+  {
+    enum class Error { ThresholdExceeded, SomethingElse };
+    using T = fn::expected<int, Error>;
+
+    constexpr auto r1 = T{2} | fn::value_or(3);
+    static_assert(r1.value() == 2);
+    constexpr auto r2 = T{::fn::unexpect, Error::SomethingElse} | fn::value_or(3);
+    static_assert(r2.value() == 3);
+
+    SUCCEED();
   }
 }
 
@@ -94,16 +107,16 @@ TEST_CASE("value_or", "[value_or][optional]")
 
   using operand_t = fn::optional<int>;
 
-  WHEN("operand is lvalue")
+  SECTION("lvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       operand_t a{12};
       using T = decltype(a | value_or(3));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a | value_or(3)).value() == 12);
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       operand_t a{std::nullopt};
       using T = decltype(a | value_or(3));
@@ -112,15 +125,15 @@ TEST_CASE("value_or", "[value_or][optional]")
     }
   }
 
-  WHEN("operand is rvalue")
+  SECTION("rvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       using T = decltype(operand_t{12} | value_or(3));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((operand_t{12} | value_or(3)).value() == 12);
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       using T = decltype(operand_t{std::nullopt} | value_or(3));
       static_assert(std::is_same_v<T, operand_t>);
@@ -128,44 +141,43 @@ TEST_CASE("value_or", "[value_or][optional]")
     }
   }
 
-  WHEN("move only argument")
+  SECTION("move-only")
   {
     using operand_t = fn::optional<helper_move_only>;
     operand_t a{std::nullopt};
     REQUIRE((std::move(a) | value_or(helper_move_only{5, 7})).value().v == 35 * from_rval * from_rval);
   }
-}
 
-TEST_CASE("constexpr value_or expected", "[value_or][constexpr][expected]")
-{
-  enum class Error { ThresholdExceeded, SomethingElse };
-  using T = fn::expected<int, Error>;
+  SECTION("constexpr")
+  {
+    using T = fn::optional<int>;
+    constexpr auto r1 = T{0} | fn::value_or(3);
+    static_assert(r1.value() == 0);
+    constexpr auto r2 = T{} | fn::value_or(3);
+    static_assert(r2.value() == 3);
 
-  constexpr auto r1 = T{2} | fn::value_or(3);
-  static_assert(r1.value() == 2);
-  constexpr auto r2 = T{::fn::unexpect, Error::SomethingElse} | fn::value_or(3);
-  static_assert(r2.value() == 3);
-
-  SUCCEED();
-}
-
-TEST_CASE("constexpr value_or optional", "[value_or][constexpr][optional]")
-{
-  using T = fn::optional<int>;
-  constexpr auto r1 = T{0} | fn::value_or(3);
-  static_assert(r1.value() == 0);
-  constexpr auto r2 = T{} | fn::value_or(3);
-  static_assert(r2.value() == 3);
-
-  SUCCEED();
+    SUCCEED();
+  }
 }
 
 TEST_CASE("value_or noexcept", "[value_or][noexcept]")
 {
-  using E = fn::expected<int, int>;
-  using O = fn::optional<int>;
-  static_assert(noexcept(std::declval<E &>() | fn::value_or(1)));
-  static_assert(noexcept(std::declval<O &>() | fn::value_or(1)));
+  using namespace fn;
+
+  // value_or takes no callback, but its apply still builds the fallback value from the arguments -
+  // inside a lambda it hands to or_else - and that construction can throw: making a std::string from
+  // a literal allocates. The apply weighs it.
+  static_assert(not std::is_nothrow_constructible_v<std::string, char const *>);
+  static_assert(not noexcept(value_or_t::apply{}(std::declval<fn::expected<std::string, Error> &>(), "abc")));
+  static_assert(not noexcept(value_or_t::apply{}(std::declval<fn::optional<std::string> &>(), "abc")));
+
+  // ... and nothing else: the error is discarded rather than carried into the result, so its copy
+  // never weighs, however throwing it is - Error here holds a std::string
+  static_assert(std::is_nothrow_constructible_v<int, int>);
+  static_assert(not std::is_nothrow_copy_constructible_v<Error>);
+  static_assert(noexcept(value_or_t::apply{}(std::declval<fn::expected<int, Error> &>(), 42)));
+  static_assert(noexcept(value_or_t::apply{}(std::declval<fn::expected<int, int> &>(), 42)));
+  static_assert(noexcept(value_or_t::apply{}(std::declval<fn::optional<int> &>(), 42)));
 
   // building the fallback value can throw
   using S = fn::optional<std::string>;
@@ -218,3 +230,24 @@ TEST_CASE("value_or constraints", "[value_or][constraints]")
   static_assert(invocable_value_or<fn::optional<helper_immovable &> &, helper_immovable &>);
   SUCCEED();
 }
+
+namespace fn {
+namespace {
+struct Error {};
+struct Value final {};
+} // namespace
+
+// clang-format off
+// Not a callable verb: the arguments must construct the operand's own value type.
+static_assert(invocable_value_or<expected<int, Error>, int>);
+static_assert(invocable_value_or<expected<int, Error>, unsigned>);                 // conversion is enough
+static_assert(invocable_value_or<expected<helper_move_only, Error>, int, int>);    // multi-argument construction
+static_assert(not invocable_value_or<expected<int, Error>, char const *>);         // no conversion found
+static_assert(not invocable_value_or<expected<int, Error>, int, int>);             // too many initialisers
+static_assert(not invocable_value_or<expected<Value, Error>, int>);                // wrong type
+static_assert(not invocable_value_or<expected<void, Error>, int>);                 // void has no value to fall back to
+static_assert(invocable_value_or<optional<int>, int>);
+static_assert(not invocable_value_or<optional<int>, char const *>);
+static_assert(not invocable_value_or<choice<int>, int>);                           // no choice disjunct
+// clang-format on
+} // namespace fn

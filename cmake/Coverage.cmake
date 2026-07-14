@@ -7,9 +7,7 @@
 
 set(CODE_COVERAGE_VERBOSE ON)
 set(CODE_COVERAGE_FORMAT "xml" CACHE STRING "Format of the coverage report.")
-# --merge-lines: gcovr emits one line record per template instantiation, and a consumer which does
-# not merge them (sonarcloud) counts every record of a line some instantiation never ran as a miss.
-# Requires gcovr 8.4 or newer.
+# --merge-lines requires gcovr 8.4 or newer.
 set(GCOVR_ADDITIONAL_ARGS
 --merge-lines
 --exclude-noncode-lines

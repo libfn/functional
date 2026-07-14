@@ -9,10 +9,17 @@
 #include <catch2/catch_all.hpp>
 
 #include <concepts>
+#include <cstddef>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
+
+using fn::detail::invoke_type_variadic_union;
+using fn::detail::invoke_variadic_union;
+using fn::detail::make_variadic_union;
+using fn::detail::ptr_variadic_union;
+using fn::detail::variadic_union;
 
 namespace {
 
@@ -24,407 +31,160 @@ struct NonCopyable final {
   NonCopyable(NonCopyable const &) = delete;
   NonCopyable &operator=(NonCopyable const &) = delete;
 };
+
+// Never an alternative of any union below, so every negative probe can name it.
+struct Absent final {};
+
+// Type-keyed rather than taking a value: the probe is used inside a constexpr function, whose locals
+// are not constant expressions and so cannot be fed to a static_assert.
+template <typename T, typename U>
+concept can_ptr = requires(U &u) { ptr_variadic_union<T, U>(u); };
+
+// Recovers the alternative pack from the union type, so a test can be written once and ranged over
+// the unions themselves rather than over a parallel list of their contents.
+template <typename U> struct alternatives;
+template <typename... Ts> struct alternatives<variadic_union<Ts...>> {
+  static constexpr std::size_t size = sizeof...(Ts);
+  template <std::size_t I> using nth = fn::detail::select_nth_t<I, Ts...>;
+};
+
+// A distinct witness value per alternative type, so a round trip through the union can be checked
+// for identity and not merely for compiling.
+template <typename T> struct witness;
+template <> struct witness<bool> {
+  static constexpr bool value = true;
+};
+template <> struct witness<int> {
+  static constexpr int value = 42;
+};
+template <> struct witness<double> {
+  static constexpr double value = 0.5;
+};
+template <> struct witness<float> {
+  static constexpr float value = 1.5f;
+};
+template <> struct witness<std::string_view> {
+  static constexpr std::string_view value = "hello";
+};
+
+// The whole battery for ONE alternative of ONE union: construction, typed access, and both dispatch
+// functions in their void and non-void flavours - which the header specializes separately per union
+// size, so every arity must run all of it. constexpr so a single definition serves both the
+// compile-time assertion and the runtime one (a static_assert alone would leave gcov holes).
+template <typename U, std::size_t I> constexpr auto check_alternative() -> bool
+{
+  using T = typename alternatives<U>::template nth<I>;
+  constexpr T v = witness<T>::value;
+
+  static_assert(U::template has_type<T>);
+
+  U const u = make_variadic_union<T, U>(v);
+  U m = make_variadic_union<T, U>(v);
+
+  // constness of the union propagates to the pointer, and an absent type is not accessible at all
+  static_assert(std::same_as<decltype(ptr_variadic_union<T, U>(u)), T const *>);
+  static_assert(std::same_as<decltype(ptr_variadic_union<T, U>(m)), T *>);
+  static_assert(can_ptr<T, U>);
+  static_assert(not can_ptr<Absent, U>);
+
+  bool ok = *ptr_variadic_union<T, U>(u) == v && *ptr_variadic_union<T, U>(m) == v;
+
+  // invoke passes the alternative alone; the result converts to whatever R asks for
+  constexpr auto size_of = [](auto x) -> std::size_t { return sizeof(x); };
+  static_assert(std::same_as<std::size_t, decltype(invoke_variadic_union<std::size_t, U>(u, I, size_of))>);
+  static_assert(std::same_as<long, decltype(invoke_variadic_union<long, U>(u, I, size_of))>);
+  ok = ok && invoke_variadic_union<std::size_t, U>(u, I, size_of) == sizeof(T);
+  ok = ok && invoke_variadic_union<long, U>(u, I, size_of) == static_cast<long>(sizeof(T));
+
+  // invoke_type additionally passes in_place_type<T>, naming the alternative it dispatched to - and
+  // passes exactly those two arguments
+  // [[maybe_unused]]: only the pack's arity is read, and MSVC /W4 flags each expanded parameter
+  constexpr auto arity = []([[maybe_unused]] auto &&...args) -> std::size_t { return sizeof...(args); };
+  ok = ok && invoke_type_variadic_union<std::size_t, U>(u, I, arity) == 2;
+  ok = ok && invoke_type_variadic_union<bool, U>(u, I, []<typename X>(std::in_place_type_t<X>, auto) -> bool {
+         return std::same_as<X, T>;
+       });
+
+  // both dispatchers have a separate void-returning overload per union size
+  static_assert(std::same_as<void, decltype(invoke_variadic_union<void, U>(u, I, size_of))>);
+  std::size_t seen = 0;
+  invoke_variadic_union<void, U>(u, I, [&seen](auto x) { seen = sizeof(x); });
+  ok = ok && seen == sizeof(T);
+
+  static_assert(std::same_as<void, decltype(invoke_type_variadic_union<void, U>(u, I, arity))>);
+  bool named = false;
+  invoke_type_variadic_union<void, U>(u, I, [&named]<typename X>(std::in_place_type_t<X>, auto) { //
+    named = std::same_as<X, T>;
+  });
+  ok = ok && named;
+
+  return ok;
+}
+
+template <typename U> constexpr auto check_union() -> bool
+{
+  return []<std::size_t... Is>(std::index_sequence<Is...>) { //
+    return (check_alternative<U, Is>() && ...);
+  }(std::make_index_sequence<alternatives<U>::size>{});
+}
+
+// Named, because a template argument list carries commas and TEMPLATE_TEST_CASE is a macro: the
+// commas inside variadic_union<bool, int> would be read as further macro arguments.
+using U1 = variadic_union<bool>;
+using U2 = variadic_union<bool, int>;
+using U3 = variadic_union<bool, int, double>;
+using U4 = variadic_union<bool, int, double, float>;
+using U5 = variadic_union<bool, int, double, float, std::string_view>;
+
 } // namespace
 
-TEST_CASE(
-    "variadic_union",
-    "[variadic_union][invoke_variadic_union][invoke_type_variadic_union][ptr_variadic_union][make_variadic_union]")
+// One battery, run against every specialization the header defines: sizes one through four, then the
+// recursive one that chains a nested union past the fourth alternative.
+TEMPLATE_TEST_CASE("variadic_union",
+                   "[variadic_union][make_variadic_union][ptr_variadic_union]"
+                   "[invoke_variadic_union][invoke_type_variadic_union]",
+                   U1, U2, U3, U4, U5)
 {
-  using fn::detail::invoke_variadic_union;
-  using fn::detail::make_variadic_union;
-  using fn::detail::ptr_variadic_union;
-  using fn::detail::variadic_union;
+  using U = TestType;
 
+  static_assert(U::size == alternatives<U>::size);
+  static_assert(not U::template has_type<Absent>);
+  static_assert(not U::template has_type<std::string>);
+
+  // The same battery twice over. Folded into one assertion at compile time; then run again per
+  // alternative, both so that coverage sees the lines execute and so that a failure names the
+  // alternative that broke rather than only the union it belongs to.
+  static_assert(check_union<U>());
+
+  []<std::size_t... Is>(std::index_sequence<Is...>) {
+    auto const one = []<std::size_t I>(std::integral_constant<std::size_t, I>) {
+      INFO("alternative " << I);
+      CHECK(check_alternative<U, I>());
+    };
+    (one(std::integral_constant<std::size_t, Is>{}), ...);
+  }(std::make_index_sequence<alternatives<U>::size>{});
+}
+
+TEST_CASE("variadic_union with a non-copyable alternative", "[variadic_union][make_variadic_union][ptr_variadic_union]")
+{
+  // The templated battery above copies its witness into the union, so a type that cannot be copied
+  // needs its own case: it is constructed in place from the arguments instead. A const alternative
+  // sits alongside a non-const one of the same underlying type, which the union must keep distinct.
   using T2 = variadic_union<NonCopyable, NonCopyable const>;
   constexpr T2 a2 = make_variadic_union<NonCopyable, T2>(12);
   static_assert(ptr_variadic_union<NonCopyable, T2>(a2)->v == 12);
   constexpr T2 a3 = make_variadic_union<NonCopyable const, T2>(36);
   static_assert(ptr_variadic_union<NonCopyable const, T2>(a3)->v == 36);
+  static_assert(T2::has_type<NonCopyable>);
+  static_assert(T2::has_type<NonCopyable const>);
+  static_assert(not T2::has_type<Absent>);
 
+  // and in the recursive specialization, where it lands past the fourth alternative
   using T6 = variadic_union<int, bool, double, float, NonCopyable>;
   constexpr T6 a4 = make_variadic_union<NonCopyable, T6>(42);
   static_assert(ptr_variadic_union<NonCopyable, T6>(a4)->v == 42);
+  // by const reference: a by-value callback would copy the alternative, which NonCopyable forbids
+  static_assert(invoke_variadic_union<int, T6>(a4, 4, [](auto const &i) -> int { return static_cast<int>(i); }) == 42);
 
-  using U1 = variadic_union<bool>;
-  constexpr U1 b1 = make_variadic_union<bool, U1>(true);
-  static_assert(decltype(b1)::has_type<bool>);
-  static_assert(not decltype(b1)::has_type<int>);
-  static_assert([](auto &&b) -> bool { return not requires { ptr_variadic_union<int, U1>(b); }; }(b1));
-  static_assert(std::same_as<decltype(ptr_variadic_union<bool, U1>(b1)), bool const *>);
-  static_assert(std::same_as<decltype(ptr_variadic_union<bool, U1>(U1{.v0 = false})), bool *>);
-  static_assert(*ptr_variadic_union<bool, U1>(b1));
-  static_assert(invoke_variadic_union<std::size_t, U1>(b1, 0, [](auto i) -> std::size_t { return sizeof(i); }) == 1);
-  static_assert(invoke_type_variadic_union<bool, U1>(b1, 0, []<typename T>(std::in_place_type_t<T>, auto i) -> bool {
-    if constexpr (std::same_as<T, bool>)
-      return i;
-    return false;
-  }));
-
-  using U2 = variadic_union<bool, int>;
-  constexpr U2 b2 = make_variadic_union<int, U2>(42);
-  static_assert(decltype(b2)::has_type<bool>);
-  static_assert(decltype(b2)::has_type<int>);
-  static_assert(not decltype(b2)::has_type<double>);
-  static_assert([](auto &&b) -> bool { return not requires { ptr_variadic_union<double, U2>(b); }; }(b2));
-  static_assert(std::same_as<decltype(ptr_variadic_union<bool, U2>(b2)), bool const *>);
-  static_assert(std::same_as<decltype(ptr_variadic_union<int, U2>(b2)), int const *>);
-  static_assert(std::same_as<decltype(ptr_variadic_union<bool, U2>(U2{.v0 = false})), bool *>);
-  static_assert(std::same_as<decltype(ptr_variadic_union<int, U2>(U2{.v1 = 12})), int *>);
-  static_assert(*ptr_variadic_union<int, U2>(b2) == 42);
-  static_assert(invoke_variadic_union<std::size_t, U2>(b2, 1, [](auto i) -> std::size_t { return sizeof(i); }) == 4);
-  static_assert(invoke_type_variadic_union<int, U2>(b2, 1,
-                                                    []<typename T>(std::in_place_type_t<T>, auto i) -> int {
-                                                      if constexpr (std::same_as<T, int>)
-                                                        return i / 2;
-                                                      return 0;
-                                                    })
-                == 21);
-
-  using U3 = variadic_union<bool, int, double>;
-  constexpr U3 b3 = make_variadic_union<double, U3>(0.5);
-  static_assert(decltype(b3)::has_type<bool>);
-  static_assert(decltype(b3)::has_type<int>);
-  static_assert(decltype(b3)::has_type<double>);
-  static_assert(not decltype(b3)::has_type<float>);
-  static_assert([](auto &&b) -> bool { return not requires { ptr_variadic_union<float, U3>(b); }; }(b3));
-  static_assert(std::same_as<decltype(ptr_variadic_union<bool, U3>(b3)), bool const *>);
-  static_assert(std::same_as<decltype(ptr_variadic_union<int, U3>(b3)), int const *>);
-  static_assert(std::same_as<decltype(ptr_variadic_union<double, U3>(b3)), double const *>);
-  static_assert(std::same_as<decltype(ptr_variadic_union<bool, U3>(U3{.v0 = false})), bool *>);
-  static_assert(std::same_as<decltype(ptr_variadic_union<int, U3>(U3{.v1 = 12})), int *>);
-  static_assert(*ptr_variadic_union<double, U3>(b3) == 0.5);
-  static_assert(invoke_variadic_union<std::size_t, U3>(b3, 2, [](auto i) -> std::size_t { return sizeof(i); }) == 8);
-  static_assert(invoke_type_variadic_union<int, U3>(b3, 2,
-                                                    []<typename T>(std::in_place_type_t<T>, auto i) -> int {
-                                                      if constexpr (std::same_as<T, double>)
-                                                        return i * 4;
-                                                      return 0;
-                                                    })
-                == 2);
-
-  using U4 = variadic_union<bool, int, double, float>;
-  constexpr U4 b4 = make_variadic_union<float, U4>(1.5f);
-  static_assert(decltype(b4)::has_type<bool>);
-  static_assert(decltype(b4)::has_type<int>);
-  static_assert(decltype(b4)::has_type<double>);
-  static_assert(decltype(b4)::has_type<float>);
-  static_assert(not decltype(b4)::has_type<std::string_view>);
-  static_assert([](auto &&b) -> bool { return not requires { ptr_variadic_union<std::string_view, U4>(b); }; }(b4));
-  static_assert(std::same_as<decltype(ptr_variadic_union<bool, U4>(b4)), bool const *>);
-  static_assert(std::same_as<decltype(ptr_variadic_union<int, U4>(b4)), int const *>);
-  static_assert(std::same_as<decltype(ptr_variadic_union<double, U4>(b4)), double const *>);
-  static_assert(std::same_as<decltype(ptr_variadic_union<float, U4>(b4)), float const *>);
-  static_assert(std::same_as<decltype(ptr_variadic_union<bool, U4>(U4{.v0 = false})), bool *>);
-  static_assert(std::same_as<decltype(ptr_variadic_union<int, U4>(U4{.v1 = 12})), int *>);
-  static_assert(*ptr_variadic_union<float, U4>(b4) == 1.5f);
-  static_assert(invoke_variadic_union<std::size_t, U4>(b4, 3, [](auto i) -> std::size_t { return sizeof(i); }) == 4);
-  static_assert(invoke_type_variadic_union<int, U4>(b4, 3,
-                                                    []<typename T>(std::in_place_type_t<T>, auto i) -> int {
-                                                      if constexpr (std::same_as<T, float>)
-                                                        return i * 4;
-                                                      return 0;
-                                                    })
-                == 6);
-
-  using U5 = variadic_union<bool, int, double, float, std::string_view>;
-  constexpr U5 b5 = make_variadic_union<std::string_view, U5>("hello");
-  static_assert(decltype(b5)::has_type<bool>);
-  static_assert(decltype(b5)::has_type<int>);
-  static_assert(decltype(b5)::has_type<double>);
-  static_assert(decltype(b5)::has_type<float>);
-  static_assert(decltype(b5)::has_type<std::string_view>);
-  static_assert(not decltype(b5)::has_type<std::string>);
-  static_assert([](auto &&b) -> bool { return not requires { ptr_variadic_union<std::string, U5>(b); }; }(b5));
-  static_assert(std::same_as<decltype(ptr_variadic_union<bool, U5>(b5)), bool const *>);
-  static_assert(std::same_as<decltype(ptr_variadic_union<int, U5>(b5)), int const *>);
-  static_assert(std::same_as<decltype(ptr_variadic_union<double, U5>(b5)), double const *>);
-  static_assert(std::same_as<decltype(ptr_variadic_union<float, U5>(b5)), float const *>);
-  static_assert(std::same_as<decltype(ptr_variadic_union<std::string_view, U5>(b5)), std::string_view const *>);
-  static_assert(std::same_as<decltype(ptr_variadic_union<bool, U5>(U5{.v0 = false})), bool *>);
-  static_assert(std::same_as<decltype(ptr_variadic_union<int, U5>(U5{.v1 = 12})), int *>);
-  static_assert(*ptr_variadic_union<std::string_view, U5>(b5) == std::string_view{"hello"});
-  static_assert(invoke_variadic_union<std::size_t, U5>(b5, 4, [](auto i) -> std::size_t { return sizeof(i); }) == 16);
-  static_assert(invoke_type_variadic_union<int, U5>(b5, 4,
-                                                    []<typename T>(std::in_place_type_t<T>, auto i) -> int {
-                                                      if constexpr (std::same_as<T, std::string_view>)
-                                                        return static_cast<int>(i.size());
-                                                      return 0;
-                                                    })
-                == 5);
-
-  SUCCEED();
-}
-
-TEST_CASE("variadic_unionc invoke only", "[variadic_union][invoke_variadic_union][invoke_type_variadic_union]")
-{
-  using fn::detail::invoke_variadic_union;
-  using fn::detail::make_variadic_union;
-  using fn::detail::variadic_union;
-
-  constexpr auto fn1 = [](auto i) { return static_cast<short>(i); };
-  int total = 0;
-  auto fn1L = [&total](auto i) { total += static_cast<int>(i); };
-  constexpr auto fn2 = [](fn::some_in_place_type auto, auto i) { return static_cast<short>(i * 2); };
-  auto fn2L = [&total](fn::some_in_place_type auto, auto i) { total += static_cast<int>(2 * i); };
-  auto fnAll = []([[maybe_unused]] auto &&...a) { return static_cast<int>(sizeof...(a)); };
-
-  WHEN("size == 1")
-  {
-    using type = variadic_union<int>;
-    auto const v0 = make_variadic_union<int, type>(42);
-    static_assert(std::is_same_v<void, decltype(invoke_variadic_union<void, type>(v0, 0, fn1L))>);
-    static_assert(std::is_same_v<void, decltype(invoke_type_variadic_union<void, type>(v0, 0, fn2L))>);
-    static_assert(std::is_same_v<int, decltype(invoke_variadic_union<int, type>(v0, 0, fn1))>);
-    static_assert(std::is_same_v<long, decltype(invoke_variadic_union<long, type>(v0, 0, fn1))>);
-    static_assert(std::is_same_v<int, decltype(invoke_type_variadic_union<int, type>(v0, 0, fn2))>);
-    static_assert(std::is_same_v<long, decltype(invoke_type_variadic_union<long, type>(v0, 0, fn2))>);
-
-    constexpr type a = make_variadic_union<int, type>(7);
-    static_assert(std::is_same_v<void, decltype(invoke_variadic_union<void, type>(a, 0, fnAll))>);
-    static_assert(invoke_type_variadic_union<int, type>(a, 0, fnAll) == 2);
-
-    CHECK(invoke_variadic_union<int, type>(v0, 0, fn1) == 42);
-    CHECK(invoke_type_variadic_union<int, type>(v0, 0, fn2) == 84);
-    auto const before = total;
-    invoke_variadic_union<void, type>(v0, 0, fn1L);
-    CHECK(total == before + 42);
-    invoke_type_variadic_union<void, type>(v0, 0, fn2L);
-    CHECK(total == before + 42 + 84);
-  }
-
-  WHEN("size == 2")
-  {
-    using type = variadic_union<int, short>;
-
-    static_assert(std::is_same_v<void, decltype(invoke_variadic_union<void, type>(std::declval<type>(), 0, fn1L))>);
-    static_assert(
-        std::is_same_v<void, decltype(invoke_type_variadic_union<void, type>(std::declval<type>(), 0, fn2L))>);
-    static_assert(std::is_same_v<int, decltype(invoke_variadic_union<int, type>(std::declval<type>(), 0, fn1))>);
-    static_assert(std::is_same_v<long, decltype(invoke_variadic_union<long, type>(std::declval<type>(), 0, fn1))>);
-    static_assert(std::is_same_v<int, decltype(invoke_type_variadic_union<int, type>(std::declval<type>(), 0, fn2))>);
-    static_assert(std::is_same_v<long, decltype(invoke_type_variadic_union<long, type>(std::declval<type>(), 0, fn2))>);
-
-    constexpr type a = make_variadic_union<int, type>(7);
-    static_assert(std::is_same_v<void, decltype(invoke_variadic_union<void, type>(a, 0, fnAll))>);
-    static_assert(invoke_type_variadic_union<int, type>(a, 0, fnAll) == 2);
-
-    WHEN("v0 set")
-    {
-      auto const v0 = make_variadic_union<int, type>(42);
-      CHECK(invoke_variadic_union<int, type>(v0, 0, fn1) == 42);
-      CHECK(invoke_type_variadic_union<int, type>(v0, 0, fn2) == 84);
-      auto const before = total;
-      invoke_variadic_union<void, type>(v0, 0, fn1L);
-      CHECK(total == before + 42);
-      invoke_type_variadic_union<void, type>(v0, 0, fn2L);
-      CHECK(total == before + 42 + 84);
-    }
-
-    WHEN("v1 set")
-    {
-      auto const v1 = make_variadic_union<short, type>((short)26);
-      CHECK(invoke_variadic_union<short, type>(v1, 1, fn1) == 26);
-      CHECK(invoke_type_variadic_union<short, type>(v1, 1, fn2) == 52);
-      auto const before = total;
-      invoke_variadic_union<void, type>(v1, 1, fn1L);
-      CHECK(total == before + 26);
-      invoke_type_variadic_union<void, type>(v1, 1, fn2L);
-      CHECK(total == before + 26 + 52);
-    }
-  }
-
-  WHEN("size == 3")
-  {
-    using type = variadic_union<int, short, long>;
-
-    static_assert(std::is_same_v<void, decltype(invoke_variadic_union<void, type>(std::declval<type>(), 0, fn1L))>);
-    static_assert(
-        std::is_same_v<void, decltype(invoke_type_variadic_union<void, type>(std::declval<type>(), 0, fn2L))>);
-    static_assert(std::is_same_v<int, decltype(invoke_variadic_union<int, type>(std::declval<type>(), 0, fn1))>);
-    static_assert(std::is_same_v<long, decltype(invoke_variadic_union<long, type>(std::declval<type>(), 0, fn1))>);
-    static_assert(std::is_same_v<int, decltype(invoke_type_variadic_union<int, type>(std::declval<type>(), 0, fn2))>);
-    static_assert(std::is_same_v<long, decltype(invoke_type_variadic_union<long, type>(std::declval<type>(), 0, fn2))>);
-
-    constexpr type a = make_variadic_union<int, type>(7);
-    static_assert(std::is_same_v<void, decltype(invoke_variadic_union<void, type>(a, 0, fnAll))>);
-    static_assert(invoke_type_variadic_union<int, type>(a, 0, fnAll) == 2);
-
-    WHEN("v0 set")
-    {
-      auto const v0 = make_variadic_union<int, type>(42);
-      CHECK(invoke_variadic_union<int, type>(v0, 0, fn1) == 42);
-      CHECK(invoke_type_variadic_union<int, type>(v0, 0, fn2) == 84);
-      auto const before = total;
-      invoke_variadic_union<void, type>(v0, 0, fn1L);
-      CHECK(total == before + 42);
-      invoke_type_variadic_union<void, type>(v0, 0, fn2L);
-      CHECK(total == before + 42 + 84);
-    }
-
-    WHEN("v1 set")
-    {
-      auto const v1 = make_variadic_union<short, type>((short)26);
-      CHECK(invoke_variadic_union<short, type>(v1, 1, fn1) == 26);
-      CHECK(invoke_type_variadic_union<short, type>(v1, 1, fn2) == 52);
-      auto const before = total;
-      invoke_variadic_union<void, type>(v1, 1, fn1L);
-      CHECK(total == before + 26);
-      invoke_type_variadic_union<void, type>(v1, 1, fn2L);
-      CHECK(total == before + 26 + 52);
-    }
-
-    WHEN("v2 set")
-    {
-      auto const v2 = make_variadic_union<long, type>(12);
-      CHECK(invoke_variadic_union<long, type>(v2, 2, fn1) == 12);
-      CHECK(invoke_type_variadic_union<long, type>(v2, 2, fn2) == 24);
-      auto const before = total;
-      invoke_variadic_union<void, type>(v2, 2, fn1L);
-      CHECK(total == before + 12);
-      invoke_type_variadic_union<void, type>(v2, 2, fn2L);
-      CHECK(total == before + 12 + 24);
-    }
-  }
-
-  WHEN("size == 4")
-  {
-    using type = variadic_union<int, short, long, double>;
-
-    static_assert(std::is_same_v<void, decltype(invoke_variadic_union<void, type>(std::declval<type>(), 0, fn1L))>);
-    static_assert(
-        std::is_same_v<void, decltype(invoke_type_variadic_union<void, type>(std::declval<type>(), 0, fn2L))>);
-    static_assert(std::is_same_v<int, decltype(invoke_variadic_union<int, type>(std::declval<type>(), 0, fn1))>);
-    static_assert(std::is_same_v<long, decltype(invoke_variadic_union<long, type>(std::declval<type>(), 0, fn1))>);
-    static_assert(std::is_same_v<int, decltype(invoke_type_variadic_union<int, type>(std::declval<type>(), 0, fn2))>);
-    static_assert(std::is_same_v<long, decltype(invoke_type_variadic_union<long, type>(std::declval<type>(), 0, fn2))>);
-
-    constexpr type a = make_variadic_union<int, type>(7);
-    static_assert(std::is_same_v<void, decltype(invoke_variadic_union<void, type>(a, 0, fnAll))>);
-    static_assert(invoke_type_variadic_union<int, type>(a, 0, fnAll) == 2);
-
-    WHEN("v0 set")
-    {
-      auto const v0 = make_variadic_union<int, type>(42);
-      CHECK(invoke_variadic_union<int, type>(v0, 0, fn1) == 42);
-      CHECK(invoke_type_variadic_union<int, type>(v0, 0, fn2) == 84);
-      auto const before = total;
-      invoke_variadic_union<void, type>(v0, 0, fn1L);
-      CHECK(total == before + 42);
-      invoke_type_variadic_union<void, type>(v0, 0, fn2L);
-      CHECK(total == before + 42 + 84);
-    }
-
-    WHEN("v1 set")
-    {
-      auto const v1 = make_variadic_union<short, type>((short)26);
-      CHECK(invoke_variadic_union<short, type>(v1, 1, fn1) == 26);
-      CHECK(invoke_type_variadic_union<short, type>(v1, 1, fn2) == 52);
-      auto const before = total;
-      invoke_variadic_union<void, type>(v1, 1, fn1L);
-      CHECK(total == before + 26);
-      invoke_type_variadic_union<void, type>(v1, 1, fn2L);
-      CHECK(total == before + 26 + 52);
-    }
-
-    WHEN("v2 set")
-    {
-      auto const v2 = make_variadic_union<long, type>(12);
-      CHECK(invoke_variadic_union<long, type>(v2, 2, fn1) == 12);
-      CHECK(invoke_type_variadic_union<long, type>(v2, 2, fn2) == 24);
-      auto const before = total;
-      invoke_variadic_union<void, type>(v2, 2, fn1L);
-      CHECK(total == before + 12);
-      invoke_type_variadic_union<void, type>(v2, 2, fn2L);
-      CHECK(total == before + 12 + 24);
-    }
-
-    WHEN("v3 set")
-    {
-      auto const v3 = make_variadic_union<double, type>(7.5);
-      CHECK(invoke_variadic_union<int, type>(v3, 3, fn1) == 7);
-      CHECK(invoke_type_variadic_union<int, type>(v3, 3, fn2) == 15);
-      auto const before = total;
-      invoke_variadic_union<void, type>(v3, 3, fn1L);
-      CHECK(total == before + 7);
-      invoke_type_variadic_union<void, type>(v3, 3, fn2L);
-      CHECK(total == before + 7 + 15);
-    }
-  }
-
-  WHEN("size == 5")
-  {
-    using type = variadic_union<int, short, long, double, float>;
-
-    static_assert(std::is_same_v<void, decltype(invoke_variadic_union<void, type>(std::declval<type>(), 0, fn1L))>);
-    static_assert(
-        std::is_same_v<void, decltype(invoke_type_variadic_union<void, type>(std::declval<type>(), 0, fn2L))>);
-    static_assert(std::is_same_v<int, decltype(invoke_variadic_union<int, type>(std::declval<type>(), 0, fn1))>);
-    static_assert(std::is_same_v<long, decltype(invoke_variadic_union<long, type>(std::declval<type>(), 0, fn1))>);
-    static_assert(std::is_same_v<int, decltype(invoke_type_variadic_union<int, type>(std::declval<type>(), 0, fn2))>);
-    static_assert(std::is_same_v<long, decltype(invoke_type_variadic_union<long, type>(std::declval<type>(), 0, fn2))>);
-
-    constexpr type a = make_variadic_union<int, type>(7);
-    static_assert(std::is_same_v<void, decltype(invoke_variadic_union<void, type>(a, 0, fnAll))>);
-    static_assert(invoke_type_variadic_union<int, type>(a, 0, fnAll) == 2);
-
-    WHEN("v0 set")
-    {
-      auto const v0 = make_variadic_union<int, type>(42);
-      CHECK(invoke_variadic_union<int, type>(v0, 0, fn1) == 42);
-      CHECK(invoke_type_variadic_union<int, type>(v0, 0, fn2) == 84);
-      auto const before = total;
-      invoke_variadic_union<void, type>(v0, 0, fn1L);
-      CHECK(total == before + 42);
-      invoke_type_variadic_union<void, type>(v0, 0, fn2L);
-      CHECK(total == before + 42 + 84);
-    }
-
-    WHEN("v1 set")
-    {
-      auto const v1 = make_variadic_union<short, type>((short)26);
-      CHECK(invoke_variadic_union<short, type>(v1, 1, fn1) == 26);
-      CHECK(invoke_type_variadic_union<short, type>(v1, 1, fn2) == 52);
-      auto const before = total;
-      invoke_variadic_union<void, type>(v1, 1, fn1L);
-      CHECK(total == before + 26);
-      invoke_type_variadic_union<void, type>(v1, 1, fn2L);
-      CHECK(total == before + 26 + 52);
-    }
-
-    WHEN("v2 set")
-    {
-      auto const v2 = make_variadic_union<long, type>(12);
-      CHECK(invoke_variadic_union<long, type>(v2, 2, fn1) == 12);
-      CHECK(invoke_type_variadic_union<long, type>(v2, 2, fn2) == 24);
-      auto const before = total;
-      invoke_variadic_union<void, type>(v2, 2, fn1L);
-      CHECK(total == before + 12);
-      invoke_type_variadic_union<void, type>(v2, 2, fn2L);
-      CHECK(total == before + 12 + 24);
-    }
-
-    WHEN("v3 set")
-    {
-      auto const v3 = make_variadic_union<double, type>(7.5);
-      CHECK(invoke_variadic_union<int, type>(v3, 3, fn1) == 7);
-      CHECK(invoke_type_variadic_union<int, type>(v3, 3, fn2) == 15);
-      auto const before = total;
-      invoke_variadic_union<void, type>(v3, 3, fn1L);
-      CHECK(total == before + 7);
-      invoke_type_variadic_union<void, type>(v3, 3, fn2L);
-      CHECK(total == before + 7 + 15);
-    }
-
-    WHEN("more set")
-    {
-      auto const v4 = make_variadic_union<float, type>(1.5f);
-      CHECK(invoke_variadic_union<int, type>(v4, 4, fn1) == 1);
-      CHECK(invoke_type_variadic_union<int, type>(v4, 4, fn2) == 3);
-      auto const before = total;
-      invoke_variadic_union<void, type>(v4, 4, fn1L);
-      CHECK(total == before + 1);
-      invoke_type_variadic_union<void, type>(v4, 4, fn2L);
-      CHECK(total == before + 1 + 3);
-    }
-  }
+  CHECK(ptr_variadic_union<NonCopyable, T6>(a4)->v == 42);
 }

@@ -23,6 +23,7 @@ struct Error final {
   std::string what;
 
   operator std::string_view() const { return what; }
+  auto fn() const & -> int { return static_cast<int>(what.size()); }
 };
 } // namespace
 
@@ -57,37 +58,92 @@ TEST_CASE("recover", "[recover][expected][expected_value]")
   static_assert(is::not_invocable_with_any([]() -> int { throw 0; }));                                  // bad arity
   static_assert(is::not_invocable_with_any([](int, int) -> int { throw 0; }));                          // bad arity
 
-  WHEN("operand is lvalue")
+  SECTION("lvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       operand_t a{std::in_place, 12};
       using T = decltype(a | recover(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a | recover(wrong)).value() == 12);
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       operand_t a{::fn::unexpect, Error{"Not good"}};
       using T = decltype(a | recover(fnError));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a | recover(fnError)).value() == 8);
     }
+    SECTION("member function")
+    {
+      operand_t a{::fn::unexpect, Error{"Not good"}};
+      using T = decltype(a | recover(&Error::fn));
+      static_assert(std::is_same_v<T, operand_t>);
+      REQUIRE((a | recover(&Error::fn)).value() == 8);
+    }
   }
 
-  WHEN("operand is rvalue")
+  SECTION("rvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       using T = decltype(operand_t{std::in_place, 12} | recover(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((operand_t{std::in_place, 12} | recover(wrong)).value() == 12);
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | recover(fnError));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((operand_t{::fn::unexpect, Error{"Not good"}} | recover(fnError)).value() == 8);
+    }
+    SECTION("member function")
+    {
+      using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | recover(&Error::fn));
+      static_assert(std::is_same_v<T, operand_t>);
+      REQUIRE((operand_t{::fn::unexpect, Error{"Not good"}} | recover(&Error::fn)).value() == 8);
+    }
+  }
+
+  SECTION("constexpr")
+  {
+    enum class Error { ThresholdExceeded, SomethingElse };
+    using T = fn::expected<int, Error>;
+
+    constexpr auto fn = [](Error e) constexpr noexcept -> int {
+      if (e == Error::SomethingElse)
+        return 0;
+      return 1;
+    };
+    constexpr auto r1 = T{2} | fn::recover(fn);
+    static_assert(r1.value() == 2);
+    constexpr auto r2 = T{::fn::unexpect, Error::SomethingElse} | fn::recover(fn);
+    static_assert(r2.value() == 0);
+    constexpr auto r3 = T{::fn::unexpect, Error::ThresholdExceeded} | fn::recover(fn);
+    static_assert(r3.value() == 1);
+
+    SUCCEED();
+
+    SECTION("sum")
+    {
+      using TS = fn::expected<int, fn::sum_for<Error, bool>>;
+
+      constexpr auto fnSum = fn::overload{[](Error e) constexpr noexcept -> int {
+                                            if (e == Error::SomethingElse)
+                                              return 0;
+                                            return 1;
+                                          },
+                                          [](bool e) constexpr noexcept -> int { return (int)e; }};
+      constexpr auto s1 = TS{2} | fn::recover(fnSum);
+      static_assert(s1.value() == 2);
+      constexpr auto s2 = TS{::fn::unexpect, fn::sum{Error::SomethingElse}} | fn::recover(fnSum);
+      static_assert(s2.value() == 0);
+      constexpr auto s3 = TS{::fn::unexpect, fn::sum{true}} | fn::recover(fnSum);
+      static_assert(s3.value() == 1);
+      constexpr auto s4 = TS{::fn::unexpect, fn::sum{Error::ThresholdExceeded}} | fn::recover(fnSum);
+      static_assert(s4.value() == 1);
+
+      SUCCEED();
     }
   }
 }
@@ -118,9 +174,9 @@ TEST_CASE("recover", "[recover][expected][expected_void]")
   static_assert(is::not_invocable_with_any([]() { throw 0; }));                                  // bad arity
   static_assert(is::not_invocable_with_any([](int, int) { throw 0; }));                          // bad arity
 
-  WHEN("operand is lvalue")
+  SECTION("lvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       operand_t a{std::in_place};
       using T = decltype(a | recover(wrong));
@@ -128,7 +184,7 @@ TEST_CASE("recover", "[recover][expected][expected_void]")
       (a | recover(wrong)).value();
       REQUIRE(count == 0);
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       operand_t a{::fn::unexpect, Error{"Not good"}};
       using T = decltype(a | recover(fnError));
@@ -138,16 +194,16 @@ TEST_CASE("recover", "[recover][expected][expected_void]")
     }
   }
 
-  WHEN("operand is rvalue")
+  SECTION("rvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       using T = decltype(operand_t{std::in_place} | recover(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       (operand_t{std::in_place} | recover(wrong)).value();
       REQUIRE(count == 0);
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | recover(fnError));
       static_assert(std::is_same_v<T, operand_t>);
@@ -178,16 +234,16 @@ TEST_CASE("recover", "[recover][optional]")
   static_assert(is::not_invocable_with_any([](int) -> int { throw 0; }));      // bad arity
   static_assert(is::not_invocable_with_any([](int, int) -> int { throw 0; })); // bad arity
 
-  WHEN("operand is lvalue")
+  SECTION("lvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       operand_t a{12};
       using T = decltype(a | recover(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a | recover(wrong)).value() == 12);
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       operand_t a{std::nullopt};
       using T = decltype(a | recover(fnError));
@@ -196,91 +252,50 @@ TEST_CASE("recover", "[recover][optional]")
     }
   }
 
-  WHEN("operand is rvalue")
+  SECTION("rvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       using T = decltype(operand_t{12} | recover(wrong));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((operand_t{12} | recover(wrong)).value() == 12);
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       using T = decltype(operand_t{std::nullopt} | recover(fnError));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((operand_t{std::nullopt} | recover(fnError)).value() == 42);
     }
   }
-}
 
-TEST_CASE("constexpr recover expected", "[recover][constexpr][expected]")
-{
-  enum class Error { ThresholdExceeded, SomethingElse };
-  using T = fn::expected<int, Error>;
+  SECTION("constexpr")
+  {
+    using T = fn::optional<int>;
+    constexpr auto fn = []() constexpr noexcept -> int { return 13; };
+    constexpr auto r1 = T{0} | fn::recover(fn);
+    static_assert(r1.value() == 0);
+    constexpr auto r2 = T{} | fn::recover(fn);
+    static_assert(r2.value() == 13);
 
-  constexpr auto fn = [](Error e) constexpr noexcept -> int {
-    if (e == Error::SomethingElse)
-      return 0;
-    return 1;
-  };
-  constexpr auto r1 = T{2} | fn::recover(fn);
-  static_assert(r1.value() == 2);
-  constexpr auto r2 = T{::fn::unexpect, Error::SomethingElse} | fn::recover(fn);
-  static_assert(r2.value() == 0);
-  constexpr auto r3 = T{::fn::unexpect, Error::ThresholdExceeded} | fn::recover(fn);
-  static_assert(r3.value() == 1);
-
-  SUCCEED();
-}
-
-TEST_CASE("constexpr recover expected with sum", "[recover][constexpr][expected][sum]")
-{
-  enum class Error { ThresholdExceeded, SomethingElse };
-  using T = fn::expected<int, fn::sum_for<Error, bool>>;
-
-  constexpr auto fn = fn::overload{[](Error e) constexpr noexcept -> int {
-                                     if (e == Error::SomethingElse)
-                                       return 0;
-                                     return 1;
-                                   },
-                                   [](bool e) constexpr noexcept -> int { return (int)e; }};
-  constexpr auto r1 = T{2} | fn::recover(fn);
-  static_assert(r1.value() == 2);
-  constexpr auto r2 = T{::fn::unexpect, fn::sum{Error::SomethingElse}} | fn::recover(fn);
-  static_assert(r2.value() == 0);
-  constexpr auto r3 = T{::fn::unexpect, fn::sum{true}} | fn::recover(fn);
-  static_assert(r3.value() == 1);
-  constexpr auto r4 = T{::fn::unexpect, fn::sum{Error::ThresholdExceeded}} | fn::recover(fn);
-  static_assert(r4.value() == 1);
-
-  SUCCEED();
-}
-
-TEST_CASE("constexpr recover optional", "[recover][constexpr][optional]")
-{
-  using T = fn::optional<int>;
-  constexpr auto fn = []() constexpr noexcept -> int { return 13; };
-  constexpr auto r1 = T{0} | fn::recover(fn);
-  static_assert(r1.value() == 0);
-  constexpr auto r2 = T{} | fn::recover(fn);
-  static_assert(r2.value() == 13);
-
-  SUCCEED();
+    SUCCEED();
+  }
 }
 
 TEST_CASE("recover noexcept", "[recover][noexcept]")
 {
-  // recover invokes AND constructs the result, so it weighs both
-  using E = fn::expected<int, int>;
-  using O = fn::optional<int>;
-  static_assert(noexcept(std::declval<E &>() | fn::recover([](int) noexcept { return 0; })));
-  static_assert(not noexcept(std::declval<E &>() | fn::recover([](int) { return 0; })));
-  static_assert(noexcept(std::declval<O &>() | fn::recover([]() noexcept { return 0; })));
-  static_assert(not noexcept(std::declval<O &>() | fn::recover([]() { return 0; })));
+  using namespace fn;
 
-  // constructing the result can throw even where the callback cannot
-  using S = fn::expected<std::string, int>;
-  static_assert(not noexcept(std::declval<S const &>() | fn::recover([](int) noexcept { return std::string{}; })));
+  constexpr auto fnThrows = [](Error const &) noexcept(false) -> int { return 0; };
+  constexpr auto fnThrows0 = [](Error const &) noexcept(false) -> void {};
+  constexpr auto fnThrowsOpt = []() noexcept(false) -> int { return 0; };
+
+  // recover's apply is the implementation - it invokes the callback AND constructs the recovered
+  // result from what comes back - so with no member spec to appeal to it computes its own, weighing
+  // both.
+  static_assert(not noexcept(recover_t::apply{}(std::declval<fn::expected<int, Error> &>(), fnThrows)));
+  static_assert(not noexcept(recover_t::apply{}(std::declval<fn::expected<void, Error> &>(), fnThrows0)));
+  static_assert(not noexcept(recover_t::apply{}(std::declval<fn::optional<int> &>(), fnThrowsOpt)));
+
   SUCCEED();
 }
 
@@ -317,3 +332,34 @@ TEST_CASE("recover constraints", "[recover][constraints]")
                                   ref_t &>);
   SUCCEED();
 }
+
+namespace fn {
+namespace {
+struct Error {};
+struct Value final {};
+
+template <typename T> constexpr auto fn_Error = [](Error) -> T { throw 0; };
+template <typename T> constexpr auto fn_nullary = []() -> T { throw 0; };
+template <typename T> constexpr auto fn_generic = [](auto &&...) -> T { throw 0; };
+constexpr auto fn_Error_lvalue = [](Error &) -> int { throw 0; };
+constexpr auto fn_Error_rvalue = [](Error &&) -> int { throw 0; };
+} // namespace
+
+// clang-format off
+// The callback consumes the error and must produce the operand's own value type.
+static_assert(invocable_recover<decltype(fn_Error<int>), expected<int, Error>>);
+static_assert(invocable_recover<decltype(fn_Error<unsigned>), expected<int, Error>>);    // conversion to value is enough
+static_assert(not invocable_recover<decltype(fn_Error<Value>), expected<int, Error>>);   // no conversion found
+static_assert(not invocable_recover<decltype(fn_nullary<int>), expected<int, Error>>);   // bad arity
+static_assert(invocable_recover<decltype(fn_generic<int>), expected<int, Error>>);
+static_assert(invocable_recover<decltype(fn_Error<void>), expected<void, Error>>);       // a void value wants void back
+static_assert(not invocable_recover<decltype(fn_Error<int>), expected<void, Error>>);    // never quietly discard a result
+static_assert(invocable_recover<decltype(fn_nullary<int>), optional<int>>);              // optional has no error: nullary
+static_assert(not invocable_recover<decltype(fn_Error<int>), optional<int>>);            // bad arity
+static_assert(not invocable_recover<decltype(fn_generic<int>), choice<int>>);            // no choice disjunct
+static_assert(not invocable_recover<decltype(fn_Error_lvalue), expected<int, Error>>);   // cannot bind temporary to lvalue
+static_assert(invocable_recover<decltype(fn_Error_lvalue), expected<int, Error> &>);
+static_assert(invocable_recover<decltype(fn_Error_rvalue), expected<int, Error>>);
+static_assert(not invocable_recover<decltype(fn_Error_rvalue), expected<int, Error> &>); // cannot bind lvalue to rvalue-ref
+// clang-format on
+} // namespace fn

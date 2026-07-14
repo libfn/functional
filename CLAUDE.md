@@ -15,7 +15,7 @@ Conventions for AI agents in this repo (you are the primary reader — keep this
 
 - Trailer `Assisted-by: Claude:<exact session model id>` (Linux-kernel convention), e.g. `claude-opus-4-8`. No `Co-Authored-By:`.
 - Offer commits; never commit without confirmation. Terse messages: imperative topic, body only if needed.
-- A feature or fix and its tests written together land as one commit.
+- A feature or fix commit should include a test for the behaviour it changes; exceptions are allowed. The PR must contain such a test somewhere unless the behaviour is inherently untestable (for example, because of language or compiler limitations); explain the omission.
 - Never `git push` or sign commits — the user signs (GPG) and pushes.
 
 ## Git state
@@ -45,8 +45,7 @@ C++20 is the sole export surface — fn + pfn build and pass tests as C++20 on a
 
 ## Tests
 
-- Add each check to the existing `TEST_CASE`/`SECTION` (or file) covering that member/behaviour, matching local idiom — not the nearest spot or a catch-all. A check in the right named section is self-documenting.
-- Every behaviour gets both a runtime `CHECK` (a `static_assert`-only branch is a codecov hole) and a constant-evaluation twin (`static_assert`) — constexpr diagnoses UB at compile time, and users rely on it.
+- Before writing or reviewing tests, read and follow `CONTRIBUTING.md` from `## Unit tests` to the next top-level heading; it is the source of truth for test structure, assertions and compile-time probes.
 
 ## Tooling
 

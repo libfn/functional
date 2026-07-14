@@ -4,6 +4,7 @@
 // or copy at https://opensource.org/licenses/ISC
 
 #include <fn/detail/pack_impl.hpp>
+#include <fn/sum.hpp>
 
 #include <catch2/catch_all.hpp>
 
@@ -69,6 +70,45 @@ TEST_CASE("pack_impl size and aggregate construction", "[pack_impl]")
   using PN = pack_impl<std::index_sequence_for<NonCopyable>, NonCopyable>;
   constexpr PN pn{NonCopyable{99}};
   static_assert(PN::_invoke(pn, [](NonCopyable const &n) { return n.v; }) == 99);
+
+  SUCCEED();
+}
+
+TEST_CASE("pack_impl noexcept", "[pack_impl][noexcept]")
+{
+  using fn::detail::pack_impl;
+
+  // An element whose copy and move can both throw, so that what the members promise can be compared
+  // with what they actually do.
+  struct Throwing final {
+    int v;
+
+    constexpr Throwing(int i) noexcept : v(i) {}
+    constexpr Throwing(Throwing const &o) noexcept(false) : v(o.v) {}
+    constexpr Throwing(Throwing &&o) noexcept(false) : v(o.v) {}
+  };
+  static_assert(not std::is_nothrow_copy_constructible_v<Throwing>);
+
+  using P = pack_impl<std::index_sequence_for<int, double>, int, double>;
+  using PT = pack_impl<std::index_sequence_for<Throwing>, Throwing>;
+
+  constexpr auto throwing_fn = [](auto &&...) noexcept(false) -> int { return 0; };
+
+  // both dispatchers weigh the callback they invoke
+  static_assert(not noexcept(P::_swap_invoke(std::declval<P const &>(), throwing_fn)));
+  static_assert(not noexcept(P::_invoke(std::declval<P const &>(), throwing_fn)));
+
+  // _append weighs the element it constructs AND every element it relocates into the new pack: here
+  // the appended int cannot throw, but the Throwing already in the pack must be moved across ...
+  static_assert(not noexcept(PT::template _append<int>(std::declval<PT const &>(), 1)));
+  // ... while constructing a Throwing from an int cannot throw, and nothing relocated can either
+  static_assert(noexcept(P::template _append<Throwing>(std::declval<P const &>(), 1)));
+
+  // _get's promise is accurate: it only forms a reference to an element, touching nothing.
+  static_assert(noexcept(P::template _get<0>(std::declval<P const &>())));
+  static_assert(noexcept(PT::template _get<0>(std::declval<PT &>())));
+
+  SUCCEED();
 }
 
 TEST_CASE("pack_impl _swap_invoke", "[pack_impl][swap_invoke]")
@@ -194,6 +234,8 @@ TEST_CASE("pack_impl _append and append_type", "[pack_impl][append][append_type]
   static_assert(not can_append<P0, int, int, int>);
   // positive control: single-arg int ctor accepted
   static_assert(can_append<P0, int, int>);
+  // SFINAE: a pack never holds a sum, so append_type<sum> names no type and the overload drops out
+  static_assert(not can_append<P0, ::fn::sum<int>, ::fn::sum<int>>);
 
   // append_type<T> alias resolves to ::fn::pack<Ts..., T>
   static_assert(std::same_as<P2::append_type<bool>, ::fn::pack<int, double, bool>>);

@@ -43,6 +43,30 @@ template <fn::some_sum auto S> auto read_nttp()
   return S.invoke([](auto const &...args) { return (0.0 + ... + static_cast<double>(args)); });
 }
 
+// Every operation sum performs on an alternative - copy, move, compare - can throw here, so the
+// member wrapping it must say so. Witnesses the conditional noexcept below.
+struct Throwing final {
+  int v;
+
+  constexpr operator int() const { return v; }
+  constexpr Throwing(int i) noexcept : v(i) {}
+  constexpr Throwing(Throwing const &o) noexcept(false) : v(o.v) {}
+  constexpr Throwing(Throwing &&o) noexcept(false) : v(o.v) {}
+  constexpr bool operator==(Throwing const &o) const noexcept(false) { return v == o.v; }
+};
+
+// Copy is explicit, move is implicit - so an lvalue argument is constructible-but-not-convertible
+// and selects sum's explicit value constructor, while an rvalue selects the implicit one.
+// NOTE no operator int(): with the implicit ExplicitCopy(int) ctor it would open an
+// ExplicitCopy& -> int -> ExplicitCopy path, making the argument convertible after all.
+struct ExplicitCopy final {
+  int v;
+
+  constexpr ExplicitCopy(int i) noexcept : v(i) {}
+  constexpr explicit ExplicitCopy(ExplicitCopy const &o) noexcept : v(o.v) {}
+  constexpr ExplicitCopy(ExplicitCopy &&o) noexcept : v(o.v) {}
+};
+
 // Counts live instances through every path a sum can take one: unlike TestType, whose implicit copy
 // constructor does not count (leaving its counter negative once anything copies it), this one is
 // balanced, so an assignment can be asked whether it destroyed what it replaced.
@@ -105,7 +129,7 @@ TEST_CASE("design: braces, not parentheses", "[sum][design]")
 {
   using fn::sum;
 
-  WHEN("aggregate forwarding")
+  SECTION("aggregate forwarding")
   {
     using A = std::array<int, 3>;
     static_assert(can_in_place<sum<A>, A, int, int, int>);        // braces elide; parentheses cannot
@@ -117,14 +141,14 @@ TEST_CASE("design: braces, not parentheses", "[sum][design]")
     static_assert(sum<A>{std::in_place_type<A>, 1, 2, 3}.invoke([](A const &v) { return v[2]; }) == 3);
   }
 
-  WHEN("narrowing")
+  SECTION("narrowing")
   {
     static_assert(not can_in_place<sum<int>, int, double>); // braces reject it ...
     static_assert(std::is_constructible_v<int, double>);    // ... where parentheses would truncate in silence
     SUCCEED();
   }
 
-  WHEN("initializer-list constructors win")
+  SECTION("initializer-list constructors win")
   {
     // the price of the above, and the same mechanism as the trap below: `std::variant` would hold
     // three zeroes here, and a sum holds the two elements it was written with
@@ -134,7 +158,7 @@ TEST_CASE("design: braces, not parentheses", "[sum][design]")
     CHECK(v.invoke([](V const &x) { return x[0]; }) == 3);
   }
 
-  WHEN("the traits must ask the brace question")
+  SECTION("the traits must ask the brace question")
   {
     // Braced initialization considers initializer-list constructors FIRST, so the two questions can
     // answer differently - and the parenthesized answer is not the one the storage acts on.
@@ -147,7 +171,7 @@ TEST_CASE("design: braces, not parentheses", "[sum][design]")
     static_assert(not noexcept(sum<Listy>{std::in_place_type<Listy>, 1})); // the sum promises what it does
   }
 
-  WHEN("... including where a compiler answers it differently")
+  SECTION("... including where a compiler answers it differently")
   {
     // The divergence also reaches the copy and move constructors, and the assignment built on them.
     // `Evil` converts to double only as an rvalue, so `Evil{lvalue}` copies while `Evil{rvalue}`
@@ -184,14 +208,19 @@ TEST_CASE("sum basic functionality tests", "[sum]")
 
   using fn::sum;
 
-  WHEN("sum<> unit")
+  SECTION("sum<> unit")
   {
     static_assert(sum<>::size == 0);
     static_assert(sum<>::has_type<bool> == false);
     static_assert(std::same_as<fn::sum_for<sum<>, sum<>>, sum<>>);
+    static_assert(not std::is_default_constructible_v<sum<>>); // the deleted default ctor is the point
+    static_assert(std::is_nothrow_copy_constructible_v<sum<>>);
+    static_assert(std::is_nothrow_move_constructible_v<sum<>>);
+    static_assert(std::is_nothrow_destructible_v<sum<>>);
+    SUCCEED();
   }
 
-  WHEN("as_sum")
+  SECTION("as_sum")
   {
     constexpr auto a = fn::as_sum(12);
     static_assert(std::same_as<decltype(a), fn::sum<int> const>);
@@ -201,7 +230,12 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     static_assert(std::same_as<decltype(b), fn::sum<long> const>);
     static_assert(b == fn::sum{12l});
 
-    WHEN("constraints")
+    // both lifts weigh the alternative they construct, asking the brace initialization they perform
+    static_assert(noexcept(fn::as_sum(12)));
+    static_assert(noexcept(fn::as_sum(std::in_place_type<long>, 12)));
+    static_assert(not noexcept(fn::as_sum(std::declval<Throwing const &>())));
+
+    SECTION("constraints")
     {
       static_assert(can_as_sum<long, int>);
       static_assert(can_as_sum<std::array<int, 3>, int, int, int>); // an aggregate, brace-initialized
@@ -216,7 +250,7 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     }
   }
 
-  WHEN("sum_for")
+  SECTION("sum_for")
   {
     static_assert(std::same_as<fn::sum_for<int>, fn::sum<int>>);
     static_assert(std::same_as<fn::sum_for<int, int>, fn::sum<int>>);
@@ -259,7 +293,7 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     static_assert(std::same_as<fn::sum_for<double, fn::sum<>, fn::sum<bool, int>>, fn::sum<bool, double, int>>);
   }
 
-  WHEN("invocable")
+  SECTION("invocable")
   {
     using type = fn::sum_for<TestType, int>; // sum<...> order is platform-specific; sum_for normalizes per platform
     static_assert(fn::typelist_invocable<decltype([](auto) {}), type &>);
@@ -280,9 +314,20 @@ TEST_CASE("sum basic functionality tests", "[sum]")
 
     static_assert(fn::typelist_invocable<decltype([](auto &) {}), sum<NonCopyable> &>);
     static_assert(not fn::typelist_invocable<decltype([](auto) {}), NonCopyable &>); // copy-constructor not available
+
+    // variadic-generic callback, and a per-category sweep of an lvalue-only overload set
+    using T2 = fn::sum<double, int>;
+    static_assert(fn::typelist_invocable<decltype([](auto...) {}), T2 &>);
+    constexpr auto fnLvalue = fn::overload{[](int &) {}, [](double &) {}};
+    static_assert(fn::typelist_invocable<decltype(fnLvalue), T2 &>);
+    static_assert(not fn::typelist_invocable<decltype(fnLvalue), T2 const &>);
+    static_assert(not fn::typelist_invocable<decltype(fnLvalue), T2>);
+    static_assert(not fn::typelist_invocable<decltype(fnLvalue), T2 const>);
+    static_assert(not fn::typelist_invocable<decltype(fnLvalue), T2 &&>);
+    static_assert(not fn::typelist_invocable<decltype(fnLvalue), T2 const &&>);
   }
 
-  WHEN("check destructor call")
+  SECTION("check destructor call")
   {
     {
       sum<TestType> s{std::in_place_type<TestType>};
@@ -295,15 +340,61 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     CHECK(TestType::count == 0);
   }
 
-  WHEN("single parameter constructor")
+  SECTION("single parameter constructor")
   {
+    static_assert(sum<int>::size == 1);
+
     constexpr sum<int> a = 12;
     static_assert(a == sum{12});
 
     constexpr sum<bool> b{false};
     static_assert(b == sum{false});
 
-    WHEN("CTAD")
+    SECTION("noexcept")
+    {
+      // the value constructors weigh the alternative they construct
+      static_assert(std::is_nothrow_constructible_v<int, int>);
+      static_assert(noexcept(sum<int>{42}));
+      static_assert(noexcept(sum<int>{std::in_place_type<int>, 42}));
+
+      // ... and report it when that construction can throw
+      static_assert(not noexcept(sum<Throwing>{std::declval<Throwing const &>()}));
+      static_assert(not noexcept(sum<Throwing>{std::in_place_type<Throwing>, std::declval<Throwing const &>()}));
+      SUCCEED();
+    }
+
+    SECTION("explicit (non-convertible) argument")
+    {
+      // The two value constructors differ only in the argument's convertibility to the alternative:
+      // ExplicitCopy's copy constructor is explicit, so an lvalue selects the explicit arm and can
+      // only direct-initialize, while an rvalue (implicit move) selects the implicit one.
+      static_assert(std::is_constructible_v<ExplicitCopy, ExplicitCopy &>);
+      static_assert(not std::is_convertible_v<ExplicitCopy &, ExplicitCopy>);
+
+      static_assert(std::is_constructible_v<sum<ExplicitCopy>, ExplicitCopy &>);
+      static_assert(not std::is_convertible_v<ExplicitCopy &, sum<ExplicitCopy>>); // explicit arm
+      static_assert(std::is_constructible_v<sum<ExplicitCopy>, ExplicitCopy &&>);
+      static_assert(std::is_convertible_v<ExplicitCopy &&, sum<ExplicitCopy>>); // implicit arm
+
+      ExplicitCopy e{42};
+      sum<ExplicitCopy> a{e};
+      CHECK(a.invoke([](auto &&i) -> int { return i.v; }) == 42);
+
+      sum<ExplicitCopy> b{std::move(e)};
+      CHECK(b.invoke([](auto &&i) -> int { return i.v; }) == 42);
+
+      SECTION("constexpr")
+      {
+        constexpr auto c = []() constexpr {
+          ExplicitCopy e{42};
+          return sum<ExplicitCopy>{e};
+        }();
+        static_assert(c.invoke([](auto &&i) -> int { return i.v; }) == 42);
+        SUCCEED();
+      }
+    }
+
+    SECTION("CTAD")
     {
       sum a{42};
       static_assert(std::is_same_v<decltype(a), sum<int>>);
@@ -318,7 +409,7 @@ TEST_CASE("sum basic functionality tests", "[sum]")
       static_assert(c.invoke([](auto &&a) -> bool { return a.size() == 3 && a[0] == 3 && a[1] == 14 && a[2] == 15; }));
     }
 
-    WHEN("move from rvalue")
+    SECTION("move from rvalue")
     {
       using T = fn::sum<bool, int>;
       constexpr auto fn = [](auto i) constexpr noexcept -> T { return {std::move(i)}; };
@@ -331,7 +422,7 @@ TEST_CASE("sum basic functionality tests", "[sum]")
       static_assert(b.has_value<int>());
     }
 
-    WHEN("copy from lvalue")
+    SECTION("copy from lvalue")
     {
       using T = fn::sum<bool, int>;
       constexpr auto fn = [](auto i) constexpr noexcept -> T { return {i}; };
@@ -345,12 +436,12 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     }
   }
 
-  WHEN("forwarding constructors (immovable)")
+  SECTION("forwarding constructors (immovable)")
   {
     sum<NonCopyable> a{std::in_place_type<NonCopyable>, 42};
     CHECK(a.invoke([](auto &i) -> bool { return i.v == 42; }));
 
-    WHEN("CTAD")
+    SECTION("CTAD")
     {
       constexpr auto a = sum{std::in_place_type<NonCopyable>, 42};
       static_assert(std::is_same_v<decltype(a), sum<NonCopyable> const>);
@@ -359,7 +450,7 @@ TEST_CASE("sum basic functionality tests", "[sum]")
       static_assert(std::is_same_v<decltype(b), sum<NonCopyable>>);
     }
 
-    WHEN("constraints")
+    SECTION("constraints")
     {
       static_assert(can_in_place<sum<NonCopyable>, NonCopyable, int>);
       static_assert(not can_in_place<sum<NonCopyable>, int, int>); // int is not an alternative
@@ -372,20 +463,9 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     }
   }
 
-  WHEN("forwarding constructors (aggregate)")
+  SECTION("forwarding constructors (aggregate)")
   {
-    WHEN("constraints")
-    {
-      using T = std::array<int, 3>;
-      // the element is brace-initialized, which elides braces for an aggregate - a constraint
-      // spelled with is_constructible_v (parenthesized init) would reject this very construction
-      static_assert(can_in_place<sum<T>, T, int, int, int>);
-      static_assert(not can_in_place<sum<T>, T, int, int, int, int>); // one too many
-      static_assert(not can_in_place<sum<int>, int, double>);         // narrowing, rejected by braces
-      SUCCEED();
-    }
-
-    WHEN("regular")
+    SECTION("regular")
     {
       sum<std::array<int, 3>> a{std::in_place_type<std::array<int, 3>>, 1, 2, 3};
       static_assert(decltype(a)::has_type<std::array<int, 3>>);
@@ -397,7 +477,7 @@ TEST_CASE("sum basic functionality tests", "[sum]")
       }));
     }
 
-    WHEN("constexpr")
+    SECTION("constexpr")
     {
       constexpr sum<std::array<int, 3>> a{std::in_place_type<std::array<int, 3>>, 1, 2, 3};
       static_assert(decltype(a)::has_type<std::array<int, 3>>);
@@ -410,7 +490,7 @@ TEST_CASE("sum basic functionality tests", "[sum]")
       }));
     }
 
-    WHEN("CTAD")
+    SECTION("CTAD")
     {
       constexpr auto a = sum{std::in_place_type<std::array<int, 3>>, 1, 2, 3};
       static_assert(std::is_same_v<decltype(a), sum<std::array<int, 3>> const>);
@@ -418,9 +498,101 @@ TEST_CASE("sum basic functionality tests", "[sum]")
       auto b = sum{std::in_place_type<std::array<int, 3>>, 1, 2, 3};
       static_assert(std::is_same_v<decltype(b), sum<std::array<int, 3>>>);
     }
+
+    SECTION("constraints")
+    {
+      using T = std::array<int, 3>;
+      // the element is brace-initialized, which elides braces for an aggregate - a constraint
+      // spelled with is_constructible_v (parenthesized init) would reject this very construction
+      static_assert(can_in_place<sum<T>, T, int, int, int>);
+      static_assert(not can_in_place<sum<T>, T, int, int, int, int>); // one too many
+      static_assert(not can_in_place<sum<int>, int, double>);         // narrowing, rejected by braces
+      SUCCEED();
+    }
   }
 
-  WHEN("has_type type mismatch")
+  SECTION("widening constructor")
+  {
+    using T = sum<bool, double, int>;
+    using S = sum<bool, int>;
+
+    SECTION("from lvalue")
+    {
+      S const a{std::in_place_type<int>, 42};
+      T b{a};
+      CHECK(b.has_value(std::in_place_type<int>));
+      CHECK(b.invoke([](auto &&i) -> int { return static_cast<int>(i); }) == 42);
+      CHECK(a.has_value(std::in_place_type<int>)); // the source is copied, not consumed
+    }
+
+    SECTION("from rvalue")
+    {
+      S a{std::in_place_type<int>, 42};
+      T b{std::move(a)};
+      CHECK(b.has_value(std::in_place_type<int>));
+      CHECK(b.invoke([](auto &&i) -> int { return static_cast<int>(i); }) == 42);
+    }
+
+    SECTION("in_place_type names the source sum")
+    {
+      S const a{std::in_place_type<bool>, true};
+      T b{std::in_place_type<S>, a};
+      CHECK(b.has_value(std::in_place_type<bool>));
+      CHECK(b.invoke([](auto &&i) -> bool { return static_cast<bool>(i); }));
+    }
+
+    SECTION("constexpr")
+    {
+      constexpr S a{std::in_place_type<int>, 42};
+      constexpr T b{a};
+      static_assert(b.has_value(std::in_place_type<int>));
+      static_assert(b == T{42});
+
+      constexpr T c{S{true}}; // rvalue
+      static_assert(c.has_value(std::in_place_type<bool>));
+
+      constexpr T d{std::in_place_type<S>, a};
+      static_assert(d == b);
+      SUCCEED();
+    }
+
+    SECTION("constraints")
+    {
+      // Widening only ever widens: the target must be a superset of the source.
+      static_assert(std::is_constructible_v<T, S const &>);
+      static_assert(std::is_constructible_v<T, S &&>);
+      static_assert(std::is_constructible_v<T, sum<int> const &>);
+      static_assert(not std::is_constructible_v<sum<int>, S const &>); // narrowing
+      static_assert(not std::is_constructible_v<sum<int>, S &&>);
+      static_assert(not std::is_constructible_v<S, sum<double> const &>); // disjoint
+
+      // The in_place_type form names the SOURCE sum, and is superset-constrained the same way.
+      static_assert(std::is_constructible_v<T, std::in_place_type_t<S>, S const &>);
+      static_assert(not std::is_constructible_v<sum<int>, std::in_place_type_t<S>, S const &>);
+
+      // Same-type construction is the copy/move constructor - the widening pair excludes it.
+      static_assert(std::is_constructible_v<T, T const &>);
+      SUCCEED();
+    }
+
+    SECTION("noexcept")
+    {
+      // each widening constructor copies or moves every alternative of the source into the wider
+      // union, and weighs what it relocates
+      using X = fn::sum_for<Throwing, int>;
+      static_assert(not noexcept(X{std::declval<sum<Throwing> const &>()}));
+      static_assert(not noexcept(X{std::declval<sum<Throwing> &&>()}));
+      static_assert(not noexcept(X{std::in_place_type<sum<Throwing>>, std::declval<sum<Throwing> const &>()}));
+
+      // ... so an alternative that cannot throw widens without an exception edge
+      using Y = fn::sum<bool, int>;
+      static_assert(noexcept(Y{std::declval<sum<int> const &>()}));
+      static_assert(noexcept(Y{std::declval<sum<int> &&>()}));
+      SUCCEED();
+    }
+  }
+
+  SECTION("has_type type mismatch")
   {
     using type = sum<bool, int>;
     static_assert(type::has_type<int>);
@@ -435,9 +607,64 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     static_assert([](auto const &a) constexpr -> bool { //
       return not requires { a.template has_value<double>(); };
     }(a)); // double is not a type member
+
+    // Accurate, unlike the members below: reading the discriminator touches no alternative, so the
+    // promise holds even when every operation on that alternative can throw.
+    static_assert(noexcept(a.has_value(std::in_place_type<int>)));
+    static_assert(noexcept(a.template has_value<int>()));
+    static_assert(noexcept(std::declval<sum<Throwing> const &>().has_value(std::in_place_type<Throwing>)));
   }
 
-  WHEN("equality comparison")
+  SECTION("index")
+  {
+    constexpr fn::sum<std::array<int, 3>> a{std::in_place_type<std::array<int, 3>>, 3, 14, 15};
+    static_assert(a.index == 0);
+
+    fn::sum<double, int> b{std::in_place_type<int>, 42};
+    CHECK(b.index == 1);
+    constexpr fn::sum<double, int> c{std::in_place_type<int>, 12};
+    static_assert(c.index == 1);
+  }
+
+  SECTION("select_nth")
+  {
+    using T = fn::sum<double, int>;
+    static_assert(T::size == 2);
+    static_assert(std::is_same_v<T::template select_nth<0>, double>);
+    static_assert(std::is_same_v<T::template select_nth<1>, int>);
+
+    SUCCEED();
+  }
+
+  SECTION("get_ptr")
+  {
+    using T = fn::sum<double, int>;
+    T b{std::in_place_type<int>, 42};
+    CHECK(b.template has_value<int>());
+    CHECK(b.has_value(std::in_place_type<int>));
+
+    static_assert(std::is_same_v<decltype(b.get_ptr(std::in_place_type<int>)), int *>);
+    CHECK(b.get_ptr(std::in_place_type<int>) == &b.data.v1);
+    CHECK(b.get_ptr(std::in_place_type<double>) == nullptr);
+    static_assert(std::is_same_v<decltype(std::as_const(b).get_ptr(std::in_place_type<int>)), int const *>);
+    CHECK(std::as_const(b).get_ptr(std::in_place_type<int>) == &b.data.v1);
+    CHECK(std::as_const(b).get_ptr(std::in_place_type<double>) == nullptr);
+    static_assert(noexcept(b.get_ptr(std::in_place_type<int>))); // accurate: no alternative is touched
+    static_assert(noexcept(std::as_const(b).get_ptr(std::in_place_type<int>)));
+    static_assert([](auto &b) constexpr -> bool { //
+      return not requires { b.get_ptr(std::in_place_type<bool>); };
+    }(b)); // bool is not a type member
+
+    T const c{std::in_place_type<double>, 4.25};
+    CHECK(c.get_ptr(std::in_place_type<int>) == nullptr);
+    CHECK(c.get_ptr(std::in_place_type<double>) == &c.data.v0);
+
+    constexpr auto d = fn::sum<double, int>{std::in_place_type<int>, 12};
+    static_assert(d.get_ptr(std::in_place_type<double>) == nullptr);
+    static_assert(*d.get_ptr(std::in_place_type<int>) == 12);
+  }
+
+  SECTION("equality comparison")
   {
     using type = sum<bool, int>;
 
@@ -449,6 +676,8 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     static_assert(not can_ne<sum<int>, sum<>>);
     static_assert(not can_eq<sum<>, sum<int>>);
     static_assert(not can_ne<sum<>, sum<int>>);
+    static_assert(not can_eq<sum<>, sum<>>);
+    static_assert(not can_ne<sum<>, sum<>>);
 
     type const a{std::in_place_type<int>, 42};
     static_assert(std::is_same_v<bool, decltype(sum{42} == a)>);
@@ -471,7 +700,7 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     CHECK(sum{0.5} != a);
     CHECK(a != sum{0.5});
 
-    WHEN("constexpr")
+    SECTION("constexpr")
     {
       constexpr type a{std::in_place_type<int>, 42};
       static_assert(std::is_same_v<bool, decltype(a == sum{42})>);
@@ -507,32 +736,75 @@ TEST_CASE("sum basic functionality tests", "[sum]")
         return not requires { a != 0.5; }; // no implicit conversion
       }(a));
     }
+
+    SECTION("noexcept")
+    {
+      using T = sum<Throwing>;
+
+      // operator== reaches into the alternative's own comparison, and weighs it - as does the !=
+      // rewritten from it
+      static_assert(not noexcept(std::declval<Throwing const &>() == std::declval<Throwing const &>()));
+      static_assert(not noexcept(std::declval<T const &>() == std::declval<T const &>()));
+      static_assert(not noexcept(std::declval<T const &>() != std::declval<T const &>()));
+
+      // ... while an alternative whose comparison cannot throw is compared without an exception edge
+      using Q = sum<int>;
+      static_assert(noexcept(std::declval<Q const &>() == std::declval<Q const &>()));
+      static_assert(noexcept(std::declval<Q const &>() != std::declval<Q const &>()));
+
+      SUCCEED();
+    }
   }
 
-  WHEN("invoke")
+  SECTION("invoke")
   {
     sum<int> a{std::in_place_type<int>, 42};
 
-    WHEN("value only")
+    SECTION("noexcept")
+    {
+      // invoke weighs the callback it dispatches to, in every value category
+      constexpr auto throwing = [](int i) noexcept(false) -> bool { return i == 42; };
+      static_assert(not noexcept(throwing(42)));
+      static_assert(not noexcept(a.invoke(throwing)));
+      static_assert(not noexcept(std::as_const(a).invoke(throwing)));
+      static_assert(not noexcept(std::move(a).invoke(throwing)));
+      static_assert(not noexcept(std::move(std::as_const(a)).invoke(throwing)));
+
+      constexpr auto throwing2 = [](int i, std::monostate) noexcept(false) -> bool { return i == 42; };
+      static_assert(not noexcept(a.invoke(throwing2, std::monostate{}))); // extra arguments, same promise
+
+      constexpr auto nothrow = [](int i) noexcept -> bool { return i == 42; };
+      static_assert(noexcept(a.invoke(nothrow)));
+      static_assert(noexcept(std::move(a).invoke(nothrow)));
+      SUCCEED();
+    }
+
+    SECTION("value only")
     {
       static_assert(std::is_same_v<bool, decltype(a.invoke(fn::overload{[](auto) -> bool { throw 1; },
                                                                         [](int) -> bool { return true; }}))>);
 
-      CHECK(a.invoke(fn::overload{[](auto) -> bool { throw 1; }, [](int &) -> bool { return true; },
+      // a result type other than bool, to witness the deduced return
+      constexpr auto fn1 = [](auto i) noexcept -> std::size_t { return sizeof(i); };
+      static_assert(std::is_same_v<std::size_t, decltype(a.invoke(fn1))>);
+      CHECK(a.invoke(fn1) == sizeof(int));
+      CHECK(a.data.v0 == 42); // white-box: the value went into the first alternative
+
+      CHECK(a.invoke(fn::overload{[](auto) -> bool { throw 1; }, [](int &i) -> bool { return i == 42; },
                                   [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
                                   [](int const &&) -> bool { throw 0; }}));
       CHECK(std::as_const(a).invoke(fn::overload{
-          [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { return true; },
+          [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &i) -> bool { return i == 42; },
           [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; }}));
       CHECK(std::move(std::as_const(a))
                 .invoke(fn::overload{[](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
                                      [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
-                                     [](int const &&) -> bool { return true; }}));
-      CHECK(std::move(a).invoke(fn::overload{[](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
-                                             [](int const &) -> bool { throw 0; }, [](int &&) -> bool { return true; },
-                                             [](int const &&) -> bool { throw 0; }}));
+                                     [](int const &&i) -> bool { return i == 42; }}));
+      CHECK(std::move(a).invoke(fn::overload{
+          [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
+          [](int &&i) -> bool { return i == 42; }, [](int const &&) -> bool { throw 0; }}));
 
-      WHEN("constexpr")
+      SECTION("constexpr")
       {
         constexpr sum<int> a{std::in_place_type<int>, 42};
         static_assert(a.invoke(fn::overload{
@@ -546,7 +818,7 @@ TEST_CASE("sum basic functionality tests", "[sum]")
       }
     }
 
-    WHEN("extra arguments")
+    SECTION("extra arguments")
     {
       static_assert(std::is_same_v<bool, decltype(a.invoke([](int, int) -> bool { return true; }, 12))>);
 
@@ -580,7 +852,7 @@ TEST_CASE("sum basic functionality tests", "[sum]")
                                              [](int const &&, std::monostate) -> bool { throw 0; }},
                                 std::monostate{}));
 
-      WHEN("constexpr")
+      SECTION("constexpr")
       {
         constexpr sum<int> a{std::in_place_type<int>, 42};
         static_assert(a.invoke(fn::overload{[](auto...) -> bool { return false; }, //
@@ -603,11 +875,27 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     }
   }
 
-  WHEN("invoke_r")
+  SECTION("invoke_r")
   {
     sum<int> a{std::in_place_type<int>, 42};
 
-    WHEN("value only")
+    SECTION("noexcept")
+    {
+      // the same weighing as invoke, the conversion to Ret included
+      constexpr auto throwing = [](int i) noexcept(false) -> bool { return i == 42; };
+      static_assert(not noexcept(a.template invoke_r<bool>(throwing)));
+      static_assert(not noexcept(std::as_const(a).template invoke_r<bool>(throwing)));
+      static_assert(not noexcept(std::move(a).template invoke_r<bool>(throwing)));
+      static_assert(not noexcept(std::move(std::as_const(a)).template invoke_r<bool>(throwing)));
+      static_assert(not noexcept(a.template invoke_r<long>(throwing))); // converting the result, too
+
+      constexpr auto nothrow = [](int i) noexcept -> bool { return i == 42; };
+      static_assert(noexcept(a.template invoke_r<bool>(nothrow)));
+      static_assert(noexcept(a.template invoke_r<long>(nothrow)));
+      SUCCEED();
+    }
+
+    SECTION("value only")
     {
       static_assert(std::is_same_v<bool, decltype(a.template invoke_r<bool>(fn::overload{
                                              [](auto) -> bool { throw 1; }, [](int) -> bool { return true; }}))>);
@@ -629,7 +917,7 @@ TEST_CASE("sum basic functionality tests", "[sum]")
           [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
           [](int &&) -> bool { return true; }, [](int const &&) -> bool { throw 0; }}));
 
-      WHEN("constexpr")
+      SECTION("constexpr")
       {
         constexpr sum<int> a{std::in_place_type<int>, 42};
         static_assert(a.template invoke_r<bool>(fn::overload{
@@ -645,7 +933,7 @@ TEST_CASE("sum basic functionality tests", "[sum]")
       }
     }
 
-    WHEN("extra arguments")
+    SECTION("extra arguments")
     {
       static_assert(std::is_same_v<bool, decltype(a.template invoke_r<bool>(fn::overload{
                                              [](auto) -> bool { throw 1; }, [](int) -> bool { return true; }}))>);
@@ -683,7 +971,7 @@ TEST_CASE("sum basic functionality tests", "[sum]")
                                                               [](int const &&, std::monostate) -> bool { throw 0; }},
                                                  std::monostate{}));
 
-      WHEN("constexpr")
+      SECTION("constexpr")
       {
         constexpr sum<int> a{std::in_place_type<int>, 42};
         static_assert(
@@ -707,13 +995,13 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     }
   }
 
-  WHEN("sum of packs")
+  SECTION("sum of packs")
   {
     using fn::pack;
     constexpr sum a{pack{"abc", 42, 12.5}};
     static_assert(std::is_same_v<decltype(a), sum<pack<char const(&)[4], int, double>> const>);
 
-    WHEN("constexpr")
+    SECTION("constexpr")
     {
       constexpr auto b
           = a.invoke([]<std::size_t I>(char const(&)[I], int i, double d) { return I + i + static_cast<int>(d); });
@@ -725,7 +1013,7 @@ TEST_CASE("sum basic functionality tests", "[sum]")
       SUCCEED();
     }
 
-    WHEN("runtime")
+    SECTION("runtime")
     {
       auto const b = a.invoke([](char const *s, int i, double d) { return std::strlen(s) + i + static_cast<int>(d); });
       CHECK(b == 3 + 42 + 12);
@@ -735,7 +1023,7 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     }
   }
 
-  WHEN("structural type")
+  SECTION("structural type")
   {
     // sum is a structural type: a constexpr sum can be a template parameter, with
     // template-argument equivalence comparing the active alternative and its value
@@ -792,7 +1080,7 @@ TEST_CASE("sum noexcept", "[sum][noexcept]")
     bool operator==(Quiet const &) const noexcept { return true; }
   };
 
-  WHEN("constructors")
+  SECTION("constructors")
   {
     static_assert(noexcept(sum<int>{42}));
     static_assert(noexcept(sum<int>{std::in_place_type<int>, 42}));
@@ -806,7 +1094,7 @@ TEST_CASE("sum noexcept", "[sum][noexcept]")
     SUCCEED();
   }
 
-  WHEN("dispatch")
+  SECTION("dispatch")
   {
     using S = sum<bool, int>;
     constexpr auto nothrow_fn = [](auto) noexcept { return 0; };
@@ -826,7 +1114,7 @@ TEST_CASE("sum noexcept", "[sum][noexcept]")
     SUCCEED();
   }
 
-  WHEN("comparison")
+  SECTION("comparison")
   {
     static_assert(noexcept(std::declval<sum<int> const &>() == std::declval<sum<int> const &>()));
     static_assert(noexcept(std::declval<sum<Quiet> const &>() == std::declval<sum<Quiet> const &>()));
@@ -838,7 +1126,7 @@ TEST_CASE("sum noexcept", "[sum][noexcept]")
     SUCCEED();
   }
 
-  WHEN("assignment")
+  SECTION("assignment")
   {
     // assignment weighs the construction it performs: the copy, or - where that copy can throw - the
     // move of the temporary it is made into
@@ -867,7 +1155,7 @@ TEST_CASE("sum type collapsing", "[sum][transform][normalized]")
   struct sum_bool {};
   struct sum_bool_int {};
 
-  WHEN("one element")
+  SECTION("one element")
   {
     constexpr auto fn = PassThrough{};
     using type = sum<double>;
@@ -875,7 +1163,58 @@ TEST_CASE("sum type collapsing", "[sum][transform][normalized]")
         std::same_as<typename _sum_invoke_result<_collapsing_sum_tag, decltype(fn), type &>::type, sum<double>>);
   }
 
-  WHEN("a result no sum can hold")
+  SECTION("two elements")
+  {
+    constexpr auto fn = PassThrough{};
+    using type = sum<double, int>;
+    static_assert(
+        std::same_as<typename _sum_invoke_result<_collapsing_sum_tag, decltype(fn), type &>::type, sum<double, int>>);
+  }
+
+  SECTION("one sum, one element only")
+  {
+    constexpr auto fn = [](sum_bool const &) -> sum<bool> && { throw 0; };
+    using type = sum<sum_bool>;
+    static_assert(
+        std::same_as<typename _sum_invoke_result<_collapsing_sum_tag, decltype(fn), type &>::type, sum<bool>>);
+  }
+
+  SECTION("element and one sum with one element")
+  {
+    constexpr auto fn = overload{PassThrough{}, //
+                                 [](sum_bool const &) -> sum<bool> && { throw 0; }};
+    using type = sum<double, sum_bool>;
+    static_assert(
+        std::same_as<typename _sum_invoke_result<_collapsing_sum_tag, decltype(fn), type &>::type, sum<bool, double>>);
+  }
+
+  SECTION("one sum with two elements")
+  {
+    constexpr auto fn = [](sum_bool_int const &) -> sum<bool, int> && { throw 0; };
+    using type = sum<sum_bool_int>;
+    static_assert(
+        std::same_as<typename _sum_invoke_result<_collapsing_sum_tag, decltype(fn), type &>::type, sum<bool, int>>);
+  }
+
+  SECTION("sum with two elements and sum with one element")
+  {
+    constexpr auto fn = overload{[](sum_bool_int const &) -> sum<bool, int> && { throw 0; },
+                                 [](sum_bool const &) -> sum<bool> && { throw 0; }};
+    using type = sum<sum_bool_int, sum_bool>;
+    static_assert(
+        std::same_as<typename _sum_invoke_result<_collapsing_sum_tag, decltype(fn), type &>::type, sum<bool, int>>);
+  }
+
+  SECTION("two sums with two elements and two elements")
+  {
+    constexpr auto fn = overload{PassThrough{}, [](sum_double_int const &) -> sum<double, int> { throw 0; },
+                                 [](sum_bool_int const &) -> sum<bool, int> const { throw 0; }};
+    using type = sum<sum_bool_int, sum_double_int, double, int>;
+    static_assert(std::same_as<typename _sum_invoke_result<_collapsing_sum_tag, decltype(fn), type &>::type,
+                               sum<bool, double, int>>);
+  }
+
+  SECTION("a result no sum can hold")
   {
     // a void-returning callback must drop the caller's candidate in the immediate context: the
     // collapsing machinery would hard-error where no requires-expression can absorb it
@@ -886,57 +1225,6 @@ TEST_CASE("sum type collapsing", "[sum][transform][normalized]")
     static_assert(not can_transform<sum<double, int> const &&, decltype(fnVoid)>);
     static_assert(can_transform<sum<double, int> &, PassThrough>); // the same sum, a holdable result
     SUCCEED();
-  }
-
-  WHEN("two elements")
-  {
-    constexpr auto fn = PassThrough{};
-    using type = sum<double, int>;
-    static_assert(
-        std::same_as<typename _sum_invoke_result<_collapsing_sum_tag, decltype(fn), type &>::type, sum<double, int>>);
-  }
-
-  WHEN("one sum, one element only")
-  {
-    constexpr auto fn = [](sum_bool const &) -> sum<bool> && { throw 0; };
-    using type = sum<sum_bool>;
-    static_assert(
-        std::same_as<typename _sum_invoke_result<_collapsing_sum_tag, decltype(fn), type &>::type, sum<bool>>);
-  }
-
-  WHEN("element and one sum with one element")
-  {
-    constexpr auto fn = overload{PassThrough{}, //
-                                 [](sum_bool const &) -> sum<bool> && { throw 0; }};
-    using type = sum<double, sum_bool>;
-    static_assert(
-        std::same_as<typename _sum_invoke_result<_collapsing_sum_tag, decltype(fn), type &>::type, sum<bool, double>>);
-  }
-
-  WHEN("one sum with two elements")
-  {
-    constexpr auto fn = [](sum_bool_int const &) -> sum<bool, int> && { throw 0; };
-    using type = sum<sum_bool_int>;
-    static_assert(
-        std::same_as<typename _sum_invoke_result<_collapsing_sum_tag, decltype(fn), type &>::type, sum<bool, int>>);
-  }
-
-  WHEN("sum with two elements and sum with one element")
-  {
-    constexpr auto fn = overload{[](sum_bool_int const &) -> sum<bool, int> && { throw 0; },
-                                 [](sum_bool const &) -> sum<bool> && { throw 0; }};
-    using type = sum<sum_bool_int, sum_bool>;
-    static_assert(
-        std::same_as<typename _sum_invoke_result<_collapsing_sum_tag, decltype(fn), type &>::type, sum<bool, int>>);
-  }
-
-  WHEN("two sums with two elements and two elements")
-  {
-    constexpr auto fn = overload{PassThrough{}, [](sum_double_int const &) -> sum<double, int> { throw 0; },
-                                 [](sum_bool_int const &) -> sum<bool, int> const { throw 0; }};
-    using type = sum<sum_bool_int, sum_double_int, double, int>;
-    static_assert(std::same_as<typename _sum_invoke_result<_collapsing_sum_tag, decltype(fn), type &>::type,
-                               sum<bool, double, int>>);
   }
 }
 
@@ -977,6 +1265,50 @@ TEST_CASE("sum transform", "[sum][transform]")
                          [](double const &) -> bool { throw 0; }, [](double &&i) -> bool { return i == 0.5; },
                          [](double const &&) -> bool { throw 0; }})
         == sum<bool, int>{true});
+
+  SECTION("extra arguments")
+  {
+    constexpr auto add = [](double i, int j) noexcept -> double { return i + j; };
+    static_assert(std::same_as<decltype(a.transform(add, 3)), sum<double>>);
+
+    CHECK(a.transform(add, 3) == sum{3.5});
+    CHECK(std::as_const(a).transform(add, 3) == sum{3.5});
+    CHECK(std::move(std::as_const(a)).transform(add, 3) == sum{3.5});
+    CHECK(std::move(a).transform(add, 3) == sum{3.5});
+
+    SECTION("constexpr")
+    {
+      constexpr type b{std::in_place_type<double>, 0.5};
+      static_assert(b.transform(add, 3) == sum{3.5});
+      static_assert(std::move(b).transform(add, 3) == sum{3.5});
+      SUCCEED();
+    }
+  }
+
+  SECTION("noexcept")
+  {
+    // transform weighs the callback in every value category, as do the typed-dispatch internals
+    // behind operator& and the widening constructors
+    constexpr auto throwing = [](double i) noexcept(false) -> bool { return i == 0.5; };
+    static_assert(not noexcept(a.transform(throwing)));
+    static_assert(not noexcept(std::as_const(a).transform(throwing)));
+    static_assert(not noexcept(std::move(a).transform(throwing)));
+    static_assert(not noexcept(std::move(std::as_const(a)).transform(throwing)));
+
+    constexpr auto typed = []<typename T>(std::in_place_type_t<T>, auto &&v) noexcept(false) -> bool {
+      return static_cast<double>(v) == 0.5;
+    };
+    static_assert(not noexcept(std::as_const(a)._transform(typed)));
+    static_assert(not noexcept(std::move(a)._transform(typed)));
+    static_assert(not noexcept(std::as_const(a).template _invoke<bool>(typed)));
+    static_assert(not noexcept(std::move(a).template _invoke<bool>(typed)));
+
+    constexpr auto nothrow = [](double i) noexcept -> bool { return i == 0.5; };
+    static_assert(noexcept(a.transform(nothrow)));
+    static_assert(noexcept(std::move(a).transform(nothrow)));
+
+    SUCCEED();
+  }
 }
 
 namespace {
@@ -1005,57 +1337,13 @@ struct CopyOnly final {
 };
 } // anonymous namespace
 
-TEST_CASE("sum functions", "[sum][invoke]")
-{
-  using namespace fn;
-  constexpr auto fn1 = [](auto i) noexcept -> std::size_t { return sizeof(i); };
-
-  sum<int> a{std::in_place_type<int>, 42};
-  static_assert(decltype(a)::size == 1);
-  CHECK(a.data.v0 == 42);
-
-  CHECK(a.invoke(fn1) == 4);
-  CHECK(a.invoke(  //
-      fn::overload{//
-                   [](auto) -> bool { throw 1; }, [](int &i) -> bool { return i == 42; },
-                   [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
-                   [](int const &&) -> bool { throw 0; }}));
-  CHECK(std::as_const(a).invoke( //
-      fn::overload{              //
-                   [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
-                   [](int const &i) -> bool { return i == 42; }, [](int &&) -> bool { throw 0; },
-                   [](int const &&) -> bool { throw 0; }}));
-  CHECK(std::move(std::as_const(a))
-            .invoke(         //
-                fn::overload{//
-                             [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
-                             [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
-                             [](int const &&i) -> bool { return i == 42; }}));
-  CHECK(std::move(a).invoke( //
-      fn::overload{          //
-                   [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
-                   [](int &&i) -> bool { return i == 42; }, [](int const &&) -> bool { throw 0; }}));
-}
-
 TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
 {
   using fn::sum;
 
-  WHEN("sum_for")
+  SECTION("move and copy")
   {
-    static_assert(std::same_as<fn::sum_for<int>, fn::sum<int>>);
-    static_assert(std::same_as<fn::sum_for<int, bool>, fn::sum<bool, int>>);
-    static_assert(std::same_as<fn::sum_for<bool, int>, fn::sum<bool, int>>);
-    // Canonical order is platform-specific by design (see the note in the WHEN("sum_for") block of
-    // the TEST_CASE above); assert only the platform-independent guarantees here.
-    static_assert(std::same_as<fn::sum_for<NonCopyable, int>, fn::sum_for<int, NonCopyable>>);
-    static_assert(std::same_as<fn::sum_for<int, bool, NonCopyable>, fn::sum_for<NonCopyable, bool, int>>);
-    static_assert(fn::sum_for<int, bool, NonCopyable>::size == 3);
-  }
-
-  WHEN("move and copy")
-  {
-    WHEN("one type only")
+    SECTION("one type only")
     {
       using T = sum<std::string>;
       T a{std::in_place_type<std::string>, "baz"};
@@ -1082,7 +1370,7 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
       CHECK(c.invoke([](auto &&i) { return i; }) == "baz");
     }
 
-    WHEN("mixed with other types")
+    SECTION("mixed with other types")
     {
       using T = sum<std::string, std::string_view>;
       T a{std::in_place_type<std::string>, "baz"};
@@ -1110,9 +1398,9 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
     }
   }
 
-  WHEN("copy only")
+  SECTION("copy only")
   {
-    WHEN("one type only")
+    SECTION("one type only")
     {
       using T = sum<CopyOnly>;
       T a{std::in_place_type<CopyOnly>, 12};
@@ -1136,7 +1424,7 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
       CHECK(b.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
     }
 
-    WHEN("mixed with other types")
+    SECTION("mixed with other types")
     {
       using T = fn::sum_for<CopyOnly, double, int>; // sum_for: canonical order is platform-specific
       T a{std::in_place_type<CopyOnly>, 12};
@@ -1161,9 +1449,9 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
     }
   }
 
-  WHEN("move only")
+  SECTION("move only")
   {
-    WHEN("one type only")
+    SECTION("one type only")
     {
       using T = sum<MoveOnly>;
       T a{std::in_place_type<MoveOnly>, 12};
@@ -1187,7 +1475,7 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
       CHECK(b.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
     }
 
-    WHEN("mixed with other types")
+    SECTION("mixed with other types")
     {
       using T = fn::sum_for<MoveOnly, double, int>; // sum_for: canonical order is platform-specific
       T a{std::in_place_type<MoveOnly>, 12};
@@ -1212,9 +1500,9 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
     }
   }
 
-  WHEN("immovable type")
+  SECTION("immovable type")
   {
-    WHEN("one type only")
+    SECTION("one type only")
     {
       using T = sum<NonCopyable>;
       T a{std::in_place_type<NonCopyable>, 12};
@@ -1234,7 +1522,7 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
       }(std::move(std::as_const(a))));
     }
 
-    WHEN("mixed with other types")
+    SECTION("mixed with other types")
     {
       using T = fn::sum_for<NonCopyable, double, int>; // sum_for: canonical order is platform-specific
       T a{std::in_place_type<NonCopyable>, 12};
@@ -1254,71 +1542,47 @@ TEST_CASE("sum move and copy", "[sum][has_value][get_ptr]")
       }(std::move(std::as_const(a))));
     }
   }
-}
 
-TEST_CASE("sum", "[sum][has_value][get_ptr]")
-{
-  // NOTE We have 5 different specializations, need to test each
-  using namespace fn;
+  SECTION("widening")
+  {
+    // The widening pair carries the copy/move constructors' requirements over to the SOURCE's
+    // alternatives: copy-widening needs each of them copyable, move-widening needs each movable.
+    static_assert(std::is_constructible_v<fn::sum_for<CopyOnly, int>, sum<CopyOnly> const &>);
+    static_assert(std::is_constructible_v<fn::sum_for<CopyOnly, int>, sum<CopyOnly> &&>); // binds const &
 
-  constexpr auto fn1 = [](auto) {};
-  constexpr auto fn2 = [](auto...) {};
-  constexpr auto fn3 = overload{[](int &) {}, [](double &) {}};
+    static_assert(not std::is_constructible_v<fn::sum_for<MoveOnly, int>, sum<MoveOnly> const &>);
+    static_assert(std::is_constructible_v<fn::sum_for<MoveOnly, int>, sum<MoveOnly> &&>);
 
-  constexpr sum<std::array<int, 3>> a{std::in_place_type<std::array<int, 3>>, 3, 14, 15};
-  static_assert(a.index == 0);
-  static_assert(decltype(a)::template has_type<std::array<int, 3>>);
-  static_assert(not decltype(a)::template has_type<int>);
-  static_assert(a.has_value(std::in_place_type<std::array<int, 3>>));
-  static_assert(a.template has_value<std::array<int, 3>>());
-  static_assert(a.invoke([](auto &i) -> bool {
-    return std::same_as<std::array<int, 3> const &, decltype(i)> && i.size() == 3 && i[0] == 3 && i[1] == 14
-           && i[2] == 15;
-  }));
+    static_assert(not std::is_constructible_v<fn::sum_for<NonCopyable, int>, sum<NonCopyable> const &>);
+    static_assert(not std::is_constructible_v<fn::sum_for<NonCopyable, int>, sum<NonCopyable> &&>);
 
-  using T = sum<double, int>;
-  T b{std::in_place_type<int>, 42};
-  static_assert(T::size == 2);
-  static_assert(std::is_same_v<T::template select_nth<0>, double>);
-  static_assert(std::is_same_v<T::template select_nth<1>, int>);
-  static_assert(T::has_type<int>);
-  static_assert(T::has_type<double>);
-  static_assert(not T::has_type<bool>);
-  CHECK(b.index == 1);
-  CHECK(b.template has_value<int>());
-  CHECK(b.has_value(std::in_place_type<int>));
+    sum<MoveOnly> a{std::in_place_type<MoveOnly>, 12};
+    fn::sum_for<MoveOnly, int> b{std::move(a)};
+    CHECK(b.invoke([](auto &&i) { return static_cast<int>(i); }) == 12);
+    CHECK(a.invoke([](auto &&i) { return static_cast<int>(i); }) == -1); // moved from
+  }
 
-  static_assert(fn::typelist_invocable<decltype(fn1), decltype(b)>);
-  static_assert(fn::typelist_invocable<decltype(fn2), decltype(b)>);
-  static_assert(fn::typelist_invocable<decltype(fn2), decltype(b)>);
-  static_assert(fn::typelist_invocable<decltype(fn3), decltype(b) &>);
-  static_assert(not fn::typelist_invocable<decltype(fn3), decltype(b) const &>);
-  static_assert(not fn::typelist_invocable<decltype(fn3), decltype(b)>);
-  static_assert(not fn::typelist_invocable<decltype(fn3), decltype(b) const>);
-  static_assert(not fn::typelist_invocable<decltype(fn3), decltype(b) &&>);
-  static_assert(not fn::typelist_invocable<decltype(fn3), decltype(b) const &&>);
+  SECTION("noexcept")
+  {
+    // the copy and move constructors weigh the alternative they relocate; the destructor cannot
+    // throw whatever the alternatives are
+    static_assert(not std::is_nothrow_copy_constructible_v<Throwing>);
+    static_assert(not std::is_nothrow_move_constructible_v<Throwing>);
+    static_assert(not std::is_nothrow_copy_constructible_v<sum<Throwing>>);
+    static_assert(not std::is_nothrow_move_constructible_v<sum<Throwing>>);
+    static_assert(std::is_nothrow_destructible_v<sum<Throwing>>);
 
-  static_assert(std::is_same_v<decltype(b.get_ptr(std::in_place_type<int>)), int *>);
-  CHECK(b.get_ptr(std::in_place_type<int>) == &b.data.v1);
-  CHECK(b.get_ptr(std::in_place_type<double>) == nullptr);
-  static_assert(std::is_same_v<decltype(std::as_const(b).get_ptr(std::in_place_type<int>)), int const *>);
-  CHECK(std::as_const(b).get_ptr(std::in_place_type<int>) == &b.data.v1);
-  CHECK(std::as_const(b).get_ptr(std::in_place_type<double>) == nullptr);
-
-  T const c{std::in_place_type<double>, 4.25};
-  CHECK(c.get_ptr(std::in_place_type<int>) == nullptr);
-  CHECK(c.get_ptr(std::in_place_type<double>) == &c.data.v0);
-
-  constexpr auto d = sum<double, int>{std::in_place_type<int>, 12};
-  static_assert(d.get_ptr(std::in_place_type<double>) == nullptr);
-  static_assert(*d.get_ptr(std::in_place_type<int>) == 12);
+    static_assert(std::is_nothrow_copy_constructible_v<sum<int>>);
+    static_assert(std::is_nothrow_move_constructible_v<sum<int>>);
+    SUCCEED();
+  }
 }
 
 TEST_CASE("sum assignment", "[sum][assignment]")
 {
   using fn::sum;
 
-  WHEN("same alternative")
+  SECTION("same alternative")
   {
     sum<bool, int> a{12};
     sum<bool, int> const b{42};
@@ -1330,7 +1594,7 @@ TEST_CASE("sum assignment", "[sum][assignment]")
     CHECK(a == sum{7});
   }
 
-  WHEN("the alternative changes")
+  SECTION("the alternative changes")
   {
     sum<bool, int> a{12};
     sum<bool, int> const b{true};
@@ -1344,7 +1608,7 @@ TEST_CASE("sum assignment", "[sum][assignment]")
     CHECK(a.has_value(std::in_place_type<int>));
   }
 
-  WHEN("self-assignment")
+  SECTION("self-assignment")
   {
     sum<bool, int> a{12};
     sum<bool, int> const &self = a; // through an alias: `a = a` is a warning, and rightly so
@@ -1353,7 +1617,7 @@ TEST_CASE("sum assignment", "[sum][assignment]")
     CHECK(a.has_value(std::in_place_type<int>));
   }
 
-  WHEN("the replaced alternative is destroyed")
+  SECTION("the replaced alternative is destroyed")
   {
     using T = fn::sum_for<Counted, int>; // sum<...> order is platform-specific; sum_for normalizes
     Counted::live = 0;
@@ -1370,7 +1634,7 @@ TEST_CASE("sum assignment", "[sum][assignment]")
     CHECK(Counted::live == 0);
   }
 
-  WHEN("constexpr")
+  SECTION("constexpr")
   {
     static_assert([] {
       sum<bool, int> a{42};
@@ -1392,7 +1656,7 @@ TEST_CASE("sum assignment", "[sum][assignment]")
     SUCCEED();
   }
 
-  WHEN("strong exception guarantee")
+  SECTION("strong exception guarantee")
   {
     // The alternative held is destroyed only once its replacement is certain: where the copy can
     // throw, it is made into a temporary first, and only the (nothrow) move touches the storage.
@@ -1428,7 +1692,7 @@ TEST_CASE("sum assignment", "[sum][assignment]")
       return a.invoke([](ThrowingCopy const &t) { return t.v; }) == 5;
     }());
 
-    WHEN("the two arms in one sum")
+    SECTION("the two arms in one sum")
     {
       // whichever arm the incoming alternative needs, the one being replaced survives a throw
       struct ThrowingMove final { // takes the direct arm: its move is never called
@@ -1452,7 +1716,7 @@ TEST_CASE("sum assignment", "[sum][assignment]")
     }
   }
 
-  WHEN("constraints")
+  SECTION("constraints")
   {
     // Assignment CONSTRUCTS the new alternative, so it asks nothing of the alternatives' own
     // assignment operators: a type with none at all is still assignable through the sum.

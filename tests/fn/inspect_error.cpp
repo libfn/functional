@@ -51,16 +51,16 @@ TEST_CASE("inspect_error expected", "[inspect_error][expected]")
   static_assert(is::not_invocable_with_any([]() -> void { throw 0; }));                // bad arity
   static_assert(is::not_invocable_with_any([](Error, int) -> void { throw 0; }));      // bad arity
 
-  WHEN("operand is lvalue")
+  SECTION("lvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       operand_t a{std::in_place, 12};
       using T = decltype(a | inspect_error(wrong));
       static_assert(std::is_same_v<T, operand_t &>);
       REQUIRE((a | inspect_error(wrong)).value() == 12);
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       operand_t a{::fn::unexpect, Error{"Not good"}};
       using T = decltype(a | inspect_error(fnError));
@@ -72,7 +72,7 @@ TEST_CASE("inspect_error expected", "[inspect_error][expected]")
               == "Not good");
       CHECK(error == "Not good");
     }
-    WHEN("calling member function")
+    SECTION("member function")
     {
       operand_t a{::fn::unexpect, Error{"Not good"}};
       using T = decltype(a | inspect_error(&Error::finalize));
@@ -87,15 +87,15 @@ TEST_CASE("inspect_error expected", "[inspect_error][expected]")
     }
   }
 
-  WHEN("operand is rvalue")
+  SECTION("rvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       using T = decltype(operand_t{std::in_place, 12} | inspect_error(wrong));
       static_assert(std::is_same_v<T, operand_t &&>);
       REQUIRE((operand_t{std::in_place, 12} | inspect_error(wrong)).value() == 12);
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | inspect_error(fnError));
       static_assert(std::is_same_v<T, operand_t &&>);
@@ -106,7 +106,7 @@ TEST_CASE("inspect_error expected", "[inspect_error][expected]")
               == "Not good");
       CHECK(error == "Not good");
     }
-    WHEN("calling member function")
+    SECTION("member function")
     {
       using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | inspect_error(&Error::finalize));
       static_assert(std::is_same_v<T, operand_t &&>);
@@ -117,6 +117,34 @@ TEST_CASE("inspect_error expected", "[inspect_error][expected]")
                   .what
               == "Not good");
       CHECK(Error::count == before + 8);
+    }
+  }
+
+  SECTION("constexpr")
+  {
+    enum class Error { ThresholdExceeded, SomethingElse };
+    using T = fn::expected<int, Error>;
+    constexpr auto fn = [](Error) constexpr noexcept -> void {};
+    constexpr auto r1 = T{0} | fn::inspect_error(fn);
+    static_assert(r1.value() == 0);
+    constexpr auto r2 = T{::fn::unexpect, Error::SomethingElse} | fn::inspect_error(fn);
+    static_assert(r2.error() == Error::SomethingElse);
+
+    SUCCEED();
+
+    SECTION("sum")
+    {
+      using TS = fn::expected<int, fn::sum_for<Error, bool>>;
+      constexpr auto fnSum
+          = fn::overload{[](Error) constexpr noexcept -> void {}, [](bool) constexpr noexcept -> void {}};
+      constexpr auto s1 = TS{0} | fn::inspect_error(fnSum);
+      static_assert(s1.value() == 0);
+      constexpr auto s2 = TS{::fn::unexpect, fn::sum{Error::SomethingElse}} | fn::inspect_error(fnSum);
+      static_assert(s2.error() == fn::sum{Error::SomethingElse});
+      constexpr auto s3 = TS{::fn::unexpect, fn::sum{false}} | fn::inspect_error(fnSum);
+      static_assert(s3.error() == fn::sum{false});
+
+      SUCCEED();
     }
   }
 }
@@ -137,16 +165,16 @@ TEST_CASE("inspect_error optional", "[inspect_error][optional]")
   static_assert(is::not_invocable_with_any([](auto) -> void { throw 0; }));       // bad arity
   static_assert(is::not_invocable_with_any([](auto, auto) -> void { throw 0; })); // bad arity
 
-  WHEN("operand is lvalue")
+  SECTION("lvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       operand_t a{12};
       using T = decltype(a | inspect_error(wrong));
       static_assert(std::is_same_v<T, operand_t &>);
       REQUIRE((a | inspect_error(wrong)).value() == 12);
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       operand_t a{std::nullopt};
       using T = decltype(a | inspect_error(fnError));
@@ -156,15 +184,15 @@ TEST_CASE("inspect_error optional", "[inspect_error][optional]")
     }
   }
 
-  WHEN("operand is rvalue")
+  SECTION("rvalue")
   {
-    WHEN("operand is value")
+    SECTION("value")
     {
       using T = decltype(operand_t{12} | inspect_error(wrong));
       static_assert(std::is_same_v<T, operand_t &&>);
       REQUIRE((operand_t{12} | inspect_error(wrong)).value() == 12);
     }
-    WHEN("operand is error")
+    SECTION("error")
     {
       using T = decltype(operand_t{std::nullopt} | inspect_error(fnError));
       static_assert(std::is_same_v<T, operand_t &&>);
@@ -174,44 +202,41 @@ TEST_CASE("inspect_error optional", "[inspect_error][optional]")
       CHECK(error == 1);
     }
   }
+
+  SECTION("constexpr")
+  {
+    using T = fn::optional<int>;
+    constexpr auto fn = []() constexpr noexcept -> void {};
+    constexpr auto r1 = T{0} | fn::inspect_error(fn);
+    static_assert(r1.value() == 0);
+    constexpr auto r2 = T{} | fn::inspect_error(fn);
+    static_assert(not r2.has_value());
+
+    SUCCEED();
+  }
 }
 
-TEST_CASE("constexpr inspect_error expected", "[inspect_error][constexpr][expected]")
+TEST_CASE("inspect_error noexcept", "[inspect_error][noexcept]")
 {
-  enum class Error { ThresholdExceeded, SomethingElse };
-  using T = fn::expected<int, Error>;
-  constexpr auto fn = [](Error) constexpr noexcept -> void {};
-  constexpr auto r1 = T{0} | fn::inspect_error(fn);
-  static_assert(r1.value() == 0);
-  constexpr auto r2 = T{::fn::unexpect, Error::SomethingElse} | fn::inspect_error(fn);
-  static_assert(r2.error() == Error::SomethingElse);
+  using namespace fn;
 
-  SUCCEED();
-}
+  constexpr auto fnThrows = [](Error const &) noexcept(false) -> void {};
+  constexpr auto fnThrows0 = []() noexcept(false) -> void {};
 
-TEST_CASE("constexpr inspect_error expected with sum", "[inspect_error][constexpr][expected][sum]")
-{
-  enum class Error { ThresholdExceeded, SomethingElse };
-  using T = fn::expected<int, fn::sum_for<Error, bool>>;
-  constexpr auto fn = fn::overload{[](Error) constexpr noexcept -> void {}, [](bool) constexpr noexcept -> void {}};
-  constexpr auto r1 = T{0} | fn::inspect_error(fn);
-  static_assert(r1.value() == 0);
-  constexpr auto r2 = T{::fn::unexpect, fn::sum{Error::SomethingElse}} | fn::inspect_error(fn);
-  static_assert(r2.error() == fn::sum{Error::SomethingElse});
-  constexpr auto r3 = T{::fn::unexpect, fn::sum{false}} | fn::inspect_error(fn);
-  static_assert(r3.error() == fn::sum{false});
+  // as with inspect, the apply is the implementation and invokes the callback itself, so it computes
+  // its spec from that callback rather than propagating a member's
+  constexpr auto fnNothrow = [](Error const &) noexcept -> void {};
+  static_assert(not noexcept(inspect_error_t::apply{}(std::declval<fn::expected<int, Error> &>(), fnThrows)));
+  static_assert(not noexcept(inspect_error_t::apply{}(std::declval<fn::optional<int> &>(), fnThrows0)));
+  static_assert(noexcept(inspect_error_t::apply{}(std::declval<fn::expected<int, Error> &>(), fnNothrow)));
 
-  SUCCEED();
-}
-
-TEST_CASE("constexpr inspect_error optional", "[inspect_error][constexpr][optional]")
-{
-  using T = fn::optional<int>;
-  constexpr auto fn = []() constexpr noexcept -> void {};
-  constexpr auto r1 = T{0} | fn::inspect_error(fn);
-  static_assert(r1.value() == 0);
-  constexpr auto r2 = T{} | fn::inspect_error(fn);
-  static_assert(not r2.has_value());
+  // and the pipeline propagates what apply computes
+  using E = fn::expected<int, int>;
+  using O = fn::optional<int>;
+  static_assert(noexcept(std::declval<E &>() | fn::inspect_error([](int) noexcept {})));
+  static_assert(not noexcept(std::declval<E &>() | fn::inspect_error([](int) {})));
+  static_assert(noexcept(std::declval<O &>() | fn::inspect_error([]() noexcept {})));
+  static_assert(not noexcept(std::declval<O &>() | fn::inspect_error([]() {})));
 
   SUCCEED();
 }
@@ -260,14 +285,3 @@ static_assert(not invocable_inspect_error<decltype(fn_int_const_rvalue), expecte
 // cannot bind lvalue to rvalue-ref
 static_assert(not invocable_inspect_error<decltype(fn_int_rvalue), expected<void, int>>);
 } // namespace fn
-
-TEST_CASE("inspect_error noexcept", "[inspect_error][noexcept]")
-{
-  using E = fn::expected<int, int>;
-  using O = fn::optional<int>;
-  static_assert(noexcept(std::declval<E &>() | fn::inspect_error([](int) noexcept {})));
-  static_assert(not noexcept(std::declval<E &>() | fn::inspect_error([](int) {})));
-  static_assert(noexcept(std::declval<O &>() | fn::inspect_error([]() noexcept {})));
-  static_assert(not noexcept(std::declval<O &>() | fn::inspect_error([]() {})));
-  SUCCEED();
-}
