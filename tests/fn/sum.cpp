@@ -78,6 +78,8 @@ struct Counted final {
   Counted(Counted const &o) noexcept : v(o.v) { ++live; }
   Counted(Counted &&o) noexcept : v(o.v) { ++live; }
   ~Counted() noexcept { --live; }
+  Counted &operator=(Counted const &) noexcept = default; // assignment does not change what is alive
+  Counted &operator=(Counted &&) noexcept = default;
   bool operator==(Counted const &) const noexcept = default;
 };
 int Counted::live = 0;
@@ -197,7 +199,8 @@ TEST_CASE("design: braces, not parentheses", "[sum][design]")
     static_assert(std::is_nothrow_move_constructible_v<sum<Evil>> == fn::detail::_nothrow_initializable<Evil, Evil>);
     static_assert(std::is_nothrow_copy_constructible_v<sum<Evil>>
                   == fn::detail::_nothrow_initializable<Evil, Evil const &>);
-    static_assert(std::is_move_assignable_v<sum<Evil>> == fn::detail::_nothrow_initializable<Evil, Evil>);
+    static_assert(std::is_move_assignable_v<sum<Evil>>
+                  == (std::is_move_assignable_v<Evil> && fn::detail::_nothrow_initializable<Evil, Evil>));
     SUCCEED();
   }
 }
@@ -1071,12 +1074,16 @@ TEST_CASE("sum noexcept", "[sum][noexcept]")
     Throwy() = default;
     Throwy(Throwy const &) noexcept(false) {}
     Throwy(Throwy &&) noexcept(false) {}
+    Throwy &operator=(Throwy const &) noexcept(false) { return *this; }
+    Throwy &operator=(Throwy &&) noexcept(false) { return *this; }
     bool operator==(Throwy const &) const noexcept(false) { return true; }
   };
   struct Quiet {
     Quiet() = default;
     Quiet(Quiet const &) noexcept {}
     Quiet(Quiet &&) noexcept {}
+    Quiet &operator=(Quiet const &) noexcept { return *this; }
+    Quiet &operator=(Quiet &&) noexcept { return *this; }
     bool operator==(Quiet const &) const noexcept { return true; }
   };
 
@@ -1128,17 +1135,74 @@ TEST_CASE("sum noexcept", "[sum][noexcept]")
 
   SECTION("assignment")
   {
-    // assignment weighs the construction it performs: the copy, or - where that copy can throw - the
-    // move of the temporary it is made into
+    // assignment weighs the alternative's own `operator=` - used when the alternative does not
+    // change - and the construction that replaces it when it does
     static_assert(std::is_nothrow_copy_assignable_v<sum<int>>);
     static_assert(std::is_nothrow_copy_assignable_v<sum<Quiet>>);
     static_assert(std::is_nothrow_move_assignable_v<sum<int>>);
     static_assert(not std::is_nothrow_copy_assignable_v<sum<std::string>>);
     static_assert(std::is_nothrow_move_assignable_v<sum<std::string>>);
 
-    // moving is nothrow wherever it is offered at all: a throwing move is constrained away, having
-    // nowhere to fail safely (see TEST_CASE "sum assignment")
+    // a throwing move constructor is constrained away - the replacement path has nowhere to fail
+    // safely - and Throwy's throwing everything leaves no nothrow arm at all
     static_assert(not std::is_move_assignable_v<sum<Throwy>>);
+    static_assert(not std::is_copy_assignable_v<sum<Throwy>>);
+    SUCCEED();
+  }
+}
+
+TEST_CASE("sum triviality", "[sum][triviality]")
+{
+  using fn::sum;
+
+  SECTION("of fundamentals: every operation, as variant has")
+  {
+    using S = sum<double, int>;
+    static_assert(std::is_trivially_copyable_v<S>);
+    static_assert(std::is_trivially_destructible_v<S>);
+    static_assert(std::is_trivially_copy_constructible_v<S>);
+    static_assert(std::is_trivially_move_constructible_v<S>);
+    static_assert(std::is_trivially_copy_assignable_v<S>);
+    static_assert(std::is_trivially_move_assignable_v<S>);
+    SUCCEED();
+  }
+
+  SECTION("of packs: the multidispatch case")
+  {
+    // a sum of packs is the normal form of the type algebra, and the join's cartesian product is
+    // what a multidispatch pipeline copies at every stage
+    using S = sum<fn::pack<int, double>>;
+    static_assert(std::is_trivially_copyable_v<S>);
+    static_assert(std::is_trivially_destructible_v<S>);
+    static_assert(std::is_trivially_copy_constructible_v<S>);
+    static_assert(std::is_trivially_move_constructible_v<S>);
+    static_assert(std::is_trivially_copy_assignable_v<S>);
+    static_assert(std::is_trivially_move_assignable_v<S>);
+    SUCCEED();
+  }
+
+  SECTION("each operation follows its own gate")
+  {
+    // a pack holding a reference is trivially copyable and refuses assignment: the operations
+    // decouple, exactly as they do on the pack itself
+    using R = sum<fn::pack<int, int &>>;
+    static_assert(std::is_trivially_destructible_v<R>);
+    static_assert(std::is_trivially_copy_constructible_v<R>);
+    static_assert(std::is_trivially_move_constructible_v<R>);
+    static_assert(not std::is_copy_assignable_v<R>); // refused by the alternative, not merely non-trivial
+    static_assert(not std::is_move_assignable_v<R>);
+
+    // nothing about std::string is trivial, and everything still works
+    using N = sum<std::string>;
+    static_assert(not std::is_trivially_destructible_v<N>);
+    static_assert(not std::is_trivially_copy_constructible_v<N>);
+    static_assert(not std::is_trivially_copy_assignable_v<N>);
+    static_assert(std::is_copy_assignable_v<N>);
+
+    // one non-trivial alternative makes the operation non-trivial, never non-viable
+    using M = fn::sum_for<std::string, int>;
+    static_assert(not std::is_trivially_copy_assignable_v<M>);
+    static_assert(std::is_copy_assignable_v<M>);
     SUCCEED();
   }
 }
@@ -1617,6 +1681,53 @@ TEST_CASE("sum assignment", "[sum][assignment]")
     CHECK(a.has_value(std::in_place_type<int>));
   }
 
+  SECTION("the alternative's own operator= is used")
+  {
+    // when the incoming alternative is the one already held, it is assigned - not destroyed and
+    // rebuilt - so the alternative's own assignment operator is what runs
+    struct Tracked final {
+      int v;
+      bool assigned = false;
+      constexpr Tracked(int i) noexcept : v(i) {} // NOLINT: implicit on purpose
+      constexpr Tracked(Tracked const &o) noexcept : v(o.v) {}
+      constexpr Tracked(Tracked &&o) noexcept : v(o.v) {}
+      constexpr Tracked &operator=(Tracked const &o) noexcept
+      {
+        v = o.v;
+        assigned = true;
+        return *this;
+      }
+      constexpr Tracked &operator=(Tracked &&o) noexcept
+      {
+        v = o.v;
+        assigned = true;
+        return *this;
+      }
+    };
+    using T = fn::sum_for<Tracked, int>;
+    constexpr auto probe
+        = fn::overload{[](Tracked const &t) { return t.assigned ? t.v : -t.v; }, [](int const &) { return 0; }};
+
+    T a{std::in_place_type<Tracked>, 7};
+    a = T{std::in_place_type<Tracked>, 5};
+    CHECK(a.invoke(probe) == 5); // assigned, in place
+
+    a = T{12}; // a different alternative is replaced by construction ...
+    a = T{std::in_place_type<Tracked>, 3};
+    CHECK(a.invoke(probe) == -3); // ... so this Tracked was constructed, not assigned
+
+    static_assert([] {
+      T a{std::in_place_type<Tracked>, 7};
+      a = T{std::in_place_type<Tracked>, 5};
+      return a.invoke([](auto const &t) {
+        if constexpr (std::is_same_v<std::remove_cvref_t<decltype(t)>, Tracked>)
+          return t.assigned && t.v == 5;
+        else
+          return false;
+      });
+    }());
+  }
+
   SECTION("the replaced alternative is destroyed")
   {
     using T = fn::sum_for<Counted, int>; // sum<...> order is platform-specific; sum_for normalizes
@@ -1628,7 +1739,7 @@ TEST_CASE("sum assignment", "[sum][assignment]")
       CHECK(Counted::live == 0);
       a = T{std::in_place_type<Counted>, 9};
       CHECK(Counted::live == 1);
-      a = T{std::in_place_type<Counted>, 3}; // same alternative: the old one still goes
+      a = T{std::in_place_type<Counted>, 3}; // same alternative: assigned in place, nothing is destroyed
       CHECK(Counted::live == 1);
     }
     CHECK(Counted::live == 0);
@@ -1658,48 +1769,121 @@ TEST_CASE("sum assignment", "[sum][assignment]")
 
   SECTION("strong exception guarantee")
   {
-    // The alternative held is destroyed only once its replacement is certain: where the copy can
-    // throw, it is made into a temporary first, and only the (nothrow) move touches the storage.
-    struct ThrowingCopy final {
-      int v;
-      constexpr ThrowingCopy(int i) noexcept : v(i) {} // NOLINT: implicit on purpose
-      constexpr ThrowingCopy(ThrowingCopy const &o) : v(o.v)
-      {
-        if (v == 0)
-          throw std::runtime_error("copy");
-      }
-      constexpr ThrowingCopy(ThrowingCopy &&o) noexcept : v(o.v) {}
-    };
-    static_assert(std::is_copy_assignable_v<sum<ThrowingCopy>>);
-    static_assert(not std::is_nothrow_copy_assignable_v<sum<ThrowingCopy>>);
-    constexpr auto value = [](ThrowingCopy const &t) { return t.v; };
-
-    sum<ThrowingCopy> a{ThrowingCopy{7}};
-    sum<ThrowingCopy> const bad{ThrowingCopy{0}};
-    CHECK_THROWS_AS(a = bad, std::runtime_error);
-    CHECK(a.invoke(value) == 7); // untouched
-
-    // the same arm, completing: the copy into the temporary succeeds, and only then is the old
-    // alternative destroyed and the temporary moved into the storage
-    sum<ThrowingCopy> const good{ThrowingCopy{5}};
-    a = good;
-    CHECK(a.invoke(value) == 5);
-
-    static_assert([] {
-      sum<ThrowingCopy> a{ThrowingCopy{7}};
-      sum<ThrowingCopy> const good{ThrowingCopy{5}};
-      a = good; // the temporary arm, in a constant expression
-      return a.invoke([](ThrowingCopy const &t) { return t.v; }) == 5;
-    }());
-
-    SECTION("the two arms in one sum")
+    SECTION("a throwing assignment is rolled back")
     {
-      // whichever arm the incoming alternative needs, the one being replaced survives a throw
-      struct ThrowingMove final { // takes the direct arm: its move is never called
+      // where the alternative's own operator= can throw in every form, the value in hand is
+      // snapshot by its (nothrow) move first, and restored if the assignment fails
+      struct SnapAssign final {
+        int v;
+        constexpr SnapAssign(int i) noexcept : v(i) {} // NOLINT: implicit on purpose
+        constexpr SnapAssign(SnapAssign const &) noexcept = default;
+        constexpr SnapAssign(SnapAssign &&) noexcept = default;
+        constexpr SnapAssign &operator=(SnapAssign const &o)
+        {
+          if (o.v == 0)
+            throw std::runtime_error("assign");
+          v = o.v;
+          return *this;
+        }
+        constexpr SnapAssign &operator=(SnapAssign &&o)
+        {
+          if (o.v == 0)
+            throw std::runtime_error("assign");
+          v = o.v;
+          return *this;
+        }
+      };
+      static_assert(std::is_copy_assignable_v<sum<SnapAssign>>);
+      static_assert(not std::is_nothrow_copy_assignable_v<sum<SnapAssign>>);
+      constexpr auto value = [](SnapAssign const &t) { return t.v; };
+
+      sum<SnapAssign> a{SnapAssign{7}};
+      sum<SnapAssign> const bad{SnapAssign{0}};
+      CHECK_THROWS_AS(a = bad, std::runtime_error);
+      CHECK(a.invoke(value) == 7); // restored
+
+      // the same arm, completing
+      sum<SnapAssign> const good{SnapAssign{5}};
+      a = good;
+      CHECK(a.invoke(value) == 5);
+
+      static_assert([] {
+        sum<SnapAssign> a{SnapAssign{7}};
+        sum<SnapAssign> const good{SnapAssign{5}};
+        a = good; // the snapshot arm, in a constant expression
+        return a.invoke([](SnapAssign const &t) { return t.v; }) == 5;
+      }());
+    }
+
+    SECTION("a throwing copy is made into a temporary")
+    {
+      // where the copy construction can throw but the move assignment cannot, the copy is made
+      // into a temporary first, and only its (nothrow) move assignment touches the value in hand
+      struct TempAssign final {
+        int v;
+        constexpr TempAssign(int i) noexcept : v(i) {} // NOLINT: implicit on purpose
+        constexpr TempAssign(TempAssign const &o) : v(o.v)
+        {
+          if (v == 0)
+            throw std::runtime_error("copy");
+        }
+        constexpr TempAssign(TempAssign &&o) noexcept : v(o.v) {}
+        constexpr TempAssign &operator=(TempAssign const &o) // NOLINT: not noexcept on purpose
+        {
+          v = o.v;
+          return *this;
+        }
+        constexpr TempAssign &operator=(TempAssign &&o) noexcept
+        {
+          v = o.v;
+          return *this;
+        }
+      };
+      static_assert(std::is_copy_assignable_v<sum<TempAssign>>);
+      static_assert(not std::is_nothrow_copy_assignable_v<sum<TempAssign>>);
+      constexpr auto value = [](TempAssign const &t) { return t.v; };
+
+      sum<TempAssign> a{TempAssign{7}};
+      sum<TempAssign> const bad{TempAssign{0}};
+      CHECK_THROWS_AS(a = bad, std::runtime_error); // the copy into the temporary throws
+      CHECK(a.invoke(value) == 7);                  // untouched
+
+      sum<TempAssign> const good{TempAssign{5}};
+      a = good;
+      CHECK(a.invoke(value) == 5);
+
+      static_assert([] {
+        sum<TempAssign> a{TempAssign{7}};
+        sum<TempAssign> const good{TempAssign{5}};
+        a = good; // the temporary arm, in a constant expression
+        return a.invoke([](TempAssign const &t) { return t.v; }) == 5;
+      }());
+    }
+
+    SECTION("a throwing replacement leaves the value in hand")
+    {
+      // when the alternative changes, the old one is destroyed only once its replacement is
+      // certain: a copy that can throw is made into a temporary first, and only its (nothrow)
+      // move touches the storage
+      struct ThrowingCopy final {
+        int v;
+        ThrowingCopy(int i) noexcept : v(i) {} // NOLINT: implicit on purpose
+        ThrowingCopy(ThrowingCopy const &o) : v(o.v)
+        {
+          if (v == 0)
+            throw std::runtime_error("copy");
+        }
+        ThrowingCopy(ThrowingCopy &&o) noexcept : v(o.v) {}
+        ThrowingCopy &operator=(ThrowingCopy const &) noexcept = default;
+        ThrowingCopy &operator=(ThrowingCopy &&) noexcept = default;
+      };
+      struct ThrowingMove final {
         int v;
         ThrowingMove(int i) noexcept : v(i) {} // NOLINT: implicit on purpose
         ThrowingMove(ThrowingMove const &o) noexcept : v(o.v) {}
         ThrowingMove(ThrowingMove &&) { throw std::runtime_error("move"); }
+        ThrowingMove &operator=(ThrowingMove const &) noexcept = default;
+        ThrowingMove &operator=(ThrowingMove &&) noexcept = default;
       };
       using M = fn::sum_for<ThrowingCopy, ThrowingMove>;
       constexpr auto value = fn::overload{[](ThrowingCopy const &t) { return t.v; }, //
@@ -1711,15 +1895,21 @@ TEST_CASE("sum assignment", "[sum][assignment]")
       CHECK(m.invoke(value) == 7);                       // ... and the ThrowingMove is still there
 
       M const good{std::in_place_type<ThrowingMove>, 3};
-      m = good; // the direct arm: copied straight over, its throwing move never used
+      m = good; // the same alternative: assigned in place, its throwing move never used
       CHECK(m.invoke(value) == 3);
+
+      // ... and the same temporary arm run to completion: a throwing-path test alone never lets
+      // the replacement finish, so this copy succeeds and the old alternative is destroyed
+      M const good_copy{ThrowingCopy{5}};
+      m = good_copy;
+      CHECK(m.invoke(value) == 5);
     }
   }
 
   SECTION("constraints")
   {
-    // Assignment CONSTRUCTS the new alternative, so it asks nothing of the alternatives' own
-    // assignment operators: a type with none at all is still assignable through the sum.
+    // Assignment requires of every alternative its own operator=: a sum does not offer an
+    // operation its alternative refuses.
     static_assert(not std::is_copy_assignable_v<NonCopyable>);
     static_assert(not std::is_copy_constructible_v<NonCopyable>);
     static_assert(not std::is_copy_assignable_v<sum<NonCopyable>>); // it cannot be copied at all
@@ -1733,37 +1923,53 @@ TEST_CASE("sum assignment", "[sum][assignment]")
       NoAssign &operator=(NoAssign const &) = delete;
       NoAssign &operator=(NoAssign &&) = delete;
     };
+    static_assert(std::is_copy_constructible_v<NoAssign>);
     static_assert(not std::is_copy_assignable_v<NoAssign>);
-    static_assert(std::is_copy_assignable_v<sum<NoAssign>>); // ... yet the sum of it is
-    static_assert(std::is_move_assignable_v<sum<NoAssign>>);
+    static_assert(not std::is_copy_assignable_v<sum<NoAssign>>); // the sum respects the refusal
+    static_assert(not std::is_move_assignable_v<sum<NoAssign>>);
 
-    // An alternative that can be neither copied nor moved without throwing has no safe arm: the
-    // temporary would itself have to be moved into the storage, and snapshotting the old one is no
-    // help when the old one is the same type. It is constrained away rather than half-served.
+    // ... above all where the refusal is load-bearing: a pack holding a reference deletes its
+    // assignment because C++ cannot rebind a reference, and reconstructing the pack in place would
+    // synthesize exactly the operation the language does not have
+    static_assert(std::is_copy_constructible_v<fn::pack<int, int &>>);
+    static_assert(not std::is_copy_assignable_v<fn::pack<int, int &>>);
+    static_assert(not std::is_copy_assignable_v<sum<fn::pack<int, int &>>>);
+    static_assert(not std::is_move_assignable_v<sum<fn::pack<int, int &>>>);
+
+    // An alternative that can be neither copied nor moved without throwing leaves the replacement
+    // path no safe arm, whatever its own operator= promises. It is constrained away rather than
+    // half-served.
     struct ThrowingBoth final {
       ThrowingBoth() = default;
       ThrowingBoth(ThrowingBoth const &) noexcept(false) {}
       ThrowingBoth(ThrowingBoth &&) noexcept(false) {}
+      ThrowingBoth &operator=(ThrowingBoth const &) noexcept { return *this; }
+      ThrowingBoth &operator=(ThrowingBoth &&) noexcept { return *this; }
     };
+    static_assert(std::is_nothrow_copy_assignable_v<ThrowingBoth>);
     static_assert(not std::is_copy_assignable_v<sum<ThrowingBoth>>);
     static_assert(not std::is_move_assignable_v<sum<ThrowingBoth>>);
 
-    // The arm is chosen per ALTERNATIVE, not for the sum as a whole: one that is nothrow-copyable is
-    // built straight over the old, and one whose copy can throw is copied into a temporary first. A
-    // sum whose alternatives need different arms is therefore still assignable.
-    struct QuietCopy final { // needs the direct arm: its move throws
+    // The arm is chosen per ALTERNATIVE, not for the sum as a whole - both for the assignment of
+    // an unchanged alternative and for the construction that replaces one. A sum whose
+    // alternatives need different arms is therefore still assignable.
+    struct QuietCopy final { // replaced by copying straight over: its move throws
       QuietCopy() = default;
       QuietCopy(QuietCopy const &) noexcept = default;
       QuietCopy(QuietCopy &&) noexcept(false) {}
+      QuietCopy &operator=(QuietCopy const &) noexcept = default;
+      QuietCopy &operator=(QuietCopy &&) noexcept = default;
     };
-    struct QuietMove final { // needs the temporary arm: its copy throws
+    struct QuietMove final { // replaced through a temporary: its copy throws
       QuietMove() = default;
       QuietMove(QuietMove const &) noexcept(false) {}
       QuietMove(QuietMove &&) noexcept = default;
+      QuietMove &operator=(QuietMove const &) noexcept = default;
+      QuietMove &operator=(QuietMove &&) noexcept = default;
     };
-    static_assert(std::is_nothrow_copy_assignable_v<sum<QuietCopy>>); // direct
+    static_assert(std::is_nothrow_copy_assignable_v<sum<QuietCopy>>); // nothing on its path throws
     static_assert(std::is_move_assignable_v<sum<QuietCopy>>);         // the copy assignment takes the rvalue
-    static_assert(std::is_copy_assignable_v<sum<QuietMove>>);         // through the temporary
+    static_assert(std::is_copy_assignable_v<sum<QuietMove>>);         // replaced through the temporary
     static_assert(not std::is_nothrow_copy_assignable_v<sum<QuietMove>>);
     static_assert(std::is_nothrow_move_assignable_v<sum<QuietMove>>);
 

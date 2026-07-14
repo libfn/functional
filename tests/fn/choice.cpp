@@ -56,17 +56,21 @@ template <typename... Ts> consteval bool special_members_follow_sum()
 {
   using C = fn::choice<Ts...>;
   using S = fn::sum<Ts...>;
-  return std::is_copy_constructible_v<C> == std::is_copy_constructible_v<S>                    //
-         && std::is_nothrow_copy_constructible_v<C> == std::is_nothrow_copy_constructible_v<S> //
-         && std::is_move_constructible_v<C> == std::is_move_constructible_v<S>                 //
-         && std::is_nothrow_move_constructible_v<C> == std::is_nothrow_move_constructible_v<S> //
-         && std::is_copy_assignable_v<C> == std::is_copy_assignable_v<S>                       //
-         && std::is_nothrow_copy_assignable_v<C> == std::is_nothrow_copy_assignable_v<S>       //
-         && std::is_move_assignable_v<C> == std::is_move_assignable_v<S>                       //
-         && std::is_nothrow_move_assignable_v<C> == std::is_nothrow_move_assignable_v<S>       //
-         && std::is_destructible_v<C> == std::is_destructible_v<S>                             //
-         && std::is_nothrow_destructible_v<C> == std::is_nothrow_destructible_v<S>             //
-         && std::is_trivially_destructible_v<C> == std::is_trivially_destructible_v<S>;
+  return std::is_copy_constructible_v<C> == std::is_copy_constructible_v<S>                        //
+         && std::is_nothrow_copy_constructible_v<C> == std::is_nothrow_copy_constructible_v<S>     //
+         && std::is_move_constructible_v<C> == std::is_move_constructible_v<S>                     //
+         && std::is_nothrow_move_constructible_v<C> == std::is_nothrow_move_constructible_v<S>     //
+         && std::is_copy_assignable_v<C> == std::is_copy_assignable_v<S>                           //
+         && std::is_nothrow_copy_assignable_v<C> == std::is_nothrow_copy_assignable_v<S>           //
+         && std::is_move_assignable_v<C> == std::is_move_assignable_v<S>                           //
+         && std::is_nothrow_move_assignable_v<C> == std::is_nothrow_move_assignable_v<S>           //
+         && std::is_destructible_v<C> == std::is_destructible_v<S>                                 //
+         && std::is_nothrow_destructible_v<C> == std::is_nothrow_destructible_v<S>                 //
+         && std::is_trivially_destructible_v<C> == std::is_trivially_destructible_v<S>             //
+         && std::is_trivially_copy_constructible_v<C> == std::is_trivially_copy_constructible_v<S> //
+         && std::is_trivially_move_constructible_v<C> == std::is_trivially_move_constructible_v<S> //
+         && std::is_trivially_copy_assignable_v<C> == std::is_trivially_copy_assignable_v<S>       //
+         && std::is_trivially_move_assignable_v<C> == std::is_trivially_move_assignable_v<S>;
 }
 
 } // anonymous namespace
@@ -860,7 +864,7 @@ TEST_CASE("choice special members", "[choice]")
   static_assert(std::is_nothrow_copy_assignable_v<choice<int>>);
   static_assert(std::is_nothrow_move_assignable_v<choice<int>>);
   static_assert(std::is_nothrow_destructible_v<choice<int>>);
-  static_assert(not std::is_trivially_destructible_v<choice<int>>); // the base destroys its alternative
+  static_assert(std::is_trivially_destructible_v<choice<int>>); // as trivial as its alternatives permit
 
   // a throwing copy is reported as one, rather than promised away
   static_assert(std::is_copy_constructible_v<choice<std::string>>);
