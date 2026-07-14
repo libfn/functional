@@ -8,7 +8,6 @@
 
 #include <fn/detail/functional.hpp>
 #include <fn/detail/macro_fwd.hpp>
-#include <fn/detail/traits.hpp>
 #include <pfn/functional.hpp>
 #include <pfn/utility.hpp>
 
@@ -156,8 +155,8 @@ template <typename T0> union variadic_union<T0> {
   static constexpr ::std::size_t size = 1;
 
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(_nothrow_initializable<T, Args...>)
-    requires ::std::is_same_v<T, T0> && _initializable<T, Args...>
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
+    requires ::std::is_same_v<T, T0> && requires { T{FWD(args)...}; }
       : v0{FWD(args)...}
   {
   }
@@ -202,14 +201,14 @@ template <typename T0, typename T1> union variadic_union<T0, T1> {
   static constexpr ::std::size_t size = 2;
 
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(_nothrow_initializable<T, Args...>)
-    requires ::std::is_same_v<T, T0> && _initializable<T, Args...>
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
+    requires ::std::is_same_v<T, T0> && requires { T{FWD(args)...}; }
       : v0{FWD(args)...}
   {
   }
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(_nothrow_initializable<T, Args...>)
-    requires ::std::is_same_v<T, T1> && _initializable<T, Args...>
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
+    requires ::std::is_same_v<T, T1> && requires { T{FWD(args)...}; }
       : v1{FWD(args)...}
   {
   }
@@ -253,20 +252,20 @@ template <typename T0, typename T1, typename T2> union variadic_union<T0, T1, T2
   static constexpr ::std::size_t size = 3;
 
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(_nothrow_initializable<T, Args...>)
-    requires ::std::is_same_v<T, T0> && _initializable<T, Args...>
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
+    requires ::std::is_same_v<T, T0> && requires { T{FWD(args)...}; }
       : v0{FWD(args)...}
   {
   }
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(_nothrow_initializable<T, Args...>)
-    requires ::std::is_same_v<T, T1> && _initializable<T, Args...>
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
+    requires ::std::is_same_v<T, T1> && requires { T{FWD(args)...}; }
       : v1{FWD(args)...}
   {
   }
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(_nothrow_initializable<T, Args...>)
-    requires ::std::is_same_v<T, T2> && _initializable<T, Args...>
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
+    requires ::std::is_same_v<T, T2> && requires { T{FWD(args)...}; }
       : v2{FWD(args)...}
   {
   }
@@ -321,26 +320,26 @@ template <typename T0, typename T1, typename T2, typename T3> union variadic_uni
   static constexpr ::std::size_t size = 4;
 
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(_nothrow_initializable<T, Args...>)
-    requires ::std::is_same_v<T, T0> && _initializable<T, Args...>
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
+    requires ::std::is_same_v<T, T0> && requires { T{FWD(args)...}; }
       : v0{FWD(args)...}
   {
   }
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(_nothrow_initializable<T, Args...>)
-    requires ::std::is_same_v<T, T1> && _initializable<T, Args...>
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
+    requires ::std::is_same_v<T, T1> && requires { T{FWD(args)...}; }
       : v1{FWD(args)...}
   {
   }
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(_nothrow_initializable<T, Args...>)
-    requires ::std::is_same_v<T, T2> && _initializable<T, Args...>
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
+    requires ::std::is_same_v<T, T2> && requires { T{FWD(args)...}; }
       : v2{FWD(args)...}
   {
   }
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(_nothrow_initializable<T, Args...>)
-    requires ::std::is_same_v<T, T3> && _initializable<T, Args...>
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
+    requires ::std::is_same_v<T, T3> && requires { T{FWD(args)...}; }
       : v3{FWD(args)...}
   {
   }
@@ -405,32 +404,33 @@ union variadic_union<T0, T1, T2, T3, Ts...> {
   static constexpr ::std::size_t size = 4 + more_t::size;
 
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(_nothrow_initializable<T, Args...>)
-    requires ::std::is_same_v<T, T0> && _initializable<T, Args...>
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
+    requires ::std::is_same_v<T, T0> && requires { T{FWD(args)...}; }
       : v0{FWD(args)...}
   {
   }
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(_nothrow_initializable<T, Args...>)
-    requires ::std::is_same_v<T, T1> && _initializable<T, Args...>
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
+    requires ::std::is_same_v<T, T1> && requires { T{FWD(args)...}; }
       : v1{FWD(args)...}
   {
   }
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(_nothrow_initializable<T, Args...>)
-    requires ::std::is_same_v<T, T2> && _initializable<T, Args...>
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
+    requires ::std::is_same_v<T, T2> && requires { T{FWD(args)...}; }
       : v2{FWD(args)...}
   {
   }
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(_nothrow_initializable<T, Args...>)
-    requires ::std::is_same_v<T, T3> && _initializable<T, Args...>
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
+    requires ::std::is_same_v<T, T3> && requires { T{FWD(args)...}; }
       : v3{FWD(args)...}
   {
   }
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T> t, Args &&...args) noexcept(_nothrow_initializable<T, Args...>)
-    requires(more_t::template has_type<T>) && _initializable<T, Args...>
+  constexpr variadic_union(::std::in_place_type_t<T> t, Args &&...args) //
+      noexcept(noexcept(more_t(t, FWD(args)...)))
+    requires(more_t::template has_type<T>) && requires { more_t(t, FWD(args)...); }
       : more(t, FWD(args)...)
   {
   }
@@ -510,9 +510,9 @@ template <typename T, typename U>
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #endif
-template <typename T, typename U, typename... Args>
-[[nodiscard]] constexpr U make_variadic_union(Args &&...args) noexcept(_nothrow_initializable<T, Args...>)
-  requires(U::template has_type<T>) && _initializable<T, Args...>
+template <typename T, typename U>
+[[nodiscard]] constexpr U make_variadic_union(auto &&...args) noexcept(noexcept(T{FWD(args)...}))
+  requires(U::template has_type<T>) && requires { T{FWD(args)...}; }
 {
   return U(::std::in_place_type<T>, FWD(args)...);
 }

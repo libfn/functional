@@ -342,7 +342,7 @@ struct sum<Ts...> {
       noexcept((... && detail::_nothrow_makeable<data_t, Tx, Tx const &>))
     requires detail::is_superset_of<sum, sum<Tx...>> && (not ::std::is_same_v<sum, sum<Tx...>>)
                  && (... && detail::_makeable<data_t, Tx, Tx const &>) && (sizeof...(Tx) > 0)
-      : data(FWD(arg).template _invoke<data_t>([]<typename T>(::std::in_place_type_t<T>, auto &&v) {
+      : data(FWD(arg).template _invoke<data_t>([]<typename T>(::std::in_place_type_t<T>, auto &&v) -> data_t {
           return detail::make_variadic_union<T, data_t>(FWD(v));
         })),
         index(FWD(arg).template _invoke<::std::size_t>([]<typename T>(::std::in_place_type_t<T>, auto &&) { //
@@ -362,7 +362,7 @@ struct sum<Ts...> {
       noexcept((... && detail::_nothrow_makeable<data_t, Tx, Tx>))
     requires detail::is_superset_of<sum, sum<Tx...>> && (not ::std::is_same_v<sum, sum<Tx...>>)
                  && (... && detail::_makeable<data_t, Tx, Tx>) && (sizeof...(Tx) > 0)
-      : data(FWD(arg).template _invoke<data_t>([]<typename T>(::std::in_place_type_t<T>, auto &&v) {
+      : data(FWD(arg).template _invoke<data_t>([]<typename T>(::std::in_place_type_t<T>, auto &&v) -> data_t {
           return detail::make_variadic_union<T, data_t>(FWD(v));
         })),
         index(FWD(arg).template _invoke<::std::size_t>([]<typename T>(::std::in_place_type_t<T>, auto &&) { //
@@ -382,7 +382,7 @@ struct sum<Ts...> {
       noexcept((... && detail::_nothrow_makeable<data_t, Tx, apply_const_lvalue_t<decltype(arg), Tx &&>>))
     requires ::std::is_same_v<::std::remove_cvref_t<decltype(arg)>, sum<Tx...>>
                  && detail::is_superset_of<sum, sum<Tx...>> && (sizeof...(Tx) > 0)
-      : data(FWD(arg).template _invoke<data_t>([]<typename T>(::std::in_place_type_t<T>, auto &&v) {
+      : data(FWD(arg).template _invoke<data_t>([]<typename T>(::std::in_place_type_t<T>, auto &&v) -> data_t {
           return detail::make_variadic_union<T, data_t>(FWD(v));
         })),
         index(FWD(arg).template _invoke<::std::size_t>([]<typename T>(::std::in_place_type_t<T>, auto &&) { //
