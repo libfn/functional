@@ -13,7 +13,6 @@ set(TESTS_UTIL_HEADERS
 
 add_library(tests_util INTERFACE)
 set_property(TARGET tests_util PROPERTY CXX_STANDARD 20)
-target_compile_features(tests_util INTERFACE cxx_std_20)
 target_sources(tests_util INTERFACE
     FILE_SET tests_util_headers
     TYPE HEADERS
