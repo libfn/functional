@@ -1147,6 +1147,20 @@ TEST_CASE("sum noexcept", "[sum][noexcept]")
     // safely - and Throwy's throwing everything leaves no nothrow arm at all
     static_assert(not std::is_move_assignable_v<sum<Throwy>>);
     static_assert(not std::is_copy_assignable_v<sum<Throwy>>);
+
+    // widening assignment weighs only the source's alternatives: Throwy, uninvolved, neither
+    // forbids the assignment nor enters its specification
+    static_assert(std::is_assignable_v<fn::sum_for<Quiet, Throwy> &, sum<Quiet> const &>);
+    static_assert(noexcept(std::declval<fn::sum_for<Quiet, Throwy> &>() = std::declval<sum<Quiet> const &>()));
+    struct Loud { // nothrow to deliver, throwing to assign: viability and the specification differ
+      Loud() = default;
+      Loud(Loud const &) noexcept {}
+      Loud(Loud &&) noexcept {}
+      Loud &operator=(Loud const &) noexcept(false) { return *this; }
+      Loud &operator=(Loud &&) noexcept(false) { return *this; }
+    };
+    static_assert(std::is_assignable_v<fn::sum_for<Quiet, Loud> &, sum<Loud> const &>);
+    static_assert(not noexcept(std::declval<fn::sum_for<Quiet, Loud> &>() = std::declval<sum<Loud> const &>()));
     SUCCEED();
   }
 }
@@ -1743,6 +1757,131 @@ TEST_CASE("sum assignment", "[sum][assignment]")
       CHECK(Counted::live == 1);
     }
     CHECK(Counted::live == 0);
+  }
+
+  SECTION("widening")
+  {
+    // a narrower sum assigns on the widening constructors' terms, deciding per incoming
+    // alternative: the one held is assigned in place, any other replaces by construction
+    constexpr auto basic = [] {
+      sum<bool, int> a{12};
+      sum<int> const n{42};
+      a = n; // the alternative in hand, by copy
+      bool ok = a == sum{42};
+      a = sum<bool>{true}; // a different alternative
+      ok = ok && a == sum{true};
+      a = sum<int>{7}; // and back, by move
+      return ok && a == sum{7};
+    };
+    CHECK(basic());
+    static_assert(basic());
+
+    SECTION("one relocation, or none")
+    {
+      // `wide = narrow` used to route through the widening constructor: a whole temporary sum, one
+      // copy plus one move; the incoming alternative is now delivered straight to its destination
+      struct Reloc final {
+        int v;
+        int *copied;
+        int *moved;
+        int *assigned;
+        constexpr Reloc(int i, int *c, int *m, int *a) noexcept : v(i), copied(c), moved(m), assigned(a) {}
+        constexpr Reloc(Reloc const &o) noexcept : v(o.v), copied(o.copied), moved(o.moved), assigned(o.assigned)
+        {
+          ++*copied;
+        }
+        constexpr Reloc(Reloc &&o) noexcept : v(o.v), copied(o.copied), moved(o.moved), assigned(o.assigned)
+        {
+          ++*moved;
+        }
+        constexpr Reloc &operator=(Reloc const &o) noexcept
+        {
+          v = o.v;
+          ++*assigned;
+          return *this;
+        }
+        constexpr Reloc &operator=(Reloc &&o) noexcept
+        {
+          v = o.v;
+          ++*assigned;
+          return *this;
+        }
+      };
+      constexpr auto counts = [] {
+        int copied = 0;
+        int moved = 0;
+        int assigned = 0;
+        using W = fn::sum_for<Reloc, int>;
+        fn::sum<Reloc> n{Reloc{42, &copied, &moved, &assigned}};
+        fn::sum<Reloc> m{Reloc{9, &copied, &moved, &assigned}};
+
+        W a{12};
+        copied = moved = assigned = 0;
+        a = std::as_const(n); // a different alternative, by copy: one copy, straight into place
+        bool ok = copied == 1 && moved == 0 && assigned == 0 && a.get_ptr<Reloc>()->v == 42;
+
+        copied = moved = assigned = 0;
+        a = std::as_const(n); // the alternative in hand: assigned, nothing relocates
+        ok = ok && copied == 0 && moved == 0 && assigned == 1;
+
+        a = W{12};
+        copied = moved = assigned = 0;
+        a = std::move(m); // a different alternative, by move: one move, nothing else
+        return ok && copied == 0 && moved == 1 && assigned == 0 && a.get_ptr<Reloc>()->v == 9;
+      };
+      CHECK(counts());
+      static_assert(counts());
+    }
+
+    SECTION("constraints")
+    {
+      // constrained on the source's alternatives: an uninvolved alternative of the destination
+      // forbids nothing - though it still forbids assignment of the whole type - and decides only
+      // when the source can actually deliver it
+      struct Fixed final { // copyable, not assignable
+        constexpr Fixed() noexcept = default;
+        constexpr Fixed(Fixed const &) noexcept = default;
+        constexpr Fixed(Fixed &&) noexcept = default;
+        Fixed &operator=(Fixed const &) = delete;
+        Fixed &operator=(Fixed &&) = delete;
+      };
+      using S = fn::sum_for<Fixed, int>;
+      static_assert(not std::is_copy_assignable_v<S>);
+      static_assert(std::is_assignable_v<S &, sum<int> const &>);
+      static_assert(std::is_assignable_v<S &, sum<int> &&>);
+      static_assert(not std::is_assignable_v<S &, sum<Fixed> const &>);
+
+      struct Skittish final { // assignable, but no arm can deliver it without throwing
+        constexpr Skittish() noexcept = default;
+        Skittish(Skittish const &) noexcept(false) {}
+        Skittish(Skittish &&) noexcept(false) {}
+        Skittish &operator=(Skittish const &) noexcept { return *this; }
+        Skittish &operator=(Skittish &&) noexcept { return *this; }
+      };
+      using S2 = fn::sum_for<Skittish, int>;
+      static_assert(not std::is_copy_assignable_v<S2>);
+      static_assert(std::is_assignable_v<S2 &, sum<int> const &>);
+      static_assert(not std::is_assignable_v<S2 &, sum<Skittish> const &>);
+
+      // the constructor route survives where the direct overload declines: a copy-deleted move
+      // assignment refuses widening-copy, and `wide = narrow` still compiles as it always did -
+      // the widening constructor's temporary, then whole-type assignment
+      struct MoveAssign final {
+        constexpr MoveAssign() noexcept = default;
+        constexpr MoveAssign(MoveAssign const &) noexcept = default;
+        constexpr MoveAssign(MoveAssign &&) noexcept = default;
+        MoveAssign &operator=(MoveAssign const &) = delete;
+        constexpr MoveAssign &operator=(MoveAssign &&) noexcept = default;
+      };
+      static_assert(not std::is_copy_assignable_v<MoveAssign>);
+      using S3 = fn::sum_for<MoveAssign, int>;
+      static_assert(std::is_assignable_v<S3 &, sum<MoveAssign> const &>); // through the constructor
+      static_assert(std::is_assignable_v<S3 &, sum<MoveAssign> &&>);      // directly
+
+      // a sum it is not a superset of is refused
+      static_assert(not std::is_assignable_v<sum<int> &, sum<bool> const &>);
+      SUCCEED();
+    }
   }
 
   SECTION("constexpr")

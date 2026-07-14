@@ -181,6 +181,27 @@ struct choice<Ts...> : sum<Ts...> {
   constexpr choice &operator=(choice const &other) = default;
   constexpr choice &operator=(choice &&other) = default;
 
+  // choice declares its copy and move assignment, and a declared operator= hides every base
+  // overload - sum's widening assignment must be restated here to exist at all. Delegating keeps
+  // the answer sum's, and admits a sum over the same alternatives, which would otherwise pay for
+  // the temporary the widening constructor builds.
+  template <typename... Tx>
+  constexpr choice &operator=(sum<Tx...> const &arg) //
+      noexcept(::std::is_nothrow_assignable_v<sum<Ts...> &, sum<Tx...> const &>)
+    requires ::std::is_assignable_v<sum<Ts...> &, sum<Tx...> const &>
+  {
+    static_cast<sum<Ts...> &>(*this) = arg;
+    return *this;
+  }
+  template <typename... Tx>
+  constexpr choice &operator=(sum<Tx...> &&arg) //
+      noexcept(::std::is_nothrow_assignable_v<sum<Ts...> &, sum<Tx...>>)
+    requires ::std::is_assignable_v<sum<Ts...> &, sum<Tx...>>
+  {
+    static_cast<sum<Ts...> &>(*this) = ::std::move(arg);
+    return *this;
+  }
+
   /**
    * @brief TODO
    *

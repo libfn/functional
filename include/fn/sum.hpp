@@ -568,6 +568,58 @@ struct sum<Ts...> {
   }
 
   /**
+   * @brief Widening copy assignment from a sum over a subset of the alternatives
+   *
+   * @param arg TODO
+   * @return TODO
+   */
+  // Constrained on the alternatives the source can actually deliver, like the widening
+  // constructors: routing through construction and same-type assignment would let an uninvolved
+  // alternative of the destination forbid the assignment, and would build a whole temporary sum.
+  // The incoming alternative is assigned in place when it is the one held, and replaces it by
+  // construction otherwise, exactly as the same-type operator= does.
+  template <typename... Tx>
+  constexpr sum &operator=(sum<Tx...> const &arg) //
+      noexcept((... && (::std::is_nothrow_copy_assignable_v<Tx> && detail::_nothrow_makeable<data_t, Tx, Tx const &>)))
+    requires detail::is_superset_of<sum, sum<Tx...>> && (not ::std::is_same_v<sum, sum<Tx...>>)
+             && (...
+                 && (::std::is_copy_assignable_v<Tx> && detail::_makeable<data_t, Tx, Tx const &>
+                     && (detail::_nothrow_makeable<data_t, Tx, Tx const &>
+                         || detail::_nothrow_makeable<data_t, Tx, Tx>)))
+             && (sizeof...(Tx) > 0)
+  {
+    arg.template _invoke<void>([this]<typename T>(::std::in_place_type_t<T>, auto const &v) {
+      if (this->index == detail::type_index<T, Ts...>)
+        this->template _reassign<T>(v);
+      else
+        this->template _reinit<T>(v);
+    });
+    return *this;
+  }
+
+  /**
+   * @brief Widening move assignment from a sum over a subset of the alternatives
+   *
+   * @param arg TODO
+   * @return TODO
+   */
+  template <typename... Tx>
+  constexpr sum &operator=(sum<Tx...> &&arg) //
+      noexcept((... && ::std::is_nothrow_move_assignable_v<Tx>))
+    requires detail::is_superset_of<sum, sum<Tx...>> && (not ::std::is_same_v<sum, sum<Tx...>>)
+             && (... && (::std::is_move_assignable_v<Tx> && detail::_nothrow_makeable<data_t, Tx, Tx>))
+             && (sizeof...(Tx) > 0)
+  {
+    ::std::move(arg).template _invoke<void>([this]<typename T>(::std::in_place_type_t<T>, auto &&v) {
+      if (this->index == detail::type_index<T, Ts...>)
+        this->template _reassign<T>(FWD(v));
+      else
+        this->template _reinit<T>(FWD(v));
+    });
+    return *this;
+  }
+
+  /**
    * @brief TODO
    *
    * @tparam T TODO
