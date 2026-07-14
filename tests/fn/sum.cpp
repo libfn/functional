@@ -1863,6 +1863,21 @@ TEST_CASE("sum assignment", "[sum][assignment]")
       static_assert(std::is_assignable_v<S2 &, sum<int> const &>);
       static_assert(not std::is_assignable_v<S2 &, sum<Skittish> const &>);
 
+      // the constructor route survives where the direct overload declines: a copy-deleted move
+      // assignment refuses widening-copy, and `wide = narrow` still compiles as it always did -
+      // the widening constructor's temporary, then whole-type assignment
+      struct MoveAssign final {
+        constexpr MoveAssign() noexcept = default;
+        constexpr MoveAssign(MoveAssign const &) noexcept = default;
+        constexpr MoveAssign(MoveAssign &&) noexcept = default;
+        MoveAssign &operator=(MoveAssign const &) = delete;
+        constexpr MoveAssign &operator=(MoveAssign &&) noexcept = default;
+      };
+      static_assert(not std::is_copy_assignable_v<MoveAssign>);
+      using S3 = fn::sum_for<MoveAssign, int>;
+      static_assert(std::is_assignable_v<S3 &, sum<MoveAssign> const &>); // through the constructor
+      static_assert(std::is_assignable_v<S3 &, sum<MoveAssign> &&>);      // directly
+
       // a sum it is not a superset of is refused
       static_assert(not std::is_assignable_v<sum<int> &, sum<bool> const &>);
       SUCCEED();
