@@ -2,6 +2,11 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `sum` and `choice` assign across widening — 14 July 2026
+
+- **A narrower `sum` now assigns into a wider one on the widening constructors' terms** ([#310](https://github.com/libfn/functional/issues/310)): `operator=` is constrained on the alternatives the source can actually deliver, and the incoming alternative is assigned in place when it is the one held, or replaces it by construction otherwise — the per-alternative decision same-type assignment already makes. Previously `wide = narrow` existed only by routing through the widening constructor: a whole temporary sum, a copy plus a move where one copy suffices, and viability gated on the destination's every alternative — an uninvolved alternative with no safe replacement arm forbade assignments it took no part in.
+- **`choice` declares its own widening assignment and delegates to `sum`'s.** A declared `operator=` hides every base overload, so without its own pair `choice` would have been left out silently; the delegation also admits a `sum` over the same alternatives, which previously paid for a temporary despite having nothing to widen.
+
 ## `sum` is as trivial as its alternatives permit — 14 July 2026
 
 - **Every special member of `sum` (and through it `choice`) is now trivial exactly when every alternative permits it** — the gates `std::variant` uses ([#309](https://github.com/libfn/functional/issues/309)). A `sum` of fundamentals, or of trivially copyable `pack`s, is trivially copyable — register-passed and `memcpy`-safe — where previously no `sum` supported any trivial operation. The sum-of-packs case is the one that pays: joining sum-valued monads yields the cartesian product, and that is what a multidispatch pipeline copies at every stage. Trivially copyable sums change ABI (register passing), which is why this lands before the first tagged release.

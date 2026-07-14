@@ -359,6 +359,38 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     }
   }
 
+  SECTION("assignment from sum")
+  {
+    // choice declares its operator=, hiding sum's widening overloads, so it carries its own pair
+    // and delegates - which also admits a sum over the same alternatives, with nothing to widen
+    constexpr auto battery = [] {
+      choice<bool, int> a{12};
+      a = fn::sum<int>{42}; // the alternative in hand
+      bool ok = a == choice{42};
+      a = fn::sum<bool>{true}; // a different alternative
+      ok = ok && a == choice{true};
+      fn::sum<int> const n{7};
+      a = n; // by copy
+      ok = ok && a == choice{7};
+      a = choice<int>{3}; // a narrower choice, deduced through its sum base
+      ok = ok && a == choice{3};
+      a = fn::sum<bool, int>{5}; // the same alternatives, delegated to same-type assignment
+      return ok && a == choice{5};
+    };
+    CHECK(battery());
+    static_assert(battery());
+
+    SECTION("constraints")
+    {
+      static_assert(std::is_assignable_v<choice<bool, int> &, fn::sum<int> const &>);
+      static_assert(std::is_assignable_v<choice<bool, int> &, fn::sum<bool, int> &&>); // same alternatives
+      static_assert(std::is_assignable_v<choice<bool, int> &, choice<int> const &>);   // through the base
+      static_assert(not std::is_assignable_v<choice<int> &, fn::sum<bool> const &>);   // not a superset
+      static_assert(noexcept(std::declval<choice<bool, int> &>() = std::declval<fn::sum<int> const &>()));
+      SUCCEED();
+    }
+  }
+
   SECTION("forwarding constructors (immovable)")
   {
     choice<NonCopyable> a{std::in_place_type<NonCopyable>, 42};
