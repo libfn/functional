@@ -20,30 +20,35 @@ g++ -std=c++20 -Iinclude examples/polygon/main.cpp -o /tmp/polygon
 
 ## Unit tests
 
-In this project, 100% tests coverage does not actually mean much, because the most useful tests cases are around compile-time language elements, such as overload resolution, built-in conversions etc. Any meaningful tests must execute the same set of functions in many, subtly different ways, rather than simply execute each function and branch at least once.
-
-An entity's tests span four dimensions: its observable behaviour at runtime, the same behaviour in constant evaluation, the exactness of its `noexcept` specification, and the accuracy of its constraints — positive and negative. (Entities that exist only at compile time — traits, concepts — have only the compile-time dimensions.)
+Although we aim for 100% unit-test coverage, executing every line and branch tells only part of the story in this project. Many important guarantees are compile-time properties, such as overload resolution, conversions, constraints and `noexcept` specifications. Tests must therefore exercise an interface with combinations of value categories and type properties, not merely execute every line.
 
 ### Structure
 
-A `TEST_CASE` covers one entity, a top-level `SECTION` covers one member function or overload set, and nested `SECTION`s cover the product of dimensions that member spans — value category first, then type properties. Keep section names short, and use plain `SECTION` rather than the BDD macros (`WHEN`, `GIVEN`, `THEN`). `tests/pfn/expected.cpp` is the reference shape; when unsure how to organise a test, imitate it.
+A consistent test shape helps make those combinations visible. The guidelines below are a living standard and may evolve when a clearer structure reveals coverage more effectively.
 
-* Declare the subject alias and the probe lambdas once, at `TEST_CASE` scope; nested sections use them rather than re-declaring their own.
-* A new check belongs in the existing `TEST_CASE`/`SECTION` covering that member or behaviour, matching the local idiom — not the nearest convenient spot or a catch-all case. A check in the right named section is self-documenting.
+* Use one `TEST_CASE` for each file-level entity (a class, a specialisation, an overload set, etc.) and one top-level `SECTION` for each member function or overload set.
+* Use nested sections for the combinations that the member supports: normally value category first, then type properties. Put constraint checks last. A test's place in the `TEST_CASE`/`SECTION` hierarchy should say what it tests; do not put it in the nearest convenient section or a catch-all case.
+* Choose the dimensions relevant to the interface under test. Common dimensions include the four cv/ref value categories (`&`, `const &`, `&&` and `const &&`) and properties of the participating types, such as whether they support default, copy or move construction and assignment, and whether those operations are trivial or nothrow. These examples are not exhaustive; they illustrate the range of cases a thorough unit test may need to cover.
+* Keep section names short. Use `SECTION`, not the BDD macros (`GIVEN`, `WHEN` and `THEN`).
+* Declare the subject alias and reusable probe lambdas once, at `TEST_CASE` scope, rather than redeclaring them in nested sections.
+* Use `TEMPLATE_TEST_CASE` only when the same test battery genuinely applies to several subjects. Because it is a macro, give template arguments containing commas a named alias before passing them to it.
+* When restructuring tests, run them and record Catch2's test-case and assertion counts before and after the change. The counts should not change accidentally: `SUCCEED()` contributes one assertion per leaf section, while an assertion in a parent section runs once for every leaf below it.
 
-### The kind of fact decides the assertion
+### Assertions
 
-* **A fact the compiler decides** — a `noexcept` specification, a type or a trait, overload viability, concept satisfaction — is asserted with `static_assert` alone. A runtime `CHECK` of such a fact cannot fail once the file compiles, and executes no library code: `CHECK(noexcept(f()))` is `CHECK(true)`. There is no coverage hole to fill either — a specifier has no executable lines. This is the rule to cite when a review asks for a runtime `CHECK` of a compile-time fact.
+Match the assertion to the kind of fact being tested.
 
-* **Behaviour the program performs** — a value computed, a side effect, a state change, an exception thrown — gets both a runtime `CHECK` and a constant-evaluation twin replaying the same operations inside a `static_assert`. The runtime check executes the instrumented lines — a `static_assert`-only executable branch is a coverage hole — and the twin is a UB detector: constant evaluation is required to diagnose UB, and users rely on the library in `constexpr` for exactly this. When a branch exists to give a guarantee, exercise both its failure and its success — a path tested only through `CHECK_THROWS_AS` never runs to completion.
+* Use `static_assert` without a runtime twin for a fact decided by the compiler: a `noexcept` specification, overload viability, concept satisfaction, a result type, or a property of default, copy or move construction and assignment, including whether an operation is trivial or nothrow. Do not apply a runtime assertion such as `CHECK` to a compiler-generated constant (for example, `noexcept(f())`); it adds neither coverage nor useful information.
+* Test behaviour performed by the program — a computed value, side effect or state change — both at runtime with `CHECK` and in constant evaluation with a `static_assert` twin that repeats the same operations. The runtime test provides coverage and lets sanitizers observe the execution. The `static_assert` verifies that users can perform the same operation in constant evaluation, allowing them to use the compiler to diagnose undefined behaviour.
+* For code that may throw, test the expected exception at runtime with `CHECK_THROWS_AS`. Also exercise the same operation in a non-throwing case, both at runtime and in constant evaluation: a throwing-path test alone never lets that code run to completion.
+* End a `SECTION` containing only compile-time assertions with `SUCCEED()`. This satisfies Catch2's no-assertion warning and makes such sections easy to find.
 
-* A `SECTION` containing only compile-time checks ends with `SUCCEED()` — it satisfies Catch2's no-assertion warning and makes such sections easy to find.
+### Compile-time probes
 
-### Negative assertions
+* Pair every negative assertion with its converse. For example, `static_assert(not noexcept(expr))` also passes if the specification is unconditionally false. Add a witness for which it is true, so the pair proves that the specification is conditional. Give a negative constraint or viability probe a positive control for the same reason, choosing witnesses that exercise the relevant corner cases.
+* Make the expression in a negative viability probe dependent on a template parameter. A requires-expression over concrete types is not a substitution context and an invalid requirement is a hard error. Put the dependent probe in a generic lambda or a type-keyed concept so that invalid substitution produces `false`.
 
-* **Every negative wants its converse.** `static_assert(not noexcept(expr))` alone also passes when the specification is unconditionally false — which is precisely the defect it exists to catch. Pair it with a witness that makes the specification true, so the pair shows the specification conditional rather than merely absent. Constraints likewise: a non-viability probe wants its positive control.
-
-* **Negative viability probes must be dependent.** A requires-expression written directly over concrete types hard-errors when a requirement is invalid — false-on-invalid applies only during template-argument substitution. Wrap the probe in a generic lambda returning `requires { … }`, or in a type-keyed concept, so the failure lands in an immediate context and yields `false`.
+Choose fixtures with care when probing exception specifications. `helper_t` has a separate constructor for each value category, and its non-const-lvalue copy constructor is always `noexcept`. A `helper_t` configured to throw is therefore not throwing for every value category, and a specification that remains `noexcept` for that constructor may be correct. Use a plain local type when the test needs every relevant construction to be potentially throwing.
 
 ## Versioning
 
