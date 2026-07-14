@@ -1151,6 +1151,62 @@ TEST_CASE("sum noexcept", "[sum][noexcept]")
   }
 }
 
+TEST_CASE("sum triviality", "[sum][triviality]")
+{
+  using fn::sum;
+
+  SECTION("of fundamentals: every operation, as variant has")
+  {
+    using S = sum<double, int>;
+    static_assert(std::is_trivially_copyable_v<S>);
+    static_assert(std::is_trivially_destructible_v<S>);
+    static_assert(std::is_trivially_copy_constructible_v<S>);
+    static_assert(std::is_trivially_move_constructible_v<S>);
+    static_assert(std::is_trivially_copy_assignable_v<S>);
+    static_assert(std::is_trivially_move_assignable_v<S>);
+    SUCCEED();
+  }
+
+  SECTION("of packs: the multidispatch case")
+  {
+    // a sum of packs is the normal form of the type algebra, and the join's cartesian product is
+    // what a multidispatch pipeline copies at every stage
+    using S = sum<fn::pack<int, double>>;
+    static_assert(std::is_trivially_copyable_v<S>);
+    static_assert(std::is_trivially_destructible_v<S>);
+    static_assert(std::is_trivially_copy_constructible_v<S>);
+    static_assert(std::is_trivially_move_constructible_v<S>);
+    static_assert(std::is_trivially_copy_assignable_v<S>);
+    static_assert(std::is_trivially_move_assignable_v<S>);
+    SUCCEED();
+  }
+
+  SECTION("each operation follows its own gate")
+  {
+    // a pack holding a reference is trivially copyable and refuses assignment: the operations
+    // decouple, exactly as they do on the pack itself
+    using R = sum<fn::pack<int, int &>>;
+    static_assert(std::is_trivially_destructible_v<R>);
+    static_assert(std::is_trivially_copy_constructible_v<R>);
+    static_assert(std::is_trivially_move_constructible_v<R>);
+    static_assert(not std::is_copy_assignable_v<R>); // refused by the alternative, not merely non-trivial
+    static_assert(not std::is_move_assignable_v<R>);
+
+    // nothing about std::string is trivial, and everything still works
+    using N = sum<std::string>;
+    static_assert(not std::is_trivially_destructible_v<N>);
+    static_assert(not std::is_trivially_copy_constructible_v<N>);
+    static_assert(not std::is_trivially_copy_assignable_v<N>);
+    static_assert(std::is_copy_assignable_v<N>);
+
+    // one non-trivial alternative makes the operation non-trivial, never non-viable
+    using M = fn::sum_for<std::string, int>;
+    static_assert(not std::is_trivially_copy_assignable_v<M>);
+    static_assert(std::is_copy_assignable_v<M>);
+    SUCCEED();
+  }
+}
+
 TEST_CASE("sum type collapsing", "[sum][transform][normalized]")
 {
   using ::fn::overload;

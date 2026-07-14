@@ -218,6 +218,22 @@ struct sum<Ts...> {
       = (... && (::std::is_move_assignable_v<Ts> && detail::_nothrow_makeable<data_t, Ts, Ts>));
   static constexpr bool _nothrow_move_assignable = (... && ::std::is_nothrow_move_assignable_v<Ts>);
 
+  // Each special member is trivial exactly when every alternative permits it, with the gates
+  // `std::variant` uses. The trivial arm IS the compiler's defaulted member - for the assignments,
+  // member-wise copying of the union's object representation - which for types passing these gates
+  // is observationally identical to the general arms: a pure optimization, not different semantics.
+  static constexpr bool _trivially_destructible = (... && ::std::is_trivially_destructible_v<Ts>);
+  static constexpr bool _trivially_copy_constructible = (... && ::std::is_trivially_copy_constructible_v<Ts>);
+  static constexpr bool _trivially_move_constructible = (... && ::std::is_trivially_move_constructible_v<Ts>);
+  static constexpr bool _trivially_copy_assignable
+      = (...
+         && (::std::is_trivially_copy_constructible_v<Ts> && ::std::is_trivially_copy_assignable_v<Ts>
+             && ::std::is_trivially_destructible_v<Ts>));
+  static constexpr bool _trivially_move_assignable
+      = (...
+         && (::std::is_trivially_move_constructible_v<Ts> && ::std::is_trivially_move_assignable_v<Ts>
+             && ::std::is_trivially_destructible_v<Ts>));
+
   /**
    * @brief TODO
    *
@@ -380,8 +396,11 @@ struct sum<Ts...> {
    *
    * @param other TODO
    */
+  constexpr sum(sum const &other)
+    requires _trivially_copy_constructible
+  = default;
   constexpr sum(sum const &other) noexcept(_nothrow_copyable)
-    requires _copyable
+    requires(not _trivially_copy_constructible) && _copyable
       : data(detail::invoke_type_variadic_union<data_t, data_t>(       //
             other.data, other.index,                                   //
             []<typename T>(::std::in_place_type_t<T>, auto const &v) { //
@@ -396,8 +415,11 @@ struct sum<Ts...> {
    *
    * @param other TODO
    */
+  constexpr sum(sum &&other)
+    requires _trivially_move_constructible
+  = default;
   constexpr sum(sum &&other) noexcept(_nothrow_movable)
-    requires _movable
+    requires(not _trivially_move_constructible) && _movable
       : data(detail::invoke_type_variadic_union<data_t, data_t>(  //
             ::std::move(other).data, other.index,                 //
             []<typename T>(::std::in_place_type_t<T>, auto &&v) { //
@@ -407,7 +429,11 @@ struct sum<Ts...> {
   {
   }
 
+  constexpr ~sum()
+    requires _trivially_destructible
+  = default;
   constexpr ~sum() noexcept
+    requires(not _trivially_destructible)
   {
     detail::invoke_type_variadic_union<void, data_t>( //
         this->data, index, [this]<typename T>(::std::in_place_type_t<T>, auto &&) {
@@ -491,8 +517,11 @@ struct sum<Ts...> {
   // [variant.assign] does. A sum therefore no longer offers an operation its alternative refuses -
   // a pack holding a reference deletes assignment precisely because C++ cannot rebind a reference,
   // and destroy-and-reconstruct would synthesize exactly that.
+  constexpr sum &operator=(sum const &other)
+    requires _trivially_copy_assignable
+  = default;
   constexpr sum &operator=(sum const &other) noexcept(_nothrow_copy_assignable)
-    requires _copy_assignable
+    requires(not _trivially_copy_assignable) && _copy_assignable
   {
     if (this != &other) {
       if (index == other.index) {
@@ -518,8 +547,11 @@ struct sum<Ts...> {
   // snapshot both rest on it - but the operator itself is only as nothrow as the alternatives' own
   // move assignment. Where moving can throw, a nothrow-copy-assignable sum is still assignable from
   // an rvalue, by copy.
+  constexpr sum &operator=(sum &&other)
+    requires _trivially_move_assignable
+  = default;
   constexpr sum &operator=(sum &&other) noexcept(_nothrow_move_assignable)
-    requires _move_assignable
+    requires(not _trivially_move_assignable) && _move_assignable
   {
     if (this != &other) {
       if (index == other.index) {

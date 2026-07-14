@@ -65,6 +65,10 @@ template <typename... Ts> consteval bool special_members_follow_elements()
   ok = ok && std::is_destructible_v<P> == (... && std::is_destructible_v<elem<Ts>>);
   ok = ok && std::is_nothrow_destructible_v<P> == (... && std::is_nothrow_destructible_v<elem<Ts>>);
   ok = ok && std::is_trivially_destructible_v<P> == (... && std::is_trivially_destructible_v<elem<Ts>>);
+  ok = ok && std::is_trivially_copy_constructible_v<P> == (... && std::is_trivially_copy_constructible_v<elem<Ts>>);
+  ok = ok && std::is_trivially_move_constructible_v<P> == (... && std::is_trivially_move_constructible_v<elem<Ts>>);
+  ok = ok && std::is_trivially_copy_assignable_v<P> == (... && std::is_trivially_copy_assignable_v<elem<Ts>>);
+  ok = ok && std::is_trivially_move_assignable_v<P> == (... && std::is_trivially_move_assignable_v<elem<Ts>>);
   return ok;
 }
 

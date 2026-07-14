@@ -649,7 +649,7 @@ TEST_CASE("transform choice", "[transform][choice]")
       constexpr auto r2 = T{0.5} | fn::transform(fn);
       static_assert(r2.transform([](int i) -> int { return i; }) == fn::choice{1});
       constexpr auto r3 = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
-      static_assert(r2.transform([](int i) -> int { return i; }) == fn::choice{1});
+      static_assert(r3.transform([](int i) -> int { return i; }) == fn::choice{1});
 
       SUCCEED();
     }
