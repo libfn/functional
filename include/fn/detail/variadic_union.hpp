@@ -503,12 +503,22 @@ template <typename T, typename U>
   return ptr_variadic_union<T, typename U::more_t>(v.more);
 }
 
+#if defined(__GNUC__) && not defined(__clang__)
+// gcc 12-14 at -O2 and above report the returned union as maybe-uninitialized wherever a trivially
+// copyable sum is later copied whole: the inactive members' bytes are copied, never read. gcc 15
+// does not.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
 template <typename T, typename U, typename... Args>
 [[nodiscard]] constexpr U make_variadic_union(Args &&...args) noexcept(_nothrow_initializable<T, Args...>)
   requires(U::template has_type<T>) && _initializable<T, Args...>
 {
   return U(::std::in_place_type<T>, FWD(args)...);
 }
+#if defined(__GNUC__) && not defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 // The two questions anyone above may ask about storing an alternative, asked OF the function that
 // stores it rather than restated in terms of a trait. Restating is how the answer drifts from the
