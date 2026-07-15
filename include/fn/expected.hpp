@@ -552,22 +552,48 @@ public:
     return *this;
   }
   constexpr expected &operator=(expected const &) = delete;
+  constexpr expected &operator=(expected const &) //
+      noexcept(::std::is_nothrow_copy_assignable_v<T> && ::std::is_nothrow_copy_constructible_v<T>
+               && ::std::is_nothrow_copy_assignable_v<Err> && ::std::is_nothrow_copy_constructible_v<Err>)
+    requires(::std::is_copy_assignable_v<T> && ::std::is_copy_constructible_v<T> && ::std::is_copy_assignable_v<Err>
+             && ::std::is_copy_constructible_v<Err>
+             && (::std::is_nothrow_move_constructible_v<T> || ::std::is_nothrow_move_constructible_v<Err>)
+             && ::std::is_trivially_copy_constructible_v<T> && ::std::is_trivially_copy_assignable_v<T>
+             && ::std::is_trivially_destructible_v<T> && ::std::is_trivially_copy_constructible_v<Err>
+             && ::std::is_trivially_copy_assignable_v<Err> && ::std::is_trivially_destructible_v<Err>)
+  = default;
   constexpr expected &operator=(expected const &s) //
       noexcept(::std::is_nothrow_copy_assignable_v<T> && ::std::is_nothrow_copy_constructible_v<T>
                && ::std::is_nothrow_copy_assignable_v<Err> && ::std::is_nothrow_copy_constructible_v<Err>)
     requires(::std::is_copy_assignable_v<T> && ::std::is_copy_constructible_v<T> && ::std::is_copy_assignable_v<Err>
              && ::std::is_copy_constructible_v<Err>
-             && (::std::is_nothrow_move_constructible_v<T> || ::std::is_nothrow_move_constructible_v<Err>))
+             && (::std::is_nothrow_move_constructible_v<T> || ::std::is_nothrow_move_constructible_v<Err>)
+             && (not ::std::is_trivially_copy_constructible_v<T> || not ::std::is_trivially_copy_assignable_v<T>
+                 || not ::std::is_trivially_destructible_v<T> || not ::std::is_trivially_copy_constructible_v<Err>
+                 || not ::std::is_trivially_copy_assignable_v<Err> || not ::std::is_trivially_destructible_v<Err>))
   {
     this->_assign(static_cast<_base const &>(s));
     return *this;
   }
+  constexpr expected &operator=(expected &&) //
+      noexcept(::std::is_nothrow_move_assignable_v<T> && ::std::is_nothrow_move_constructible_v<T>
+               && ::std::is_nothrow_move_assignable_v<Err> && ::std::is_nothrow_move_constructible_v<Err>)
+    requires(::std::is_move_constructible_v<T> && ::std::is_move_assignable_v<T> && ::std::is_move_constructible_v<Err>
+             && ::std::is_move_assignable_v<Err>
+             && (::std::is_nothrow_move_constructible_v<T> || ::std::is_nothrow_move_constructible_v<Err>)
+             && ::std::is_trivially_move_constructible_v<T> && ::std::is_trivially_move_assignable_v<T>
+             && ::std::is_trivially_destructible_v<T> && ::std::is_trivially_move_constructible_v<Err>
+             && ::std::is_trivially_move_assignable_v<Err> && ::std::is_trivially_destructible_v<Err>)
+  = default;
   constexpr expected &operator=(expected &&s) //
       noexcept(::std::is_nothrow_move_assignable_v<T> && ::std::is_nothrow_move_constructible_v<T>
                && ::std::is_nothrow_move_assignable_v<Err> && ::std::is_nothrow_move_constructible_v<Err>)
     requires(::std::is_move_constructible_v<T> && ::std::is_move_assignable_v<T> && ::std::is_move_constructible_v<Err>
              && ::std::is_move_assignable_v<Err>
-             && (::std::is_nothrow_move_constructible_v<T> || ::std::is_nothrow_move_constructible_v<Err>))
+             && (::std::is_nothrow_move_constructible_v<T> || ::std::is_nothrow_move_constructible_v<Err>)
+             && (not ::std::is_trivially_move_constructible_v<T> || not ::std::is_trivially_move_assignable_v<T>
+                 || not ::std::is_trivially_destructible_v<T> || not ::std::is_trivially_move_constructible_v<Err>
+                 || not ::std::is_trivially_move_assignable_v<Err> || not ::std::is_trivially_destructible_v<Err>))
   {
     this->_assign(static_cast<_base &&>(s));
     return *this;
@@ -919,16 +945,32 @@ public:
     return *this;
   }
   constexpr expected &operator=(expected const &) = delete;
+  constexpr expected &operator=(expected const &) //
+      noexcept(::std::is_nothrow_copy_assignable_v<Err> && ::std::is_nothrow_copy_constructible_v<Err>)
+    requires(::std::is_copy_assignable_v<Err> && ::std::is_copy_constructible_v<Err>
+             && ::std::is_trivially_copy_constructible_v<Err> && ::std::is_trivially_copy_assignable_v<Err>
+             && ::std::is_trivially_destructible_v<Err>)
+  = default;
   constexpr expected &operator=(expected const &s) //
       noexcept(::std::is_nothrow_copy_assignable_v<Err> && ::std::is_nothrow_copy_constructible_v<Err>)
-    requires(::std::is_copy_assignable_v<Err> && ::std::is_copy_constructible_v<Err>)
+    requires(::std::is_copy_assignable_v<Err> && ::std::is_copy_constructible_v<Err>
+             && (not ::std::is_trivially_copy_constructible_v<Err> || not ::std::is_trivially_copy_assignable_v<Err>
+                 || not ::std::is_trivially_destructible_v<Err>))
   {
     this->_assign(static_cast<_base const &>(s));
     return *this;
   }
+  constexpr expected &operator=(expected &&) //
+      noexcept(::std::is_nothrow_move_assignable_v<Err> && ::std::is_nothrow_move_constructible_v<Err>)
+    requires(::std::is_move_constructible_v<Err> && ::std::is_move_assignable_v<Err>
+             && ::std::is_trivially_move_constructible_v<Err> && ::std::is_trivially_move_assignable_v<Err>
+             && ::std::is_trivially_destructible_v<Err>)
+  = default;
   constexpr expected &operator=(expected &&s) //
       noexcept(::std::is_nothrow_move_assignable_v<Err> && ::std::is_nothrow_move_constructible_v<Err>)
-    requires(::std::is_move_constructible_v<Err> && ::std::is_move_assignable_v<Err>)
+    requires(::std::is_move_constructible_v<Err> && ::std::is_move_assignable_v<Err>
+             && (not ::std::is_trivially_move_constructible_v<Err> || not ::std::is_trivially_move_assignable_v<Err>
+                 || not ::std::is_trivially_destructible_v<Err>))
   {
     this->_assign(static_cast<_base &&>(s));
     return *this;

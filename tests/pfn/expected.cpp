@@ -2338,6 +2338,198 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         }
       }
     }
+
+    SECTION("trivial")
+    {
+      // [expected.object.assign] p5/p10: assignment is trivial iff T and E are both trivially
+      // copy/move constructible, trivially copy/move assignable and trivially destructible
+      SECTION("all trivial")
+      {
+        using T = expected<int, Error>;
+// std::expected's assignment became trivial late: libstdc++ in GCC 16; libc++ (22) not yet
+#if !defined(PFN_TEST_VALIDATION) || (defined(__GLIBCXX__) && _GLIBCXX_RELEASE >= 16)
+        static_assert(std::is_trivially_copy_assignable_v<T>);
+        static_assert(std::is_trivially_move_assignable_v<T>);
+        static_assert(std::is_trivially_copyable_v<T>);
+#endif
+        static_assert(not extension || std::is_nothrow_copy_assignable_v<T>);
+        static_assert(std::is_nothrow_move_assignable_v<T>);
+
+        // all four state transitions through the trivial assignment
+        static_assert([] {
+          T const a(std::in_place, 12);
+          T b(std::in_place, 1);
+          b = a; // value to value
+          T c(unexpect, Error::unknown);
+          c = a; // error to value
+          T d(std::in_place, 3);
+          d = T(unexpect, Error::unknown); // value to error
+          T e(unexpect, Error::file_not_found);
+          e = T(unexpect, Error::unknown); // error to error
+          return b.value() == 12 && c.value() == 12 && d.error() == Error::unknown && e.error() == Error::unknown;
+        }());
+
+        T const a(std::in_place, 12);
+        T b(std::in_place, 1);
+        b = a;
+        CHECK(b.value() == 12);
+        T c(unexpect, Error::unknown);
+        c = a;
+        CHECK(c.value() == 12);
+        T d(std::in_place, 3);
+        d = T(unexpect, Error::unknown);
+        CHECK(d.error() == Error::unknown);
+        T e(unexpect, Error::file_not_found);
+        e = T(unexpect, Error::unknown);
+        CHECK(e.error() == Error::unknown);
+      }
+
+      SECTION("non-trivial destructor")
+      {
+        struct dtor_t {
+          int v;
+          dtor_t(dtor_t const &) = default;
+          dtor_t(dtor_t &&) = default;
+          dtor_t &operator=(dtor_t const &) = default;
+          dtor_t &operator=(dtor_t &&) = default;
+          constexpr ~dtor_t() {}
+        };
+        static_assert(std::is_trivially_copy_assignable_v<dtor_t> && not std::is_trivially_destructible_v<dtor_t>);
+        static_assert(std::is_copy_assignable_v<expected<dtor_t, Error>>);
+        static_assert(not std::is_trivially_copy_assignable_v<expected<dtor_t, Error>>);
+        static_assert(not std::is_trivially_move_assignable_v<expected<dtor_t, Error>>);
+        static_assert(std::is_copy_assignable_v<expected<int, dtor_t>>);
+        static_assert(not std::is_trivially_copy_assignable_v<expected<int, dtor_t>>);
+        static_assert(not std::is_trivially_move_assignable_v<expected<int, dtor_t>>);
+        SUCCEED();
+      }
+
+      SECTION("non-trivial assignment")
+      {
+        struct assign_t {
+          int v;
+          assign_t(assign_t const &) = default;
+          assign_t(assign_t &&) = default;
+          constexpr assign_t &operator=(assign_t const &o)
+          {
+            v = o.v;
+            return *this;
+          }
+          constexpr assign_t &operator=(assign_t &&o)
+          {
+            v = o.v;
+            return *this;
+          }
+        };
+        static_assert(std::is_trivially_copy_constructible_v<assign_t> && std::is_trivially_destructible_v<assign_t>
+                      && not std::is_trivially_copy_assignable_v<assign_t>);
+        static_assert(std::is_copy_assignable_v<expected<assign_t, Error>>);
+        static_assert(not std::is_trivially_copy_assignable_v<expected<assign_t, Error>>);
+        static_assert(not std::is_trivially_move_assignable_v<expected<assign_t, Error>>);
+        static_assert(std::is_copy_assignable_v<expected<int, assign_t>>);
+        static_assert(not std::is_trivially_copy_assignable_v<expected<int, assign_t>>);
+        static_assert(not std::is_trivially_move_assignable_v<expected<int, assign_t>>);
+        SUCCEED();
+      }
+
+      SECTION("non-trivial construction")
+      {
+        // the value-to-error and error-to-value transitions construct, so a non-trivial
+        // copy constructor alone disqualifies the trivial assignment
+        struct ctor_t {
+          int v;
+          constexpr ctor_t(ctor_t const &o) : v(o.v) {}
+          constexpr ctor_t(ctor_t &&o) : v(o.v) {}
+          ctor_t &operator=(ctor_t const &) = default;
+          ctor_t &operator=(ctor_t &&) = default;
+        };
+        static_assert(std::is_trivially_copy_assignable_v<ctor_t> && std::is_trivially_destructible_v<ctor_t>
+                      && not std::is_trivially_copy_constructible_v<ctor_t>);
+        static_assert(std::is_copy_assignable_v<expected<ctor_t, Error>>);
+        static_assert(not std::is_trivially_copy_assignable_v<expected<ctor_t, Error>>);
+        static_assert(not std::is_trivially_move_assignable_v<expected<ctor_t, Error>>);
+        static_assert(std::is_copy_assignable_v<expected<int, ctor_t>>);
+        static_assert(not std::is_trivially_copy_assignable_v<expected<int, ctor_t>>);
+        static_assert(not std::is_trivially_move_assignable_v<expected<int, ctor_t>>);
+        SUCCEED();
+      }
+
+      SECTION("copy and move split")
+      {
+        struct move_split_t { // trivial copy assignment; user-provided move assignment
+          int v;
+          move_split_t(move_split_t const &) = default;
+          move_split_t(move_split_t &&) = default;
+          move_split_t &operator=(move_split_t const &) = default;
+          constexpr move_split_t &operator=(move_split_t &&o)
+          {
+            v = o.v;
+            return *this;
+          }
+        };
+// std::expected's assignment became trivial late: libstdc++ in GCC 16; libc++ (22) not yet
+#if !defined(PFN_TEST_VALIDATION) || (defined(__GLIBCXX__) && _GLIBCXX_RELEASE >= 16)
+        static_assert(std::is_trivially_copy_assignable_v<expected<move_split_t, Error>>);
+#endif
+        static_assert(not std::is_trivially_move_assignable_v<expected<move_split_t, Error>>);
+
+        struct copy_split_t { // user-provided copy assignment; trivial move assignment
+          int v;
+          copy_split_t(copy_split_t const &) = default;
+          copy_split_t(copy_split_t &&) = default;
+          constexpr copy_split_t &operator=(copy_split_t const &o)
+          {
+            v = o.v;
+            return *this;
+          }
+          copy_split_t &operator=(copy_split_t &&) = default;
+        };
+        static_assert(not std::is_trivially_copy_assignable_v<expected<copy_split_t, Error>>);
+// std::expected's assignment became trivial late: libstdc++ in GCC 16; libc++ (22) not yet
+#if !defined(PFN_TEST_VALIDATION) || (defined(__GLIBCXX__) && _GLIBCXX_RELEASE >= 16)
+        static_assert(std::is_trivially_move_assignable_v<expected<copy_split_t, Error>>);
+#endif
+        SUCCEED();
+      }
+
+      SECTION("not nothrow move constructible")
+      {
+        // [expected.object.assign] p4: the copy assignment additionally requires
+        // is_nothrow_move_constructible_v of T or E; a trivially copyable type with a
+        // deleted move constructor fails it, and no trivial trait can restore it
+        struct no_move_t {
+          int v;
+          no_move_t(no_move_t const &) = default;
+          no_move_t(no_move_t &&) = delete;
+          no_move_t &operator=(no_move_t const &) = default;
+        };
+        static_assert(std::is_trivially_copy_constructible_v<no_move_t>
+                      && std::is_trivially_copy_assignable_v<no_move_t> && std::is_trivially_destructible_v<no_move_t>);
+        static_assert(not std::is_move_constructible_v<no_move_t>);
+        static_assert(not std::is_copy_assignable_v<expected<no_move_t, no_move_t>>);
+        // one nothrow-move-constructible side restores the operator, in its trivial form
+        static_assert(std::is_copy_assignable_v<expected<no_move_t, Error>>);
+        static_assert(std::is_copy_assignable_v<expected<int, no_move_t>>);
+// std::expected's assignment became trivial late: libstdc++ in GCC 16; libc++ (22) not yet
+#if !defined(PFN_TEST_VALIDATION) || (defined(__GLIBCXX__) && _GLIBCXX_RELEASE >= 16)
+        static_assert(std::is_trivially_copy_assignable_v<expected<no_move_t, Error>>);
+        static_assert(std::is_trivially_copy_assignable_v<expected<int, no_move_t>>);
+#endif
+        SUCCEED();
+      }
+
+      SECTION("deleted assignment")
+      {
+        struct no_assign_t {
+          int v;
+          no_assign_t(no_assign_t const &) = default;
+          no_assign_t &operator=(no_assign_t const &) = delete;
+        };
+        static_assert(not std::is_copy_assignable_v<expected<no_assign_t, Error>>);
+        static_assert(not std::is_copy_assignable_v<expected<int, no_assign_t>>);
+        SUCCEED();
+      }
+    }
   }
 
   SECTION("emplace")
@@ -4813,6 +5005,167 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
           SUCCEED();
         }
+      }
+    }
+
+    SECTION("trivial")
+    {
+      // [expected.void.assign] p4/p9: assignment is trivial iff E is trivially copy/move
+      // constructible, trivially copy/move assignable and trivially destructible
+      SECTION("all trivial")
+      {
+        using T = expected<void, Error>;
+// std::expected's assignment became trivial late: libstdc++ in GCC 16; libc++ (22) not yet
+#if !defined(PFN_TEST_VALIDATION) || (defined(__GLIBCXX__) && _GLIBCXX_RELEASE >= 16)
+        static_assert(std::is_trivially_copy_assignable_v<T>);
+        static_assert(std::is_trivially_move_assignable_v<T>);
+        static_assert(std::is_trivially_copyable_v<T>);
+#endif
+        static_assert(not extension || std::is_nothrow_copy_assignable_v<T>);
+        static_assert(std::is_nothrow_move_assignable_v<T>);
+
+        // all four state transitions through the trivial assignment
+        static_assert([] {
+          T const a(std::in_place);
+          T b(std::in_place);
+          b = T(unexpect, Error::unknown); // value to error
+          T c(unexpect, Error::unknown);
+          c = a; // error to value
+          T d(std::in_place);
+          d = a; // value to value
+          T e(unexpect, Error::file_not_found);
+          e = T(unexpect, Error::unknown); // error to error
+          return b.error() == Error::unknown && c.has_value() && d.has_value() && e.error() == Error::unknown;
+        }());
+
+        T const a(std::in_place);
+        T b(std::in_place);
+        b = T(unexpect, Error::unknown);
+        CHECK(b.error() == Error::unknown);
+        T c(unexpect, Error::unknown);
+        c = a;
+        CHECK(c.has_value());
+        T d(std::in_place);
+        d = a;
+        CHECK(d.has_value());
+        T e(unexpect, Error::file_not_found);
+        e = T(unexpect, Error::unknown);
+        CHECK(e.error() == Error::unknown);
+      }
+
+      SECTION("non-trivial destructor")
+      {
+        struct dtor_t {
+          int v;
+          dtor_t(dtor_t const &) = default;
+          dtor_t(dtor_t &&) = default;
+          dtor_t &operator=(dtor_t const &) = default;
+          dtor_t &operator=(dtor_t &&) = default;
+          constexpr ~dtor_t() {}
+        };
+        static_assert(std::is_trivially_copy_assignable_v<dtor_t> && not std::is_trivially_destructible_v<dtor_t>);
+        using T = expected<void, dtor_t>;
+        static_assert(std::is_copy_assignable_v<T> && std::is_move_assignable_v<T>);
+        static_assert(not std::is_trivially_copy_assignable_v<T>);
+        static_assert(not std::is_trivially_move_assignable_v<T>);
+        SUCCEED();
+      }
+
+      SECTION("non-trivial assignment")
+      {
+        struct assign_t {
+          int v;
+          assign_t(assign_t const &) = default;
+          assign_t(assign_t &&) = default;
+          constexpr assign_t &operator=(assign_t const &o)
+          {
+            v = o.v;
+            return *this;
+          }
+          constexpr assign_t &operator=(assign_t &&o)
+          {
+            v = o.v;
+            return *this;
+          }
+        };
+        static_assert(std::is_trivially_copy_constructible_v<assign_t> && std::is_trivially_destructible_v<assign_t>
+                      && not std::is_trivially_copy_assignable_v<assign_t>);
+        using T = expected<void, assign_t>;
+        static_assert(std::is_copy_assignable_v<T> && std::is_move_assignable_v<T>);
+        static_assert(not std::is_trivially_copy_assignable_v<T>);
+        static_assert(not std::is_trivially_move_assignable_v<T>);
+        SUCCEED();
+      }
+
+      SECTION("non-trivial construction")
+      {
+        // the value-to-error transition constructs, so a non-trivial copy constructor
+        // alone disqualifies the trivial assignment
+        struct ctor_t {
+          int v;
+          constexpr ctor_t(ctor_t const &o) : v(o.v) {}
+          constexpr ctor_t(ctor_t &&o) : v(o.v) {}
+          ctor_t &operator=(ctor_t const &) = default;
+          ctor_t &operator=(ctor_t &&) = default;
+        };
+        static_assert(std::is_trivially_copy_assignable_v<ctor_t> && std::is_trivially_destructible_v<ctor_t>
+                      && not std::is_trivially_copy_constructible_v<ctor_t>);
+        using T = expected<void, ctor_t>;
+        static_assert(std::is_copy_assignable_v<T> && std::is_move_assignable_v<T>);
+        static_assert(not std::is_trivially_copy_assignable_v<T>);
+        static_assert(not std::is_trivially_move_assignable_v<T>);
+        SUCCEED();
+      }
+
+      SECTION("copy and move split")
+      {
+        struct move_split_t { // trivial copy assignment; user-provided move assignment
+          int v;
+          move_split_t(move_split_t const &) = default;
+          move_split_t(move_split_t &&) = default;
+          move_split_t &operator=(move_split_t const &) = default;
+          constexpr move_split_t &operator=(move_split_t &&o)
+          {
+            v = o.v;
+            return *this;
+          }
+        };
+// std::expected's assignment became trivial late: libstdc++ in GCC 16; libc++ (22) not yet
+#if !defined(PFN_TEST_VALIDATION) || (defined(__GLIBCXX__) && _GLIBCXX_RELEASE >= 16)
+        static_assert(std::is_trivially_copy_assignable_v<expected<void, move_split_t>>);
+#endif
+        static_assert(not std::is_trivially_move_assignable_v<expected<void, move_split_t>>);
+
+        struct copy_split_t { // user-provided copy assignment; trivial move assignment
+          int v;
+          copy_split_t(copy_split_t const &) = default;
+          copy_split_t(copy_split_t &&) = default;
+          constexpr copy_split_t &operator=(copy_split_t const &o)
+          {
+            v = o.v;
+            return *this;
+          }
+          copy_split_t &operator=(copy_split_t &&) = default;
+        };
+        static_assert(not std::is_trivially_copy_assignable_v<expected<void, copy_split_t>>);
+// std::expected's assignment became trivial late: libstdc++ in GCC 16; libc++ (22) not yet
+#if !defined(PFN_TEST_VALIDATION) || (defined(__GLIBCXX__) && _GLIBCXX_RELEASE >= 16)
+        static_assert(std::is_trivially_move_assignable_v<expected<void, copy_split_t>>);
+#endif
+        SUCCEED();
+      }
+
+      SECTION("deleted assignment")
+      {
+        struct no_assign_t {
+          int v;
+          no_assign_t(no_assign_t const &) = default;
+          no_assign_t &operator=(no_assign_t const &) = delete;
+        };
+        using T = expected<void, no_assign_t>;
+        static_assert(not std::is_copy_assignable_v<T>);
+        static_assert(not std::is_move_assignable_v<T>);
+        SUCCEED();
       }
     }
   }

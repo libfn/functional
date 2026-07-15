@@ -738,6 +738,158 @@ TEST_CASE("optional", "[optional][polyfill]")
       }
 #endif
     }
+
+    SECTION("trivial")
+    {
+      // [optional.assign] p7/p13: assignment is trivial iff T is trivially copy/move
+      // constructible, trivially copy/move assignable and trivially destructible
+      SECTION("all trivial")
+      {
+        using T = optional<int>;
+        static_assert(std::is_trivially_copy_assignable_v<T>);
+        static_assert(std::is_trivially_move_assignable_v<T>);
+        static_assert(std::is_trivially_copyable_v<T>);
+        static_assert(not extension || std::is_nothrow_copy_assignable_v<T>);
+        static_assert(std::is_nothrow_move_assignable_v<T>);
+
+        // all four engagement transitions through the trivial assignment
+        static_assert([] {
+          T const a(std::in_place, 12);
+          T b(std::in_place, 1);
+          b = a; // engaged to engaged
+          T c(std::nullopt);
+          c = a; // disengaged to engaged
+          T d(std::in_place, 3);
+          d = T(std::nullopt); // engaged to disengaged
+          T e(std::nullopt);
+          e = T(std::nullopt); // disengaged to disengaged
+          return *b == 12 && *c == 12 && not d.has_value() && not e.has_value();
+        }());
+
+        T const a(std::in_place, 12);
+        T b(std::in_place, 1);
+        b = a;
+        CHECK(*b == 12);
+        T c(std::nullopt);
+        c = a;
+        CHECK(*c == 12);
+        T d(std::in_place, 3);
+        d = T(std::nullopt);
+        CHECK(not d.has_value());
+        T e(std::nullopt);
+        e = T(std::nullopt);
+        CHECK(not e.has_value());
+      }
+
+      SECTION("non-trivial destructor")
+      {
+        struct dtor_t {
+          int v;
+          dtor_t(dtor_t const &) = default;
+          dtor_t(dtor_t &&) = default;
+          dtor_t &operator=(dtor_t const &) = default;
+          dtor_t &operator=(dtor_t &&) = default;
+          constexpr ~dtor_t() {}
+        };
+        static_assert(std::is_trivially_copy_assignable_v<dtor_t> && not std::is_trivially_destructible_v<dtor_t>);
+        using T = optional<dtor_t>;
+        static_assert(std::is_copy_assignable_v<T> && std::is_move_assignable_v<T>);
+        static_assert(not std::is_trivially_copy_assignable_v<T>);
+        static_assert(not std::is_trivially_move_assignable_v<T>);
+        SUCCEED();
+      }
+
+      SECTION("non-trivial assignment")
+      {
+        struct assign_t {
+          int v;
+          assign_t(assign_t const &) = default;
+          assign_t(assign_t &&) = default;
+          constexpr assign_t &operator=(assign_t const &o)
+          {
+            v = o.v;
+            return *this;
+          }
+          constexpr assign_t &operator=(assign_t &&o)
+          {
+            v = o.v;
+            return *this;
+          }
+        };
+        static_assert(std::is_trivially_copy_constructible_v<assign_t> && std::is_trivially_destructible_v<assign_t>
+                      && not std::is_trivially_copy_assignable_v<assign_t>);
+        using T = optional<assign_t>;
+        static_assert(std::is_copy_assignable_v<T> && std::is_move_assignable_v<T>);
+        static_assert(not std::is_trivially_copy_assignable_v<T>);
+        static_assert(not std::is_trivially_move_assignable_v<T>);
+        SUCCEED();
+      }
+
+      SECTION("non-trivial construction")
+      {
+        // the disengaged-to-engaged transition constructs, so a non-trivial copy
+        // constructor alone disqualifies the trivial assignment
+        struct ctor_t {
+          int v;
+          constexpr ctor_t(ctor_t const &o) : v(o.v) {}
+          constexpr ctor_t(ctor_t &&o) : v(o.v) {}
+          ctor_t &operator=(ctor_t const &) = default;
+          ctor_t &operator=(ctor_t &&) = default;
+        };
+        static_assert(std::is_trivially_copy_assignable_v<ctor_t> && std::is_trivially_destructible_v<ctor_t>
+                      && not std::is_trivially_copy_constructible_v<ctor_t>);
+        using T = optional<ctor_t>;
+        static_assert(std::is_copy_assignable_v<T> && std::is_move_assignable_v<T>);
+        static_assert(not std::is_trivially_copy_assignable_v<T>);
+        static_assert(not std::is_trivially_move_assignable_v<T>);
+        SUCCEED();
+      }
+
+      SECTION("copy and move split")
+      {
+        struct move_split_t { // trivial copy assignment; user-provided move assignment
+          int v;
+          move_split_t(move_split_t const &) = default;
+          move_split_t(move_split_t &&) = default;
+          move_split_t &operator=(move_split_t const &) = default;
+          constexpr move_split_t &operator=(move_split_t &&o)
+          {
+            v = o.v;
+            return *this;
+          }
+        };
+        static_assert(std::is_trivially_copy_assignable_v<optional<move_split_t>>);
+        static_assert(not std::is_trivially_move_assignable_v<optional<move_split_t>>);
+
+        struct copy_split_t { // user-provided copy assignment; trivial move assignment
+          int v;
+          copy_split_t(copy_split_t const &) = default;
+          copy_split_t(copy_split_t &&) = default;
+          constexpr copy_split_t &operator=(copy_split_t const &o)
+          {
+            v = o.v;
+            return *this;
+          }
+          copy_split_t &operator=(copy_split_t &&) = default;
+        };
+        static_assert(not std::is_trivially_copy_assignable_v<optional<copy_split_t>>);
+        static_assert(std::is_trivially_move_assignable_v<optional<copy_split_t>>);
+        SUCCEED();
+      }
+
+      SECTION("deleted assignment")
+      {
+        struct no_assign_t {
+          int v;
+          no_assign_t(no_assign_t const &) = default;
+          no_assign_t &operator=(no_assign_t const &) = delete;
+        };
+        using T = optional<no_assign_t>;
+        static_assert(not std::is_copy_assignable_v<T>);
+        static_assert(not std::is_move_assignable_v<T>);
+        SUCCEED();
+      }
+    }
   }
 
   SECTION("emplace")
@@ -2022,6 +2174,8 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
     static_assert(std::is_nothrow_default_constructible_v<T>);
     static_assert(std::is_copy_constructible_v<T>);
     static_assert(std::is_trivially_copy_constructible_v<T>);
+    static_assert(std::is_trivially_copy_assignable_v<T>);
+    static_assert(std::is_trivially_move_assignable_v<T>);
     static_assert(std::is_nothrow_constructible_v<T, std::nullopt_t>);
     SUCCEED();
   }

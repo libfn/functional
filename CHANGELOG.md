@@ -2,6 +2,10 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `optional` and `expected` assignment is trivial when the payload permits — 15 July 2026
+
+- **Copy and move assignment of `optional` and `expected` are now trivial exactly under the standard's conditions** ([#308](https://github.com/libfn/functional/issues/308)): the contained types trivially copy/move constructible, trivially assignable and trivially destructible ([optional.assign], [expected.object.assign], [expected.void.assign]). Neither type was ever trivially assignable, in either library — a conformance defect, and with the constructors and destructor already conditionally trivial, assignment was the one member keeping these types out of `is_trivially_copyable`. Like `sum`'s entry below, this lands before the first tagged release because trivially copyable types change ABI.
+
 ## `sum` and `choice` assign across widening — 14 July 2026
 
 - **A narrower `sum` now assigns into a wider one on the widening constructors' terms** ([#310](https://github.com/libfn/functional/issues/310)): `operator=` is constrained on the alternatives the source can actually deliver, and the incoming alternative is assigned in place when it is the one held, or replaces it by construction otherwise — the per-alternative decision same-type assignment already makes. Previously `wide = narrow` existed only by routing through the widening constructor: a whole temporary sum, a copy plus a move where one copy suffices, and viability gated on the destination's every alternative — an uninvolved alternative with no safe replacement arm forbade assignments it took no part in.
