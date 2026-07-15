@@ -236,7 +236,8 @@ namespace detail {
 // roles reversed: the engaged value lives in `v_`, and `e_` is a trivial placeholder
 // for the disengaged state, so the union always has an active member (required for
 // constexpr use). Copy/move ctors are defaulted iff `T` is trivially copy/move
-// constructible; the destructor is defaulted iff `T` is trivially destructible.
+// constructible, assignments iff `T` is trivially copy/move assignable; the
+// destructor is defaulted iff `T` is trivially destructible.
 // Tag selecting _optional_union_t's/_optional_base's "construct from any source exposing
 // has_value()/operator*()" constructor, disambiguating it from the (bool, S&&) one below
 // (which instead reads another union's raw v_ member directly).
@@ -309,7 +310,13 @@ template <class T> union _optional_union_t {
     requires(::std::is_trivially_move_constructible_v<T>)
   = default;
   constexpr _optional_union_t &operator=(_optional_union_t const &) = delete;
+  constexpr _optional_union_t &operator=(_optional_union_t const &) noexcept //
+    requires(::std::is_trivially_copy_assignable_v<T>)
+  = default;
   constexpr _optional_union_t &operator=(_optional_union_t &&) = delete;
+  constexpr _optional_union_t &operator=(_optional_union_t &&) noexcept //
+    requires(::std::is_trivially_move_assignable_v<T>)
+  = default;
 
   template <class... Args>
   constexpr explicit _optional_union_t(::std::in_place_t /*ignored*/, Args &&...a) //
@@ -488,8 +495,8 @@ template <class T, class Policy> struct _optional_base {
 
   constexpr _optional_base(_optional_base const &) noexcept = default;
   constexpr _optional_base(_optional_base &&) noexcept = default;
-  constexpr _optional_base &operator=(_optional_base const &) = delete;
-  constexpr _optional_base &operator=(_optional_base &&) = delete;
+  constexpr _optional_base &operator=(_optional_base const &) noexcept = default;
+  constexpr _optional_base &operator=(_optional_base &&) noexcept = default;
 
   constexpr ~_optional_base() //
     requires(::std::is_trivially_destructible_v<_value_t>)
@@ -1118,16 +1125,32 @@ public:
     return *this;
   }
   constexpr optional &operator=(optional const &) = delete;
+  constexpr optional &operator=(optional const &)                                                   //
+      noexcept(::std::is_nothrow_copy_assignable_v<T> && ::std::is_nothrow_copy_constructible_v<T>) // extension
+    requires(::std::is_copy_constructible_v<T> && ::std::is_copy_assignable_v<T>
+             && ::std::is_trivially_copy_constructible_v<T> && ::std::is_trivially_copy_assignable_v<T>
+             && ::std::is_trivially_destructible_v<T>)
+  = default;
   constexpr optional &operator=(optional const &s)                                                  //
       noexcept(::std::is_nothrow_copy_assignable_v<T> && ::std::is_nothrow_copy_constructible_v<T>) // extension
-    requires(::std::is_copy_constructible_v<T> && ::std::is_copy_assignable_v<T>)
+    requires(::std::is_copy_constructible_v<T> && ::std::is_copy_assignable_v<T>
+             && (not ::std::is_trivially_copy_constructible_v<T> || not ::std::is_trivially_copy_assignable_v<T>
+                 || not ::std::is_trivially_destructible_v<T>))
   {
     this->_assign(static_cast<_base const &>(s));
     return *this;
   }
+  constexpr optional &operator=(optional &&) // NOSONAR cpp:S5018 standard mandated `noexcept` spec.
+      noexcept(::std::is_nothrow_move_assignable_v<T> && ::std::is_nothrow_move_constructible_v<T>) // required
+    requires(::std::is_move_constructible_v<T> && ::std::is_move_assignable_v<T>
+             && ::std::is_trivially_move_constructible_v<T> && ::std::is_trivially_move_assignable_v<T>
+             && ::std::is_trivially_destructible_v<T>)
+  = default;
   constexpr optional &operator=(optional &&s) // NOSONAR cpp:S5018 standard mandated `noexcept` spec.
       noexcept(::std::is_nothrow_move_assignable_v<T> && ::std::is_nothrow_move_constructible_v<T>) // required
-    requires(::std::is_move_constructible_v<T> && ::std::is_move_assignable_v<T>)
+    requires(::std::is_move_constructible_v<T> && ::std::is_move_assignable_v<T>
+             && (not ::std::is_trivially_move_constructible_v<T> || not ::std::is_trivially_move_assignable_v<T>
+                 || not ::std::is_trivially_destructible_v<T>))
   {
     this->_assign(static_cast<_base &&>(s));
     return *this;

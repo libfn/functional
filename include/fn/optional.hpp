@@ -362,16 +362,32 @@ public:
     return *this;
   }
   constexpr optional &operator=(optional const &) = delete;
+  constexpr optional &operator=(optional const &)                                                   //
+      noexcept(::std::is_nothrow_copy_assignable_v<T> && ::std::is_nothrow_copy_constructible_v<T>) // extension
+    requires(::std::is_copy_constructible_v<T> && ::std::is_copy_assignable_v<T>
+             && ::std::is_trivially_copy_constructible_v<T> && ::std::is_trivially_copy_assignable_v<T>
+             && ::std::is_trivially_destructible_v<T>)
+  = default;
   constexpr optional &operator=(optional const &s)                                                  //
       noexcept(::std::is_nothrow_copy_assignable_v<T> && ::std::is_nothrow_copy_constructible_v<T>) // extension
-    requires(::std::is_copy_constructible_v<T> && ::std::is_copy_assignable_v<T>)
+    requires(::std::is_copy_constructible_v<T> && ::std::is_copy_assignable_v<T>
+             && (not ::std::is_trivially_copy_constructible_v<T> || not ::std::is_trivially_copy_assignable_v<T>
+                 || not ::std::is_trivially_destructible_v<T>))
   {
     this->_assign(static_cast<_base const &>(s));
     return *this;
   }
+  constexpr optional &operator=(optional &&) //
+      noexcept(::std::is_nothrow_move_assignable_v<T> && ::std::is_nothrow_move_constructible_v<T>)
+    requires(::std::is_move_constructible_v<T> && ::std::is_move_assignable_v<T>
+             && ::std::is_trivially_move_constructible_v<T> && ::std::is_trivially_move_assignable_v<T>
+             && ::std::is_trivially_destructible_v<T>)
+  = default;
   constexpr optional &operator=(optional &&s) //
       noexcept(::std::is_nothrow_move_assignable_v<T> && ::std::is_nothrow_move_constructible_v<T>)
-    requires(::std::is_move_constructible_v<T> && ::std::is_move_assignable_v<T>)
+    requires(::std::is_move_constructible_v<T> && ::std::is_move_assignable_v<T>
+             && (not ::std::is_trivially_move_constructible_v<T> || not ::std::is_trivially_move_assignable_v<T>
+                 || not ::std::is_trivially_destructible_v<T>))
   {
     this->_assign(static_cast<_base &&>(s));
     return *this;

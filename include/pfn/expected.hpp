@@ -229,7 +229,13 @@ template <class T, class E> union _expected_union_t {
     requires(::std::is_trivially_move_constructible_v<T> && ::std::is_trivially_move_constructible_v<E>)
   = default;
   constexpr _expected_union_t &operator=(_expected_union_t const &) = delete;
+  constexpr _expected_union_t &operator=(_expected_union_t const &) noexcept //
+    requires(::std::is_trivially_copy_assignable_v<T> && ::std::is_trivially_copy_assignable_v<E>)
+  = default;
   constexpr _expected_union_t &operator=(_expected_union_t &&) = delete;
+  constexpr _expected_union_t &operator=(_expected_union_t &&) noexcept //
+    requires(::std::is_trivially_move_assignable_v<T> && ::std::is_trivially_move_assignable_v<E>)
+  = default;
 
   template <class... Args>
   constexpr explicit _expected_union_t(::std::in_place_t /*ignored*/, Args &&...a) //
@@ -358,7 +364,13 @@ template <class E> union _expected_union_t<void, E> {
     requires(::std::is_trivially_move_constructible_v<E>)
   = default;
   constexpr _expected_union_t &operator=(_expected_union_t const &) = delete;
+  constexpr _expected_union_t &operator=(_expected_union_t const &) noexcept //
+    requires(::std::is_trivially_copy_assignable_v<E>)
+  = default;
   constexpr _expected_union_t &operator=(_expected_union_t &&) = delete;
+  constexpr _expected_union_t &operator=(_expected_union_t &&) noexcept //
+    requires(::std::is_trivially_move_assignable_v<E>)
+  = default;
 
   constexpr explicit _expected_union_t(::std::in_place_t /*ignored*/) noexcept
       : v_{} // NOSONAR cpp:S3230 activates the member
@@ -597,8 +609,8 @@ template <class T, class E, class Policy> struct _expected_base {
 
   constexpr _expected_base(_expected_base const &) noexcept = default;
   constexpr _expected_base(_expected_base &&) noexcept = default;
-  constexpr _expected_base &operator=(_expected_base const &) = delete;
-  constexpr _expected_base &operator=(_expected_base &&) = delete;
+  constexpr _expected_base &operator=(_expected_base const &) noexcept = default;
+  constexpr _expected_base &operator=(_expected_base &&) noexcept = default;
 
   constexpr ~_expected_base() //
     requires(::std::is_trivially_destructible_v<_value_t> && ::std::is_trivially_destructible_v<E>)
@@ -1266,23 +1278,49 @@ public:
   }
 
   constexpr expected &operator=(expected const &) = delete;
+  constexpr expected &operator=(expected const &) //
+      noexcept(::std::is_nothrow_copy_assignable_v<T> && ::std::is_nothrow_copy_constructible_v<T>
+               && ::std::is_nothrow_copy_assignable_v<E> && ::std::is_nothrow_copy_constructible_v<E>) // extension
+    requires(::std::is_copy_assignable_v<T> && ::std::is_copy_constructible_v<T> && ::std::is_copy_assignable_v<E>
+             && ::std::is_copy_constructible_v<E>
+             && (::std::is_nothrow_move_constructible_v<T> || ::std::is_nothrow_move_constructible_v<E>)
+             && ::std::is_trivially_copy_constructible_v<T> && ::std::is_trivially_copy_assignable_v<T>
+             && ::std::is_trivially_destructible_v<T> && ::std::is_trivially_copy_constructible_v<E>
+             && ::std::is_trivially_copy_assignable_v<E> && ::std::is_trivially_destructible_v<E>)
+  = default;
   constexpr expected &operator=(expected const &s) //
       noexcept(::std::is_nothrow_copy_assignable_v<T> && ::std::is_nothrow_copy_constructible_v<T>
                && ::std::is_nothrow_copy_assignable_v<E> && ::std::is_nothrow_copy_constructible_v<E>) // extension
     requires(::std::is_copy_assignable_v<T> && ::std::is_copy_constructible_v<T> && ::std::is_copy_assignable_v<E>
              && ::std::is_copy_constructible_v<E>
-             && (::std::is_nothrow_move_constructible_v<T> || ::std::is_nothrow_move_constructible_v<E>))
+             && (::std::is_nothrow_move_constructible_v<T> || ::std::is_nothrow_move_constructible_v<E>)
+             && (not ::std::is_trivially_copy_constructible_v<T> || not ::std::is_trivially_copy_assignable_v<T>
+                 || not ::std::is_trivially_destructible_v<T> || not ::std::is_trivially_copy_constructible_v<E>
+                 || not ::std::is_trivially_copy_assignable_v<E> || not ::std::is_trivially_destructible_v<E>))
   {
     this->_assign(static_cast<_base const &>(s));
     return *this;
   }
 
+  constexpr expected &operator=(expected &&) // NOSONAR cpp:S5018 standard mandated `noexcept` spec.
+      noexcept(::std::is_nothrow_move_assignable_v<T> && ::std::is_nothrow_move_constructible_v<T>
+               && ::std::is_nothrow_move_assignable_v<E> && ::std::is_nothrow_move_constructible_v<E>) // required
+    requires(::std::is_move_constructible_v<T> && ::std::is_move_assignable_v<T> && ::std::is_move_constructible_v<E>
+             && ::std::is_move_assignable_v<E>
+             && (::std::is_nothrow_move_constructible_v<T> || ::std::is_nothrow_move_constructible_v<E>)
+             && ::std::is_trivially_move_constructible_v<T> && ::std::is_trivially_move_assignable_v<T>
+             && ::std::is_trivially_destructible_v<T> && ::std::is_trivially_move_constructible_v<E>
+             && ::std::is_trivially_move_assignable_v<E> && ::std::is_trivially_destructible_v<E>)
+  = default;
   constexpr expected &operator=(expected &&s) // NOSONAR cpp:S5018 standard mandated `noexcept` spec.
       noexcept(::std::is_nothrow_move_assignable_v<T> && ::std::is_nothrow_move_constructible_v<T>
                && ::std::is_nothrow_move_assignable_v<E> && ::std::is_nothrow_move_constructible_v<E>) // required
     requires(::std::is_move_constructible_v<T> && ::std::is_move_assignable_v<T> && ::std::is_move_constructible_v<E>
              && ::std::is_move_assignable_v<E>
-             && (::std::is_nothrow_move_constructible_v<T> || ::std::is_nothrow_move_constructible_v<E>))
+             && (::std::is_nothrow_move_constructible_v<T> || ::std::is_nothrow_move_constructible_v<E>)
+             && (not ::std::is_trivially_move_constructible_v<T> || not ::std::is_trivially_move_assignable_v<T>
+                 || not ::std::is_trivially_destructible_v<T> || not ::std::is_trivially_move_constructible_v<E>
+                 || not ::std::is_trivially_move_assignable_v<E> || not ::std::is_trivially_destructible_v<E>))
   {
     this->_assign(static_cast<_base &&>(s));
     return *this;
@@ -1552,17 +1590,33 @@ public:
   }
 
   constexpr expected &operator=(expected const &) = delete;
+  constexpr expected &operator=(expected const &)                                                   //
+      noexcept(::std::is_nothrow_copy_assignable_v<E> && ::std::is_nothrow_copy_constructible_v<E>) // extension
+    requires(::std::is_copy_assignable_v<E> && ::std::is_copy_constructible_v<E>
+             && ::std::is_trivially_copy_constructible_v<E> && ::std::is_trivially_copy_assignable_v<E>
+             && ::std::is_trivially_destructible_v<E>)
+  = default;
   constexpr expected &operator=(expected const &s)                                                  //
       noexcept(::std::is_nothrow_copy_assignable_v<E> && ::std::is_nothrow_copy_constructible_v<E>) // extension
-    requires(::std::is_copy_assignable_v<E> && ::std::is_copy_constructible_v<E>)
+    requires(::std::is_copy_assignable_v<E> && ::std::is_copy_constructible_v<E>
+             && (not ::std::is_trivially_copy_constructible_v<E> || not ::std::is_trivially_copy_assignable_v<E>
+                 || not ::std::is_trivially_destructible_v<E>))
   {
     this->_assign(static_cast<_base const &>(s));
     return *this;
   }
 
+  constexpr expected &operator=(expected &&) // NOSONAR cpp:S5018 standard mandated `noexcept` spec.
+      noexcept(::std::is_nothrow_move_assignable_v<E> && ::std::is_nothrow_move_constructible_v<E>) // required
+    requires(::std::is_move_constructible_v<E> && ::std::is_move_assignable_v<E>
+             && ::std::is_trivially_move_constructible_v<E> && ::std::is_trivially_move_assignable_v<E>
+             && ::std::is_trivially_destructible_v<E>)
+  = default;
   constexpr expected &operator=(expected &&s) // NOSONAR cpp:S5018 standard mandated `noexcept` spec.
       noexcept(::std::is_nothrow_move_assignable_v<E> && ::std::is_nothrow_move_constructible_v<E>) // required
-    requires(::std::is_move_constructible_v<E> && ::std::is_move_assignable_v<E>)
+    requires(::std::is_move_constructible_v<E> && ::std::is_move_assignable_v<E>
+             && (not ::std::is_trivially_move_constructible_v<E> || not ::std::is_trivially_move_assignable_v<E>
+                 || not ::std::is_trivially_destructible_v<E>))
   {
     this->_assign(static_cast<_base &&>(s));
     return *this;
