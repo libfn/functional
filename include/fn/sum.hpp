@@ -646,6 +646,31 @@ struct sum<Ts...> {
   }
 
   /**
+   * @brief Destroys the alternative held and constructs a `T` from the arguments, with the strong
+   *        exception guarantee
+   *
+   * @tparam T TODO
+   * @param args TODO
+   * @return Reference to the new alternative
+   */
+  // The mutation path for alternatives that do not support assignment: destroy-and-reconstruct,
+  // requested at the call site by name, constructing a new `T` rather than claiming an assignment
+  // the type refused. Always reconstructs, also when `T` is the alternative already held -
+  // assign-when-same is `operator=`'s meaning and stays there - so the constraint asks about `T`
+  // alone: the outgoing alternative is only destroyed, whatever its own traits. Arguments that
+  // refer into the alternative held will dangle, as with std::optional's and std::variant's
+  // emplace.
+  template <typename T>
+  constexpr T &emplace(auto &&...args) //
+      noexcept(detail::_nothrow_makeable<data_t, T, decltype(args)...>)
+    requires has_type<T> && detail::_makeable<data_t, T, decltype(args)...>
+             && (detail::_nothrow_makeable<data_t, T, decltype(args)...> || detail::_nothrow_makeable<data_t, T, T>)
+  {
+    this->template _reinit<T>(FWD(args)...);
+    return *detail::ptr_variadic_union<T, data_t>(this->data);
+  }
+
+  /**
    * @brief TODO
    *
    * @tparam T TODO

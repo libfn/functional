@@ -47,6 +47,9 @@ struct Throwing final {
 template <typename S, typename T, typename... Args>
 concept can_in_place = requires(Args... args) { S{std::in_place_type<T>, args...}; };
 
+template <typename S, typename T, typename... Args>
+concept can_emplace = requires(S &s, Args &&...args) { s.template emplace<T>(static_cast<Args &&>(args)...); };
+
 template <typename S, typename Fn>
 concept can_transform = requires(S s, Fn fn) { FWD(s).transform(fn); };
 
@@ -918,6 +921,39 @@ TEST_CASE("choice assignment", "[choice][assignment]")
     }());
     SUCCEED();
   }
+}
+
+TEST_CASE("choice emplace", "[choice][emplace]")
+{
+  using fn::choice;
+
+  // sum::emplace is inherited - a named member, so the name hiding that forces choice to restate
+  // every operator= does not apply
+  struct Sender final { // not assignable, nothrow-move-constructible
+    int target;
+    constexpr explicit Sender(int t) noexcept : target(t) {}
+    constexpr Sender(Sender &&) noexcept = default;
+    Sender(Sender const &) = delete;
+    Sender &operator=(Sender const &) = delete;
+    Sender &operator=(Sender &&) = delete;
+  };
+  using C = fn::choice_for<Sender, int>;
+  static_assert(not std::is_copy_assignable_v<C>);
+  static_assert(not std::is_move_assignable_v<C>);
+  static_assert(can_emplace<C, Sender, int>);
+  static_assert(not can_emplace<C, double, double>); // not an alternative
+  static_assert(std::same_as<decltype(std::declval<C &>().emplace<int>(1)), int &>);
+  static_assert(noexcept(std::declval<C &>().emplace<int>(1)));
+
+  constexpr auto battery = [] {
+    C c{42};
+    Sender &r = c.emplace<Sender>(9);
+    bool ok = r.target == 9 && c.has_value(std::in_place_type<Sender>);
+    int &i = c.emplace<int>(5);
+    return ok && i == 5 && c.has_value(std::in_place_type<int>);
+  };
+  CHECK(battery());
+  static_assert(battery());
 }
 
 TEST_CASE("choice special members", "[choice]")
