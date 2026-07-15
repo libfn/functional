@@ -7,9 +7,12 @@
 #include <fn/pack.hpp>
 #include <fn/sum.hpp>
 #include <fn/utility.hpp>
+#include <pfn/tuple.hpp>
 
 #include <catch2/catch_all.hpp>
 
+#include <array>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -245,4 +248,80 @@ TEST_CASE("is_nothrow_applicable", "[is_nothrow_applicable][is_nothrow_applicabl
 
   CHECK(fn::apply(fnNothrow, 1) == 1);
   CHECK(fn::apply_r<long>(fnNothrow, 1) == 1L);
+}
+
+TEST_CASE("apply tuple-like", "[apply][apply_r][tuple]")
+{
+  constexpr auto add2 = [](int a, int b) noexcept { return a + b; };
+  constexpr auto arity = [](auto &&...args) noexcept { return (0 + ... + (static_cast<void>(args), 1)); };
+
+  SECTION("std::apply's meaning on std::apply's domain")
+  {
+    // shared machinery with pfn::apply: the two agree by construction
+    static_assert(fn::apply(add2, std::tuple{2, 3}) == pfn::apply(add2, std::tuple{2, 3}));
+    static_assert(fn::apply(add2, std::pair{2, 3}) == 5);
+    static_assert(fn::apply(add2, std::array{2, 3}) == 5);
+    static_assert(fn::is_applicable_v<decltype(add2), std::tuple<int, int>>
+                  == pfn::is_applicable_v<decltype(add2), std::tuple<int, int>>);
+    static_assert(fn::is_applicable_v<decltype(add2), std::tuple<int>>
+                  == pfn::is_applicable_v<decltype(add2), std::tuple<int>>); // both false: arity mismatch
+    static_assert(fn::is_nothrow_applicable_v<decltype(add2), std::tuple<int, int>>);
+    static_assert(std::same_as<fn::apply_result_t<decltype(add2), std::tuple<int, int>>, int>);
+
+    // a generic callable unpacks, as std::apply does
+    static_assert(fn::apply(arity, std::tuple{1, 2, 3}) == 3);
+
+    CHECK(fn::apply(add2, std::tuple{20, 22}) == 42);
+    CHECK(fn::apply(arity, std::tuple{1, 2, 3}) == 3);
+  }
+
+  SECTION("pass-whole survives where unpacking is not viable")
+  {
+    struct TakesTuple {
+      constexpr int operator()(std::tuple<int, int> const &) const noexcept { return -1; }
+    };
+    static_assert(fn::apply(TakesTuple{}, std::tuple{1, 2}) == -1);
+    // a tuple-like among further arguments has no unpacking route, and passes whole
+    static_assert(fn::apply(arity, std::tuple{1, 2}, 0) == 2);
+    CHECK(fn::apply(TakesTuple{}, std::tuple{1, 2}) == -1);
+  }
+
+  SECTION("elements are terminal")
+  {
+    // a sum element is handed over whole, exactly as std::apply hands it - never dispatched
+    struct TakesSum {
+      constexpr int operator()(fn::sum<int> const &) const noexcept { return 7; }
+    };
+    struct TakesAlternative {
+      constexpr int operator()(int) const noexcept { return 8; }
+    };
+    static_assert(fn::apply(TakesSum{}, std::tuple<fn::sum<int>>{fn::sum<int>{1}}) == 7);
+    static_assert(not fn::is_applicable_v<TakesAlternative, std::tuple<fn::sum<int>>>);
+    static_assert(fn::is_applicable_v<TakesSum, std::tuple<fn::sum<int>>>
+                  == pfn::is_applicable_v<TakesSum, std::tuple<fn::sum<int>>>);
+    static_assert(fn::is_applicable_v<TakesAlternative, std::tuple<fn::sum<int>>>
+                  == pfn::is_applicable_v<TakesAlternative, std::tuple<fn::sum<int>>>);
+    // and a pack is not tuple-like: it keeps fn's own dispatch
+    static_assert(fn::apply(arity, fn::pack{1, 2, 3}) == 3);
+    SUCCEED();
+  }
+
+  SECTION("apply_r over the elements")
+  {
+    static_assert(fn::apply_r<long>(add2, std::tuple{2, 3}) == 5L);
+    static_assert(std::same_as<decltype(fn::apply_r<long>(add2, std::tuple{2, 3})), long>);
+    static_assert(fn::is_applicable_r_v<long, decltype(add2), std::tuple<int, int>>);
+    static_assert(fn::is_applicable_r_v<void, decltype(add2), std::tuple<int, int>>);
+    static_assert(not fn::is_applicable_r_v<char *, decltype(add2), std::tuple<int, int>>);
+    CHECK(fn::apply_r<long>(add2, std::tuple{20, 22}) == 42L);
+  }
+
+  SECTION("noexcept follows the elements' call")
+  {
+    constexpr auto loud = [](int a, int b) { return a + b; };
+    static_assert(not fn::is_nothrow_applicable_v<decltype(loud), std::tuple<int, int>>);
+    static_assert(not noexcept(fn::apply(loud, std::declval<std::tuple<int, int> &>())));
+    static_assert(noexcept(fn::apply(add2, std::declval<std::tuple<int, int> &>())));
+    SUCCEED();
+  }
 }

@@ -11,6 +11,7 @@
 #include <fn/detail/macro_fwd.hpp>
 #include <fn/detail/meta.hpp>
 #include <pfn/functional.hpp>
+#include <pfn/tuple.hpp>
 
 #include <functional>
 #include <type_traits>
@@ -129,6 +130,21 @@ template <typename Fn, typename... Args>
   return ::std::invoke(FWD(fn), FWD(args)...);
 }
 
+// A lone tuple-like argument takes std::apply's meaning, through the machinery shared with
+// pfn::apply - so fn::apply and pfn::apply agree on the entire std domain by construction, and
+// the elements are terminal: they do not re-enter pack or sum dispatch (a sum element is handed
+// over whole). Exactly std::apply's shape - one tuple-like argument, nothing else; composition
+// with packs, sums or further arguments is not offered. Where both this and the pass-whole
+// terminal above are viable (a generic callable), this non-variadic overload wins partial
+// ordering: std::apply's meaning prevails on std::apply's own domain.
+template <typename Fn, typename Arg>
+  requires ::pfn::detail::_tuple_like<Arg> && (::pfn::is_applicable_v<Fn, Arg>)
+[[nodiscard]] constexpr auto apply(Fn &&fn, Arg &&arg) noexcept(::pfn::is_nothrow_applicable_v<Fn, Arg>)
+    -> ::pfn::apply_result_t<Fn, Arg>
+{
+  return ::pfn::apply(FWD(fn), FWD(arg));
+}
+
 template <typename Fn, typename Arg, typename... Args>
   requires(_some_pack<Arg> || _some_sum<Arg>)
           && ((sizeof...(Args) == 0) || (not(... || (_some_pack<Args> || _some_sum<Args>))))
@@ -163,6 +179,30 @@ template <typename Ret, typename Fn, typename... Args>
         -> DEDUCED_RETURN(::pfn::invoke_r<Ret>(FWD(fn), FWD(args)...))
 {
   return ::pfn::invoke_r<Ret>(FWD(fn), FWD(args)...);
+}
+
+// The tuple-like arm of apply_r, mirroring apply's: INVOKE<R> over the elements. Constrained so
+// a non-viable call is a substitution failure before the noexcept-specifier can instantiate.
+template <typename Ret, typename Fn, typename Tuple, ::std::size_t... Ix>
+  requires ::std::is_invocable_r_v<Ret, Fn, decltype(::std::get<Ix>(::std::declval<Tuple>()))...>
+constexpr Ret _apply_r_elems(Fn &&fn, Tuple &&t, ::std::index_sequence<Ix...>) //
+    noexcept(noexcept(::pfn::invoke_r<Ret>(FWD(fn), ::std::get<Ix>(FWD(t))...)))
+{
+  return ::pfn::invoke_r<Ret>(FWD(fn), ::std::get<Ix>(FWD(t))...);
+}
+
+template <typename Ret, typename Fn, typename Arg>
+  requires ::pfn::detail::_tuple_like<Arg> //
+           && requires(Fn &&fn, Arg &&arg) {
+                _apply_r_elems<Ret>(FWD(fn), FWD(arg),
+                                    ::std::make_index_sequence<::std::tuple_size_v<::std::remove_reference_t<Arg>>>{});
+              }
+[[nodiscard]] constexpr auto apply_r(Fn &&fn, Arg &&arg) //
+    noexcept(noexcept(_apply_r_elems<Ret>(
+        FWD(fn), FWD(arg), ::std::make_index_sequence<::std::tuple_size_v<::std::remove_reference_t<Arg>>>{}))) -> Ret
+{
+  return _apply_r_elems<Ret>(FWD(fn), FWD(arg),
+                             ::std::make_index_sequence<::std::tuple_size_v<::std::remove_reference_t<Arg>>>{});
 }
 
 template <typename Ret, typename Fn, typename Arg, typename... Args>
