@@ -202,6 +202,18 @@ struct choice<Ts...> : sum<Ts...> {
     return *this;
   }
 
+  // The delegating value assignment restates sum's for the same name-hiding reason. Sum- and
+  // choice-typed sources are excluded to leave them to the assignments above: for a non-const
+  // lvalue source a forwarding reference would otherwise outrank their `const &` bindings.
+  template <typename U>
+  constexpr choice &operator=(U &&v) //
+      noexcept(::std::is_nothrow_assignable_v<sum<Ts...> &, decltype(v)>)
+    requires(not some_sum<U>) && (not some_choice<U>) && ::std::is_assignable_v<sum<Ts...> &, decltype(v)>
+  {
+    static_cast<sum<Ts...> &>(*this) = FWD(v);
+    return *this;
+  }
+
   /**
    * @brief TODO
    *
