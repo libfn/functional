@@ -391,6 +391,50 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     }
   }
 
+  SECTION("assignment from a value")
+  {
+    // the delegating value assignment, restated for the same name-hiding reason as the widening
+    // pair above; the answer - routing, constraints, noexcept - is sum's
+    constexpr auto battery = [] {
+      choice<bool, int> a{12};
+      a = 42; // the alternative in hand
+      bool ok = a == choice{42};
+      a = true; // a different alternative
+      ok = ok && a == choice{true};
+      int const i = 7;
+      a = i; // by copy
+      return ok && a == choice{7};
+    };
+    CHECK(battery());
+    static_assert(battery());
+
+    SECTION("constraints")
+    {
+      static_assert(std::is_assignable_v<choice<bool, int> &, int>);
+      static_assert(not std::is_assignable_v<choice<bool, int> &, short>); // exact alternative only
+      static_assert(std::is_nothrow_assignable_v<choice<bool, int> &, int>);
+
+      // sum- and choice-typed sources are left to the assignments above, including non-const
+      // lvalues, which a forwarding reference would otherwise capture
+      static_assert(std::is_assignable_v<choice<bool, int> &, choice<bool, int> &>);
+      static_assert(std::is_assignable_v<choice<bool, int> &, choice<int> &>);
+      static_assert(std::is_assignable_v<choice<bool, int> &, fn::sum<int> &>);
+
+      // a sibling's refusal does not hold the value assignment hostage
+      struct Fixed final { // copyable, not assignable
+        constexpr Fixed() noexcept = default;
+        constexpr Fixed(Fixed const &) noexcept = default;
+        constexpr Fixed(Fixed &&) noexcept = default;
+        Fixed &operator=(Fixed const &) = delete;
+        Fixed &operator=(Fixed &&) = delete;
+      };
+      using C = fn::choice_for<Fixed, int>;
+      static_assert(not std::is_copy_assignable_v<C>);
+      static_assert(std::is_assignable_v<C &, int>);
+      SUCCEED();
+    }
+  }
+
   SECTION("forwarding constructors (immovable)")
   {
     choice<NonCopyable> a{std::in_place_type<NonCopyable>, 42};

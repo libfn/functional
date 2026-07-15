@@ -620,6 +620,32 @@ struct sum<Ts...> {
   }
 
   /**
+   * @brief Assignment from a value of one alternative, with the strong exception guarantee
+   *
+   * @param v TODO
+   * @return TODO
+   */
+  // Takes a value of exactly one alternative, as the converting constructors do - never
+  // std::variant's converting-assignment resolution, so a convertible non-alternative stays
+  // rejected and interconvertible alternatives never make a resolution puzzle. The one route
+  // otherwise - converting constructor, then whole-sum assignment - builds a temporary sum and
+  // lets an uninvolved alternative forbid the assignment; this overload consults only the
+  // alternative involved, assigning in place when it is the one held and replacing by
+  // construction otherwise.
+  template <typename U, typename T = ::std::remove_cvref_t<U>>
+  constexpr sum &operator=(U &&v) //
+      noexcept(::std::is_nothrow_assignable_v<T &, decltype(v)> && detail::_nothrow_makeable<data_t, T, decltype(v)>)
+    requires has_type<T> && ::std::is_assignable_v<T &, decltype(v)> && detail::_makeable<data_t, T, decltype(v)>
+             && (detail::_nothrow_makeable<data_t, T, decltype(v)> || detail::_nothrow_makeable<data_t, T, T>)
+  {
+    if (index == detail::type_index<T, Ts...>)
+      this->template _reassign<T>(FWD(v));
+    else
+      this->template _reinit<T>(FWD(v));
+    return *this;
+  }
+
+  /**
    * @brief TODO
    *
    * @tparam T TODO

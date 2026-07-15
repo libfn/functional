@@ -1161,6 +1161,13 @@ TEST_CASE("sum noexcept", "[sum][noexcept]")
     };
     static_assert(std::is_assignable_v<fn::sum_for<Quiet, Loud> &, sum<Loud> const &>);
     static_assert(not noexcept(std::declval<fn::sum_for<Quiet, Loud> &>() = std::declval<sum<Loud> const &>()));
+
+    // value assignment weighs only the alternative it takes: nothrow when both its delivery and
+    // its own operator= are, throwing when either is not
+    static_assert(std::is_assignable_v<fn::sum_for<Quiet, Throwy> &, Quiet const &>);
+    static_assert(noexcept(std::declval<fn::sum_for<Quiet, Throwy> &>() = std::declval<Quiet const &>()));
+    static_assert(std::is_assignable_v<fn::sum_for<Quiet, Loud> &, Loud const &>);
+    static_assert(not noexcept(std::declval<fn::sum_for<Quiet, Loud> &>() = std::declval<Loud const &>()));
     SUCCEED();
   }
 }
@@ -1880,6 +1887,167 @@ TEST_CASE("sum assignment", "[sum][assignment]")
 
       // a sum it is not a superset of is refused
       static_assert(not std::is_assignable_v<sum<int> &, sum<bool> const &>);
+      SUCCEED();
+    }
+  }
+
+  SECTION("from a value")
+  {
+    // a value of exactly one alternative assigns directly, as the converting constructors take
+    // one: assigned in place when it is the alternative held, replacing it by construction
+    // otherwise - `*this = sum{v}` with the temporary elided
+    constexpr auto basic = [] {
+      sum<bool, int> a{12};
+      a = 42; // the alternative in hand
+      bool ok = a == sum{42};
+      a = true; // a different alternative
+      ok = ok && a == sum{true};
+      int const i = 7;
+      a = i; // and back, from a const lvalue
+      return ok && a == sum{7};
+    };
+    CHECK(basic());
+    static_assert(basic());
+
+    SECTION("no hidden temporary")
+    {
+      // the route this overload replaces - converting constructor, then whole-sum assignment -
+      // relocated every value through a temporary sum; the direct delivery is one relocation
+      // into place, or none at all
+      struct Reloc final {
+        int v;
+        int *copied;
+        int *moved;
+        int *assigned;
+        constexpr Reloc(int i, int *c, int *m, int *a) noexcept : v(i), copied(c), moved(m), assigned(a) {}
+        constexpr Reloc(Reloc const &o) noexcept : v(o.v), copied(o.copied), moved(o.moved), assigned(o.assigned)
+        {
+          ++*copied;
+        }
+        constexpr Reloc(Reloc &&o) noexcept : v(o.v), copied(o.copied), moved(o.moved), assigned(o.assigned)
+        {
+          ++*moved;
+        }
+        constexpr Reloc &operator=(Reloc const &o) noexcept
+        {
+          v = o.v;
+          ++*assigned;
+          return *this;
+        }
+        constexpr Reloc &operator=(Reloc &&o) noexcept
+        {
+          v = o.v;
+          ++*assigned;
+          return *this;
+        }
+      };
+      constexpr auto counts = [] {
+        int copied = 0;
+        int moved = 0;
+        int assigned = 0;
+        using W = fn::sum_for<Reloc, int>;
+        Reloc n{42, &copied, &moved, &assigned};
+        Reloc m{9, &copied, &moved, &assigned};
+
+        W a{12};
+        copied = moved = assigned = 0;
+        a = std::as_const(n); // a different alternative, by copy: one copy, straight into place
+        bool ok = copied == 1 && moved == 0 && assigned == 0 && a.get_ptr<Reloc>()->v == 42;
+
+        copied = moved = assigned = 0;
+        a = std::as_const(n); // the alternative in hand: assigned with its own operator=, no relocation
+        ok = ok && copied == 0 && moved == 0 && assigned == 1;
+
+        a = W{12};
+        copied = moved = assigned = 0;
+        a = std::move(m); // a different alternative, by move: one move, nothing else
+        return ok && copied == 0 && moved == 1 && assigned == 0 && a.get_ptr<Reloc>()->v == 9;
+      };
+      CHECK(counts());
+      static_assert(counts());
+    }
+
+    SECTION("not hostage to a sibling alternative")
+    {
+      // the defect this overload fixes: through the temporary route, the whole-sum assignment's
+      // constraints let an uninvolved alternative forbid the operation
+      struct Fixed final { // copyable, not assignable
+        constexpr Fixed() noexcept = default;
+        constexpr Fixed(Fixed const &) noexcept = default;
+        constexpr Fixed(Fixed &&) noexcept = default;
+        Fixed &operator=(Fixed const &) = delete;
+        Fixed &operator=(Fixed &&) = delete;
+      };
+      using S = fn::sum_for<Fixed, int>;
+      static_assert(not std::is_copy_assignable_v<S>);             // the whole type still refuses
+      static_assert(std::is_assignable_v<S &, int>);               // its sibling is not hostage
+      static_assert(not std::is_assignable_v<S &, Fixed const &>); // the alternative's own refusal holds
+      constexpr auto witness = [] {
+        S s{std::in_place_type<Fixed>};
+        s = 42; // the non-assignable alternative is replaced by construction
+        return s.has_value(std::in_place_type<int>);
+      };
+      CHECK(witness());
+      static_assert(witness());
+    }
+
+    SECTION("exact alternative only")
+    {
+      // never std::variant's converting-assignment resolution: a convertible non-alternative is
+      // rejected - conversions keep their explicit spellings - and interconvertible alternatives
+      // never meet in overload resolution
+      static_assert(std::is_assignable_v<fn::sum_for<double, int> &, int>);
+      static_assert(std::is_assignable_v<fn::sum_for<double, int> &, double>);
+      static_assert(not std::is_assignable_v<fn::sum_for<double, int> &, short>);
+      static_assert(not std::is_assignable_v<fn::sum_for<double, int> &, float>);
+      constexpr auto exact = [] {
+        fn::sum_for<double, int> s{1.5};
+        s = 42; // int lands on int, not on double
+        return s.has_value(std::in_place_type<int>);
+      };
+      CHECK(exact());
+      static_assert(exact());
+    }
+
+    SECTION("constraints")
+    {
+      // each conjunct refuses on its own, and the gate follows the incoming value category,
+      // collapsing to the widening assignment's copy gate for an lvalue and its move gate for
+      // an rvalue
+      struct MoveAssign final { // move-assignable only: the copy form declines, the move form serves
+        constexpr MoveAssign() noexcept = default;
+        constexpr MoveAssign(MoveAssign const &) noexcept = default;
+        constexpr MoveAssign(MoveAssign &&) noexcept = default;
+        MoveAssign &operator=(MoveAssign const &) = delete;
+        constexpr MoveAssign &operator=(MoveAssign &&) noexcept = default;
+      };
+      using S = fn::sum_for<MoveAssign, int>;
+      static_assert(std::is_assignable_v<S &, MoveAssign>);
+      // ... while the constructor route survives where the direct overload declines: a temporary
+      // sum, then whole-type move assignment, with the old costs and the old gating
+      static_assert(std::is_assignable_v<S &, MoveAssign const &>);
+
+      struct NoCopy final { // assignable, not copy-deliverable: the copy form has no route at all
+        constexpr NoCopy() noexcept = default;
+        NoCopy(NoCopy const &) = delete;
+        constexpr NoCopy(NoCopy &&) noexcept = default;
+        constexpr NoCopy &operator=(NoCopy const &) noexcept = default;
+        constexpr NoCopy &operator=(NoCopy &&) noexcept = default;
+      };
+      using S2 = fn::sum_for<NoCopy, int>;
+      static_assert(not std::is_assignable_v<S2 &, NoCopy const &>);
+      static_assert(std::is_assignable_v<S2 &, NoCopy>);
+
+      struct Skittish final { // assignable, but no arm can deliver it without throwing
+        constexpr Skittish() noexcept = default;
+        Skittish(Skittish const &) noexcept(false) {}
+        Skittish(Skittish &&) noexcept(false) {}
+        Skittish &operator=(Skittish const &) noexcept { return *this; }
+        Skittish &operator=(Skittish &&) noexcept { return *this; }
+      };
+      using S3 = fn::sum_for<Skittish, int>;
+      static_assert(not std::is_assignable_v<S3 &, Skittish const &>);
+      static_assert(not std::is_assignable_v<S3 &, Skittish>);
       SUCCEED();
     }
   }
