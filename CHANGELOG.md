@@ -2,6 +2,10 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `sum` and `choice` gained `emplace` — 15 July 2026
+
+- **`emplace<T>(args...)` is the mutation path for alternatives that do not support assignment** ([#318](https://github.com/libfn/functional/issues/318)): destroy-and-reconstruct requested at the call site by name, so senders and reference-holding packs — whose assignment `operator=` rightly refuses — can change the alternative held by an existing object again. Always reconstructs, also for the alternative already held, and the constraint asks about `T` alone: no sibling alternative is consulted. Unlike `std::expected::emplace` (nothrow constructions only, unconditionally `noexcept`) a throwing construction is admitted through an internalized temporary; unlike `std::variant::emplace` (unconstrained, valueless when construction throws) the case with no safe arm is constrained away — strong guarantee, never valueless, conditionally `noexcept`.
+
 ## `sum` and `choice` assign from a value of one alternative — 15 July 2026
 
 - **A value of exactly one alternative now assigns directly** ([#319](https://github.com/libfn/functional/issues/319)): assigned in place through the alternative's own `operator=` when it is the one held, replaced by construction otherwise. `s = v` used to exist only through the converting constructor's temporary sum and the whole-sum assignment, whose constraints let an uninvolved alternative forbid the operation and whose route relocated every value through the temporary. Exact alternative only, as the converting constructors take one — never `std::variant`'s converting-assignment resolution — so a convertible non-alternative stays rejected and interconvertible alternatives never meet in overload resolution.

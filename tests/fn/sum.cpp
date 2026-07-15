@@ -94,6 +94,9 @@ concept can_ne = requires { std::declval<L const &>() != std::declval<R const &>
 template <typename S, typename T, typename... Args>
 concept can_in_place = requires(Args... args) { S{std::in_place_type<T>, args...}; };
 
+template <typename S, typename T, typename... Args>
+concept can_emplace = requires(S &s, Args &&...args) { s.template emplace<T>(static_cast<Args &&>(args)...); };
+
 template <typename T, typename... Args>
 concept can_as_sum = requires(Args... args) { fn::as_sum(std::in_place_type<T>, args...); };
 
@@ -2285,5 +2288,155 @@ TEST_CASE("sum assignment", "[sum][assignment]")
     static_assert(not std::is_nothrow_copy_assignable_v<Mixed>); // QuietMove's copy can throw
     static_assert(std::is_move_assignable_v<Mixed>);             // the copy assignment takes the rvalue ...
     static_assert(not std::is_nothrow_move_assignable_v<Mixed>); // ... and says that it can throw
+  }
+}
+
+TEST_CASE("sum emplace", "[sum][emplace]")
+{
+  using fn::sum;
+
+  // the mutation path for alternatives that do not support assignment: destroy-and-reconstruct,
+  // requested at the call site by name, so the constraint asks about the incoming alternative
+  // alone - the outgoing one is only destroyed, whatever its own traits
+  struct Sender final { // the motivating archetype: not assignable, nothrow-move-constructible
+    int target;
+    constexpr explicit Sender(int t) noexcept : target(t) {}
+    constexpr Sender(Sender &&) noexcept = default;
+    Sender(Sender const &) = delete;
+    Sender &operator=(Sender const &) = delete;
+    Sender &operator=(Sender &&) = delete;
+  };
+  using S = fn::sum_for<Sender, int>;
+  static_assert(not std::is_copy_assignable_v<S>);
+  static_assert(not std::is_move_assignable_v<S>);
+  static_assert(not std::is_assignable_v<S &, Sender>); // even the value operator= declines
+
+  SECTION("re-targets a sum of senders")
+  {
+    constexpr auto battery = [] {
+      S s{std::in_place_type<Sender>, 1};
+      Sender &r = s.emplace<Sender>(42);
+      bool ok = r.target == 42 && s.has_value(std::in_place_type<Sender>);
+      int &i = s.emplace<int>(7); // a different alternative
+      ok = ok && i == 7 && s.has_value(std::in_place_type<int>);
+      s.emplace<Sender>(3); // and back
+      return ok && s.has_value(std::in_place_type<Sender>);
+    };
+    CHECK(battery());
+    static_assert(battery());
+    static_assert(std::same_as<decltype(std::declval<S &>().emplace<int>(1)), int &>);
+  }
+
+  SECTION("always destroys and reconstructs")
+  {
+    // also when T is the alternative already held: assign-when-same is operator='s meaning and
+    // stays there, and unconditional reconstruction is what serves non-assignable types
+    struct Counter final {
+      int v;
+      int *constructed;
+      int *destroyed;
+      int *assigned;
+      constexpr Counter(int i, int *c, int *d, int *a) noexcept : v(i), constructed(c), destroyed(d), assigned(a)
+      {
+        ++*constructed;
+      }
+      constexpr Counter(Counter &&o) noexcept
+          : v(o.v), constructed(o.constructed), destroyed(o.destroyed), assigned(o.assigned)
+      {
+      }
+      constexpr Counter &operator=(Counter &&o) noexcept
+      {
+        v = o.v;
+        ++*assigned;
+        return *this;
+      }
+      constexpr ~Counter() { ++*destroyed; }
+    };
+    constexpr auto counts = [] {
+      int constructed = 0;
+      int destroyed = 0;
+      int assigned = 0;
+      using T = fn::sum_for<Counter, int>;
+      T s{std::in_place_type<Counter>, 7, &constructed, &destroyed, &assigned};
+
+      constructed = destroyed = assigned = 0;
+      Counter &r = s.emplace<Counter>(9, &constructed, &destroyed, &assigned);
+      return r.v == 9 && constructed == 1 && destroyed == 1 && assigned == 0;
+    };
+    CHECK(counts());
+    static_assert(counts());
+  }
+
+  SECTION("arm selection")
+  {
+    // nothrow construction goes straight into storage; a throwing construction is built into a
+    // temporary first - the storage untouched until it cannot throw - and delivered by exactly
+    // one nothrow move
+    struct Fragile final {
+      int v;
+      int *moved;
+      constexpr Fragile(int i, int *m) noexcept(false) : v(i), moved(m) {}
+      constexpr Fragile(Fragile &&o) noexcept : v(o.v), moved(o.moved) { ++*moved; }
+    };
+    constexpr auto arms = [] {
+      int moved = 0;
+      using T = fn::sum_for<Fragile, int>;
+      T s{12};
+      Fragile &r = s.emplace<Fragile>(5, &moved); // arm 2: one move
+      bool ok = r.v == 5 && moved == 1;
+      moved = 0;
+      int &i = s.emplace<int>(3); // arm 1: nothing relocates
+      return ok && i == 3 && moved == 0;
+    };
+    CHECK(arms());
+    static_assert(arms());
+
+    // noexcept is the first arm's, exactly
+    using T = fn::sum_for<Fragile, int>;
+    static_assert(noexcept(std::declval<T &>().emplace<int>(1)));
+    static_assert(not noexcept(std::declval<T &>().emplace<Fragile>(1, std::declval<int *>())));
+    SUCCEED();
+  }
+
+  SECTION("re-points a reference")
+  {
+    // sum<pack<int, int&>> has no assignment at all - the pack deletes it because C++ cannot
+    // rebind a reference - and emplace is the explicit spelling of that mutation
+    using P = fn::pack<int, int &>;
+    using R = sum<P>;
+    static_assert(not std::is_copy_assignable_v<R>);
+    static_assert(not std::is_move_assignable_v<R>);
+    static_assert(can_emplace<R, P, int, int &>);
+    constexpr auto repoint = [] {
+      int x = 1;
+      int y = 2;
+      R s{std::in_place_type<P>, 5, x};
+      s.emplace<P>(6, y);
+      using std::get;
+      P *p = s.get_ptr<P>();
+      return p != nullptr && &get<1>(*p) == &y && get<0>(*p) == 6;
+    };
+    CHECK(repoint());
+    static_assert(repoint());
+  }
+
+  SECTION("constraints")
+  {
+    static_assert(can_emplace<S, Sender, int>);
+    static_assert(can_emplace<S, int, int>);
+    static_assert(not can_emplace<S, double, double>);       // not an alternative
+    static_assert(not can_emplace<S, Sender, char const *>); // not makeable from the arguments
+
+    // a type that can be neither built nor moved without throwing leaves no safe arm; its
+    // sibling is not held hostage
+    struct ThrowingBoth final {
+      ThrowingBoth() = default;
+      ThrowingBoth(ThrowingBoth const &) noexcept(false) {}
+      ThrowingBoth(ThrowingBoth &&) noexcept(false) {}
+    };
+    using T = fn::sum_for<ThrowingBoth, int>;
+    static_assert(not can_emplace<T, ThrowingBoth, ThrowingBoth const &>);
+    static_assert(can_emplace<T, int, int>);
+    SUCCEED();
   }
 }
