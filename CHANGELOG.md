@@ -2,6 +2,10 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `sum` and `choice` assign from a value of one alternative — 15 July 2026
+
+- **A value of exactly one alternative now assigns directly** ([#319](https://github.com/libfn/functional/issues/319)): assigned in place through the alternative's own `operator=` when it is the one held, replaced by construction otherwise. `s = v` used to exist only through the converting constructor's temporary sum and the whole-sum assignment, whose constraints let an uninvolved alternative forbid the operation and whose route relocated every value through the temporary. Exact alternative only, as the converting constructors take one — never `std::variant`'s converting-assignment resolution — so a convertible non-alternative stays rejected and interconvertible alternatives never meet in overload resolution.
+
 ## `optional` and `expected` assignment is trivial when the payload permits — 15 July 2026
 
 - **Copy and move assignment of `optional` and `expected` are now trivial exactly under the standard's conditions** ([#308](https://github.com/libfn/functional/issues/308)): the contained types trivially copy/move constructible, trivially assignable and trivially destructible ([optional.assign], [expected.object.assign], [expected.void.assign]). Neither type was ever trivially assignable, in either library — a conformance defect, and with the constructors and destructor already conditionally trivial, assignment was the one member keeping these types out of `is_trivially_copyable`. Like `sum`'s entry below, this lands before the first tagged release because trivially copyable types change ABI.
