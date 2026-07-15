@@ -51,14 +51,14 @@ TEST_CASE("or_else", "[or_else][expected][expected_value]")
 
   static_assert(is::invocable_with_any(fnError));
   static_assert(is::invocable_with_any(fnXerror));
-  static_assert(is::invocable_with_any([](auto...) -> operand_t { throw 0; }));                // allow generic call
-  static_assert(is::invocable_with_any([](Error) -> operand_t { throw 0; }));                  // allow copy
-  static_assert(is::invocable_with_any([](std::string_view) -> operand_t { throw 0; }));       // allow conversion
-  static_assert(is::invocable_with_any([](Error const &) -> operand_t { throw 0; }));          // binds to const ref
-  static_assert(is::invocable<lvalue>([](Error &) -> operand_t { throw 0; }));                 // binds to lvalue
-  static_assert(is::invocable<rvalue, prvalue>([](Error &&) -> operand_t { throw 0; }));       // can move
-  static_assert(is::invocable<rvalue, crvalue>([](Error const &&) -> operand_t { throw 0; })); // binds to const rvalue
-  static_assert(is::not_invocable_with_any([](Error) -> operand_other_t { throw 0; }));        // disallow conversion
+  static_assert(is::invocable_with_any([](auto...) -> operand_t { throw 0; }));                 // allow generic call
+  static_assert(is::invocable_with_any([](Error) -> operand_t { throw 0; }));                   // allow copy
+  static_assert(is::invocable_with_any([](std::string_view) -> operand_t { throw 0; }));        // allow conversion
+  static_assert(is::invocable_with_any([](Error const &) -> operand_t { throw 0; }));           // binds to const ref
+  static_assert(is::applicable<lvalue>([](Error &) -> operand_t { throw 0; }));                 // binds to lvalue
+  static_assert(is::applicable<rvalue, prvalue>([](Error &&) -> operand_t { throw 0; }));       // can move
+  static_assert(is::applicable<rvalue, crvalue>([](Error const &&) -> operand_t { throw 0; })); // binds to const rvalue
+  static_assert(is::not_invocable_with_any([](Error) -> operand_other_t { throw 0; }));         // disallow conversion
   static_assert(
       is::not_invocable<clvalue, crvalue, cvalue>([](Error &) -> operand_t { throw 0; })); // cannot remove const
   static_assert(is::not_invocable<rvalue>([](Error &) -> operand_t { throw 0; }));         // disallow bind
@@ -312,14 +312,14 @@ TEST_CASE("or_else", "[or_else][expected][expected_void]")
 
   static_assert(is::invocable_with_any(fnError));
   static_assert(is::invocable_with_any(fnXerror));
-  static_assert(is::invocable_with_any([](auto...) -> operand_t { throw 0; }));                // allow generic call
-  static_assert(is::invocable_with_any([](Error) -> operand_t { throw 0; }));                  // allow copy
-  static_assert(is::invocable_with_any([](std::string_view) -> operand_t { throw 0; }));       // allow conversion
-  static_assert(is::invocable_with_any([](Error const &) -> operand_t { throw 0; }));          // binds to const ref
-  static_assert(is::invocable<lvalue>([](Error &) -> operand_t { throw 0; }));                 // binds to lvalue
-  static_assert(is::invocable<rvalue, prvalue>([](Error &&) -> operand_t { throw 0; }));       // can move
-  static_assert(is::invocable<rvalue, crvalue>([](Error const &&) -> operand_t { throw 0; })); // binds to const rvalue
-  static_assert(is::not_invocable_with_any([](Error) -> operand_other_t { throw 0; }));        // disallow conversion
+  static_assert(is::invocable_with_any([](auto...) -> operand_t { throw 0; }));                 // allow generic call
+  static_assert(is::invocable_with_any([](Error) -> operand_t { throw 0; }));                   // allow copy
+  static_assert(is::invocable_with_any([](std::string_view) -> operand_t { throw 0; }));        // allow conversion
+  static_assert(is::invocable_with_any([](Error const &) -> operand_t { throw 0; }));           // binds to const ref
+  static_assert(is::applicable<lvalue>([](Error &) -> operand_t { throw 0; }));                 // binds to lvalue
+  static_assert(is::applicable<rvalue, prvalue>([](Error &&) -> operand_t { throw 0; }));       // can move
+  static_assert(is::applicable<rvalue, crvalue>([](Error const &&) -> operand_t { throw 0; })); // binds to const rvalue
+  static_assert(is::not_invocable_with_any([](Error) -> operand_other_t { throw 0; }));         // disallow conversion
   static_assert(
       is::not_invocable<clvalue, crvalue, cvalue>([](Error &) -> operand_t { throw 0; })); // cannot remove const
   static_assert(is::not_invocable<rvalue>([](Error &) -> operand_t { throw 0; }));         // disallow bind
@@ -555,26 +555,26 @@ template <typename T> constexpr auto fn_int_rvalue = [](int &&) -> T { throw 0; 
 } // namespace
 
 // clang-format off
-static_assert(invocable_or_else<decltype(fn_Error<expected<Value, Error>>), expected<Value, Error>>);
-static_assert(invocable_or_else<decltype(fn_generic<expected<int, int>>), expected<int, int>>);
-static_assert(invocable_or_else<decltype(fn_Error<expected<Value, Xerror>>), expected<Value, Error>>);   // error type conversion
-static_assert(invocable_or_else<decltype(fn_Error<expected<Value, Error>>), expected<Value, Xerror>>);   // error type conversion
-static_assert(invocable_or_else<decltype(fn_Error<expected<Value, int>>), expected<Value, Xerror>>);     // error type conversion
-static_assert(not invocable_or_else<decltype(fn_Error<expected<Value, int>>), expected<Value, int>>);    // wrong error_type
-static_assert(invocable_or_else<decltype(fn_Error<expected<Value, Error>>), expected<Value, Error>>);
-static_assert(not invocable_or_else<decltype(fn_Error<expected<Value, Error>>), expected<void, Error>>); // cannot change value_type
-static_assert(not invocable_or_else<decltype(fn_Error<expected<void, Error>>), expected<Value, Error>>); // cannot change value_type
-static_assert(not invocable_or_else<decltype(fn_generic<expected<Value, int>>), expected<int, int>>);    // cannot change value_type
+static_assert(applicable_or_else<decltype(fn_Error<expected<Value, Error>>), expected<Value, Error>>);
+static_assert(applicable_or_else<decltype(fn_generic<expected<int, int>>), expected<int, int>>);
+static_assert(applicable_or_else<decltype(fn_Error<expected<Value, Xerror>>), expected<Value, Error>>);   // error type conversion
+static_assert(applicable_or_else<decltype(fn_Error<expected<Value, Error>>), expected<Value, Xerror>>);   // error type conversion
+static_assert(applicable_or_else<decltype(fn_Error<expected<Value, int>>), expected<Value, Xerror>>);     // error type conversion
+static_assert(not applicable_or_else<decltype(fn_Error<expected<Value, int>>), expected<Value, int>>);    // wrong error_type
+static_assert(applicable_or_else<decltype(fn_Error<expected<Value, Error>>), expected<Value, Error>>);
+static_assert(not applicable_or_else<decltype(fn_Error<expected<Value, Error>>), expected<void, Error>>); // cannot change value_type
+static_assert(not applicable_or_else<decltype(fn_Error<expected<void, Error>>), expected<Value, Error>>); // cannot change value_type
+static_assert(not applicable_or_else<decltype(fn_generic<expected<Value, int>>), expected<int, int>>);    // cannot change value_type
 
-static_assert(not invocable_or_else<decltype(fn_generic<expected<Value, Error>>), optional<Value>>);     // mixed optional and expected
-static_assert(not invocable_or_else<decltype(fn_generic<optional<Value>>), expected<Value, Error>>);     // mixed optional and expected
-static_assert(invocable_or_else<decltype(fn_generic<optional<Value>>), optional<Value>>);
-static_assert(not invocable_or_else<decltype(fn_generic<optional<int>>), optional<Value>>);              // cannot change value_type
-static_assert(not invocable_or_else<decltype(fn_generic<optional<Value>>), optional<int>>);              // cannot change value_type
+static_assert(not applicable_or_else<decltype(fn_generic<expected<Value, Error>>), optional<Value>>);     // mixed optional and expected
+static_assert(not applicable_or_else<decltype(fn_generic<optional<Value>>), expected<Value, Error>>);     // mixed optional and expected
+static_assert(applicable_or_else<decltype(fn_generic<optional<Value>>), optional<Value>>);
+static_assert(not applicable_or_else<decltype(fn_generic<optional<int>>), optional<Value>>);              // cannot change value_type
+static_assert(not applicable_or_else<decltype(fn_generic<optional<Value>>), optional<int>>);              // cannot change value_type
 
-static_assert(not invocable_or_else<decltype(fn_int_lvalue<expected<int, int>>), expected<int, int>>);   // cannot bind temporary to lvalue
-static_assert(invocable_or_else<decltype(fn_int_lvalue<expected<int, int>>), expected<int, int> &>);
-static_assert(invocable_or_else<decltype(fn_int_rvalue<expected<int, int>>), expected<int, int>>);
-static_assert(not invocable_or_else<decltype(fn_int_rvalue<expected<int, int>>), expected<int, int> &>); // cannot bind lvalue to rvalue-ref
+static_assert(not applicable_or_else<decltype(fn_int_lvalue<expected<int, int>>), expected<int, int>>);   // cannot bind temporary to lvalue
+static_assert(applicable_or_else<decltype(fn_int_lvalue<expected<int, int>>), expected<int, int> &>);
+static_assert(applicable_or_else<decltype(fn_int_rvalue<expected<int, int>>), expected<int, int>>);
+static_assert(not applicable_or_else<decltype(fn_int_rvalue<expected<int, int>>), expected<int, int> &>); // cannot bind lvalue to rvalue-ref
 // clang-format on
 } // namespace fn

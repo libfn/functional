@@ -23,17 +23,17 @@ namespace fn {
  * @param v TODO
  */
 template <typename Fn, typename V>
-concept invocable_fail //
+concept applicable_fail //
     = (some_expected_non_void<V> && requires(Fn &&fn, V &&v) {
         {
-          ::fn::invoke(FWD(fn), FWD(v).value())
+          ::fn::apply(FWD(fn), FWD(v).value())
         } -> ::std::convertible_to<typename ::std::remove_cvref_t<V>::error_type>;
         requires detail::_relocatable_error<V>; // the error branch carries the existing error over
       }) || (some_expected_void<V> && requires(Fn &&fn) {
-        { ::fn::invoke(FWD(fn)) } -> ::std::convertible_to<typename ::std::remove_cvref_t<V>::error_type>;
+        { ::fn::apply(FWD(fn)) } -> ::std::convertible_to<typename ::std::remove_cvref_t<V>::error_type>;
         requires detail::_relocatable_error<V>;
       }) || (some_optional<V> && requires(Fn &&fn, V &&v) {
-        { ::fn::invoke(FWD(fn), FWD(v).value()) } -> ::std::same_as<void>;
+        { ::fn::apply(FWD(fn), FWD(v).value()) } -> ::std::same_as<void>;
       });
 
 /**
@@ -63,16 +63,16 @@ struct fail_t::apply final {
   template <some_expected_non_void V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //
       noexcept(
-          ::fn::is_nothrow_invocable_v<Fn, decltype(FWD(v).value())>
+          ::fn::is_nothrow_applicable_v<Fn, decltype(FWD(v).value())>
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::fn::unexpect_t,
-                                               ::fn::invoke_result_t<Fn, decltype(FWD(v).value())>>
+                                               ::fn::apply_result_t<Fn, decltype(FWD(v).value())>>
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::fn::unexpect_t, decltype(FWD(v).error())>)
           -> ::std::remove_cvref_t<V>
-    requires invocable_fail<Fn &&, V &&>
+    requires applicable_fail<Fn &&, V &&>
   {
     using type = ::std::remove_cvref_t<V>;
     if (v.has_value()) {
-      return type{::fn::unexpect, ::fn::invoke(FWD(fn), FWD(v).value())};
+      return type{::fn::unexpect, ::fn::apply(FWD(fn), FWD(v).value())};
     }
     return type{::fn::unexpect, FWD(v).error()};
   }
@@ -87,15 +87,15 @@ struct fail_t::apply final {
   template <some_expected_void V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //
       noexcept(
-          ::fn::is_nothrow_invocable_v<Fn>
-          && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::fn::unexpect_t, ::fn::invoke_result_t<Fn>>
+          ::fn::is_nothrow_applicable_v<Fn>
+          && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::fn::unexpect_t, ::fn::apply_result_t<Fn>>
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::fn::unexpect_t, decltype(FWD(v).error())>)
           -> ::std::remove_cvref_t<V>
-    requires invocable_fail<Fn &&, V &&>
+    requires applicable_fail<Fn &&, V &&>
   {
     using type = ::std::remove_cvref_t<V>;
     if (v.has_value()) {
-      return type{::fn::unexpect, ::fn::invoke(FWD(fn))};
+      return type{::fn::unexpect, ::fn::apply(FWD(fn))};
     }
     return type{::fn::unexpect, FWD(v).error()};
   }
@@ -109,14 +109,14 @@ struct fail_t::apply final {
    */
   template <some_optional V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //
-      noexcept(::fn::is_nothrow_invocable_v<Fn, decltype(FWD(v).value())>
+      noexcept(::fn::is_nothrow_applicable_v<Fn, decltype(FWD(v).value())>
                && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::nullopt_t>)
           -> ::std::remove_cvref_t<V>
-    requires invocable_fail<Fn &&, V &&>
+    requires applicable_fail<Fn &&, V &&>
   {
     using type = ::std::remove_cvref_t<V>;
     if (v.has_value()) {
-      ::fn::invoke(FWD(fn), FWD(v).value());
+      ::fn::apply(FWD(fn), FWD(v).value());
     }
     return type{::std::nullopt};
   }

@@ -123,7 +123,7 @@ TEST_CASE("graded monad", "[expected][sum][graded][and_then][or_else][sum_value]
         static_assert(std::is_same_v<decltype(a), fn::expected<immovable_t, fn::sum<>>>);
         CHECK(a.value().v == 7);
 
-        // the from-invoke tag ctor backing this is not part of the public interface
+        // the from-apply tag ctor backing this is not part of the public interface
         // (is_constructible_v cannot see private ctors)
         static_assert(
             not std::is_constructible_v<fn::expected<immovable_t, fn::sum<>>, pfn::detail::_expected_from_invoke_t,
@@ -873,7 +873,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
   {
     using S = fn::expected<fn::pack<int, std::string_view>, Error>;
 
-    // noexcept (extension): the spec asks fn's own nothrow-invocable trait, which asks the
+    // noexcept (extension): the spec asks fn's own nothrow-applicable trait, which asks the
     // pack-apply dispatch that will actually run - one argument per element
     constexpr auto nothrow_two = [](int &, std::string_view &) noexcept -> fn::expected<bool, Error> { return {true}; };
     static_assert(noexcept(std::declval<S &>().and_then(nothrow_two)));
@@ -950,7 +950,7 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
     SECTION("noexcept")
     {
       // a pack's callback is invoked through fn's own dispatch, taking one argument per element: it
-      // is not directly invocable on the pack, so only fn's nothrow-invocable trait can answer
+      // is not directly applicable on the pack, so only fn's nothrow-applicable trait can answer
       using T = fn::expected<fn::pack<int, double>, Error>;
       static_assert(noexcept(
           std::declval<T &>().and_then([](int, double) noexcept -> fn::expected<bool, Error> { return {true}; })));
@@ -2489,8 +2489,8 @@ TEST_CASE("expected sum support and_then", "[expected][sum][and_then]")
 {
   using S = fn::expected<fn::sum_for<int, std::string_view>, Error>;
 
-  // noexcept (extension): same-error-type result AND nothrow invoke AND nothrow error copy - and
-  // the invoke is weighed by fn's own trait, which asks the per-alternative dispatch that will run,
+  // noexcept (extension): same-error-type result AND nothrow apply AND nothrow error copy - and
+  // the apply is weighed by fn's own trait, which asks the per-alternative dispatch that will run,
   // so a visitor set is weighed alternative by alternative.
   constexpr auto nothrow_lval
       = fn::overload{[](int &) noexcept -> fn::expected<bool, Error> { return {true}; },
@@ -2610,7 +2610,7 @@ TEST_CASE("expected sum support and_then", "[expected][sum][and_then]")
 
   SECTION("noexcept")
   {
-    // the callback is invoked through fn's own dispatch, so only fn's nothrow-invocable trait can
+    // the callback is invoked through fn's own dispatch, so only fn's nothrow-applicable trait can
     // answer for it - and it is nothrow only if EVERY alternative's call is
     using T = fn::expected<fn::sum<double, int>, Error>;
     static_assert(
@@ -2627,8 +2627,8 @@ TEST_CASE("expected sum support or_else", "[expected][sum][or_else]")
 {
   using S = fn::expected<double, fn::sum_for<int, std::string_view>>;
 
-  // noexcept (extension): same-value-type result AND nothrow invoke AND nothrow value copy, with
-  // the invoke weighed per alternative by fn's own trait.
+  // noexcept (extension): same-value-type result AND nothrow apply AND nothrow value copy, with
+  // the apply weighed per alternative by fn's own trait.
   constexpr auto nothrow_lval
       = fn::overload{[](int &) noexcept -> fn::expected<double, Error> { return {0.5}; },
                      [](std::string_view &) noexcept -> fn::expected<double, Error> { return {0.5}; }};
@@ -3223,7 +3223,7 @@ TEST_CASE("expected pack support or_else", "[expected][or_else][pack]")
 {
   using S = fn::expected<int, fn::pack<int, Error>>;
 
-  // noexcept (extension): the invoke is weighed by fn's own trait, which asks the pack-apply
+  // noexcept (extension): the apply is weighed by fn's own trait, which asks the pack-apply
   // dispatch that will run - one argument per element
   constexpr auto nothrow_two = [](int, Error &) noexcept -> fn::expected<int, Error> { return {1}; };
   static_assert(noexcept(std::declval<S &>().or_else(nothrow_two)));
@@ -3319,7 +3319,7 @@ TEST_CASE("expected pack support transform_error", "[expected][transform_error][
 {
   using S = fn::expected<int, fn::pack<int, Error>>;
 
-  // noexcept (extension): nothrow invoke AND nothrow value copy, with the invoke weighed by fn's
+  // noexcept (extension): nothrow apply AND nothrow value copy, with the apply weighed by fn's
   // own trait against the pack-apply dispatch that will run
   constexpr auto nothrow_two = [](int, Error &) noexcept -> bool { return true; };
   static_assert(noexcept(std::declval<S &>().transform_error(nothrow_two)));

@@ -105,11 +105,11 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
         [](helper &o) -> int { return o.v + 1; },  [](helper const &o) -> int { return o.v + 2; },
         [](helper &&o) -> int { return o.v + 3; }, [](helper const &&o) -> int { return o.v + 4; },
     };
-    static_assert(std::same_as<int, decltype(s.value().invoke(fn))>);
-    CHECK((s.value().invoke(fn)) == 43);
-    CHECK((std::as_const(s).value().invoke(fn)) == 44);
-    CHECK((std::move(std::as_const(s)).value().invoke(fn)) == 46);
-    CHECK((std::move(s).value().invoke(fn)) == 45);
+    static_assert(std::same_as<int, decltype(s.value().apply(fn))>);
+    CHECK((s.value().apply(fn)) == 43);
+    CHECK((std::as_const(s).value().apply(fn)) == 44);
+    CHECK((std::move(std::as_const(s)).value().apply(fn)) == 46);
+    CHECK((std::move(s).value().apply(fn)) == 45);
   }
 
   SECTION("choice_for")
@@ -154,27 +154,27 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     static_assert(std::same_as<fn::choice_for<double, fn::sum<>, fn::sum<bool, int>>, fn::choice<bool, double, int>>);
   }
 
-  SECTION("invocable")
+  SECTION("applicable")
   {
     using type = fn::choice_for<TestType, int>; // choice<...> order is platform-specific; choice_for normalizes
-    static_assert(fn::typelist_invocable<decltype([](auto) {}), type &>);
-    static_assert(fn::typelist_invocable<decltype([](auto &) {}), type &>);
-    static_assert(fn::typelist_invocable<decltype([](auto const &) {}), type &>);
-    static_assert(fn::typelist_invocable<decltype(fn::overload{[](int &) {}, [](TestType &) {}}), type &>);
-    static_assert(fn::typelist_invocable<decltype(fn::overload{[](int) {}, [](TestType) {}}), type const &>);
+    static_assert(fn::typelist_applicable<decltype([](auto) {}), type &>);
+    static_assert(fn::typelist_applicable<decltype([](auto &) {}), type &>);
+    static_assert(fn::typelist_applicable<decltype([](auto const &) {}), type &>);
+    static_assert(fn::typelist_applicable<decltype(fn::overload{[](int &) {}, [](TestType &) {}}), type &>);
+    static_assert(fn::typelist_applicable<decltype(fn::overload{[](int) {}, [](TestType) {}}), type const &>);
 
-    static_assert(not fn::typelist_invocable<decltype([](TestType &) {}), type &>); // missing int
-    static_assert(not fn::typelist_invocable<decltype([](int &) {}), type &>);      // missing TestType
-    static_assert(not fn::typelist_invocable<decltype(fn::overload{[](int &&) {}, [](TestType &&) {}}),
-                                             type &>); // cannot bind lvalue to rvalue-reference
-    static_assert(not fn::typelist_invocable<decltype([](auto &) {}),
-                                             type &&>); // cannot bind rvalue to lvalue-reference
-    static_assert(not fn::typelist_invocable<decltype([](auto, auto &) {}), type &>); // bad arity
-    static_assert(not fn::typelist_invocable<decltype(fn::overload{[](int &) {}, [](TestType &) {}}),
-                                             type const &>); // cannot bind const to non-const reference
+    static_assert(not fn::typelist_applicable<decltype([](TestType &) {}), type &>); // missing int
+    static_assert(not fn::typelist_applicable<decltype([](int &) {}), type &>);      // missing TestType
+    static_assert(not fn::typelist_applicable<decltype(fn::overload{[](int &&) {}, [](TestType &&) {}}),
+                                              type &>); // cannot bind lvalue to rvalue-reference
+    static_assert(not fn::typelist_applicable<decltype([](auto &) {}),
+                                              type &&>); // cannot bind rvalue to lvalue-reference
+    static_assert(not fn::typelist_applicable<decltype([](auto, auto &) {}), type &>); // bad arity
+    static_assert(not fn::typelist_applicable<decltype(fn::overload{[](int &) {}, [](TestType &) {}}),
+                                              type const &>); // cannot bind const to non-const reference
 
-    static_assert(fn::typelist_invocable<decltype([](auto &) {}), choice<NonCopyable> &>);
-    static_assert(not fn::typelist_invocable<decltype([](auto) {}), NonCopyable &>); // copy-constructor not available
+    static_assert(fn::typelist_applicable<decltype([](auto &) {}), choice<NonCopyable> &>);
+    static_assert(not fn::typelist_applicable<decltype([](auto) {}), NonCopyable &>); // copy-constructor not available
   }
 
   SECTION("single parameter constructor")
@@ -197,7 +197,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
       constexpr auto c = choice{std::array<int, 3>{3, 14, 15}};
       static_assert(std::is_same_v<decltype(c), choice<std::array<int, 3>> const>);
-      static_assert(c.invoke([](auto &&a) -> bool { return a.size() == 3 && a[0] == 3 && a[1] == 14 && a[2] == 15; }));
+      static_assert(c.apply([](auto &&a) -> bool { return a.size() == 3 && a[0] == 3 && a[1] == 14 && a[2] == 15; }));
     }
 
     SECTION("constexpr move from rvalue")
@@ -441,7 +441,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
   SECTION("forwarding constructors (immovable)")
   {
     choice<NonCopyable> a{std::in_place_type<NonCopyable>, 42};
-    CHECK(a.invoke([](auto &i) -> bool { return i.i == 42; }));
+    CHECK(a.apply([](auto &i) -> bool { return i.i == 42; }));
 
     SECTION("CTAD")
     {
@@ -473,7 +473,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       static_assert(not decltype(a)::has_type<int>);
       CHECK(a.has_value(std::in_place_type<std::array<int, 3>>));
       CHECK(a.template has_value<std::array<int, 3>>());
-      CHECK(a.invoke([](auto &i) -> bool {
+      CHECK(a.apply([](auto &i) -> bool {
         return std::same_as<std::array<int, 3> &, decltype(i)> && i.size() == 3 && i[0] == 1 && i[1] == 2 && i[2] == 3;
       }));
     }
@@ -485,7 +485,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       static_assert(not decltype(a)::has_type<int>);
       static_assert(a.has_value(std::in_place_type<std::array<int, 3>>));
       static_assert(a.template has_value<std::array<int, 3>>());
-      static_assert(a.invoke([](auto &i) -> bool {
+      static_assert(a.apply([](auto &i) -> bool {
         return std::same_as<std::array<int, 3> const &, decltype(i)> && i.size() == 3 && i[0] == 1 && i[1] == 2
                && i[2] == 3;
       }));
@@ -530,27 +530,27 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     CHECK(b != choice<double, int>{42});
   }
 
-  SECTION("invoke")
+  SECTION("apply")
   {
     choice<int> a{std::in_place_type<int>, 42};
     SECTION("value only")
     {
-      CHECK(a.invoke(  //
+      CHECK(a.apply(   //
           fn::overload{//
                        [](auto) -> bool { throw 1; }, [](int &) -> bool { return true; },
                        [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
                        [](int const &&) -> bool { throw 0; }}));
-      CHECK(std::as_const(a).invoke( //
-          fn::overload{              //
+      CHECK(std::as_const(a).apply( //
+          fn::overload{             //
                        [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
                        [](int const &) -> bool { return true; }, [](int &&) -> bool { throw 0; },
                        [](int const &&) -> bool { throw 0; }}));
       CHECK(std::move(std::as_const(a))
-                .invoke(fn::overload{[](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
-                                     [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
-                                     [](int const &&) -> bool { return true; }}));
-      CHECK(std::move(a).invoke( //
-          fn::overload{          //
+                .apply(fn::overload{[](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
+                                    [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
+                                    [](int const &&) -> bool { return true; }}));
+      CHECK(std::move(a).apply( //
+          fn::overload{         //
                        [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
                        [](int const &) -> bool { throw 0; }, [](int &&) -> bool { return true; },
                        [](int const &&) -> bool { throw 0; }}));
@@ -558,11 +558,11 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       SECTION("constexpr")
       {
         constexpr choice<int> a{std::in_place_type<int>, 42};
-        static_assert(a.invoke(fn::overload{
+        static_assert(a.apply(fn::overload{
             [](auto) -> std::false_type { return {}; }, //
             [](int &) -> std::false_type { return {}; }, [](int const &) -> std::true_type { return {}; },
             [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::false_type { return {}; }}));
-        static_assert(std::move(a).invoke(fn::overload{
+        static_assert(std::move(a).apply(fn::overload{
             [](auto) -> std::false_type { return {}; }, //
             [](int &) -> std::false_type { return {}; }, [](int const &) -> std::false_type { return {}; },
             [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::true_type { return {}; }}));
@@ -570,27 +570,27 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     }
   }
 
-  SECTION("invoke_r")
+  SECTION("apply_r")
   {
     choice<int> a{std::in_place_type<int>, 42};
     SECTION("value only")
     {
-      CHECK(a.invoke_r<int>( //
-          fn::overload{      //
+      CHECK(a.apply_r<int>( //
+          fn::overload{     //
                        [](auto) -> int { throw 1; }, [](int &) -> bool { return true; },
                        [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
                        [](int const &&) -> bool { throw 0; }}));
-      CHECK(std::as_const(a).invoke_r<int>( //
-          fn::overload{                     //
+      CHECK(std::as_const(a).apply_r<int>( //
+          fn::overload{                    //
                        [](auto) -> int { throw 1; }, [](int &) -> bool { throw 0; },
                        [](int const &) -> bool { return true; }, [](int &&) -> bool { throw 0; },
                        [](int const &&) -> bool { throw 0; }}));
       CHECK(std::move(std::as_const(a))
-                .invoke_r<int>(fn::overload{[](auto) -> int { throw 1; }, [](int &) -> bool { throw 0; },
-                                            [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
-                                            [](int const &&) -> bool { return true; }}));
-      CHECK(std::move(a).invoke_r<int>( //
-          fn::overload{                 //
+                .apply_r<int>(fn::overload{[](auto) -> int { throw 1; }, [](int &) -> bool { throw 0; },
+                                           [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
+                                           [](int const &&) -> bool { return true; }}));
+      CHECK(std::move(a).apply_r<int>( //
+          fn::overload{                //
                        [](auto) -> int { throw 1; }, [](int &) -> bool { throw 0; },
                        [](int const &) -> bool { throw 0; }, [](int &&) -> bool { return true; },
                        [](int const &&) -> bool { throw 0; }}));
@@ -598,11 +598,11 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       SECTION("constexpr")
       {
         constexpr choice<int> a{std::in_place_type<int>, 42};
-        static_assert(a.invoke_r<int>(fn::overload{
+        static_assert(a.apply_r<int>(fn::overload{
             [](auto) -> std::false_type { return {}; }, //
             [](int &) -> std::false_type { return {}; }, [](int const &) -> std::true_type { return {}; },
             [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::false_type { return {}; }}));
-        static_assert(std::move(a).invoke_r<int>(fn::overload{
+        static_assert(std::move(a).apply_r<int>(fn::overload{
             [](auto) -> std::false_type { return {}; }, //
             [](int &) -> std::false_type { return {}; }, [](int const &) -> std::false_type { return {}; },
             [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::true_type { return {}; }}));
@@ -639,8 +639,8 @@ TEST_CASE("choice noexcept", "[choice][noexcept]")
   constexpr auto throwing_t = [](auto) { return 0; };
   static_assert(noexcept(std::declval<C &>().transform(nothrow_t)));
   static_assert(not noexcept(std::declval<C &>().transform(throwing_t)));
-  static_assert(noexcept(std::declval<C &>().invoke(nothrow_t)));
-  static_assert(not noexcept(std::declval<C &>().invoke(throwing_t)));
+  static_assert(noexcept(std::declval<C &>().apply(nothrow_t)));
+  static_assert(not noexcept(std::declval<C &>().apply(throwing_t)));
 
   // a throwing callback is weighed in every value category
   constexpr auto fnChoice = [](Throwing const &t) noexcept(false) -> choice<int> { return {t.v}; };
@@ -652,8 +652,8 @@ TEST_CASE("choice noexcept", "[choice][noexcept]")
   constexpr auto fnInt = [](Throwing const &t) noexcept(false) -> int { return t.v; };
   static_assert(not noexcept(std::declval<T &>().transform(fnInt)));
   static_assert(not noexcept(std::declval<T const &>().transform(fnInt)));
-  static_assert(not noexcept(std::declval<T &>().invoke(fnInt)));
-  static_assert(not noexcept(std::declval<T &>().template invoke_r<long>(fnInt)));
+  static_assert(not noexcept(std::declval<T &>().apply(fnInt)));
+  static_assert(not noexcept(std::declval<T &>().template apply_r<long>(fnInt)));
 
   // the constructors that widen a sum into a choice copy or move every alternative across
   using W = fn::choice_for<Throwing, int>;

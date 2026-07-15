@@ -13,7 +13,7 @@
 #include <type_traits>
 #include <utility>
 
-TEST_CASE("invoke multidispatch", "[pack][sum][invoke][invoke_r]")
+TEST_CASE("apply multidispatch", "[pack][sum][apply][apply_r]")
 {
   using namespace ::fn::detail;
   using ::fn::pack;
@@ -21,122 +21,122 @@ TEST_CASE("invoke multidispatch", "[pack][sum][invoke][invoke_r]")
 
   constexpr auto fn = [](auto &&...a) { return (0 + ... + static_cast<int>(a)); };
 
-  static_assert(fn::invoke(fn) == 0);
-  static_assert(fn::invoke(fn, 1, 2) == 3);
-  static_assert(fn::invoke(fn, pack{1, 2}) == 1 + 2);
-  static_assert(fn::invoke(fn, pack{1, 2}, 3) == 1 + 2 + 3);
-  static_assert(fn::invoke(fn, 1, pack{2, 3, 5}) == 1 + 2 + 3 + 5);
-  static_assert(fn::invoke(fn, sum<bool, int>{2}) == 2);
-  static_assert(fn::invoke(fn, sum<bool, int>{2}, 3) == 2 + 3);
-  static_assert(fn::invoke(fn, 2, sum<bool, int>{3}) == 2 + 3);
-  static_assert(fn::invoke(fn, 2, sum<bool, int>{3}, pack{2, 3, 5}) == 2 + 3 + 2 + 3 + 5);
-  static_assert(fn::invoke(fn, 2, pack{3, 5}, 7, sum<bool, int>{2}) == 2 + 3 + 5 + 7 + 2);
-  static_assert(fn::invoke(fn, sum<bool, int>{3}, 2, pack{2, 3, 5}) == 2 + 3 + 2 + 3 + 5);
-  static_assert(fn::invoke(fn, sum<bool, int>{3}, pack{2, 3, 5}, 2) == 2 + 3 + 2 + 3 + 5);
-  static_assert(fn::invoke(fn, pack{3, 5}, 2, 7, sum<bool, int>{2}) == 2 + 3 + 5 + 7 + 2);
-  static_assert(fn::invoke(fn, pack{3, 5}, sum<bool, int>{2}, 2, 7) == 2 + 3 + 5 + 7 + 2);
+  static_assert(fn::apply(fn) == 0);
+  static_assert(fn::apply(fn, 1, 2) == 3);
+  static_assert(fn::apply(fn, pack{1, 2}) == 1 + 2);
+  static_assert(fn::apply(fn, pack{1, 2}, 3) == 1 + 2 + 3);
+  static_assert(fn::apply(fn, 1, pack{2, 3, 5}) == 1 + 2 + 3 + 5);
+  static_assert(fn::apply(fn, sum<bool, int>{2}) == 2);
+  static_assert(fn::apply(fn, sum<bool, int>{2}, 3) == 2 + 3);
+  static_assert(fn::apply(fn, 2, sum<bool, int>{3}) == 2 + 3);
+  static_assert(fn::apply(fn, 2, sum<bool, int>{3}, pack{2, 3, 5}) == 2 + 3 + 2 + 3 + 5);
+  static_assert(fn::apply(fn, 2, pack{3, 5}, 7, sum<bool, int>{2}) == 2 + 3 + 5 + 7 + 2);
+  static_assert(fn::apply(fn, sum<bool, int>{3}, 2, pack{2, 3, 5}) == 2 + 3 + 2 + 3 + 5);
+  static_assert(fn::apply(fn, sum<bool, int>{3}, pack{2, 3, 5}, 2) == 2 + 3 + 2 + 3 + 5);
+  static_assert(fn::apply(fn, pack{3, 5}, 2, 7, sum<bool, int>{2}) == 2 + 3 + 5 + 7 + 2);
+  static_assert(fn::apply(fn, pack{3, 5}, sum<bool, int>{2}, 2, 7) == 2 + 3 + 5 + 7 + 2);
 
-  static_assert(fn::invoke_r<long>(fn) == 0);
-  static_assert(fn::invoke_r<long>(fn, 1, 2) == 3);
-  static_assert(fn::invoke_r<long>(fn, pack{1, 2}) == 1 + 2);
-  static_assert(fn::invoke_r<long>(fn, pack{1, 2}, 3) == 1 + 2 + 3);
-  static_assert(fn::invoke_r<long>(fn, 1, pack{2, 3, 5}) == 1 + 2 + 3 + 5);
-  static_assert(fn::invoke_r<long>(fn, sum<bool, int>{2}) == 2);
-  static_assert(fn::invoke_r<long>(fn, sum<bool, int>{2}, 3) == 2 + 3);
-  static_assert(fn::invoke_r<long>(fn, 2, sum<bool, int>{3}) == 2 + 3);
-  static_assert(fn::invoke_r<long>(fn, 2, sum<bool, int>{3}, pack{2, 3, 5}) == 2 + 3 + 2 + 3 + 5);
-  static_assert(fn::invoke_r<long>(fn, 2, pack{3, 5}, 7, sum<bool, int>{2}) == 2 + 3 + 5 + 7 + 2);
-  static_assert(fn::invoke_r<long>(fn, sum<bool, int>{3}, 2, pack{2, 3, 5}) == 2 + 3 + 2 + 3 + 5);
-  static_assert(fn::invoke_r<long>(fn, sum<bool, int>{3}, pack{2, 3, 5}, 2) == 2 + 3 + 2 + 3 + 5);
-  static_assert(fn::invoke_r<long>(fn, pack{3, 5}, 2, 7, sum<bool, int>{2}) == 2 + 3 + 5 + 7 + 2);
-  static_assert(fn::invoke_r<long>(fn, pack{3, 5}, sum<bool, int>{2}, 2, 7) == 2 + 3 + 5 + 7 + 2);
+  static_assert(fn::apply_r<long>(fn) == 0);
+  static_assert(fn::apply_r<long>(fn, 1, 2) == 3);
+  static_assert(fn::apply_r<long>(fn, pack{1, 2}) == 1 + 2);
+  static_assert(fn::apply_r<long>(fn, pack{1, 2}, 3) == 1 + 2 + 3);
+  static_assert(fn::apply_r<long>(fn, 1, pack{2, 3, 5}) == 1 + 2 + 3 + 5);
+  static_assert(fn::apply_r<long>(fn, sum<bool, int>{2}) == 2);
+  static_assert(fn::apply_r<long>(fn, sum<bool, int>{2}, 3) == 2 + 3);
+  static_assert(fn::apply_r<long>(fn, 2, sum<bool, int>{3}) == 2 + 3);
+  static_assert(fn::apply_r<long>(fn, 2, sum<bool, int>{3}, pack{2, 3, 5}) == 2 + 3 + 2 + 3 + 5);
+  static_assert(fn::apply_r<long>(fn, 2, pack{3, 5}, 7, sum<bool, int>{2}) == 2 + 3 + 5 + 7 + 2);
+  static_assert(fn::apply_r<long>(fn, sum<bool, int>{3}, 2, pack{2, 3, 5}) == 2 + 3 + 2 + 3 + 5);
+  static_assert(fn::apply_r<long>(fn, sum<bool, int>{3}, pack{2, 3, 5}, 2) == 2 + 3 + 2 + 3 + 5);
+  static_assert(fn::apply_r<long>(fn, pack{3, 5}, 2, 7, sum<bool, int>{2}) == 2 + 3 + 5 + 7 + 2);
+  static_assert(fn::apply_r<long>(fn, pack{3, 5}, sum<bool, int>{2}, 2, 7) == 2 + 3 + 5 + 7 + 2);
 }
 
-TEST_CASE("invoke_result pack", "[invoke_result][pack]")
+TEST_CASE("apply_result pack", "[apply_result][pack]")
 {
-  using fn::invoke_result;
-  using fn::invoke_result_t;
+  using fn::apply_result;
+  using fn::apply_result_t;
   using fn::pack;
 
   constexpr pack<int, double> p{3, 14.15};
   constexpr auto fn1 = [](int i, double j) -> int { return i * 100 + (int)j; };
-  static_assert(std::is_same_v<invoke_result<decltype(fn1), decltype(p)>::type, int>);
-  static_assert(std::is_same_v<invoke_result_t<decltype(fn1), decltype(p)>, int>);
+  static_assert(std::is_same_v<apply_result<decltype(fn1), decltype(p)>::type, int>);
+  static_assert(std::is_same_v<apply_result_t<decltype(fn1), decltype(p)>, int>);
   SUCCEED();
 }
 
-TEST_CASE("is_invocable pack", "[is_invocable][pack]")
+TEST_CASE("is_applicable pack", "[is_applicable][pack]")
 {
-  using fn::is_invocable;
-  using fn::is_invocable_v;
+  using fn::is_applicable;
+  using fn::is_applicable_v;
   using fn::pack;
 
   constexpr pack<int, double> p{3, 14.15};
   constexpr auto fn1 = [](int i, double j) -> int { return i * 100 + (int)j; };
-  static_assert(is_invocable<decltype(fn1), decltype(p)>::value);
-  static_assert(is_invocable_v<decltype(fn1), decltype(p)>);
+  static_assert(is_applicable<decltype(fn1), decltype(p)>::value);
+  static_assert(is_applicable_v<decltype(fn1), decltype(p)>);
 
   constexpr auto fn2 = [](int, double &) -> int { throw 0; };
-  static_assert(not is_invocable<decltype(fn2), decltype(p)>::value);
-  static_assert(not is_invocable_v<decltype(fn2), decltype(p)>);
+  static_assert(not is_applicable<decltype(fn2), decltype(p)>::value);
+  static_assert(not is_applicable_v<decltype(fn2), decltype(p)>);
   SUCCEED();
 }
 
-TEST_CASE("is_invocable sum", "[is_invocable][sum]")
+TEST_CASE("is_applicable sum", "[is_applicable][sum]")
 {
-  using fn::is_invocable;
-  using fn::is_invocable_v;
+  using fn::is_applicable;
+  using fn::is_applicable_v;
   using fn::overload;
   using fn::sum;
 
   constexpr sum<double, int> p{3};
   constexpr auto fn1 = overload{[](int i) -> int { return i * 100; }, [](double j) -> int { return (int)j; }};
-  static_assert(is_invocable<decltype(fn1), decltype(p)>::value);
-  static_assert(is_invocable_v<decltype(fn1), decltype(p)>);
+  static_assert(is_applicable<decltype(fn1), decltype(p)>::value);
+  static_assert(is_applicable_v<decltype(fn1), decltype(p)>);
   constexpr auto fn2 = [](int &) -> int { throw 0; };
-  static_assert(not is_invocable<decltype(fn2), decltype(p)>::value);
-  static_assert(not is_invocable_v<decltype(fn2), decltype(p)>);
+  static_assert(not is_applicable<decltype(fn2), decltype(p)>::value);
+  static_assert(not is_applicable_v<decltype(fn2), decltype(p)>);
 }
 
-TEST_CASE("is_invocable_r pack", "[is_invocable_r][pack]")
+TEST_CASE("is_applicable_r pack", "[is_applicable_r][pack]")
 {
-  using fn::is_invocable_r;
-  using fn::is_invocable_r_v;
+  using fn::is_applicable_r;
+  using fn::is_applicable_r_v;
   using fn::pack;
 
   constexpr pack<int, double> p{3, 14.15};
   constexpr auto fn1 = [](int i, double j) -> int { return i * 100 + (int)j; };
-  static_assert(is_invocable_r<bool, decltype(fn1), decltype(p)>::value);
-  static_assert(is_invocable_r_v<bool, decltype(fn1), decltype(p)>);
-  static_assert(not is_invocable_r<int *, decltype(fn1), decltype(p)>::value);
-  static_assert(not is_invocable_r_v<int *, decltype(fn1), decltype(p)>);
+  static_assert(is_applicable_r<bool, decltype(fn1), decltype(p)>::value);
+  static_assert(is_applicable_r_v<bool, decltype(fn1), decltype(p)>);
+  static_assert(not is_applicable_r<int *, decltype(fn1), decltype(p)>::value);
+  static_assert(not is_applicable_r_v<int *, decltype(fn1), decltype(p)>);
   constexpr auto fn2 = [](int, double &) -> int { throw 0; };
-  static_assert(not is_invocable_r<bool, decltype(fn2), decltype(p)>::value);
-  static_assert(not is_invocable_r_v<bool, decltype(fn2), decltype(p)>);
+  static_assert(not is_applicable_r<bool, decltype(fn2), decltype(p)>::value);
+  static_assert(not is_applicable_r_v<bool, decltype(fn2), decltype(p)>);
 }
 
-TEST_CASE("is_invocable_r sum", "[is_invocable_r][sum]")
+TEST_CASE("is_applicable_r sum", "[is_applicable_r][sum]")
 {
-  using fn::is_invocable_r;
-  using fn::is_invocable_r_v;
+  using fn::is_applicable_r;
+  using fn::is_applicable_r_v;
   using fn::overload;
   using fn::sum;
 
   constexpr sum<double, int> p{3};
   constexpr auto fn1 = overload{[](int i) -> int { return i * 100; }, [](double j) -> int { return (int)j; }};
-  static_assert(is_invocable_r<bool, decltype(fn1), decltype(p)>::value);
-  static_assert(is_invocable_r_v<bool, decltype(fn1), decltype(p)>);
-  static_assert(not is_invocable_r<int *, decltype(fn1), decltype(p)>::value);
-  static_assert(not is_invocable_r_v<int *, decltype(fn1), decltype(p)>);
+  static_assert(is_applicable_r<bool, decltype(fn1), decltype(p)>::value);
+  static_assert(is_applicable_r_v<bool, decltype(fn1), decltype(p)>);
+  static_assert(not is_applicable_r<int *, decltype(fn1), decltype(p)>::value);
+  static_assert(not is_applicable_r_v<int *, decltype(fn1), decltype(p)>);
   constexpr auto fn2 = [](int &) -> int { throw 0; };
-  static_assert(not is_invocable_r<decltype(fn2), decltype(p)>::value);
-  static_assert(not is_invocable_r_v<decltype(fn2), decltype(p)>);
+  static_assert(not is_applicable_r<decltype(fn2), decltype(p)>::value);
+  static_assert(not is_applicable_r_v<decltype(fn2), decltype(p)>);
   SUCCEED();
 }
 
-TEST_CASE("invoke polyfill", "[invoke][polyfill]")
+TEST_CASE("apply polyfill", "[apply][polyfill]")
 {
-  using fn::invoke;
+  using fn::apply;
   struct Xint final {
     int value;
 
@@ -148,101 +148,101 @@ TEST_CASE("invoke polyfill", "[invoke][polyfill]")
   };
 
   Xint v{12};
-  CHECK(invoke(Xint::fn, v) == 12);
-  CHECK(invoke(&Xint::fn1, v) == 13);
-  CHECK(invoke(&Xint::fn2, v) == 14);
-  CHECK(invoke(&Xint::fn2, std::as_const(v)) == 14);
-  CHECK(invoke(&Xint::fn4, std::move(v)) == 16);
-  CHECK(invoke(&Xint::fn4, std::move(std::as_const(v))) == 16);
-  CHECK(invoke(&Xint::fn3, std::move(v)) == 15);
+  CHECK(apply(Xint::fn, v) == 12);
+  CHECK(apply(&Xint::fn1, v) == 13);
+  CHECK(apply(&Xint::fn2, v) == 14);
+  CHECK(apply(&Xint::fn2, std::as_const(v)) == 14);
+  CHECK(apply(&Xint::fn4, std::move(v)) == 16);
+  CHECK(apply(&Xint::fn4, std::move(std::as_const(v))) == 16);
+  CHECK(apply(&Xint::fn3, std::move(v)) == 15);
 }
 
-TEST_CASE("invoke pack", "[invoke][pack]")
+TEST_CASE("apply pack", "[apply][pack]")
 {
-  using fn::invoke;
+  using fn::apply;
   using fn::pack;
 
   constexpr auto fn = [](int i, double j) -> int { return i * 100 + (int)j; };
   pack<int, double> p{3, 14.15};
 
-  CHECK(invoke(fn, p) == 314);
-  CHECK(invoke(fn, std::as_const(p)) == 314);
-  CHECK(invoke(fn, std::move(std::as_const(p))) == 314);
-  CHECK(invoke(fn, std::move(p)) == 314);
+  CHECK(apply(fn, p) == 314);
+  CHECK(apply(fn, std::as_const(p)) == 314);
+  CHECK(apply(fn, std::move(std::as_const(p))) == 314);
+  CHECK(apply(fn, std::move(p)) == 314);
 }
 
-TEST_CASE("invoke_r pack", "[invoke_r][pack]")
+TEST_CASE("apply_r pack", "[apply_r][pack]")
 {
-  using fn::invoke_r;
+  using fn::apply_r;
   using fn::pack;
 
   constexpr auto fn = [](int i, double j) -> int { return i * 100 + (int)j; };
   pack<int, double> p{3, 14.15};
 
-  CHECK(invoke_r<double>(fn, p) == 314.0);
-  CHECK(invoke_r<double>(fn, std::as_const(p)) == 314.0);
-  CHECK(invoke_r<double>(fn, std::move(std::as_const(p))) == 314.0);
-  CHECK(invoke_r<double>(fn, std::move(p)) == 314.0);
+  CHECK(apply_r<double>(fn, p) == 314.0);
+  CHECK(apply_r<double>(fn, std::as_const(p)) == 314.0);
+  CHECK(apply_r<double>(fn, std::move(std::as_const(p))) == 314.0);
+  CHECK(apply_r<double>(fn, std::move(p)) == 314.0);
 }
 
-TEST_CASE("invoke sum", "[invoke][sum]")
+TEST_CASE("apply sum", "[apply][sum]")
 {
-  using fn::invoke;
+  using fn::apply;
   using fn::overload;
   using fn::sum;
 
   constexpr auto fn = overload{[](int i) -> int { return i * 10; }, [](double) -> int { throw 0; }};
   sum<double, int> p{3};
 
-  CHECK(invoke(fn, p) == 30);
-  CHECK(invoke(fn, std::as_const(p)) == 30);
-  CHECK(invoke(fn, std::move(std::as_const(p))) == 30);
-  CHECK(invoke(fn, std::move(p)) == 30);
+  CHECK(apply(fn, p) == 30);
+  CHECK(apply(fn, std::as_const(p)) == 30);
+  CHECK(apply(fn, std::move(std::as_const(p))) == 30);
+  CHECK(apply(fn, std::move(p)) == 30);
 }
 
-TEST_CASE("invoke_r sum", "[invoke_r][sum]")
+TEST_CASE("apply_r sum", "[apply_r][sum]")
 {
-  using fn::invoke_r;
+  using fn::apply_r;
   using fn::overload;
   using fn::sum;
 
   constexpr auto fn = overload{[](int) -> bool { throw 0; }, [](double j) -> short { return j * 100; }};
   sum<double, int> p{14.15};
 
-  CHECK(invoke_r<int>(fn, p) == 1415);
-  CHECK(invoke_r<int>(fn, std::as_const(p)) == 1415);
-  CHECK(invoke_r<int>(fn, std::move(std::as_const(p))) == 1415);
-  CHECK(invoke_r<int>(fn, std::move(p)) == 1415);
+  CHECK(apply_r<int>(fn, p) == 1415);
+  CHECK(apply_r<int>(fn, std::as_const(p)) == 1415);
+  CHECK(apply_r<int>(fn, std::move(std::as_const(p))) == 1415);
+  CHECK(apply_r<int>(fn, std::move(p)) == 1415);
 }
 
-TEST_CASE("is_nothrow_invocable", "[is_nothrow_invocable][is_nothrow_invocable_r][invoke][noexcept]")
+TEST_CASE("is_nothrow_applicable", "[is_nothrow_applicable][is_nothrow_applicable_r][apply][noexcept]")
 {
   constexpr auto fnNothrow = [](int i) noexcept -> int { return i; };
   constexpr auto fnThrows = [](int i) noexcept(false) -> int { return i; };
 
   // over a plain argument the traits agree with their std counterparts
   static_assert(std::is_nothrow_invocable_v<decltype(fnNothrow), int>);
-  static_assert(fn::is_nothrow_invocable_v<decltype(fnNothrow), int>);
-  static_assert(not fn::is_nothrow_invocable_v<decltype(fnThrows), int>);
+  static_assert(fn::is_nothrow_applicable_v<decltype(fnNothrow), int>);
+  static_assert(not fn::is_nothrow_applicable_v<decltype(fnThrows), int>);
 
   static_assert(std::is_nothrow_invocable_r_v<long, decltype(fnNothrow), int>);
-  static_assert(fn::is_nothrow_invocable_r_v<long, decltype(fnNothrow), int>);
+  static_assert(fn::is_nothrow_applicable_r_v<long, decltype(fnNothrow), int>);
 
   // The pack and sum dispatch paths have no std counterpart to fall back on, which is why the traits
-  // exist at all: they answer by asking the invoke chain itself - a pack for the call over its
+  // exist at all: they answer by asking the apply chain itself - a pack for the call over its
   // elements, a sum for the call over every alternative.
-  static_assert(fn::is_nothrow_invocable_v<decltype(fnNothrow), fn::pack<int>>);
-  static_assert(fn::is_nothrow_invocable_v<decltype(fnNothrow), fn::sum<int>>);
-  static_assert(not fn::is_nothrow_invocable_v<decltype(fnThrows), fn::pack<int>>);
-  static_assert(not fn::is_nothrow_invocable_v<decltype(fnThrows), fn::sum<int>>);
+  static_assert(fn::is_nothrow_applicable_v<decltype(fnNothrow), fn::pack<int>>);
+  static_assert(fn::is_nothrow_applicable_v<decltype(fnNothrow), fn::sum<int>>);
+  static_assert(not fn::is_nothrow_applicable_v<decltype(fnThrows), fn::pack<int>>);
+  static_assert(not fn::is_nothrow_applicable_v<decltype(fnThrows), fn::sum<int>>);
 
-  // so fn::invoke propagates what the callable promises
-  static_assert(fn::is_invocable_v<decltype(fnNothrow), int>);
-  static_assert(noexcept(fn::invoke(fnNothrow, 1)));
-  static_assert(noexcept(fn::invoke_r<long>(fnNothrow, 1)));
-  static_assert(not noexcept(fn::invoke(fnThrows, 1)));
-  static_assert(not noexcept(fn::invoke_r<long>(fnThrows, 1)));
+  // so fn::apply propagates what the callable promises
+  static_assert(fn::is_applicable_v<decltype(fnNothrow), int>);
+  static_assert(noexcept(fn::apply(fnNothrow, 1)));
+  static_assert(noexcept(fn::apply_r<long>(fnNothrow, 1)));
+  static_assert(not noexcept(fn::apply(fnThrows, 1)));
+  static_assert(not noexcept(fn::apply_r<long>(fnThrows, 1)));
 
-  CHECK(fn::invoke(fnNothrow, 1) == 1);
-  CHECK(fn::invoke_r<long>(fnNothrow, 1) == 1L);
+  CHECK(fn::apply(fnNothrow, 1) == 1);
+  CHECK(fn::apply_r<long>(fnNothrow, 1) == 1L);
 }

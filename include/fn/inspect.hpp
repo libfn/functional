@@ -21,15 +21,15 @@ namespace fn {
  * @tparam V TODO
  */
 template <typename Fn, typename V>
-concept invocable_inspect //
+concept applicable_inspect //
     = (some_expected_non_void<V> && requires(Fn &&fn, V &&v) {
-        { ::fn::invoke(FWD(fn), ::std::as_const(v).value()) } -> ::std::same_as<void>;
+        { ::fn::apply(FWD(fn), ::std::as_const(v).value()) } -> ::std::same_as<void>;
       }) || (some_expected_void<V> && requires(Fn &&fn) {
-        { ::fn::invoke(FWD(fn)) } -> ::std::same_as<void>;
+        { ::fn::apply(FWD(fn)) } -> ::std::same_as<void>;
       }) || (some_optional<V> && requires(Fn &&fn, V &&v) {
-        { ::fn::invoke(FWD(fn), ::std::as_const(v).value()) } -> ::std::same_as<void>;
+        { ::fn::apply(FWD(fn), ::std::as_const(v).value()) } -> ::std::same_as<void>;
       }) || (some_choice<V> && requires(Fn &&fn, V &&v) {
-        { ::fn::invoke(FWD(fn), ::std::as_const(v).value()) } -> ::std::same_as<void>;
+        { ::fn::apply(FWD(fn), ::std::as_const(v).value()) } -> ::std::same_as<void>;
       });
 
 /**
@@ -61,11 +61,11 @@ struct inspect_t::apply final {
    */
   template <some_expected_non_void V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const
-      noexcept(::fn::is_nothrow_invocable_v<Fn, decltype(::std::as_const(v).value())>) -> V &&
-    requires invocable_inspect<Fn &&, V &&>
+      noexcept(::fn::is_nothrow_applicable_v<Fn, decltype(::std::as_const(v).value())>) -> V &&
+    requires applicable_inspect<Fn &&, V &&>
   {
     if (v.has_value()) {
-      ::fn::invoke(FWD(fn), ::std::as_const(v).value()); // side-effects only
+      ::fn::apply(FWD(fn), ::std::as_const(v).value()); // side-effects only
     }
     return FWD(v);
   }
@@ -78,11 +78,11 @@ struct inspect_t::apply final {
    * @return TODO
    */
   template <some_expected_void V, typename Fn>
-  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept(::fn::is_nothrow_invocable_v<Fn>) -> V &&
-    requires invocable_inspect<Fn &&, V &&>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept(::fn::is_nothrow_applicable_v<Fn>) -> V &&
+    requires applicable_inspect<Fn &&, V &&>
   {
     if (v.has_value()) {
-      ::fn::invoke(FWD(fn)); // side-effects only
+      ::fn::apply(FWD(fn)); // side-effects only
     }
     return FWD(v);
   }
@@ -96,11 +96,11 @@ struct inspect_t::apply final {
    */
   template <some_optional V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const
-      noexcept(::fn::is_nothrow_invocable_v<Fn, decltype(::std::as_const(v).value())>) -> V &&
-    requires invocable_inspect<Fn &&, V &&>
+      noexcept(::fn::is_nothrow_applicable_v<Fn, decltype(::std::as_const(v).value())>) -> V &&
+    requires applicable_inspect<Fn &&, V &&>
   {
     if (v.has_value()) {
-      ::fn::invoke(FWD(fn), ::std::as_const(v).value()); // side-effects only
+      ::fn::apply(FWD(fn), ::std::as_const(v).value()); // side-effects only
     }
     return FWD(v);
   }
@@ -114,10 +114,10 @@ struct inspect_t::apply final {
    */
   template <some_choice V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const
-      noexcept(::fn::is_nothrow_invocable_v<Fn, decltype(::std::as_const(v).value())>) -> V &&
-    requires invocable_inspect<Fn &&, V &&>
+      noexcept(::fn::is_nothrow_applicable_v<Fn, decltype(::std::as_const(v).value())>) -> V &&
+    requires applicable_inspect<Fn &&, V &&>
   {
-    ::fn::invoke(FWD(fn), ::std::as_const(v).value()); // side-effects only
+    ::fn::apply(FWD(fn), ::std::as_const(v).value()); // side-effects only
     return FWD(v);
   }
 };

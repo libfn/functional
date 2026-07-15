@@ -94,7 +94,7 @@ TEST_CASE("pack_impl noexcept", "[pack_impl][noexcept]")
 
   constexpr auto throwing_fn = [](auto &&...) noexcept(false) -> int { return 0; };
 
-  // both dispatchers weigh the callback they invoke
+  // both dispatchers weigh the callback they apply
   static_assert(not noexcept(P::_swap_invoke(std::declval<P const &>(), throwing_fn)));
   static_assert(not noexcept(P::_invoke(std::declval<P const &>(), throwing_fn)));
 
@@ -136,15 +136,15 @@ TEST_CASE("pack_impl _swap_invoke", "[pack_impl][swap_invoke]")
   CHECK(P::_invoke(pm, [](int i, double) { return i; }) == 5);
   CHECK(P::_invoke(pm, [](int, double d) { return d; }) == 6.0);
 
-  // SFINAE: non-invocable fn is rejected (wrong arity)
+  // SFINAE: non-applicable fn is rejected (wrong arity)
   static_assert(not can_swap_invoke<P, decltype([]() {})>);
-  // SFINAE: non-invocable fn is rejected (incompatible argument types)
+  // SFINAE: non-applicable fn is rejected (incompatible argument types)
   static_assert(not can_swap_invoke<P, decltype([](int *, int *) {})>);
   // positive control
   static_assert(can_swap_invoke<P, decltype([](int, double) {})>);
 }
 
-TEST_CASE("pack_impl _invoke", "[pack_impl][invoke]")
+TEST_CASE("pack_impl _invoke", "[pack_impl][apply]")
 {
   using fn::detail::pack_impl;
   using P = pack_impl<std::index_sequence_for<int, double>, int, double>;
@@ -167,9 +167,9 @@ TEST_CASE("pack_impl _invoke", "[pack_impl][invoke]")
   CHECK(P::_invoke(pm, [](int i, double) { return i; }) == 5);
   CHECK(P::_invoke(pm, [](int, double d) { return d; }) == 6.0);
 
-  // SFINAE: non-invocable fn is rejected (wrong arity)
+  // SFINAE: non-applicable fn is rejected (wrong arity)
   static_assert(not can_invoke<P, decltype([]() {})>);
-  // SFINAE: non-invocable fn is rejected (incompatible argument types)
+  // SFINAE: non-applicable fn is rejected (incompatible argument types)
   static_assert(not can_invoke<P, decltype([](int *, int *) {})>);
   // positive control
   static_assert(can_invoke<P, decltype([](int, double) {})>);

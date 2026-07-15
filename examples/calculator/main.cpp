@@ -17,13 +17,13 @@ void print(calc::Stack const &stack)
 {
   std::cout << "[";
   for (calc::Number const &n : stack)
-    n.invoke([](auto v) { std::cout << ' ' << v; });
+    n.apply([](auto v) { std::cout << ' ' << v; });
   std::cout << " ]\n";
 }
 
 void report(calc::Error const &error)
 {
-  std::cout << error.invoke( //
+  std::cout << error.apply( //
       fn::overload{[](calc::ParseError) { return "not a number or a known operation"; },
                    [](calc::StackError) { return "not enough operands on the stack"; },
                    [](calc::MathError e) {

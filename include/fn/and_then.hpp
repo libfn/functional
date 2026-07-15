@@ -23,32 +23,32 @@ namespace fn {
  * @tparam V The monadic type
  */
 template <typename Fn, typename V>
-concept invocable_and_then //
+concept applicable_and_then //
     = (some_expected_non_void<V> && requires(Fn &&fn, V &&v) {
         {
-          ::fn::invoke(FWD(fn), FWD(v).value())
+          ::fn::apply(FWD(fn), FWD(v).value())
         } -> same_kind<V>;
       }) || (some_expected_non_void<V> //
          && some_sum<typename ::std::remove_cvref_t<V>::error_type> && requires(Fn &&fn, V &&v) {
         {
-          ::fn::invoke(FWD(fn), FWD(v).value())
+          ::fn::apply(FWD(fn), FWD(v).value())
         } -> some_expected;
       }) || (some_expected_void<V> && requires(Fn &&fn) {
         {
-          ::fn::invoke(FWD(fn))
+          ::fn::apply(FWD(fn))
         } -> same_kind<V>;
       }) || (some_expected_void<V> //
          && some_sum<typename ::std::remove_cvref_t<V>::error_type> && requires(Fn &&fn, V &&v) {
         {
-          ::fn::invoke(FWD(fn))
+          ::fn::apply(FWD(fn))
         } -> some_expected;
       }) || (some_optional<V> && requires(Fn &&fn, V &&v) {
         {
-          ::fn::invoke(FWD(fn), FWD(v).value())
+          ::fn::apply(FWD(fn), FWD(v).value())
         } -> same_kind<V>;
       }) || (some_choice<V> && requires(Fn &&fn, V &&v) {
         {
-          ::fn::invoke(FWD(fn), FWD(v).value())
+          ::fn::apply(FWD(fn), FWD(v).value())
         } -> same_kind<V>;
       });
 
@@ -83,7 +83,7 @@ struct and_then_t::apply final {
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //
       noexcept(noexcept(FWD(v).and_then(FWD(fn))))              //
       -> same_kind<V &&> auto
-    requires invocable_and_then<Fn &&, V &&>
+    requires applicable_and_then<Fn &&, V &&>
   {
     return FWD(v).and_then(FWD(fn));
   }

@@ -56,9 +56,9 @@ TEST_CASE("fail", "[fail][expected][expected_value][pack]")
   static_assert(is::invocable_with_any([](unsigned) -> Error { throw 0; }));                   // allow conversion
   static_assert(is::invocable_with_any([](auto...) -> Derived { throw 0; }));                  // allow conversion
   static_assert(is::invocable_with_any([](int const &) -> Error { throw 0; }));                // binds to const ref
-  static_assert(is::invocable<lvalue>([](int &) -> Error { throw 0; }));                       // binds to lvalue
-  static_assert(is::invocable<rvalue, prvalue>([](int &&) -> Error { throw 0; }));             // can move
-  static_assert(is::invocable<rvalue, crvalue>([](int const &&) -> Error { throw 0; }));       // binds to const rvalue
+  static_assert(is::applicable<lvalue>([](int &) -> Error { throw 0; }));                      // binds to lvalue
+  static_assert(is::applicable<rvalue, prvalue>([](int &&) -> Error { throw 0; }));            // can move
+  static_assert(is::applicable<rvalue, crvalue>([](int const &&) -> Error { throw 0; }));      // binds to const rvalue
   static_assert(is::not_invocable_with_any([](auto...) -> std::string { throw 0; }));          // no conversion found
   static_assert(is::not_invocable<clvalue, crvalue, cvalue>([](int &) -> Error { throw 0; })); // cannot remove const
   static_assert(is::not_invocable<rvalue>([](int &) -> Error { throw 0; }));                   // disallow bind
@@ -266,9 +266,9 @@ TEST_CASE("fail", "[fail][optional][pack]")
   static_assert(is::invocable_with_any([](int) { throw 0; }));                                 // allow copy
   static_assert(is::invocable_with_any([](unsigned) { throw 0; }));                            // allow conversion
   static_assert(is::invocable_with_any([](int const &) { throw 0; }));                         // binds to const ref
-  static_assert(is::invocable<lvalue>([](int &) { throw 0; }));                                // binds to lvalue
-  static_assert(is::invocable<rvalue, prvalue>([](int &&) { throw 0; }));                      // can move
-  static_assert(is::invocable<rvalue, crvalue>([](int const &&) { throw 0; }));                // binds to const rvalue
+  static_assert(is::applicable<lvalue>([](int &) { throw 0; }));                               // binds to lvalue
+  static_assert(is::applicable<rvalue, prvalue>([](int &&) { throw 0; }));                     // can move
+  static_assert(is::applicable<rvalue, crvalue>([](int const &&) { throw 0; }));               // binds to const rvalue
   static_assert(is::not_invocable<clvalue, crvalue, cvalue>([](int &) { throw 0; }));          // cannot remove const
   static_assert(is::not_invocable<rvalue>([](int &) { throw 0; }));                            // disallow bind
   static_assert(is::not_invocable<lvalue, clvalue, crvalue, cvalue>([](int &&) { throw 0; })); // cannot move
@@ -425,24 +425,24 @@ template <typename E> constexpr auto fn_int_lvalue = [](int &) -> E { throw 0; }
 template <typename E> constexpr auto fn_int_rvalue = [](int &&) -> E { throw 0; };
 } // namespace
 
-static_assert(invocable_fail<decltype(fn_int<Error>), expected<int, Error>>);
-static_assert(invocable_fail<decltype(fn_generic<Error>), expected<void, Error>>);
-static_assert(invocable_fail<decltype(fn_int<Xerror>), expected<int, Error>>);           // return type conversion
-static_assert(not invocable_fail<decltype(fn_int<Error>), expected<int, Xerror>>);       // cannot convert error
-static_assert(not invocable_fail<decltype(fn_generic<Error>), expected<void, Xerror>>);  // cannot convert error
-static_assert(not invocable_fail<decltype(fn_generic<Error>), expected<Value, Xerror>>); // cannot convert error
-static_assert(not invocable_fail<decltype(fn_int<Error>), expected<Value, Error>>);      // wrong parameter type
-static_assert(invocable_fail<decltype(fn_generic<Error>), expected<Value, Error>>);
-static_assert(invocable_fail<decltype(fn_int<void>), optional<int>>);
-static_assert(not invocable_fail<decltype(fn_int<void>), optional<Value>>); // wrong parameter type
-static_assert(invocable_fail<decltype(fn_generic<void>), optional<Value>>);
-static_assert(not invocable_fail<decltype(fn_generic<Error>), optional<Value>>); // bad return type
+static_assert(applicable_fail<decltype(fn_int<Error>), expected<int, Error>>);
+static_assert(applicable_fail<decltype(fn_generic<Error>), expected<void, Error>>);
+static_assert(applicable_fail<decltype(fn_int<Xerror>), expected<int, Error>>);           // return type conversion
+static_assert(not applicable_fail<decltype(fn_int<Error>), expected<int, Xerror>>);       // cannot convert error
+static_assert(not applicable_fail<decltype(fn_generic<Error>), expected<void, Xerror>>);  // cannot convert error
+static_assert(not applicable_fail<decltype(fn_generic<Error>), expected<Value, Xerror>>); // cannot convert error
+static_assert(not applicable_fail<decltype(fn_int<Error>), expected<Value, Error>>);      // wrong parameter type
+static_assert(applicable_fail<decltype(fn_generic<Error>), expected<Value, Error>>);
+static_assert(applicable_fail<decltype(fn_int<void>), optional<int>>);
+static_assert(not applicable_fail<decltype(fn_int<void>), optional<Value>>); // wrong parameter type
+static_assert(applicable_fail<decltype(fn_generic<void>), optional<Value>>);
+static_assert(not applicable_fail<decltype(fn_generic<Error>), optional<Value>>); // bad return type
 static_assert(
-    not invocable_fail<decltype(fn_int_lvalue<Error>), expected<int, Error>>); // cannot bind temporary to lvalue
-static_assert(invocable_fail<decltype(fn_int_lvalue<Error>), expected<int, Error> &>);
-static_assert(invocable_fail<decltype(fn_int_rvalue<Error>), expected<int, Error>>);
+    not applicable_fail<decltype(fn_int_lvalue<Error>), expected<int, Error>>); // cannot bind temporary to lvalue
+static_assert(applicable_fail<decltype(fn_int_lvalue<Error>), expected<int, Error> &>);
+static_assert(applicable_fail<decltype(fn_int_rvalue<Error>), expected<int, Error>>);
 static_assert(
-    not invocable_fail<decltype(fn_int_rvalue<Error>), expected<int, Error> &>); // cannot bind lvalue to rvalue-ref
+    not applicable_fail<decltype(fn_int_rvalue<Error>), expected<int, Error> &>); // cannot bind lvalue to rvalue-ref
 } // namespace fn
 
 TEST_CASE("fail constraints", "[fail][constraints]")
@@ -459,8 +459,8 @@ TEST_CASE("fail constraints", "[fail][constraints]")
 
   // ... and a move-only error only where it can be moved out of
   using is = monadic_static_check<fail_t, fn::expected<int, helper_move_only>>;
-  static_assert(is::invocable<rvalue, prvalue>(from_value));     // moved
-  static_assert(is::invocable<crvalue, cvalue>(from_value));     // const-moved
+  static_assert(is::applicable<rvalue, prvalue>(from_value));    // moved
+  static_assert(is::applicable<crvalue, cvalue>(from_value));    // const-moved
   static_assert(is::not_invocable<lvalue, clvalue>(from_value)); // would have to copy
 
   // An optional discards its value and returns nullopt, relocating nothing

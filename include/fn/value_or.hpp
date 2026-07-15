@@ -24,7 +24,7 @@ namespace fn {
 // be able to survive that: an immovable value type would otherwise satisfy this and then fail inside
 // the body.
 template <typename V, typename... Args>
-concept invocable_value_or                                                                                          //
+concept applicable_value_or                                                                                         //
     = (some_expected_non_void<V> && ::std::is_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, Args...> //
        && detail::_relocatable_value<V>)
       || (some_optional<V> && ::std::is_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, Args...>
@@ -69,7 +69,7 @@ struct value_or_t::apply final {
           ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, Args...>
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, decltype(FWD(v).value())>)
           -> ::std::remove_cvref_t<V>
-    requires invocable_value_or<V &&, Args...>
+    requires applicable_value_or<V &&, Args...>
   {
     using type = ::std::remove_cvref_t<V>;
     return FWD(v).or_else([&args...](auto &&...) -> type { return type{::std::in_place, FWD(args)...}; });

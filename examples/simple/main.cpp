@@ -501,7 +501,7 @@ TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform
   enum NetworkError { ConnectError, ProtocolError, Unknown };
 
   static constexpr auto convert = []<typename T>(std::in_place_type_t<T>, std::string_view v) {
-    return parse(v).invoke([](auto &&v) -> fn::expected<T, InputError> {
+    return parse(v).apply([](auto &&v) -> fn::expected<T, InputError> {
       if constexpr (std::is_same_v<std::decay_t<decltype(v)>, T>) {
         return {FWD(v)};
       } else

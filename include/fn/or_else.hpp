@@ -18,24 +18,24 @@ namespace fn {
  * @tparam V TODO
  */
 template <typename Fn, typename V>
-concept invocable_or_else //
+concept applicable_or_else //
     = (some_expected<V> && requires(Fn &&fn, V &&v) {
         {
-          ::fn::invoke(FWD(fn), FWD(v).error())
+          ::fn::apply(FWD(fn), FWD(v).error())
         } -> same_value_kind<V>;
       }) || (some_expected<V> //
          && some_sum<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
         {
-          ::fn::invoke(FWD(fn), FWD(v).error())
+          ::fn::apply(FWD(fn), FWD(v).error())
         } -> some_expected;
       }) || (some_optional<V> && requires(Fn &&fn) {
         {
-          ::fn::invoke(FWD(fn))
+          ::fn::apply(FWD(fn))
         } -> same_value_kind<V>;
       }) || (some_optional<V>  //
          && some_sum<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
         {
-          ::fn::invoke(FWD(fn))
+          ::fn::apply(FWD(fn))
         } -> some_optional;
       });
 
@@ -73,7 +73,7 @@ struct or_else_t::apply final {
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //
       noexcept(noexcept(FWD(v).or_else(FWD(fn))))               //
       -> same_value_kind<V &&> auto
-    requires invocable_or_else<Fn &&, V &&>
+    requires applicable_or_else<Fn &&, V &&>
   {
     return FWD(v).or_else(FWD(fn));
   }
