@@ -2,6 +2,10 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `pfn` grew the C++26 `apply` trait family — 15 July 2026
+
+- **`pfn/tuple.hpp` polyfills P1317R2** ([#325](https://github.com/libfn/functional/issues/325)): `is_applicable`/`is_nothrow_applicable`, the SFINAE-friendly `apply_result`/`apply_result_t`, and `apply` in its C++26 shape — a declared return type where C++20's deduced return is a hard error outside the immediate context, and a computed exception specification. The suite's own probes demonstrated the defect being fixed: an unqualified negative probe over std arguments finds C++20's `std::apply` through ADL and hard-errors where the C++26 shape substitutes away. Groundwork for #84: `fn`'s multidispatch verbs rename onto `std::apply`'s vocabulary, extending a conforming polyfill.
+
 ## `sum` and `choice` gained `emplace` — 15 July 2026
 
 - **`emplace<T>(args...)` is the mutation path for alternatives that do not support assignment** ([#318](https://github.com/libfn/functional/issues/318)): destroy-and-reconstruct requested at the call site by name, so senders and reference-holding packs — whose assignment `operator=` rightly refuses — can change the alternative held by an existing object again. Always reconstructs, also for the alternative already held, and the constraint asks about `T` alone: no sibling alternative is consulted. Unlike `std::expected::emplace` (nothrow constructions only, unconditionally `noexcept`) a throwing construction is admitted through an internalized temporary; unlike `std::variant::emplace` (unconstrained, valueless when construction throws) the case with no safe arm is constrained away — strong guarantee, never valueless, conditionally `noexcept`.
