@@ -2346,8 +2346,8 @@ TEST_CASE("expected non void", "[expected][polyfill]")
       SECTION("all trivial")
       {
         using T = expected<int, Error>;
-// libc++ (22) does not yet implement the trivial assignment of std::expected
-#if !defined(PFN_TEST_VALIDATION) || !defined(_LIBCPP_VERSION)
+// std::expected's assignment became trivial late: libstdc++ in GCC 16; libc++ (22) not yet
+#if !defined(PFN_TEST_VALIDATION) || (defined(__GLIBCXX__) && _GLIBCXX_RELEASE >= 16)
         static_assert(std::is_trivially_copy_assignable_v<T>);
         static_assert(std::is_trivially_move_assignable_v<T>);
         static_assert(std::is_trivially_copyable_v<T>);
@@ -2467,8 +2467,8 @@ TEST_CASE("expected non void", "[expected][polyfill]")
             return *this;
           }
         };
-// libc++ (22) does not yet implement the trivial assignment of std::expected
-#if !defined(PFN_TEST_VALIDATION) || !defined(_LIBCPP_VERSION)
+// std::expected's assignment became trivial late: libstdc++ in GCC 16; libc++ (22) not yet
+#if !defined(PFN_TEST_VALIDATION) || (defined(__GLIBCXX__) && _GLIBCXX_RELEASE >= 16)
         static_assert(std::is_trivially_copy_assignable_v<expected<move_split_t, Error>>);
 #endif
         static_assert(not std::is_trivially_move_assignable_v<expected<move_split_t, Error>>);
@@ -2485,8 +2485,8 @@ TEST_CASE("expected non void", "[expected][polyfill]")
           copy_split_t &operator=(copy_split_t &&) = default;
         };
         static_assert(not std::is_trivially_copy_assignable_v<expected<copy_split_t, Error>>);
-// libc++ (22) does not yet implement the trivial assignment of std::expected
-#if !defined(PFN_TEST_VALIDATION) || !defined(_LIBCPP_VERSION)
+// std::expected's assignment became trivial late: libstdc++ in GCC 16; libc++ (22) not yet
+#if !defined(PFN_TEST_VALIDATION) || (defined(__GLIBCXX__) && _GLIBCXX_RELEASE >= 16)
         static_assert(std::is_trivially_move_assignable_v<expected<copy_split_t, Error>>);
 #endif
         SUCCEED();
@@ -2510,8 +2510,8 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         // one nothrow-move-constructible side restores the operator, in its trivial form
         static_assert(std::is_copy_assignable_v<expected<no_move_t, Error>>);
         static_assert(std::is_copy_assignable_v<expected<int, no_move_t>>);
-// libc++ (22) does not yet implement the trivial assignment of std::expected
-#if !defined(PFN_TEST_VALIDATION) || !defined(_LIBCPP_VERSION)
+// std::expected's assignment became trivial late: libstdc++ in GCC 16; libc++ (22) not yet
+#if !defined(PFN_TEST_VALIDATION) || (defined(__GLIBCXX__) && _GLIBCXX_RELEASE >= 16)
         static_assert(std::is_trivially_copy_assignable_v<expected<no_move_t, Error>>);
         static_assert(std::is_trivially_copy_assignable_v<expected<int, no_move_t>>);
 #endif
@@ -5015,8 +5015,8 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
       SECTION("all trivial")
       {
         using T = expected<void, Error>;
-// libc++ (22) does not yet implement the trivial assignment of std::expected
-#if !defined(PFN_TEST_VALIDATION) || !defined(_LIBCPP_VERSION)
+// std::expected's assignment became trivial late: libstdc++ in GCC 16; libc++ (22) not yet
+#if !defined(PFN_TEST_VALIDATION) || (defined(__GLIBCXX__) && _GLIBCXX_RELEASE >= 16)
         static_assert(std::is_trivially_copy_assignable_v<T>);
         static_assert(std::is_trivially_move_assignable_v<T>);
         static_assert(std::is_trivially_copyable_v<T>);
@@ -5130,8 +5130,8 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
             return *this;
           }
         };
-// libc++ (22) does not yet implement the trivial assignment of std::expected
-#if !defined(PFN_TEST_VALIDATION) || !defined(_LIBCPP_VERSION)
+// std::expected's assignment became trivial late: libstdc++ in GCC 16; libc++ (22) not yet
+#if !defined(PFN_TEST_VALIDATION) || (defined(__GLIBCXX__) && _GLIBCXX_RELEASE >= 16)
         static_assert(std::is_trivially_copy_assignable_v<expected<void, move_split_t>>);
 #endif
         static_assert(not std::is_trivially_move_assignable_v<expected<void, move_split_t>>);
@@ -5148,8 +5148,8 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
           copy_split_t &operator=(copy_split_t &&) = default;
         };
         static_assert(not std::is_trivially_copy_assignable_v<expected<void, copy_split_t>>);
-// libc++ (22) does not yet implement the trivial assignment of std::expected
-#if !defined(PFN_TEST_VALIDATION) || !defined(_LIBCPP_VERSION)
+// std::expected's assignment became trivial late: libstdc++ in GCC 16; libc++ (22) not yet
+#if !defined(PFN_TEST_VALIDATION) || (defined(__GLIBCXX__) && _GLIBCXX_RELEASE >= 16)
         static_assert(std::is_trivially_move_assignable_v<expected<void, copy_split_t>>);
 #endif
         SUCCEED();
