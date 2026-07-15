@@ -231,12 +231,29 @@ payload behavior.
 The distinction is intentional:
 
 - `sum<Ts...>` is data in the type algebra;
-- `choice<Ts...>` is an identity-like computation over that data.
+- `choice<Ts...>` is the identity monad of that sum data.
 
 A choice may be stored as the value of `optional` or `expected`, but it is not an element of `sum`,
 `pack`, or another `choice`. `choice_for` unwraps and flattens choice inputs where a choice result is
 being constructed. These rules prevent a computation wrapper from entering the payload algebra and
 silently bypassing sum flattening or product distribution.
+
+> [!NOTE]
+> A provisional design for a future release makes this relationship explicit by introducing a minimal
+> `identity_monad<T>` and defining `choice<Ts...>` as its sum specialization, conceptually:
+>
+> ```cpp
+> template <typename T>
+> class identity_monad;
+>
+> template <typename... Ts>
+> using choice = identity_monad<sum<Ts...>>;
+> ```
+>
+> This is not current API. The intended identity carrier contains no state beyond its value and should
+> preserve that value's constant-evaluation, triviality, and structural-type properties whenever C++
+> permits them. The sum specialization would retain `choice`'s direct sum conveniences and
+> multidispatch while sharing the ordinary identity-monad operations.
 
 ## `apply`: structural elimination
 
@@ -391,8 +408,20 @@ Widening is *effect approximation*: a computation known to fail only with `E` ma
 that can fail with `E` or `F`.
 
 `fn::optional` remains an ordinary Maybe-like monad with sum-aware extensions; `fn::choice` is an
-identity-like computation wrapper over a sum payload. Neither has the separate `M_E<A>` shape that makes
-the expected error channel a graded monad in the precise sense used above.
+identity-monad computation over a sum payload. Neither has the separate `M_E<A>` shape that makes the
+expected error channel a graded monad in the precise sense used above.
+
+The proposed `identity_monad<T>` would also make the unit-grade relationship explicit without changing
+the `expected` interface:
+
+```text
+identity_monad<T> ≅ expected<T, sum<>>
+```
+
+The two type constructors are naturally isomorphic for regular values and lawful callbacks: wrapping or
+unwrapping before `transform` or `and_then` does not change the resulting value. They remain distinct C++
+carriers because the unit-error expected belongs to the complete graded expected family, while the
+identity monad is the minimal effect-free computation.
 
 For programmers, the practical rule is simple: `and_then` composes computations sequentially and grows
 the error type by union, while `operator&` composes successful values in parallel into packs and
