@@ -47,8 +47,10 @@ endforeach()
 set(TESTS_PFN_SOURCES
     pfn/expected.cpp
     pfn/optional.cpp
+    pfn/tuple.cpp
     pfn/expected_validation.cpp
     pfn/optional_validation.cpp
+    pfn/tuple_validation.cpp
     pfn/functional.cpp
     pfn/utility.cpp
 )
