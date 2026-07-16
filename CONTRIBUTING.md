@@ -20,7 +20,7 @@ g++ -std=c++20 -Iinclude examples/polygon/main.cpp -o /tmp/polygon
 
 ## Unit tests
 
-Although we aim for 100% unit-test coverage, executing every line and branch tells only part of the story in this project. Many important guarantees are compile-time properties, such as overload resolution, conversions, constraints and `noexcept` specifications. Tests must therefore exercise an interface with combinations of value categories and type properties, not merely execute every line.
+Although we aim for 100% unit-test coverage, executing every line and branch tells only part of the story in this project. Many important guarantees are compile-time properties, such as overload resolution, conversions, constraints and `noexcept` specifications. Tests must therefore exercise an interface with combinations of dimensions, not merely execute every line.
 
 ### Structure
 
