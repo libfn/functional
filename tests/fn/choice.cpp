@@ -54,6 +54,9 @@ concept can_emplace = requires(S &s, Args &&...args) { s.template emplace<T>(sta
 template <typename S, typename Fn>
 concept can_transform = requires(S s, Fn fn) { FWD(s).transform(fn); };
 
+template <typename S, typename Fn>
+concept can_apply_type = requires(S s, Fn fn) { FWD(s).apply_type(FWD(fn)); };
+
 // Every special member of choice is defaulted, and choice adds no state to sum - so each must behave
 // exactly as sum's, down to its noexcept and its constraints.
 template <typename... Ts> consteval bool special_members_follow_sum()
@@ -622,6 +625,71 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
             [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::true_type { return {}; }}));
       }
     }
+  }
+}
+
+TEST_CASE("choice apply_type", "[choice][apply_type]")
+{
+  using fn::choice;
+  using std::in_place_type_t;
+
+  constexpr auto arms
+      = fn::overload{[](in_place_type_t<int>, int v) noexcept -> int { return v; },
+                     [](in_place_type_t<double>, double d) noexcept -> int { return static_cast<int>(d) + 1000; }};
+  choice<double, int> a{42};
+
+  SECTION("airtight, all value categories")
+  {
+    CHECK(a.apply_type(arms) == 42);
+    CHECK(std::as_const(a).apply_type(arms) == 42);
+    CHECK(std::move(std::as_const(a)).apply_type(arms) == 42);
+    CHECK(std::move(a).apply_type(arms) == 42);
+    CHECK(choice<double, int>{0.5}.apply_type(arms) == 1000);
+
+    constexpr auto only_double = fn::overload{[](in_place_type_t<double>, double) noexcept -> int { return 0; }};
+    static_assert(not can_apply_type<choice<double, int> &, decltype(only_double) const &>);
+    static_assert(can_apply_type<choice<double, int> &, decltype(arms) const &>);
+
+    SECTION("constexpr")
+    {
+      static_assert(choice<double, int>{42}.apply_type(arms) == 42);
+      static_assert(choice<double, int>{0.5}.apply_type(arms) == 1000);
+      SUCCEED();
+    }
+  }
+
+  SECTION("tuple-like alternative")
+  {
+    using T = std::tuple<int, int>;
+    constexpr auto tarms = fn::overload{[](in_place_type_t<T>, int x, int y) noexcept -> int { return x + y; }};
+    CHECK(choice<T>{T{20, 22}}.apply_type(tarms) == 42);
+
+    SECTION("constexpr")
+    {
+      static_assert(choice<T>{T{20, 22}}.apply_type(tarms) == 42);
+      SUCCEED();
+    }
+  }
+
+  SECTION("apply_type_r")
+  {
+    static_assert(std::is_same_v<long, decltype(a.apply_type_r<long>(arms))>);
+    CHECK(a.apply_type_r<long>(arms) == 42L);
+
+    SECTION("constexpr")
+    {
+      static_assert(choice<double, int>{42}.apply_type_r<long>(arms) == 42L);
+      SUCCEED();
+    }
+  }
+
+  SECTION("noexcept")
+  {
+    static_assert(noexcept(a.apply_type(arms)));
+    constexpr auto throwing = fn::overload{[](in_place_type_t<int>, int v) noexcept(false) -> int { return v; },
+                                           [](in_place_type_t<double>, double) noexcept -> int { return 0; }};
+    static_assert(not noexcept(a.apply_type(throwing)));
+    SUCCEED();
   }
 }
 

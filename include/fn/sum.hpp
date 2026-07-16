@@ -127,10 +127,14 @@ template <typename Fn, typename Self, template <typename...> typename Tpl, typen
 struct _typelist_type_select_invoke_result<Fn, Self, Tpl<Ts...>> {
   using T0 = select_nth_t<0, Ts...>;
   using R0 = ::fn::detail::_invoke_type_result<T0, Fn, apply_const_lvalue_t<Self, T0>>::type;
-  static_assert((...
-                 && ::std::is_same_v<
-                     R0, typename ::fn::detail::_invoke_type_result<Ts, Fn, apply_const_lvalue_t<Self, Ts>>::type>));
-  using type = R0;
+  static constexpr bool type_found
+      = (...
+         && ::std::is_same_v<R0,
+                             typename ::fn::detail::_invoke_type_result<Ts, Fn, apply_const_lvalue_t<Self, Ts>>::type>);
+  // If every alternative is invocable here, they must all yield the same result type.
+  static_assert(not(... && ::fn::detail::_is_type_invocable<Ts, Fn, apply_const_lvalue_t<Self, Ts>>::value)
+                || type_found);
+  using type = ::std::conditional_t<type_found, R0, void>;
 };
 
 template <typename Fn, typename Self, typename T> struct _typelist_type_collapsing_sum;
@@ -870,6 +874,162 @@ struct sum<Ts...> {
   {
     using type = detail::_sum_apply_result<Ret, Fn &&, sum const &&, Args &&...>::type;
     return detail::apply_variadic_union<type, data_t>(::std::move(*this).data, index, FWD(fn), FWD(args)...);
+  }
+
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @param fn TODO
+   * @return TODO
+   */
+  template <typename Fn>
+  [[nodiscard]] constexpr auto apply_type(Fn &&fn) & noexcept(
+      detail::_is_nothrow_rtst_invocable<typename detail::_sum_invoke_type_result<
+                                             detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>, sum &>::type,
+                                         detail::_apply_type_fn<Fn>, sum &>) ->
+      typename detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>, sum &>::type
+    requires detail::_typelist_type_invocable<detail::_apply_type_fn<Fn>, sum &>
+  {
+    using type
+        = detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>, sum &>::type;
+    return detail::invoke_type_variadic_union<type, data_t>(this->data, index, detail::_apply_type_fn<Fn>{FWD(fn)});
+  }
+
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @param fn TODO
+   * @return TODO
+   */
+  template <typename Fn>
+  [[nodiscard]] constexpr auto apply_type(Fn &&fn) const & noexcept(
+      detail::_is_nothrow_rtst_invocable<
+          typename detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>,
+                                                   sum const &>::type,
+          detail::_apply_type_fn<Fn>, sum const &>) ->
+      typename detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>,
+                                               sum const &>::type
+    requires detail::_typelist_type_invocable<detail::_apply_type_fn<Fn>, sum const &>
+  {
+    using type
+        = detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>, sum const &>::type;
+    return detail::invoke_type_variadic_union<type, data_t>(this->data, index, detail::_apply_type_fn<Fn>{FWD(fn)});
+  }
+
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @param fn TODO
+   * @return TODO
+   */
+  template <typename Fn>
+  [[nodiscard]] constexpr auto apply_type(Fn &&fn) && noexcept(
+      detail::_is_nothrow_rtst_invocable<typename detail::_sum_invoke_type_result<
+                                             detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>, sum &&>::type,
+                                         detail::_apply_type_fn<Fn>, sum &&>) ->
+      typename detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>, sum &&>::type
+    requires detail::_typelist_type_invocable<detail::_apply_type_fn<Fn>, sum &&>
+  {
+    using type
+        = detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>, sum &&>::type;
+    return detail::invoke_type_variadic_union<type, data_t>(::std::move(*this).data, index,
+                                                            detail::_apply_type_fn<Fn>{FWD(fn)});
+  }
+
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @param fn TODO
+   * @return TODO
+   */
+  template <typename Fn>
+  [[nodiscard]] constexpr auto apply_type(Fn &&fn) const && noexcept(
+      detail::_is_nothrow_rtst_invocable<
+          typename detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>,
+                                                   sum const &&>::type,
+          detail::_apply_type_fn<Fn>, sum const &&>) ->
+      typename detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>,
+                                               sum const &&>::type
+    requires detail::_typelist_type_invocable<detail::_apply_type_fn<Fn>, sum const &&>
+  {
+    using type = detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>,
+                                                 sum const &&>::type;
+    return detail::invoke_type_variadic_union<type, data_t>(::std::move(*this).data, index,
+                                                            detail::_apply_type_fn<Fn>{FWD(fn)});
+  }
+
+  /**
+   * @brief TODO
+   *
+   * @tparam Ret TODO
+   * @tparam Fn TODO
+   * @param fn TODO
+   * @return TODO
+   */
+  template <typename Ret, typename Fn>
+  [[nodiscard]] constexpr auto
+  apply_type_r(Fn &&fn) & noexcept(detail::_is_nothrow_rtst_invocable<Ret, detail::_apply_type_fn<Fn>, sum &>) -> Ret
+    requires detail::_typelist_type_invocable_r<Ret, detail::_apply_type_fn<Fn>, sum &>
+  {
+    using type = detail::_sum_invoke_type_result<Ret, detail::_apply_type_fn<Fn>, sum &>::type;
+    return detail::invoke_type_variadic_union<type, data_t>(this->data, index, detail::_apply_type_fn<Fn>{FWD(fn)});
+  }
+
+  /**
+   * @brief TODO
+   *
+   * @tparam Ret TODO
+   * @tparam Fn TODO
+   * @param fn TODO
+   * @return TODO
+   */
+  template <typename Ret, typename Fn>
+  [[nodiscard]] constexpr auto apply_type_r(Fn &&fn) const & noexcept(
+      detail::_is_nothrow_rtst_invocable<Ret, detail::_apply_type_fn<Fn>, sum const &>) -> Ret
+    requires detail::_typelist_type_invocable_r<Ret, detail::_apply_type_fn<Fn>, sum const &>
+  {
+    using type = detail::_sum_invoke_type_result<Ret, detail::_apply_type_fn<Fn>, sum const &>::type;
+    return detail::invoke_type_variadic_union<type, data_t>(this->data, index, detail::_apply_type_fn<Fn>{FWD(fn)});
+  }
+
+  /**
+   * @brief TODO
+   *
+   * @tparam Ret TODO
+   * @tparam Fn TODO
+   * @param fn TODO
+   * @return TODO
+   */
+  template <typename Ret, typename Fn>
+  [[nodiscard]] constexpr auto
+  apply_type_r(Fn &&fn) && noexcept(detail::_is_nothrow_rtst_invocable<Ret, detail::_apply_type_fn<Fn>, sum &&>) -> Ret
+    requires detail::_typelist_type_invocable_r<Ret, detail::_apply_type_fn<Fn>, sum &&>
+  {
+    using type = detail::_sum_invoke_type_result<Ret, detail::_apply_type_fn<Fn>, sum &&>::type;
+    return detail::invoke_type_variadic_union<type, data_t>(::std::move(*this).data, index,
+                                                            detail::_apply_type_fn<Fn>{FWD(fn)});
+  }
+
+  /**
+   * @brief TODO
+   *
+   * @tparam Ret TODO
+   * @tparam Fn TODO
+   * @param fn TODO
+   * @return TODO
+   */
+  template <typename Ret, typename Fn>
+  [[nodiscard]] constexpr auto apply_type_r(Fn &&fn) const && noexcept(
+      detail::_is_nothrow_rtst_invocable<Ret, detail::_apply_type_fn<Fn>, sum const &&>) -> Ret
+    requires detail::_typelist_type_invocable_r<Ret, detail::_apply_type_fn<Fn>, sum const &&>
+  {
+    using type = detail::_sum_invoke_type_result<Ret, detail::_apply_type_fn<Fn>, sum const &&>::type;
+    return detail::invoke_type_variadic_union<type, data_t>(::std::move(*this).data, index,
+                                                            detail::_apply_type_fn<Fn>{FWD(fn)});
   }
 
   /**

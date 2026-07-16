@@ -106,6 +106,12 @@ concept can_as_sum_value = requires(T v) { fn::as_sum(FWD(v)); };
 
 template <typename S, typename Fn>
 concept can_transform = requires(S s, Fn fn) { FWD(s).transform(fn); };
+
+template <typename S, typename Fn>
+concept can_apply_type = requires(S s, Fn fn) { FWD(s).apply_type(FWD(fn)); };
+
+template <typename S, typename R, typename Fn>
+concept can_apply_type_r = requires(S s, Fn fn) { FWD(s).template apply_type_r<R>(FWD(fn)); };
 } // anonymous namespace
 
 // A sum brace-initializes the alternative it stores. That is a DESIGN DIRECTION, not an
@@ -1200,6 +1206,183 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     CHECK(read_nttp<a>() == 42.0);
     CHECK(read_nttp<e>() == 43.0); // the pack alternative spreads: 42 + true
     CHECK(read_nttp<i>() == 42.0);
+  }
+}
+
+TEST_CASE("sum apply_type", "[sum][apply_type]")
+{
+  using fn::sum;
+  using std::in_place_type_t;
+
+  // the tag names the row of the dispatch table: arms match by exact alternative type, never by
+  // conversion, and receive the alternative unpacked exactly as apply unpacks it
+  constexpr auto arms
+      = fn::overload{[](in_place_type_t<int>, int v) noexcept -> int { return v; },
+                     [](in_place_type_t<double>, double d) noexcept -> int { return static_cast<int>(d) + 1000; }};
+  sum<double, int> a{42};
+
+  SECTION("noexcept")
+  {
+    static_assert(noexcept(a.apply_type(arms)));
+    static_assert(noexcept(std::move(a).apply_type(arms)));
+    static_assert(noexcept(a.apply_type_r<long>(arms)));
+    constexpr auto throwing = fn::overload{[](in_place_type_t<int>, int v) noexcept(false) -> int { return v; },
+                                           [](in_place_type_t<double>, double) noexcept -> int { return 0; }};
+    static_assert(not noexcept(a.apply_type(throwing)));
+    static_assert(not noexcept(a.apply_type_r<long>(throwing)));
+    SUCCEED();
+  }
+
+  SECTION("airtight over interconvertible alternatives")
+  {
+    // the value path is subject to conversions: a lone double arm absorbs the int alternative
+    static_assert(fn::typelist_applicable<decltype([](double) {}), sum<double, int> &>);
+    // the tag path refuses: the int row has no arm, and asking answers
+    constexpr auto only_double = fn::overload{[](in_place_type_t<double>, double) noexcept -> int { return 0; }};
+    static_assert(not can_apply_type<sum<double, int> &, decltype(only_double) const &>);
+    static_assert(can_apply_type<sum<double, int> &, decltype(arms) const &>);
+
+    // the tag reaches the arm as a prvalue, so rvalue-tag arms are served - probe and deed agree
+    constexpr auto rv_tag = fn::overload{[](in_place_type_t<int> &&, int v) noexcept -> int { return v; },
+                                         [](in_place_type_t<double> &&, double) noexcept -> int { return 0; }};
+    static_assert(can_apply_type<sum<double, int> &, decltype(rv_tag) const &>);
+    CHECK(a.apply_type(rv_tag) == 42);
+
+    CHECK(a.apply_type(arms) == 42);
+    CHECK(sum<double, int>{0.5}.apply_type(arms) == 1000);
+
+    SECTION("constexpr")
+    {
+      static_assert(sum<double, int>{42}.apply_type(arms) == 42);
+      static_assert(sum<double, int>{0.5}.apply_type(arms) == 1000);
+      SUCCEED();
+    }
+  }
+
+  SECTION("value categories")
+  {
+    CHECK(a.apply_type(fn::overload{[](in_place_type_t<double>, auto &&) -> bool { throw 1; },
+                                    [](in_place_type_t<int>, int &) -> bool { return true; },
+                                    [](in_place_type_t<int>, int const &) -> bool { throw 0; },
+                                    [](in_place_type_t<int>, int &&) -> bool { throw 0; },
+                                    [](in_place_type_t<int>, int const &&) -> bool { throw 0; }}));
+    CHECK(std::as_const(a).apply_type(fn::overload{[](in_place_type_t<double>, auto &&) -> bool { throw 1; },
+                                                   [](in_place_type_t<int>, int &) -> bool { throw 0; },
+                                                   [](in_place_type_t<int>, int const &) -> bool { return true; },
+                                                   [](in_place_type_t<int>, int &&) -> bool { throw 0; },
+                                                   [](in_place_type_t<int>, int const &&) -> bool { throw 0; }}));
+    CHECK(std::move(std::as_const(a))
+              .apply_type(fn::overload{[](in_place_type_t<double>, auto &&) -> bool { throw 1; },
+                                       [](in_place_type_t<int>, int &) -> bool { throw 0; },
+                                       [](in_place_type_t<int>, int const &) -> bool { throw 0; },
+                                       [](in_place_type_t<int>, int &&) -> bool { throw 0; },
+                                       [](in_place_type_t<int>, int const &&) -> bool { return true; }}));
+    CHECK(std::move(a).apply_type(fn::overload{[](in_place_type_t<double>, auto &&) -> bool { throw 1; },
+                                               [](in_place_type_t<int>, int &) -> bool { throw 0; },
+                                               [](in_place_type_t<int>, int const &) -> bool { throw 0; },
+                                               [](in_place_type_t<int>, int &&) -> bool { return true; },
+                                               [](in_place_type_t<int>, int const &&) -> bool { throw 0; }}));
+
+    SECTION("constexpr")
+    {
+      // one result type across ALL alternatives is the rule, so selection is encoded in values
+      constexpr sum<double, int> b{42};
+      constexpr auto categories = fn::overload{[](in_place_type_t<double>, auto &&) -> int { return 0; },
+                                               [](in_place_type_t<int>, int &) -> int { return 1; },
+                                               [](in_place_type_t<int>, int const &) -> int { return 2; },
+                                               [](in_place_type_t<int>, int &&) -> int { return 3; },
+                                               [](in_place_type_t<int>, int const &&) -> int { return 4; }};
+      static_assert(b.apply_type(categories) == 2);
+      static_assert(std::move(b).apply_type(categories) == 4);
+      SUCCEED();
+    }
+  }
+
+  SECTION("pack alternative")
+  {
+    // the arm receives (tag, elements...): the tag carries exactly what the unpacking loses
+    using P = fn::pack<int, int>;
+    sum<P> s{P{2, 3}};
+    constexpr auto parms = fn::overload{[](in_place_type_t<P>, int x, int y) noexcept -> int { return x + y; }};
+    CHECK(s.apply_type(parms) == 5);
+
+    // the sum's category reaches the elements
+    CHECK(s.apply_type(fn::overload{[](in_place_type_t<P>, int &, int &) -> bool { return true; },
+                                    [](in_place_type_t<P>, int const &, int const &) -> bool { throw 0; }}));
+    CHECK(std::as_const(s).apply_type(
+        fn::overload{[](in_place_type_t<P>, int &, int &) -> bool { throw 0; },
+                     [](in_place_type_t<P>, int const &, int const &) -> bool { return true; }}));
+
+    SECTION("constexpr")
+    {
+      static_assert(sum<P>{P{2, 3}}.apply_type(parms) == 5);
+      SUCCEED();
+    }
+  }
+
+  SECTION("tuple-like alternative")
+  {
+    using T = std::tuple<int, int>;
+    sum<T> s{T{20, 22}};
+    constexpr auto tarms = fn::overload{[](in_place_type_t<T>, int x, int y) noexcept -> int { return x + y; }};
+    CHECK(s.apply_type(tarms) == 42);
+    CHECK(sum<std::array<int, 2>>{std::array{2, 3}}.apply_type(
+              fn::overload{[](in_place_type_t<std::array<int, 2>>, int x, int y) noexcept -> int { return x + y; }})
+          == 5);
+
+    // the elements form is the row's one signature: an arm for the whole tuple is not served
+    static_assert(not can_apply_type<sum<T> &, decltype(fn::overload{
+                                                   [](in_place_type_t<T>, T const &) -> int { return 0; }}) const &>);
+
+    SECTION("constexpr")
+    {
+      static_assert(sum<T>{T{20, 22}}.apply_type(tarms) == 42);
+      SUCCEED();
+    }
+  }
+
+  SECTION("mixed alternatives, one arm set")
+  {
+    using P = fn::pack<int, int>;
+    using T = std::tuple<int, bool>;
+    using S = fn::sum_for<P, T, int>;
+    constexpr auto marms = fn::overload{[](in_place_type_t<int>, int v) noexcept -> int { return -v; },
+                                        [](in_place_type_t<P>, int x, int y) noexcept -> int { return x + y; },
+                                        [](in_place_type_t<T>, int x, bool) noexcept -> int { return x; }};
+    CHECK(S{7}.apply_type(marms) == -7);
+    CHECK(S{P{2, 3}}.apply_type(marms) == 5);
+    CHECK(S{T{9, true}}.apply_type(marms) == 9);
+
+    // dropping any one arm makes the whole dispatch non-viable
+    constexpr auto no_int = fn::overload{[](in_place_type_t<P>, int x, int y) noexcept -> int { return x + y; },
+                                         [](in_place_type_t<T>, int x, bool) noexcept -> int { return x; }};
+    static_assert(not can_apply_type<S &, decltype(no_int) const &>);
+    static_assert(can_apply_type<S &, decltype(marms) const &>);
+
+    SECTION("constexpr")
+    {
+      static_assert(S{7}.apply_type(marms) == -7);
+      static_assert(S{P{2, 3}}.apply_type(marms) == 5);
+      static_assert(S{T{9, true}}.apply_type(marms) == 9);
+      SUCCEED();
+    }
+  }
+
+  SECTION("apply_type_r")
+  {
+    static_assert(std::is_same_v<long, decltype(a.apply_type_r<long>(arms))>);
+    CHECK(a.apply_type_r<long>(arms) == 42L);
+    CHECK(sum<double, int>{0.5}.apply_type_r<long>(arms) == 1000L);
+
+    // the conversion to Ret is part of the question
+    static_assert(not can_apply_type_r<sum<double, int> &, char *, decltype(arms) const &>);
+    static_assert(can_apply_type_r<sum<double, int> &, long, decltype(arms) const &>);
+
+    SECTION("constexpr")
+    {
+      static_assert(sum<double, int>{42}.apply_type_r<long>(arms) == 42L);
+      SUCCEED();
+    }
   }
 }
 
