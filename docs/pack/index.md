@@ -12,6 +12,6 @@ title: Packs
 Some text explaining this section...
 :include-doxygen-member: fn::pack::append { signatureOnly: false, includeAllMatches: true }
 
-## Invoke {style: "api"}
+## Apply {style: "api"}
 Some text explaining this section...
-:include-doxygen-member: fn::pack::invoke { signatureOnly: false, includeAllMatches: true }
+:include-doxygen-member: fn::pack::apply { signatureOnly: false, includeAllMatches: true }
