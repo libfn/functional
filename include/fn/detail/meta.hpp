@@ -141,6 +141,11 @@ template <typename T> [[nodiscard]] static constexpr auto _make_sortkey() -> ::s
 
 template <typename T> constexpr inline ::std::string_view type_sortkey_v = sortkey::_make_sortkey<T>();
 
+// How many distinct types (by identity, not by key): a type counts unless it recurs later.
+template <typename... Ts> constexpr inline ::std::size_t _distinct_types = 0;
+template <typename T, typename... Ts>
+constexpr inline ::std::size_t _distinct_types<T, Ts...> = _distinct_types<Ts...> + (type_one_of<T, Ts...> ? 0 : 1);
+
 // NOTE Normalized order of types - order based on type_sortkey_v
 template <typename... Ts> struct normalized final {
   static constexpr ::std::size_t N = sizeof...(Ts);
@@ -163,6 +168,13 @@ template <typename... Ts> struct normalized final {
   }
 
   static constexpr _uniqued _indices_v = _indices();
+
+  // Key injectivity is load-bearing twice over: with a tied key the sort has no canonical order and
+  // unique() silently drops a genuine alternative. The same type always prints the same key, so a
+  // count mismatch is exactly two distinct types sharing one. Known colliders: same-scope lambdas
+  // (gcc prints no positional disambiguator), same-named function-local types (clang prints no
+  // scope). The scrape retires with std::type_order (P2830).
+  static_assert(_distinct_types<Ts...> == _indices_v.count, "fn: two distinct types share a sort key - see issue #326");
 
   template <template <typename...> typename F, ::std::size_t... Is>
   static constexpr auto _normalized_f(::std::index_sequence<Is...> const &)
