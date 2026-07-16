@@ -51,6 +51,20 @@ ref='^[A-Za-z0-9._/+@-]+$'
 number=$(read_field number   '^[0-9]+$')         || exit 1
 head_sha=$(read_field head_sha '^[0-9a-f]{40}$') || exit 1
 head_ref=$(read_field head_ref "$ref")           || exit 1
+# The consumers check out head_sha and report it to SonarCloud/codecov, so coverage built against any
+# other revision is scanned against the wrong source: line numbers drift once the base moves ahead,
+# and only sonar notices (codecov mis-attributes in silence). build_sha is what the producer actually
+# built, so the two must agree.
+if [ ! -f "$META/build_sha" ]; then
+  printf '::error::Artifact carries no build_sha; its producer predates the check. Rebase the pull request onto main.\n' >&2
+  exit 1
+fi
+build_sha=$(read_field build_sha '^[0-9a-f]{40}$') || exit 1
+if [ "$build_sha" != "$head_sha" ]; then
+  printf '::error::Coverage was built at %s but the pull request head is %s. Rebase the pull request onto main.\n' \
+    "$build_sha" "$head_sha" >&2
+  exit 1
+fi
 {
   echo "number=$number"
   echo "head_sha=$head_sha"
