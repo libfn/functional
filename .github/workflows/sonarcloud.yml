@@ -20,13 +20,17 @@ jobs:
 
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      id: checkout
       with:
+        # Head, not checkout's default merge commit: coverage must describe the SHA reported downstream.
+        ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: 0  # Full history for blame info
 
     - name: Build coverage and package pull request workspace
       uses: ./.github/actions/collect-pr-workspace
       with:
         artifact-name: sonarcloud-pr-inputs
+        build-sha: ${{ steps.checkout.outputs.commit }}
 
     - name: Resolve SonarCloud project
       id: sonar
