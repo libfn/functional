@@ -33,9 +33,10 @@ jobs:
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.conclusion == 'success' &&
       (github.repository == 'libfn/functional' || vars.SONAR_PROJECT_KEY != '')
+    # arm64: the amd64 warp fleet pulls images at 1-2 MB/s; the arm64 fleet serves them in seconds
     # Runner and container must match sonarcloud.yml's: the compiler paths in the compile_commands.json
     # analysed below were recorded there, and must resolve to the same toolchain here.
-    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-4x' || 'ubuntu-latest' }}
     container: libfn.azurecr.io/ci-build-gcc:15-sha-08b1133
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
