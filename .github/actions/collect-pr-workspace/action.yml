@@ -10,6 +10,12 @@ inputs:
   artifact-name:
     required: true
     description: Name for the uploaded artifact carrying the packaged `.build` outputs and PR metadata.
+  build-sha:
+    required: true
+    description: >
+      The revision this build is made from: pass `actions/checkout`'s `commit` output, which reports
+      what it resolved rather than what it was asked for, so downstream validation can reject coverage
+      built against anything but the pull request head.
 
 runs:
   using: composite
@@ -86,6 +92,7 @@ runs:
       shell: bash
       env:
         ARTIFACT_NAME: ${{ inputs.artifact-name }}
+        BUILD_SHA: ${{ inputs.build-sha }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
         PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
@@ -97,9 +104,7 @@ runs:
         printf "%s\n" "$PR_HEAD_SHA" > .pr-meta/head_sha
         printf "%s\n" "$PR_HEAD_REF" > .pr-meta/head_ref
         printf "%s\n" "$PR_BASE_REF" > .pr-meta/base_ref
-        # Read back from the tree rather than the checkout input, so the downstream head_sha
-        # comparison can catch a checkout that silently resolved elsewhere (#332).
-        git rev-parse HEAD           > .pr-meta/build_sha
+        printf "%s\n" "$BUILD_SHA"   > .pr-meta/build_sha
         # shellcheck disable=SC2046  # find emits one path per result; intentional word-splitting into tar arg list
         tar -czf "$ARTIFACT_NAME.tar.gz" \
           .build/compile_commands.json \
