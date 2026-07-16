@@ -2,6 +2,10 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `pack` rejects a nested `pack` element — 16 July 2026
+
+- **The element mandate that has always rejected a `sum` now also rejects a `pack`** ([#328](https://github.com/libfn/functional/issues/328)). A nested pack was representable and incoherent: `apply` flattened it (a callback over `pack<pack<A, B>, C>` saw three arguments) while the tuple protocol preserved it (`tuple_size` answered two) — and since the tuple-like arm below, the same position answered differently by kind, an own `pack` element flattening where a `std::tuple` element passes whole. The product is associative, so the nested spelling was a non-canonical duplicate of the flat one — the same self-normalization `sum` has always applied to itself. Nothing is lost: appending a whole pack has always spliced, and grouped data keeps its home in an opaque atom — `std::tuple`, `std::array`, a user wrapper, or `choice`, which the algebra never opens.
+
 ## `invoke` became `apply` — 15 July 2026
 
 - **The multidispatch verb and its whole vocabulary renamed** ([#84](https://github.com/libfn/functional/issues/84)): `fn::apply`/`apply_r`, the members on `sum`, `choice` and `pack`, the `apply_result`/`is_applicable` traits and the `applicable`/`typelist_applicable` concepts. The dispatch — unpack packs, dispatch sums, fold several operands into one — extends `std::apply`'s mechanism, not `std::invoke`'s: the implementation reaches `std::invoke` at the bottom, which is precisely why the old name overpromised. Type-indexed internals and true `std::invoke`-level names keep theirs.

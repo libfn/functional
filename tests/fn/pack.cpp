@@ -5,6 +5,7 @@
 
 #include "util/helper_types.hpp"
 
+#include <fn/choice.hpp>
 #include <fn/functional.hpp>
 #include <fn/optional.hpp>
 #include <fn/pack.hpp>
@@ -235,6 +236,25 @@ TEST_CASE("pack", "[pack]")
   static_assert(not std::is_same_v<some_pack_nttp<s1>, some_pack_nttp<s3>>);
   CHECK(read_nttp<s1>() == 3); // the template-parameter object is usable at runtime
 
+  SECTION("element mandate")
+  {
+    // the algebra's own constructors are not elements; everything else is an opaque atom
+    static_assert(fn::detail::_is_valid_pack_element<int>);
+    static_assert(fn::detail::_is_valid_pack_element<int &>);
+    static_assert(fn::detail::_is_valid_pack_element<int const>);
+    static_assert(fn::detail::_is_valid_pack_element<std::tuple<int, A>>);
+    static_assert(fn::detail::_is_valid_pack_element<std::array<int, 2>>);
+    static_assert(fn::detail::_is_valid_pack_element<fn::choice<int>>);
+    static_assert(not fn::detail::_is_valid_pack_element<fn::pack<int>>);
+    static_assert(not fn::detail::_is_valid_pack_element<fn::pack<>>);
+    static_assert(not fn::detail::_is_valid_pack_element<fn::sum<int>>);
+
+    // witnesses that the permitted atoms instantiate
+    static_assert(pack<std::tuple<int, int>, int>::size == 2);
+    static_assert(pack<fn::choice<int>, int>::size == 2);
+    SUCCEED();
+  }
+
   SECTION("apply_r return conversion")
   {
     struct NotFromInt final {
@@ -453,6 +473,18 @@ TEST_CASE("append value categories", "[pack][append]")
     static_assert(not can_append<T &, fn::sum<int> &>);
     static_assert(not can_append_in_place<T &, fn::sum<int>, fn::sum<int>>);
     static_assert(not can_append_in_place<T &, fn::sum_for<bool, int>, fn::sum_for<bool, int>>);
+
+    // A pack never holds a pack either: appending one splices, in every value category of the
+    // subject - and asking must answer, not hard-error, including a tag that merely NAMES an
+    // ill-formed pack
+    static_assert(std::same_as<T::append_type<fn::pack<B, C>>, pack<int, std::string_view, A, B, C>>);
+    static_assert(can_append<T &, fn::pack<int>>);
+    static_assert(can_append<T &, fn::pack<int> &>);
+    static_assert(can_append<T const &, fn::pack<int>>);
+    static_assert(can_append<T &&, fn::pack<int>>);
+    static_assert(can_append<T const &&, fn::pack<int>>);
+    static_assert(not can_append_in_place<T &, fn::pack<fn::pack<int>>, int>);
+    static_assert(not can_append_in_place<T &, fn::pack<fn::sum<int>>, int>);
 
     // relocation is part of the question: the elements already held move into the new pack in the
     // pack's own value category, and an element which cannot make that move rejects the append

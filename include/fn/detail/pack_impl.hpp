@@ -56,12 +56,21 @@ concept _relocatable_element = requires { E{::std::declval<Src>()}; };
 template <typename E, typename Src>
 concept _nothrow_relocatable_element = requires { requires noexcept(E{::std::declval<Src>()}); };
 
+// The algebra's own constructors are not elements: a sum must distribute over the product, and a
+// nested pack is a non-canonical spelling of the flat product with no consistent shape (apply
+// flattens it, the tuple protocol preserves it). Foreign structured types stay opaque atoms.
+template <typename T> static constexpr bool _is_valid_pack_element = (not _some_sum<T>) && (not _some_pack<T>);
+
+template <typename T> constexpr inline bool _spliceable_pack = false;
+template <typename... Tx>
+constexpr inline bool _spliceable_pack<::fn::pack<Tx...>> = (... && _is_valid_pack_element<Tx>);
+
 template <typename, typename... Ts> struct pack_impl;
 
 template <typename... Ts> struct _pack_append;
 // A pack never holds a sum. The specialization is defined but has no `type`, so naming
 // `append_type<sum>` is a substitution failure rather than a use of an incomplete type; and the
-// two specializations must exclude each other, or both match a sum and the choice is ambiguous.
+// specializations must exclude each other, or more than one matches and the choice is ambiguous.
 template <typename T, typename... Ts>
   requires _some_sum<T>
 struct _pack_append<T, Ts...> {};
@@ -77,8 +86,14 @@ template <typename... Tx, typename... Ts> struct _pack_append_pack<::fn::pack<Tx
   using impl = pack_impl<::std::index_sequence_for<Ts..., Tx...>, Ts..., Tx...>;
   using type = ::fn::pack<Ts..., Tx...>;
 };
+// A tag can NAME a pack type whose own elements are invalid without instantiating it; splicing it
+// would instantiate the ill-formed result. Same shape as the sum case: defined without `type`, so
+// asking stays a substitution failure.
 template <typename T, typename... Ts>
-  requires _some_pack<T>
+  requires _some_pack<T> && (not _spliceable_pack<::std::remove_cvref_t<T>>)
+struct _pack_append<T, Ts...> {};
+template <typename T, typename... Ts>
+  requires _some_pack<T> && _spliceable_pack<::std::remove_cvref_t<T>>
 struct _pack_append<T, Ts...> {
   using impl = _pack_append_pack<::std::remove_cvref_t<T>, Ts...>::impl;
   using type = _pack_append_pack<::std::remove_cvref_t<T>, Ts...>::type;
