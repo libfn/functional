@@ -42,6 +42,30 @@ TEST_CASE("type index", "[type_index]")
 namespace {
 template <typename... Ts> struct type_list {};
 template <typename... Ts> struct types {};
+
+// two lambdas from different scopes: key-distinct on every supported pretty-printing path
+[[maybe_unused]] auto lambda1()
+{
+  return [] {};
+}
+[[maybe_unused]] auto lambda2()
+{
+  return [] {};
+}
+
+#if defined(__GNUC__) && !defined(__clang__)
+// gcc keys a local type by its scope, so the same-named pair clang collides on is distinct here
+[[maybe_unused]] auto local1()
+{
+  struct X final {};
+  return X{};
+}
+[[maybe_unused]] auto local2()
+{
+  struct X final {};
+  return X{};
+}
+#endif
 } // namespace
 
 TEST_CASE("normalized", "[normalized]")
@@ -95,6 +119,32 @@ TEST_CASE("normalized", "[normalized]")
   static_assert(type_sortkey_v<_ts<bool, int>> == "struct fn::detail::_ts<bool,int>");
 #else
   static_assert(type_sortkey_v<_ts<bool, int>> == "fn::detail::_ts<bool, int>");
+#endif
+
+  // The collision floor (#326): dedup and canonical order both rest on key injectivity, so
+  // normalized asserts distinct-type count == distinct-key count. The known colliders (same-scope
+  // lambdas on gcc, same-named function-local types on clang) are mandate hard errors by design and
+  // cannot appear here; these pin the counting and each printer's neighbouring good cases.
+  static_assert(_distinct_types<> == 0);
+  static_assert(_distinct_types<int> == 1);
+  static_assert(_distinct_types<int, int> == 1);
+  static_assert(_distinct_types<int, bool, int> == 2);
+  static_assert(_distinct_types<int, int const, int &> == 3);
+
+  static_assert(type_sortkey_v<decltype(lambda1())> != type_sortkey_v<decltype(lambda2())>);
+  static_assert(normalized<decltype(lambda1()), decltype(lambda2())>::size == 2);
+
+#ifdef __clang__
+  // clang keys a lambda by position (file:line:col), so the same-scope pair gcc collides on is
+  // distinct here
+  [[maybe_unused]] auto l1 = [] {};
+  [[maybe_unused]] auto l2 = [] {};
+  static_assert(type_sortkey_v<decltype(l1)> != type_sortkey_v<decltype(l2)>);
+  static_assert(normalized<decltype(l1), decltype(l2)>::size == 2);
+#endif
+#if defined(__GNUC__) && !defined(__clang__)
+  static_assert(type_sortkey_v<decltype(local1())> != type_sortkey_v<decltype(local2())>);
+  static_assert(normalized<decltype(local1()), decltype(local2())>::size == 2);
 #endif
 
   SUCCEED();

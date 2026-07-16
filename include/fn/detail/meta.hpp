@@ -141,6 +141,11 @@ template <typename T> [[nodiscard]] static constexpr auto _make_sortkey() -> ::s
 
 template <typename T> constexpr inline ::std::string_view type_sortkey_v = sortkey::_make_sortkey<T>();
 
+// How many distinct types (by identity, not by key): a type counts unless it recurs later.
+template <typename... Ts> constexpr inline ::std::size_t _distinct_types = 0;
+template <typename T, typename... Ts>
+constexpr inline ::std::size_t _distinct_types<T, Ts...> = _distinct_types<Ts...> + (type_one_of<T, Ts...> ? 0 : 1);
+
 // NOTE Normalized order of types - order based on type_sortkey_v
 template <typename... Ts> struct normalized final {
   static constexpr ::std::size_t N = sizeof...(Ts);
@@ -163,6 +168,13 @@ template <typename... Ts> struct normalized final {
   }
 
   static constexpr _uniqued _indices_v = _indices();
+
+  // The collision floor (#326): dedup and canonical order both rest on key injectivity, so
+  // count mismatch is exactly two distinct types sharing one. Known colliders: same-scope lambdas
+  // (no positional disambiguator in gcc), same-named function-local types (clang prints no scope).
+  // If this assert fires, the user project should rename one of the colliding types to a unique
+  // name (or move it to a different scope); or upgrade to C++26 and switch to std::type_order
+  static_assert(_distinct_types<Ts...> == _indices_v.count, "distinct types must not share a sort key");
 
   template <template <typename...> typename F, ::std::size_t... Is>
   static constexpr auto _normalized_f(::std::index_sequence<Is...> const &)

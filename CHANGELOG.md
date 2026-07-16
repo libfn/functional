@@ -2,6 +2,10 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## Type normalization diagnoses sort-key collisions — 16 July 2026
+
+- **`normalized` asserts that distinct types have distinct sort keys** ([#326](https://github.com/libfn/functional/issues/326)). The type ordering scrapes compiler type spellings, and two distinct types could share one — gcc prints same-scope lambdas identically, clang prints same-named function-local types bare — so `sum_for<A, B>` silently became `sum<A>`: a genuine alternative vanished, and with tied keys the order had no canonical answer either. A collision is now a mandate error at the point of use ("two distinct types share a sort key"), on every supported compiler; distinct keys are untouched and genuine duplicates still deduplicate. The scrape and its assert both retire with `std::type_order` (P2830, C++26 — its motivation cites this library).
+
 ## `pack` splices in every append spelling, and hands elements over whole — 16 July 2026
 
 - **The tag form of `append` now constructs the named pack from its arguments and splices it** ([#328](https://github.com/libfn/functional/issues/328)): appending a pack means concatenation however it is spelled, joining the two spellings that always spliced — a deduced pack value, and a tag with a prebuilt matching pack, the route `operator&`'s fold takes. The tag spelling costs one relocation per element more than appending the elements directly; the result never differs. A tag that merely names an ill-formed pack answers instead of hard-erroring.
