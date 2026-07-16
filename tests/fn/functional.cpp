@@ -303,7 +303,9 @@ TEST_CASE("apply tuple-like", "[apply][apply_r][tuple]")
                   == pfn::is_applicable_v<TakesAlternative, std::tuple<fn::sum<int>>>);
     // and a pack is not tuple-like: it keeps fn's own dispatch
     static_assert(fn::apply(arity, fn::pack{1, 2, 3}) == 3);
-    SUCCEED();
+
+    CHECK(fn::apply(TakesSum{}, std::tuple<fn::sum<int>>{fn::sum<int>{1}}) == 7);
+    CHECK(fn::apply(arity, fn::pack{1, 2, 3}) == 3);
   }
 
   SECTION("apply_r over the elements")

@@ -160,9 +160,9 @@ struct _nothrow_optional_or_else<T, Fn, ValArg> {
 // materialise their result via `optional_policy::template type<U>`.
 // The transform helpers hand pfn's _optional_from_invoke constructor a zero-argument
 // thunk, so the result's contained value is direct-non-list-initialized from fn's own
-// _invoke (or sum::transform) result: no extra move, and immovable result types work.
+// _apply (or sum::transform) result: no extra move, and immovable result types work.
 // The statics carry the same extension noexcept as pfn's, computed through fn's own machinery:
-// the callback of a sum/pack dispatch is invoked through `_invoke`, not called directly, so it is
+// the callback of a sum/pack dispatch is invoked through `_apply`, not called directly, so it is
 // `_is_nothrow_applicable` - not the std trait, which is false for a callable that is not directly
 // applicable on a sum or a pack - that answers for it.
 template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, optional_policy> {

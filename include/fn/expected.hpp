@@ -149,9 +149,9 @@ struct _nothrow_or_else<T, Fn, ErrArg, ValArg> {
 // that materialise their result via `expected_policy::template type<U, G>`.
 // The transform/transform_error helpers hand pfn's _expected_from_invoke constructors a
 // zero-argument thunk, so the result's member is direct-non-list-initialized from fn's own
-// _invoke (or sum::transform) result: no extra move, and immovable result types work.
+// _apply (or sum::transform) result: no extra move, and immovable result types work.
 // The statics carry the same extension noexcept as pfn's, computed through fn's own machinery: the
-// callback of a sum/pack dispatch is invoked through `_invoke`, not called directly, so it is
+// callback of a sum/pack dispatch is invoked through `_apply`, not called directly, so it is
 // `_is_nothrow_applicable` - not the std trait, which is false for a callable that is not directly
 // applicable on a sum or a pack - that answers for it, and the widening arms are weighed by the
 // traits above.
