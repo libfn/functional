@@ -46,8 +46,12 @@ runs:
             continue
           fi
           # All three must agree: a gcov that cannot read the compiler's .gcno reports a plausible
-          # and wrong result rather than failing, so a mixed set is worse than no set.
-          v=$(major "$cc") vx=$(major "$cxx") vg=$(major "$gcov")
+          # and wrong result rather than failing, so a mixed set is worse than no set. A candidate
+          # that will not say what it is is one to skip, so `|| v=''` keeps -e from ending the hunt.
+          v='' vx='' vg=''
+          v=$(major "$cc")    || v=''
+          vx=$(major "$cxx")  || vx=''
+          vg=$(major "$gcov") || vg=''
           if [ -z "$v" ] || [ "$v" != "$vx" ] || [ "$v" != "$vg" ]; then
             printf '  gcc%-4s versions disagree (gcc=%s g++=%s gcov=%s), skipping\n' \
               "${sfx:-(none)}" "${v:-?}" "${vx:-?}" "${vg:-?}"
