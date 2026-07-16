@@ -6,12 +6,14 @@
 #ifndef INCLUDE_FN_DETAIL_PACK_IMPL
 #define INCLUDE_FN_DETAIL_PACK_IMPL
 
-#include <fn/detail/functional.hpp>
 #include <fn/detail/fwd.hpp>
 #include <fn/detail/macro_fwd.hpp>
 #include <fn/detail/meta.hpp>
 #include <fn/detail/traits.hpp>
 
+#include <pfn/functional.hpp>
+
+#include <functional>
 #include <type_traits>
 #include <utility>
 
@@ -56,12 +58,21 @@ concept _relocatable_element = requires { E{::std::declval<Src>()}; };
 template <typename E, typename Src>
 concept _nothrow_relocatable_element = requires { requires noexcept(E{::std::declval<Src>()}); };
 
+// The algebra's own constructors are not elements: a sum must distribute over the product, and a
+// nested pack is a non-canonical spelling of the flat product with no consistent shape (apply
+// flattens it, the tuple protocol preserves it). Foreign structured types stay opaque atoms.
+template <typename T> static constexpr bool _is_valid_pack_element = (not _some_sum<T>) && (not _some_pack<T>);
+
+template <typename T> constexpr inline bool _spliceable_pack = false;
+template <typename... Tx>
+constexpr inline bool _spliceable_pack<::fn::pack<Tx...>> = (... && _is_valid_pack_element<Tx>);
+
 template <typename, typename... Ts> struct pack_impl;
 
 template <typename... Ts> struct _pack_append;
 // A pack never holds a sum. The specialization is defined but has no `type`, so naming
 // `append_type<sum>` is a substitution failure rather than a use of an incomplete type; and the
-// two specializations must exclude each other, or both match a sum and the choice is ambiguous.
+// specializations must exclude each other, or more than one matches and the choice is ambiguous.
 template <typename T, typename... Ts>
   requires _some_sum<T>
 struct _pack_append<T, Ts...> {};
@@ -77,8 +88,14 @@ template <typename... Tx, typename... Ts> struct _pack_append_pack<::fn::pack<Tx
   using impl = pack_impl<::std::index_sequence_for<Ts..., Tx...>, Ts..., Tx...>;
   using type = ::fn::pack<Ts..., Tx...>;
 };
+// A tag can NAME a pack type whose own elements are invalid without instantiating it; splicing it
+// would instantiate the ill-formed result. Same shape as the sum case: defined without `type`, so
+// asking stays a substitution failure.
 template <typename T, typename... Ts>
-  requires _some_pack<T>
+  requires _some_pack<T> && (not _spliceable_pack<::std::remove_cvref_t<T>>)
+struct _pack_append<T, Ts...> {};
+template <typename T, typename... Ts>
+  requires _some_pack<T> && _spliceable_pack<::std::remove_cvref_t<T>>
 struct _pack_append<T, Ts...> {
   using impl = _pack_append_pack<::std::remove_cvref_t<T>, Ts...>::impl;
   using type = _pack_append_pack<::std::remove_cvref_t<T>, Ts...>::type;
@@ -99,24 +116,27 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
                          static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)...);
   }
 
+  // The pack's elements are the argument list, and every argument is terminal: handed over whole
+  // via INVOKE, never re-entering elimination. Routing through the engine instead would give a
+  // lone tuple-like element std::apply's meaning, making its treatment depend on its siblings.
   template <typename Self, typename Fn, typename... Args>
     requires(not(... || (_some_pack<Args> || _some_sum<Args>)))
   static constexpr auto _apply(Self &&self, Fn &&fn, Args &&...args) //
-      noexcept(_is_nothrow_applicable<Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args &&...>::value)
-          -> _apply_result<Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args &&...>::type
-    requires(_is_applicable<Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args && ...>::value)
+      noexcept(::std::is_nothrow_invocable_v<Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args &&...>)
+          -> ::std::invoke_result<Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args &&...>::type
+    requires(::std::is_invocable<Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args && ...>::value)
   {
-    return ::fn::detail::_apply(
-        FWD(fn), static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., FWD(args)...);
+    return ::std::invoke(FWD(fn), static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)...,
+                         FWD(args)...);
   }
 
   template <typename Ret, typename Self, typename Fn, typename... Args>
     requires(not(... || (_some_pack<Args> || _some_sum<Args>)))
   static constexpr auto _apply_r(Self &&self, Fn &&fn, Args &&...args) //
-      noexcept(_is_nothrow_applicable_r<Ret, Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args &&...>::value) -> Ret
-    requires(_is_applicable_r<Ret, Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args && ...>::value)
+      noexcept(::std::is_nothrow_invocable_r_v<Ret, Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args &&...>) -> Ret
+    requires(::std::is_invocable_r<Ret, Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args && ...>::value)
   {
-    return ::fn::detail::_apply_r<Ret>(
+    return ::pfn::invoke_r<Ret>(
         FWD(fn), static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., FWD(args)...);
   }
 
@@ -150,6 +170,9 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
             _make_element<T>(FWD(args)...)};
   }
 
+  // Splicing is normalization, not elimination: the appended pack's elements relocate through
+  // INVOKE, so a lone tuple-like element arrives whole instead of taking std::apply's meaning
+  // through the engine's tuple arm.
   template <typename T, typename Self>
   static constexpr auto _append(Self &&self, auto &&other) //
       noexcept(_nothrow_relocatable<Self>
@@ -160,8 +183,30 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
   _relocatable<decltype(other)>
   {
     using type = _pack_append<::std::remove_cvref_t<T>, Ts...>::impl;
-    return FWD(other)._apply(FWD(other), [&self](auto &&...args) {
+    return FWD(other)._swap_invoke(FWD(other), [&self](auto &&...args) {
       return type{static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., FWD(args)...};
+    });
+  }
+
+  // The tag form constructs the named pack from the arguments, then splices it: appending a pack
+  // means concatenation in every spelling. One relocation per element more than appending the
+  // elements directly - the spelling of an append is a performance knob, never a result change.
+  template <typename T, typename Self>
+  static constexpr auto _append(Self &&self, auto &&...args) //
+      noexcept(_nothrow_relocatable<Self> && _nothrow_initializable<::std::remove_cvref_t<T>, decltype(args)...>
+               && ::std::remove_cvref_t<T>::_impl::template _nothrow_relocatable<::std::remove_cvref_t<T>>) -> //
+      typename _pack_append<::std::remove_cvref_t<T>, Ts...>::impl
+    requires _some_pack<T>
+             && (not(sizeof...(args) == 1
+                     && (... && ::std::is_same_v<::std::remove_cvref_t<decltype(args)>, ::std::remove_cvref_t<T>>)))
+             && _relocatable<Self> && _initializable<::std::remove_cvref_t<T>, decltype(args)...>
+             && ::std::remove_cvref_t<T>::_impl::template
+  _relocatable<::std::remove_cvref_t<T>>
+  {
+    using pack_t = ::std::remove_cvref_t<T>;
+    using type = _pack_append<pack_t, Ts...>::impl;
+    return pack_t::_impl::_swap_invoke(pack_t{FWD(args)...}, [&self](auto &&...elems) {
+      return type{static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., FWD(elems)...};
     });
   }
 };

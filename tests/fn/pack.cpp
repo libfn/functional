@@ -5,6 +5,7 @@
 
 #include "util/helper_types.hpp"
 
+#include <fn/choice.hpp>
 #include <fn/functional.hpp>
 #include <fn/optional.hpp>
 #include <fn/pack.hpp>
@@ -235,6 +236,50 @@ TEST_CASE("pack", "[pack]")
   static_assert(not std::is_same_v<some_pack_nttp<s1>, some_pack_nttp<s3>>);
   CHECK(read_nttp<s1>() == 3); // the template-parameter object is usable at runtime
 
+  SECTION("element mandate")
+  {
+    // the algebra's own constructors are not elements; everything else is an opaque atom
+    static_assert(fn::detail::_is_valid_pack_element<int>);
+    static_assert(fn::detail::_is_valid_pack_element<int &>);
+    static_assert(fn::detail::_is_valid_pack_element<int const>);
+    static_assert(fn::detail::_is_valid_pack_element<std::tuple<int, A>>);
+    static_assert(fn::detail::_is_valid_pack_element<std::array<int, 2>>);
+    static_assert(fn::detail::_is_valid_pack_element<fn::choice<int>>);
+    static_assert(not fn::detail::_is_valid_pack_element<fn::pack<int>>);
+    static_assert(not fn::detail::_is_valid_pack_element<fn::pack<>>);
+    static_assert(not fn::detail::_is_valid_pack_element<fn::sum<int>>);
+
+    // witnesses that the permitted atoms instantiate
+    static_assert(pack<std::tuple<int, int>, int>::size == 2);
+    static_assert(pack<fn::choice<int>, int>::size == 2);
+    SUCCEED();
+  }
+
+  SECTION("elements are terminal")
+  {
+    // every element is handed over whole via INVOKE - a lone tuple-like element included, exactly
+    // as it is treated when siblings or extra arguments accompany it
+    constexpr auto arity = [](auto &&...args) noexcept -> int { return (0 + ... + (static_cast<void>(args), 1)); };
+    CHECK(pack<std::tuple<int, int>>{std::tuple{1, 2}}.apply(arity) == 1);
+    CHECK(pack<std::tuple<int, int>, int>{std::tuple{1, 2}, 3}.apply(arity) == 2);
+    CHECK(pack<std::tuple<int, int>>{std::tuple{1, 2}}.apply(arity, 0) == 2);
+    CHECK(pack<std::tuple<int, int>>{std::tuple{1, 2}}.apply_r<long>(arity) == 1L);
+
+    // the callable is served for the whole element, never its pieces
+    constexpr auto whole = [](std::tuple<int, int> const &t) noexcept -> int { return std::get<0>(t); };
+    CHECK(pack<std::tuple<int, int>>{std::tuple{1, 2}}.apply(whole) == 1);
+    static_assert(not can_invoke_r<pack<std::tuple<int, int>>, int, decltype([](int, int) -> int { return 0; })>);
+
+    SECTION("constexpr")
+    {
+      static_assert(pack<std::tuple<int, int>>{std::tuple{1, 2}}.apply(arity) == 1);
+      static_assert(pack<std::tuple<int, int>, int>{std::tuple{1, 2}, 3}.apply(arity) == 2);
+      static_assert(pack<std::tuple<int, int>>{std::tuple{1, 2}}.apply(arity, 0) == 2);
+      static_assert(pack<std::tuple<int, int>>{std::tuple{1, 2}}.apply(whole) == 1);
+      SUCCEED();
+    }
+  }
+
   SECTION("apply_r return conversion")
   {
     struct NotFromInt final {
@@ -425,6 +470,37 @@ TEST_CASE("append value categories", "[pack][append]")
     CHECK(c2.apply([](bool i, int j, B const &b1, C const &c, B const &b2) {
       return i && j == 3 && b1.v == 14 && c.v == 30 && b2.v == 20;
     }));
+
+    // a pack whose only element is tuple-like splices it whole, never unpacked
+    constexpr auto c3 = a.append(fn::pack<std::tuple<int, int>>{std::tuple{2, 3}});
+    static_assert(std::same_as<decltype(c3), fn::pack<bool, int, B, std::tuple<int, int>> const>);
+    static_assert(std::get<0>(fn::get<3>(c3)) == 2);
+  }
+
+  SECTION("pack on the right side, tag form")
+  {
+    // the tag form splices too: a prebuilt matching pack relocates directly, any other arguments
+    // construct the named pack first - either way the result is the flat concatenation
+    constexpr fn::pack<bool, int> a{true, 3};
+    constexpr auto c1 = a.append(std::in_place_type<fn::pack<C, B>>, fn::pack<C, B>{C{}, B{3, 4}});
+    static_assert(std::same_as<decltype(c1), fn::pack<bool, int, C, B> const>);
+    static_assert(
+        c1.apply([](bool i, int j, C const &c, B const &b) { return i && j == 3 && c.v == 30 && b.v == 12; }));
+
+    constexpr auto c2 = a.append(std::in_place_type<fn::pack<C, B>>, C{}, B{4, 5});
+    static_assert(std::same_as<decltype(c2), fn::pack<bool, int, C, B> const>);
+    static_assert(
+        c2.apply([](bool i, int j, C const &c, B const &b) { return i && j == 3 && c.v == 30 && b.v == 20; }));
+
+    constexpr auto c3 = a.append(std::in_place_type<fn::pack<>>);
+    static_assert(std::same_as<decltype(c3), fn::pack<bool, int> const>);
+
+    constexpr auto c4 = a.append(std::in_place_type<fn::pack<std::tuple<int, int>>>, std::tuple{2, 3});
+    static_assert(std::same_as<decltype(c4), fn::pack<bool, int, std::tuple<int, int>> const>);
+    static_assert(std::get<0>(fn::get<2>(c4)) == 2);
+
+    auto c5 = a.append(std::in_place_type<fn::pack<C, B>>, C{}, B{4, 6});
+    CHECK(c5.apply([](bool i, int j, C const &c, B const &b) { return i && j == 3 && c.v == 30 && b.v == 24; }));
   }
 
   SECTION("constraints")
@@ -453,6 +529,31 @@ TEST_CASE("append value categories", "[pack][append]")
     static_assert(not can_append<T &, fn::sum<int> &>);
     static_assert(not can_append_in_place<T &, fn::sum<int>, fn::sum<int>>);
     static_assert(not can_append_in_place<T &, fn::sum_for<bool, int>, fn::sum_for<bool, int>>);
+
+    // A pack never holds a pack either: appending one splices, in every spelling and every value
+    // category of the subject - the deduced form relocates the given pack's elements, the tag form
+    // constructs the named pack from the arguments and splices that
+    static_assert(std::same_as<T::append_type<fn::pack<B, C>>, pack<int, std::string_view, A, B, C>>);
+    static_assert(can_append<T &, fn::pack<int>>);
+    static_assert(can_append<T &, fn::pack<int> &>);
+    static_assert(can_append<T const &, fn::pack<int>>);
+    static_assert(can_append<T &&, fn::pack<int>>);
+    static_assert(can_append<T const &&, fn::pack<int>>);
+    static_assert(can_append_in_place<T &, fn::pack<int>, int>);
+    static_assert(can_append_in_place<T const &, fn::pack<int>, int>);
+    static_assert(can_append_in_place<T &&, fn::pack<int>, int>);
+    static_assert(can_append_in_place<T const &&, fn::pack<int>, int>);
+    static_assert(can_append_in_place<T &, fn::pack<double, int>, double, int>);
+    static_assert(can_append_in_place<T &, fn::pack<int>>); // value-initialized element
+    static_assert(can_append_in_place<T &, fn::pack<>>);    // zero elements contributed
+    // the construction is asked the brace question, and asking must answer, not hard-error -
+    // including a tag that merely NAMES an ill-formed pack
+    static_assert(not can_append_in_place<T &, fn::pack<B>>);                       // B has no default constructor
+    static_assert(not can_append_in_place<T &, fn::pack<B>, char const *>);         // B is not constructible from it
+    static_assert(not can_append_in_place<T &, fn::pack<int>, int, int>);           // one too many
+    static_assert(not can_append_in_place<T &, fn::pack<double>, fn::pack<float>>); // not the tag's pack
+    static_assert(not can_append_in_place<T &, fn::pack<fn::pack<int>>, int>);
+    static_assert(not can_append_in_place<T &, fn::pack<fn::sum<int>>, int>);
 
     // relocation is part of the question: the elements already held move into the new pack in the
     // pack's own value category, and an element which cannot make that move rejects the append
@@ -807,6 +908,11 @@ TEST_CASE("operator &", "[pack][sum][operator_and]")
                     fn::pack<int, int, double, double, bool, double, int>> const>);
   static_assert(r2.apply([](auto &&...args) -> double { return (1 * ... * static_cast<double>(args)); })
                 == 12. * 3 * 2.5 * 0.5 * 1 * 1.5 * 12);
+
+  // a pack whose only element is tuple-like splices whole through the join
+  constexpr auto r3 = fn::as_sum(12) & fn::pack<std::tuple<int, int>>{std::tuple{1, 2}};
+  static_assert(std::is_same_v<decltype(r3), fn::sum<fn::pack<int, std::tuple<int, int>>> const>);
+  static_assert(r3.apply([](int i, std::tuple<int, int> const &t) { return i == 12 && std::get<0>(t) == 1; }));
 
   SECTION("noexcept")
   {
