@@ -12,6 +12,7 @@
 #include <catch2/catch_all.hpp>
 
 #include <string>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -566,6 +567,19 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
             [](auto) -> std::false_type { return {}; }, //
             [](int &) -> std::false_type { return {}; }, [](int const &) -> std::false_type { return {}; },
             [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::true_type { return {}; }}));
+      }
+    }
+
+    SECTION("tuple-like alternative")
+    {
+      // the tuple-like arm of fn::apply reaches choice's dispatch identically to sum's
+      constexpr auto add2 = [](int i, int j) noexcept -> int { return i + j; };
+      CHECK(choice<std::tuple<int, int>>{std::tuple{2, 3}}.apply(add2) == 5);
+
+      SECTION("constexpr")
+      {
+        static_assert(choice<std::tuple<int, int>>{std::tuple{2, 3}}.apply(add2) == 5);
+        SUCCEED();
       }
     }
   }
