@@ -97,6 +97,9 @@ runs:
         printf "%s\n" "$PR_HEAD_SHA" > .pr-meta/head_sha
         printf "%s\n" "$PR_HEAD_REF" > .pr-meta/head_ref
         printf "%s\n" "$PR_BASE_REF" > .pr-meta/base_ref
+        # Read back from the tree rather than the checkout input, so the downstream head_sha
+        # comparison can catch a checkout that silently resolved elsewhere (#332).
+        git rev-parse HEAD           > .pr-meta/build_sha
         # shellcheck disable=SC2046  # find emits one path per result; intentional word-splitting into tar arg list
         tar -czf "$ARTIFACT_NAME.tar.gz" \
           .build/compile_commands.json \
