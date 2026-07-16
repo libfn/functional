@@ -2,6 +2,11 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `invoke` became `apply` — 15 July 2026
+
+- **The multidispatch verb and its whole vocabulary renamed** ([#84](https://github.com/libfn/functional/issues/84)): `fn::apply`/`apply_r`, the members on `sum`, `choice` and `pack`, the `apply_result`/`is_applicable` traits and the `applicable`/`typelist_applicable` concepts. The dispatch — unpack packs, dispatch sums, fold several operands into one — extends `std::apply`'s mechanism, not `std::invoke`'s: the implementation reaches `std::invoke` at the bottom, which is precisely why the old name overpromised. Type-indexed internals and true `std::invoke`-level names keep theirs.
+- **`fn::apply` serves `std::apply`'s own domain too**: a lone tuple-like argument unpacks through the machinery shared with `pfn::apply` (#325), so the two agree on the entire std domain by construction — and the elements are terminal: a sum element is handed over whole, never dispatched. A generic callable therefore unpacks where it used to receive the tuple whole; a callable viable only for the whole tuple is still served, and a tuple-like among further arguments still passes whole.
+
 ## `pfn` grew the C++26 `apply` trait family — 15 July 2026
 
 - **`pfn/tuple.hpp` polyfills P1317R2** ([#325](https://github.com/libfn/functional/issues/325)): `is_applicable`/`is_nothrow_applicable`, the SFINAE-friendly `apply_result`/`apply_result_t`, and `apply` in its C++26 shape — a declared return type where C++20's deduced return is a hard error outside the immediate context, and a computed exception specification. The suite's own probes demonstrated the defect being fixed: an unqualified negative probe over std arguments finds C++20's `std::apply` through ADL and hard-errors where the C++26 shape substitutes away. Groundwork for #84: `fn`'s multidispatch verbs rename onto `std::apply`'s vocabulary, extending a conforming polyfill.

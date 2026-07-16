@@ -101,22 +101,22 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
 
   template <typename Self, typename Fn, typename... Args>
     requires(not(... || (_some_pack<Args> || _some_sum<Args>)))
-  static constexpr auto _invoke(Self &&self, Fn &&fn, Args &&...args) //
-      noexcept(_is_nothrow_invocable<Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args &&...>::value)
-          -> _invoke_result<Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args &&...>::type
-    requires(_is_invocable<Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args && ...>::value)
+  static constexpr auto _apply(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(_is_nothrow_applicable<Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args &&...>::value)
+          -> _apply_result<Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args &&...>::type
+    requires(_is_applicable<Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args && ...>::value)
   {
-    return ::fn::detail::_invoke(
+    return ::fn::detail::_apply(
         FWD(fn), static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., FWD(args)...);
   }
 
   template <typename Ret, typename Self, typename Fn, typename... Args>
     requires(not(... || (_some_pack<Args> || _some_sum<Args>)))
-  static constexpr auto _invoke_r(Self &&self, Fn &&fn, Args &&...args) //
-      noexcept(_is_nothrow_invocable_r<Ret, Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args &&...>::value) -> Ret
-    requires(_is_invocable_r<Ret, Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args && ...>::value)
+  static constexpr auto _apply_r(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(_is_nothrow_applicable_r<Ret, Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args &&...>::value) -> Ret
+    requires(_is_applicable_r<Ret, Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args && ...>::value)
   {
-    return ::fn::detail::_invoke_r<Ret>(
+    return ::fn::detail::_apply_r<Ret>(
         FWD(fn), static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., FWD(args)...);
   }
 
@@ -160,7 +160,7 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
   _relocatable<decltype(other)>
   {
     using type = _pack_append<::std::remove_cvref_t<T>, Ts...>::impl;
-    return FWD(other)._invoke(FWD(other), [&self](auto &&...args) {
+    return FWD(other)._apply(FWD(other), [&self](auto &&...args) {
       return type{static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., FWD(args)...};
     });
   }

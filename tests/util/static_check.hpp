@@ -41,7 +41,7 @@ template <typename OperandType> struct prvalue {
 
 struct static_check {
   template <typename CheckType> struct bind {
-    [[nodiscard]] static constexpr auto invocable(auto &&...fns) noexcept -> bool
+    [[nodiscard]] static constexpr auto applicable(auto &&...fns) noexcept -> bool
       requires(std::is_invocable_r_v<bool, CheckType, decltype(fns)...>)
     {
       return CheckType()(std::forward<decltype(fns)>(fns)...);
@@ -50,16 +50,16 @@ struct static_check {
     [[nodiscard]] static constexpr auto not_invocable(auto &&...fns) noexcept -> bool
       requires(std::is_invocable_r_v<bool, CheckType, decltype(fns)...>)
     {
-      return not invocable(std::forward<decltype(fns)>(fns)...);
+      return not applicable(std::forward<decltype(fns)>(fns)...);
     }
   };
 };
 
 template <typename OperandType, template <typename> typename CommandType> struct static_check_with_value_categories {
   template <template <typename> typename... Categories>
-  [[nodiscard]] static constexpr auto invocable(auto &&...fns) noexcept -> bool
+  [[nodiscard]] static constexpr auto applicable(auto &&...fns) noexcept -> bool
   {
-    return (static_check::bind<CommandType<typename Categories<OperandType>::type>>::invocable(
+    return (static_check::bind<CommandType<typename Categories<OperandType>::type>>::applicable(
                 std::forward<decltype(fns)>(fns)...)
             && ...);
   }
@@ -74,7 +74,7 @@ template <typename OperandType, template <typename> typename CommandType> struct
 
   [[nodiscard]] static constexpr auto invocable_with_any(auto &&...fns) noexcept -> bool
   {
-    return invocable<lvalue, cvalue, rvalue, clvalue, crvalue, prvalue>(std::forward<decltype(fns)>(fns)...);
+    return applicable<lvalue, cvalue, rvalue, clvalue, crvalue, prvalue>(std::forward<decltype(fns)>(fns)...);
   }
 
   [[nodiscard]] static constexpr auto not_invocable_with_any(auto &&...fns) noexcept -> bool
@@ -123,9 +123,9 @@ public:
   }
 
   template <template <typename> typename... Categories>
-  [[nodiscard]] static constexpr auto invocable(auto &&...fns) noexcept -> bool
+  [[nodiscard]] static constexpr auto applicable(auto &&...fns) noexcept -> bool
   {
-    return bind::template invocable<Categories...>(std::forward<decltype(fns)>(fns)...);
+    return bind::template applicable<Categories...>(std::forward<decltype(fns)>(fns)...);
   }
 
   template <template <typename> typename... Categories>

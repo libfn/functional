@@ -40,7 +40,7 @@ template <typename T, typename Fn, typename... Args> struct _is_type_invocable {
       = decltype(_is_type_invocable_result<T, Fn, Args...>(::std::declval<Fn>(), ::std::declval<Args>()...))::value;
 };
 
-// invoke_result
+// invoke_type_result
 template <typename T, typename Fn, typename... Args>
 constexpr auto _invoke_type_result_result(Fn &&, Args &&...)
     -> ::std::type_identity<decltype(_invoke_type<T>(::std::declval<Fn>(), ::std::declval<Args>()...))>;
@@ -533,14 +533,14 @@ template <typename U, typename T, typename... Args>
 concept _nothrow_makeable = requires { requires noexcept(make_variadic_union<T, U>(::std::declval<Args>()...)); };
 
 template <typename R, typename U, typename Fn, typename... Args>
-[[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn,
-                                                   Args &&...args)
-  requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U>  //
-           && (U::size == 1) && (not ::std::is_same_v<void, R>)     //
-           && _typelist_invocable_r<R, Fn, decltype(v), Args &&...> //
+[[nodiscard]] constexpr auto apply_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn,
+                                                  Args &&...args)
+  requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U>   //
+           && (U::size == 1) && (not ::std::is_same_v<void, R>)      //
+           && _typelist_applicable_r<R, Fn, decltype(v), Args &&...> //
 {
   if (index == 0)
-    return static_cast<R>(_invoke(FWD(fn), FWD(v).v0, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), FWD(v).v0, FWD(args)...));
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -560,13 +560,13 @@ template <typename R, typename U, typename Fn>
 }
 
 template <typename R, typename U, typename Fn, typename... Args>
-constexpr void invoke_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn, Args &&...args)
+constexpr void apply_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn, Args &&...args)
   requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U> //
            && (U::size == 1) && (::std::is_same_v<void, R>)        //
-           && _typelist_invocable<Fn, decltype(v), Args &&...>     //
+           && _typelist_applicable<Fn, decltype(v), Args &&...>    //
 {
   if (index == 0)
-    return (void)_invoke(FWD(fn), FWD(v).v0, FWD(args)...);
+    return (void)_apply(FWD(fn), FWD(v).v0, FWD(args)...);
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -582,16 +582,16 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, ::std::s
 }
 
 template <typename R, typename U, typename Fn, typename... Args>
-[[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn,
-                                                   Args &&...args)
-  requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U>  //
-           && (U::size == 2) && (not ::std::is_same_v<void, R>)     //
-           && _typelist_invocable_r<R, Fn, decltype(v), Args &&...> //
+[[nodiscard]] constexpr auto apply_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn,
+                                                  Args &&...args)
+  requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U>   //
+           && (U::size == 2) && (not ::std::is_same_v<void, R>)      //
+           && _typelist_applicable_r<R, Fn, decltype(v), Args &&...> //
 {
   if (index == 0)
-    return static_cast<R>(_invoke(FWD(fn), FWD(v).v0, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), FWD(v).v0, FWD(args)...));
   else if (index == 1)
-    return static_cast<R>(_invoke(FWD(fn), FWD(v).v1, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), FWD(v).v1, FWD(args)...));
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -609,15 +609,15 @@ template <typename R, typename U, typename Fn>
 }
 
 template <typename R, typename U, typename Fn, typename... Args>
-constexpr void invoke_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn, Args &&...args)
+constexpr void apply_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn, Args &&...args)
   requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U> //
            && (U::size == 2) && (::std::is_same_v<void, R>)        //
-           && _typelist_invocable<Fn, decltype(v), Args &&...>     //
+           && _typelist_applicable<Fn, decltype(v), Args &&...>    //
 {
   if (index == 0)
-    return (void)_invoke(FWD(fn), FWD(v).v0, FWD(args)...);
+    return (void)_apply(FWD(fn), FWD(v).v0, FWD(args)...);
   else if (index == 1)
-    return (void)_invoke(FWD(fn), FWD(v).v1, FWD(args)...);
+    return (void)_apply(FWD(fn), FWD(v).v1, FWD(args)...);
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -635,18 +635,18 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, ::std::s
 }
 
 template <typename R, typename U, typename Fn, typename... Args>
-[[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn,
-                                                   Args &&...args)
-  requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U>  //
-           && (U::size == 3) && (not ::std::is_same_v<void, R>)     //
-           && _typelist_invocable_r<R, Fn, decltype(v), Args &&...> //
+[[nodiscard]] constexpr auto apply_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn,
+                                                  Args &&...args)
+  requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U>   //
+           && (U::size == 3) && (not ::std::is_same_v<void, R>)      //
+           && _typelist_applicable_r<R, Fn, decltype(v), Args &&...> //
 {
   if (index == 0)
-    return static_cast<R>(_invoke(FWD(fn), FWD(v).v0, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), FWD(v).v0, FWD(args)...));
   else if (index == 1)
-    return static_cast<R>(_invoke(FWD(fn), FWD(v).v1, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), FWD(v).v1, FWD(args)...));
   else if (index == 2)
-    return static_cast<R>(_invoke(FWD(fn), FWD(v).v2, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), FWD(v).v2, FWD(args)...));
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -666,17 +666,17 @@ template <typename R, typename U, typename Fn>
 }
 
 template <typename R, typename U, typename Fn, typename... Args>
-constexpr void invoke_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn, Args &&...args)
+constexpr void apply_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn, Args &&...args)
   requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U> //
            && (U::size == 3) && (::std::is_same_v<void, R>)        //
-           && _typelist_invocable<Fn, decltype(v), Args &&...>     //
+           && _typelist_applicable<Fn, decltype(v), Args &&...>    //
 {
   if (index == 0)
-    return (void)_invoke(FWD(fn), FWD(v).v0, FWD(args)...);
+    return (void)_apply(FWD(fn), FWD(v).v0, FWD(args)...);
   else if (index == 1)
-    return (void)_invoke(FWD(fn), FWD(v).v1, FWD(args)...);
+    return (void)_apply(FWD(fn), FWD(v).v1, FWD(args)...);
   else if (index == 2)
-    return (void)_invoke(FWD(fn), FWD(v).v2, FWD(args)...);
+    return (void)_apply(FWD(fn), FWD(v).v2, FWD(args)...);
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -696,20 +696,20 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, ::std::s
 }
 
 template <typename R, typename U, typename Fn, typename... Args>
-[[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn,
-                                                   Args &&...args)
-  requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U>  //
-           && (U::size == 4) && (not ::std::is_same_v<void, R>)     //
-           && _typelist_invocable_r<R, Fn, decltype(v), Args &&...> //
+[[nodiscard]] constexpr auto apply_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn,
+                                                  Args &&...args)
+  requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U>   //
+           && (U::size == 4) && (not ::std::is_same_v<void, R>)      //
+           && _typelist_applicable_r<R, Fn, decltype(v), Args &&...> //
 {
   if (index == 0)
-    return static_cast<R>(_invoke(FWD(fn), FWD(v).v0, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), FWD(v).v0, FWD(args)...));
   else if (index == 1)
-    return static_cast<R>(_invoke(FWD(fn), FWD(v).v1, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), FWD(v).v1, FWD(args)...));
   else if (index == 2)
-    return static_cast<R>(_invoke(FWD(fn), FWD(v).v2, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), FWD(v).v2, FWD(args)...));
   else if (index == 3)
-    return static_cast<R>(_invoke(FWD(fn), FWD(v).v3, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), FWD(v).v3, FWD(args)...));
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -731,19 +731,19 @@ template <typename R, typename U, typename Fn>
 }
 
 template <typename R, typename U, typename Fn, typename... Args>
-constexpr void invoke_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn, Args &&...args)
+constexpr void apply_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn, Args &&...args)
   requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U> //
            && (U::size == 4) && (::std::is_same_v<void, R>)        //
-           && _typelist_invocable<Fn, decltype(v), Args &&...>     //
+           && _typelist_applicable<Fn, decltype(v), Args &&...>    //
 {
   if (index == 0)
-    return (void)_invoke(FWD(fn), FWD(v).v0, FWD(args)...);
+    return (void)_apply(FWD(fn), FWD(v).v0, FWD(args)...);
   else if (index == 1)
-    return (void)_invoke(FWD(fn), FWD(v).v1, FWD(args)...);
+    return (void)_apply(FWD(fn), FWD(v).v1, FWD(args)...);
   else if (index == 2)
-    return (void)_invoke(FWD(fn), FWD(v).v2, FWD(args)...);
+    return (void)_apply(FWD(fn), FWD(v).v2, FWD(args)...);
   else if (index == 3)
-    return (void)_invoke(FWD(fn), FWD(v).v3, FWD(args)...);
+    return (void)_apply(FWD(fn), FWD(v).v3, FWD(args)...);
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -765,22 +765,22 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, ::std::s
 }
 
 template <typename R, typename U, typename Fn, typename... Args>
-[[nodiscard]] constexpr auto invoke_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn,
-                                                   Args &&...args)
-  requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U>  //
-           && (U::size > 4) && (not ::std::is_same_v<void, R>)      //
-           && _typelist_invocable_r<R, Fn, decltype(v), Args &&...> //
+[[nodiscard]] constexpr auto apply_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn,
+                                                  Args &&...args)
+  requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U>   //
+           && (U::size > 4) && (not ::std::is_same_v<void, R>)       //
+           && _typelist_applicable_r<R, Fn, decltype(v), Args &&...> //
 {
   if (index == 0)
-    return static_cast<R>(_invoke(FWD(fn), FWD(v).v0, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), FWD(v).v0, FWD(args)...));
   else if (index == 1)
-    return static_cast<R>(_invoke(FWD(fn), FWD(v).v1, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), FWD(v).v1, FWD(args)...));
   else if (index == 2)
-    return static_cast<R>(_invoke(FWD(fn), FWD(v).v2, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), FWD(v).v2, FWD(args)...));
   else if (index == 3)
-    return static_cast<R>(_invoke(FWD(fn), FWD(v).v3, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), FWD(v).v3, FWD(args)...));
   else
-    return invoke_variadic_union<R, typename U::more_t>(FWD(v).more, index - 4, FWD(fn), FWD(args)...);
+    return apply_variadic_union<R, typename U::more_t>(FWD(v).more, index - 4, FWD(fn), FWD(args)...);
 }
 
 template <typename R, typename U, typename Fn>
@@ -802,21 +802,21 @@ template <typename R, typename U, typename Fn>
 }
 
 template <typename R, typename U, typename Fn, typename... Args>
-constexpr void invoke_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn, Args &&...args)
+constexpr void apply_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn, Args &&...args)
   requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U> //
            && (U::size > 4) && (::std::is_same_v<void, R>)         //
-           && _typelist_invocable<Fn, decltype(v), Args &&...>     //
+           && _typelist_applicable<Fn, decltype(v), Args &&...>    //
 {
   if (index == 0)
-    return (void)_invoke(FWD(fn), FWD(v).v0, FWD(args)...);
+    return (void)_apply(FWD(fn), FWD(v).v0, FWD(args)...);
   else if (index == 1)
-    return (void)_invoke(FWD(fn), FWD(v).v1, FWD(args)...);
+    return (void)_apply(FWD(fn), FWD(v).v1, FWD(args)...);
   else if (index == 2)
-    return (void)_invoke(FWD(fn), FWD(v).v2, FWD(args)...);
+    return (void)_apply(FWD(fn), FWD(v).v2, FWD(args)...);
   else if (index == 3)
-    return (void)_invoke(FWD(fn), FWD(v).v3, FWD(args)...);
+    return (void)_apply(FWD(fn), FWD(v).v3, FWD(args)...);
   else
-    return invoke_variadic_union<R, typename U::more_t>(FWD(v).more, index - 4, FWD(fn), FWD(args)...);
+    return apply_variadic_union<R, typename U::more_t>(FWD(v).more, index - 4, FWD(fn), FWD(args)...);
 }
 
 template <typename R, typename U, typename Fn>

@@ -216,8 +216,8 @@ TEST_CASE("value_or constraints", "[value_or][constraints]")
   // latter would accept every category below, including the two that would have to copy.
   using move_only_t = fn::expected<helper_move_only, Error>;
   using is = monadic_static_check<value_or_t, move_only_t>;
-  static_assert(is::invocable<rvalue, prvalue>(1));     // moved
-  static_assert(is::invocable<crvalue, cvalue>(1));     // const-moved
+  static_assert(is::applicable<rvalue, prvalue>(1));    // moved
+  static_assert(is::applicable<crvalue, cvalue>(1));    // const-moved
   static_assert(is::not_invocable<lvalue, clvalue>(1)); // would have to copy
 
   // A reference optional binds its referent rather than carrying it - so an immovable referent is
@@ -225,9 +225,9 @@ TEST_CASE("value_or constraints", "[value_or][constraints]")
   // type alone cannot answer this: it is the referent, which a prvalue constructs happily.
   using ref_t = fn::optional<int &>;
   static_assert(std::is_constructible_v<ref_t::value_type, int>);
-  static_assert(not invocable_value_or<ref_t &, int>); // a temporary to bind to: rejected
-  static_assert(invocable_value_or<ref_t &, int &>);
-  static_assert(invocable_value_or<fn::optional<helper_immovable &> &, helper_immovable &>);
+  static_assert(not applicable_value_or<ref_t &, int>); // a temporary to bind to: rejected
+  static_assert(applicable_value_or<ref_t &, int &>);
+  static_assert(applicable_value_or<fn::optional<helper_immovable &> &, helper_immovable &>);
   SUCCEED();
 }
 
@@ -239,15 +239,15 @@ struct Value final {};
 
 // clang-format off
 // Not a callable verb: the arguments must construct the operand's own value type.
-static_assert(invocable_value_or<expected<int, Error>, int>);
-static_assert(invocable_value_or<expected<int, Error>, unsigned>);                 // conversion is enough
-static_assert(invocable_value_or<expected<helper_move_only, Error>, int, int>);    // multi-argument construction
-static_assert(not invocable_value_or<expected<int, Error>, char const *>);         // no conversion found
-static_assert(not invocable_value_or<expected<int, Error>, int, int>);             // too many initialisers
-static_assert(not invocable_value_or<expected<Value, Error>, int>);                // wrong type
-static_assert(not invocable_value_or<expected<void, Error>, int>);                 // void has no value to fall back to
-static_assert(invocable_value_or<optional<int>, int>);
-static_assert(not invocable_value_or<optional<int>, char const *>);
-static_assert(not invocable_value_or<choice<int>, int>);                           // no choice disjunct
+static_assert(applicable_value_or<expected<int, Error>, int>);
+static_assert(applicable_value_or<expected<int, Error>, unsigned>);                 // conversion is enough
+static_assert(applicable_value_or<expected<helper_move_only, Error>, int, int>);    // multi-argument construction
+static_assert(not applicable_value_or<expected<int, Error>, char const *>);         // no conversion found
+static_assert(not applicable_value_or<expected<int, Error>, int, int>);             // too many initialisers
+static_assert(not applicable_value_or<expected<Value, Error>, int>);                // wrong type
+static_assert(not applicable_value_or<expected<void, Error>, int>);                 // void has no value to fall back to
+static_assert(applicable_value_or<optional<int>, int>);
+static_assert(not applicable_value_or<optional<int>, char const *>);
+static_assert(not applicable_value_or<choice<int>, int>);                           // no choice disjunct
 // clang-format on
 } // namespace fn

@@ -15,8 +15,8 @@
 #include <type_traits>
 #include <utility>
 
+using fn::detail::apply_variadic_union;
 using fn::detail::invoke_type_variadic_union;
-using fn::detail::invoke_variadic_union;
 using fn::detail::make_variadic_union;
 using fn::detail::ptr_variadic_union;
 using fn::detail::variadic_union;
@@ -89,12 +89,12 @@ template <typename U, std::size_t I> constexpr auto check_alternative() -> bool
 
   bool ok = *ptr_variadic_union<T, U>(u) == v && *ptr_variadic_union<T, U>(m) == v;
 
-  // invoke passes the alternative alone; the result converts to whatever R asks for
+  // apply passes the alternative alone; the result converts to whatever R asks for
   constexpr auto size_of = [](auto x) -> std::size_t { return sizeof(x); };
-  static_assert(std::same_as<std::size_t, decltype(invoke_variadic_union<std::size_t, U>(u, I, size_of))>);
-  static_assert(std::same_as<long, decltype(invoke_variadic_union<long, U>(u, I, size_of))>);
-  ok = ok && invoke_variadic_union<std::size_t, U>(u, I, size_of) == sizeof(T);
-  ok = ok && invoke_variadic_union<long, U>(u, I, size_of) == static_cast<long>(sizeof(T));
+  static_assert(std::same_as<std::size_t, decltype(apply_variadic_union<std::size_t, U>(u, I, size_of))>);
+  static_assert(std::same_as<long, decltype(apply_variadic_union<long, U>(u, I, size_of))>);
+  ok = ok && apply_variadic_union<std::size_t, U>(u, I, size_of) == sizeof(T);
+  ok = ok && apply_variadic_union<long, U>(u, I, size_of) == static_cast<long>(sizeof(T));
 
   // invoke_type additionally passes in_place_type<T>, naming the alternative it dispatched to - and
   // passes exactly those two arguments
@@ -106,9 +106,9 @@ template <typename U, std::size_t I> constexpr auto check_alternative() -> bool
        });
 
   // both dispatchers have a separate void-returning overload per union size
-  static_assert(std::same_as<void, decltype(invoke_variadic_union<void, U>(u, I, size_of))>);
+  static_assert(std::same_as<void, decltype(apply_variadic_union<void, U>(u, I, size_of))>);
   std::size_t seen = 0;
-  invoke_variadic_union<void, U>(u, I, [&seen](auto x) { seen = sizeof(x); });
+  apply_variadic_union<void, U>(u, I, [&seen](auto x) { seen = sizeof(x); });
   ok = ok && seen == sizeof(T);
 
   static_assert(std::same_as<void, decltype(invoke_type_variadic_union<void, U>(u, I, arity))>);
@@ -142,7 +142,7 @@ using U5 = variadic_union<bool, int, double, float, std::string_view>;
 // recursive one that chains a nested union past the fourth alternative.
 TEMPLATE_TEST_CASE("variadic_union",
                    "[variadic_union][make_variadic_union][ptr_variadic_union]"
-                   "[invoke_variadic_union][invoke_type_variadic_union]",
+                   "[apply_variadic_union][invoke_type_variadic_union]",
                    U1, U2, U3, U4, U5)
 {
   using U = TestType;
@@ -193,7 +193,7 @@ TEST_CASE("variadic_union with a non-copyable alternative", "[variadic_union][ma
   constexpr T6 a4 = make_variadic_union<NonCopyable, T6>(42);
   static_assert(ptr_variadic_union<NonCopyable, T6>(a4)->v == 42);
   // by const reference: a by-value callback would copy the alternative, which NonCopyable forbids
-  static_assert(invoke_variadic_union<int, T6>(a4, 4, [](auto const &i) -> int { return static_cast<int>(i); }) == 42);
+  static_assert(apply_variadic_union<int, T6>(a4, 4, [](auto const &i) -> int { return static_cast<int>(i); }) == 42);
 
   CHECK(ptr_variadic_union<NonCopyable, T6>(a4)->v == 42);
 }

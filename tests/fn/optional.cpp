@@ -168,7 +168,7 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     constexpr auto fn8 = []() -> fn::optional<fn::sum_for<Xint, int, long>> { throw 0; };
     static_assert(std::is_same_v<decltype(s.or_else(fn8)), fn::optional<fn::sum_for<Xint, int, long>>>);
 
-    // noexcept (extension): true only when the callback is nothrow-invocable, returns exactly
+    // noexcept (extension): true only when the callback is nothrow-applicable, returns exactly
     // optional<sum<int>> (no widening), and *this is nothrow-constructible from itself.
     constexpr auto nothrow_same = []() noexcept -> fn::optional<fn::sum<int>> { return {std::nullopt}; };
     static_assert(noexcept(s.or_else(nothrow_same)));
@@ -177,7 +177,7 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     constexpr auto nothrow_widen = []() noexcept -> fn::optional<Xint> { return {std::nullopt}; };
     static_assert(noexcept(s.or_else(nothrow_widen))); // nothrow but widens to sum_for<Xint, int>);
 
-    // constraints (extension): a non-invocable argument drops or_else from the overload set via
+    // constraints (extension): a non-applicable argument drops or_else from the overload set via
     // SFINAE (the return-type-is-optional requirement is instead a Mandates static_assert inside).
     constexpr auto can_or_else
         = [](auto &&f) { return requires { std::declval<fn::optional<fn::sum<int>>>().or_else(f); }; };
@@ -242,7 +242,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
   {
     using P = fn::optional<fn::pack<int, std::string_view>>;
 
-    // noexcept (extension): the spec asks fn's own nothrow-invocable trait, which asks the
+    // noexcept (extension): the spec asks fn's own nothrow-applicable trait, which asks the
     // dispatch that will actually run - one argument per element - so a multi-argument visitor is
     // weighed as it is called, not as std would call it on the pack itself.
     constexpr auto nothrow_two = [](int &, std::string_view &) noexcept -> fn::optional<bool> { return {true}; };
@@ -319,7 +319,7 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
     SECTION("noexcept")
     {
       // a pack's callback is invoked through fn's own dispatch, taking one argument per element: it
-      // is not directly invocable on the pack, so only fn's nothrow-invocable trait can answer
+      // is not directly applicable on the pack, so only fn's nothrow-applicable trait can answer
       using T = fn::optional<fn::pack<int, double>>;
       static_assert(
           noexcept(std::declval<T &>().and_then([](int, double) noexcept -> fn::optional<bool> { return {true}; })));
@@ -695,7 +695,7 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
 {
   using S = fn::optional<fn::sum_for<Xint, int>>;
 
-  // noexcept (extension): the spec asks fn's own nothrow-invocable trait, which asks the
+  // noexcept (extension): the spec asks fn's own nothrow-applicable trait, which asks the
   // per-alternative dispatch that will actually run - so a visitor set is weighed alternative by
   // alternative, and one throwing handler makes the whole dispatch throwing.
   constexpr auto nothrow_lval = fn::overload{[](int &) noexcept -> fn::optional<bool> { return {true}; },
@@ -705,7 +705,7 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
   static_assert(noexcept(std::declval<S &>().and_then(nothrow_generic)));
 
   // constraints (extension): exhaustive invocability over the sum's alternatives is a
-  // constraint (optional.hpp:147) -- a partial or non-invocable visitor SFINAE-drops, and the
+  // constraint (optional.hpp:147) -- a partial or non-applicable visitor SFINAE-drops, and the
   // alternatives' value category is tracked
   constexpr auto can_and_then_lval = [](auto &&f) { return requires { std::declval<S &>().and_then(f); }; };
   constexpr auto can_and_then_rval = [](auto &&f) { return requires { std::declval<S &&>().and_then(f); }; };
@@ -813,7 +813,7 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
 
   SECTION("noexcept")
   {
-    // the callback is invoked through fn's own dispatch, so only fn's nothrow-invocable trait can
+    // the callback is invoked through fn's own dispatch, so only fn's nothrow-applicable trait can
     // answer for it - and it is nothrow only if EVERY alternative's call is
     using T = fn::optional<fn::sum<double, int>>;
     static_assert(noexcept(std::declval<T &>().and_then([](auto) noexcept -> fn::optional<bool> { return {true}; })));

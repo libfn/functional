@@ -137,20 +137,20 @@ struct optional_policy {
 template <typename T, typename Fn, typename ValArg> struct _nothrow_optional_or_else : ::std::false_type {};
 
 template <typename T, typename Fn, typename ValArg>
-  requires ::std::is_same_v<::std::remove_cvref_t<typename _invoke_result<Fn>::type>, ::fn::optional<T>>
+  requires ::std::is_same_v<::std::remove_cvref_t<typename _apply_result<Fn>::type>, ::fn::optional<T>>
 struct _nothrow_optional_or_else<T, Fn, ValArg>
-    : ::std::bool_constant<_is_nothrow_invocable<Fn>::value
+    : ::std::bool_constant<_is_nothrow_applicable<Fn>::value
                                && ::std::is_nothrow_constructible_v<::fn::optional<T>, ::std::in_place_t, ValArg>> {};
 
 template <typename T, typename Fn, typename ValArg>
-  requires _is_some_optional<::std::remove_cvref_t<typename _invoke_result<Fn>::type> &>
-           && (not ::std::is_same_v<::std::remove_cvref_t<typename _invoke_result<Fn>::type>, ::fn::optional<T>>)
+  requires _is_some_optional<::std::remove_cvref_t<typename _apply_result<Fn>::type> &>
+           && (not ::std::is_same_v<::std::remove_cvref_t<typename _apply_result<Fn>::type>, ::fn::optional<T>>)
 struct _nothrow_optional_or_else<T, Fn, ValArg> {
-  using type = ::std::remove_cvref_t<typename _invoke_result<Fn>::type>;
+  using type = ::std::remove_cvref_t<typename _apply_result<Fn>::type>;
   using new_type = ::fn::optional<sum_for<T, typename type::value_type>>;
 
   static constexpr bool value
-      = _is_nothrow_invocable<Fn>::value                               // the callback
+      = _is_nothrow_applicable<Fn>::value                              // the callback
         && _nothrow_initializable<new_type, ::std::in_place_t, ValArg> // self's value
         && _nothrow_initializable<new_type, ::std::in_place_t, decltype(::std::declval<type>().value())>; // its value
 };
@@ -160,25 +160,25 @@ struct _nothrow_optional_or_else<T, Fn, ValArg> {
 // materialise their result via `optional_policy::template type<U>`.
 // The transform helpers hand pfn's _optional_from_invoke constructor a zero-argument
 // thunk, so the result's contained value is direct-non-list-initialized from fn's own
-// _invoke (or sum::transform) result: no extra move, and immovable result types work.
+// _apply (or sum::transform) result: no extra move, and immovable result types work.
 // The statics carry the same extension noexcept as pfn's, computed through fn's own machinery:
-// the callback of a sum/pack dispatch is invoked through `_invoke`, not called directly, so it is
-// `_is_nothrow_invocable` - not the std trait, which is false for a callable that is not directly
-// invocable on a sum or a pack - that answers for it.
+// the callback of a sum/pack dispatch is invoked through `_apply`, not called directly, so it is
+// `_is_nothrow_applicable` - not the std trait, which is false for a callable that is not directly
+// applicable on a sum or a pack - that answers for it.
 template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, optional_policy> {
   using _pfn_base = ::pfn::detail::_optional_base<T, optional_policy>;
   using _pfn_base::_pfn_base;
 
   // and_then
   template <typename Self, typename Fn>
-  static constexpr auto _and_then(Self &&self, Fn &&fn)                              //
-      noexcept(::fn::detail::_is_nothrow_invocable<Fn, decltype(*FWD(self))>::value) // extension
-    requires ::fn::detail::_is_invocable<Fn, decltype(*FWD(self))>::value
+  static constexpr auto _and_then(Self &&self, Fn &&fn)                               //
+      noexcept(::fn::detail::_is_nothrow_applicable<Fn, decltype(*FWD(self))>::value) // extension
+    requires ::fn::detail::_is_applicable<Fn, decltype(*FWD(self))>::value
   {
-    using type = ::std::remove_cvref_t<typename ::fn::detail::_invoke_result<Fn, decltype(*FWD(self))>::type>;
+    using type = ::std::remove_cvref_t<typename ::fn::detail::_apply_result<Fn, decltype(*FWD(self))>::type>;
     static_assert(_is_some_optional<type &>);
     if (self.has_value())
-      return ::fn::detail::_invoke(FWD(fn), *FWD(self));
+      return ::fn::detail::_apply(FWD(fn), *FWD(self));
     else {
 #if defined(__clang__) && __clang_major__ <= 18
       // clang 15-18 miscompile the prvalue return below for three of the four Self ref-qualifier
@@ -200,9 +200,9 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
   template <typename Self, typename Fn>
   static constexpr auto _or_else(Self &&self, Fn &&fn)                                      //
       noexcept(::fn::detail::_nothrow_optional_or_else<T, Fn, decltype(*FWD(self))>::value) // extension
-    requires ::fn::detail::_is_invocable<Fn>::value && ::std::is_constructible_v<T, decltype(*FWD(self))>
+    requires ::fn::detail::_is_applicable<Fn>::value && ::std::is_constructible_v<T, decltype(*FWD(self))>
   {
-    using type = ::std::remove_cvref_t<typename ::fn::detail::_invoke_result<Fn>::type>;
+    using type = ::std::remove_cvref_t<typename ::fn::detail::_apply_result<Fn>::type>;
     static_assert(_is_some_optional<type &>);
     // compare whole optional types (not value_type) so optional<T&> instantiations, whose
     // value_type is the unqualified referent, take the same-type arm
@@ -211,14 +211,14 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
       if (self.has_value())
         return type(::std::in_place, *FWD(self));
       else
-        return ::fn::detail::_invoke(FWD(fn));
+        return ::fn::detail::_apply(FWD(fn));
     } else {
       using new_value_type = sum_for<T, typename type::value_type>;
       using new_type = ::fn::optional<new_value_type>;
       if (self.has_value())
         return new_type{::std::in_place, *FWD(self)};
       else {
-        auto t = ::fn::detail::_invoke(FWD(fn));
+        auto t = ::fn::detail::_apply(FWD(fn));
         if (t.has_value())
           return new_type{::std::in_place, ::std::move(t).value()};
         else
@@ -238,18 +238,18 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
     return _pfn_base::_or_else(FWD(self), FWD(fn));
   }
 
-  // transform, value type is not a sum. In the noexcept spec, only the invoke can throw: the
+  // transform, value type is not a sum. In the noexcept spec, only the apply can throw: the
   // result is direct-non-list-initialized from the thunk's result (guaranteed elision).
   template <typename Self, typename Fn>
-  static constexpr auto _transform(Self &&self, Fn &&fn)                             //
-      noexcept(::fn::detail::_is_nothrow_invocable<Fn, decltype(*FWD(self))>::value) // extension
-    requires(not some_sum<T>) && ::fn::detail::_is_invocable_if<not some_sum<T>, Fn, decltype(*FWD(self))>::value
+  static constexpr auto _transform(Self &&self, Fn &&fn)                              //
+      noexcept(::fn::detail::_is_nothrow_applicable<Fn, decltype(*FWD(self))>::value) // extension
+    requires(not some_sum<T>) && ::fn::detail::_is_applicable_if<not some_sum<T>, Fn, decltype(*FWD(self))>::value
   {
-    using new_value_type = ::std::remove_cv_t<typename ::fn::detail::_invoke_result<Fn, decltype(*FWD(self))>::type>;
+    using new_value_type = ::std::remove_cv_t<typename ::fn::detail::_apply_result<Fn, decltype(*FWD(self))>::type>;
     using type = ::fn::optional<new_value_type>;
     if (self.has_value())
       return type(::pfn::detail::_optional_from_invoke,
-                  [&fn, &self]() -> decltype(auto) { return ::fn::detail::_invoke(FWD(fn), *FWD(self)); });
+                  [&fn, &self]() -> decltype(auto) { return ::fn::detail::_apply(FWD(fn), *FWD(self)); });
     else
       return type(::std::nullopt);
   }
@@ -262,7 +262,7 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn)  //
       noexcept(noexcept((*FWD(self)).transform(FWD(fn)))) // extension
-    requires some_sum<T> && ::fn::detail::_typelist_invocable<Fn, decltype(*FWD(self))>
+    requires some_sum<T> && ::fn::detail::_typelist_applicable<Fn, decltype(*FWD(self))>
   {
     using new_value_type = decltype((*FWD(self)).transform(FWD(fn)));
     using type = ::fn::optional<new_value_type>;

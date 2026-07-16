@@ -43,9 +43,9 @@ TEST_CASE("transform", "[transform][expected][expected_value][pack]")
   static_assert(is::invocable_with_any([](int) -> int { throw 0; }));                        // allow copy
   static_assert(is::invocable_with_any([](unsigned) -> int { throw 0; }));                   // allow conversion
   static_assert(is::invocable_with_any([](int const &) -> int { throw 0; }));                // binds to const ref
-  static_assert(is::invocable<lvalue>([](int &) -> int { throw 0; }));                       // binds to lvalue
-  static_assert(is::invocable<rvalue, prvalue>([](int &&) -> int { throw 0; }));             // can move
-  static_assert(is::invocable<rvalue, crvalue>([](int const &&) -> int { throw 0; }));       // binds to const rvalue
+  static_assert(is::applicable<lvalue>([](int &) -> int { throw 0; }));                      // binds to lvalue
+  static_assert(is::applicable<rvalue, prvalue>([](int &&) -> int { throw 0; }));            // can move
+  static_assert(is::applicable<rvalue, crvalue>([](int const &&) -> int { throw 0; }));      // binds to const rvalue
   static_assert(is::not_invocable<clvalue, crvalue, cvalue>([](int &) -> int { throw 0; })); // cannot remove const
   static_assert(is::not_invocable<rvalue>([](int &) -> int { throw 0; }));                   // disallow bind
   static_assert(is::not_invocable<lvalue, clvalue, crvalue, cvalue>([](int &&) -> int { throw 0; })); // cannot move
@@ -365,9 +365,9 @@ TEST_CASE("transform", "[transform][optional][pack]")
   static_assert(is::invocable_with_any([](int) -> int { throw 0; }));                        // allow copy
   static_assert(is::invocable_with_any([](unsigned) -> int { throw 0; }));                   // allow conversion
   static_assert(is::invocable_with_any([](int const &) -> int { throw 0; }));                // binds to const ref
-  static_assert(is::invocable<lvalue>([](int &) -> int { throw 0; }));                       // binds to lvalue
-  static_assert(is::invocable<rvalue, prvalue>([](int &&) -> int { throw 0; }));             // can move
-  static_assert(is::invocable<rvalue, crvalue>([](int const &&) -> int { throw 0; }));       // binds to const rvalue
+  static_assert(is::applicable<lvalue>([](int &) -> int { throw 0; }));                      // binds to lvalue
+  static_assert(is::applicable<rvalue, prvalue>([](int &&) -> int { throw 0; }));            // can move
+  static_assert(is::applicable<rvalue, crvalue>([](int const &&) -> int { throw 0; }));      // binds to const rvalue
   static_assert(is::not_invocable<clvalue, crvalue, cvalue>([](int &) -> int { throw 0; })); // cannot remove const
   static_assert(is::not_invocable<rvalue>([](int &) -> int { throw 0; }));                   // disallow bind
   static_assert(is::not_invocable<lvalue, clvalue, crvalue, cvalue>([](int &&) -> int { throw 0; })); // cannot move
@@ -576,13 +576,13 @@ TEST_CASE("transform choice", "[transform][choice]")
   constexpr auto fnXabs = [](int i) -> Xint { return Xint{std::abs(8 - i)}; };
 
   static_assert(is::invocable_with_any(fnValue));
-  static_assert(is::invocable_with_any([](int) -> operand_t { throw 0; }));                   // allow copy
-  static_assert(is::invocable_with_any([](unsigned) -> operand_t { throw 0; }));              // allow conversion
-  static_assert(is::invocable_with_any([](int) -> operand_other_t { throw 0; }));             // allow conversion
-  static_assert(is::invocable_with_any([](int const &) -> operand_t { throw 0; }));           // binds to const ref
-  static_assert(is::invocable<lvalue>([](auto &) -> operand_t { throw 0; }));                 // binds to lvalue
-  static_assert(is::invocable<rvalue, prvalue>([](auto &&) -> operand_t { throw 0; }));       // can move
-  static_assert(is::invocable<rvalue, crvalue>([](auto const &&) -> operand_t { throw 0; })); // binds to const rvalue
+  static_assert(is::invocable_with_any([](int) -> operand_t { throw 0; }));                    // allow copy
+  static_assert(is::invocable_with_any([](unsigned) -> operand_t { throw 0; }));               // allow conversion
+  static_assert(is::invocable_with_any([](int) -> operand_other_t { throw 0; }));              // allow conversion
+  static_assert(is::invocable_with_any([](int const &) -> operand_t { throw 0; }));            // binds to const ref
+  static_assert(is::applicable<lvalue>([](auto &) -> operand_t { throw 0; }));                 // binds to lvalue
+  static_assert(is::applicable<rvalue, prvalue>([](auto &&) -> operand_t { throw 0; }));       // can move
+  static_assert(is::applicable<rvalue, crvalue>([](auto const &&) -> operand_t { throw 0; })); // binds to const rvalue
 
   constexpr auto fnLvalue = fn::overload{[](bool &) -> operand_t { throw 0; },   //
                                          [](double &) -> operand_t { throw 0; }, //
@@ -699,32 +699,32 @@ constexpr auto fn_int_rvalue = [](int &&) -> int { throw 0; };
 
 // clang-format off
 // The callback returns a plain value, which must convert into the operand's own monad.
-static_assert(invocable_transform<decltype(fn_int<int>), expected<int, Error>>);
-static_assert(invocable_transform<decltype(fn_int<Value>), expected<int, Error>>);              // may change the type
-static_assert(not invocable_transform<decltype(fn_int<int>), expected<Value, Error>>);          // wrong parameter type
-static_assert(invocable_transform<decltype(fn_generic<int>), expected<Value, Error>>);
-static_assert(invocable_transform<decltype(fn_generic<int>), expected<void, Error>>);           // void: nullary callback
-static_assert(not invocable_transform<decltype(fn_int<int>), expected<void, Error>>);           // void: unary is bad arity
-static_assert(invocable_transform<decltype(fn_int<void>), expected<int, Error>>); // a void return transforms the value
+static_assert(applicable_transform<decltype(fn_int<int>), expected<int, Error>>);
+static_assert(applicable_transform<decltype(fn_int<Value>), expected<int, Error>>);              // may change the type
+static_assert(not applicable_transform<decltype(fn_int<int>), expected<Value, Error>>);          // wrong parameter type
+static_assert(applicable_transform<decltype(fn_generic<int>), expected<Value, Error>>);
+static_assert(applicable_transform<decltype(fn_generic<int>), expected<void, Error>>);           // void: nullary callback
+static_assert(not applicable_transform<decltype(fn_int<int>), expected<void, Error>>);           // void: unary is bad arity
+static_assert(applicable_transform<decltype(fn_int<void>), expected<int, Error>>); // a void return transforms the value
                                                                                   // side to expected<void, Error>
-static_assert(invocable_transform<decltype(fn_int<int>), optional<int>>);
-static_assert(not invocable_transform<decltype(fn_int<int>), optional<Value>>);                 // wrong parameter type
-static_assert(invocable_transform<decltype(fn_generic<int>), optional<Value>>);
-static_assert(not invocable_transform<decltype(fn_int<void>), optional<int>>);                 // void return: no optional<void>
-static_assert(invocable_transform<decltype(fn_generic<int>), choice<int>>);
-static_assert(not invocable_transform<decltype(fn_int<int>), choice<Value>>);            // must serve every alternative
-static_assert(not invocable_transform<decltype(fn_int<void>), choice<int>>);             // a void result has no place in a choice
-static_assert(not invocable_transform<decltype(fn_int_lvalue), expected<int, Error>>);   // cannot bind temporary to lvalue
-static_assert(invocable_transform<decltype(fn_int_lvalue), expected<int, Error> &>);
-static_assert(invocable_transform<decltype(fn_int_rvalue), expected<int, Error>>);
-static_assert(not invocable_transform<decltype(fn_int_rvalue), expected<int, Error> &>); // cannot bind lvalue to rvalue-ref
+static_assert(applicable_transform<decltype(fn_int<int>), optional<int>>);
+static_assert(not applicable_transform<decltype(fn_int<int>), optional<Value>>);                 // wrong parameter type
+static_assert(applicable_transform<decltype(fn_generic<int>), optional<Value>>);
+static_assert(not applicable_transform<decltype(fn_int<void>), optional<int>>);                 // void return: no optional<void>
+static_assert(applicable_transform<decltype(fn_generic<int>), choice<int>>);
+static_assert(not applicable_transform<decltype(fn_int<int>), choice<Value>>);            // must serve every alternative
+static_assert(not applicable_transform<decltype(fn_int<void>), choice<int>>);             // a void result has no place in a choice
+static_assert(not applicable_transform<decltype(fn_int_lvalue), expected<int, Error>>);   // cannot bind temporary to lvalue
+static_assert(applicable_transform<decltype(fn_int_lvalue), expected<int, Error> &>);
+static_assert(applicable_transform<decltype(fn_int_rvalue), expected<int, Error>>);
+static_assert(not applicable_transform<decltype(fn_int_rvalue), expected<int, Error> &>); // cannot bind lvalue to rvalue-ref
 
 // A sum value dispatches through sum::transform, which requires the callback to cover ALL alternatives.
-static_assert(invocable_transform<decltype(fn_generic<int>), expected<sum_for<Value, int>, Error>>);
-static_assert(not invocable_transform<decltype(fn_int<int>), expected<sum_for<Value, int>, Error>>); // int alone is not exhaustive
-static_assert(invocable_transform<decltype(fn_generic<int>), optional<sum_for<Value, int>>>);
-static_assert(not invocable_transform<decltype(fn_int<int>), optional<sum_for<Value, int>>>);
-static_assert(not invocable_transform<decltype(fn_generic<void>), expected<sum_for<Value, int>, Error>>); // a void result has no place in a sum
-static_assert(not invocable_transform<decltype(fn_generic<void>), optional<sum_for<Value, int>>>);
+static_assert(applicable_transform<decltype(fn_generic<int>), expected<sum_for<Value, int>, Error>>);
+static_assert(not applicable_transform<decltype(fn_int<int>), expected<sum_for<Value, int>, Error>>); // int alone is not exhaustive
+static_assert(applicable_transform<decltype(fn_generic<int>), optional<sum_for<Value, int>>>);
+static_assert(not applicable_transform<decltype(fn_int<int>), optional<sum_for<Value, int>>>);
+static_assert(not applicable_transform<decltype(fn_generic<void>), expected<sum_for<Value, int>, Error>>); // a void result has no place in a sum
+static_assert(not applicable_transform<decltype(fn_generic<void>), optional<sum_for<Value, int>>>);
 // clang-format on
 } // namespace fn

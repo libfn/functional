@@ -257,31 +257,31 @@ constexpr auto fn_int_rvalue = [](int &&) {};
 constexpr auto fn_int_const_rvalue = [](int const &&) {};
 } // namespace
 
-static_assert(invocable_inspect_error<decltype(fn_Error<void>), expected<int, Error>>);
-static_assert(invocable_inspect_error<decltype(fn_generic<void>), expected<void, Error>>);
-static_assert(invocable_inspect_error<decltype(fn_int<void>), expected<void, int>>);
-static_assert(not invocable_inspect_error<decltype(fn_int<int>), expected<void, int>>);    // wrong return type
-static_assert(not invocable_inspect_error<decltype(fn_int<void>), expected<void, Error>>); // wrong parameter type
-static_assert(invocable_inspect_error<decltype(fn_Error<void>), expected<void, Xerror>>);  // parameter type conversion
-static_assert(invocable_inspect_error<decltype(fn_generic<void>), expected<Value, Error>>);
-static_assert(not invocable_inspect_error<decltype(fn_int<void>), expected<Value, Error>>); // wrong parameter type
-static_assert(invocable_inspect_error<decltype(fn_generic<void>), optional<int>>);
-static_assert(not invocable_inspect_error<decltype(fn_generic<int>), optional<Value>>); // wrong return type
+static_assert(applicable_inspect_error<decltype(fn_Error<void>), expected<int, Error>>);
+static_assert(applicable_inspect_error<decltype(fn_generic<void>), expected<void, Error>>);
+static_assert(applicable_inspect_error<decltype(fn_int<void>), expected<void, int>>);
+static_assert(not applicable_inspect_error<decltype(fn_int<int>), expected<void, int>>);    // wrong return type
+static_assert(not applicable_inspect_error<decltype(fn_int<void>), expected<void, Error>>); // wrong parameter type
+static_assert(applicable_inspect_error<decltype(fn_Error<void>), expected<void, Xerror>>);  // parameter type conversion
+static_assert(applicable_inspect_error<decltype(fn_generic<void>), expected<Value, Error>>);
+static_assert(not applicable_inspect_error<decltype(fn_int<void>), expected<Value, Error>>); // wrong parameter type
+static_assert(applicable_inspect_error<decltype(fn_generic<void>), optional<int>>);
+static_assert(not applicable_inspect_error<decltype(fn_generic<int>), optional<Value>>); // wrong return type
 
 // binding to const lvalue-ref
-static_assert(invocable_inspect_error<decltype(fn_int_const_lvalue), expected<void, int>>);
-static_assert(invocable_inspect_error<decltype(fn_int_const_lvalue), expected<void, int> const>);
-static_assert(invocable_inspect_error<decltype(fn_int_const_lvalue), expected<void, int> &>);
-static_assert(invocable_inspect_error<decltype(fn_int_const_lvalue), expected<void, int> const &>);
-static_assert(invocable_inspect_error<decltype(fn_int_const_lvalue), expected<void, int> &&>);
-static_assert(invocable_inspect_error<decltype(fn_int_const_lvalue), expected<void, int> const &&>);
+static_assert(applicable_inspect_error<decltype(fn_int_const_lvalue), expected<void, int>>);
+static_assert(applicable_inspect_error<decltype(fn_int_const_lvalue), expected<void, int> const>);
+static_assert(applicable_inspect_error<decltype(fn_int_const_lvalue), expected<void, int> &>);
+static_assert(applicable_inspect_error<decltype(fn_int_const_lvalue), expected<void, int> const &>);
+static_assert(applicable_inspect_error<decltype(fn_int_const_lvalue), expected<void, int> &&>);
+static_assert(applicable_inspect_error<decltype(fn_int_const_lvalue), expected<void, int> const &&>);
 
 // cannot bind const to non-const lvalue-ref
-static_assert(not invocable_inspect_error<decltype(fn_int_lvalue), expected<void, int>>);
+static_assert(not applicable_inspect_error<decltype(fn_int_lvalue), expected<void, int>>);
 
 // cannot bind lvalue to const rvalue-ref
-static_assert(not invocable_inspect_error<decltype(fn_int_const_rvalue), expected<void, int>>);
+static_assert(not applicable_inspect_error<decltype(fn_int_const_rvalue), expected<void, int>>);
 
 // cannot bind lvalue to rvalue-ref
-static_assert(not invocable_inspect_error<decltype(fn_int_rvalue), expected<void, int>>);
+static_assert(not applicable_inspect_error<decltype(fn_int_rvalue), expected<void, int>>);
 } // namespace fn

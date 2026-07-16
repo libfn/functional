@@ -25,14 +25,14 @@ struct A final {
 };
 
 template <typename V, typename Fn>
-concept pack_check = requires(V v, Fn fn) { FWD(v).invoke(FWD(fn), A{}); };
+concept pack_check = requires(V v, Fn fn) { FWD(v).apply(FWD(fn), A{}); };
 
 template <fn::pack<int, double> P> struct pack_nttp final {};
 template <fn::some_pack auto P> struct some_pack_nttp final {};
 template <fn::some_pack auto P> auto read_nttp() { return fn::get<0>(P); }
 
 template <typename V, typename R, typename Fn>
-concept can_invoke_r = requires(V v, Fn fn) { FWD(v).template invoke_r<R>(FWD(fn)); };
+concept can_invoke_r = requires(V v, Fn fn) { FWD(v).template apply_r<R>(FWD(fn)); };
 
 template <typename V, typename T, typename... Args>
 concept can_append_in_place = requires(V v, Args... args) { FWD(v).append(std::in_place_type<T>, args...); };
@@ -164,45 +164,45 @@ TEST_CASE("pack", "[pack]")
   static_assert(not pack_check<T, decltype(([](auto, auto, auto, auto, auto, auto) {}))>); // bad arity
 
   constexpr auto fn = [](auto... args) noexcept -> int { return (0 + ... + args); };
-  CHECK(v.invoke(fn) == 3 + 14 + 15 + 92);
-  CHECK(fn::invoke(fn, FWD(v)) == 3 + 14 + 15 + 92);
-  CHECK(v.invoke(fn, 65, 35) == 3 + 14 + 15 + 92 + 65 + 35);
-  CHECK(fn::invoke(fn, FWD(v), 65, 35) == 3 + 14 + 15 + 92 + 65 + 35);
-  static_assert(fn::invoke(fn, fn::pack{3, 14}, 15, 92) == 3 + 14 + 15 + 92);
+  CHECK(v.apply(fn) == 3 + 14 + 15 + 92);
+  CHECK(fn::apply(fn, FWD(v)) == 3 + 14 + 15 + 92);
+  CHECK(v.apply(fn, 65, 35) == 3 + 14 + 15 + 92 + 65 + 35);
+  CHECK(fn::apply(fn, FWD(v), 65, 35) == 3 + 14 + 15 + 92 + 65 + 35);
+  static_assert(fn::apply(fn, fn::pack{3, 14}, 15, 92) == 3 + 14 + 15 + 92);
 
   constexpr auto fn0 = [](int i, int j, int k, int l, A) noexcept -> int { return (i + j + k + l); };
-  CHECK(v.invoke(fn0, A{}) == 3 + 14 + 15 + 92);
-  CHECK(fn::invoke(fn0, FWD(v), A{}) == 3 + 14 + 15 + 92);
-  static_assert(fn::invoke(fn0, fn::pack{3, 14, 15, 92}, A{}) == 3 + 14 + 15 + 92);
+  CHECK(v.apply(fn0, A{}) == 3 + 14 + 15 + 92);
+  CHECK(fn::apply(fn0, FWD(v), A{}) == 3 + 14 + 15 + 92);
+  static_assert(fn::apply(fn0, fn::pack{3, 14, 15, 92}, A{}) == 3 + 14 + 15 + 92);
 
   A a;
   constexpr auto fn1 = [](int i, int j, int k, int l, A &dest) noexcept -> A & {
     dest.v = (i + j + k + l);
     return dest;
   };
-  CHECK(v.invoke(fn1, a).v == 3 + 14 + 15 + 92);
-  CHECK(v.invoke_r<A>(fn1, a).v == 3 + 14 + 15 + 92);
-  CHECK(v.invoke_r<long>([](auto... args) noexcept -> int { return (0 + ... + args); }, 65, 35)
+  CHECK(v.apply(fn1, a).v == 3 + 14 + 15 + 92);
+  CHECK(v.apply_r<A>(fn1, a).v == 3 + 14 + 15 + 92);
+  CHECK(v.apply_r<long>([](auto... args) noexcept -> int { return (0 + ... + args); }, 65, 35)
         == 3 + 14 + 15 + 92 + 65 + 35);
-  CHECK(fn::invoke_r<long>([](auto... args) noexcept -> int { return (0 + ... + args); }, FWD(v), 65, 35)
+  CHECK(fn::apply_r<long>([](auto... args) noexcept -> int { return (0 + ... + args); }, FWD(v), 65, 35)
         == 3 + 14 + 15 + 92 + 65 + 35);
   static_assert(
-      fn::invoke_r<long>([](auto... args) noexcept -> int { return (0 + ... + args); }, fn::pack{3, 14}, 15, 92)
+      fn::apply_r<long>([](auto... args) noexcept -> int { return (0 + ... + args); }, fn::pack{3, 14}, 15, 92)
       == 3 + 14 + 15 + 92);
-  CHECK(v.invoke_r<long>(fn0, A{}) == 3 + 14 + 15 + 92);
-  CHECK(fn::invoke_r<long>(fn0, FWD(v), A{}) == 3 + 14 + 15 + 92);
-  static_assert(fn::invoke_r<long>(fn0, fn::pack{3, 14, 15, 92}, A{}) == 3 + 14 + 15 + 92);
+  CHECK(v.apply_r<long>(fn0, A{}) == 3 + 14 + 15 + 92);
+  CHECK(fn::apply_r<long>(fn0, FWD(v), A{}) == 3 + 14 + 15 + 92);
+  static_assert(fn::apply_r<long>(fn0, fn::pack{3, 14, 15, 92}, A{}) == 3 + 14 + 15 + 92);
 
-  static_assert(std::is_same_v<decltype(v.invoke(fn1, a)), A &>);
-  static_assert(std::is_same_v<decltype(v.invoke_r<A>(fn1, a)), A>);
+  static_assert(std::is_same_v<decltype(v.apply(fn1, a)), A &>);
+  static_assert(std::is_same_v<decltype(v.apply_r<A>(fn1, a)), A>);
 
   constexpr auto fn2 = [](int, int, int, int, A &&dest) noexcept -> A && { return std::move(dest); };
-  static_assert(std::is_same_v<decltype(v.invoke(fn2, std::move(a))), A &&>);
-  static_assert(std::is_same_v<decltype(v.invoke_r<A>(fn2, std::move(a))), A>);
+  static_assert(std::is_same_v<decltype(v.apply(fn2, std::move(a))), A &&>);
+  static_assert(std::is_same_v<decltype(v.apply_r<A>(fn2, std::move(a))), A>);
 
   constexpr auto fn3 = [](int, int, int, int, A &&dest) noexcept -> A { return dest; };
-  static_assert(std::is_same_v<decltype(v.invoke(fn3, std::move(a))), A>);
-  static_assert(std::is_same_v<decltype(v.invoke_r<A>(fn3, std::move(a))), A>);
+  static_assert(std::is_same_v<decltype(v.apply(fn3, std::move(a))), A>);
+  static_assert(std::is_same_v<decltype(v.apply_r<A>(fn3, std::move(a))), A>);
 
   static_assert(pack<>::size == 0);
 
@@ -217,7 +217,7 @@ TEST_CASE("pack", "[pack]")
   static_assert(std::same_as<decltype(c1), fn::pack<> const>);
   constexpr auto c2 = fn::as_pack(true, 12);
   static_assert(std::same_as<decltype(c2), fn::pack<bool, int> const>);
-  static_assert(c2.invoke([](auto i, auto j) {
+  static_assert(c2.apply([](auto i, auto j) {
     if constexpr (std::is_same_v<decltype(i), bool> && std::is_same_v<decltype(j), int>)
       return i && j == 12;
     else
@@ -235,7 +235,7 @@ TEST_CASE("pack", "[pack]")
   static_assert(not std::is_same_v<some_pack_nttp<s1>, some_pack_nttp<s3>>);
   CHECK(read_nttp<s1>() == 3); // the template-parameter object is usable at runtime
 
-  SECTION("invoke_r return conversion")
+  SECTION("apply_r return conversion")
   {
     struct NotFromInt final {
       explicit NotFromInt(std::nullptr_t) {}
@@ -249,19 +249,19 @@ TEST_CASE("pack", "[pack]")
 
   SECTION("noexcept")
   {
-    // invoke and invoke_r weigh the callback they dispatch to, in every value category
+    // apply and apply_r weigh the callback they dispatch to, in every value category
     constexpr auto throwing = [](auto &&...) noexcept(false) -> int { return 0; };
     static_assert(not noexcept(throwing()));
-    static_assert(not noexcept(v.invoke(throwing)));
-    static_assert(not noexcept(std::as_const(v).invoke(throwing)));
-    static_assert(not noexcept(std::move(v).invoke(throwing)));
-    static_assert(not noexcept(std::move(std::as_const(v)).invoke(throwing)));
-    static_assert(not noexcept(v.invoke_r<long>(throwing)));
-    static_assert(not noexcept(std::move(v).invoke_r<long>(throwing)));
+    static_assert(not noexcept(v.apply(throwing)));
+    static_assert(not noexcept(std::as_const(v).apply(throwing)));
+    static_assert(not noexcept(std::move(v).apply(throwing)));
+    static_assert(not noexcept(std::move(std::as_const(v)).apply(throwing)));
+    static_assert(not noexcept(v.apply_r<long>(throwing)));
+    static_assert(not noexcept(std::move(v).apply_r<long>(throwing)));
 
     constexpr auto nothrow = [](auto &&...) noexcept -> int { return 0; };
-    static_assert(noexcept(v.invoke(nothrow)));
-    static_assert(noexcept(v.invoke_r<long>(nothrow)));
+    static_assert(noexcept(v.apply(nothrow)));
+    static_assert(noexcept(v.apply_r<long>(nothrow)));
 
     // an empty pack wraps nothing, so there is nothing that could throw (SECTION("as_pack") weighs
     // the arguments a non-empty one relocates)
@@ -272,7 +272,7 @@ TEST_CASE("pack", "[pack]")
   SECTION("constexpr")
   {
     constexpr fn::pack<int, int> v2{3, 14};
-    constexpr auto r2 = v2.invoke([](auto &&...args) constexpr noexcept -> int { return (0 + ... + args); });
+    constexpr auto r2 = v2.apply([](auto &&...args) constexpr noexcept -> int { return (0 + ... + args); });
     static_assert(r2 == 3 + 14);
     SUCCEED();
   }
@@ -317,34 +317,34 @@ TEST_CASE("append value categories", "[pack][append]")
 
     SECTION("constructor takes parameters")
     {
-      CHECK(s.append(std::in_place_type<B>, 5, 6).invoke(check));
-      CHECK(std::as_const(s).append(std::in_place_type<B>, 5, 6).invoke(check));
-      CHECK(std::move(std::as_const(s)).append(std::in_place_type<B>, 5, 6).invoke(check));
-      CHECK(std::move(s).append(std::in_place_type<B>, 5, 6).invoke(check));
+      CHECK(s.append(std::in_place_type<B>, 5, 6).apply(check));
+      CHECK(std::as_const(s).append(std::in_place_type<B>, 5, 6).apply(check));
+      CHECK(std::move(std::as_const(s)).append(std::in_place_type<B>, 5, 6).apply(check));
+      CHECK(std::move(s).append(std::in_place_type<B>, 5, 6).apply(check));
     }
 
-    SECTION("constructor takes parameters invoke_r")
+    SECTION("constructor takes parameters apply_r")
     {
-      CHECK(s.append(std::in_place_type<B>, 5, 6).invoke_r<bool>(check));
-      CHECK(std::as_const(s).append(std::in_place_type<B>, 5, 6).invoke_r<bool>(check));
-      CHECK(std::move(std::as_const(s)).append(std::in_place_type<B>, 5, 6).invoke_r<bool>(check));
-      CHECK(std::move(s).append(std::in_place_type<B>, 5, 6).invoke_r<bool>(check));
+      CHECK(s.append(std::in_place_type<B>, 5, 6).apply_r<bool>(check));
+      CHECK(std::as_const(s).append(std::in_place_type<B>, 5, 6).apply_r<bool>(check));
+      CHECK(std::move(std::as_const(s)).append(std::in_place_type<B>, 5, 6).apply_r<bool>(check));
+      CHECK(std::move(s).append(std::in_place_type<B>, 5, 6).apply_r<bool>(check));
     }
 
     SECTION("default constructor")
     {
-      CHECK(s.append(std::in_place_type<C>).invoke(check));
-      CHECK(std::as_const(s).append(std::in_place_type<C>).invoke(check));
-      CHECK(std::move(std::as_const(s)).append(std::in_place_type<C>).invoke(check));
-      CHECK(std::move(s).append(std::in_place_type<C>).invoke(check));
+      CHECK(s.append(std::in_place_type<C>).apply(check));
+      CHECK(std::as_const(s).append(std::in_place_type<C>).apply(check));
+      CHECK(std::move(std::as_const(s)).append(std::in_place_type<C>).apply(check));
+      CHECK(std::move(s).append(std::in_place_type<C>).apply(check));
     }
 
-    SECTION("default constructor invoke_r")
+    SECTION("default constructor apply_r")
     {
-      CHECK(s.append(std::in_place_type<C>).invoke_r<int>(check) == 1);
-      CHECK(std::as_const(s).append(std::in_place_type<C>).invoke_r<int>(check) == 1);
-      CHECK(std::move(std::as_const(s)).append(std::in_place_type<C>).invoke_r<int>(check) == 1);
-      CHECK(std::move(s).append(std::in_place_type<C>).invoke_r<int>(check) == 1);
+      CHECK(s.append(std::in_place_type<C>).apply_r<int>(check) == 1);
+      CHECK(std::as_const(s).append(std::in_place_type<C>).apply_r<int>(check) == 1);
+      CHECK(std::move(std::as_const(s)).append(std::in_place_type<C>).apply_r<int>(check) == 1);
+      CHECK(std::move(s).append(std::in_place_type<C>).apply_r<int>(check) == 1);
     }
 
     SECTION("aggregate forwarding")
@@ -352,10 +352,10 @@ TEST_CASE("append value categories", "[pack][append]")
       // braces elide through the aggregate: three ints construct the array element in place
       auto q = s.append(std::in_place_type<std::array<int, 3>>, 5, 6, 7);
       static_assert(std::same_as<decltype(q), T::append_type<std::array<int, 3>>>);
-      CHECK(q.invoke([](int, std::string_view, A, std::array<int, 3> const &a) //
-                     { return a[0] * 100 + a[1] * 10 + a[2]; })
+      CHECK(q.apply([](int, std::string_view, A, std::array<int, 3> const &a) //
+                    { return a[0] * 100 + a[1] * 10 + a[2]; })
             == 567);
-      static_assert(fn::pack<>{}.append(std::in_place_type<std::array<int, 3>>, 5, 6, 7).invoke([](auto const &a) {
+      static_assert(fn::pack<>{}.append(std::in_place_type<std::array<int, 3>>, 5, 6, 7).apply([](auto const &a) {
         return a[0] * 100 + a[1] * 10 + a[2];
       }) == 567);
     }
@@ -373,10 +373,10 @@ TEST_CASE("append value categories", "[pack][append]")
     static_assert(std::same_as<decltype(s.append(c2)), T::append_type<C &>>);
     static_assert(std::same_as<T::append_type<C &>, pack<int, std::string_view, A, C &>>);
 
-    CHECK(s.append(B{30}).invoke(check));
-    CHECK(std::as_const(s).append(B{30}).invoke(check));
-    CHECK(std::move(std::as_const(s)).append(B{30}).invoke(check));
-    CHECK(std::move(s).append(B{30}).invoke(check));
+    CHECK(s.append(B{30}).apply(check));
+    CHECK(std::as_const(s).append(B{30}).apply(check));
+    CHECK(std::move(std::as_const(s)).append(B{30}).apply(check));
+    CHECK(std::move(s).append(B{30}).apply(check));
   }
 
   SECTION("reference element")
@@ -386,15 +386,15 @@ TEST_CASE("append value categories", "[pack][append]")
     C c{};
     auto q = s.append(std::in_place_type<B &>, c);
     static_assert(std::same_as<decltype(q), T::append_type<B &>>);
-    CHECK(q.invoke([&c](int, std::string_view, A, B &b) { return &b == static_cast<B *>(&c); }));
+    CHECK(q.apply([&c](int, std::string_view, A, B &b) { return &b == static_cast<B *>(&c); }));
 
     auto r = s.append(c); // deduced, so the element type is C &
     static_assert(std::same_as<decltype(r), T::append_type<C &>>);
-    CHECK(r.invoke([&c](int, std::string_view, A, C &x) { return &x == &c; }));
+    CHECK(r.apply([&c](int, std::string_view, A, C &x) { return &x == &c; }));
 
     c.v = 77; // the same object, observed through both packs
-    CHECK(q.invoke([](int, std::string_view, A, B &b) { return b.v == 77; }));
-    CHECK(r.invoke([](int, std::string_view, A, C &x) { return x.v == 77; }));
+    CHECK(q.apply([](int, std::string_view, A, B &b) { return b.v == 77; }));
+    CHECK(r.apply([](int, std::string_view, A, C &x) { return x.v == 77; }));
 
     SECTION("constexpr")
     {
@@ -404,7 +404,7 @@ TEST_CASE("append value categories", "[pack][append]")
         auto q = p.append(std::in_place_type<B &>, b);
         auto r = p.append(b);
         b.v = 9;
-        return q.invoke([](int, B &x) { return x.v == 9; }) && r.invoke([](int, B &x) { return x.v == 9; });
+        return q.apply([](int, B &x) { return x.v == 9; }) && r.apply([](int, B &x) { return x.v == 9; });
       }());
       SUCCEED();
     }
@@ -416,13 +416,13 @@ TEST_CASE("append value categories", "[pack][append]")
     constexpr fn::pack<C, B> b{C{}, B{3, 4}};
     constexpr auto c1 = a.append(b);
     static_assert(std::same_as<decltype(c1), fn::pack<bool, int, B, C, B> const>);
-    static_assert(c1.invoke([](bool i, int j, B const &b1, C const &c, B const &b2) {
+    static_assert(c1.apply([](bool i, int j, B const &b1, C const &c, B const &b2) {
       return i && j == 3 && b1.v == 14 && c.v == 30 && b2.v == 12;
     }));
 
     auto c2 = a.append(fn::pack{C{}, B{4, 5}});
     static_assert(std::same_as<decltype(c2), fn::pack<bool, int, B, C, B>>);
-    CHECK(c2.invoke([](bool i, int j, B const &b1, C const &c, B const &b2) {
+    CHECK(c2.apply([](bool i, int j, B const &b1, C const &c, B const &b2) {
       return i && j == 3 && b1.v == 14 && c.v == 30 && b2.v == 20;
     }));
   }
@@ -556,17 +556,17 @@ TEST_CASE("pack noexcept", "[pack][noexcept]")
     };
     static_assert(not can_as_pack<NoMove>); // constrained on the same initialization ...
     static_assert(can_as_pack<NoMove &>);   // ... which a binding reference element satisfies
-    CHECK(fn::as_pack(t, 12).invoke([&t](Throwy const &x, int i) { return &x == &t && i == 12; }));
+    CHECK(fn::as_pack(t, 12).apply([&t](Throwy const &x, int i) { return &x == &t && i == 12; }));
   }
 
-  SECTION("invoke")
+  SECTION("apply")
   {
     constexpr auto nothrow_fn = [](auto &&...) noexcept { return 0; };
     constexpr auto throwing_fn = [](auto &&...) { return 0; };
-    static_assert(noexcept(std::declval<pack<int, bool> &>().invoke(nothrow_fn)));
-    static_assert(not noexcept(std::declval<pack<int, bool> &>().invoke(throwing_fn)));
-    static_assert(noexcept(std::declval<pack<int, bool> &>().template invoke_r<int>(nothrow_fn)));
-    static_assert(not noexcept(std::declval<pack<int, bool> &>().template invoke_r<int>(throwing_fn)));
+    static_assert(noexcept(std::declval<pack<int, bool> &>().apply(nothrow_fn)));
+    static_assert(not noexcept(std::declval<pack<int, bool> &>().apply(throwing_fn)));
+    static_assert(noexcept(std::declval<pack<int, bool> &>().template apply_r<int>(nothrow_fn)));
+    static_assert(not noexcept(std::declval<pack<int, bool> &>().template apply_r<int>(throwing_fn)));
 
     // Ret is entered by INVOKE<R>'s implicit conversion; the promise asks that call rather than
     // is_nothrow_constructible_v, whose direct-initialization would reach the explicit move
@@ -574,14 +574,14 @@ TEST_CASE("pack noexcept", "[pack][noexcept]")
     pack<int> p{1};
     Evil ev{};
     auto give_evil = [&ev](int) noexcept -> Evil && { return std::move(ev); };
-    static_assert(not noexcept(std::declval<pack<int> &>().template invoke_r<Evil>(give_evil)));
-    CHECK_THROWS_AS(p.invoke_r<Evil>(give_evil), std::runtime_error);
-    // exactly std::invoke_r's own promise - conservative for a prvalue result (the deed elides,
+    static_assert(not noexcept(std::declval<pack<int> &>().template apply_r<Evil>(give_evil)));
+    CHECK_THROWS_AS(p.apply_r<Evil>(give_evil), std::runtime_error);
+    // exactly std::apply_r's own promise - conservative for a prvalue result (the deed elides,
     // and indeed nothing throws below), but never a lie
     auto make_evil = [](int) noexcept -> Evil { return {}; };
-    static_assert(noexcept(std::declval<pack<int> &>().template invoke_r<Evil>(make_evil))
+    static_assert(noexcept(std::declval<pack<int> &>().template apply_r<Evil>(make_evil))
                   == std::is_nothrow_invocable_r_v<Evil, decltype(make_evil) &, int &>);
-    CHECK_NOTHROW(p.invoke_r<Evil>(make_evil));
+    CHECK_NOTHROW(p.apply_r<Evil>(make_evil));
   }
 }
 
@@ -607,7 +607,7 @@ TEST_CASE("pack with immovable data", "[pack][immovable]")
   ImmovableType const val2{92};
   T v{ImmovableType{3}, ImmovableType{14}, val1, val2};
 
-  constexpr auto can_invoke = [](auto &&fn) constexpr { return requires { std::declval<T>().invoke(fn); }; };
+  constexpr auto can_invoke = [](auto &&fn) constexpr { return requires { std::declval<T>().apply(fn); }; };
 
   static_assert(can_invoke([](auto &&...) {})); // generic call
   static_assert(can_invoke([](ImmovableType const &, ImmovableType const &, ImmovableType const &,
@@ -616,7 +616,7 @@ TEST_CASE("pack with immovable data", "[pack][immovable]")
   }));                                                             // bind rvalues and lvalues
   static_assert(not can_invoke([](ImmovableType, auto &&...) {})); // cannot pass immovable by value
 
-  CHECK(v.invoke([](auto &&...args) noexcept -> int { return (0 + ... + args.value); }) == 3 + 14 + 15 + 92);
+  CHECK(v.apply([](auto &&...args) noexcept -> int { return (0 + ... + args.value); }) == 3 + 14 + 15 + 92);
 }
 
 namespace {
@@ -675,67 +675,67 @@ template <typename S> constexpr bool join_battery()
                   pack<Bet, Gimel, Heh>, pack<Bet, Gimel, Vav>, pack<Bet, Gimel, Zayn>>;
     auto const r = S::template join<R>(sum<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}},
                                        sum<Heh, Vav, Zayn>{Vav{15}});
-    ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.invoke(join_witness) == 3 + 14 + 15;
+    ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.apply(join_witness) == 3 + 14 + 15;
   }
   {                                                                     // sum of packs join sum of packs
     using R = sum<pack<Alef, Gimel, Heh, Zayn>, pack<Alef, Gimel, Vav>, //
                   pack<Bet, Gimel, Heh, Zayn>, pack<Bet, Gimel, Vav>>;
     auto const r = S::template join<R>(sum<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}},
                                        sum<pack<Heh, Zayn>, pack<Vav>>{pack{Vav{15}}});
-    ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.invoke(join_witness) == 3 + 14 + 15;
+    ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.apply(join_witness) == 3 + 14 + 15;
   }
   { // sum of scalars join sum of scalars
     using R = sum<pack<Alef, Heh>, pack<Alef, Vav>, pack<Alef, Zayn>, pack<Bet, Heh>, pack<Bet, Vav>, pack<Bet, Zayn>,
                   pack<Gimel, Heh>, pack<Gimel, Vav>, pack<Gimel, Zayn>>;
     auto const r = S::template join<R>(sum<Alef, Bet, Gimel>{Gimel{3}}, sum<Heh, Vav, Zayn>{Vav{14}});
-    ok = ok && r.template has_value<pack<Gimel, Vav>>() && r.invoke(join_witness) == 3 + 14;
+    ok = ok && r.template has_value<pack<Gimel, Vav>>() && r.apply(join_witness) == 3 + 14;
   }
   {                                                                             // sum of scalars join sum of packs
     using R = sum<pack<Alef, Heh, Zayn>, pack<Alef, Vav>, pack<Bet, Heh, Zayn>, //
                   pack<Bet, Vav>, pack<Gimel, Heh, Zayn>, pack<Gimel, Vav>>;
     auto const r = S::template join<R>(sum<Alef, Bet, Gimel>{Gimel{3}}, sum<pack<Heh, Zayn>, pack<Vav>>{pack{Vav{14}}});
-    ok = ok && r.template has_value<pack<Gimel, Vav>>() && r.invoke(join_witness) == 3 + 14;
+    ok = ok && r.template has_value<pack<Gimel, Vav>>() && r.apply(join_witness) == 3 + 14;
   }
   { // sum of packs join scalar
     using R = sum<pack<Alef, Gimel, Vav>, pack<Bet, Gimel, Vav>>;
     auto const r = S::template join<R>(sum<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}}, Vav{15});
-    ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.invoke(join_witness) == 3 + 14 + 15;
+    ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.apply(join_witness) == 3 + 14 + 15;
   }
   { // sum of packs join pack
     using R = sum<pack<Alef, Gimel, Vav>, pack<Bet, Gimel, Vav>>;
     auto const r = S::template join<R>(sum<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}},
                                        pack<Vav>{pack{Vav{15}}});
-    ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.invoke(join_witness) == 3 + 14 + 15;
+    ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.apply(join_witness) == 3 + 14 + 15;
   }
   { // sum of scalars join scalar
     using R = sum<pack<Alef, Vav>, pack<Bet, Vav>, pack<Gimel, Vav>>;
     auto const r = S::template join<R>(sum<Alef, Bet, Gimel>{Gimel{3}}, Vav{14});
-    ok = ok && r.template has_value<pack<Gimel, Vav>>() && r.invoke(join_witness) == 3 + 14;
+    ok = ok && r.template has_value<pack<Gimel, Vav>>() && r.apply(join_witness) == 3 + 14;
   }
   { // sum of scalars join pack
     using R = sum<pack<Alef, Vav>, pack<Bet, Vav>, pack<Gimel, Vav>>;
     auto const r = S::template join<R>(sum<Alef, Bet, Gimel>{Gimel{3}}, pack<Vav>{pack{Vav{14}}});
-    ok = ok && r.template has_value<pack<Gimel, Vav>>() && r.invoke(join_witness) == 3 + 14;
+    ok = ok && r.template has_value<pack<Gimel, Vav>>() && r.apply(join_witness) == 3 + 14;
   }
   { // pack join sum of scalars
     using R = sum<pack<Alef, Gimel, Heh>, pack<Alef, Gimel, Vav>, pack<Alef, Gimel, Zayn>>;
     auto const r = S::template join<R>(pack<Alef, Gimel>{pack{Alef{3}, Gimel{14}}}, sum<Heh, Vav, Zayn>{Vav{15}});
-    ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.invoke(join_witness) == 3 + 14 + 15;
+    ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.apply(join_witness) == 3 + 14 + 15;
   }
   { // pack join sum of packs
     using R = sum<pack<Alef, Gimel, Heh, Zayn>, pack<Alef, Gimel, Vav>>;
     auto const r = S::template join<R>(pack<Alef, Gimel>{pack{Alef{3}, Gimel{14}}},
                                        sum<pack<Heh, Zayn>, pack<Vav>>{pack{Vav{15}}});
-    ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.invoke(join_witness) == 3 + 14 + 15;
+    ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.apply(join_witness) == 3 + 14 + 15;
   }
   { // pack join scalar
     auto const r = S::template join<pack<Alef, Gimel, Vav>>(pack<Alef, Gimel>{pack{Alef{3}, Gimel{14}}}, Vav{15});
-    ok = ok && r.invoke(join_witness) == 3 + 14 + 15;
+    ok = ok && r.apply(join_witness) == 3 + 14 + 15;
   }
   { // pack join pack
     auto const r = S::template join<pack<Alef, Gimel, Vav>>(pack<Alef, Gimel>{pack{Alef{3}, Gimel{14}}},
                                                             pack<Vav>{pack{Vav{15}}});
-    ok = ok && r.invoke(join_witness) == 3 + 14 + 15;
+    ok = ok && r.apply(join_witness) == 3 + 14 + 15;
   }
   return ok;
 }
@@ -752,20 +752,20 @@ constexpr bool join_value_lhs_battery()
   { // scalar join sum of scalars
     using R = sum<pack<Alef, Heh>, pack<Alef, Vav>, pack<Alef, Zayn>>;
     auto const r = S::join<R>(Alef{3}, sum<Heh, Vav, Zayn>{Vav{14}});
-    ok = ok && r.template has_value<pack<Alef, Vav>>() && r.invoke(join_witness) == 3 + 14;
+    ok = ok && r.template has_value<pack<Alef, Vav>>() && r.apply(join_witness) == 3 + 14;
   }
   { // scalar join sum of packs
     using R = sum<pack<Alef, Heh, Zayn>, pack<Alef, Vav>>;
     auto const r = S::join<R>(Alef{3}, sum<pack<Heh, Zayn>, pack<Vav>>{pack{Vav{14}}});
-    ok = ok && r.template has_value<pack<Alef, Vav>>() && r.invoke(join_witness) == 3 + 14;
+    ok = ok && r.template has_value<pack<Alef, Vav>>() && r.apply(join_witness) == 3 + 14;
   }
   { // scalar join scalar
     auto const r = S::join<pack<Alef, Vav>>(Alef{3}, Vav{14});
-    ok = ok && r.invoke(join_witness) == 3 + 14;
+    ok = ok && r.apply(join_witness) == 3 + 14;
   }
   { // scalar join pack
     auto const r = S::join<pack<Alef, Vav>>(Alef{3}, pack<Vav>{pack{Vav{14}}});
-    ok = ok && r.invoke(join_witness) == 3 + 14;
+    ok = ok && r.apply(join_witness) == 3 + 14;
   }
   return ok;
 }
@@ -794,7 +794,7 @@ TEST_CASE("operator &", "[pack][sum][operator_and]")
                     fn::pack<int, int, double, double, bool, bool>, //
                     fn::pack<int, int, double, double, bool, int>,  //
                     fn::pack<int, int, double, double, bool, double, int>> const>);
-  static_assert(r1.invoke([](auto &&...args) -> double { return (1 * ... * static_cast<double>(args)); })
+  static_assert(r1.apply([](auto &&...args) -> double { return (1 * ... * static_cast<double>(args)); })
                 == 12. * 3 * 2.5 * 0.5 * 1 * 1.5 * 12);
 
   constexpr auto r2
@@ -805,7 +805,7 @@ TEST_CASE("operator &", "[pack][sum][operator_and]")
                     fn::pack<int, int, double, double, bool, bool>, //
                     fn::pack<int, int, double, double, bool, int>,  //
                     fn::pack<int, int, double, double, bool, double, int>> const>);
-  static_assert(r2.invoke([](auto &&...args) -> double { return (1 * ... * static_cast<double>(args)); })
+  static_assert(r2.apply([](auto &&...args) -> double { return (1 * ... * static_cast<double>(args)); })
                 == 12. * 3 * 2.5 * 0.5 * 1 * 1.5 * 12);
 
   SECTION("noexcept")
@@ -837,7 +837,7 @@ TEST_CASE("pack get and tuple protocol", "[pack][get][tuple]")
   // the library's tuple_element<I, const T> propagates const onto value elements
   static_assert(std::same_as<std::tuple_element_t<0, pack<int, double, A> const>, int const>);
 
-  // get value categories mirror what invoke passes
+  // get value categories mirror what apply passes
   pack<int, double> p{2, 4};
   static_assert(std::same_as<decltype(get<0>(p)), int &>);
   static_assert(std::same_as<decltype(get<1>(p)), double &>);

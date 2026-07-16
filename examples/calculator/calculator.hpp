@@ -206,7 +206,7 @@ constexpr inline auto execute = fn::overload{
     [](auto x, Dup) -> Results { return {fn::pack<decltype(x), decltype(x)>{x, x}}; },
     [](auto, Drop) -> Results { return {fn::pack<>{}}; },
     // a Push carries a runtime Number; one more dispatch unwraps it into a raw pack
-    [](Push p) -> Results { return p.value.invoke([](auto v) -> Results { return {fn::pack<decltype(v)>{v}}; }); }};
+    [](Push p) -> Results { return p.value.apply([](auto v) -> Results { return {fn::pack<decltype(v)>{v}}; }); }};
 
 // One token = one step: look the operation up, pop as many operands as it declares (folding them and
 // the operation itself into one cartesian sum of packs), execute the matching arm, store what it returns
