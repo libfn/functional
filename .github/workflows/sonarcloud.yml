@@ -9,9 +9,10 @@ on:
 
 jobs:
   sonarcloud:
+    # arm64: the amd64 warp fleet pulls images at 1-2 MB/s; the arm64 fleet serves them in seconds.
     # Runner and container must match sonarcloud-pr-scan's: it analyses the compile_commands.json
     # written here, and the compiler paths recorded in it must resolve to the same toolchain there.
-    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-4x' || 'ubuntu-latest' }}
     container: libfn.azurecr.io/ci-build-gcc:15-sha-08b1133
     env:
       # Gates the inline scan below (a fork without a token no-ops); see also resolve-sonar-project.
