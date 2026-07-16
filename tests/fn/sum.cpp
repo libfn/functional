@@ -14,6 +14,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -331,6 +332,10 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     static_assert(not fn::typelist_applicable<decltype(fnLvalue), T2 const>);
     static_assert(not fn::typelist_applicable<decltype(fnLvalue), T2 &&>);
     static_assert(not fn::typelist_applicable<decltype(fnLvalue), T2 const &&>);
+
+    // a tuple-like alternative asks applicability of its elements
+    static_assert(fn::typelist_applicable<decltype([](int, int) {}), sum<std::tuple<int, int>> &>);
+    static_assert(not fn::typelist_applicable<decltype([](int, int) {}), sum<std::tuple<int, int, int>> &>); // arity
   }
 
   SECTION("check destructor call")
@@ -1025,6 +1030,140 @@ TEST_CASE("sum basic functionality tests", "[sum]")
 
       constexpr sum<pack<int, int, int, int>, pack<int, int, int>, pack<int, int>, pack<int>> c = pack{3, 14, 15, 92};
       CHECK(c.apply([](std::integral auto... args) -> int { return (... + args); }) == 3 + 14 + 15 + 92);
+    }
+  }
+
+  SECTION("sum of tuple-likes")
+  {
+    // the tuple-like arm of fn::apply reaches dispatch: a tuple-like alternative unpacks into the
+    // callable's arguments, like a pack alternative always has
+    constexpr auto add2 = [](int i, int j) noexcept -> int { return i + j; };
+    sum<std::tuple<int, int>> a{std::tuple{2, 3}};
+
+    SECTION("tuple, array, pair")
+    {
+      CHECK(sum<std::tuple<int, int>>{std::tuple{2, 3}}.apply(add2) == 5);
+      CHECK(sum<std::array<int, 2>>{std::array{2, 3}}.apply(add2) == 5);
+      CHECK(sum<std::pair<int, int>>{std::pair{2, 3}}.apply(add2) == 5);
+
+      SECTION("constexpr")
+      {
+        static_assert(sum<std::tuple<int, int>>{std::tuple{2, 3}}.apply(add2) == 5);
+        static_assert(sum<std::array<int, 2>>{std::array{2, 3}}.apply(add2) == 5);
+        static_assert(sum<std::pair<int, int>>{std::pair{2, 3}}.apply(add2) == 5);
+        SUCCEED();
+      }
+    }
+
+    SECTION("value categories")
+    {
+      // the sum's category reaches the elements through the unpacking
+      CHECK(a.apply(
+          fn::overload{[](auto &&...) -> bool { throw 1; }, //
+                       [](int &, int &) -> bool { return true; }, [](int const &, int const &) -> bool { throw 0; },
+                       [](int &&, int &&) -> bool { throw 0; }, [](int const &&, int const &&) -> bool { throw 0; }}));
+      CHECK(std::as_const(a).apply(
+          fn::overload{[](auto &&...) -> bool { throw 1; }, //
+                       [](int &, int &) -> bool { throw 0; }, [](int const &, int const &) -> bool { return true; },
+                       [](int &&, int &&) -> bool { throw 0; }, [](int const &&, int const &&) -> bool { throw 0; }}));
+      CHECK(std::move(std::as_const(a))
+                .apply(fn::overload{
+                    [](auto &&...) -> bool { throw 1; }, //
+                    [](int &, int &) -> bool { throw 0; }, [](int const &, int const &) -> bool { throw 0; },
+                    [](int &&, int &&) -> bool { throw 0; }, [](int const &&, int const &&) -> bool { return true; }}));
+      CHECK(std::move(a).apply(fn::overload{
+          [](auto &&...) -> bool { throw 1; }, //
+          [](int &, int &) -> bool { throw 0; }, [](int const &, int const &) -> bool { throw 0; },
+          [](int &&, int &&) -> bool { return true; }, [](int const &&, int const &&) -> bool { throw 0; }}));
+
+      SECTION("constexpr")
+      {
+        constexpr sum<std::tuple<int, int>> a{std::tuple{2, 3}};
+        static_assert(a.apply(fn::overload{[](auto &&...) -> std::false_type { return {}; }, //
+                                           [](int &, int &) -> std::false_type { return {}; },
+                                           [](int const &, int const &) -> std::true_type { return {}; },
+                                           [](int &&, int &&) -> std::false_type { return {}; },
+                                           [](int const &&, int const &&) -> std::false_type { return {}; }}));
+        static_assert(
+            std::move(a).apply(fn::overload{[](auto &&...) -> std::false_type { return {}; }, //
+                                            [](int &, int &) -> std::false_type { return {}; },
+                                            [](int const &, int const &) -> std::false_type { return {}; },
+                                            [](int &&, int &&) -> std::false_type { return {}; },
+                                            [](int const &&, int const &&) -> std::true_type { return {}; }}));
+      }
+    }
+
+    SECTION("mixed with a plain alternative")
+    {
+      // one overload set: the tuple-like alternative unpacks, the plain one arrives whole
+      using type = fn::sum_for<std::tuple<int, int>, int>;
+      constexpr auto handler = fn::overload{add2, [](int v) noexcept -> int { return -v; }};
+      CHECK(type{std::tuple{2, 3}}.apply(handler) == 5);
+      CHECK(type{7}.apply(handler) == -7);
+
+      SECTION("constexpr")
+      {
+        static_assert(type{std::tuple{2, 3}}.apply(handler) == 5);
+        static_assert(type{7}.apply(handler) == -7);
+        SUCCEED();
+      }
+    }
+
+    SECTION("whole-tuple callable")
+    {
+      // pass-whole serves a callable viable only for the whole tuple; a generic callable unpacks
+      // (the tuple arm wins ordering); extra arguments leave the alternative whole
+      constexpr auto whole = [](std::tuple<int, int> const &) noexcept -> int { return -1; };
+      CHECK(a.apply(whole) == -1);
+
+      constexpr auto arity = [](auto &&...args) noexcept -> int { return (0 + ... + (static_cast<void>(args), 1)); };
+      sum<std::tuple<int, int, int>> b{std::tuple{1, 2, 3}};
+      CHECK(b.apply(arity) == 3);
+      CHECK(b.apply(arity, 0) == 2);
+
+      SECTION("constexpr")
+      {
+        static_assert(sum<std::tuple<int, int>>{std::tuple{2, 3}}.apply(whole) == -1);
+        static_assert(sum<std::tuple<int, int, int>>{std::tuple{1, 2, 3}}.apply(arity) == 3);
+        static_assert(sum<std::tuple<int, int, int>>{std::tuple{1, 2, 3}}.apply(arity, 0) == 2);
+        SUCCEED();
+      }
+    }
+
+    SECTION("elements are terminal")
+    {
+      // a sum element inside the tuple alternative arrives whole, never dispatched
+      constexpr auto takes_sum = [](sum<int> const &) noexcept -> int { return 9; };
+      sum<std::tuple<sum<int>>> b{std::tuple<sum<int>>{sum<int>{1}}};
+      CHECK(b.apply(takes_sum) == 9);
+      static_assert(not fn::typelist_applicable<decltype([](int) {}), sum<std::tuple<sum<int>>> &>);
+
+      SECTION("constexpr")
+      {
+        static_assert(sum<std::tuple<sum<int>>>{std::tuple<sum<int>>{sum<int>{1}}}.apply(takes_sum) == 9);
+        SUCCEED();
+      }
+    }
+
+    SECTION("apply_r")
+    {
+      static_assert(std::is_same_v<long, decltype(a.template apply_r<long>(add2))>);
+      CHECK(a.template apply_r<long>(add2) == 5L);
+
+      SECTION("constexpr")
+      {
+        static_assert(sum<std::tuple<int, int>>{std::tuple{2, 3}}.template apply_r<long>(add2) == 5L);
+        SUCCEED();
+      }
+    }
+
+    SECTION("noexcept")
+    {
+      // apply weighs the unpacked invocation
+      static_assert(noexcept(a.apply(add2)));
+      constexpr auto throwing = [](int i, int j) noexcept(false) -> int { return i + j; };
+      static_assert(not noexcept(a.apply(throwing)));
+      SUCCEED();
     }
   }
 
