@@ -169,12 +169,12 @@ template <typename... Ts> struct normalized final {
 
   static constexpr _uniqued _indices_v = _indices();
 
-  // Key injectivity is load-bearing twice over: with a tied key the sort has no canonical order and
-  // unique() silently drops a genuine alternative. The same type always prints the same key, so a
+  // The collision floor (#326): dedup and canonical order both rest on key injectivity, so
   // count mismatch is exactly two distinct types sharing one. Known colliders: same-scope lambdas
-  // (gcc prints no positional disambiguator), same-named function-local types (clang prints no
-  // scope). The scrape retires with std::type_order (P2830).
-  static_assert(_distinct_types<Ts...> == _indices_v.count, "fn: two distinct types share a sort key - see issue #326");
+  // (no positional disambiguator in gcc), same-named function-local types (clang prints no scope).
+  // If this assert fires, the user project should rename one of the colliding types to a unique
+  // name (or move it to a different scope); or upgrade to C++26 and switch to std::type_order
+  static_assert(_distinct_types<Ts...> == _indices_v.count, "distinct types must not share a sort key");
 
   template <template <typename...> typename F, ::std::size_t... Is>
   static constexpr auto _normalized_f(::std::index_sequence<Is...> const &)

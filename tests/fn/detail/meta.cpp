@@ -137,8 +137,8 @@ TEST_CASE("normalized", "[normalized]")
 #ifdef __clang__
   // clang keys a lambda by position (file:line:col), so the same-scope pair gcc collides on is
   // distinct here
-  auto l1 = [] {};
-  auto l2 = [] {};
+  [[maybe_unused]] auto l1 = [] {};
+  [[maybe_unused]] auto l2 = [] {};
   static_assert(type_sortkey_v<decltype(l1)> != type_sortkey_v<decltype(l2)>);
   static_assert(normalized<decltype(l1), decltype(l2)>::size == 2);
 #endif
