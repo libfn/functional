@@ -40,7 +40,7 @@ template <typename T, typename Fn, typename... Args> struct _is_type_invocable {
       = decltype(_is_type_invocable_result<T, Fn, Args...>(::std::declval<Fn>(), ::std::declval<Args>()...))::value;
 };
 
-// apply_result
+// invoke_type_result
 template <typename T, typename Fn, typename... Args>
 constexpr auto _invoke_type_result_result(Fn &&, Args &&...)
     -> ::std::type_identity<decltype(_invoke_type<T>(::std::declval<Fn>(), ::std::declval<Args>()...))>;
