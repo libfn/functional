@@ -316,6 +316,57 @@ constexpr auto _apply_r(Fn &&fn, Args &&...args) noexcept(_is_nothrow_applicable
   return _apply_detail::apply_r<Ret>(FWD(fn), FWD(args)...);
 }
 
+// Named (a lambda cannot appear in a noexcept-specifier): prepends the alternative's tag to the
+// unpacked elements, so one shape serves both the pack and the tuple-like unpacking below.
+template <typename Fn, typename T> struct _apply_type_elems final {
+  Fn &&fn;
+
+  template <typename... Args>
+    requires ::std::is_invocable_v<Fn, ::std::in_place_type_t<T>, Args...>
+  constexpr auto operator()(Args &&...args) && //
+      noexcept(::std::is_nothrow_invocable_v<Fn, ::std::in_place_type_t<T>, Args...>)
+          -> DEDUCED_RETURN(::std::invoke(FWD(fn), ::std::in_place_type_t<T>{}, FWD(args)...))
+  {
+    return ::std::invoke(FWD(fn), ::std::in_place_type_t<T>{}, FWD(args)...);
+  }
+};
+
+// The apply_type arm adapter: the type-indexed dispatch hands (tag, whole value); this re-invokes
+// the user's arm set with the alternative unpacked exactly as value-path apply would unpack it.
+template <typename Fn> struct _apply_type_fn final {
+  Fn &&fn;
+
+  template <typename T, typename V>
+  constexpr auto operator()(::std::in_place_type_t<T>, V &&v) && //
+      noexcept(noexcept(::std::remove_cvref_t<V>::_impl::_apply(FWD(v), _apply_type_elems<Fn, T>{FWD(fn)})))
+          -> DEDUCED_RETURN(::std::remove_cvref_t<V>::_impl::_apply(FWD(v), _apply_type_elems<Fn, T>{FWD(fn)}))
+    requires _some_pack<T>
+             && requires { ::std::remove_cvref_t<V>::_impl::_apply(FWD(v), _apply_type_elems<Fn, T>{FWD(fn)}); }
+  {
+    return ::std::remove_cvref_t<V>::_impl::_apply(FWD(v), _apply_type_elems<Fn, T>{FWD(fn)});
+  }
+
+  template <typename T, typename V>
+  constexpr auto operator()(::std::in_place_type_t<T>, V &&v) && //
+      noexcept(::pfn::is_nothrow_applicable_v<_apply_type_elems<Fn, T>, V>)
+          -> DEDUCED_RETURN(::pfn::apply(_apply_type_elems<Fn, T>{FWD(fn)}, FWD(v)))
+    requires(not _some_pack<T>)
+            && ::pfn::detail::_tuple_like<T> && (::pfn::is_applicable_v<_apply_type_elems<Fn, T>, V>)
+  {
+    return ::pfn::apply(_apply_type_elems<Fn, T>{FWD(fn)}, FWD(v));
+  }
+
+  template <typename T, typename V>
+  constexpr auto operator()(::std::in_place_type_t<T> tag, V &&v) && //
+      noexcept(::std::is_nothrow_invocable_v<Fn, ::std::in_place_type_t<T>, V>)
+          -> DEDUCED_RETURN(::std::invoke(FWD(fn), tag, FWD(v)))
+    requires(not _some_pack<T>) && (not ::pfn::detail::_tuple_like<T>)
+            && ::std::is_invocable_v<Fn, ::std::in_place_type_t<T>, V>
+  {
+    return ::std::invoke(FWD(fn), tag, FWD(v));
+  }
+};
+
 template <typename Fn, typename T, typename... Tx> constexpr inline bool _is_ts_applicable = false;
 template <typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_ts_applicable<Fn, Tpl<Ts...> &, Tx...> = (... && _is_applicable<Fn, Ts &, Tx...>::value);
