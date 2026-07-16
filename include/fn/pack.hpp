@@ -33,7 +33,7 @@ concept some_pack = detail::_some_pack<T>;
  */
 template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_for<Ts...>, Ts...> {
   using _impl = detail::pack_impl<::std::index_sequence_for<Ts...>, Ts...>;
-  static_assert((... && (not some_sum<Ts>)));
+  static_assert((... && detail::_is_valid_pack_element<Ts>));
 
   template <typename T> using append_type = _impl::template append_type<T>;
 
