@@ -60,6 +60,7 @@ jobs:
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: ./.build/docs
+          # Attempt-scoped (#255); re-run all jobs, not deploy_docs alone, or the name will not match
           name: docs-develop-${{ github.run_attempt }}
 
   # Separate job: permissions are per-job, so PR runs must not hold the deploy scopes
