@@ -187,6 +187,28 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
       return type{static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., FWD(args)...};
     });
   }
+
+  // The tag form constructs the named pack from the arguments, then splices it: appending a pack
+  // means concatenation in every spelling. One relocation per element more than appending the
+  // elements directly - the spelling of an append is a performance knob, never a result change.
+  template <typename T, typename Self>
+  static constexpr auto _append(Self &&self, auto &&...args) //
+      noexcept(_nothrow_relocatable<Self> && _nothrow_initializable<::std::remove_cvref_t<T>, decltype(args)...>
+               && ::std::remove_cvref_t<T>::_impl::template _nothrow_relocatable<::std::remove_cvref_t<T>>) -> //
+      typename _pack_append<::std::remove_cvref_t<T>, Ts...>::impl
+    requires _some_pack<T>
+             && (not(sizeof...(args) == 1
+                     && (... && ::std::is_same_v<::std::remove_cvref_t<decltype(args)>, ::std::remove_cvref_t<T>>)))
+             && _relocatable<Self> && _initializable<::std::remove_cvref_t<T>, decltype(args)...>
+             && ::std::remove_cvref_t<T>::_impl::template
+  _relocatable<::std::remove_cvref_t<T>>
+  {
+    using pack_t = ::std::remove_cvref_t<T>;
+    using type = _pack_append<pack_t, Ts...>::impl;
+    return pack_t::_impl::_swap_invoke(pack_t{FWD(args)...}, [&self](auto &&...elems) {
+      return type{static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., FWD(elems)...};
+    });
+  }
 };
 
 } // namespace fn::detail

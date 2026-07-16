@@ -477,6 +477,32 @@ TEST_CASE("append value categories", "[pack][append]")
     static_assert(std::get<0>(fn::get<3>(c3)) == 2);
   }
 
+  SECTION("pack on the right side, tag form")
+  {
+    // the tag form splices too: a prebuilt matching pack relocates directly, any other arguments
+    // construct the named pack first - either way the result is the flat concatenation
+    constexpr fn::pack<bool, int> a{true, 3};
+    constexpr auto c1 = a.append(std::in_place_type<fn::pack<C, B>>, fn::pack<C, B>{C{}, B{3, 4}});
+    static_assert(std::same_as<decltype(c1), fn::pack<bool, int, C, B> const>);
+    static_assert(
+        c1.apply([](bool i, int j, C const &c, B const &b) { return i && j == 3 && c.v == 30 && b.v == 12; }));
+
+    constexpr auto c2 = a.append(std::in_place_type<fn::pack<C, B>>, C{}, B{4, 5});
+    static_assert(std::same_as<decltype(c2), fn::pack<bool, int, C, B> const>);
+    static_assert(
+        c2.apply([](bool i, int j, C const &c, B const &b) { return i && j == 3 && c.v == 30 && b.v == 20; }));
+
+    constexpr auto c3 = a.append(std::in_place_type<fn::pack<>>);
+    static_assert(std::same_as<decltype(c3), fn::pack<bool, int> const>);
+
+    constexpr auto c4 = a.append(std::in_place_type<fn::pack<std::tuple<int, int>>>, std::tuple{2, 3});
+    static_assert(std::same_as<decltype(c4), fn::pack<bool, int, std::tuple<int, int>> const>);
+    static_assert(std::get<0>(fn::get<2>(c4)) == 2);
+
+    auto c5 = a.append(std::in_place_type<fn::pack<C, B>>, C{}, B{4, 6});
+    CHECK(c5.apply([](bool i, int j, C const &c, B const &b) { return i && j == 3 && c.v == 30 && b.v == 24; }));
+  }
+
   SECTION("constraints")
   {
     static_assert(can_append_in_place<T &, B, int>);
@@ -504,15 +530,28 @@ TEST_CASE("append value categories", "[pack][append]")
     static_assert(not can_append_in_place<T &, fn::sum<int>, fn::sum<int>>);
     static_assert(not can_append_in_place<T &, fn::sum_for<bool, int>, fn::sum_for<bool, int>>);
 
-    // A pack never holds a pack either: appending one splices, in every value category of the
-    // subject - and asking must answer, not hard-error, including a tag that merely NAMES an
-    // ill-formed pack
+    // A pack never holds a pack either: appending one splices, in every spelling and every value
+    // category of the subject - the deduced form relocates the given pack's elements, the tag form
+    // constructs the named pack from the arguments and splices that
     static_assert(std::same_as<T::append_type<fn::pack<B, C>>, pack<int, std::string_view, A, B, C>>);
     static_assert(can_append<T &, fn::pack<int>>);
     static_assert(can_append<T &, fn::pack<int> &>);
     static_assert(can_append<T const &, fn::pack<int>>);
     static_assert(can_append<T &&, fn::pack<int>>);
     static_assert(can_append<T const &&, fn::pack<int>>);
+    static_assert(can_append_in_place<T &, fn::pack<int>, int>);
+    static_assert(can_append_in_place<T const &, fn::pack<int>, int>);
+    static_assert(can_append_in_place<T &&, fn::pack<int>, int>);
+    static_assert(can_append_in_place<T const &&, fn::pack<int>, int>);
+    static_assert(can_append_in_place<T &, fn::pack<double, int>, double, int>);
+    static_assert(can_append_in_place<T &, fn::pack<int>>); // value-initialized element
+    static_assert(can_append_in_place<T &, fn::pack<>>);    // zero elements contributed
+    // the construction is asked the brace question, and asking must answer, not hard-error -
+    // including a tag that merely NAMES an ill-formed pack
+    static_assert(not can_append_in_place<T &, fn::pack<B>>);                       // B has no default constructor
+    static_assert(not can_append_in_place<T &, fn::pack<B>, char const *>);         // B is not constructible from it
+    static_assert(not can_append_in_place<T &, fn::pack<int>, int, int>);           // one too many
+    static_assert(not can_append_in_place<T &, fn::pack<double>, fn::pack<float>>); // not the tag's pack
     static_assert(not can_append_in_place<T &, fn::pack<fn::pack<int>>, int>);
     static_assert(not can_append_in_place<T &, fn::pack<fn::sum<int>>, int>);
 
