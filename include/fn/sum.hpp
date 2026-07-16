@@ -127,10 +127,14 @@ template <typename Fn, typename Self, template <typename...> typename Tpl, typen
 struct _typelist_type_select_invoke_result<Fn, Self, Tpl<Ts...>> {
   using T0 = select_nth_t<0, Ts...>;
   using R0 = ::fn::detail::_invoke_type_result<T0, Fn, apply_const_lvalue_t<Self, T0>>::type;
-  static_assert((...
-                 && ::std::is_same_v<
-                     R0, typename ::fn::detail::_invoke_type_result<Ts, Fn, apply_const_lvalue_t<Self, Ts>>::type>));
-  using type = R0;
+  static constexpr bool type_found
+      = (...
+         && ::std::is_same_v<R0,
+                             typename ::fn::detail::_invoke_type_result<Ts, Fn, apply_const_lvalue_t<Self, Ts>>::type>);
+  // If every alternative is invocable here, they must all yield the same result type.
+  static_assert(not(... && ::fn::detail::_is_type_invocable<Ts, Fn, apply_const_lvalue_t<Self, Ts>>::value)
+                || type_found);
+  using type = ::std::conditional_t<type_found, R0, void>;
 };
 
 template <typename Fn, typename Self, typename T> struct _typelist_type_collapsing_sum;

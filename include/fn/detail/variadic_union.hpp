@@ -21,8 +21,11 @@ template <typename T> constexpr bool _is_in_place_type<::std::in_place_type_t<T>
 template <typename T>
 concept _some_in_place_type = _is_in_place_type<T &>;
 
-template <typename T, typename... Args>
-[[nodiscard]] constexpr auto _invoke_type(auto &&fn, Args &&...args) -> decltype(auto)
+// Constrained so a non-viable visitor fails overload resolution here: a deduced return would
+// otherwise instantiate the body and turn the answer into a hard error.
+template <typename T, typename Fn, typename... Args>
+  requires ::std::is_invocable_v<Fn, ::std::in_place_type_t<T> const &, Args...>
+[[nodiscard]] constexpr auto _invoke_type(Fn &&fn, Args &&...args) -> decltype(auto)
 {
   return ::std::invoke(FWD(fn), ::std::in_place_type<T>, FWD(args)...);
 }
