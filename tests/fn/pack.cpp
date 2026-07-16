@@ -255,6 +255,31 @@ TEST_CASE("pack", "[pack]")
     SUCCEED();
   }
 
+  SECTION("elements are terminal")
+  {
+    // every element is handed over whole via INVOKE - a lone tuple-like element included, exactly
+    // as it is treated when siblings or extra arguments accompany it
+    constexpr auto arity = [](auto &&...args) noexcept -> int { return (0 + ... + (static_cast<void>(args), 1)); };
+    CHECK(pack<std::tuple<int, int>>{std::tuple{1, 2}}.apply(arity) == 1);
+    CHECK(pack<std::tuple<int, int>, int>{std::tuple{1, 2}, 3}.apply(arity) == 2);
+    CHECK(pack<std::tuple<int, int>>{std::tuple{1, 2}}.apply(arity, 0) == 2);
+    CHECK(pack<std::tuple<int, int>>{std::tuple{1, 2}}.apply_r<long>(arity) == 1L);
+
+    // the callable is served for the whole element, never its pieces
+    constexpr auto whole = [](std::tuple<int, int> const &t) noexcept -> int { return std::get<0>(t); };
+    CHECK(pack<std::tuple<int, int>>{std::tuple{1, 2}}.apply(whole) == 1);
+    static_assert(not can_invoke_r<pack<std::tuple<int, int>>, int, decltype([](int, int) -> int { return 0; })>);
+
+    SECTION("constexpr")
+    {
+      static_assert(pack<std::tuple<int, int>>{std::tuple{1, 2}}.apply(arity) == 1);
+      static_assert(pack<std::tuple<int, int>, int>{std::tuple{1, 2}, 3}.apply(arity) == 2);
+      static_assert(pack<std::tuple<int, int>>{std::tuple{1, 2}}.apply(arity, 0) == 2);
+      static_assert(pack<std::tuple<int, int>>{std::tuple{1, 2}}.apply(whole) == 1);
+      SUCCEED();
+    }
+  }
+
   SECTION("apply_r return conversion")
   {
     struct NotFromInt final {
@@ -445,6 +470,11 @@ TEST_CASE("append value categories", "[pack][append]")
     CHECK(c2.apply([](bool i, int j, B const &b1, C const &c, B const &b2) {
       return i && j == 3 && b1.v == 14 && c.v == 30 && b2.v == 20;
     }));
+
+    // a pack whose only element is tuple-like splices it whole, never unpacked
+    constexpr auto c3 = a.append(fn::pack<std::tuple<int, int>>{std::tuple{2, 3}});
+    static_assert(std::same_as<decltype(c3), fn::pack<bool, int, B, std::tuple<int, int>> const>);
+    static_assert(std::get<0>(fn::get<3>(c3)) == 2);
   }
 
   SECTION("constraints")
@@ -839,6 +869,11 @@ TEST_CASE("operator &", "[pack][sum][operator_and]")
                     fn::pack<int, int, double, double, bool, double, int>> const>);
   static_assert(r2.apply([](auto &&...args) -> double { return (1 * ... * static_cast<double>(args)); })
                 == 12. * 3 * 2.5 * 0.5 * 1 * 1.5 * 12);
+
+  // a pack whose only element is tuple-like splices whole through the join
+  constexpr auto r3 = fn::as_sum(12) & fn::pack<std::tuple<int, int>>{std::tuple{1, 2}};
+  static_assert(std::is_same_v<decltype(r3), fn::sum<fn::pack<int, std::tuple<int, int>>> const>);
+  static_assert(r3.apply([](int i, std::tuple<int, int> const &t) { return i == 12 && std::get<0>(t) == 1; }));
 
   SECTION("noexcept")
   {

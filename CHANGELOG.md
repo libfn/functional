@@ -2,6 +2,10 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `pack` hands elements over whole — 16 July 2026
+
+- **Pack machinery consumes values through `INVOKE`, never through `fn::apply`'s engine.** Since the tuple-like arm (below), routing the splice relocation and `pack::apply`'s elements through the engine gave a *lone* tuple-like element `std::apply`'s meaning: appending a pack whose only element is a `std::tuple` was a hard error, and `pack<std::tuple<A, B>>::apply` unpacked the element that the same call hands over whole whenever a sibling or extra argument accompanies it. Elements are terminal, and the engine's unpacking belongs to the deliberate elimination boundary alone — `std::invoke` is useful exactly as defined, which is what #84 renamed the multidispatch *away* from.
+
 ## `pack` rejects a nested `pack` element — 16 July 2026
 
 - **The element mandate that has always rejected a `sum` now also rejects a `pack`** ([#328](https://github.com/libfn/functional/issues/328)). A nested pack was representable and incoherent: `apply` flattened it (a callback over `pack<pack<A, B>, C>` saw three arguments) while the tuple protocol preserved it (`tuple_size` answered two) — and since the tuple-like arm below, the same position answered differently by kind, an own `pack` element flattening where a `std::tuple` element passes whole. The product is associative, so the nested spelling was a non-canonical duplicate of the flat one — the same self-normalization `sum` has always applied to itself. Nothing is lost: appending a whole pack has always spliced, and grouped data keeps its home in an opaque atom — `std::tuple`, `std::array`, a user wrapper, or `choice`, which the algebra never opens.
