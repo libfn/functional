@@ -356,14 +356,16 @@ template <typename Fn> struct _apply_type_fn final {
     return ::pfn::apply(_apply_type_elems<Fn, T>{FWD(fn)}, FWD(v));
   }
 
+  // The tag is passed as a prvalue, the exact shape the traits above ask about (a named parameter
+  // would be an lvalue, splitting the probe from the deed).
   template <typename T, typename V>
-  constexpr auto operator()(::std::in_place_type_t<T> tag, V &&v) && //
+  constexpr auto operator()(::std::in_place_type_t<T>, V &&v) && //
       noexcept(::std::is_nothrow_invocable_v<Fn, ::std::in_place_type_t<T>, V>)
-          -> DEDUCED_RETURN(::std::invoke(FWD(fn), tag, FWD(v)))
+          -> DEDUCED_RETURN(::std::invoke(FWD(fn), ::std::in_place_type_t<T>{}, FWD(v)))
     requires(not _some_pack<T>) && (not ::pfn::detail::_tuple_like<T>)
             && ::std::is_invocable_v<Fn, ::std::in_place_type_t<T>, V>
   {
-    return ::std::invoke(FWD(fn), tag, FWD(v));
+    return ::std::invoke(FWD(fn), ::std::in_place_type_t<T>{}, FWD(v));
   }
 };
 

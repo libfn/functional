@@ -1242,6 +1242,12 @@ TEST_CASE("sum apply_type", "[sum][apply_type]")
     static_assert(not can_apply_type<sum<double, int> &, decltype(only_double) const &>);
     static_assert(can_apply_type<sum<double, int> &, decltype(arms) const &>);
 
+    // the tag reaches the arm as a prvalue, so rvalue-tag arms are served - probe and deed agree
+    constexpr auto rv_tag = fn::overload{[](in_place_type_t<int> &&, int v) noexcept -> int { return v; },
+                                         [](in_place_type_t<double> &&, double) noexcept -> int { return 0; }};
+    static_assert(can_apply_type<sum<double, int> &, decltype(rv_tag) const &>);
+    CHECK(a.apply_type(rv_tag) == 42);
+
     CHECK(a.apply_type(arms) == 42);
     CHECK(sum<double, int>{0.5}.apply_type(arms) == 1000);
 
