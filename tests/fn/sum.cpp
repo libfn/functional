@@ -336,6 +336,7 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     // a tuple-like alternative asks applicability of its elements
     static_assert(fn::typelist_applicable<decltype([](int, int) {}), sum<std::tuple<int, int>> &>);
     static_assert(not fn::typelist_applicable<decltype([](int, int) {}), sum<std::tuple<int, int, int>> &>); // arity
+    SUCCEED();
   }
 
   SECTION("check destructor call")
@@ -1090,6 +1091,7 @@ TEST_CASE("sum basic functionality tests", "[sum]")
                                             [](int const &, int const &) -> std::false_type { return {}; },
                                             [](int &&, int &&) -> std::false_type { return {}; },
                                             [](int const &&, int const &&) -> std::true_type { return {}; }}));
+        SUCCEED();
       }
     }
 
