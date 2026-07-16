@@ -12,6 +12,7 @@ on:
       - '.github/workflows/codecov-pr-scan.yml'
       - '.github/scripts/validate-pr-artifact.sh'
       - '.github/actions/collect-pr-workspace/**'
+      - '.github/actions/select-gcc/**'
       - 'include/**'
       - 'tests/**'
       - 'CMakeLists.txt'
@@ -22,20 +23,31 @@ on:
   # examples/** not included in coverage paths intentionally, see also .codecov.yml
 
 jobs:
+  # Deliberately un-containerised: coverage needs a gcc, a gcov to match it and gcovr, and the runner
+  # already carries the first two, so pulling a ~0.5 GB image over the x64 fleet's 1-2 MB/s path costs
+  # minutes to obtain what is already there. Building on stock also keeps us honest about the platform
+  # a contributor actually has, rather than only the one we curate.
   codecov:
     runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
-    container: libfn.azurecr.io/ci-build-gcc:15-sha-08b1133
-    env:
-      CC: /usr/local/bin/gcc
-      CXX: /usr/local/bin/g++
-      GCOV: /usr/local/bin/gcov
-
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       id: checkout
       with:
         # Head, not checkout's default merge commit: coverage must describe the SHA reported downstream.
         ref: ${{ github.event.pull_request.head.sha }}
+
+    - name: Select the toolchain
+      uses: ./.github/actions/select-gcc
+
+    # The distro's gcovr is too old: `--merge-lines` arrived in 8.4, and without it the aggregate
+    # keeps a record per instantiation — the very defect it is ingested to avoid (see .codecov.yml).
+    - name: Install gcovr
+      run: |
+        set -euo pipefail
+        python3 -m venv "${RUNNER_TEMP}/gcovr-venv"
+        "${RUNNER_TEMP}/gcovr-venv/bin/pip" --no-cache-dir install --quiet 'gcovr>=8.4,<9'
+        printf '%s/gcovr-venv/bin\n' "${RUNNER_TEMP}" >> "$GITHUB_PATH"
+        "${RUNNER_TEMP}/gcovr-venv/bin/gcovr" --version | head -1
 
     - name: Build coverage and package pull request workspace
       uses: ./.github/actions/collect-pr-workspace

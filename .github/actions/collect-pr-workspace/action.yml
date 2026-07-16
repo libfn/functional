@@ -28,7 +28,7 @@ runs:
         set -euo pipefail
         status=0
         verify() {
-          local var=$1; shift  # remaining args: accepted `--help` first-line fragments
+          local var=$1; shift  # remaining args: accepted `--version` first-line fragments
           local tool=${!var-}
           if [ -z "$tool" ]; then
             printf '::error::%s is not set\n' "$var" >&2
@@ -36,9 +36,9 @@ runs:
           fi
           local first
           # Unquoted on purpose: GCOV may be a multi-word command such as `llvm-cov gcov`. A bad value
-          # is caught below by its --help output not matching, so no separate existence check is needed.
+          # is caught below by its --version output not matching, so no separate existence check is needed.
           # shellcheck disable=SC2086
-          first=$($tool --help 2>&1 | head -1) || true
+          first=$($tool --version 2>&1 | head -1) || true
           local want matched=
           for want in "$@"; do
             case $first in
@@ -46,16 +46,16 @@ runs:
             esac
           done
           if [ -z "$matched" ]; then
-            printf '::error::%s=%s is not a recognised tool (--help gave: %s)\n' "$var" "$tool" "$first" >&2
+            printf '::error::%s=%s is not a recognised tool (--version gave: %s)\n' "$var" "$tool" "$first" >&2
             status=1; return
           fi
           printf '%s=%s ok: %s\n' "$var" "$tool" "$first"
         }
-        verify CC   'Usage: gcc [options] file...' 'OVERVIEW: clang LLVM compiler'
-        verify CXX  'Usage: g++ [options] file...' 'OVERVIEW: clang LLVM compiler'
-        verify GCOV 'Usage: gcov [OPTION...] SOURCE|OBJ...' \
-                    'Usage: llvm-cov {export|gcov|report|show} [OPTION]...' \
-                    'OVERVIEW: LLVM code coverage tool'
+        # The trailing words are load-bearing: `clang-format version` and `gcov-tool (` would
+        # otherwise pass as a compiler and a gcov.
+        verify CC   'gcc' 'clang version'
+        verify CXX  'g++' 'clang version'
+        verify GCOV 'gcov (' 'LLVM'
         exit "$status"
 
     - name: Build with coverage instrumentation and compilation database
