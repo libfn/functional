@@ -157,21 +157,21 @@ TEST_CASE("filter", "[filter][expected][expected_value]")
 
     SUCCEED();
 
-    SECTION("sum")
+    SECTION("copack")
     {
-      using T = fn::expected<fn::sum_for<Value, int>, Error>;
+      using T = fn::expected<fn::copack_for<Value, int>, Error>;
 
       constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> bool { return i < 3; },
                                        [](Value const &v) constexpr noexcept -> bool { return v.v >= 5; }};
       constexpr auto error = [](auto &&) -> Error { return Error::ThresholdExceeded; };
       constexpr auto r1 = T{0} | fn::filter(fn, error);
-      static_assert(r1.value() == fn::sum{0});
+      static_assert(r1.value() == fn::copack{0});
       constexpr auto r2 = T{3} | fn::filter(fn, error);
       static_assert(r2.error() == Error::ThresholdExceeded);
       constexpr auto r3 = T{Value{0}} | fn::filter(fn, error);
       static_assert(r3.error() == Error::ThresholdExceeded);
       constexpr auto r4 = T{Value{5}} | fn::filter(fn, error);
-      static_assert(r4.value() == fn::sum{Value{5}});
+      static_assert(r4.value() == fn::copack{Value{5}});
       constexpr auto r5 = T{3} | fn::filter(fn, error);
       static_assert(r5.error() == Error::ThresholdExceeded);
 
@@ -553,20 +553,20 @@ TEST_CASE("filter", "[filter][optional]")
 
     SUCCEED();
 
-    SECTION("sum")
+    SECTION("copack")
     {
-      using T = fn::optional<fn::sum_for<Value, int>>;
+      using T = fn::optional<fn::copack_for<Value, int>>;
 
       constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> bool { return i < 3; },
                                        [](Value const &v) constexpr noexcept -> bool { return v.v >= 5; }};
       constexpr auto r1 = T{0} | fn::filter(fn);
-      static_assert(r1.value() == fn::sum{0});
+      static_assert(r1.value() == fn::copack{0});
       constexpr auto r2 = T{3} | fn::filter(fn);
       static_assert(not r2.has_value());
       constexpr auto r3 = T{Value{0}} | fn::filter(fn);
       static_assert(not r3.has_value());
       constexpr auto r4 = T{Value{5}} | fn::filter(fn);
-      static_assert(r4.value() == fn::sum{Value{5}});
+      static_assert(r4.value() == fn::copack{Value{5}});
       constexpr auto r5 = T{3} | fn::filter(fn);
       static_assert(not r5.has_value());
 

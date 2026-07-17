@@ -124,23 +124,23 @@ TEST_CASE("recover", "[recover][expected][expected_value]")
 
     SUCCEED();
 
-    SECTION("sum")
+    SECTION("copack")
     {
-      using TS = fn::expected<int, fn::sum_for<Error, bool>>;
+      using TS = fn::expected<int, fn::copack_for<Error, bool>>;
 
-      constexpr auto fnSum = fn::overload{[](Error e) constexpr noexcept -> int {
-                                            if (e == Error::SomethingElse)
-                                              return 0;
-                                            return 1;
-                                          },
-                                          [](bool e) constexpr noexcept -> int { return (int)e; }};
-      constexpr auto s1 = TS{2} | fn::recover(fnSum);
+      constexpr auto fnCopack = fn::overload{[](Error e) constexpr noexcept -> int {
+                                               if (e == Error::SomethingElse)
+                                                 return 0;
+                                               return 1;
+                                             },
+                                             [](bool e) constexpr noexcept -> int { return (int)e; }};
+      constexpr auto s1 = TS{2} | fn::recover(fnCopack);
       static_assert(s1.value() == 2);
-      constexpr auto s2 = TS{::fn::unexpect, fn::sum{Error::SomethingElse}} | fn::recover(fnSum);
+      constexpr auto s2 = TS{::fn::unexpect, fn::copack{Error::SomethingElse}} | fn::recover(fnCopack);
       static_assert(s2.value() == 0);
-      constexpr auto s3 = TS{::fn::unexpect, fn::sum{true}} | fn::recover(fnSum);
+      constexpr auto s3 = TS{::fn::unexpect, fn::copack{true}} | fn::recover(fnCopack);
       static_assert(s3.value() == 1);
-      constexpr auto s4 = TS{::fn::unexpect, fn::sum{Error::ThresholdExceeded}} | fn::recover(fnSum);
+      constexpr auto s4 = TS{::fn::unexpect, fn::copack{Error::ThresholdExceeded}} | fn::recover(fnCopack);
       static_assert(s4.value() == 1);
 
       SUCCEED();

@@ -3,8 +3,8 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
+#include <fn/copack.hpp>
 #include <fn/detail/variadic_union.hpp>
-#include <fn/sum.hpp>
 
 #include <catch2/catch_all.hpp>
 

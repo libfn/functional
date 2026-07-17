@@ -26,7 +26,7 @@ enum class Div {};
 
 // `parse` turns a '/' delimited string into a pair of numbers (a numerator and denominator)
 constexpr auto parse(std::string_view s) noexcept
-    -> fn::expected<fn::pack<int, int>, fn::sum<NotANumber>>;
+    -> fn::expected<fn::pack<int, int>, fn::copack<NotANumber>>;
 
 class Rational {
   int n_, d_;
@@ -41,18 +41,18 @@ public:
   // reduced, sign-normalized and representable. Callers receive a value they never need re-check.
   static constexpr struct make_t {
     constexpr auto operator()(long long n, long long d) const noexcept
-        -> fn::expected<Rational, fn::sum_for<DivByZero, Overflow>>
+        -> fn::expected<Rational, fn::copack_for<DivByZero, Overflow>>
     {
-      if (d == 0) return fn::unexpected{fn::sum{DivByZero{}}};
+      if (d == 0) return fn::unexpected{fn::copack{DivByZero{}}};
       if (n == std::numeric_limits<long long>::min() || d == std::numeric_limits<long long>::min())
-        return fn::unexpected{fn::sum{Overflow{}}};
+        return fn::unexpected{fn::copack{Overflow{}}};
 
       auto const g = (d < 0 ? -1 : 1) * std::gcd(n, d);
       n /= g;
       d /= g;
       if (n < std::numeric_limits<int>::min() || n > std::numeric_limits<int>::max()
           || d > std::numeric_limits<int>::max()) {
-        return fn::unexpected{fn::sum{Overflow{}}};
+        return fn::unexpected{fn::copack{Overflow{}}};
       }
 
       return Rational(static_cast<int>(n), static_cast<int>(d));
@@ -86,11 +86,11 @@ public:
 };
 
 // `evaluate` parses each operand, applies the operator, and lets `make` re-check the result.
-// Each stage fails its own way, and the library folds error types into one sum of types.
-constexpr auto evaluate(std::string_view a, fn::sum_for<Add, Sub, Mul, Div> op,
+// Each stage fails its own way, and the library folds error types into one co-product.
+constexpr auto evaluate(std::string_view a, fn::copack_for<Add, Sub, Mul, Div> op,
                         std::string_view b) noexcept
 {
-  using Op = fn::expected<decltype(op), fn::sum<>>;
+  using Op = fn::expected<decltype(op), fn::copack<>>;
   return (Rational::make(a) & Op{op} & Rational::make(b)) //
          | fn::and_then(fn::overload{[](Rational x, Add, Rational y) { return x.add(y); },
                                      [](Rational x, Sub, Rational y) { return x.sub(y); },
@@ -98,11 +98,11 @@ constexpr auto evaluate(std::string_view a, fn::sum_for<Add, Sub, Mul, Div> op,
                                      [](Rational x, Div, Rational y) { return x.div(y); }});
 }
 
-// The error type of a sequence is the derived sum of all failure modes, never spelled by hand:
+// The error type of a sequence is the derived copack of all failure modes, never spelled by hand:
 static_assert(std::is_same_v<decltype(Rational::make("1/1")),
-                             fn::expected<Rational, fn::sum<DivByZero, NotANumber, Overflow>>>);
+                             fn::expected<Rational, fn::copack<DivByZero, NotANumber, Overflow>>>);
 static_assert(std::is_same_v<decltype(evaluate("1/2", Add{}, "3/4")),
-                             fn::expected<Rational, fn::sum<DivByZero, NotANumber, Overflow>>>);
+                             fn::expected<Rational, fn::copack<DivByZero, NotANumber, Overflow>>>);
 // Constant evaluated calculations used to verify both values and errors during compilation:
 static_assert(evaluate("1/2", Add{}, "1/3").value() == Rational::make(5, 6));
 static_assert(evaluate("2/3", Div{}, "0/1").error().has_value<DivByZero>());
@@ -113,25 +113,25 @@ static_assert(evaluate("2/3", Div{}, "0/1").error().has_value<DivByZero>());
 The library features demonstrated by the code example above:
 
 * **Monadic sequences** — `operator|` pipes a `fn::expected` (or `fn::optional`) through operations: `and_then` and `transform` act on the value, `or_else`, `recover` and `transform_error` on the error, with `filter`, `inspect`, `fail` and more besides.
-* **Graded errors** — each stage fails its own way — a malformed string, a zero denominator, an out-of-range result — and the library folds these into one `fn::sum` whose type it derives for you: here `fn::sum<DivByZero, NotANumber, Overflow>`, never spelled by hand.
+* **Graded errors** — each stage fails its own way — a malformed string, a zero denominator, an out-of-range result — and the library folds these into one `fn::copack` whose type it derives for you: here `fn::copack<DivByZero, NotANumber, Overflow>`, never spelled by hand.
 * **Composing values** — `operator&` gathers successful operands left to right: two values become a `fn::pack`, a third appends to it. A `fn::pack` is a heterogeneous product — the operands as one value, spread into the next call; for example in `make`, where a `pack<int, int>` returned from `parse` is passed to an overload taking two numbers.
-* **Composing alternatives** — when a side is a `fn::sum` (a co-product — one of several types, indexed by type, not by position like `std::variant`), `&` distributes over it, pairing every alternative with the other operand. Two sums yield the full cartesian product. The result type is flattened, deduplicated and sorted for you.
-* **Multidispatch** — the pack (or sum of packs) flows into the next stage as separate arguments. An `fn::overload` — or any function — dispatches on the runtime alternative by ordinary overload resolution. Dispatch is exhaustive: a missing handler is a compile error.
-* **Identity monad** — `fn::expected<T, fn::sum<>>` cannot hold an error (enforced at compile time), a spelling of the identity monad; the example lifts `op` into it as `Op`.
+* **Composing alternatives** — when a side is a `fn::copack` (a co-product — one of several types, indexed by type, not by position like `std::variant`), `&` distributes over it, pairing every alternative with the other operand. Two copacks yield the full cartesian product. The result type is flattened, deduplicated and sorted for you.
+* **Multidispatch** — the pack (or copack of packs) flows into the next stage as separate arguments. An `fn::overload` — or any function — dispatches on the runtime alternative by ordinary overload resolution. Dispatch is exhaustive: a missing handler is a compile error.
+* **Identity monad** — `fn::expected<T, fn::copack<>>` cannot hold an error (enforced at compile time), a spelling of the identity monad; the example lifts `op` into it as `Op`.
 * **No surprises** — libfn throws no exceptions of its own (only `value()`, as the standard mandates), and composes safely with callables that do; it allocates no memory of its own and performs no I/O. Being fully `constexpr`, it can drive a program evaluated entirely at compile time, where the compiler diagnoses any undefined behaviour.
 
 The example also demonstrates how well libfn works with general programming idioms. `make` is a *smart constructor* — the only way to build a `Rational` — enforcing the type's invariants and returning `fn::expected`: callers never need to re-check what the type guarantees. Treating *callables as values* lets operations such as `and_then` accept `make` whole, carrying its overload set.
 
 These properties also make libfn a natural fit for asynchronous composition, such as coroutines or senders/receivers. Operations and monadic types alike are plain values: `and_then(f)` is a *description* of a step, executed only when a monad is piped into it (an input to the sequence, or the result of the preceding operation). A framework can hold the steps of a computation and apply them as results arrive, with a strongly typed error channel and no hidden control flow — exactly what such programming models need.
 
-Beyond the example: `fn::choice` (a monad over `fn::sum`); the same operations over `fn::optional` as over `fn::expected`; tuple protocol in `fn::pack` (`get<I>(p)` or structured bindings); `fn::pack` and `fn::sum` are both structural types (a `constexpr` value which may be used as a template parameter); support for immovable values and callables; and more — see [examples/](examples/) and the [API reference][docs].
+Beyond the example: `fn::choice` (a monad over `fn::copack`); the same operations over `fn::optional` as over `fn::expected`; tuple protocol in `fn::pack` (`get<I>(p)` or structured bindings); `fn::pack` and `fn::copack` are both structural types (a `constexpr` value which may be used as a template parameter); support for immovable values and callables; and more — see [examples/](examples/) and the [API reference][docs].
 
 ## How
 
 The library comes as two parts in one repository:
 
 * **`pfn`** (`include/pfn`, namespace `pfn`) — a faithful polyfill of standard-library vocabulary types as specified for C++26: `std::expected`, `std::optional` (including the monadic functions, `optional<T&>` and range support), plus smaller utilities such as `std::invoke_r` and `std::unreachable`. It adds nothing of its own on top of what's mandated by the [C++ standard](https://eel.is/c++draft/) or accepted for a future revision — such as `has_error()`.
-* **`fn`** (`include/fn`, namespace `fn`) — the functional-programming library. It extends the vocabulary types with the facilities useful in writing functional style programs — monadic operations composable with `operator|`, such as `and_then`, `transform`, `or_else`, `inspect`, `recover`, `filter` — and adds new vocabulary types: `sum`, `choice`, `pack`.
+* **`fn`** (`include/fn`, namespace `fn`) — the functional-programming library. It extends the vocabulary types with the facilities useful in writing functional style programs — monadic operations composable with `operator|`, such as `and_then`, `transform`, `or_else`, `inspect`, `recover`, `filter` — and adds new vocabulary types: `copack`, `choice`, `pack`.
 
 Every `fn` type with a `pfn` counterpart is a strict superset of it: switching a valid program using `pfn` types to use `fn` instead changes neither compilation nor program behaviour.
 

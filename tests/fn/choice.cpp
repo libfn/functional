@@ -60,12 +60,12 @@ concept can_apply_type = requires(S s, Fn fn, Args... args) { FWD(s).apply_type(
 template <typename S, typename Fn, typename... Args>
 concept can_apply = requires(S s, Fn fn, Args... args) { FWD(s).apply(FWD(fn), FWD(args)...); };
 
-// Every special member of choice is defaulted, and choice adds no state to sum - so each must behave
-// exactly as sum's, down to its noexcept and its constraints.
-template <typename... Ts> consteval bool special_members_follow_sum()
+// Every special member of choice is defaulted, and choice adds no state to copack - so each must behave
+// exactly as copack's, down to its noexcept and its constraints.
+template <typename... Ts> consteval bool special_members_follow_copack()
 {
   using C = fn::choice<Ts...>;
-  using S = fn::sum<Ts...>;
+  using S = fn::copack<Ts...>;
   return std::is_copy_constructible_v<C> == std::is_copy_constructible_v<S>                        //
          && std::is_nothrow_copy_constructible_v<C> == std::is_nothrow_copy_constructible_v<S>     //
          && std::is_move_constructible_v<C> == std::is_move_constructible_v<S>                     //
@@ -87,19 +87,20 @@ template <typename... Ts> consteval bool special_members_follow_sum()
 
 TEST_CASE("choice non-monadic functionality", "[choice]")
 {
-  // NOTE This test looks very similar to test in sum.cpp - for good reason.
+  // NOTE This test looks very similar to test in copack.cpp - for good reason.
 
   using fn::choice;
 
   SECTION("value")
   {
-    // _for aliases: a choice's value_type is the sum of its alternatives, but the canonical order is
+    // _for aliases: a choice's value_type is the copack of its alternatives, but the canonical order is
     // platform-specific (see SECTION("choice_for") below), so normalize both sides per platform.
-    static_assert(std::same_as<fn::sum_for<NonCopyable, int>, typename fn::choice_for<NonCopyable, int>::value_type>);
-    static_assert(std::same_as<fn::sum<int>, typename choice<int>::value_type>);
+    static_assert(
+        std::same_as<fn::copack_for<NonCopyable, int>, typename fn::choice_for<NonCopyable, int>::value_type>);
+    static_assert(std::same_as<fn::copack<int>, typename choice<int>::value_type>);
 
     using type = fn::choice<bool, helper>;
-    using value_type = fn::sum<bool, helper>;
+    using value_type = fn::copack<bool, helper>;
     static_assert(std::same_as<value_type &, decltype(std::declval<type &>().value())>);
     static_assert(std::same_as<value_type const &, decltype(std::declval<type const &>().value())>);
     static_assert(std::same_as<value_type &&, decltype(std::declval<type &&>().value())>);
@@ -128,9 +129,9 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     // Canonical alternative order is platform/ABI-specific (derived from the compiler's type spelling
     // — GCC/Clang __PRETTY_FUNCTION__ vs MSVC __FUNCSIG__): MSVC sorts class/struct types after the
     // fundamentals, GCC/Clang before. Inherent and deliberately NOT unified (not even by C++26
-    // std::type_order — an ABI-tied total order); see tests/fn/sum.cpp for the full rationale. This
+    // std::type_order — an ABI-tied total order); see tests/fn/copack.cpp for the full rationale. This
     // one assert documents the divergence; the rest assert only platform-independent invariants.
-    // Spelling: choices/sums whose alternatives include a non-builtin have platform-specific order, so
+    // Spelling: choices/copacks whose alternatives include a non-builtin have platform-specific order, so
     // they are written choice_for<...>; pure-builtin ones keep a fixed choice<...>.
 #ifdef _MSC_VER
     static_assert(std::same_as<fn::choice_for<int, NonCopyable>, fn::choice<int, NonCopyable>>);
@@ -144,21 +145,23 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
         std::same_as<fn::choice_for<NonCopyable, int, NonCopyable>, fn::choice_for<int, NonCopyable>>); // unique
     static_assert(fn::choice_for<int, bool, NonCopyable>::size == 3);
 
-    static_assert(std::same_as<fn::choice_for<int, fn::sum<int>>, fn::choice<int>>);
-    static_assert(std::same_as<fn::choice_for<int, fn::sum<bool>>, fn::choice<bool, int>>);
-    static_assert(std::same_as<fn::choice_for<int, fn::sum<bool, int>>, fn::choice<bool, int>>);
-    static_assert(std::same_as<fn::choice_for<int, fn::sum<bool, double>>, fn::choice<bool, double, int>>);
+    static_assert(std::same_as<fn::choice_for<int, fn::copack<int>>, fn::choice<int>>);
+    static_assert(std::same_as<fn::choice_for<int, fn::copack<bool>>, fn::choice<bool, int>>);
+    static_assert(std::same_as<fn::choice_for<int, fn::copack<bool, int>>, fn::choice<bool, int>>);
+    static_assert(std::same_as<fn::choice_for<int, fn::copack<bool, double>>, fn::choice<bool, double, int>>);
 
-    static_assert(std::same_as<fn::choice_for<fn::sum<bool>, fn::sum<int>>, fn::choice<bool, int>>);
+    static_assert(std::same_as<fn::choice_for<fn::copack<bool>, fn::copack<int>>, fn::choice<bool, int>>);
     static_assert(
-        std::same_as<fn::choice_for<fn::sum<bool>, fn::sum<bool, double, int>>, fn::choice<bool, double, int>>);
-    static_assert(std::same_as<fn::choice_for<fn::sum<bool>, fn::sum<double, int>>, fn::choice<bool, double, int>>);
-    static_assert(std::same_as<fn::choice_for<fn::sum<bool, int>, double>, fn::choice<bool, double, int>>);
+        std::same_as<fn::choice_for<fn::copack<bool>, fn::copack<bool, double, int>>, fn::choice<bool, double, int>>);
+    static_assert(
+        std::same_as<fn::choice_for<fn::copack<bool>, fn::copack<double, int>>, fn::choice<bool, double, int>>);
+    static_assert(std::same_as<fn::choice_for<fn::copack<bool, int>, double>, fn::choice<bool, double, int>>);
 
-    static_assert(std::same_as<fn::choice_for<int, fn::sum<>>, fn::choice<int>>);
-    static_assert(std::same_as<fn::choice_for<fn::sum<>, int>, fn::choice<int>>);
-    static_assert(std::same_as<fn::choice_for<fn::sum<>, fn::sum<bool, int>>, fn::choice<bool, int>>);
-    static_assert(std::same_as<fn::choice_for<double, fn::sum<>, fn::sum<bool, int>>, fn::choice<bool, double, int>>);
+    static_assert(std::same_as<fn::choice_for<int, fn::copack<>>, fn::choice<int>>);
+    static_assert(std::same_as<fn::choice_for<fn::copack<>, int>, fn::choice<int>>);
+    static_assert(std::same_as<fn::choice_for<fn::copack<>, fn::copack<bool, int>>, fn::choice<bool, int>>);
+    static_assert(
+        std::same_as<fn::choice_for<double, fn::copack<>, fn::copack<bool, int>>, fn::choice<bool, double, int>>);
   }
 
   SECTION("applicable")
@@ -214,7 +217,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       constexpr auto a = fn(true);
       static_assert(std::is_same_v<decltype(a), T const>);
       static_assert(a.has_value<bool>());
-      static_assert(a.value() == fn::sum{true});
+      static_assert(a.value() == fn::copack{true});
 
       constexpr auto b = fn(helper{{0.5, 2.0}, 19});
       static_assert(std::is_same_v<decltype(b), T const>);
@@ -234,7 +237,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       auto b = fn(true);
       static_assert(std::is_same_v<decltype(b), T>);
       CHECK(b.has_value<bool>());
-      CHECK(b.value() == fn::sum{true});
+      CHECK(b.value() == fn::copack{true});
     }
 
     SECTION("constexpr move from const rvalue")
@@ -244,7 +247,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       constexpr auto a = fn(true);
       static_assert(std::is_same_v<decltype(a), T const>);
       static_assert(a.has_value<bool>());
-      static_assert(a.value() == fn::sum{true});
+      static_assert(a.value() == fn::copack{true});
 
       constexpr auto b = fn(helper{{0.5, 2.0}, 17});
       static_assert(std::is_same_v<decltype(b), T const>);
@@ -264,7 +267,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       auto b = fn(true);
       static_assert(std::is_same_v<decltype(b), T>);
       CHECK(b.has_value<bool>());
-      CHECK(b.value() == fn::sum{true});
+      CHECK(b.value() == fn::copack{true});
     }
 
     SECTION("constexpr copy from lvalue")
@@ -274,7 +277,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       constexpr auto a = fn(true);
       static_assert(std::is_same_v<decltype(a), T const>);
       static_assert(a.has_value<bool>());
-      static_assert(a.value() == fn::sum{true});
+      static_assert(a.value() == fn::copack{true});
 
       constexpr auto b = fn(helper{{0.5, 2.0}, 17});
       static_assert(std::is_same_v<decltype(b), T const>);
@@ -289,7 +292,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       auto const a = fn(true);
       static_assert(std::is_same_v<decltype(a), T const>);
       CHECK(a.has_value<bool>());
-      CHECK(a.value() == fn::sum{true});
+      CHECK(a.value() == fn::copack{true});
 
       auto b = fn(helper{13});
       static_assert(std::is_same_v<decltype(b), T>);
@@ -304,7 +307,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       constexpr auto a = fn(true);
       static_assert(std::is_same_v<decltype(a), T const>);
       static_assert(a.has_value<bool>());
-      static_assert(a.value() == fn::sum{true});
+      static_assert(a.value() == fn::copack{true});
 
       constexpr auto b = fn(helper{{0.5, 2.0}, 15});
       static_assert(std::is_same_v<decltype(b), T const>);
@@ -319,7 +322,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       auto const a = fn(true);
       static_assert(std::is_same_v<decltype(a), T const>);
       CHECK(a.has_value<bool>());
-      CHECK(a.value() == fn::sum{true});
+      CHECK(a.value() == fn::copack{true});
 
       auto b = fn(helper{5});
       static_assert(std::is_same_v<decltype(b), T>);
@@ -350,41 +353,41 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     }
   }
 
-  SECTION("constructor from sum")
+  SECTION("constructor from copack")
   {
     using T = fn::choice<bool, helper>;
     SECTION("move from rvalue")
     {
-      fn::sum h{helper{1}};
+      fn::copack h{helper{1}};
       h.get_ptr<helper>()->v = 17;
       T const a{std::move(h)};
       CHECK(a.value().get_ptr<helper>()->v == 17 * from_rval);
     }
     SECTION("copy from const lvalue")
     {
-      fn::sum h{helper{1}};
+      fn::copack h{helper{1}};
       h.get_ptr<helper>()->v = 19;
       T const a{std::as_const(h)};
       CHECK(a.value().get_ptr<helper>()->v == 19 * from_lval_const);
     }
   }
 
-  SECTION("assignment from sum")
+  SECTION("assignment from copack")
   {
-    // choice declares its operator=, hiding sum's widening overloads, so it carries its own pair
-    // and delegates - which also admits a sum over the same alternatives, with nothing to widen
+    // choice declares its operator=, hiding copack's widening overloads, so it carries its own pair
+    // and delegates - which also admits a copack over the same alternatives, with nothing to widen
     constexpr auto battery = [] {
       choice<bool, int> a{12};
-      a = fn::sum<int>{42}; // the alternative in hand
+      a = fn::copack<int>{42}; // the alternative in hand
       bool ok = a == choice{42};
-      a = fn::sum<bool>{true}; // a different alternative
+      a = fn::copack<bool>{true}; // a different alternative
       ok = ok && a == choice{true};
-      fn::sum<int> const n{7};
+      fn::copack<int> const n{7};
       a = n; // by copy
       ok = ok && a == choice{7};
-      a = choice<int>{3}; // a narrower choice, deduced through its sum base
+      a = choice<int>{3}; // a narrower choice, deduced through its copack base
       ok = ok && a == choice{3};
-      a = fn::sum<bool, int>{5}; // the same alternatives, delegated to same-type assignment
+      a = fn::copack<bool, int>{5}; // the same alternatives, delegated to same-type assignment
       return ok && a == choice{5};
     };
     CHECK(battery());
@@ -392,11 +395,11 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
     SECTION("constraints")
     {
-      static_assert(std::is_assignable_v<choice<bool, int> &, fn::sum<int> const &>);
-      static_assert(std::is_assignable_v<choice<bool, int> &, fn::sum<bool, int> &&>); // same alternatives
-      static_assert(std::is_assignable_v<choice<bool, int> &, choice<int> const &>);   // through the base
-      static_assert(not std::is_assignable_v<choice<int> &, fn::sum<bool> const &>);   // not a superset
-      static_assert(noexcept(std::declval<choice<bool, int> &>() = std::declval<fn::sum<int> const &>()));
+      static_assert(std::is_assignable_v<choice<bool, int> &, fn::copack<int> const &>);
+      static_assert(std::is_assignable_v<choice<bool, int> &, fn::copack<bool, int> &&>); // same alternatives
+      static_assert(std::is_assignable_v<choice<bool, int> &, choice<int> const &>);      // through the base
+      static_assert(not std::is_assignable_v<choice<int> &, fn::copack<bool> const &>);   // not a superset
+      static_assert(noexcept(std::declval<choice<bool, int> &>() = std::declval<fn::copack<int> const &>()));
       SUCCEED();
     }
   }
@@ -404,7 +407,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
   SECTION("assignment from a value")
   {
     // the delegating value assignment, restated for the same name-hiding reason as the widening
-    // pair above; the answer - routing, constraints, noexcept - is sum's
+    // pair above; the answer - routing, constraints, noexcept - is copack's
     constexpr auto battery = [] {
       choice<bool, int> a{12};
       a = 42; // the alternative in hand
@@ -424,11 +427,11 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       static_assert(not std::is_assignable_v<choice<bool, int> &, short>); // exact alternative only
       static_assert(std::is_nothrow_assignable_v<choice<bool, int> &, int>);
 
-      // sum- and choice-typed sources are left to the assignments above, including non-const
+      // copack- and choice-typed sources are left to the assignments above, including non-const
       // lvalues, which a forwarding reference would otherwise capture
       static_assert(std::is_assignable_v<choice<bool, int> &, choice<bool, int> &>);
       static_assert(std::is_assignable_v<choice<bool, int> &, choice<int> &>);
-      static_assert(std::is_assignable_v<choice<bool, int> &, fn::sum<int> &>);
+      static_assert(std::is_assignable_v<choice<bool, int> &, fn::copack<int> &>);
 
       // a sibling's refusal does not hold the value assignment hostage
       struct Fixed final { // copyable, not assignable
@@ -464,7 +467,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       static_assert(can_in_place<choice<NonCopyable>, NonCopyable, int>);
       static_assert(not can_in_place<choice<NonCopyable>, int, int>); // int is not an alternative
 
-      // the constructor forwards to sum's, and rejects what sum rejects
+      // the constructor forwards to copack's, and rejects what copack rejects
       static_assert(not can_in_place<choice<NonCopyable>, NonCopyable>);               // no default ctor
       static_assert(not can_in_place<choice<NonCopyable>, NonCopyable, char const *>); // not constructible from
       SUCCEED();
@@ -510,7 +513,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
   SECTION("equality comparison")
   {
-    // The comparison operators are sum's - free functions taking sum<Ts...> const & - and sum.cpp
+    // The comparison operators are copack's - free functions taking copack<Ts...> const & - and copack.cpp
     // owns their grid. What is choice's own is that a choice reaches them at all, through its public
     // base; that, and the result type, is what is asserted here.
     using type = choice<bool, int>;
@@ -578,7 +581,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
     SECTION("tuple-like alternative")
     {
-      // the tuple-like arm of fn::apply reaches choice's dispatch identically to sum's
+      // the tuple-like arm of fn::apply reaches choice's dispatch identically to copack's
       constexpr auto add2 = [](int i, int j) noexcept -> int { return i + j; };
       CHECK(choice<std::tuple<int, int>>{std::tuple{2, 3}}.apply(add2) == 5);
 
@@ -720,7 +723,7 @@ TEST_CASE("choice apply", "[choice][apply]")
 {
   using fn::choice;
 
-  // the value-path members share sum::apply's shape: trailing arguments follow the alternative
+  // the value-path members share copack::apply's shape: trailing arguments follow the alternative
   constexpr auto arms = fn::overload{[](int v, int x) noexcept -> int { return v + x; },
                                      [](double, int x) noexcept -> int { return -x; }};
   choice<double, int> a{42};
@@ -788,10 +791,10 @@ TEST_CASE("choice noexcept", "[choice][noexcept]")
   static_assert(not noexcept(std::declval<T &>().apply(fnInt)));
   static_assert(not noexcept(std::declval<T &>().template apply_r<long>(fnInt)));
 
-  // the constructors that widen a sum into a choice copy or move every alternative across
+  // the constructors that widen a copack into a choice copy or move every alternative across
   using W = fn::choice_for<Throwing, int>;
-  static_assert(not noexcept(W{std::declval<fn::sum<Throwing> const &>()}));
-  static_assert(not noexcept(W{std::declval<fn::sum<Throwing> &&>()}));
+  static_assert(not noexcept(W{std::declval<fn::copack<Throwing> const &>()}));
+  static_assert(not noexcept(W{std::declval<fn::copack<Throwing> &&>()}));
 
   // the value constructors weigh what they construct, rather than under-promising as they once did
   static_assert(noexcept(choice<int>{42}));
@@ -908,13 +911,13 @@ TEST_CASE("choice transform", "[choice][transform]")
           == fn::choice<double>{1.5});
 
     constexpr type a{std::in_place_type<int>, 42};
-    constexpr auto fn = fn::overload{[](bool) -> fn::sum<bool> { throw 1; },    //
-                                     [](int &) -> fn::sum<double> { throw 0; }, //
-                                     [](int const &i) -> fn::sum<double> {      //
+    constexpr auto fn = fn::overload{[](bool) -> fn::copack<bool> { throw 1; },    //
+                                     [](int &) -> fn::copack<double> { throw 0; }, //
+                                     [](int const &i) -> fn::copack<double> {      //
                                        return i / 8.0;
                                      },
-                                     [](int &&) -> fn::sum<double> { throw 0; }, //
-                                     [](int const &&) -> fn::sum<double> { throw 0; }};
+                                     [](int &&) -> fn::copack<double> { throw 0; }, //
+                                     [](int const &&) -> fn::copack<double> { throw 0; }};
     static_assert(std::is_same_v<fn::choice<bool, double>, decltype(a.transform(fn))>);
     static_assert(a.transform(fn) == fn::choice<bool, double>{5.25});
     static_assert(std::move(a).transform(                                  //
@@ -929,7 +932,7 @@ TEST_CASE("choice transform", "[choice][transform]")
   SECTION("size 2")
   {
     using ::fn::choice;
-    using ::fn::sum;
+    using ::fn::copack;
     constexpr auto fn1 = [](auto i) noexcept -> std::size_t { return sizeof(i); };
 
     using type = choice<double, int>;
@@ -1024,7 +1027,7 @@ TEST_CASE("choice assignment", "[choice][assignment]")
 {
   using fn::choice;
 
-  // choice adds no state of its own, so its assignment is the base sum's: same strong guarantee,
+  // choice adds no state of its own, so its assignment is the base copack's: same strong guarantee,
   // same constraints, same noexcept - it only has to be declared, since choice's move constructor
   // would otherwise delete the implicit copy assignment and suppress the implicit move assignment
   static_assert(std::is_copy_assignable_v<choice<bool, int>>);
@@ -1060,7 +1063,7 @@ TEST_CASE("choice emplace", "[choice][emplace]")
 {
   using fn::choice;
 
-  // sum::emplace is inherited - a named member, so the name hiding that forces choice to restate
+  // copack::emplace is inherited - a named member, so the name hiding that forces choice to restate
   // every operator= does not apply
   struct Sender final { // not assignable, nothrow-move-constructible
     int target;
@@ -1097,11 +1100,11 @@ TEST_CASE("choice special members", "[choice]")
   // move constructor would otherwise delete it, and the two assignments because they would otherwise
   // be deleted and suppressed in turn. Removing a `= default`, adding a `noexcept` the base does not
   // promise, or narrowing a requires-clause would all break the equalities below.
-  static_assert(special_members_follow_sum<int>());
-  static_assert(special_members_follow_sum<bool, int>());
-  static_assert(special_members_follow_sum<std::string>());
-  static_assert(special_members_follow_sum<helper_move_only>());
-  static_assert(special_members_follow_sum<helper_immovable>());
+  static_assert(special_members_follow_copack<int>());
+  static_assert(special_members_follow_copack<bool, int>());
+  static_assert(special_members_follow_copack<std::string>());
+  static_assert(special_members_follow_copack<helper_move_only>());
+  static_assert(special_members_follow_copack<helper_immovable>());
 
   // ... and what they follow it TO, so that the equalities cannot be satisfied by both being wrong
   static_assert(std::is_nothrow_copy_constructible_v<choice<int>>);

@@ -132,17 +132,17 @@ TEST_CASE("inspect_error expected", "[inspect_error][expected]")
 
     SUCCEED();
 
-    SECTION("sum")
+    SECTION("copack")
     {
-      using TS = fn::expected<int, fn::sum_for<Error, bool>>;
-      constexpr auto fnSum
+      using TS = fn::expected<int, fn::copack_for<Error, bool>>;
+      constexpr auto fnCopack
           = fn::overload{[](Error) constexpr noexcept -> void {}, [](bool) constexpr noexcept -> void {}};
-      constexpr auto s1 = TS{0} | fn::inspect_error(fnSum);
+      constexpr auto s1 = TS{0} | fn::inspect_error(fnCopack);
       static_assert(s1.value() == 0);
-      constexpr auto s2 = TS{::fn::unexpect, fn::sum{Error::SomethingElse}} | fn::inspect_error(fnSum);
-      static_assert(s2.error() == fn::sum{Error::SomethingElse});
-      constexpr auto s3 = TS{::fn::unexpect, fn::sum{false}} | fn::inspect_error(fnSum);
-      static_assert(s3.error() == fn::sum{false});
+      constexpr auto s2 = TS{::fn::unexpect, fn::copack{Error::SomethingElse}} | fn::inspect_error(fnCopack);
+      static_assert(s2.error() == fn::copack{Error::SomethingElse});
+      constexpr auto s3 = TS{::fn::unexpect, fn::copack{false}} | fn::inspect_error(fnCopack);
+      static_assert(s3.error() == fn::copack{false});
 
       SUCCEED();
     }

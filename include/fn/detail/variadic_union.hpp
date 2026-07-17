@@ -172,7 +172,7 @@ template <typename T0> union variadic_union<T0> {
   // The copy, move and assignment exist only in their trivial form: everything above goes through
   // the tagged constructor, `ptr_variadic_union` and per-member destruction, so the non-trivial
   // cases need none of them - and the trivial ones make the union exactly as trivial as its
-  // members, for the sum to propagate.
+  // members, for the copack to propagate.
   constexpr variadic_union(variadic_union const &)
     requires(::std::is_trivially_copy_constructible_v<T0>)
   = default;
@@ -513,7 +513,7 @@ template <typename T, typename U>
 
 #if defined(__GNUC__) && not defined(__clang__)
 // gcc 12-14 at -O2 and above report the returned union as maybe-uninitialized wherever a trivially
-// copyable sum is later copied whole: the inactive members' bytes are copied, never read. gcc 15
+// copyable copack is later copied whole: the inactive members' bytes are copied, never read. gcc 15
 // does not.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"

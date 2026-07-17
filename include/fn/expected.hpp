@@ -9,10 +9,10 @@
 #include <pfn/expected.hpp>
 #include <pfn/utility.hpp>
 
+#include <fn/copack.hpp>
 #include <fn/detail/traits.hpp>
 #include <fn/fwd.hpp>
 #include <fn/pack.hpp>
-#include <fn/sum.hpp>
 
 #include <type_traits>
 #include <utility>
@@ -57,17 +57,17 @@ template <typename U, typename G> struct _expected_types<::fn::expected<U, G>> {
   using error_type = G;
 };
 
-// A sum<> side is unconstructible, so an expected carrying one can never hold it: every arm that
+// A copack<> side is unconstructible, so an expected carrying one can never hold it: every arm that
 // relocates such a side - self's or a callback result's, value or error - is unreachable, and what
 // cannot run cannot throw. Keyed on the relocated side's type; the sibling arms still weigh.
 template <typename From, typename Type, typename... Args>
 constexpr inline bool _nothrow_arm = _nothrow_initializable<Type, Args...>;
 template <typename From, typename Type, typename... Args>
-  requires empty_sum<From>
+  requires empty_copack<From>
 constexpr inline bool _nothrow_arm<From, Type, Args...> = true;
 
 // Carrying the callback's value across into a widened result. An expected<void, ...> has no value to
-// carry, and `declval<void>()` is not a thing to ask about; an empty-sum value can never exist to be
+// carry, and `declval<void>()` is not a thing to ask about; an empty-copack value can never exist to be
 // carried, so that arm is unreachable (as in _nothrow_arm).
 template <typename Type, typename Src>
 constexpr inline bool _nothrow_carry_value
@@ -76,11 +76,11 @@ template <typename Type, typename Src>
   requires ::std::is_void_v<typename ::std::remove_cvref_t<Src>::value_type>
 constexpr inline bool _nothrow_carry_value<Type, Src> = _nothrow_initializable<Type, ::std::in_place_t>;
 template <typename Type, typename Src>
-  requires empty_sum<typename ::std::remove_cvref_t<Src>::value_type>
+  requires empty_copack<typename ::std::remove_cvref_t<Src>::value_type>
 constexpr inline bool _nothrow_carry_value<Type, Src> = true;
 
 // `and_then` and `or_else` each have two arms - the callback's own expected is returned, or the two
-// error (value) types are widened into a sum - and `if constexpr` picks between them. A
+// error (value) types are widened into a copack - and `if constexpr` picks between them. A
 // noexcept-specifier is an ordinary constant expression and cannot pick: the untaken arm's spelling
 // would have to be well-formed too. Hence a trait, whose constrained specializations mirror the
 // body's arms. Both lead with `_is_some_expected`, so a callback returning something else leaves the
@@ -106,7 +106,7 @@ template <typename E, typename Fn, typename ErrArg, typename... ValArg>
                E>)
 struct _nothrow_and_then<E, Fn, ErrArg, ValArg...> {
   using type = ::std::remove_cvref_t<typename _apply_result<Fn, ValArg...>::type>;
-  using new_type = ::fn::expected<typename type::value_type, sum_for<E, typename type::error_type>>;
+  using new_type = ::fn::expected<typename type::value_type, copack_for<E, typename type::error_type>>;
 
   static constexpr bool value                        //
       = _is_nothrow_applicable<Fn, ValArg...>::value // the callback
@@ -138,7 +138,7 @@ template <typename T, typename Fn, typename ErrArg, typename ValArg>
                T>)
 struct _nothrow_or_else<T, Fn, ErrArg, ValArg> {
   using type = ::std::remove_cvref_t<typename _apply_result<Fn, ErrArg>::type>;
-  using new_type = ::fn::expected<sum_for<T, typename type::value_type>, typename type::error_type>;
+  using new_type = ::fn::expected<copack_for<T, typename type::value_type>, typename type::error_type>;
 
   static constexpr bool value                                   //
       = _is_nothrow_applicable<Fn, ErrArg>::value               // the callback
@@ -149,15 +149,15 @@ struct _nothrow_or_else<T, Fn, ErrArg, ValArg> {
 };
 
 // Storage layer for ::fn::expected. Inherits the standard-conformant base from
-// pfn, then hides the four monadic static helpers with sum-widening variants
+// pfn, then hides the four monadic static helpers with copack-widening variants
 // that materialise their result via `expected_policy::template type<U, G>`.
 // The transform/transform_error helpers hand pfn's _expected_from_invoke constructors a
 // zero-argument thunk, so the result's member is direct-non-list-initialized from fn's own
-// _apply (or sum::transform) result: no extra move, and immovable result types work.
+// _apply (or copack::transform) result: no extra move, and immovable result types work.
 // The statics carry the same extension noexcept as pfn's, computed through fn's own machinery: the
-// callback of a sum/pack dispatch is invoked through `_apply`, not called directly, so it is
+// callback of a copack/pack dispatch is invoked through `_apply`, not called directly, so it is
 // `_is_nothrow_applicable` - not the std trait, which is false for a callable that is not directly
-// applicable on a sum or a pack - that answers for it, and the widening arms are weighed by the
+// applicable on a copack or a pack - that answers for it, and the widening arms are weighed by the
 // traits above.
 template <typename T, typename E> struct _expected_base : ::pfn::detail::_expected_base<T, E, expected_policy> {
   using _pfn_base = ::pfn::detail::_expected_base<T, E, expected_policy>;
@@ -173,14 +173,14 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   {
     using type = typename ::fn::detail::_apply_result<Fn, decltype(_pfn_base::_value(FWD(self)))>::type;
     static_assert(_is_some_expected<type &>);
-    static_assert(::std::is_same_v<typename type::error_type, E> || some_sum<E>);
+    static_assert(::std::is_same_v<typename type::error_type, E> || some_copack<E>);
     if constexpr (::std::is_same_v<typename type::error_type, E>) {
       if (self.has_value())
         return ::fn::detail::_apply(FWD(fn), _pfn_base::_value(FWD(self)));
       else
         return type(::fn::unexpect, _pfn_base::_error(FWD(self)));
     } else {
-      using new_error_type = sum_for<E, typename type::error_type>;
+      using new_error_type = copack_for<E, typename type::error_type>;
       using new_type = ::fn::expected<typename type::value_type, new_error_type>;
       if (self.has_value()) {
         auto t = ::fn::detail::_apply(FWD(fn), _pfn_base::_value(FWD(self)));
@@ -190,13 +190,13 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
           else
             return new_type{::std::in_place};
         else {
-          if constexpr (not empty_sum<typename type::error_type>)
+          if constexpr (not empty_copack<typename type::error_type>)
             return new_type{::fn::unexpect, ::std::move(t).error()};
           else
             ::pfn::unreachable(); // LCOV_EXCL_LINE
         }
       } else {
-        if constexpr (not empty_sum<E>)
+        if constexpr (not empty_copack<E>)
           return new_type(::fn::unexpect, _pfn_base::_error(FWD(self)));
         else
           ::pfn::unreachable(); // LCOV_EXCL_LINE
@@ -213,14 +213,14 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   {
     using type = typename ::fn::detail::_apply_result<Fn>::type;
     static_assert(_is_some_expected<type &>);
-    static_assert(::std::is_same_v<typename type::error_type, E> || some_sum<E>);
+    static_assert(::std::is_same_v<typename type::error_type, E> || some_copack<E>);
     if constexpr (::std::is_same_v<typename type::error_type, E>) {
       if (self.has_value())
         return ::fn::detail::_apply(FWD(fn));
       else
         return type(::fn::unexpect, _pfn_base::_error(FWD(self)));
     } else {
-      using new_error_type = sum_for<E, typename type::error_type>;
+      using new_error_type = copack_for<E, typename type::error_type>;
       using new_type = ::fn::expected<typename type::value_type, new_error_type>;
       if (self.has_value()) {
         auto t = ::fn::detail::_apply(FWD(fn));
@@ -230,13 +230,13 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
           else
             return new_type{::std::in_place};
         else {
-          if constexpr (not empty_sum<typename type::error_type>)
+          if constexpr (not empty_copack<typename type::error_type>)
             return new_type{::fn::unexpect, ::std::move(t).error()};
           else
             ::pfn::unreachable(); // LCOV_EXCL_LINE
         }
       } else {
-        if constexpr (not empty_sum<E>)
+        if constexpr (not empty_copack<E>)
           return new_type(::fn::unexpect, _pfn_base::_error(FWD(self)));
         else
           ::pfn::unreachable(); // LCOV_EXCL_LINE
@@ -244,14 +244,14 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
     }
   }
 
-  // and_then, value type is the empty sum: a value can never be constructed, so the callback can
+  // and_then, value type is the empty copack: a value can never be constructed, so the callback can
   // never be presented one - it is left alone, not invoked and not even instantiated, and the
   // result is *this unchanged.
   template <typename Self, typename Fn>
   static constexpr auto _and_then(Self &&self, Fn &&)                         //
       noexcept(::std::is_nothrow_constructible_v<::fn::expected<T, E>, Self>) // extension
       -> ::fn::expected<T, E>
-    requires empty_sum<T> && ::std::is_constructible_v<::fn::expected<T, E>, Self>
+    requires empty_copack<T> && ::std::is_constructible_v<::fn::expected<T, E>, Self>
   {
     return FWD(self);
   }
@@ -269,7 +269,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   {
     using type = typename ::fn::detail::_apply_result<Fn, decltype(_pfn_base::_error(FWD(self)))>::type;
     static_assert(_is_some_expected<type &>);
-    static_assert(::std::is_same_v<typename type::value_type, T> || some_sum<T>);
+    static_assert(::std::is_same_v<typename type::value_type, T> || some_copack<T>);
     if constexpr (::std::is_same_v<typename type::value_type, T>) {
       if (self.has_value())
         if constexpr (not ::std::is_void_v<T>)
@@ -294,17 +294,17 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
         return ::fn::detail::_apply(FWD(fn), _pfn_base::_error(FWD(self)));
     } else {
       static_assert(not ::std::is_void_v<typename type::value_type>);
-      using new_value_type = sum_for<T, typename type::value_type>;
+      using new_value_type = copack_for<T, typename type::value_type>;
       using new_type = ::fn::expected<new_value_type, typename type::error_type>;
       if (self.has_value()) {
-        if constexpr (not empty_sum<T>)
+        if constexpr (not empty_copack<T>)
           return new_type{::std::in_place, _pfn_base::_value(FWD(self))};
         else
           ::pfn::unreachable(); // LCOV_EXCL_LINE
       } else {
         auto t = ::fn::detail::_apply(FWD(fn), _pfn_base::_error(FWD(self)));
         if (t.has_value()) {
-          if constexpr (not empty_sum<typename type::value_type>)
+          if constexpr (not empty_copack<typename type::value_type>)
             return new_type{::std::in_place, ::std::move(t).value()};
           else
             ::pfn::unreachable(); // LCOV_EXCL_LINE
@@ -314,27 +314,27 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
     }
   }
 
-  // or_else, error type is the empty sum: an error can never be constructed, so the callback can
+  // or_else, error type is the empty copack: an error can never be constructed, so the callback can
   // never be presented one - it is left alone, not invoked and not even instantiated, and the
   // result is *this unchanged.
   template <typename Self, typename Fn>
   static constexpr auto _or_else(Self &&self, Fn &&)                          //
       noexcept(::std::is_nothrow_constructible_v<::fn::expected<T, E>, Self>) // extension
       -> ::fn::expected<T, E>
-    requires empty_sum<E> && ::std::is_constructible_v<::fn::expected<T, E>, Self>
+    requires empty_copack<E> && ::std::is_constructible_v<::fn::expected<T, E>, Self>
   {
     return FWD(self);
   }
 
-  // transform, non-void value type, not a sum. In the noexcept specs of the transform and
+  // transform, non-void value type, not a copack. In the noexcept specs of the transform and
   // transform_error overloads, only the apply and copying the untouched side can throw: the
   // new value/error is direct-non-list-initialized from the thunk's result (guaranteed elision).
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn) //
       noexcept(::fn::detail::_is_nothrow_applicable<Fn, decltype(_pfn_base::_value(FWD(self)))>::value
                && ::std::is_nothrow_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>) // extension
-    requires(not ::std::is_void_v<T>) && (not some_sum<T>)
-            && ::fn::detail::_is_applicable_if<not some_sum<T>, Fn, decltype(_pfn_base::_value(FWD(self)))>::value
+    requires(not ::std::is_void_v<T>) && (not some_copack<T>)
+            && ::fn::detail::_is_applicable_if<not some_copack<T>, Fn, decltype(_pfn_base::_value(FWD(self)))>::value
             && ::std::is_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
   {
     using new_value_type = typename ::fn::detail::_apply_result<Fn, decltype(_pfn_base::_value(FWD(self)))>::type;
@@ -351,13 +351,13 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       return type(::fn::unexpect, _pfn_base::_error(FWD(self)));
   }
 
-  // transform, value type is a sum (delegates to sum::transform). The callback is constrained here,
-  // in the immediate context, for the reason given on optional's sum-case _transform.
+  // transform, value type is a copack (delegates to copack::transform). The callback is constrained here,
+  // in the immediate context, for the reason given on optional's copack-case _transform.
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn) //
       noexcept(noexcept(_pfn_base::_value(FWD(self)).transform(FWD(fn)))
                && ::std::is_nothrow_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>) // extension
-    requires some_sum<T> && (not empty_sum<T>)
+    requires some_copack<T> && (not empty_copack<T>)
              && ::fn::detail::_typelist_applicable<Fn, decltype(_pfn_base::_value(FWD(self)))>
              && ::std::is_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
   {
@@ -374,14 +374,14 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       return type(::fn::unexpect, _pfn_base::_error(FWD(self)));
   }
 
-  // transform, value type is the empty sum: a value can never be constructed, so the callback can
+  // transform, value type is the empty copack: a value can never be constructed, so the callback can
   // never be presented one - it is left alone, not invoked and not even instantiated, the mapping
   // is the identity and the result is *this unchanged.
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&)                        //
       noexcept(::std::is_nothrow_constructible_v<::fn::expected<T, E>, Self>) // extension
       -> ::fn::expected<T, E>
-    requires empty_sum<T> && ::std::is_constructible_v<::fn::expected<T, E>, Self>
+    requires empty_copack<T> && ::std::is_constructible_v<::fn::expected<T, E>, Self>
   {
     return FWD(self);
   }
@@ -407,7 +407,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       return type(::fn::unexpect, _pfn_base::_error(FWD(self)));
   }
 
-  // transform_error, error type is not a sum (the value-copy conjunct is spelled via
+  // transform_error, error type is not a copack (the value-copy conjunct is spelled via
   // apply_const_lvalue_t for the same reason as _or_else's above)
   template <typename Self, typename Fn>
   static constexpr auto _transform_error(Self &&self, Fn &&fn) //
@@ -415,8 +415,8 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
                && (::std::is_void_v<T>
                    || ::std::is_nothrow_constructible_v<
                        T, ::fn::apply_const_lvalue_t<Self, typename _pfn_base::_value_t &&>>)) // extension
-    requires(not some_sum<E>)
-            && ::fn::detail::_is_applicable_if<not some_sum<E>, Fn, decltype(_pfn_base::_error(FWD(self)))>::value
+    requires(not some_copack<E>)
+            && ::fn::detail::_is_applicable_if<not some_copack<E>, Fn, decltype(_pfn_base::_error(FWD(self)))>::value
             && (::std::is_void_v<T> || ::std::is_constructible_v<T, decltype(_pfn_base::_value(FWD(self)))>)
   {
     using new_error_type = typename ::fn::detail::_apply_result<Fn, decltype(_pfn_base::_error(FWD(self)))>::type;
@@ -432,15 +432,15 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       });
   }
 
-  // transform_error, error type is a sum (delegates to sum::transform). The callback is constrained
-  // here, in the immediate context, for the reason given on optional's sum-case _transform.
+  // transform_error, error type is a copack (delegates to copack::transform). The callback is constrained
+  // here, in the immediate context, for the reason given on optional's copack-case _transform.
   template <typename Self, typename Fn>
   static constexpr auto _transform_error(Self &&self, Fn &&fn) //
       noexcept(noexcept(_pfn_base::_error(FWD(self)).transform(FWD(fn)))
                && (::std::is_void_v<T>
                    || ::std::is_nothrow_constructible_v<
                        T, ::fn::apply_const_lvalue_t<Self, typename _pfn_base::_value_t &&>>)) // extension
-    requires some_sum<E> && (not empty_sum<E>)
+    requires some_copack<E> && (not empty_copack<E>)
              && ::fn::detail::_typelist_applicable<Fn, decltype(_pfn_base::_error(FWD(self)))>
              && (::std::is_void_v<T> || ::std::is_constructible_v<T, decltype(_pfn_base::_value(FWD(self)))>)
   {
@@ -457,9 +457,9 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   }
 
   // apply: elimination over both states, both arms required outright - each arm eliminates its
-  // side's value through fn's own _apply (a pack or tuple-like payload by elements, a sum by
-  // dispatch); a void value arm is invoked without a value. Over an empty-sum side this overload
-  // set needs no gate: sum<> has no apply, so _is_applicable and _apply_tagged answer false for
+  // side's value through fn's own _apply (a pack or tuple-like payload by elements, a copack by
+  // dispatch); a void value arm is invoked without a value. Over an empty-copack side this overload
+  // set needs no gate: copack<> has no apply, so _is_applicable and _apply_tagged answer false for
   // every Fn and the general overloads drop out.
   template <typename Self, typename Fn, typename... Args>
   static constexpr auto _apply(Self &&self, Fn &&fn, Args &&...args) //
@@ -621,7 +621,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       return ::fn::detail::_apply_tagged_r<Ret, ::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
   }
 
-  // apply, error type is the empty sum: the error row is uninhabited, so the value arm alone is
+  // apply, error type is the empty copack: the error row is uninhabited, so the value arm alone is
   // exhaustive and dispatch needs no branch; nothing names the error row, so an arm set carrying
   // an arm for it never instantiates it.
   template <typename Self, typename Fn, typename... Args>
@@ -629,18 +629,18 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       noexcept(
           ::fn::detail::_is_nothrow_applicable<Fn, decltype(_pfn_base::_value(FWD(self))), Args...>::value) // extension
       -> decltype(auto)
-    requires(not ::std::is_void_v<T>)
-            && empty_sum<E> && ::fn::detail::_is_applicable<Fn, decltype(_pfn_base::_value(FWD(self))), Args...>::value
+    requires(not ::std::is_void_v<T>) && empty_copack<E>
+            && ::fn::detail::_is_applicable<Fn, decltype(_pfn_base::_value(FWD(self))), Args...>::value
   {
     return ::fn::detail::_apply(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
   }
 
-  // apply, void value type and empty sum error
+  // apply, void value type and empty copack error
   template <typename Self, typename Fn, typename... Args>
   static constexpr auto _apply(Self &&, Fn &&fn, Args &&...args)         //
       noexcept(::fn::detail::_is_nothrow_applicable<Fn, Args...>::value) // extension
       -> decltype(auto)
-    requires ::std::is_void_v<T> && empty_sum<E> && ::fn::detail::_is_applicable<Fn, Args...>::value
+    requires ::std::is_void_v<T> && empty_copack<E> && ::fn::detail::_is_applicable<Fn, Args...>::value
   {
     return ::fn::detail::_apply(FWD(fn), FWD(args)...);
   }
@@ -650,41 +650,41 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, decltype(_pfn_base::_value(FWD(self))),
                                                       Args...>::value) // extension
       -> Ret
-    requires(not ::std::is_void_v<T>) && empty_sum<E>
+    requires(not ::std::is_void_v<T>) && empty_copack<E>
             && ::fn::detail::_is_applicable_r<Ret, Fn, decltype(_pfn_base::_value(FWD(self))), Args...>::value
   {
     return ::fn::detail::_apply_r<Ret>(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
   }
 
-  // apply_r, void value type and empty sum error
+  // apply_r, void value type and empty copack error
   template <typename Ret, typename Self, typename Fn, typename... Args>
   static constexpr auto _apply_r(Self &&, Fn &&fn, Args &&...args)              //
       noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, Args...>::value) // extension
       -> Ret
-    requires ::std::is_void_v<T> && empty_sum<E> && ::fn::detail::_is_applicable_r<Ret, Fn, Args...>::value
+    requires ::std::is_void_v<T> && empty_copack<E> && ::fn::detail::_is_applicable_r<Ret, Fn, Args...>::value
   {
     return ::fn::detail::_apply_r<Ret>(FWD(fn), FWD(args)...);
   }
 
-  // apply_type, error type is the empty sum: the value arm alone is exhaustive
+  // apply_type, error type is the empty copack: the value arm alone is exhaustive
   template <typename Self, typename Fn, typename... Args>
   static constexpr auto _apply_type(Self &&self, Fn &&fn, Args &&...args) //
       noexcept(noexcept(::fn::detail::_apply_tagged<::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)),
                                                                        FWD(args)...))) // extension
       -> decltype(auto)
-    requires(not ::std::is_void_v<T>) && empty_sum<E> && requires {
+    requires(not ::std::is_void_v<T>) && empty_copack<E> && requires {
       ::fn::detail::_apply_tagged<::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
     }
   {
     return ::fn::detail::_apply_tagged<::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
   }
 
-  // apply_type, void value type and empty sum error
+  // apply_type, void value type and empty copack error
   template <typename Self, typename Fn, typename... Args>
   static constexpr auto _apply_type(Self &&, Fn &&fn, Args &&...args)                          //
       noexcept(::fn::detail::_is_nothrow_applicable<Fn, ::std::in_place_t, Args &&...>::value) // extension
       -> decltype(auto)
-    requires ::std::is_void_v<T> && empty_sum<E>
+    requires ::std::is_void_v<T> && empty_copack<E>
              && ::fn::detail::_is_applicable<Fn, ::std::in_place_t, Args &&...>::value
   {
     return ::fn::detail::_apply(FWD(fn), ::std::in_place_t{}, FWD(args)...);
@@ -695,32 +695,32 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       noexcept(noexcept(::fn::detail::_apply_tagged_r<Ret, ::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)),
                                                                               FWD(args)...))) // extension
       -> Ret
-    requires(not ::std::is_void_v<T>) && empty_sum<E> && requires {
+    requires(not ::std::is_void_v<T>) && empty_copack<E> && requires {
       ::fn::detail::_apply_tagged_r<Ret, ::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
     }
   {
     return ::fn::detail::_apply_tagged_r<Ret, ::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
   }
 
-  // apply_type_r, void value type and empty sum error
+  // apply_type_r, void value type and empty copack error
   template <typename Ret, typename Self, typename Fn, typename... Args>
   static constexpr auto _apply_type_r(Self &&, Fn &&fn, Args &&...args)                               //
       noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, ::std::in_place_t, Args &&...>::value) // extension
       -> Ret
-    requires ::std::is_void_v<T> && empty_sum<E>
+    requires ::std::is_void_v<T> && empty_copack<E>
              && ::fn::detail::_is_applicable_r<Ret, Fn, ::std::in_place_t, Args &&...>::value
   {
     return ::fn::detail::_apply_r<Ret>(FWD(fn), ::std::in_place_t{}, FWD(args)...);
   }
 
-  // apply, value type is the empty sum: the value row is uninhabited, so the error arm alone is
+  // apply, value type is the empty copack: the value row is uninhabited, so the error arm alone is
   // exhaustive and dispatch needs no branch.
   template <typename Self, typename Fn, typename... Args>
   static constexpr auto _apply(Self &&self, Fn &&fn, Args &&...args) //
       noexcept(
           ::fn::detail::_is_nothrow_applicable<Fn, decltype(_pfn_base::_error(FWD(self))), Args...>::value) // extension
       -> decltype(auto)
-    requires empty_sum<T> && ::fn::detail::_is_applicable<Fn, decltype(_pfn_base::_error(FWD(self))), Args...>::value
+    requires empty_copack<T> && ::fn::detail::_is_applicable<Fn, decltype(_pfn_base::_error(FWD(self))), Args...>::value
   {
     return ::fn::detail::_apply(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
   }
@@ -730,19 +730,19 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, decltype(_pfn_base::_error(FWD(self))),
                                                       Args...>::value) // extension
       -> Ret
-    requires empty_sum<T>
+    requires empty_copack<T>
              && ::fn::detail::_is_applicable_r<Ret, Fn, decltype(_pfn_base::_error(FWD(self))), Args...>::value
   {
     return ::fn::detail::_apply_r<Ret>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
   }
 
-  // apply_type, value type is the empty sum: the error arm alone is exhaustive
+  // apply_type, value type is the empty copack: the error arm alone is exhaustive
   template <typename Self, typename Fn, typename... Args>
   static constexpr auto _apply_type(Self &&self, Fn &&fn, Args &&...args) //
       noexcept(noexcept(::fn::detail::_apply_tagged<::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)),
                                                                       FWD(args)...))) // extension
       -> decltype(auto)
-    requires empty_sum<T> && requires {
+    requires empty_copack<T> && requires {
       ::fn::detail::_apply_tagged<::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
     }
   {
@@ -754,21 +754,21 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       noexcept(noexcept(::fn::detail::_apply_tagged_r<Ret, ::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)),
                                                                              FWD(args)...))) // extension
       -> Ret
-    requires empty_sum<T> && requires {
+    requires empty_copack<T> && requires {
       ::fn::detail::_apply_tagged_r<Ret, ::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
     }
   {
     return ::fn::detail::_apply_tagged_r<Ret, ::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
   }
 
-  // transform_error, error type is the empty sum: an error can never be constructed, so the
+  // transform_error, error type is the empty copack: an error can never be constructed, so the
   // callback can never be presented one - it is left alone, not invoked and not even instantiated,
   // the mapping is the identity and the result is *this unchanged.
   template <typename Self, typename Fn>
   static constexpr auto _transform_error(Self &&self, Fn &&)                  //
       noexcept(::std::is_nothrow_constructible_v<::fn::expected<T, E>, Self>) // extension
       -> ::fn::expected<T, E>
-    requires empty_sum<E> && ::std::is_constructible_v<::fn::expected<T, E>, Self>
+    requires empty_copack<E> && ::std::is_constructible_v<::fn::expected<T, E>, Self>
   {
     return FWD(self);
   }
@@ -995,7 +995,7 @@ public:
     this->_swap_with(rhs);
   }
 
-  // Elimination over both states, mirroring sum's apply family: each arm takes its side's value
+  // Elimination over both states, mirroring copack's apply family: each arm takes its side's value
   // unpacked as fn::apply would hand it over, keyed (apply_type) by the constructor tag naming
   // the state - ::std::in_place for the value, ::fn::unexpect for the error. Bodies delegate to
   // _expected_base static helpers.
@@ -1115,7 +1115,7 @@ public:
     return _base::template _apply_type_r<Ret>(::std::move(*this), FWD(f), FWD(args)...);
   }
 
-  // Monadic operations. Bodies delegate to _expected_base static helpers, which perform sum-widening.
+  // Monadic operations. Bodies delegate to _expected_base static helpers, which perform copack-widening.
   template <class F>
   constexpr auto and_then(F &&f) &                        //
       noexcept(noexcept(_base::_and_then(*this, FWD(f)))) // extension
@@ -1232,95 +1232,96 @@ public:
     return _base::_transform_error(::std::move(*this), FWD(f));
   }
 
-  // Convert to graded monad. A lifting overload wraps one side in a sum and relocates the other
-  // untouched, so it weighs both; the ones whose side already is a sum only return *this.
-  constexpr auto sum_error() const & noexcept(::std::is_nothrow_constructible_v<value_type, value_type const &>
-                                              && ::std::is_nothrow_constructible_v<sum<error_type>, error_type const &>
-                                              && ::std::is_nothrow_move_constructible_v<sum<error_type>>) // extension
-      -> expected<value_type, sum<error_type>>
-    requires(not some_sum<error_type>)
+  // Convert to graded monad. A lifting overload wraps one side in a copack and relocates the other
+  // untouched, so it weighs both; the ones whose side already is a copack only return *this.
+  constexpr auto
+  copack_error() const & noexcept(::std::is_nothrow_constructible_v<value_type, value_type const &>
+                                  && ::std::is_nothrow_constructible_v<copack<error_type>, error_type const &>
+                                  && ::std::is_nothrow_move_constructible_v<copack<error_type>>) // extension
+      -> expected<value_type, copack<error_type>>
+    requires(not some_copack<error_type>)
   {
-    using type = expected<value_type, sum<error_type>>;
+    using type = expected<value_type, copack<error_type>>;
     if (this->has_value())
       return type{::std::in_place, this->value()};
     else
-      return type{::fn::unexpect, sum<error_type>(this->error())};
+      return type{::fn::unexpect, copack<error_type>(this->error())};
   }
-  constexpr auto sum_error() && noexcept(::std::is_nothrow_constructible_v<value_type, value_type>
-                                         && ::std::is_nothrow_constructible_v<sum<error_type>, error_type>
-                                         && ::std::is_nothrow_move_constructible_v<sum<error_type>>) // extension
-      -> expected<value_type, sum<error_type>>
-    requires(not some_sum<error_type>)
+  constexpr auto copack_error() && noexcept(::std::is_nothrow_constructible_v<value_type, value_type>
+                                            && ::std::is_nothrow_constructible_v<copack<error_type>, error_type>
+                                            && ::std::is_nothrow_move_constructible_v<copack<error_type>>) // extension
+      -> expected<value_type, copack<error_type>>
+    requires(not some_copack<error_type>)
   {
-    using type = expected<value_type, sum<error_type>>;
+    using type = expected<value_type, copack<error_type>>;
     if (this->has_value())
       return type{::std::in_place, ::std::move(*this).value()};
     else
-      return type{::fn::unexpect, sum<error_type>(::std::move(*this).error())};
+      return type{::fn::unexpect, copack<error_type>(::std::move(*this).error())};
   }
-  constexpr auto sum_error() & noexcept -> decltype(auto)
-    requires(some_sum<error_type>)
+  constexpr auto copack_error() & noexcept -> decltype(auto)
+    requires(some_copack<error_type>)
   {
     return *this;
   }
-  constexpr auto sum_error() const & noexcept -> decltype(auto)
-    requires(some_sum<error_type>)
+  constexpr auto copack_error() const & noexcept -> decltype(auto)
+    requires(some_copack<error_type>)
   {
     return *this;
   }
-  constexpr auto sum_error() && noexcept -> decltype(auto)
-    requires(some_sum<error_type>)
+  constexpr auto copack_error() && noexcept -> decltype(auto)
+    requires(some_copack<error_type>)
   {
     return ::std::move(*this);
   }
-  constexpr auto sum_error() const && noexcept -> decltype(auto)
-    requires(some_sum<error_type>)
+  constexpr auto copack_error() const && noexcept -> decltype(auto)
+    requires(some_copack<error_type>)
   {
     return ::std::move(*this);
   }
 
   constexpr auto
-  sum_value() const & noexcept(::std::is_nothrow_constructible_v<sum<value_type>, value_type const &>
-                               && ::std::is_nothrow_move_constructible_v<sum<value_type>>
-                               && ::std::is_nothrow_constructible_v<error_type, error_type const &>) // extension
-      -> expected<sum<value_type>, error_type>
-    requires(not some_sum<value_type>)
+  copack_value() const & noexcept(::std::is_nothrow_constructible_v<copack<value_type>, value_type const &>
+                                  && ::std::is_nothrow_move_constructible_v<copack<value_type>>
+                                  && ::std::is_nothrow_constructible_v<error_type, error_type const &>) // extension
+      -> expected<copack<value_type>, error_type>
+    requires(not some_copack<value_type>)
   {
-    using type = expected<sum<value_type>, error_type>;
+    using type = expected<copack<value_type>, error_type>;
     if (this->has_value())
-      return type{::std::in_place, sum<value_type>(this->value())};
+      return type{::std::in_place, copack<value_type>(this->value())};
     else
       return type{::fn::unexpect, this->error()};
   }
-  constexpr auto sum_value() && noexcept(::std::is_nothrow_constructible_v<sum<value_type>, value_type>
-                                         && ::std::is_nothrow_move_constructible_v<sum<value_type>>
-                                         && ::std::is_nothrow_constructible_v<error_type, error_type>) // extension
-      -> expected<sum<value_type>, error_type>
-    requires(not some_sum<value_type>)
+  constexpr auto copack_value() && noexcept(::std::is_nothrow_constructible_v<copack<value_type>, value_type>
+                                            && ::std::is_nothrow_move_constructible_v<copack<value_type>>
+                                            && ::std::is_nothrow_constructible_v<error_type, error_type>) // extension
+      -> expected<copack<value_type>, error_type>
+    requires(not some_copack<value_type>)
   {
-    using type = expected<sum<value_type>, error_type>;
+    using type = expected<copack<value_type>, error_type>;
     if (this->has_value())
-      return type{::std::in_place, sum<value_type>(::std::move(*this).value())};
+      return type{::std::in_place, copack<value_type>(::std::move(*this).value())};
     else
       return type{::fn::unexpect, ::std::move(*this).error()};
   }
-  constexpr auto sum_value() & noexcept -> decltype(auto)
-    requires(some_sum<value_type>)
+  constexpr auto copack_value() & noexcept -> decltype(auto)
+    requires(some_copack<value_type>)
   {
     return *this;
   }
-  constexpr auto sum_value() const & noexcept -> decltype(auto)
-    requires(some_sum<value_type>)
+  constexpr auto copack_value() const & noexcept -> decltype(auto)
+    requires(some_copack<value_type>)
   {
     return *this;
   }
-  constexpr auto sum_value() && noexcept -> decltype(auto)
-    requires(some_sum<value_type>)
+  constexpr auto copack_value() && noexcept -> decltype(auto)
+    requires(some_copack<value_type>)
   {
     return ::std::move(*this);
   }
-  constexpr auto sum_value() const && noexcept -> decltype(auto)
-    requires(some_sum<value_type>)
+  constexpr auto copack_value() const && noexcept -> decltype(auto)
+    requires(some_copack<value_type>)
   {
     return ::std::move(*this);
   }
@@ -1484,7 +1485,7 @@ public:
   using _base::has_value;
   using _base::value;
 
-  // Elimination over both states, mirroring sum's apply family: the value arm takes no value
+  // Elimination over both states, mirroring copack's apply family: the value arm takes no value
   // (apply) or the ::std::in_place tag alone (apply_type), the error arm the error unpacked as
   // fn::apply would hand it over, after ::fn::unexpect in the tagged form. Bodies delegate to
   // _expected_base static helpers.
@@ -1604,7 +1605,7 @@ public:
     return _base::template _apply_type_r<Ret>(::std::move(*this), FWD(f), FWD(args)...);
   }
 
-  // Monadic operations. Bodies delegate to _expected_base static helpers, which perform sum-widening.
+  // Monadic operations. Bodies delegate to _expected_base static helpers, which perform copack-widening.
   template <class F>
   constexpr auto and_then(F &&f) &                        //
       noexcept(noexcept(_base::_and_then(*this, FWD(f)))) // extension
@@ -1722,45 +1723,46 @@ public:
   }
 
   // Convert to graded monad. There is no value to relocate here, so only the error's lift weighs.
-  constexpr auto sum_error() const & noexcept(::std::is_nothrow_constructible_v<sum<error_type>, error_type const &>
-                                              && ::std::is_nothrow_move_constructible_v<sum<error_type>>) // extension
-      -> expected<value_type, sum<error_type>>
-    requires(not some_sum<error_type>)
+  constexpr auto
+  copack_error() const & noexcept(::std::is_nothrow_constructible_v<copack<error_type>, error_type const &>
+                                  && ::std::is_nothrow_move_constructible_v<copack<error_type>>) // extension
+      -> expected<value_type, copack<error_type>>
+    requires(not some_copack<error_type>)
   {
-    using type = expected<value_type, sum<error_type>>;
+    using type = expected<value_type, copack<error_type>>;
     if (this->has_value())
       return type{::std::in_place};
     else
-      return type{::fn::unexpect, sum<error_type>(this->error())};
+      return type{::fn::unexpect, copack<error_type>(this->error())};
   }
-  constexpr auto sum_error() && noexcept(::std::is_nothrow_constructible_v<sum<error_type>, error_type>
-                                         && ::std::is_nothrow_move_constructible_v<sum<error_type>>) // extension
-      -> expected<value_type, sum<error_type>>
-    requires(not some_sum<error_type>)
+  constexpr auto copack_error() && noexcept(::std::is_nothrow_constructible_v<copack<error_type>, error_type>
+                                            && ::std::is_nothrow_move_constructible_v<copack<error_type>>) // extension
+      -> expected<value_type, copack<error_type>>
+    requires(not some_copack<error_type>)
   {
-    using type = expected<value_type, sum<error_type>>;
+    using type = expected<value_type, copack<error_type>>;
     if (this->has_value())
       return type{::std::in_place};
     else
-      return type{::fn::unexpect, sum<error_type>(::std::move(*this).error())};
+      return type{::fn::unexpect, copack<error_type>(::std::move(*this).error())};
   }
-  constexpr auto sum_error() & noexcept -> decltype(auto)
-    requires(some_sum<error_type>)
+  constexpr auto copack_error() & noexcept -> decltype(auto)
+    requires(some_copack<error_type>)
   {
     return *this;
   }
-  constexpr auto sum_error() const & noexcept -> decltype(auto)
-    requires(some_sum<error_type>)
+  constexpr auto copack_error() const & noexcept -> decltype(auto)
+    requires(some_copack<error_type>)
   {
     return *this;
   }
-  constexpr auto sum_error() && noexcept -> decltype(auto)
-    requires(some_sum<error_type>)
+  constexpr auto copack_error() && noexcept -> decltype(auto)
+    requires(some_copack<error_type>)
   {
     return ::std::move(*this);
   }
-  constexpr auto sum_error() const && noexcept -> decltype(auto)
-    requires(some_sum<error_type>)
+  constexpr auto copack_error() const && noexcept -> decltype(auto)
+    requires(some_copack<error_type>)
   {
     return ::std::move(*this);
   }
@@ -1775,16 +1777,16 @@ private:
   {
   }
 };
-// Lifts for sum transformation functions
-[[nodiscard]] constexpr auto sum_value(some_expected_non_void auto &&src) noexcept(noexcept(FWD(src).sum_value()))
+// Lifts for copack transformation functions
+[[nodiscard]] constexpr auto copack_value(some_expected_non_void auto &&src) noexcept(noexcept(FWD(src).copack_value()))
     -> decltype(auto)
 {
-  return FWD(src).sum_value();
+  return FWD(src).copack_value();
 }
-[[nodiscard]] constexpr auto sum_error(some_expected auto &&src) noexcept(noexcept(FWD(src).sum_error()))
+[[nodiscard]] constexpr auto copack_error(some_expected auto &&src) noexcept(noexcept(FWD(src).copack_error()))
     -> decltype(auto)
 {
-  return FWD(src).sum_error();
+  return FWD(src).copack_error();
 }
 
 namespace detail {
@@ -1801,7 +1803,7 @@ constexpr inline bool _nothrow_join_expected
       && _nothrow_initializable<Type, ::fn::unexpect_t, decltype(::std::declval<Lh>().error())>
       && _nothrow_initializable<Type, ::fn::unexpect_t, decltype(::std::declval<Rh>().error())>;
 
-// Lifting an operand's error into a widened error type, through the sum<> guard of _nothrow_arm
+// Lifting an operand's error into a widened error type, through the copack<> guard of _nothrow_arm
 // (the joins below assert the same unreachability with pfn::unreachable).
 template <typename Src, typename Err>
 constexpr inline bool _nothrow_error_lift
@@ -1816,12 +1818,12 @@ constexpr inline bool _nothrow_join_widened = _nothrow_initializable<Type, ::std
 // promises, and a lambda can be named neither in a noexcept-specifier nor (before clang 17) in any
 // unevaluated operand at all.
 template <typename E> struct _expected_efn final {
-  // Explicit return type: for a sum<> (never-erroring) operand the else branch is the only one
+  // Explicit return type: for a copack<> (never-erroring) operand the else branch is the only one
   // instantiated, and without this it would deduce void - poisoning _join's return-type deduction.
   [[nodiscard]] constexpr auto operator()(auto &&v) const noexcept(_nothrow_error_lift<decltype(v), unexpected<E>>)
       -> ::fn::unexpected<E>
   {
-    if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<decltype(v)>::error_type, sum<>>) {
+    if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<decltype(v)>::error_type, copack<>>) {
       return ::fn::unexpected<E>(FWD(v).error());
     } else {
       ::pfn::unreachable(); // LCOV_EXCL_LINE
@@ -1856,29 +1858,29 @@ template <typename Lh, typename Rh>
   requires some_expected_void<Lh> && (not some_expected_void<Rh>)
            && (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type,
                                     typename ::std::remove_cvref_t<Rh>::error_type>)
-           && (some_sum<typename ::std::remove_cvref_t<Lh>::error_type>
-               || some_sum<typename ::std::remove_cvref_t<Rh>::error_type>)
+           && (some_copack<typename ::std::remove_cvref_t<Lh>::error_type>
+               || some_copack<typename ::std::remove_cvref_t<Rh>::error_type>)
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
     noexcept(detail::_nothrow_join_widened<
              expected<typename ::std::remove_cvref_t<Rh>::value_type,
-                      sum_for<typename ::std::remove_cvref_t<Lh>::error_type,
-                              typename ::std::remove_cvref_t<Rh>::error_type>>,
-             sum_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>,
+                      copack_for<typename ::std::remove_cvref_t<Lh>::error_type,
+                                 typename ::std::remove_cvref_t<Rh>::error_type>>,
+             copack_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>,
              Lh, Rh, decltype(FWD(rh).value())>)
 {
   using new_error_type
-      = sum_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>;
+      = copack_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>;
   using value_type = ::std::remove_cvref_t<Rh>::value_type;
   using type = expected<value_type, new_error_type>;
   if (lh.has_value() && rh.has_value())
     return type{::std::in_place, FWD(rh).value()};
   else if (not lh.has_value()) {
-    if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type, sum<>>)
+    if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type, copack<>>)
       return type{::fn::unexpect, new_error_type{FWD(lh).error()}};
     else
       ::pfn::unreachable(); // LCOV_EXCL_LINE
   } else {
-    if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Rh>::error_type, sum<>>)
+    if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Rh>::error_type, copack<>>)
       return type{::fn::unexpect, new_error_type{FWD(rh).error()}};
     else
       ::pfn::unreachable(); // LCOV_EXCL_LINE
@@ -1909,29 +1911,29 @@ template <typename Lh, typename Rh>
   requires(not some_expected_void<Lh>) && some_expected_void<Rh>
           && (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type,
                                    typename ::std::remove_cvref_t<Rh>::error_type>)
-          && (some_sum<typename ::std::remove_cvref_t<Lh>::error_type>
-              || some_sum<typename ::std::remove_cvref_t<Rh>::error_type>)
+          && (some_copack<typename ::std::remove_cvref_t<Lh>::error_type>
+              || some_copack<typename ::std::remove_cvref_t<Rh>::error_type>)
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
     noexcept(detail::_nothrow_join_widened<
              expected<typename ::std::remove_cvref_t<Lh>::value_type,
-                      sum_for<typename ::std::remove_cvref_t<Lh>::error_type,
-                              typename ::std::remove_cvref_t<Rh>::error_type>>,
-             sum_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>,
+                      copack_for<typename ::std::remove_cvref_t<Lh>::error_type,
+                                 typename ::std::remove_cvref_t<Rh>::error_type>>,
+             copack_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>,
              Lh, Rh, decltype(FWD(lh).value())>)
 {
   using new_error_type
-      = sum_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>;
+      = copack_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>;
   using value_type = ::std::remove_cvref_t<Lh>::value_type;
   using type = expected<value_type, new_error_type>;
   if (lh.has_value() && rh.has_value())
     return type{::std::in_place, FWD(lh).value()};
   else if (not lh.has_value()) {
-    if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type, sum<>>)
+    if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type, copack<>>)
       return type{::fn::unexpect, new_error_type{FWD(lh).error()}};
     else
       ::pfn::unreachable(); // LCOV_EXCL_LINE
   } else {
-    if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Rh>::error_type, sum<>>)
+    if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Rh>::error_type, copack<>>)
       return type{::fn::unexpect, new_error_type{FWD(rh).error()}};
     else
       ::pfn::unreachable(); // LCOV_EXCL_LINE
@@ -1959,27 +1961,27 @@ template <typename Lh, typename Rh>
   requires some_expected_void<Lh> && some_expected_void<Rh>
            && (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type,
                                     typename ::std::remove_cvref_t<Rh>::error_type>)
-           && (some_sum<typename ::std::remove_cvref_t<Lh>::error_type>
-               || some_sum<typename ::std::remove_cvref_t<Rh>::error_type>)
+           && (some_copack<typename ::std::remove_cvref_t<Lh>::error_type>
+               || some_copack<typename ::std::remove_cvref_t<Rh>::error_type>)
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
     noexcept(detail::_nothrow_join_widened<
-             expected<void, sum_for<typename ::std::remove_cvref_t<Lh>::error_type,
-                                    typename ::std::remove_cvref_t<Rh>::error_type>>,
-             sum_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>,
+             expected<void, copack_for<typename ::std::remove_cvref_t<Lh>::error_type,
+                                       typename ::std::remove_cvref_t<Rh>::error_type>>,
+             copack_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>,
              Lh, Rh>)
 {
   using new_error_type
-      = sum_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>;
+      = copack_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>;
   using type = expected<void, new_error_type>;
   if (lh.has_value() && rh.has_value())
     return type{::std::in_place};
   else if (not lh.has_value()) {
-    if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type, sum<>>)
+    if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type, copack<>>)
       return type{::fn::unexpect, new_error_type{FWD(lh).error()}};
     else
       ::pfn::unreachable(); // LCOV_EXCL_LINE
   } else {
-    if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Rh>::error_type, sum<>>)
+    if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Rh>::error_type, copack<>>)
       return type{::fn::unexpect, new_error_type{FWD(rh).error()}};
     else
       ::pfn::unreachable(); // LCOV_EXCL_LINE
@@ -1987,7 +1989,7 @@ template <typename Lh, typename Rh>
 }
 
 // Overloads when both sides are non-void, producing either of
-// expected<pack<...>, ...> or expected<sum<pack<...>, pack...>, ...>
+// expected<pack<...>, ...> or expected<copack<pack<...>, pack...>, ...>
 template <typename Lh, typename Rh>
   requires(not some_expected_void<Lh>) && (not some_expected_void<Rh>)
           && ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type,
@@ -2006,19 +2008,19 @@ template <typename Lh, typename Rh>
   requires(not some_expected_void<Lh>) && (not some_expected_void<Rh>)
           && (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type,
                                    typename ::std::remove_cvref_t<Rh>::error_type>)
-          && (some_sum<typename ::std::remove_cvref_t<Lh>::error_type>
-              || some_sum<typename ::std::remove_cvref_t<Rh>::error_type>)
+          && (some_copack<typename ::std::remove_cvref_t<Lh>::error_type>
+              || some_copack<typename ::std::remove_cvref_t<Rh>::error_type>)
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
     noexcept(noexcept(
         ::fn::detail::_join<
-            detail::template _expected_type<sum_for<typename ::std::remove_cvref_t<Lh>::error_type,
-                                                    typename ::std::remove_cvref_t<Rh>::error_type>>::template type>(
+            detail::template _expected_type<copack_for<typename ::std::remove_cvref_t<Lh>::error_type,
+                                                       typename ::std::remove_cvref_t<Rh>::error_type>>::template type>(
             FWD(lh), FWD(rh),
-            detail::_expected_efn<sum_for<typename ::std::remove_cvref_t<Lh>::error_type,
-                                          typename ::std::remove_cvref_t<Rh>::error_type>>{})))
+            detail::_expected_efn<copack_for<typename ::std::remove_cvref_t<Lh>::error_type,
+                                             typename ::std::remove_cvref_t<Rh>::error_type>>{})))
 {
   using new_error_type
-      = sum_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>;
+      = copack_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>;
   return ::fn::detail::_join<detail::template _expected_type<new_error_type>::template type>(
       FWD(lh), FWD(rh), detail::_expected_efn<new_error_type>{});
 }
