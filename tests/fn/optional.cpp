@@ -1346,7 +1346,7 @@ struct Poison final {
   template <typename T> constexpr void operator()(T &&) const { static_assert(sizeof(T) == 0); }
 };
 
-template <typename...> constexpr bool always_false = false;
+template <typename...> [[maybe_unused]] constexpr bool always_false = false;
 
 // Keyed to the uninhabited row's tag: viable only there, and instantiating its body is a hard
 // error - a call that compiles proves the dead row is never even named.
