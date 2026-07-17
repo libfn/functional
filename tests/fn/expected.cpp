@@ -3792,3 +3792,226 @@ TEST_CASE("expected apply_type", "[expected][apply_type]")
     }
   }
 }
+
+namespace {
+// Instantiating this callable for any argument is a dependent hard error: a verb that compiles
+// while receiving it provably never instantiates its callback.
+struct Poison final {
+  template <typename T> constexpr void operator()(T &&) const { static_assert(sizeof(T) == 0); }
+};
+
+template <typename...> [[maybe_unused]] constexpr bool always_false = false;
+
+// Keyed to the uninhabited row's tag: viable only there, and instantiating its body is a hard
+// error - a call that compiles proves the dead row is never even named.
+struct PoisonInPlace {
+  template <typename... Ts> constexpr int operator()(std::in_place_t, Ts &&...) const
+  {
+    static_assert(always_false<Ts...>);
+    return 0;
+  }
+};
+
+struct PoisonUnexpect {
+  template <typename... Ts> constexpr int operator()(fn::unexpect_t, Ts &&...) const
+  {
+    static_assert(always_false<Ts...>);
+    return 0;
+  }
+};
+
+template <typename S, typename Fn>
+concept can_and_then = requires(S s, Fn fn) { FWD(s).and_then(FWD(fn)); };
+
+template <typename S, typename Fn>
+concept can_transform = requires(S s, Fn fn) { FWD(s).transform(FWD(fn)); };
+
+template <typename S, typename Fn>
+concept can_or_else = requires(S s, Fn fn) { FWD(s).or_else(FWD(fn)); };
+
+template <typename S, typename Fn>
+concept can_transform_error = requires(S s, Fn fn) { FWD(s).transform_error(FWD(fn)); };
+} // anonymous namespace
+
+TEST_CASE("expected with empty sum side", "[expected][sum]")
+{
+  using S0 = fn::sum<>;
+  constexpr Poison poison{};
+
+  SECTION("empty sum error: always engaged")
+  {
+    using E = fn::expected<int, S0>;
+    E e{42};
+    static_assert(not std::is_constructible_v<E, fn::unexpect_t>);
+
+    // transform_error and or_else short-circuit: the callback is never presented an error - not
+    // invoked, not even instantiated - and the result is *this unchanged
+    auto r1 = e.transform_error(poison);
+    static_assert(std::is_same_v<decltype(r1), E>);
+    CHECK(r1.value() == 42);
+    auto r2 = std::as_const(e).or_else(poison);
+    static_assert(std::is_same_v<decltype(r2), E>);
+    CHECK(r2.value() == 42);
+    auto r3 = std::move(e).or_else(poison);
+    CHECK(r3.value() == 42);
+    // asking answers - the defect this case pins down
+    static_assert(can_transform_error<E &, Poison const &>);
+    static_assert(can_or_else<E &, Poison const &>);
+
+    // the value side is untouched
+    CHECK(r3.transform([](int v) { return v + 1; }).value() == 43);
+
+    SECTION("constexpr")
+    {
+      static_assert(E{42}.transform_error(Poison{}).value() == 42);
+      static_assert(E{42}.or_else(Poison{}).value() == 42);
+      SUCCEED();
+    }
+  }
+
+  SECTION("empty sum error, void value")
+  {
+    using E = fn::expected<void, S0>;
+    E e{};
+    CHECK(e.transform_error(poison).has_value());
+    CHECK(e.or_else(poison).has_value());
+
+    SECTION("constexpr")
+    {
+      static_assert(E{}.transform_error(Poison{}).has_value());
+      static_assert(E{}.or_else(Poison{}).has_value());
+      SUCCEED();
+    }
+  }
+
+  SECTION("apply family over the empty error")
+  {
+    // the members know in their constraints that the error state is never set: the value arm
+    // alone is exhaustive, and the error row is never named
+    using E = fn::expected<int, S0>;
+    E e{42};
+    CHECK(e.apply_type([](std::in_place_t, int i) { return i; }) == 42);
+    CHECK(e.apply([](int i) { return i; }) == 42);
+    CHECK(e.apply([](int i, int x) { return i + x; }, 2) == 44);
+    CHECK(e.apply_r<long>([](int i) { return i; }) == 42L);
+    CHECK(e.apply_type_r<long>([](std::in_place_t, int i) { return i; }) == 42L);
+    CHECK(e.apply_type([](std::in_place_t, int i, int x) { return i + x; }, 2) == 44);
+
+    // an arm set carrying an arm for the error row compiles without instantiating it
+    CHECK(e.apply_type(fn::overload{[](std::in_place_t, int i) { return i; }, PoisonUnexpect{}}) == 42);
+    // ... while the value row keeps its requirement
+    static_assert(not can_apply_type<E &, decltype(fn::overload{PoisonUnexpect{}}) const &>);
+
+    using V = fn::expected<void, S0>;
+    V v{};
+    CHECK(v.apply_type([](std::in_place_t) { return 1; }) == 1);
+    CHECK(v.apply([]() { return 1; }) == 1);
+
+    SECTION("constexpr")
+    {
+      static_assert(E{42}.apply_type([](std::in_place_t, int i) { return i; }) == 42);
+      static_assert(E{42}.apply([](int i) { return i; }) == 42);
+      static_assert(V{}.apply([]() { return 1; }) == 1);
+      SUCCEED();
+    }
+  }
+
+  SECTION("apply family over the empty value")
+  {
+    using E = fn::expected<S0, int>;
+    E e{fn::unexpect, 7};
+    CHECK(e.apply_type([](fn::unexpect_t, int v) { return -v; }) == -7);
+    CHECK(e.apply([](int v) { return -v; }) == -7);
+    CHECK(e.apply_r<long>([](int v) { return -v; }) == -7L);
+    CHECK(e.apply_type_r<long>([](fn::unexpect_t, int v) { return -v; }) == -7L);
+    CHECK(e.apply_type([](fn::unexpect_t, int v, int x) { return -v - x; }, 2) == -9);
+    CHECK(e.apply_type(fn::overload{[](fn::unexpect_t, int v) { return -v; }, PoisonInPlace{}}) == -7);
+    static_assert(not can_apply_type<E &, decltype(fn::overload{PoisonInPlace{}}) const &>);
+
+    SECTION("constexpr")
+    {
+      static_assert(E{fn::unexpect, 7}.apply_type([](fn::unexpect_t, int v) { return -v; }) == -7);
+      static_assert(E{fn::unexpect, 7}.apply([](int v) { return -v; }) == -7);
+      SUCCEED();
+    }
+  }
+
+  SECTION("empty sum value: always error")
+  {
+    using E = fn::expected<S0, int>;
+    E e{fn::unexpect, 7};
+    static_assert(not std::is_constructible_v<E, std::in_place_t>);
+
+    // and_then and transform short-circuit the same way on the value side
+    auto r1 = e.and_then(poison);
+    static_assert(std::is_same_v<decltype(r1), E>);
+    CHECK(r1.error() == 7);
+    auto r2 = std::move(e).transform(poison);
+    static_assert(std::is_same_v<decltype(r2), E>);
+    CHECK(r2.error() == 7);
+    static_assert(can_and_then<E &, Poison const &>);
+    static_assert(can_transform<E &, Poison const &>);
+
+    // the error side is untouched
+    CHECK(r2.transform_error([](int v) { return v + 1; }).error() == 8);
+
+    SECTION("constexpr")
+    {
+      static_assert(E{fn::unexpect, 7}.and_then(Poison{}).error() == 7);
+      static_assert(E{fn::unexpect, 7}.transform(Poison{}).error() == 7);
+      SUCCEED();
+    }
+  }
+
+  SECTION("widening across an empty sum side")
+  {
+    // an empty-sum side contributes nothing to the widened sum, and the arm relocating it is never
+    // named: or_else may widen away from an empty value, and either verb may take a callback whose
+    // own expected carries the empty sum
+    using E = fn::expected<S0, int>;
+    E e{fn::unexpect, 7};
+    constexpr auto widen = [](int v) noexcept -> fn::expected<int, bool> { return {-v}; };
+    auto r1 = e.or_else(widen);
+    static_assert(std::is_same_v<decltype(r1), fn::expected<fn::sum<int>, bool>>);
+    CHECK(r1.value() == fn::sum{-7});
+    static_assert(noexcept(e.or_else(widen)));
+    static_assert(not noexcept(e.or_else([](int v) -> fn::expected<int, bool> { return {-v}; })));
+
+    // or_else, callback's expected carries the empty sum value
+    using X = fn::expected<fn::sum<int>, int>;
+    constexpr auto empty_cb
+        = [](int v) noexcept -> fn::expected<S0, bool> { return fn::expected<S0, bool>{fn::unexpect, v != 0}; };
+    X x{fn::unexpect, 7};
+    auto r2 = x.or_else(empty_cb);
+    static_assert(std::is_same_v<decltype(r2), fn::expected<fn::sum<int>, bool>>);
+    CHECK(r2.error() == true);
+    X y{fn::sum<int>{42}};
+    CHECK(y.or_else(empty_cb).value() == fn::sum{42});
+    static_assert(noexcept(x.or_else(empty_cb)));
+
+    // and_then, callback's expected carries the empty sum error
+    using W = fn::expected<int, fn::sum<int>>;
+    constexpr auto unit_cb = [](int v) noexcept -> fn::expected<bool, S0> { return {v != 0}; };
+    W w{42};
+    auto r3 = w.and_then(unit_cb);
+    static_assert(std::is_same_v<decltype(r3), fn::expected<bool, fn::sum<int>>>);
+    CHECK(r3.value() == true);
+    W u{fn::unexpect, fn::sum<int>{13}};
+    CHECK(std::move(u).and_then(unit_cb).error() == fn::sum{13});
+    static_assert(noexcept(w.and_then(unit_cb)));
+
+    // ... through the void and_then as well
+    fn::expected<void, fn::sum<int>> wv{};
+    constexpr auto unit_cb0 = []() noexcept -> fn::expected<bool, S0> { return {true}; };
+    CHECK(wv.and_then(unit_cb0).value() == true);
+    static_assert(noexcept(wv.and_then(unit_cb0)));
+
+    SECTION("constexpr")
+    {
+      static_assert(E{fn::unexpect, 7}.or_else(widen).value() == fn::sum{-7});
+      static_assert(W{42}.and_then(unit_cb).value() == true);
+      static_assert(X{fn::unexpect, 7}.or_else(empty_cb).error() == true);
+      SUCCEED();
+    }
+  }
+}

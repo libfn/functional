@@ -169,6 +169,15 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     constexpr auto fn8 = []() -> fn::optional<fn::sum_for<Xint, int, long>> { throw 0; };
     static_assert(std::is_same_v<decltype(s.or_else(fn8)), fn::optional<fn::sum_for<Xint, int, long>>>);
 
+    // the callback may return an optional of the empty sum: it contributes nothing to the widened
+    // sum, and the arm relocating its value is never named
+    constexpr auto fnE = []() noexcept -> fn::optional<fn::sum<>> { return {}; };
+    static_assert(std::is_same_v<decltype(s.or_else(fnE)), fn::optional<fn::sum<int>>>);
+    CHECK(not s.or_else(fnE).has_value());
+    fn::optional<fn::sum<int>> sv{fn::sum{12}};
+    CHECK(sv.or_else(fnE).value() == fn::sum{12});
+    static_assert(noexcept(s.or_else(fnE)));
+
     // noexcept (extension): true only when the callback is nothrow-applicable, returns exactly
     // optional<sum<int>> (no widening), and *this is nothrow-constructible from itself.
     constexpr auto nothrow_same = []() noexcept -> fn::optional<fn::sum<int>> { return {std::nullopt}; };
@@ -1334,6 +1343,149 @@ TEST_CASE("optional apply_type", "[optional][apply_type]")
     SECTION("constexpr")
     {
       static_assert(optional<int>{42}.apply_type_r<long>(arms) == 42L);
+      SUCCEED();
+    }
+  }
+}
+
+namespace {
+// Instantiating this callable for any argument is a dependent hard error: a verb that compiles
+// while receiving it provably never instantiates its callback.
+struct Poison final {
+  template <typename T> constexpr void operator()(T &&) const { static_assert(sizeof(T) == 0); }
+};
+
+template <typename...> [[maybe_unused]] constexpr bool always_false = false;
+
+// Keyed to the uninhabited row's tag: viable only there, and instantiating its body is a hard
+// error - a call that compiles proves the dead row is never even named.
+struct PoisonInPlace {
+  template <typename... Ts> constexpr int operator()(std::in_place_t, Ts &&...) const
+  {
+    static_assert(always_false<Ts...>);
+    return 0;
+  }
+};
+
+template <typename S, typename Fn>
+concept can_and_then = requires(S s, Fn fn) { FWD(s).and_then(FWD(fn)); };
+
+template <typename S, typename Fn>
+concept can_transform = requires(S s, Fn fn) { FWD(s).transform(FWD(fn)); };
+} // anonymous namespace
+
+TEST_CASE("optional of empty sum", "[optional][sum]")
+{
+  using S0 = fn::sum<>;
+  using O = fn::optional<S0>;
+  constexpr Poison poison{};
+
+  SECTION("never engaged")
+  {
+    O o{};
+    CHECK(not o.has_value());
+    O o2{std::nullopt};
+    o = o2;
+    CHECK(not o.has_value());
+    static_assert(std::is_default_constructible_v<O>);
+    static_assert(std::is_copy_assignable_v<O>);
+    // no route to an engaged state: the value can never be constructed
+    static_assert(not std::is_constructible_v<O, std::in_place_t>);
+    static_assert(not std::is_constructible_v<S0>);
+  }
+
+  SECTION("and_then and transform short-circuit")
+  {
+    // the callback is never presented a value - not invoked, not even instantiated - and the
+    // result is *this unchanged
+    O o{};
+    auto r1 = o.and_then(poison);
+    static_assert(std::is_same_v<decltype(r1), O>);
+    CHECK(not r1.has_value());
+    auto r2 = std::move(o).transform(poison);
+    static_assert(std::is_same_v<decltype(r2), O>);
+    CHECK(not r2.has_value());
+    static_assert(can_and_then<O &, Poison const &>);
+    static_assert(can_transform<O &, Poison const &>);
+
+    SECTION("constexpr")
+    {
+      static_assert(not O{}.and_then(Poison{}).has_value());
+      static_assert(not O{std::nullopt}.transform(Poison{}).has_value());
+      SUCCEED();
+    }
+  }
+
+  SECTION("apply family: the empty arm alone is exhaustive")
+  {
+    // the members know in their constraints that the engaged state is never set: the empty arm
+    // alone satisfies them, and the engaged row is never named
+    O o{};
+    CHECK(o.apply_type([](std::nullopt_t) { return -1; }) == -1);
+    CHECK(o.apply([]() { return -1; }) == -1);
+    CHECK(o.apply([](int x) { return -x; }, 2) == -2);
+    CHECK(o.apply_r<long>([]() { return -1; }) == -1L);
+    CHECK(o.apply_type_r<long>([](std::nullopt_t) { return -1; }) == -1L);
+
+    // trailing arguments reach the one arm that runs, reference-binding included
+    int x = 2;
+    CHECK(o.apply_type([](std::nullopt_t, int &v) { return -v; }, x) == -2);
+
+    // an arm set carrying an arm for the engaged row compiles without instantiating it
+    CHECK(o.apply_type(fn::overload{[](std::nullopt_t) { return -1; }, PoisonInPlace{}}) == -1);
+    // ... while the empty row keeps its requirement
+    static_assert(not can_apply_type<O &, decltype(fn::overload{PoisonInPlace{}}) const &>);
+
+    SECTION("constexpr")
+    {
+      static_assert(O{}.apply_type([](std::nullopt_t) { return -1; }) == -1);
+      static_assert(O{}.apply_type([](std::nullopt_t, int v) { return -v; }, 2) == -2);
+      static_assert(O{}.apply([]() { return -1; }) == -1);
+      SUCCEED();
+    }
+  }
+
+  SECTION("or_else runs the callback")
+  {
+    // the empty state is the one inhabited state, so or_else keeps its full meaning, and the
+    // widening contract is unchanged: sum_for<sum<>, U> is U's own normal form
+    O o{};
+    auto r1 = o.or_else([]() -> O { return {}; });
+    static_assert(std::is_same_v<decltype(r1), O>);
+    CHECK(not r1.has_value());
+    auto r2 = o.or_else([]() -> fn::optional<int> { return {42}; });
+    static_assert(std::is_same_v<decltype(r2), fn::optional<fn::sum<int>>>);
+    CHECK(r2.has_value());
+    CHECK(r2.value() == fn::sum<int>{42});
+    auto r3 = o.or_else([]() -> fn::optional<fn::sum<bool, int>> { return {fn::sum<bool, int>{42}}; });
+    static_assert(std::is_same_v<decltype(r3), fn::optional<fn::sum<bool, int>>>);
+    CHECK(r3.has_value());
+
+    SECTION("noexcept")
+    {
+      // there is no engaged branch, so self's value never weighs in - whatever its category -
+      // only the callback does, and the relocation of the callback's value where it widens
+      constexpr auto nothrow_same = []() noexcept -> O { return {}; };
+      constexpr auto nothrow_widen = []() noexcept -> fn::optional<int> { return {42}; };
+      static_assert(noexcept(std::declval<O &>().or_else(nothrow_same)));
+      static_assert(noexcept(std::declval<O &>().or_else(nothrow_widen)));
+      static_assert(noexcept(std::declval<O const &>().or_else(nothrow_widen)));
+      static_assert(noexcept(std::declval<O &&>().or_else(nothrow_widen)));
+      static_assert(not noexcept(std::declval<O &>().or_else([]() -> O { return {}; })));
+      static_assert(not noexcept(std::declval<O &>().or_else([]() -> fn::optional<int> { return {42}; })));
+
+      struct MoveThrows {
+        MoveThrows(MoveThrows &&) noexcept(false) {}
+      };
+      static_assert(not noexcept(
+          std::declval<O &>().or_else([]() noexcept -> fn::optional<MoveThrows> { return {std::nullopt}; })));
+      SUCCEED();
+    }
+
+    SECTION("constexpr")
+    {
+      static_assert(O{}.or_else([]() -> fn::optional<int> { return {42}; }).has_value());
+      static_assert(not O{}.or_else([]() -> O { return {}; }).has_value());
       SUCCEED();
     }
   }

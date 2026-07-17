@@ -57,23 +57,27 @@ template <typename U, typename G> struct _expected_types<::fn::expected<U, G>> {
   using error_type = G;
 };
 
-// A sum<> error is unconstructible, so an expected carrying one can never hold an error: every arm
-// that lifts one is unreachable, and what cannot run cannot throw. Guarded on the SOURCE's error
-// type - the value arms of the same expected still relocate, and still weigh.
-template <typename E, typename Type, typename... Args>
-constexpr inline bool _nothrow_error_arm = _nothrow_initializable<Type, Args...>;
-template <typename E, typename Type, typename... Args>
-  requires ::std::is_same_v<E, sum<>>
-constexpr inline bool _nothrow_error_arm<E, Type, Args...> = true;
+// A sum<> side is unconstructible, so an expected carrying one can never hold it: every arm that
+// relocates such a side - self's or a callback result's, value or error - is unreachable, and what
+// cannot run cannot throw. Keyed on the relocated side's type; the sibling arms still weigh.
+template <typename From, typename Type, typename... Args>
+constexpr inline bool _nothrow_arm = _nothrow_initializable<Type, Args...>;
+template <typename From, typename Type, typename... Args>
+  requires empty_sum<From>
+constexpr inline bool _nothrow_arm<From, Type, Args...> = true;
 
 // Carrying the callback's value across into a widened result. An expected<void, ...> has no value to
-// carry, and `declval<void>()` is not a thing to ask about.
+// carry, and `declval<void>()` is not a thing to ask about; an empty-sum value can never exist to be
+// carried, so that arm is unreachable (as in _nothrow_arm).
 template <typename Type, typename Src>
 constexpr inline bool _nothrow_carry_value
     = _nothrow_initializable<Type, ::std::in_place_t, decltype(::std::declval<Src>().value())>;
 template <typename Type, typename Src>
   requires ::std::is_void_v<typename ::std::remove_cvref_t<Src>::value_type>
 constexpr inline bool _nothrow_carry_value<Type, Src> = _nothrow_initializable<Type, ::std::in_place_t>;
+template <typename Type, typename Src>
+  requires empty_sum<typename ::std::remove_cvref_t<Src>::value_type>
+constexpr inline bool _nothrow_carry_value<Type, Src> = true;
 
 // `and_then` and `or_else` each have two arms - the callback's own expected is returned, or the two
 // error (value) types are widened into a sum - and `if constexpr` picks between them. A
@@ -104,12 +108,12 @@ struct _nothrow_and_then<E, Fn, ErrArg, ValArg...> {
   using type = ::std::remove_cvref_t<typename _apply_result<Fn, ValArg...>::type>;
   using new_type = ::fn::expected<typename type::value_type, sum_for<E, typename type::error_type>>;
 
-  static constexpr bool value
+  static constexpr bool value                        //
       = _is_nothrow_applicable<Fn, ValArg...>::value // the callback
         && _nothrow_carry_value<new_type, type>      // carrying its value across
-        && _nothrow_initializable<new_type, ::fn::unexpect_t,
-                                  decltype(::std::declval<type>().error())> // widening its error
-        && _nothrow_error_arm<E, new_type, ::fn::unexpect_t, ErrArg>;       // widening self's error
+        && _nothrow_arm<typename type::error_type, new_type, ::fn::unexpect_t,
+                        decltype(::std::declval<type>().error())> // widening its error
+        && _nothrow_arm<E, new_type, ::fn::unexpect_t, ErrArg>;   // widening self's error
 };
 
 // or_else's arms, mirrored the same way. ValArg is the type of self's value as the body relocates it
@@ -136,10 +140,10 @@ struct _nothrow_or_else<T, Fn, ErrArg, ValArg> {
   using type = ::std::remove_cvref_t<typename _apply_result<Fn, ErrArg>::type>;
   using new_type = ::fn::expected<sum_for<T, typename type::value_type>, typename type::error_type>;
 
-  static constexpr bool value
-      = _is_nothrow_applicable<Fn, ErrArg>::value                      // the callback
-        && _nothrow_initializable<new_type, ::std::in_place_t, ValArg> // widening self's value
-        && _nothrow_carry_value<new_type, type>                        // widening its value
+  static constexpr bool value                                   //
+      = _is_nothrow_applicable<Fn, ErrArg>::value               // the callback
+        && _nothrow_arm<T, new_type, ::std::in_place_t, ValArg> // widening self's value
+        && _nothrow_carry_value<new_type, type>                 // widening its value
         && _nothrow_initializable<new_type, ::fn::unexpect_t,
                                   decltype(::std::declval<type>().error())>; // carrying its error
 };
@@ -185,10 +189,14 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
             return new_type{::std::in_place, ::std::move(t).value()};
           else
             return new_type{::std::in_place};
-        else
-          return new_type{::fn::unexpect, ::std::move(t).error()};
+        else {
+          if constexpr (not empty_sum<typename type::error_type>)
+            return new_type{::fn::unexpect, ::std::move(t).error()};
+          else
+            ::pfn::unreachable(); // LCOV_EXCL_LINE
+        }
       } else {
-        if constexpr (not ::std::is_same_v<E, sum<>>)
+        if constexpr (not empty_sum<E>)
           return new_type(::fn::unexpect, _pfn_base::_error(FWD(self)));
         else
           ::pfn::unreachable(); // LCOV_EXCL_LINE
@@ -221,15 +229,31 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
             return new_type{::std::in_place, ::std::move(t).value()};
           else
             return new_type{::std::in_place};
-        else
-          return new_type{::fn::unexpect, ::std::move(t).error()};
+        else {
+          if constexpr (not empty_sum<typename type::error_type>)
+            return new_type{::fn::unexpect, ::std::move(t).error()};
+          else
+            ::pfn::unreachable(); // LCOV_EXCL_LINE
+        }
       } else {
-        if constexpr (not ::std::is_same_v<E, sum<>>)
+        if constexpr (not empty_sum<E>)
           return new_type(::fn::unexpect, _pfn_base::_error(FWD(self)));
         else
           ::pfn::unreachable(); // LCOV_EXCL_LINE
       }
     }
+  }
+
+  // and_then, value type is the empty sum: a value can never be constructed, so the callback can
+  // never be presented one - it is left alone, not invoked and not even instantiated, and the
+  // result is *this unchanged.
+  template <typename Self, typename Fn>
+  static constexpr auto _and_then(Self &&self, Fn &&)                         //
+      noexcept(::std::is_nothrow_constructible_v<::fn::expected<T, E>, Self>) // extension
+      -> ::fn::expected<T, E>
+    requires empty_sum<T> && ::std::is_constructible_v<::fn::expected<T, E>, Self>
+  {
+    return FWD(self);
   }
 
   // or_else, covers both void and non-void value type. The value-copy conjunct spells the
@@ -272,16 +296,34 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       static_assert(not ::std::is_void_v<typename type::value_type>);
       using new_value_type = sum_for<T, typename type::value_type>;
       using new_type = ::fn::expected<new_value_type, typename type::error_type>;
-      if (self.has_value())
-        return new_type{::std::in_place, _pfn_base::_value(FWD(self))};
-      else {
-        auto t = ::fn::detail::_apply(FWD(fn), _pfn_base::_error(FWD(self)));
-        if (t.has_value())
-          return new_type{::std::in_place, ::std::move(t).value()};
+      if (self.has_value()) {
+        if constexpr (not empty_sum<T>)
+          return new_type{::std::in_place, _pfn_base::_value(FWD(self))};
         else
+          ::pfn::unreachable(); // LCOV_EXCL_LINE
+      } else {
+        auto t = ::fn::detail::_apply(FWD(fn), _pfn_base::_error(FWD(self)));
+        if (t.has_value()) {
+          if constexpr (not empty_sum<typename type::value_type>)
+            return new_type{::std::in_place, ::std::move(t).value()};
+          else
+            ::pfn::unreachable(); // LCOV_EXCL_LINE
+        } else
           return new_type{::fn::unexpect, ::std::move(t).error()};
       }
     }
+  }
+
+  // or_else, error type is the empty sum: an error can never be constructed, so the callback can
+  // never be presented one - it is left alone, not invoked and not even instantiated, and the
+  // result is *this unchanged.
+  template <typename Self, typename Fn>
+  static constexpr auto _or_else(Self &&self, Fn &&)                          //
+      noexcept(::std::is_nothrow_constructible_v<::fn::expected<T, E>, Self>) // extension
+      -> ::fn::expected<T, E>
+    requires empty_sum<E> && ::std::is_constructible_v<::fn::expected<T, E>, Self>
+  {
+    return FWD(self);
   }
 
   // transform, non-void value type, not a sum. In the noexcept specs of the transform and
@@ -315,7 +357,8 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   static constexpr auto _transform(Self &&self, Fn &&fn) //
       noexcept(noexcept(_pfn_base::_value(FWD(self)).transform(FWD(fn)))
                && ::std::is_nothrow_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>) // extension
-    requires some_sum<T> && ::fn::detail::_typelist_applicable<Fn, decltype(_pfn_base::_value(FWD(self)))>
+    requires some_sum<T> && (not empty_sum<T>)
+             && ::fn::detail::_typelist_applicable<Fn, decltype(_pfn_base::_value(FWD(self)))>
              && ::std::is_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
   {
     using new_value_type = decltype(_pfn_base::_value(FWD(self)).transform(FWD(fn)));
@@ -329,6 +372,18 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
                     [&fn, &self]() -> decltype(auto) { return _pfn_base::_value(FWD(self)).transform(FWD(fn)); });
     else
       return type(::fn::unexpect, _pfn_base::_error(FWD(self)));
+  }
+
+  // transform, value type is the empty sum: a value can never be constructed, so the callback can
+  // never be presented one - it is left alone, not invoked and not even instantiated, the mapping
+  // is the identity and the result is *this unchanged.
+  template <typename Self, typename Fn>
+  static constexpr auto _transform(Self &&self, Fn &&)                        //
+      noexcept(::std::is_nothrow_constructible_v<::fn::expected<T, E>, Self>) // extension
+      -> ::fn::expected<T, E>
+    requires empty_sum<T> && ::std::is_constructible_v<::fn::expected<T, E>, Self>
+  {
+    return FWD(self);
   }
 
   // transform, void value type
@@ -385,7 +440,8 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
                && (::std::is_void_v<T>
                    || ::std::is_nothrow_constructible_v<
                        T, ::fn::apply_const_lvalue_t<Self, typename _pfn_base::_value_t &&>>)) // extension
-    requires some_sum<E> && ::fn::detail::_typelist_applicable<Fn, decltype(_pfn_base::_error(FWD(self)))>
+    requires some_sum<E> && (not empty_sum<E>)
+             && ::fn::detail::_typelist_applicable<Fn, decltype(_pfn_base::_error(FWD(self)))>
              && (::std::is_void_v<T> || ::std::is_constructible_v<T, decltype(_pfn_base::_value(FWD(self)))>)
   {
     using new_error_type = decltype(_pfn_base::_error(FWD(self)).transform(FWD(fn)));
@@ -402,7 +458,9 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
 
   // apply: elimination over both states, both arms required outright - each arm eliminates its
   // side's value through fn's own _apply (a pack or tuple-like payload by elements, a sum by
-  // dispatch); a void value arm is invoked without a value.
+  // dispatch); a void value arm is invoked without a value. Over an empty-sum side this overload
+  // set needs no gate: sum<> has no apply, so _is_applicable and _apply_tagged answer false for
+  // every Fn and the general overloads drop out.
   template <typename Self, typename Fn, typename... Args>
   static constexpr auto _apply(Self &&self, Fn &&fn, Args &&...args) //
       noexcept(::fn::detail::_is_nothrow_applicable<Fn, decltype(_pfn_base::_value(FWD(self))), Args...>::value
@@ -562,13 +620,164 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
     else
       return ::fn::detail::_apply_tagged_r<Ret, ::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
   }
+
+  // apply, error type is the empty sum: the error row is uninhabited, so the value arm alone is
+  // exhaustive and dispatch needs no branch; nothing names the error row, so an arm set carrying
+  // an arm for it never instantiates it.
+  template <typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(
+          ::fn::detail::_is_nothrow_applicable<Fn, decltype(_pfn_base::_value(FWD(self))), Args...>::value) // extension
+      -> decltype(auto)
+    requires(not ::std::is_void_v<T>)
+            && empty_sum<E> && ::fn::detail::_is_applicable<Fn, decltype(_pfn_base::_value(FWD(self))), Args...>::value
+  {
+    return ::fn::detail::_apply(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
+  }
+
+  // apply, void value type and empty sum error
+  template <typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply(Self &&, Fn &&fn, Args &&...args)         //
+      noexcept(::fn::detail::_is_nothrow_applicable<Fn, Args...>::value) // extension
+      -> decltype(auto)
+    requires ::std::is_void_v<T> && empty_sum<E> && ::fn::detail::_is_applicable<Fn, Args...>::value
+  {
+    return ::fn::detail::_apply(FWD(fn), FWD(args)...);
+  }
+
+  template <typename Ret, typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_r(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, decltype(_pfn_base::_value(FWD(self))),
+                                                      Args...>::value) // extension
+      -> Ret
+    requires(not ::std::is_void_v<T>) && empty_sum<E>
+            && ::fn::detail::_is_applicable_r<Ret, Fn, decltype(_pfn_base::_value(FWD(self))), Args...>::value
+  {
+    return ::fn::detail::_apply_r<Ret>(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
+  }
+
+  // apply_r, void value type and empty sum error
+  template <typename Ret, typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_r(Self &&, Fn &&fn, Args &&...args)              //
+      noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, Args...>::value) // extension
+      -> Ret
+    requires ::std::is_void_v<T> && empty_sum<E> && ::fn::detail::_is_applicable_r<Ret, Fn, Args...>::value
+  {
+    return ::fn::detail::_apply_r<Ret>(FWD(fn), FWD(args)...);
+  }
+
+  // apply_type, error type is the empty sum: the value arm alone is exhaustive
+  template <typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_type(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(noexcept(::fn::detail::_apply_tagged<::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)),
+                                                                       FWD(args)...))) // extension
+      -> decltype(auto)
+    requires(not ::std::is_void_v<T>) && empty_sum<E> && requires {
+      ::fn::detail::_apply_tagged<::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
+    }
+  {
+    return ::fn::detail::_apply_tagged<::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
+  }
+
+  // apply_type, void value type and empty sum error
+  template <typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_type(Self &&, Fn &&fn, Args &&...args)                          //
+      noexcept(::fn::detail::_is_nothrow_applicable<Fn, ::std::in_place_t, Args &&...>::value) // extension
+      -> decltype(auto)
+    requires ::std::is_void_v<T> && empty_sum<E>
+             && ::fn::detail::_is_applicable<Fn, ::std::in_place_t, Args &&...>::value
+  {
+    return ::fn::detail::_apply(FWD(fn), ::std::in_place_t{}, FWD(args)...);
+  }
+
+  template <typename Ret, typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_type_r(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(noexcept(::fn::detail::_apply_tagged_r<Ret, ::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)),
+                                                                              FWD(args)...))) // extension
+      -> Ret
+    requires(not ::std::is_void_v<T>) && empty_sum<E> && requires {
+      ::fn::detail::_apply_tagged_r<Ret, ::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
+    }
+  {
+    return ::fn::detail::_apply_tagged_r<Ret, ::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
+  }
+
+  // apply_type_r, void value type and empty sum error
+  template <typename Ret, typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_type_r(Self &&, Fn &&fn, Args &&...args)                               //
+      noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, ::std::in_place_t, Args &&...>::value) // extension
+      -> Ret
+    requires ::std::is_void_v<T> && empty_sum<E>
+             && ::fn::detail::_is_applicable_r<Ret, Fn, ::std::in_place_t, Args &&...>::value
+  {
+    return ::fn::detail::_apply_r<Ret>(FWD(fn), ::std::in_place_t{}, FWD(args)...);
+  }
+
+  // apply, value type is the empty sum: the value row is uninhabited, so the error arm alone is
+  // exhaustive and dispatch needs no branch.
+  template <typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(
+          ::fn::detail::_is_nothrow_applicable<Fn, decltype(_pfn_base::_error(FWD(self))), Args...>::value) // extension
+      -> decltype(auto)
+    requires empty_sum<T> && ::fn::detail::_is_applicable<Fn, decltype(_pfn_base::_error(FWD(self))), Args...>::value
+  {
+    return ::fn::detail::_apply(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
+  }
+
+  template <typename Ret, typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_r(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, decltype(_pfn_base::_error(FWD(self))),
+                                                      Args...>::value) // extension
+      -> Ret
+    requires empty_sum<T>
+             && ::fn::detail::_is_applicable_r<Ret, Fn, decltype(_pfn_base::_error(FWD(self))), Args...>::value
+  {
+    return ::fn::detail::_apply_r<Ret>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
+  }
+
+  // apply_type, value type is the empty sum: the error arm alone is exhaustive
+  template <typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_type(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(noexcept(::fn::detail::_apply_tagged<::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)),
+                                                                      FWD(args)...))) // extension
+      -> decltype(auto)
+    requires empty_sum<T> && requires {
+      ::fn::detail::_apply_tagged<::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
+    }
+  {
+    return ::fn::detail::_apply_tagged<::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
+  }
+
+  template <typename Ret, typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_type_r(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(noexcept(::fn::detail::_apply_tagged_r<Ret, ::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)),
+                                                                             FWD(args)...))) // extension
+      -> Ret
+    requires empty_sum<T> && requires {
+      ::fn::detail::_apply_tagged_r<Ret, ::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
+    }
+  {
+    return ::fn::detail::_apply_tagged_r<Ret, ::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
+  }
+
+  // transform_error, error type is the empty sum: an error can never be constructed, so the
+  // callback can never be presented one - it is left alone, not invoked and not even instantiated,
+  // the mapping is the identity and the result is *this unchanged.
+  template <typename Self, typename Fn>
+  static constexpr auto _transform_error(Self &&self, Fn &&)                  //
+      noexcept(::std::is_nothrow_constructible_v<::fn::expected<T, E>, Self>) // extension
+      -> ::fn::expected<T, E>
+    requires empty_sum<E> && ::std::is_constructible_v<::fn::expected<T, E>, Self>
+  {
+    return FWD(self);
+  }
 };
 
 } // namespace detail
 
 // Primary template - non-void value type
 template <typename T, typename Err> class expected : private detail::_expected_base<T, Err> {
-  static_assert(not ::std::is_same_v<T, ::fn::sum<>>);
   using _base = detail::_expected_base<T, Err>;
 
   // Allow sibling _expected_base instantiations to downcast into the private base.
@@ -1592,11 +1801,11 @@ constexpr inline bool _nothrow_join_expected
       && _nothrow_initializable<Type, ::fn::unexpect_t, decltype(::std::declval<Lh>().error())>
       && _nothrow_initializable<Type, ::fn::unexpect_t, decltype(::std::declval<Rh>().error())>;
 
-// Lifting an operand's error into a widened error type, through the sum<> guard of _nothrow_error_arm
+// Lifting an operand's error into a widened error type, through the sum<> guard of _nothrow_arm
 // (the joins below assert the same unreachability with pfn::unreachable).
 template <typename Src, typename Err>
 constexpr inline bool _nothrow_error_lift
-    = _nothrow_error_arm<typename ::std::remove_cvref_t<Src>::error_type, Err, decltype(::std::declval<Src>().error())>;
+    = _nothrow_arm<typename ::std::remove_cvref_t<Src>::error_type, Err, decltype(::std::declval<Src>().error())>;
 
 template <typename Type, typename Err, typename Lh, typename Rh, typename... Vs>
 constexpr inline bool _nothrow_join_widened = _nothrow_initializable<Type, ::std::in_place_t, Vs...>
