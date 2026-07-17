@@ -8,14 +8,6 @@ passed to ordinary overloaded functions through `fn::apply`.
 This document explains that model for a C++ programmer. The small mathematical notes are included to
 make the design precise and reviewable; no category theory is needed to use the library.
 
-> [!NOTE]
-> The `apply` name describes the interface being implemented by issue
-> [#84](https://github.com/libfn/functional/issues/84). It replaces the older `invoke` spelling and is
-> intended to extend `std::apply`. The normal-form constraints for `choice` and nested `pack` are tracked
-> by [#323](https://github.com/libfn/functional/issues/323) and
-> [#328](https://github.com/libfn/functional/issues/328). Examples below describe the settled interface,
-> including those changes where the current release branch has not yet caught up.
-
 ## The two layers
 
 The most important distinction in the design is between two layers:
@@ -60,6 +52,26 @@ auto n = fn::apply(
     [](int i, std::string const& s) { return i + static_cast<int>(s.size()); },
     p);
 ```
+
+### The tuple protocol
+
+`pack` implements the standard tuple protocol. `std::tuple_size` and `std::tuple_element` describe its
+arity and element types, while the free `fn::get<I>` function is found by argument-dependent lookup.
+Consequently, a pack supports structured bindings and can be consumed by generic tuple-oriented code:
+
+```cpp
+fn::pack p{42, std::string{"answer"}};
+
+auto& [number, text] = p;
+static_assert(std::tuple_size_v<decltype(p)> == 2);
+
+using std::get;
+assert(get<0>(p) == number); // ADL adds fn::get to the overload set
+```
+
+This tuple compatibility is an access protocol, not a change to the algebra. `pack` remains libfn's
+canonical flat product, with `append` and distributive composition; `std::tuple` and other supported
+tuple-like types remain distinct types with their own intended uses.
 
 ### Composition by `append`
 
@@ -257,8 +269,22 @@ silently bypassing sum flattening or product distribution.
 
 ## `apply`: structural elimination
 
-`fn::apply` extends the role of `std::apply`. On the standard tuple-like domain it has the standard
-meaning; libfn adds its own structural types and multidispatch:
+`fn::apply` extends `std::apply` and its related C++26 type traits. On the standard tuple-like domain it
+has the standard meaning; libfn adds its own structural types, multiple operands, and multidispatch:
+
+```cpp
+fn::apply(f, args...);
+fn::apply_r<R>(f, args...);
+
+fn::apply_result_t<F, Args...>;
+fn::is_applicable_v<F, Args...>;
+fn::is_nothrow_applicable_v<F, Args...>;
+```
+
+The corresponding class templates and explicit-result `_r` traits are also available. Every trait
+describes the same extended application operation as the function: constraints can test whether an
+application is valid, determine its result type, or propagate its `noexcept` property without writing a
+different model of structural dispatch.
 
 ```text
 value A                   -> f(A)
