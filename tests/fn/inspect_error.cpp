@@ -135,13 +135,13 @@ TEST_CASE("inspect_error expected", "[inspect_error][expected]")
     SECTION("copack")
     {
       using TS = fn::expected<int, fn::copack_for<Error, bool>>;
-      constexpr auto fnSum
+      constexpr auto fnCopack
           = fn::overload{[](Error) constexpr noexcept -> void {}, [](bool) constexpr noexcept -> void {}};
-      constexpr auto s1 = TS{0} | fn::inspect_error(fnSum);
+      constexpr auto s1 = TS{0} | fn::inspect_error(fnCopack);
       static_assert(s1.value() == 0);
-      constexpr auto s2 = TS{::fn::unexpect, fn::copack{Error::SomethingElse}} | fn::inspect_error(fnSum);
+      constexpr auto s2 = TS{::fn::unexpect, fn::copack{Error::SomethingElse}} | fn::inspect_error(fnCopack);
       static_assert(s2.error() == fn::copack{Error::SomethingElse});
-      constexpr auto s3 = TS{::fn::unexpect, fn::copack{false}} | fn::inspect_error(fnSum);
+      constexpr auto s3 = TS{::fn::unexpect, fn::copack{false}} | fn::inspect_error(fnCopack);
       static_assert(s3.error() == fn::copack{false});
 
       SUCCEED();

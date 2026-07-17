@@ -289,22 +289,22 @@ TEST_CASE("apply tuple-like", "[apply][apply_r][tuple]")
   SECTION("elements are terminal")
   {
     // a copack element is handed over whole, exactly as std::apply hands it - never dispatched
-    struct TakesSum {
+    struct TakesCopack {
       constexpr int operator()(fn::copack<int> const &) const noexcept { return 7; }
     };
     struct TakesAlternative {
       constexpr int operator()(int) const noexcept { return 8; }
     };
-    static_assert(fn::apply(TakesSum{}, std::tuple<fn::copack<int>>{fn::copack<int>{1}}) == 7);
+    static_assert(fn::apply(TakesCopack{}, std::tuple<fn::copack<int>>{fn::copack<int>{1}}) == 7);
     static_assert(not fn::is_applicable_v<TakesAlternative, std::tuple<fn::copack<int>>>);
-    static_assert(fn::is_applicable_v<TakesSum, std::tuple<fn::copack<int>>>
-                  == pfn::is_applicable_v<TakesSum, std::tuple<fn::copack<int>>>);
+    static_assert(fn::is_applicable_v<TakesCopack, std::tuple<fn::copack<int>>>
+                  == pfn::is_applicable_v<TakesCopack, std::tuple<fn::copack<int>>>);
     static_assert(fn::is_applicable_v<TakesAlternative, std::tuple<fn::copack<int>>>
                   == pfn::is_applicable_v<TakesAlternative, std::tuple<fn::copack<int>>>);
     // and a pack is not tuple-like: it keeps fn's own dispatch
     static_assert(fn::apply(arity, fn::pack{1, 2, 3}) == 3);
 
-    CHECK(fn::apply(TakesSum{}, std::tuple<fn::copack<int>>{fn::copack<int>{1}}) == 7);
+    CHECK(fn::apply(TakesCopack{}, std::tuple<fn::copack<int>>{fn::copack<int>{1}}) == 7);
     CHECK(fn::apply(arity, fn::pack{1, 2, 3}) == 3);
   }
 

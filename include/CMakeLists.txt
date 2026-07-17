@@ -75,6 +75,7 @@ set(INCLUDE_FN_HEADERS
     fn/and_then.hpp
     fn/choice.hpp
     fn/concepts.hpp
+    fn/copack.hpp
     fn/discard.hpp
     fn/expected.hpp
     fn/fail.hpp
@@ -89,7 +90,6 @@ set(INCLUDE_FN_HEADERS
     fn/or_else.hpp
     fn/pack.hpp
     fn/recover.hpp
-    fn/copack.hpp
     fn/transform_error.hpp
     fn/transform.hpp
     fn/utility.hpp
