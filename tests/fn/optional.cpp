@@ -1346,6 +1346,18 @@ struct Poison final {
   template <typename T> constexpr void operator()(T &&) const { static_assert(sizeof(T) == 0); }
 };
 
+template <typename...> constexpr bool always_false = false;
+
+// Keyed to the uninhabited row's tag: viable only there, and instantiating its body is a hard
+// error - a call that compiles proves the dead row is never even named.
+struct PoisonInPlace {
+  template <typename... Ts> constexpr int operator()(std::in_place_t, Ts &&...) const
+  {
+    static_assert(always_false<Ts...>);
+    return 0;
+  }
+};
+
 template <typename S, typename Fn>
 concept can_and_then = requires(S s, Fn fn) { FWD(s).and_then(FWD(fn)); };
 
@@ -1391,6 +1403,35 @@ TEST_CASE("optional of empty sum", "[optional][sum]")
     {
       static_assert(not O{}.and_then(Poison{}).has_value());
       static_assert(not O{std::nullopt}.transform(Poison{}).has_value());
+      SUCCEED();
+    }
+  }
+
+  SECTION("apply family: the empty arm alone is exhaustive")
+  {
+    // the members know in their constraints that the engaged state is never set: the empty arm
+    // alone satisfies them, and the engaged row is never named
+    O o{};
+    CHECK(o.apply_type([](std::nullopt_t) { return -1; }) == -1);
+    CHECK(o.apply([]() { return -1; }) == -1);
+    CHECK(o.apply([](int x) { return -x; }, 2) == -2);
+    CHECK(o.apply_r<long>([]() { return -1; }) == -1L);
+    CHECK(o.apply_type_r<long>([](std::nullopt_t) { return -1; }) == -1L);
+
+    // trailing arguments reach the one arm that runs, reference-binding included
+    int x = 2;
+    CHECK(o.apply_type([](std::nullopt_t, int &v) { return -v; }, x) == -2);
+
+    // an arm set carrying an arm for the engaged row compiles without instantiating it
+    CHECK(o.apply_type(fn::overload{[](std::nullopt_t) { return -1; }, PoisonInPlace{}}) == -1);
+    // ... while the empty row keeps its requirement
+    static_assert(not can_apply_type<O &, decltype(fn::overload{PoisonInPlace{}}) const &>);
+
+    SECTION("constexpr")
+    {
+      static_assert(O{}.apply_type([](std::nullopt_t) { return -1; }) == -1);
+      static_assert(O{}.apply_type([](std::nullopt_t, int v) { return -v; }, 2) == -2);
+      static_assert(O{}.apply([]() { return -1; }) == -1);
       SUCCEED();
     }
   }

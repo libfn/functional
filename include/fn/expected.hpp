@@ -604,6 +604,149 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       return ::fn::detail::_apply_tagged_r<Ret, ::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
   }
 
+  // apply, error type is the empty sum: the error row is uninhabited, so the value arm alone is
+  // exhaustive and dispatch needs no branch; nothing names the error row, so an arm set carrying
+  // an arm for it never instantiates it.
+  template <typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(
+          ::fn::detail::_is_nothrow_applicable<Fn, decltype(_pfn_base::_value(FWD(self))), Args...>::value) // extension
+      -> decltype(auto)
+    requires(not ::std::is_void_v<T>) && some_sum<E> && (::std::remove_cvref_t<E>::size == 0)
+            && ::fn::detail::_is_applicable<Fn, decltype(_pfn_base::_value(FWD(self))), Args...>::value
+  {
+    return ::fn::detail::_apply(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
+  }
+
+  // apply, void value type and empty sum error
+  template <typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply(Self &&, Fn &&fn, Args &&...args)         //
+      noexcept(::fn::detail::_is_nothrow_applicable<Fn, Args...>::value) // extension
+      -> decltype(auto)
+    requires ::std::is_void_v<T> && some_sum<E> && (::std::remove_cvref_t<E>::size == 0)
+             && ::fn::detail::_is_applicable<Fn, Args...>::value
+  {
+    return ::fn::detail::_apply(FWD(fn), FWD(args)...);
+  }
+
+  template <typename Ret, typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_r(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, decltype(_pfn_base::_value(FWD(self))),
+                                                      Args...>::value) // extension
+      -> Ret
+    requires(not ::std::is_void_v<T>) && some_sum<E> && (::std::remove_cvref_t<E>::size == 0)
+            && ::fn::detail::_is_applicable_r<Ret, Fn, decltype(_pfn_base::_value(FWD(self))), Args...>::value
+  {
+    return ::fn::detail::_apply_r<Ret>(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
+  }
+
+  // apply_r, void value type and empty sum error
+  template <typename Ret, typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_r(Self &&, Fn &&fn, Args &&...args)              //
+      noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, Args...>::value) // extension
+      -> Ret
+    requires ::std::is_void_v<T> && some_sum<E> && (::std::remove_cvref_t<E>::size == 0)
+             && ::fn::detail::_is_applicable_r<Ret, Fn, Args...>::value
+  {
+    return ::fn::detail::_apply_r<Ret>(FWD(fn), FWD(args)...);
+  }
+
+  // apply_type, error type is the empty sum: the value arm alone is exhaustive
+  template <typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_type(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(noexcept(::fn::detail::_apply_tagged<::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)),
+                                                                       FWD(args)...))) // extension
+      -> decltype(auto)
+    requires(not ::std::is_void_v<T>) && some_sum<E> && (::std::remove_cvref_t<E>::size == 0) && requires {
+      ::fn::detail::_apply_tagged<::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
+    }
+  {
+    return ::fn::detail::_apply_tagged<::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
+  }
+
+  // apply_type, void value type and empty sum error
+  template <typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_type(Self &&, Fn &&fn, Args &&...args)                          //
+      noexcept(::fn::detail::_is_nothrow_applicable<Fn, ::std::in_place_t, Args &&...>::value) // extension
+      -> decltype(auto)
+    requires ::std::is_void_v<T> && some_sum<E> && (::std::remove_cvref_t<E>::size == 0)
+             && ::fn::detail::_is_applicable<Fn, ::std::in_place_t, Args &&...>::value
+  {
+    return ::fn::detail::_apply(FWD(fn), ::std::in_place_t{}, FWD(args)...);
+  }
+
+  template <typename Ret, typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_type_r(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(noexcept(::fn::detail::_apply_tagged_r<Ret, ::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)),
+                                                                              FWD(args)...))) // extension
+      -> Ret
+    requires(not ::std::is_void_v<T>) && some_sum<E> && (::std::remove_cvref_t<E>::size == 0) && requires {
+      ::fn::detail::_apply_tagged_r<Ret, ::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
+    }
+  {
+    return ::fn::detail::_apply_tagged_r<Ret, ::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
+  }
+
+  // apply_type_r, void value type and empty sum error
+  template <typename Ret, typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_type_r(Self &&, Fn &&fn, Args &&...args)                               //
+      noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, ::std::in_place_t, Args &&...>::value) // extension
+      -> Ret
+    requires ::std::is_void_v<T> && some_sum<E> && (::std::remove_cvref_t<E>::size == 0)
+             && ::fn::detail::_is_applicable_r<Ret, Fn, ::std::in_place_t, Args &&...>::value
+  {
+    return ::fn::detail::_apply_r<Ret>(FWD(fn), ::std::in_place_t{}, FWD(args)...);
+  }
+
+  // apply, value type is the empty sum: the value row is uninhabited, so the error arm alone is
+  // exhaustive and dispatch needs no branch.
+  template <typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(
+          ::fn::detail::_is_nothrow_applicable<Fn, decltype(_pfn_base::_error(FWD(self))), Args...>::value) // extension
+      -> decltype(auto)
+    requires some_sum<T> && (::std::remove_cvref_t<T>::size == 0)
+             && ::fn::detail::_is_applicable<Fn, decltype(_pfn_base::_error(FWD(self))), Args...>::value
+  {
+    return ::fn::detail::_apply(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
+  }
+
+  template <typename Ret, typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_r(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, decltype(_pfn_base::_error(FWD(self))),
+                                                      Args...>::value) // extension
+      -> Ret
+    requires some_sum<T> && (::std::remove_cvref_t<T>::size == 0)
+             && ::fn::detail::_is_applicable_r<Ret, Fn, decltype(_pfn_base::_error(FWD(self))), Args...>::value
+  {
+    return ::fn::detail::_apply_r<Ret>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
+  }
+
+  // apply_type, value type is the empty sum: the error arm alone is exhaustive
+  template <typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_type(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(noexcept(::fn::detail::_apply_tagged<::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)),
+                                                                      FWD(args)...))) // extension
+      -> decltype(auto)
+    requires some_sum<T> && (::std::remove_cvref_t<T>::size == 0) && requires {
+      ::fn::detail::_apply_tagged<::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
+    }
+  {
+    return ::fn::detail::_apply_tagged<::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
+  }
+
+  template <typename Ret, typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_type_r(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(noexcept(::fn::detail::_apply_tagged_r<Ret, ::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)),
+                                                                             FWD(args)...))) // extension
+      -> Ret
+    requires some_sum<T> && (::std::remove_cvref_t<T>::size == 0) && requires {
+      ::fn::detail::_apply_tagged_r<Ret, ::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
+    }
+  {
+    return ::fn::detail::_apply_tagged_r<Ret, ::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
+  }
+
   // transform_error, error type is the empty sum: an error can never be constructed, so the
   // callback can never be presented one - it is left alone, not invoked and not even instantiated,
   // the mapping is the identity and the result is *this unchanged.

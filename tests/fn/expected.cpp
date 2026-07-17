@@ -3800,6 +3800,26 @@ struct Poison final {
   template <typename T> constexpr void operator()(T &&) const { static_assert(sizeof(T) == 0); }
 };
 
+template <typename...> constexpr bool always_false = false;
+
+// Keyed to the uninhabited row's tag: viable only there, and instantiating its body is a hard
+// error - a call that compiles proves the dead row is never even named.
+struct PoisonInPlace {
+  template <typename... Ts> constexpr int operator()(std::in_place_t, Ts &&...) const
+  {
+    static_assert(always_false<Ts...>);
+    return 0;
+  }
+};
+
+struct PoisonUnexpect {
+  template <typename... Ts> constexpr int operator()(fn::unexpect_t, Ts &&...) const
+  {
+    static_assert(always_false<Ts...>);
+    return 0;
+  }
+};
+
 template <typename S, typename Fn>
 concept can_and_then = requires(S s, Fn fn) { FWD(s).and_then(FWD(fn)); };
 
@@ -3860,6 +3880,58 @@ TEST_CASE("expected with empty sum side", "[expected][sum]")
     {
       static_assert(E{}.transform_error(Poison{}).has_value());
       static_assert(E{}.or_else(Poison{}).has_value());
+      SUCCEED();
+    }
+  }
+
+  SECTION("apply family over the empty error")
+  {
+    // the members know in their constraints that the error state is never set: the value arm
+    // alone is exhaustive, and the error row is never named
+    using E = fn::expected<int, S0>;
+    E e{42};
+    CHECK(e.apply_type([](std::in_place_t, int i) { return i; }) == 42);
+    CHECK(e.apply([](int i) { return i; }) == 42);
+    CHECK(e.apply([](int i, int x) { return i + x; }, 2) == 44);
+    CHECK(e.apply_r<long>([](int i) { return i; }) == 42L);
+    CHECK(e.apply_type_r<long>([](std::in_place_t, int i) { return i; }) == 42L);
+    CHECK(e.apply_type([](std::in_place_t, int i, int x) { return i + x; }, 2) == 44);
+
+    // an arm set carrying an arm for the error row compiles without instantiating it
+    CHECK(e.apply_type(fn::overload{[](std::in_place_t, int i) { return i; }, PoisonUnexpect{}}) == 42);
+    // ... while the value row keeps its requirement
+    static_assert(not can_apply_type<E &, decltype(fn::overload{PoisonUnexpect{}}) const &>);
+
+    using V = fn::expected<void, S0>;
+    V v{};
+    CHECK(v.apply_type([](std::in_place_t) { return 1; }) == 1);
+    CHECK(v.apply([]() { return 1; }) == 1);
+
+    SECTION("constexpr")
+    {
+      static_assert(E{42}.apply_type([](std::in_place_t, int i) { return i; }) == 42);
+      static_assert(E{42}.apply([](int i) { return i; }) == 42);
+      static_assert(V{}.apply([]() { return 1; }) == 1);
+      SUCCEED();
+    }
+  }
+
+  SECTION("apply family over the empty value")
+  {
+    using E = fn::expected<S0, int>;
+    E e{fn::unexpect, 7};
+    CHECK(e.apply_type([](fn::unexpect_t, int v) { return -v; }) == -7);
+    CHECK(e.apply([](int v) { return -v; }) == -7);
+    CHECK(e.apply_r<long>([](int v) { return -v; }) == -7L);
+    CHECK(e.apply_type_r<long>([](fn::unexpect_t, int v) { return -v; }) == -7L);
+    CHECK(e.apply_type([](fn::unexpect_t, int v, int x) { return -v - x; }, 2) == -9);
+    CHECK(e.apply_type(fn::overload{[](fn::unexpect_t, int v) { return -v; }, PoisonInPlace{}}) == -7);
+    static_assert(not can_apply_type<E &, decltype(fn::overload{PoisonInPlace{}}) const &>);
+
+    SECTION("constexpr")
+    {
+      static_assert(E{fn::unexpect, 7}.apply_type([](fn::unexpect_t, int v) { return -v; }) == -7);
+      static_assert(E{fn::unexpect, 7}.apply([](int v) { return -v; }) == -7);
       SUCCEED();
     }
   }
