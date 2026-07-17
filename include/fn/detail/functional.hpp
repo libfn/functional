@@ -181,15 +181,76 @@ template <typename Ret, typename Fn, typename... Args>
   return ::pfn::invoke_r<Ret>(FWD(fn), FWD(args)...);
 }
 
-// The tuple-like arm of apply_r, mirroring apply's: INVOKE<R> over the elements. Constrained so
-// a non-viable call is a substitution failure before the noexcept-specifier can instantiate.
-template <typename Ret, typename Fn, typename Tuple, ::std::size_t... Ix>
-  requires ::std::is_invocable_r_v<Ret, Fn, decltype(::std::get<Ix>(::std::declval<Tuple>()))...>
-constexpr Ret _apply_r_elems(Fn &&fn, Tuple &&t, ::std::index_sequence<Ix...>) //
-    noexcept(noexcept(::pfn::invoke_r<Ret>(FWD(fn), ::std::get<Ix>(FWD(t))...)))
+// The tuple-like arm of apply_r, mirroring apply's: INVOKE<R> over the elements, followed by any
+// trailing arguments. Constrained so a non-viable call is a substitution failure before the
+// noexcept-specifier can instantiate.
+template <typename Ret, typename Fn, typename Tuple, ::std::size_t... Ix, typename... Args>
+  requires ::std::is_invocable_r_v<Ret, Fn, decltype(::std::get<Ix>(::std::declval<Tuple>()))..., Args...>
+constexpr Ret _apply_r_elems(Fn &&fn, Tuple &&t, ::std::index_sequence<Ix...>, Args &&...args) //
+    noexcept(noexcept(::pfn::invoke_r<Ret>(FWD(fn), ::std::get<Ix>(FWD(t))..., FWD(args)...)))
 {
-  return ::pfn::invoke_r<Ret>(FWD(fn), ::std::get<Ix>(FWD(t))...);
+  return ::pfn::invoke_r<Ret>(FWD(fn), ::std::get<Ix>(FWD(t))..., FWD(args)...);
 }
+
+// The INVOKE twin, serving the tagged dispatchers' tuple-like arms below.
+template <typename Fn, typename Tuple, ::std::size_t... Ix, typename... Args>
+  requires ::std::is_invocable_v<Fn, decltype(::std::get<Ix>(::std::declval<Tuple>()))..., Args...>
+constexpr auto _apply_elems(Fn &&fn, Tuple &&t, ::std::index_sequence<Ix...>, Args &&...args) //
+    noexcept(::std::is_nothrow_invocable_v<Fn, decltype(::std::get<Ix>(::std::declval<Tuple>()))..., Args...>)
+        -> DEDUCED_RETURN(::std::invoke(FWD(fn), ::std::get<Ix>(FWD(t))..., FWD(args)...))
+{
+  return ::std::invoke(FWD(fn), ::std::get<Ix>(FWD(t))..., FWD(args)...);
+}
+
+// SFINAE-friendly elements-and-trailing-arguments traits, gated like pfn's _apply_traits: the
+// tuple-like arms below must not name tuple_size raw in their declarations, which MSVC
+// substitutes eagerly even for a constrained-out candidate - through the gate a non-tuple
+// subject answers false (and yields no result type) instead of hard-erroring.
+template <typename Fn, typename Tuple, typename Ix, typename... Args> struct _elems_probe;
+template <typename Fn, typename Tuple, ::std::size_t... Ix, typename... Args>
+struct _elems_probe<Fn, Tuple, ::std::index_sequence<Ix...>, Args...> {
+  static constexpr bool _invocable
+      = ::std::is_invocable_v<Fn, decltype(::std::get<Ix>(::std::declval<Tuple>()))..., Args...>;
+  static constexpr bool _nothrow
+      = ::std::is_nothrow_invocable_v<Fn, decltype(::std::get<Ix>(::std::declval<Tuple>()))..., Args...>;
+  using _result = ::std::invoke_result<Fn, decltype(::std::get<Ix>(::std::declval<Tuple>()))..., Args...>;
+};
+
+template <bool, typename Fn, typename Tuple, typename... Args> struct _elems_gate { // not tuple-like
+  static constexpr bool _invocable = false;
+  static constexpr bool _nothrow = false;
+  struct _result {}; // no member `type`, [meta.trans.other]
+};
+template <typename Fn, typename Tuple, typename... Args>
+struct _elems_gate<true, Fn, Tuple, Args...>
+    : _elems_probe<Fn, Tuple, ::std::make_index_sequence<::std::tuple_size_v<::std::remove_reference_t<Tuple>>>,
+                   Args...> {};
+
+template <typename Fn, typename Tuple, typename... Args>
+using _elems_traits
+    = _elems_gate<::pfn::detail::_tuple_like<Tuple> && ::pfn::detail::_tuple_sized<Tuple>, Fn, Tuple, Args...>;
+
+template <typename Ret, typename Fn, typename Tuple, typename Ix, typename... Args> struct _elems_probe_r;
+template <typename Ret, typename Fn, typename Tuple, ::std::size_t... Ix, typename... Args>
+struct _elems_probe_r<Ret, Fn, Tuple, ::std::index_sequence<Ix...>, Args...> {
+  static constexpr bool _invocable
+      = ::std::is_invocable_r_v<Ret, Fn, decltype(::std::get<Ix>(::std::declval<Tuple>()))..., Args...>;
+  static constexpr bool _nothrow
+      = ::std::is_nothrow_invocable_r_v<Ret, Fn, decltype(::std::get<Ix>(::std::declval<Tuple>()))..., Args...>;
+};
+
+template <bool, typename Ret, typename Fn, typename Tuple, typename... Args> struct _elems_gate_r {
+  static constexpr bool _invocable = false;
+  static constexpr bool _nothrow = false;
+};
+template <typename Ret, typename Fn, typename Tuple, typename... Args>
+struct _elems_gate_r<true, Ret, Fn, Tuple, Args...>
+    : _elems_probe_r<Ret, Fn, Tuple, ::std::make_index_sequence<::std::tuple_size_v<::std::remove_reference_t<Tuple>>>,
+                     Args...> {};
+
+template <typename Ret, typename Fn, typename Tuple, typename... Args>
+using _elems_traits_r
+    = _elems_gate_r<::pfn::detail::_tuple_like<Tuple> && ::pfn::detail::_tuple_sized<Tuple>, Ret, Fn, Tuple, Args...>;
 
 template <typename Ret, typename Fn, typename Arg>
   requires ::pfn::detail::_tuple_like<Arg> //
@@ -316,56 +377,136 @@ constexpr auto _apply_r(Fn &&fn, Args &&...args) noexcept(_is_nothrow_applicable
   return _apply_detail::apply_r<Ret>(FWD(fn), FWD(args)...);
 }
 
-// Named (a lambda cannot appear in a noexcept-specifier): prepends the alternative's tag to the
-// unpacked elements, so one shape serves both the pack and the tuple-like unpacking below.
-template <typename Fn, typename T> struct _apply_type_elems final {
+// Named (a lambda cannot appear in a noexcept-specifier): prepends a default-constructed tag to
+// the unpacked elements, one shape for every tagged surface - sum/choice apply_type below, and
+// the tagged members of optional and expected.
+template <typename Fn, typename Tag> struct _apply_tag_elems final {
   Fn &&fn;
 
   template <typename... Args>
-    requires ::std::is_invocable_v<Fn, ::std::in_place_type_t<T>, Args...>
+    requires ::std::is_invocable_v<Fn, Tag, Args...>
   constexpr auto operator()(Args &&...args) && //
-      noexcept(::std::is_nothrow_invocable_v<Fn, ::std::in_place_type_t<T>, Args...>)
-          -> DEDUCED_RETURN(::std::invoke(FWD(fn), ::std::in_place_type_t<T>{}, FWD(args)...))
+      noexcept(::std::is_nothrow_invocable_v<Fn, Tag, Args...>)
+          -> DEDUCED_RETURN(::std::invoke(FWD(fn), Tag{}, FWD(args)...))
   {
-    return ::std::invoke(FWD(fn), ::std::in_place_type_t<T>{}, FWD(args)...);
+    return ::std::invoke(FWD(fn), Tag{}, FWD(args)...);
   }
 };
 
-// The apply_type arm adapter: the type-indexed dispatch hands (tag, whole value); this re-invokes
-// the user's arm set with the alternative unpacked exactly as value-path apply would unpack it.
+template <typename Fn, typename T> using _apply_type_elems = _apply_tag_elems<Fn, ::std::in_place_type_t<T>>;
+
+// The tagged elimination of one value - the engaged/error arm of optional's and expected's
+// apply_type. The tag is prepended to the value unpacked as _apply would unpack it (trailing
+// arguments follow the elements), except that a tuple-like value's elements form is the row's one
+// signature (no pass-whole fallback), as on sum::apply_type; a pack or sum consumes through its
+// own member apply, and anything else - including a choice, a nominal boundary - is handed over
+// whole.
+template <typename Tag, typename Fn, typename V, typename... Args>
+  requires(_some_pack<V> || _some_sum<V>) && requires(Fn &&fn, V &&v, Args &&...args) {
+    FWD(v).apply(_apply_tag_elems<Fn, Tag>{FWD(fn)}, FWD(args)...);
+  }
+[[nodiscard]] constexpr auto _apply_tagged(Fn &&fn, V &&v, Args &&...args) //
+    noexcept(noexcept(FWD(v).apply(_apply_tag_elems<Fn, Tag>{FWD(fn)}, FWD(args)...)))
+        -> DEDUCED_RETURN(FWD(v).apply(_apply_tag_elems<Fn, Tag>{FWD(fn)}, FWD(args)...))
+{
+  return FWD(v).apply(_apply_tag_elems<Fn, Tag>{FWD(fn)}, FWD(args)...);
+}
+
+template <typename Tag, typename Fn, typename V, typename... Args>
+  requires(not _some_pack<V>) && (not _some_sum<V>) && ::pfn::detail::_tuple_like<V>
+          && (_apply_detail::_elems_traits<_apply_tag_elems<Fn, Tag>, V, Args...>::_invocable)
+[[nodiscard]] constexpr auto _apply_tagged(Fn &&fn, V &&v, Args &&...args) //
+    noexcept(_apply_detail::_elems_traits<_apply_tag_elems<Fn, Tag>, V, Args...>::_nothrow) ->
+    typename _apply_detail::_elems_traits<_apply_tag_elems<Fn, Tag>, V, Args...>::_result::type
+{
+  return _apply_detail::_apply_elems(_apply_tag_elems<Fn, Tag>{FWD(fn)}, FWD(v),
+                                     ::std::make_index_sequence<::std::tuple_size_v<::std::remove_reference_t<V>>>{},
+                                     FWD(args)...);
+}
+
+// The tag is passed as a prvalue, the exact shape the traits above ask about (a named parameter
+// would be an lvalue, splitting the probe from the deed).
+template <typename Tag, typename Fn, typename V, typename... Args>
+  requires(not _some_pack<V>) && (not _some_sum<V>) && (not ::pfn::detail::_tuple_like<V>)
+          && ::std::is_invocable_v<Fn, Tag, V, Args...>
+[[nodiscard]] constexpr auto _apply_tagged(Fn &&fn, V &&v, Args &&...args) //
+    noexcept(::std::is_nothrow_invocable_v<Fn, Tag, V, Args...>)
+        -> DEDUCED_RETURN(::std::invoke(FWD(fn), Tag{}, FWD(v), FWD(args)...))
+{
+  return ::std::invoke(FWD(fn), Tag{}, FWD(v), FWD(args)...);
+}
+
+template <typename Ret, typename Tag, typename Fn, typename V, typename... Args>
+  requires(_some_pack<V> || _some_sum<V>) && requires(Fn &&fn, V &&v, Args &&...args) {
+    FWD(v).template apply_r<Ret>(_apply_tag_elems<Fn, Tag>{FWD(fn)}, FWD(args)...);
+  }
+[[nodiscard]] constexpr auto _apply_tagged_r(Fn &&fn, V &&v, Args &&...args) //
+    noexcept(noexcept(FWD(v).template apply_r<Ret>(_apply_tag_elems<Fn, Tag>{FWD(fn)}, FWD(args)...))) -> Ret
+{
+  return FWD(v).template apply_r<Ret>(_apply_tag_elems<Fn, Tag>{FWD(fn)}, FWD(args)...);
+}
+
+template <typename Ret, typename Tag, typename Fn, typename V, typename... Args>
+  requires(not _some_pack<V>) && (not _some_sum<V>) && ::pfn::detail::_tuple_like<V>
+          && (_apply_detail::_elems_traits_r<Ret, _apply_tag_elems<Fn, Tag>, V, Args...>::_invocable)
+[[nodiscard]] constexpr auto _apply_tagged_r(Fn &&fn, V &&v, Args &&...args) //
+    noexcept(_apply_detail::_elems_traits_r<Ret, _apply_tag_elems<Fn, Tag>, V, Args...>::_nothrow) -> Ret
+{
+  return _apply_detail::_apply_r_elems<Ret>(
+      _apply_tag_elems<Fn, Tag>{FWD(fn)}, FWD(v),
+      ::std::make_index_sequence<::std::tuple_size_v<::std::remove_reference_t<V>>>{}, FWD(args)...);
+}
+
+template <typename Ret, typename Tag, typename Fn, typename V, typename... Args>
+  requires(not _some_pack<V>) && (not _some_sum<V>) && (not ::pfn::detail::_tuple_like<V>)
+          && ::std::is_invocable_r_v<Ret, Fn, Tag, V, Args...>
+[[nodiscard]] constexpr auto _apply_tagged_r(Fn &&fn, V &&v, Args &&...args) //
+    noexcept(::std::is_nothrow_invocable_r_v<Ret, Fn, Tag, V, Args...>) -> Ret
+{
+  return ::pfn::invoke_r<Ret>(FWD(fn), Tag{}, FWD(v), FWD(args)...);
+}
+
+// The apply_type arm adapter: the type-indexed dispatch hands (tag, whole value, trailing
+// arguments); this re-invokes the user's arm set with the alternative unpacked exactly as
+// value-path apply would unpack it, the trailing arguments after the elements.
 template <typename Fn> struct _apply_type_fn final {
   Fn &&fn;
 
-  template <typename T, typename V>
-  constexpr auto operator()(::std::in_place_type_t<T>, V &&v) && //
-      noexcept(noexcept(::std::remove_cvref_t<V>::_impl::_apply(FWD(v), _apply_type_elems<Fn, T>{FWD(fn)})))
-          -> DEDUCED_RETURN(::std::remove_cvref_t<V>::_impl::_apply(FWD(v), _apply_type_elems<Fn, T>{FWD(fn)}))
-    requires _some_pack<T>
-             && requires { ::std::remove_cvref_t<V>::_impl::_apply(FWD(v), _apply_type_elems<Fn, T>{FWD(fn)}); }
+  template <typename T, typename V, typename... Args>
+  constexpr auto operator()(::std::in_place_type_t<T>, V &&v, Args &&...args) && //
+      noexcept(noexcept(::std::remove_cvref_t<V>::_impl::_apply(FWD(v), _apply_type_elems<Fn, T>{FWD(fn)},
+                                                                FWD(args)...)))
+          -> DEDUCED_RETURN(::std::remove_cvref_t<V>::_impl::_apply(FWD(v), _apply_type_elems<Fn, T>{FWD(fn)},
+                                                                    FWD(args)...))
+    requires _some_pack<T> && requires {
+      ::std::remove_cvref_t<V>::_impl::_apply(FWD(v), _apply_type_elems<Fn, T>{FWD(fn)}, FWD(args)...);
+    }
   {
-    return ::std::remove_cvref_t<V>::_impl::_apply(FWD(v), _apply_type_elems<Fn, T>{FWD(fn)});
+    return ::std::remove_cvref_t<V>::_impl::_apply(FWD(v), _apply_type_elems<Fn, T>{FWD(fn)}, FWD(args)...);
   }
 
-  template <typename T, typename V>
-  constexpr auto operator()(::std::in_place_type_t<T>, V &&v) && //
-      noexcept(::pfn::is_nothrow_applicable_v<_apply_type_elems<Fn, T>, V>)
-          -> DEDUCED_RETURN(::pfn::apply(_apply_type_elems<Fn, T>{FWD(fn)}, FWD(v)))
-    requires(not _some_pack<T>)
-            && ::pfn::detail::_tuple_like<T> && (::pfn::is_applicable_v<_apply_type_elems<Fn, T>, V>)
+  template <typename T, typename V, typename... Args>
+  constexpr auto operator()(::std::in_place_type_t<T>, V &&v, Args &&...args) && //
+      noexcept(_apply_detail::_elems_traits<_apply_type_elems<Fn, T>, V, Args...>::_nothrow) ->
+      typename _apply_detail::_elems_traits<_apply_type_elems<Fn, T>, V, Args...>::_result::type
+    requires(not _some_pack<T>) && ::pfn::detail::_tuple_like<T>
+            && (_apply_detail::_elems_traits<_apply_type_elems<Fn, T>, V, Args...>::_invocable)
   {
-    return ::pfn::apply(_apply_type_elems<Fn, T>{FWD(fn)}, FWD(v));
+    return _apply_detail::_apply_elems(_apply_type_elems<Fn, T>{FWD(fn)}, FWD(v),
+                                       ::std::make_index_sequence<::std::tuple_size_v<::std::remove_reference_t<V>>>{},
+                                       FWD(args)...);
   }
 
   // The tag is passed as a prvalue, the exact shape the traits above ask about (a named parameter
   // would be an lvalue, splitting the probe from the deed).
-  template <typename T, typename V>
-  constexpr auto operator()(::std::in_place_type_t<T>, V &&v) && //
-      noexcept(::std::is_nothrow_invocable_v<Fn, ::std::in_place_type_t<T>, V>)
-          -> DEDUCED_RETURN(::std::invoke(FWD(fn), ::std::in_place_type_t<T>{}, FWD(v)))
+  template <typename T, typename V, typename... Args>
+  constexpr auto operator()(::std::in_place_type_t<T>, V &&v, Args &&...args) && //
+      noexcept(::std::is_nothrow_invocable_v<Fn, ::std::in_place_type_t<T>, V, Args...>)
+          -> DEDUCED_RETURN(::std::invoke(FWD(fn), ::std::in_place_type_t<T>{}, FWD(v), FWD(args)...))
     requires(not _some_pack<T>) && (not ::pfn::detail::_tuple_like<T>)
-            && ::std::is_invocable_v<Fn, ::std::in_place_type_t<T>, V>
+            && ::std::is_invocable_v<Fn, ::std::in_place_type_t<T>, V, Args...>
   {
-    return ::std::invoke(FWD(fn), ::std::in_place_type_t<T>{}, FWD(v));
+    return ::std::invoke(FWD(fn), ::std::in_place_type_t<T>{}, FWD(v), FWD(args)...);
   }
 };
 

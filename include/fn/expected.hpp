@@ -399,6 +399,169 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       return type(::pfn::detail::_expected_from_invoke, ::fn::unexpect,
                   [&fn, &self]() -> decltype(auto) { return _pfn_base::_error(FWD(self)).transform(FWD(fn)); });
   }
+
+  // apply: elimination over both states, both arms required outright - each arm eliminates its
+  // side's value through fn's own _apply (a pack or tuple-like payload by elements, a sum by
+  // dispatch); a void value arm is invoked without a value.
+  template <typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(::fn::detail::_is_nothrow_applicable<Fn, decltype(_pfn_base::_value(FWD(self))), Args...>::value
+               && ::fn::detail::_is_nothrow_applicable<Fn, decltype(_pfn_base::_error(FWD(self))),
+                                                       Args...>::value) // extension
+      -> decltype(auto)
+    requires(not ::std::is_void_v<T>)
+            && ::fn::detail::_is_applicable<Fn, decltype(_pfn_base::_value(FWD(self))), Args...>::value
+            && ::fn::detail::_is_applicable<Fn, decltype(_pfn_base::_error(FWD(self))), Args...>::value
+  {
+    // Both arms are viable here, so they must yield the same result type.
+    static_assert(::std::is_same_v<
+                  typename ::fn::detail::_apply_result<Fn, decltype(_pfn_base::_value(FWD(self))), Args...>::type,
+                  typename ::fn::detail::_apply_result<Fn, decltype(_pfn_base::_error(FWD(self))), Args...>::type>);
+    if (self.has_value())
+      return ::fn::detail::_apply(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
+    else
+      return ::fn::detail::_apply(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
+  }
+
+  // apply, void value type
+  template <typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(::fn::detail::_is_nothrow_applicable<Fn, Args...>::value
+               && ::fn::detail::_is_nothrow_applicable<Fn, decltype(_pfn_base::_error(FWD(self))),
+                                                       Args...>::value) // extension
+      -> decltype(auto)
+    requires ::std::is_void_v<T> && ::fn::detail::_is_applicable<Fn, Args...>::value
+             && ::fn::detail::_is_applicable<Fn, decltype(_pfn_base::_error(FWD(self))), Args...>::value
+  {
+    // Both arms are viable here, so they must yield the same result type.
+    static_assert(::std::is_same_v<
+                  typename ::fn::detail::_apply_result<Fn, Args...>::type,
+                  typename ::fn::detail::_apply_result<Fn, decltype(_pfn_base::_error(FWD(self))), Args...>::type>);
+    if (self.has_value())
+      return ::fn::detail::_apply(FWD(fn), FWD(args)...);
+    else
+      return ::fn::detail::_apply(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
+  }
+
+  template <typename Ret, typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_r(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, decltype(_pfn_base::_value(FWD(self))), Args...>::value
+               && ::fn::detail::_is_nothrow_applicable_r<Ret, Fn, decltype(_pfn_base::_error(FWD(self))),
+                                                         Args...>::value) // extension
+      -> Ret
+    requires(not ::std::is_void_v<T>)
+            && ::fn::detail::_is_applicable_r<Ret, Fn, decltype(_pfn_base::_value(FWD(self))), Args...>::value
+            && ::fn::detail::_is_applicable_r<Ret, Fn, decltype(_pfn_base::_error(FWD(self))), Args...>::value
+  {
+    if (self.has_value())
+      return ::fn::detail::_apply_r<Ret>(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
+    else
+      return ::fn::detail::_apply_r<Ret>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
+  }
+
+  // apply_r, void value type
+  template <typename Ret, typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_r(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, Args...>::value
+               && ::fn::detail::_is_nothrow_applicable_r<Ret, Fn, decltype(_pfn_base::_error(FWD(self))),
+                                                         Args...>::value) // extension
+      -> Ret
+    requires ::std::is_void_v<T> && ::fn::detail::_is_applicable_r<Ret, Fn, Args...>::value
+             && ::fn::detail::_is_applicable_r<Ret, Fn, decltype(_pfn_base::_error(FWD(self))), Args...>::value
+  {
+    if (self.has_value())
+      return ::fn::detail::_apply_r<Ret>(FWD(fn), FWD(args)...);
+    else
+      return ::fn::detail::_apply_r<Ret>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
+  }
+
+  // apply_type: the tagged form - the value arm receives ::std::in_place followed by the value as
+  // _apply_tagged hands it over (the tag alone when T is void; a tuple-like value's elements form
+  // is the row's one signature), the error arm ::fn::unexpect followed by the error; the tags
+  // never interconvert, so the dispatch stays airtight even where T and E do. Tags are passed as
+  // prvalues, the exact shape the traits ask about; trailing arguments follow either arm's content.
+  template <typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_type(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(noexcept(::fn::detail::_apply_tagged<::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)),
+                                                                       FWD(args)...))
+               && noexcept(::fn::detail::_apply_tagged<::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)),
+                                                                         FWD(args)...))) // extension
+      -> decltype(auto)
+    requires(not ::std::is_void_v<T>) && requires {
+      ::fn::detail::_apply_tagged<::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
+    } && requires {
+      ::fn::detail::_apply_tagged<::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
+    }
+  {
+    // Both arms are viable here, so they must yield the same result type.
+    static_assert(::std::is_same_v<decltype(::fn::detail::_apply_tagged<::std::in_place_t>(
+                                       FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...)),
+                                   decltype(::fn::detail::_apply_tagged<::fn::unexpect_t>(
+                                       FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...))>);
+    if (self.has_value())
+      return ::fn::detail::_apply_tagged<::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
+    else
+      return ::fn::detail::_apply_tagged<::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
+  }
+
+  // apply_type, void value type
+  template <typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_type(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(::fn::detail::_is_nothrow_applicable<Fn, ::std::in_place_t, Args &&...>::value
+               && noexcept(::fn::detail::_apply_tagged<::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)),
+                                                                         FWD(args)...))) // extension
+      -> decltype(auto)
+    requires ::std::is_void_v<T> && ::fn::detail::_is_applicable<Fn, ::std::in_place_t, Args &&...>::value && requires {
+      ::fn::detail::_apply_tagged<::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
+    }
+  {
+    // Both arms are viable here, so they must yield the same result type.
+    static_assert(::std::is_same_v<typename ::fn::detail::_apply_result<Fn, ::std::in_place_t, Args &&...>::type,
+                                   decltype(::fn::detail::_apply_tagged<::fn::unexpect_t>(
+                                       FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...))>);
+    if (self.has_value())
+      return ::fn::detail::_apply(FWD(fn), ::std::in_place_t{}, FWD(args)...);
+    else
+      return ::fn::detail::_apply_tagged<::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
+  }
+
+  template <typename Ret, typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_type_r(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(noexcept(::fn::detail::_apply_tagged_r<Ret, ::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)),
+                                                                              FWD(args)...))
+               && noexcept(::fn::detail::_apply_tagged_r<Ret, ::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)),
+                                                                                FWD(args)...))) // extension
+      -> Ret
+    requires(not ::std::is_void_v<T>) && requires {
+      ::fn::detail::_apply_tagged_r<Ret, ::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
+    } && requires {
+      ::fn::detail::_apply_tagged_r<Ret, ::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
+    }
+  {
+    if (self.has_value())
+      return ::fn::detail::_apply_tagged_r<Ret, ::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
+    else
+      return ::fn::detail::_apply_tagged_r<Ret, ::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
+  }
+
+  // apply_type_r, void value type
+  template <typename Ret, typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_type_r(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, ::std::in_place_t, Args &&...>::value
+               && noexcept(::fn::detail::_apply_tagged_r<Ret, ::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)),
+                                                                                FWD(args)...))) // extension
+      -> Ret
+    requires ::std::is_void_v<T> && ::fn::detail::_is_applicable_r<Ret, Fn, ::std::in_place_t, Args &&...>::value
+             && requires {
+                  ::fn::detail::_apply_tagged_r<Ret, ::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)),
+                                                                       FWD(args)...);
+                }
+  {
+    if (self.has_value())
+      return ::fn::detail::_apply_r<Ret>(FWD(fn), ::std::in_place_t{}, FWD(args)...);
+    else
+      return ::fn::detail::_apply_tagged_r<Ret, ::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
+  }
 };
 
 } // namespace detail
@@ -621,6 +784,126 @@ public:
              && (::std::is_nothrow_move_constructible_v<T> || ::std::is_nothrow_move_constructible_v<Err>))
   {
     this->_swap_with(rhs);
+  }
+
+  // Elimination over both states, mirroring sum's apply family: each arm takes its side's value
+  // unpacked as fn::apply would hand it over, keyed (apply_type) by the constructor tag naming
+  // the state - ::std::in_place for the value, ::fn::unexpect for the error. Bodies delegate to
+  // _expected_base static helpers.
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply(F &&f, Args &&...args) &        //
+      noexcept(noexcept(_base::_apply(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply(*this, FWD(f), FWD(args)...))
+  {
+    return _base::_apply(*this, FWD(f), FWD(args)...);
+  }
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply(F &&f, Args &&...args) &&                    //
+      noexcept(noexcept(_base::_apply(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::_apply(::std::move(*this), FWD(f), FWD(args)...);
+  }
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply(F &&f, Args &&...args) const &  //
+      noexcept(noexcept(_base::_apply(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply(*this, FWD(f), FWD(args)...))
+  {
+    return _base::_apply(*this, FWD(f), FWD(args)...);
+  }
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply(F &&f, Args &&...args) const &&              //
+      noexcept(noexcept(_base::_apply(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::_apply(::std::move(*this), FWD(f), FWD(args)...);
+  }
+
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_r(F &&f, Args &&...args) &                      //
+      noexcept(noexcept(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...);
+  }
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_r(F &&f, Args &&...args) &&                                  //
+      noexcept(noexcept(_base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...);
+  }
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_r(F &&f, Args &&...args) const &                //
+      noexcept(noexcept(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...);
+  }
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_r(F &&f, Args &&...args) const &&                            //
+      noexcept(noexcept(_base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...);
+  }
+
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type(F &&f, Args &&...args) &        //
+      noexcept(noexcept(_base::_apply_type(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply_type(*this, FWD(f), FWD(args)...))
+  {
+    return _base::_apply_type(*this, FWD(f), FWD(args)...);
+  }
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type(F &&f, Args &&...args) &&                    //
+      noexcept(noexcept(_base::_apply_type(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply_type(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::_apply_type(::std::move(*this), FWD(f), FWD(args)...);
+  }
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type(F &&f, Args &&...args) const &  //
+      noexcept(noexcept(_base::_apply_type(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply_type(*this, FWD(f), FWD(args)...))
+  {
+    return _base::_apply_type(*this, FWD(f), FWD(args)...);
+  }
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type(F &&f, Args &&...args) const &&              //
+      noexcept(noexcept(_base::_apply_type(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply_type(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::_apply_type(::std::move(*this), FWD(f), FWD(args)...);
+  }
+
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type_r(F &&f, Args &&...args) &                      //
+      noexcept(noexcept(_base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...);
+  }
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type_r(F &&f, Args &&...args) &&                                  //
+      noexcept(noexcept(_base::template _apply_type_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_type_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_type_r<Ret>(::std::move(*this), FWD(f), FWD(args)...);
+  }
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type_r(F &&f, Args &&...args) const &                //
+      noexcept(noexcept(_base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...);
+  }
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type_r(F &&f, Args &&...args) const &&                            //
+      noexcept(noexcept(_base::template _apply_type_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_type_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_type_r<Ret>(::std::move(*this), FWD(f), FWD(args)...);
   }
 
   // Monadic operations. Bodies delegate to _expected_base static helpers, which perform sum-widening.
@@ -991,6 +1274,126 @@ public:
   using _base::has_error;
   using _base::has_value;
   using _base::value;
+
+  // Elimination over both states, mirroring sum's apply family: the value arm takes no value
+  // (apply) or the ::std::in_place tag alone (apply_type), the error arm the error unpacked as
+  // fn::apply would hand it over, after ::fn::unexpect in the tagged form. Bodies delegate to
+  // _expected_base static helpers.
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply(F &&f, Args &&...args) &        //
+      noexcept(noexcept(_base::_apply(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply(*this, FWD(f), FWD(args)...))
+  {
+    return _base::_apply(*this, FWD(f), FWD(args)...);
+  }
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply(F &&f, Args &&...args) &&                    //
+      noexcept(noexcept(_base::_apply(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::_apply(::std::move(*this), FWD(f), FWD(args)...);
+  }
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply(F &&f, Args &&...args) const &  //
+      noexcept(noexcept(_base::_apply(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply(*this, FWD(f), FWD(args)...))
+  {
+    return _base::_apply(*this, FWD(f), FWD(args)...);
+  }
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply(F &&f, Args &&...args) const &&              //
+      noexcept(noexcept(_base::_apply(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::_apply(::std::move(*this), FWD(f), FWD(args)...);
+  }
+
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_r(F &&f, Args &&...args) &                      //
+      noexcept(noexcept(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...);
+  }
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_r(F &&f, Args &&...args) &&                                  //
+      noexcept(noexcept(_base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...);
+  }
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_r(F &&f, Args &&...args) const &                //
+      noexcept(noexcept(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...);
+  }
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_r(F &&f, Args &&...args) const &&                            //
+      noexcept(noexcept(_base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...);
+  }
+
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type(F &&f, Args &&...args) &        //
+      noexcept(noexcept(_base::_apply_type(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply_type(*this, FWD(f), FWD(args)...))
+  {
+    return _base::_apply_type(*this, FWD(f), FWD(args)...);
+  }
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type(F &&f, Args &&...args) &&                    //
+      noexcept(noexcept(_base::_apply_type(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply_type(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::_apply_type(::std::move(*this), FWD(f), FWD(args)...);
+  }
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type(F &&f, Args &&...args) const &  //
+      noexcept(noexcept(_base::_apply_type(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply_type(*this, FWD(f), FWD(args)...))
+  {
+    return _base::_apply_type(*this, FWD(f), FWD(args)...);
+  }
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type(F &&f, Args &&...args) const &&              //
+      noexcept(noexcept(_base::_apply_type(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply_type(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::_apply_type(::std::move(*this), FWD(f), FWD(args)...);
+  }
+
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type_r(F &&f, Args &&...args) &                      //
+      noexcept(noexcept(_base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...);
+  }
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type_r(F &&f, Args &&...args) &&                                  //
+      noexcept(noexcept(_base::template _apply_type_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_type_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_type_r<Ret>(::std::move(*this), FWD(f), FWD(args)...);
+  }
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type_r(F &&f, Args &&...args) const &                //
+      noexcept(noexcept(_base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...);
+  }
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type_r(F &&f, Args &&...args) const &&                            //
+      noexcept(noexcept(_base::template _apply_type_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_type_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_type_r<Ret>(::std::move(*this), FWD(f), FWD(args)...);
+  }
 
   // Monadic operations. Bodies delegate to _expected_base static helpers, which perform sum-widening.
   template <class F>

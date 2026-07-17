@@ -54,8 +54,11 @@ concept can_emplace = requires(S &s, Args &&...args) { s.template emplace<T>(sta
 template <typename S, typename Fn>
 concept can_transform = requires(S s, Fn fn) { FWD(s).transform(fn); };
 
-template <typename S, typename Fn>
-concept can_apply_type = requires(S s, Fn fn) { FWD(s).apply_type(FWD(fn)); };
+template <typename S, typename Fn, typename... Args>
+concept can_apply_type = requires(S s, Fn fn, Args... args) { FWD(s).apply_type(FWD(fn), FWD(args)...); };
+
+template <typename S, typename Fn, typename... Args>
+concept can_apply = requires(S s, Fn fn, Args... args) { FWD(s).apply(FWD(fn), FWD(args)...); };
 
 // Every special member of choice is defaulted, and choice adds no state to sum - so each must behave
 // exactly as sum's, down to its noexcept and its constraints.
@@ -683,6 +686,26 @@ TEST_CASE("choice apply_type", "[choice][apply_type]")
     }
   }
 
+  SECTION("extra arguments")
+  {
+    // trailing arguments follow the alternative's unpacked content, as on apply
+    constexpr auto xarms = fn::overload{[](in_place_type_t<int>, int v, int x) noexcept -> int { return v + x; },
+                                        [](in_place_type_t<double>, double, int x) noexcept -> int { return -x; }};
+    CHECK(a.apply_type(xarms, 2) == 44);
+    CHECK(a.apply_type_r<long>(xarms, 2) == 44L);
+    static_assert(noexcept(a.apply_type(xarms, 2)));
+
+    // an arm set that does not take the extra answers non-viable
+    static_assert(not can_apply_type<choice<double, int> &, decltype(arms) const &, int>);
+    static_assert(can_apply_type<choice<double, int> &, decltype(xarms) const &, int>);
+
+    SECTION("constexpr")
+    {
+      static_assert(choice<double, int>{42}.apply_type(xarms, 2) == 44);
+      SUCCEED();
+    }
+  }
+
   SECTION("noexcept")
   {
     static_assert(noexcept(a.apply_type(arms)));
@@ -690,6 +713,34 @@ TEST_CASE("choice apply_type", "[choice][apply_type]")
                                            [](in_place_type_t<double>, double) noexcept -> int { return 0; }};
     static_assert(not noexcept(a.apply_type(throwing)));
     SUCCEED();
+  }
+}
+
+TEST_CASE("choice apply", "[choice][apply]")
+{
+  using fn::choice;
+
+  // the value-path members share sum::apply's shape: trailing arguments follow the alternative
+  constexpr auto arms = fn::overload{[](int v, int x) noexcept -> int { return v + x; },
+                                     [](double, int x) noexcept -> int { return -x; }};
+  choice<double, int> a{42};
+
+  SECTION("extra arguments")
+  {
+    CHECK(a.apply(arms, 2) == 44);
+    CHECK(a.apply_r<long>(arms, 2) == 44L);
+    static_assert(noexcept(a.apply(arms, 2)));
+    constexpr auto noextra
+        = fn::overload{[](int v) noexcept -> int { return v; }, [](double) noexcept -> int { return 0; }};
+    static_assert(not can_apply<choice<double, int> &, decltype(noextra) const &, int>);
+    static_assert(can_apply<choice<double, int> &, decltype(noextra) const &>);
+    CHECK(a.apply(noextra) == 42);
+
+    SECTION("constexpr")
+    {
+      static_assert(choice<double, int>{42}.apply(arms, 2) == 44);
+      SUCCEED();
+    }
   }
 }
 

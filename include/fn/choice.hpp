@@ -246,235 +246,269 @@ struct choice<Ts...> : sum<Ts...> {
    * @brief TODO
    *
    * @tparam Fn TODO
+   * @tparam Args TODO
    * @param fn TODO
+   * @param args TODO
    * @return TODO
    */
-  template <typename Fn>
-  [[nodiscard]] constexpr auto apply(Fn &&fn) & noexcept(
+  template <typename Fn, typename... Args>
+  [[nodiscard]] constexpr auto apply(Fn &&fn, Args &&...args) & noexcept(
       detail::_is_nothrow_rts_applicable<
-          typename detail::_sum_apply_result<detail::_apply_autodetect_tag, decltype(fn), choice &>::type, Fn &&,
-          choice &>)
-    requires typelist_applicable<Fn, choice &>
+          typename detail::_sum_apply_result<detail::_apply_autodetect_tag, decltype(fn), choice &, Args &&...>::type,
+          Fn &&, choice &, Args &&...>)
+    requires typelist_applicable<Fn, choice &, Args &&...>
   {
-    using type = detail::_sum_apply_result<detail::_apply_autodetect_tag, decltype(fn), choice &>::type;
-    return detail::apply_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn));
+    using type = detail::_sum_apply_result<detail::_apply_autodetect_tag, decltype(fn), choice &, Args &&...>::type;
+    return detail::apply_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn), FWD(args)...);
   }
 
   /**
    * @brief TODO
    *
    * @tparam Fn TODO
+   * @tparam Args TODO
    * @param fn TODO
+   * @param args TODO
    * @return TODO
    */
-  template <typename Fn>
-  [[nodiscard]] constexpr auto apply(Fn &&fn) const & noexcept(
-      detail::_is_nothrow_rts_applicable<
-          typename detail::_sum_apply_result<detail::_apply_autodetect_tag, decltype(fn), choice const &>::type, Fn &&,
-          choice const &>)
-    requires typelist_applicable<Fn, choice const &>
-  {
-    using type = detail::_sum_apply_result<detail::_apply_autodetect_tag, decltype(fn), choice const &>::type;
-    return detail::apply_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn));
-  }
-
-  /**
-   * @brief TODO
-   *
-   * @tparam Fn TODO
-   * @param fn TODO
-   * @return TODO
-   */
-  template <typename Fn>
-  [[nodiscard]] constexpr auto apply(Fn &&fn) && noexcept(
-      detail::_is_nothrow_rts_applicable<
-          typename detail::_sum_apply_result<detail::_apply_autodetect_tag, decltype(fn), choice &&>::type, Fn &&,
-          choice &&>)
-    requires typelist_applicable<Fn, choice &&>
-  {
-    using type = detail::_sum_apply_result<detail::_apply_autodetect_tag, decltype(fn), choice &&>::type;
-    return detail::apply_variadic_union<type, typename _impl::data_t>(::std::move(_impl::data), _impl::index, FWD(fn));
-  }
-
-  /**
-   * @brief TODO
-   *
-   * @tparam Fn TODO
-   * @param fn TODO
-   * @return TODO
-   */
-  template <typename Fn>
-  [[nodiscard]] constexpr auto apply(Fn &&fn) const && noexcept(
-      detail::_is_nothrow_rts_applicable<
-          typename detail::_sum_apply_result<detail::_apply_autodetect_tag, decltype(fn), choice const &&>::type, Fn &&,
-          choice const &&>)
-    requires typelist_applicable<Fn, choice const &&>
-  {
-    using type = detail::_sum_apply_result<detail::_apply_autodetect_tag, decltype(fn), choice const &&>::type;
-    return detail::apply_variadic_union<type, typename _impl::data_t>(::std::move(_impl::data), _impl::index, FWD(fn));
-  }
-
-  /**
-   * @brief TODO
-   *
-   * @tparam T TODO
-   * @tparam Fn TODO
-   * @param fn TODO
-   * @return TODO
-   */
-  template <typename T, typename Fn>
-  [[nodiscard]] constexpr auto apply_r(Fn &&fn) & noexcept(
-      detail::_is_nothrow_rts_applicable<typename detail::_sum_apply_result<T, decltype(fn), choice &>::type, Fn &&,
-                                         choice &>)
-    requires typelist_applicable<Fn, choice &>
-  {
-    using type = detail::_sum_apply_result<T, decltype(fn), choice &>::type;
-    return detail::apply_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn));
-  }
-
-  /**
-   * @brief TODO
-   *
-   * @tparam T TODO
-   * @tparam Fn TODO
-   * @param fn TODO
-   * @return TODO
-   */
-  template <typename T, typename Fn>
-  [[nodiscard]] constexpr auto apply_r(Fn &&fn) const & noexcept(
-      detail::_is_nothrow_rts_applicable<typename detail::_sum_apply_result<T, decltype(fn), choice const &>::type,
-                                         Fn &&, choice const &>)
-    requires typelist_applicable<Fn, choice const &>
-  {
-    using type = detail::_sum_apply_result<T, decltype(fn), choice const &>::type;
-    return detail::apply_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn));
-  }
-
-  /**
-   * @brief TODO
-   *
-   * @tparam T TODO
-   * @tparam Fn TODO
-   * @param fn TODO
-   * @return TODO
-   */
-  template <typename T, typename Fn>
-  [[nodiscard]] constexpr auto apply_r(Fn &&fn) && noexcept(
-      detail::_is_nothrow_rts_applicable<typename detail::_sum_apply_result<T, decltype(fn), choice &&>::type, Fn &&,
-                                         choice &&>)
-    requires typelist_applicable<Fn, choice &&>
-  {
-    using type = detail::_sum_apply_result<T, decltype(fn), choice &&>::type;
-    return detail::apply_variadic_union<type, typename _impl::data_t>(::std::move(_impl::data), _impl::index, FWD(fn));
-  }
-
-  /**
-   * @brief TODO
-   *
-   * @tparam T TODO
-   * @tparam Fn TODO
-   * @param fn TODO
-   * @return TODO
-   */
-  template <typename T, typename Fn>
-  [[nodiscard]] constexpr auto apply_r(Fn &&fn) const && noexcept(
-      detail::_is_nothrow_rts_applicable<typename detail::_sum_apply_result<T, decltype(fn), choice const &&>::type,
-                                         Fn &&, choice const &&>)
-    requires typelist_applicable<Fn, choice const &&>
-  {
-    using type = detail::_sum_apply_result<T, decltype(fn), choice const &&>::type;
-    return detail::apply_variadic_union<type, typename _impl::data_t>(::std::move(_impl::data), _impl::index, FWD(fn));
-  }
-
-  /**
-   * @brief TODO
-   *
-   * @tparam Fn TODO
-   * @param fn TODO
-   * @return TODO
-   */
-  template <typename Fn>
-  [[nodiscard]] constexpr auto apply_type(Fn &&fn) & noexcept(
-      detail::_is_nothrow_rtst_invocable<typename detail::_sum_invoke_type_result<
-                                             detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>, choice &>::type,
-                                         detail::_apply_type_fn<Fn>, choice &>) ->
-      typename detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>,
-                                               choice &>::type
-    requires detail::_typelist_type_invocable<detail::_apply_type_fn<Fn>, choice &>
+  template <typename Fn, typename... Args>
+  [[nodiscard]] constexpr auto apply(Fn &&fn, Args &&...args) const & noexcept(
+      detail::_is_nothrow_rts_applicable<typename detail::_sum_apply_result<detail::_apply_autodetect_tag, decltype(fn),
+                                                                            choice const &, Args &&...>::type,
+                                         Fn &&, choice const &, Args &&...>)
+    requires typelist_applicable<Fn, choice const &, Args &&...>
   {
     using type
-        = detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>, choice &>::type;
-    return detail::invoke_type_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index,
-                                                                            detail::_apply_type_fn<Fn>{FWD(fn)});
+        = detail::_sum_apply_result<detail::_apply_autodetect_tag, decltype(fn), choice const &, Args &&...>::type;
+    return detail::apply_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn), FWD(args)...);
   }
 
   /**
    * @brief TODO
    *
    * @tparam Fn TODO
+   * @tparam Args TODO
    * @param fn TODO
+   * @param args TODO
    * @return TODO
    */
-  template <typename Fn>
-  [[nodiscard]] constexpr auto apply_type(Fn &&fn) const & noexcept(
-      detail::_is_nothrow_rtst_invocable<
-          typename detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>,
-                                                   choice const &>::type,
-          detail::_apply_type_fn<Fn>, choice const &>) ->
-      typename detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>,
-                                               choice const &>::type
-    requires detail::_typelist_type_invocable<detail::_apply_type_fn<Fn>, choice const &>
+  template <typename Fn, typename... Args>
+  [[nodiscard]] constexpr auto apply(Fn &&fn, Args &&...args) && noexcept(
+      detail::_is_nothrow_rts_applicable<
+          typename detail::_sum_apply_result<detail::_apply_autodetect_tag, decltype(fn), choice &&, Args &&...>::type,
+          Fn &&, choice &&, Args &&...>)
+    requires typelist_applicable<Fn, choice &&, Args &&...>
   {
-    using type = detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>,
-                                                 choice const &>::type;
-    return detail::invoke_type_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index,
-                                                                            detail::_apply_type_fn<Fn>{FWD(fn)});
+    using type = detail::_sum_apply_result<detail::_apply_autodetect_tag, decltype(fn), choice &&, Args &&...>::type;
+    return detail::apply_variadic_union<type, typename _impl::data_t>(::std::move(_impl::data), _impl::index, FWD(fn),
+                                                                      FWD(args)...);
   }
 
   /**
    * @brief TODO
    *
    * @tparam Fn TODO
+   * @tparam Args TODO
    * @param fn TODO
+   * @param args TODO
    * @return TODO
    */
-  template <typename Fn>
-  [[nodiscard]] constexpr auto
-  apply_type(Fn &&fn) && noexcept(detail::_is_nothrow_rtst_invocable<
-                                  typename detail::_sum_invoke_type_result<detail::_apply_autodetect_tag,
-                                                                           detail::_apply_type_fn<Fn>, choice &&>::type,
-                                  detail::_apply_type_fn<Fn>, choice &&>) ->
-      typename detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>,
-                                               choice &&>::type
-    requires detail::_typelist_type_invocable<detail::_apply_type_fn<Fn>, choice &&>
+  template <typename Fn, typename... Args>
+  [[nodiscard]] constexpr auto apply(Fn &&fn, Args &&...args) const && noexcept(
+      detail::_is_nothrow_rts_applicable<typename detail::_sum_apply_result<detail::_apply_autodetect_tag, decltype(fn),
+                                                                            choice const &&, Args &&...>::type,
+                                         Fn &&, choice const &&, Args &&...>)
+    requires typelist_applicable<Fn, choice const &&, Args &&...>
   {
     using type
-        = detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>, choice &&>::type;
-    return detail::invoke_type_variadic_union<type, typename _impl::data_t>(::std::move(_impl::data), _impl::index,
-                                                                            detail::_apply_type_fn<Fn>{FWD(fn)});
+        = detail::_sum_apply_result<detail::_apply_autodetect_tag, decltype(fn), choice const &&, Args &&...>::type;
+    return detail::apply_variadic_union<type, typename _impl::data_t>(::std::move(_impl::data), _impl::index, FWD(fn),
+                                                                      FWD(args)...);
+  }
+
+  /**
+   * @brief TODO
+   *
+   * @tparam T TODO
+   * @tparam Fn TODO
+   * @tparam Args TODO
+   * @param fn TODO
+   * @param args TODO
+   * @return TODO
+   */
+  template <typename T, typename Fn, typename... Args>
+  [[nodiscard]] constexpr auto apply_r(Fn &&fn, Args &&...args) & noexcept(
+      detail::_is_nothrow_rts_applicable<
+          typename detail::_sum_apply_result<T, decltype(fn), choice &, Args &&...>::type, Fn &&, choice &, Args &&...>)
+    requires typelist_applicable<Fn, choice &, Args &&...>
+  {
+    using type = detail::_sum_apply_result<T, decltype(fn), choice &, Args &&...>::type;
+    return detail::apply_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn), FWD(args)...);
+  }
+
+  /**
+   * @brief TODO
+   *
+   * @tparam T TODO
+   * @tparam Fn TODO
+   * @tparam Args TODO
+   * @param fn TODO
+   * @param args TODO
+   * @return TODO
+   */
+  template <typename T, typename Fn, typename... Args>
+  [[nodiscard]] constexpr auto apply_r(Fn &&fn, Args &&...args) const & noexcept(
+      detail::_is_nothrow_rts_applicable<
+          typename detail::_sum_apply_result<T, decltype(fn), choice const &, Args &&...>::type, Fn &&, choice const &,
+          Args &&...>)
+    requires typelist_applicable<Fn, choice const &, Args &&...>
+  {
+    using type = detail::_sum_apply_result<T, decltype(fn), choice const &, Args &&...>::type;
+    return detail::apply_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn), FWD(args)...);
+  }
+
+  /**
+   * @brief TODO
+   *
+   * @tparam T TODO
+   * @tparam Fn TODO
+   * @tparam Args TODO
+   * @param fn TODO
+   * @param args TODO
+   * @return TODO
+   */
+  template <typename T, typename Fn, typename... Args>
+  [[nodiscard]] constexpr auto apply_r(Fn &&fn, Args &&...args) && noexcept(
+      detail::_is_nothrow_rts_applicable<
+          typename detail::_sum_apply_result<T, decltype(fn), choice &&, Args &&...>::type, Fn &&, choice &&,
+          Args &&...>)
+    requires typelist_applicable<Fn, choice &&, Args &&...>
+  {
+    using type = detail::_sum_apply_result<T, decltype(fn), choice &&, Args &&...>::type;
+    return detail::apply_variadic_union<type, typename _impl::data_t>(::std::move(_impl::data), _impl::index, FWD(fn),
+                                                                      FWD(args)...);
+  }
+
+  /**
+   * @brief TODO
+   *
+   * @tparam T TODO
+   * @tparam Fn TODO
+   * @tparam Args TODO
+   * @param fn TODO
+   * @param args TODO
+   * @return TODO
+   */
+  template <typename T, typename Fn, typename... Args>
+  [[nodiscard]] constexpr auto apply_r(Fn &&fn, Args &&...args) const && noexcept(
+      detail::_is_nothrow_rts_applicable<
+          typename detail::_sum_apply_result<T, decltype(fn), choice const &&, Args &&...>::type, Fn &&,
+          choice const &&, Args &&...>)
+    requires typelist_applicable<Fn, choice const &&, Args &&...>
+  {
+    using type = detail::_sum_apply_result<T, decltype(fn), choice const &&, Args &&...>::type;
+    return detail::apply_variadic_union<type, typename _impl::data_t>(::std::move(_impl::data), _impl::index, FWD(fn),
+                                                                      FWD(args)...);
   }
 
   /**
    * @brief TODO
    *
    * @tparam Fn TODO
+   * @tparam Args TODO
    * @param fn TODO
+   * @param args TODO
    * @return TODO
    */
-  template <typename Fn>
-  [[nodiscard]] constexpr auto apply_type(Fn &&fn) const && noexcept(
+  template <typename Fn, typename... Args>
+  [[nodiscard]] constexpr auto apply_type(Fn &&fn, Args &&...args) & noexcept(
+      detail::_is_nothrow_rtst_invocable<
+          typename detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>, choice &,
+                                                   Args &&...>::type,
+          detail::_apply_type_fn<Fn>, choice &, Args &&...>) ->
+      typename detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>, choice &,
+                                               Args &&...>::type
+    requires detail::_typelist_type_invocable<detail::_apply_type_fn<Fn>, choice &, Args &&...>
+  {
+    using type = detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>, choice &,
+                                                 Args &&...>::type;
+    return detail::invoke_type_variadic_union<type, typename _impl::data_t>(
+        _impl::data, _impl::index, detail::_apply_type_fn<Fn>{FWD(fn)}, FWD(args)...);
+  }
+
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @tparam Args TODO
+   * @param fn TODO
+   * @param args TODO
+   * @return TODO
+   */
+  template <typename Fn, typename... Args>
+  [[nodiscard]] constexpr auto apply_type(Fn &&fn, Args &&...args) const & noexcept(
       detail::_is_nothrow_rtst_invocable<
           typename detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>,
-                                                   choice const &&>::type,
-          detail::_apply_type_fn<Fn>, choice const &&>) ->
+                                                   choice const &, Args &&...>::type,
+          detail::_apply_type_fn<Fn>, choice const &, Args &&...>) ->
       typename detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>,
-                                               choice const &&>::type
-    requires detail::_typelist_type_invocable<detail::_apply_type_fn<Fn>, choice const &&>
+                                               choice const &, Args &&...>::type
+    requires detail::_typelist_type_invocable<detail::_apply_type_fn<Fn>, choice const &, Args &&...>
   {
     using type = detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>,
-                                                 choice const &&>::type;
-    return detail::invoke_type_variadic_union<type, typename _impl::data_t>(::std::move(_impl::data), _impl::index,
-                                                                            detail::_apply_type_fn<Fn>{FWD(fn)});
+                                                 choice const &, Args &&...>::type;
+    return detail::invoke_type_variadic_union<type, typename _impl::data_t>(
+        _impl::data, _impl::index, detail::_apply_type_fn<Fn>{FWD(fn)}, FWD(args)...);
+  }
+
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @tparam Args TODO
+   * @param fn TODO
+   * @param args TODO
+   * @return TODO
+   */
+  template <typename Fn, typename... Args>
+  [[nodiscard]] constexpr auto apply_type(Fn &&fn, Args &&...args) && noexcept(
+      detail::_is_nothrow_rtst_invocable<
+          typename detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>, choice &&,
+                                                   Args &&...>::type,
+          detail::_apply_type_fn<Fn>, choice &&, Args &&...>) ->
+      typename detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>, choice &&,
+                                               Args &&...>::type
+    requires detail::_typelist_type_invocable<detail::_apply_type_fn<Fn>, choice &&, Args &&...>
+  {
+    using type = detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>, choice &&,
+                                                 Args &&...>::type;
+    return detail::invoke_type_variadic_union<type, typename _impl::data_t>(
+        ::std::move(_impl::data), _impl::index, detail::_apply_type_fn<Fn>{FWD(fn)}, FWD(args)...);
+  }
+
+  /**
+   * @brief TODO
+   *
+   * @tparam Fn TODO
+   * @tparam Args TODO
+   * @param fn TODO
+   * @param args TODO
+   * @return TODO
+   */
+  template <typename Fn, typename... Args>
+  [[nodiscard]] constexpr auto apply_type(Fn &&fn, Args &&...args) const && noexcept(
+      detail::_is_nothrow_rtst_invocable<
+          typename detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>,
+                                                   choice const &&, Args &&...>::type,
+          detail::_apply_type_fn<Fn>, choice const &&, Args &&...>) ->
+      typename detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>,
+                                               choice const &&, Args &&...>::type
+    requires detail::_typelist_type_invocable<detail::_apply_type_fn<Fn>, choice const &&, Args &&...>
+  {
+    using type = detail::_sum_invoke_type_result<detail::_apply_autodetect_tag, detail::_apply_type_fn<Fn>,
+                                                 choice const &&, Args &&...>::type;
+    return detail::invoke_type_variadic_union<type, typename _impl::data_t>(
+        ::std::move(_impl::data), _impl::index, detail::_apply_type_fn<Fn>{FWD(fn)}, FWD(args)...);
   }
 
   /**
@@ -482,17 +516,19 @@ struct choice<Ts...> : sum<Ts...> {
    *
    * @tparam Ret TODO
    * @tparam Fn TODO
+   * @tparam Args TODO
    * @param fn TODO
+   * @param args TODO
    * @return TODO
    */
-  template <typename Ret, typename Fn>
-  [[nodiscard]] constexpr auto
-  apply_type_r(Fn &&fn) & noexcept(detail::_is_nothrow_rtst_invocable<Ret, detail::_apply_type_fn<Fn>, choice &>) -> Ret
-    requires detail::_typelist_type_invocable_r<Ret, detail::_apply_type_fn<Fn>, choice &>
+  template <typename Ret, typename Fn, typename... Args>
+  [[nodiscard]] constexpr auto apply_type_r(Fn &&fn, Args &&...args) & noexcept(
+      detail::_is_nothrow_rtst_invocable<Ret, detail::_apply_type_fn<Fn>, choice &, Args &&...>) -> Ret
+    requires detail::_typelist_type_invocable_r<Ret, detail::_apply_type_fn<Fn>, choice &, Args &&...>
   {
-    using type = detail::_sum_invoke_type_result<Ret, detail::_apply_type_fn<Fn>, choice &>::type;
-    return detail::invoke_type_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index,
-                                                                            detail::_apply_type_fn<Fn>{FWD(fn)});
+    using type = detail::_sum_invoke_type_result<Ret, detail::_apply_type_fn<Fn>, choice &, Args &&...>::type;
+    return detail::invoke_type_variadic_union<type, typename _impl::data_t>(
+        _impl::data, _impl::index, detail::_apply_type_fn<Fn>{FWD(fn)}, FWD(args)...);
   }
 
   /**
@@ -500,17 +536,19 @@ struct choice<Ts...> : sum<Ts...> {
    *
    * @tparam Ret TODO
    * @tparam Fn TODO
+   * @tparam Args TODO
    * @param fn TODO
+   * @param args TODO
    * @return TODO
    */
-  template <typename Ret, typename Fn>
-  [[nodiscard]] constexpr auto apply_type_r(Fn &&fn) const & noexcept(
-      detail::_is_nothrow_rtst_invocable<Ret, detail::_apply_type_fn<Fn>, choice const &>) -> Ret
-    requires detail::_typelist_type_invocable_r<Ret, detail::_apply_type_fn<Fn>, choice const &>
+  template <typename Ret, typename Fn, typename... Args>
+  [[nodiscard]] constexpr auto apply_type_r(Fn &&fn, Args &&...args) const & noexcept(
+      detail::_is_nothrow_rtst_invocable<Ret, detail::_apply_type_fn<Fn>, choice const &, Args &&...>) -> Ret
+    requires detail::_typelist_type_invocable_r<Ret, detail::_apply_type_fn<Fn>, choice const &, Args &&...>
   {
-    using type = detail::_sum_invoke_type_result<Ret, detail::_apply_type_fn<Fn>, choice const &>::type;
-    return detail::invoke_type_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index,
-                                                                            detail::_apply_type_fn<Fn>{FWD(fn)});
+    using type = detail::_sum_invoke_type_result<Ret, detail::_apply_type_fn<Fn>, choice const &, Args &&...>::type;
+    return detail::invoke_type_variadic_union<type, typename _impl::data_t>(
+        _impl::data, _impl::index, detail::_apply_type_fn<Fn>{FWD(fn)}, FWD(args)...);
   }
 
   /**
@@ -518,18 +556,19 @@ struct choice<Ts...> : sum<Ts...> {
    *
    * @tparam Ret TODO
    * @tparam Fn TODO
+   * @tparam Args TODO
    * @param fn TODO
+   * @param args TODO
    * @return TODO
    */
-  template <typename Ret, typename Fn>
-  [[nodiscard]] constexpr auto
-  apply_type_r(Fn &&fn) && noexcept(detail::_is_nothrow_rtst_invocable<Ret, detail::_apply_type_fn<Fn>, choice &&>)
-      -> Ret
-    requires detail::_typelist_type_invocable_r<Ret, detail::_apply_type_fn<Fn>, choice &&>
+  template <typename Ret, typename Fn, typename... Args>
+  [[nodiscard]] constexpr auto apply_type_r(Fn &&fn, Args &&...args) && noexcept(
+      detail::_is_nothrow_rtst_invocable<Ret, detail::_apply_type_fn<Fn>, choice &&, Args &&...>) -> Ret
+    requires detail::_typelist_type_invocable_r<Ret, detail::_apply_type_fn<Fn>, choice &&, Args &&...>
   {
-    using type = detail::_sum_invoke_type_result<Ret, detail::_apply_type_fn<Fn>, choice &&>::type;
-    return detail::invoke_type_variadic_union<type, typename _impl::data_t>(::std::move(_impl::data), _impl::index,
-                                                                            detail::_apply_type_fn<Fn>{FWD(fn)});
+    using type = detail::_sum_invoke_type_result<Ret, detail::_apply_type_fn<Fn>, choice &&, Args &&...>::type;
+    return detail::invoke_type_variadic_union<type, typename _impl::data_t>(
+        ::std::move(_impl::data), _impl::index, detail::_apply_type_fn<Fn>{FWD(fn)}, FWD(args)...);
   }
 
   /**
@@ -537,17 +576,19 @@ struct choice<Ts...> : sum<Ts...> {
    *
    * @tparam Ret TODO
    * @tparam Fn TODO
+   * @tparam Args TODO
    * @param fn TODO
+   * @param args TODO
    * @return TODO
    */
-  template <typename Ret, typename Fn>
-  [[nodiscard]] constexpr auto apply_type_r(Fn &&fn) const && noexcept(
-      detail::_is_nothrow_rtst_invocable<Ret, detail::_apply_type_fn<Fn>, choice const &&>) -> Ret
-    requires detail::_typelist_type_invocable_r<Ret, detail::_apply_type_fn<Fn>, choice const &&>
+  template <typename Ret, typename Fn, typename... Args>
+  [[nodiscard]] constexpr auto apply_type_r(Fn &&fn, Args &&...args) const && noexcept(
+      detail::_is_nothrow_rtst_invocable<Ret, detail::_apply_type_fn<Fn>, choice const &&, Args &&...>) -> Ret
+    requires detail::_typelist_type_invocable_r<Ret, detail::_apply_type_fn<Fn>, choice const &&, Args &&...>
   {
-    using type = detail::_sum_invoke_type_result<Ret, detail::_apply_type_fn<Fn>, choice const &&>::type;
-    return detail::invoke_type_variadic_union<type, typename _impl::data_t>(::std::move(_impl::data), _impl::index,
-                                                                            detail::_apply_type_fn<Fn>{FWD(fn)});
+    using type = detail::_sum_invoke_type_result<Ret, detail::_apply_type_fn<Fn>, choice const &&, Args &&...>::type;
+    return detail::invoke_type_variadic_union<type, typename _impl::data_t>(
+        ::std::move(_impl::data), _impl::index, detail::_apply_type_fn<Fn>{FWD(fn)}, FWD(args)...);
   }
 
   // NOTE Monadic operations, only `and_then` and `transform` are supported

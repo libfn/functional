@@ -8,6 +8,7 @@
 
 #include <catch2/catch_all.hpp>
 
+#include <tuple>
 #include <utility>
 
 namespace {
@@ -945,5 +946,395 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
     static_assert(not noexcept(
         std::declval<fn::optional<fn::sum_for<MoveNothrow, int>> &>().transform([](auto v) noexcept { return v; })));
     SUCCEED();
+  }
+}
+
+namespace {
+template <typename S, typename Fn, typename... Args>
+concept can_apply = requires(S s, Fn fn, Args... args) { FWD(s).apply(FWD(fn), FWD(args)...); };
+
+template <typename S, typename R, typename Fn>
+concept can_apply_r = requires(S s, Fn fn) { FWD(s).template apply_r<R>(FWD(fn)); };
+
+template <typename S, typename Fn, typename... Args>
+concept can_apply_type = requires(S s, Fn fn, Args... args) { FWD(s).apply_type(FWD(fn), FWD(args)...); };
+
+template <typename S, typename R, typename Fn, typename... Args>
+concept can_apply_type_r
+    = requires(S s, Fn fn, Args... args) { FWD(s).template apply_type_r<R>(FWD(fn), FWD(args)...); };
+} // anonymous namespace
+
+TEST_CASE("optional apply", "[optional][apply]")
+{
+  using fn::optional;
+
+  // both arms are required outright: the engaged arm receives the value as fn::apply hands it
+  // over, the empty arm is invoked without it
+  constexpr auto arms = fn::overload{[](int v) noexcept -> int { return v; }, []() noexcept -> int { return -1; }};
+  optional<int> a{42};
+  optional<int> e{std::nullopt};
+
+  SECTION("noexcept")
+  {
+    static_assert(noexcept(a.apply(arms)));
+    static_assert(noexcept(std::move(a).apply(arms)));
+    static_assert(noexcept(a.apply_r<long>(arms)));
+    constexpr auto throwing
+        = fn::overload{[](int v) noexcept(false) -> int { return v; }, []() noexcept -> int { return -1; }};
+    static_assert(not noexcept(a.apply(throwing)));
+    static_assert(not noexcept(a.apply_r<long>(throwing)));
+    SUCCEED();
+  }
+
+  SECTION("both arms required")
+  {
+    static_assert(can_apply<optional<int> &, decltype(arms) const &>);
+    static_assert(not can_apply<optional<int> &, decltype(fn::overload{[](int) {}}) const &>);
+    static_assert(not can_apply<optional<int> &, decltype(fn::overload{[]() {}}) const &>);
+    // one generic arm serves both states
+    static_assert(can_apply<optional<int> &, decltype([](auto &&...) {}) const &>);
+
+    CHECK(a.apply(arms) == 42);
+    CHECK(e.apply(arms) == -1);
+
+    SECTION("constexpr")
+    {
+      static_assert(optional<int>{42}.apply(arms) == 42);
+      static_assert(optional<int>{std::nullopt}.apply(arms) == -1);
+      SUCCEED();
+    }
+  }
+
+  SECTION("value categories")
+  {
+    CHECK(a.apply(fn::overload{[]() -> bool { throw 1; }, //
+                               [](int &) -> bool { return true; }, [](int const &) -> bool { throw 0; },
+                               [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; }}));
+    CHECK(std::as_const(a).apply(fn::overload{[]() -> bool { throw 1; }, //
+                                              [](int &) -> bool { throw 0; }, [](int const &) -> bool { return true; },
+                                              [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; }}));
+    CHECK(std::move(std::as_const(a))
+              .apply(fn::overload{[]() -> bool { throw 1; }, //
+                                  [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
+                                  [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { return true; }}));
+    CHECK(std::move(a).apply(fn::overload{[]() -> bool { throw 1; }, //
+                                          [](int &) -> bool { throw 0; }, [](int const &) -> bool { throw 0; },
+                                          [](int &&) -> bool { return true; }, [](int const &&) -> bool { throw 0; }}));
+
+    SECTION("constexpr")
+    {
+      // one result type across both arms is the rule, so selection is encoded in values
+      constexpr optional<int> b{42};
+      constexpr auto categories = fn::overload{[]() -> int { return 0; }, //
+                                               [](int &) -> int { return 1; }, [](int const &) -> int { return 2; },
+                                               [](int &&) -> int { return 3; }, [](int const &&) -> int { return 4; }};
+      static_assert(b.apply(categories) == 2);
+      static_assert(std::move(b).apply(categories) == 4);
+      SUCCEED();
+    }
+  }
+
+  SECTION("extra arguments")
+  {
+    constexpr auto xarms
+        = fn::overload{[](int v, int x) noexcept -> int { return v + x; }, [](int x) noexcept -> int { return -x; }};
+    CHECK(a.apply(xarms, 2) == 44);
+    CHECK(e.apply(xarms, 2) == -2);
+
+    SECTION("constexpr")
+    {
+      static_assert(optional<int>{42}.apply(xarms, 2) == 44);
+      static_assert(optional<int>{std::nullopt}.apply(xarms, 2) == -2);
+      SUCCEED();
+    }
+  }
+
+  SECTION("pack payload")
+  {
+    using P = fn::pack<int, int>;
+    optional<P> p{std::in_place, fn::pack{6, 7}};
+    constexpr auto parms
+        = fn::overload{[](int x, int y) noexcept -> int { return x * y; }, []() noexcept -> int { return -1; }};
+    CHECK(p.apply(parms) == 42);
+    CHECK(optional<P>{std::nullopt}.apply(parms) == -1);
+
+    SECTION("constexpr")
+    {
+      static_assert(optional<P>{std::in_place, fn::pack{6, 7}}.apply(parms) == 42);
+      SUCCEED();
+    }
+  }
+
+  SECTION("tuple-like payload")
+  {
+    using T = std::tuple<int, char>;
+    optional<T> t{std::in_place, 40, char(2)};
+    constexpr auto tarms
+        = fn::overload{[](int x, char y) noexcept -> int { return x + y; }, []() noexcept -> int { return -1; }};
+    CHECK(t.apply(tarms) == 42);
+    // pass-whole still serves a whole-tuple arm on the untagged path (contrast apply_type)
+    constexpr auto whole
+        = fn::overload{[](T const &v) noexcept -> int { return std::get<0>(v); }, []() noexcept -> int { return -1; }};
+    CHECK(t.apply(whole) == 40);
+
+    SECTION("constexpr")
+    {
+      static_assert(optional<T>{std::in_place, 40, char(2)}.apply(tarms) == 42);
+      SUCCEED();
+    }
+  }
+
+  SECTION("sum payload")
+  {
+    using S = fn::sum<bool, int>;
+    optional<S> s{std::in_place, S{42}};
+    constexpr auto sarms = fn::overload{[](bool) noexcept -> int { return 1; }, [](int) noexcept -> int { return 2; },
+                                        []() noexcept -> int { return -1; }};
+    CHECK(s.apply(sarms) == 2);
+    CHECK(optional<S>{std::nullopt}.apply(sarms) == -1);
+
+    SECTION("constexpr")
+    {
+      static_assert(optional<S>{std::in_place, S{42}}.apply(sarms) == 2);
+      SUCCEED();
+    }
+  }
+
+  SECTION("reference optional")
+  {
+    int x = 41;
+    optional<int &> r{x};
+    constexpr auto rarms
+        = fn::overload{[](int &v) noexcept -> int { return v + 1; }, []() noexcept -> int { return -1; }};
+    CHECK(r.apply(rarms) == 42);
+    CHECK(optional<int &>{std::nullopt}.apply(rarms) == -1);
+    CHECK(r.apply_r<long>(rarms) == 42L);
+  }
+
+  SECTION("apply_r")
+  {
+    static_assert(std::is_same_v<long, decltype(a.apply_r<long>(arms))>);
+    CHECK(a.apply_r<long>(arms) == 42L);
+    CHECK(e.apply_r<long>(arms) == -1L);
+
+    // the conversion to Ret is part of the question
+    static_assert(not can_apply_r<optional<int> &, char *, decltype(arms) const &>);
+    static_assert(can_apply_r<optional<int> &, long, decltype(arms) const &>);
+
+    SECTION("constexpr")
+    {
+      static_assert(optional<int>{42}.apply_r<long>(arms) == 42L);
+      SUCCEED();
+    }
+  }
+}
+
+TEST_CASE("optional apply_type", "[optional][apply_type]")
+{
+  using fn::optional;
+  using std::in_place_t;
+  using std::nullopt_t;
+
+  // the tags name the two states: the engaged arm receives std::in_place followed by the value,
+  // the empty arm std::nullopt alone
+  constexpr auto arms
+      = fn::overload{[](in_place_t, int v) noexcept -> int { return v; }, [](nullopt_t) noexcept -> int { return -1; }};
+  optional<int> a{42};
+  optional<int> e{std::nullopt};
+
+  SECTION("noexcept")
+  {
+    static_assert(noexcept(a.apply_type(arms)));
+    static_assert(noexcept(std::move(a).apply_type(arms)));
+    static_assert(noexcept(a.apply_type_r<long>(arms)));
+    constexpr auto throwing = fn::overload{[](in_place_t, int v) noexcept(false) -> int { return v; },
+                                           [](nullopt_t) noexcept -> int { return -1; }};
+    static_assert(not noexcept(a.apply_type(throwing)));
+    static_assert(not noexcept(a.apply_type_r<long>(throwing)));
+    SUCCEED();
+  }
+
+  SECTION("exhaustive over both states")
+  {
+    static_assert(can_apply_type<optional<int> &, decltype(arms) const &>);
+    static_assert(not can_apply_type<optional<int> &, decltype(fn::overload{[](in_place_t, int) {}}) const &>);
+    static_assert(not can_apply_type<optional<int> &, decltype(fn::overload{[](nullopt_t) {}}) const &>);
+    // the tags never convert: arms keyed by a different tag kind are not served
+    static_assert(not can_apply_type<optional<int> &, decltype(fn::overload{[](std::in_place_type_t<int>, int) {},
+                                                                            [](nullopt_t) {}}) const &>);
+
+    // the tags reach the arms as prvalues, so rvalue-tag arms are served - probe and deed agree
+    constexpr auto rv_tag = fn::overload{[](in_place_t &&, int v) noexcept -> int { return v; },
+                                         [](nullopt_t &&) noexcept -> int { return -1; }};
+    static_assert(can_apply_type<optional<int> &, decltype(rv_tag) const &>);
+    CHECK(a.apply_type(rv_tag) == 42);
+    CHECK(e.apply_type(rv_tag) == -1);
+
+    CHECK(a.apply_type(arms) == 42);
+    CHECK(e.apply_type(arms) == -1);
+
+    SECTION("constexpr")
+    {
+      static_assert(optional<int>{42}.apply_type(arms) == 42);
+      static_assert(optional<int>{std::nullopt}.apply_type(arms) == -1);
+      SUCCEED();
+    }
+  }
+
+  SECTION("value categories")
+  {
+    CHECK(a.apply_type(
+        fn::overload{[](nullopt_t) -> bool { throw 1; }, //
+                     [](in_place_t, int &) -> bool { return true; }, [](in_place_t, int const &) -> bool { throw 0; },
+                     [](in_place_t, int &&) -> bool { throw 0; }, [](in_place_t, int const &&) -> bool { throw 0; }}));
+    CHECK(std::as_const(a).apply_type(
+        fn::overload{[](nullopt_t) -> bool { throw 1; }, //
+                     [](in_place_t, int &) -> bool { throw 0; }, [](in_place_t, int const &) -> bool { return true; },
+                     [](in_place_t, int &&) -> bool { throw 0; }, [](in_place_t, int const &&) -> bool { throw 0; }}));
+    CHECK(std::move(std::as_const(a))
+              .apply_type(fn::overload{
+                  [](nullopt_t) -> bool { throw 1; }, //
+                  [](in_place_t, int &) -> bool { throw 0; }, [](in_place_t, int const &) -> bool { throw 0; },
+                  [](in_place_t, int &&) -> bool { throw 0; }, [](in_place_t, int const &&) -> bool { return true; }}));
+    CHECK(std::move(a).apply_type(fn::overload{
+        [](nullopt_t) -> bool { throw 1; }, //
+        [](in_place_t, int &) -> bool { throw 0; }, [](in_place_t, int const &) -> bool { throw 0; },
+        [](in_place_t, int &&) -> bool { return true; }, [](in_place_t, int const &&) -> bool { throw 0; }}));
+
+    SECTION("constexpr")
+    {
+      // one result type across both arms is the rule, so selection is encoded in values
+      constexpr optional<int> b{42};
+      constexpr auto categories = fn::overload{
+          [](nullopt_t) -> int { return 0; }, //
+          [](in_place_t, int &) -> int { return 1; }, [](in_place_t, int const &) -> int { return 2; },
+          [](in_place_t, int &&) -> int { return 3; }, [](in_place_t, int const &&) -> int { return 4; }};
+      static_assert(b.apply_type(categories) == 2);
+      static_assert(std::move(b).apply_type(categories) == 4);
+      SUCCEED();
+    }
+  }
+
+  SECTION("pack payload")
+  {
+    // the arm receives (tag, elements...)
+    using P = fn::pack<int, int>;
+    optional<P> p{std::in_place, fn::pack{6, 7}};
+    constexpr auto parms = fn::overload{[](in_place_t, int x, int y) noexcept -> int { return x * y; },
+                                        [](nullopt_t) noexcept -> int { return -1; }};
+    CHECK(p.apply_type(parms) == 42);
+    CHECK(optional<P>{std::nullopt}.apply_type(parms) == -1);
+
+    // the optional's category reaches the elements
+    CHECK(p.apply_type(fn::overload{[](nullopt_t) -> bool { throw 1; },
+                                    [](in_place_t, int &, int &) -> bool { return true; },
+                                    [](in_place_t, int const &, int const &) -> bool { throw 0; }}));
+    CHECK(std::as_const(p).apply_type(fn::overload{[](nullopt_t) -> bool { throw 1; },
+                                                   [](in_place_t, int &, int &) -> bool { throw 0; },
+                                                   [](in_place_t, int const &, int const &) -> bool { return true; }}));
+
+    SECTION("constexpr")
+    {
+      static_assert(optional<P>{std::in_place, fn::pack{6, 7}}.apply_type(parms) == 42);
+      SUCCEED();
+    }
+  }
+
+  SECTION("tuple-like payload")
+  {
+    using T = std::tuple<int, char>;
+    optional<T> t{std::in_place, 40, char(2)};
+    constexpr auto tarms = fn::overload{[](in_place_t, int x, char y) noexcept -> int { return x + y; },
+                                        [](nullopt_t) noexcept -> int { return -1; }};
+    CHECK(t.apply_type(tarms) == 42);
+
+    // the elements form is the row's one signature: an arm for the whole tuple is not served
+    static_assert(
+        not can_apply_type<optional<T> &, decltype(fn::overload{[](in_place_t, T const &) -> int { return 0; },
+                                                                [](nullopt_t) -> int { return 0; }}) const &>);
+
+    SECTION("constexpr")
+    {
+      static_assert(optional<T>{std::in_place, 40, char(2)}.apply_type(tarms) == 42);
+      SUCCEED();
+    }
+  }
+
+  SECTION("sum payload")
+  {
+    // a sum payload dispatches under the tag, and its exhaustiveness composes
+    using S = fn::sum_for<int, Xint>;
+    optional<S> s{std::in_place, S{42}};
+    constexpr auto sarms
+        = fn::overload{[](in_place_t, Xint const &) noexcept -> int { return 1; },
+                       [](in_place_t, int) noexcept -> int { return 2; }, [](nullopt_t) noexcept -> int { return -1; }};
+    CHECK(s.apply_type(sarms) == 2);
+    CHECK(optional<S>{std::nullopt}.apply_type(sarms) == -1);
+
+    constexpr auto no_xint
+        = fn::overload{[](in_place_t, int) noexcept -> int { return 2; }, [](nullopt_t) noexcept -> int { return -1; }};
+    static_assert(not can_apply_type<optional<S> &, decltype(no_xint) const &>);
+
+    // within the payload the dispatch is the value path: over sum<bool, int> a lone int arm
+    // absorbs the bool alternative - the tag guards the optional's row, not the sum's
+    static_assert(can_apply_type<optional<fn::sum<bool, int>> &,
+                                 decltype(fn::overload{[](in_place_t, int) -> int { return 0; },
+                                                       [](nullopt_t) -> int { return 0; }}) const &>);
+
+    SECTION("constexpr")
+    {
+      static_assert(optional<S>{std::in_place, S{42}}.apply_type(sarms) == 2);
+      SUCCEED();
+    }
+  }
+
+  SECTION("reference optional")
+  {
+    int x = 41;
+    optional<int &> r{x};
+    constexpr auto rarms = fn::overload{[](in_place_t, int &v) noexcept -> int { return v + 1; },
+                                        [](nullopt_t) noexcept -> int { return -1; }};
+    CHECK(r.apply_type(rarms) == 42);
+    CHECK(optional<int &>{std::nullopt}.apply_type(rarms) == -1);
+    CHECK(r.apply_type_r<long>(rarms) == 42L);
+  }
+
+  SECTION("extra arguments")
+  {
+    // trailing arguments follow either arm's content - the nullopt arm receives (tag, extras...)
+    constexpr auto xarms = fn::overload{[](in_place_t, int v, int x) noexcept -> int { return v + x; },
+                                        [](nullopt_t, int x) noexcept -> int { return -x; }};
+    CHECK(a.apply_type(xarms, 2) == 44);
+    CHECK(e.apply_type(xarms, 2) == -2);
+    CHECK(a.apply_type_r<long>(xarms, 2) == 44L);
+    static_assert(noexcept(a.apply_type(xarms, 2)));
+
+    // an arm set that does not take the extra answers non-viable
+    static_assert(not can_apply_type<optional<int> &, decltype(arms) const &, int>);
+    static_assert(can_apply_type<optional<int> &, decltype(xarms) const &, int>);
+
+    SECTION("constexpr")
+    {
+      static_assert(optional<int>{42}.apply_type(xarms, 2) == 44);
+      static_assert(optional<int>{std::nullopt}.apply_type(xarms, 2) == -2);
+      SUCCEED();
+    }
+  }
+
+  SECTION("apply_type_r")
+  {
+    static_assert(std::is_same_v<long, decltype(a.apply_type_r<long>(arms))>);
+    CHECK(a.apply_type_r<long>(arms) == 42L);
+    CHECK(e.apply_type_r<long>(arms) == -1L);
+
+    // the conversion to Ret is part of the question
+    static_assert(not can_apply_type_r<optional<int> &, char *, decltype(arms) const &>);
+    static_assert(can_apply_type_r<optional<int> &, long, decltype(arms) const &>);
+
+    SECTION("constexpr")
+    {
+      static_assert(optional<int>{42}.apply_type_r<long>(arms) == 42L);
+      SUCCEED();
+    }
   }
 }
