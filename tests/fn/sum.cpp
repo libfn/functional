@@ -230,6 +230,8 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     static_assert(not std::is_default_constructible_v<sum<>>); // the deleted default ctor is the point
     static_assert(std::is_nothrow_copy_constructible_v<sum<>>);
     static_assert(std::is_nothrow_move_constructible_v<sum<>>);
+    static_assert(std::is_nothrow_copy_assignable_v<sum<>>);
+    static_assert(std::is_nothrow_move_assignable_v<sum<>>);
     static_assert(std::is_nothrow_destructible_v<sum<>>);
     SUCCEED();
   }

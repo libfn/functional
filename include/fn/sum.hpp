@@ -176,6 +176,8 @@ template <> struct sum<> final {
   constexpr ~sum() noexcept = default;
   constexpr sum(sum const &) noexcept = default;
   constexpr sum(sum &&) noexcept = default;
+  constexpr sum &operator=(sum const &) noexcept = default;
+  constexpr sum &operator=(sum &&) noexcept = default;
 
   static constexpr ::std::size_t size = 0;
   template <typename T> static constexpr bool has_type = false;

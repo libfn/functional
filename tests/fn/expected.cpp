@@ -3792,3 +3792,102 @@ TEST_CASE("expected apply_type", "[expected][apply_type]")
     }
   }
 }
+
+namespace {
+// Instantiating this callable for any argument is a dependent hard error: a verb that compiles
+// while receiving it provably never instantiates its callback.
+struct Poison final {
+  template <typename T> constexpr void operator()(T &&) const { static_assert(sizeof(T) == 0); }
+};
+
+template <typename S, typename Fn>
+concept can_and_then = requires(S s, Fn fn) { FWD(s).and_then(FWD(fn)); };
+
+template <typename S, typename Fn>
+concept can_transform = requires(S s, Fn fn) { FWD(s).transform(FWD(fn)); };
+
+template <typename S, typename Fn>
+concept can_or_else = requires(S s, Fn fn) { FWD(s).or_else(FWD(fn)); };
+
+template <typename S, typename Fn>
+concept can_transform_error = requires(S s, Fn fn) { FWD(s).transform_error(FWD(fn)); };
+} // anonymous namespace
+
+TEST_CASE("expected with empty sum side", "[expected][sum]")
+{
+  using S0 = fn::sum<>;
+  constexpr Poison poison{};
+
+  SECTION("empty sum error: always engaged")
+  {
+    using E = fn::expected<int, S0>;
+    E e{42};
+    static_assert(not std::is_constructible_v<E, fn::unexpect_t>);
+
+    // transform_error and or_else short-circuit: the callback is never presented an error - not
+    // invoked, not even instantiated - and the result is *this unchanged
+    auto r1 = e.transform_error(poison);
+    static_assert(std::is_same_v<decltype(r1), E>);
+    CHECK(r1.value() == 42);
+    auto r2 = std::as_const(e).or_else(poison);
+    static_assert(std::is_same_v<decltype(r2), E>);
+    CHECK(r2.value() == 42);
+    auto r3 = std::move(e).or_else(poison);
+    CHECK(r3.value() == 42);
+    // asking answers - the defect this case pins down
+    static_assert(can_transform_error<E &, Poison const &>);
+    static_assert(can_or_else<E &, Poison const &>);
+
+    // the value side is untouched
+    CHECK(r3.transform([](int v) { return v + 1; }).value() == 43);
+
+    SECTION("constexpr")
+    {
+      static_assert(E{42}.transform_error(Poison{}).value() == 42);
+      static_assert(E{42}.or_else(Poison{}).value() == 42);
+      SUCCEED();
+    }
+  }
+
+  SECTION("empty sum error, void value")
+  {
+    using E = fn::expected<void, S0>;
+    E e{};
+    CHECK(e.transform_error(poison).has_value());
+    CHECK(e.or_else(poison).has_value());
+
+    SECTION("constexpr")
+    {
+      static_assert(E{}.transform_error(Poison{}).has_value());
+      static_assert(E{}.or_else(Poison{}).has_value());
+      SUCCEED();
+    }
+  }
+
+  SECTION("empty sum value: always error")
+  {
+    using E = fn::expected<S0, int>;
+    E e{fn::unexpect, 7};
+    static_assert(not std::is_constructible_v<E, std::in_place_t>);
+
+    // and_then and transform short-circuit the same way on the value side
+    auto r1 = e.and_then(poison);
+    static_assert(std::is_same_v<decltype(r1), E>);
+    CHECK(r1.error() == 7);
+    auto r2 = std::move(e).transform(poison);
+    static_assert(std::is_same_v<decltype(r2), E>);
+    CHECK(r2.error() == 7);
+    static_assert(can_and_then<E &, Poison const &>);
+    static_assert(can_transform<E &, Poison const &>);
+
+    // the error side is untouched
+    CHECK(r2.transform_error([](int v) { return v + 1; }).error() == 8);
+
+    SECTION("constexpr")
+    {
+      static_assert(E{fn::unexpect, 7}.and_then(Poison{}).error() == 7);
+      static_assert(E{fn::unexpect, 7}.transform(Poison{}).error() == 7);
+      SUCCEED();
+    }
+  }
+}

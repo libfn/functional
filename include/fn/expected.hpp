@@ -232,6 +232,19 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
     }
   }
 
+  // and_then, value type is the empty sum: a value can never be constructed, so the callback can
+  // never be presented one - it is left alone, not invoked and not even instantiated, and the
+  // result is *this unchanged.
+  template <typename Self, typename Fn>
+  static constexpr auto _and_then(Self &&self, Fn &&)                         //
+      noexcept(::std::is_nothrow_constructible_v<::fn::expected<T, E>, Self>) // extension
+      -> ::fn::expected<T, E>
+    requires some_sum<T> && (::std::remove_cvref_t<T>::size == 0)
+             && ::std::is_constructible_v<::fn::expected<T, E>, Self>
+  {
+    return FWD(self);
+  }
+
   // or_else, covers both void and non-void value type. The value-copy conjunct spells the
   // _value(FWD(self)) category via apply_const_lvalue_t: unlike the requires clause below, a
   // noexcept operand is not constraint-checked, so the `is_void_v<T> ||` guard could not save
@@ -284,6 +297,19 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
     }
   }
 
+  // or_else, error type is the empty sum: an error can never be constructed, so the callback can
+  // never be presented one - it is left alone, not invoked and not even instantiated, and the
+  // result is *this unchanged.
+  template <typename Self, typename Fn>
+  static constexpr auto _or_else(Self &&self, Fn &&)                          //
+      noexcept(::std::is_nothrow_constructible_v<::fn::expected<T, E>, Self>) // extension
+      -> ::fn::expected<T, E>
+    requires some_sum<E> && (::std::remove_cvref_t<E>::size == 0)
+             && ::std::is_constructible_v<::fn::expected<T, E>, Self>
+  {
+    return FWD(self);
+  }
+
   // transform, non-void value type, not a sum. In the noexcept specs of the transform and
   // transform_error overloads, only the apply and copying the untouched side can throw: the
   // new value/error is direct-non-list-initialized from the thunk's result (guaranteed elision).
@@ -315,7 +341,8 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   static constexpr auto _transform(Self &&self, Fn &&fn) //
       noexcept(noexcept(_pfn_base::_value(FWD(self)).transform(FWD(fn)))
                && ::std::is_nothrow_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>) // extension
-    requires some_sum<T> && ::fn::detail::_typelist_applicable<Fn, decltype(_pfn_base::_value(FWD(self)))>
+    requires some_sum<T> && (::std::remove_cvref_t<T>::size > 0)
+             && ::fn::detail::_typelist_applicable<Fn, decltype(_pfn_base::_value(FWD(self)))>
              && ::std::is_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
   {
     using new_value_type = decltype(_pfn_base::_value(FWD(self)).transform(FWD(fn)));
@@ -329,6 +356,19 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
                     [&fn, &self]() -> decltype(auto) { return _pfn_base::_value(FWD(self)).transform(FWD(fn)); });
     else
       return type(::fn::unexpect, _pfn_base::_error(FWD(self)));
+  }
+
+  // transform, value type is the empty sum: a value can never be constructed, so the callback can
+  // never be presented one - it is left alone, not invoked and not even instantiated, the mapping
+  // is the identity and the result is *this unchanged.
+  template <typename Self, typename Fn>
+  static constexpr auto _transform(Self &&self, Fn &&)                        //
+      noexcept(::std::is_nothrow_constructible_v<::fn::expected<T, E>, Self>) // extension
+      -> ::fn::expected<T, E>
+    requires some_sum<T> && (::std::remove_cvref_t<T>::size == 0)
+             && ::std::is_constructible_v<::fn::expected<T, E>, Self>
+  {
+    return FWD(self);
   }
 
   // transform, void value type
@@ -385,7 +425,8 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
                && (::std::is_void_v<T>
                    || ::std::is_nothrow_constructible_v<
                        T, ::fn::apply_const_lvalue_t<Self, typename _pfn_base::_value_t &&>>)) // extension
-    requires some_sum<E> && ::fn::detail::_typelist_applicable<Fn, decltype(_pfn_base::_error(FWD(self)))>
+    requires some_sum<E> && (::std::remove_cvref_t<E>::size > 0)
+             && ::fn::detail::_typelist_applicable<Fn, decltype(_pfn_base::_error(FWD(self)))>
              && (::std::is_void_v<T> || ::std::is_constructible_v<T, decltype(_pfn_base::_value(FWD(self)))>)
   {
     using new_error_type = decltype(_pfn_base::_error(FWD(self)).transform(FWD(fn)));
@@ -562,13 +603,25 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
     else
       return ::fn::detail::_apply_tagged_r<Ret, ::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
   }
+
+  // transform_error, error type is the empty sum: an error can never be constructed, so the
+  // callback can never be presented one - it is left alone, not invoked and not even instantiated,
+  // the mapping is the identity and the result is *this unchanged.
+  template <typename Self, typename Fn>
+  static constexpr auto _transform_error(Self &&self, Fn &&)                  //
+      noexcept(::std::is_nothrow_constructible_v<::fn::expected<T, E>, Self>) // extension
+      -> ::fn::expected<T, E>
+    requires some_sum<E> && (::std::remove_cvref_t<E>::size == 0)
+             && ::std::is_constructible_v<::fn::expected<T, E>, Self>
+  {
+    return FWD(self);
+  }
 };
 
 } // namespace detail
 
 // Primary template - non-void value type
 template <typename T, typename Err> class expected : private detail::_expected_base<T, Err> {
-  static_assert(not ::std::is_same_v<T, ::fn::sum<>>);
   using _base = detail::_expected_base<T, Err>;
 
   // Allow sibling _expected_base instantiations to downcast into the private base.

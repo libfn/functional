@@ -1338,3 +1338,84 @@ TEST_CASE("optional apply_type", "[optional][apply_type]")
     }
   }
 }
+
+namespace {
+// Instantiating this callable for any argument is a dependent hard error: a verb that compiles
+// while receiving it provably never instantiates its callback.
+struct Poison final {
+  template <typename T> constexpr void operator()(T &&) const { static_assert(sizeof(T) == 0); }
+};
+
+template <typename S, typename Fn>
+concept can_and_then = requires(S s, Fn fn) { FWD(s).and_then(FWD(fn)); };
+
+template <typename S, typename Fn>
+concept can_transform = requires(S s, Fn fn) { FWD(s).transform(FWD(fn)); };
+} // anonymous namespace
+
+TEST_CASE("optional of empty sum", "[optional][sum]")
+{
+  using S0 = fn::sum<>;
+  using O = fn::optional<S0>;
+  constexpr Poison poison{};
+
+  SECTION("never engaged")
+  {
+    O o{};
+    CHECK(not o.has_value());
+    O o2{std::nullopt};
+    o = o2;
+    CHECK(not o.has_value());
+    static_assert(std::is_default_constructible_v<O>);
+    static_assert(std::is_copy_assignable_v<O>);
+    // no route to an engaged state: the value can never be constructed
+    static_assert(not std::is_constructible_v<O, std::in_place_t>);
+    static_assert(not std::is_constructible_v<S0>);
+  }
+
+  SECTION("and_then and transform short-circuit")
+  {
+    // the callback is never presented a value - not invoked, not even instantiated - and the
+    // result is *this unchanged
+    O o{};
+    auto r1 = o.and_then(poison);
+    static_assert(std::is_same_v<decltype(r1), O>);
+    CHECK(not r1.has_value());
+    auto r2 = std::move(o).transform(poison);
+    static_assert(std::is_same_v<decltype(r2), O>);
+    CHECK(not r2.has_value());
+    static_assert(can_and_then<O &, Poison const &>);
+    static_assert(can_transform<O &, Poison const &>);
+
+    SECTION("constexpr")
+    {
+      static_assert(not O{}.and_then(Poison{}).has_value());
+      static_assert(not O{std::nullopt}.transform(Poison{}).has_value());
+      SUCCEED();
+    }
+  }
+
+  SECTION("or_else runs the callback")
+  {
+    // the empty state is the one inhabited state, so or_else keeps its full meaning, and the
+    // widening contract is unchanged: sum_for<sum<>, U> is U's own normal form
+    O o{};
+    auto r1 = o.or_else([]() -> O { return {}; });
+    static_assert(std::is_same_v<decltype(r1), O>);
+    CHECK(not r1.has_value());
+    auto r2 = o.or_else([]() -> fn::optional<int> { return {42}; });
+    static_assert(std::is_same_v<decltype(r2), fn::optional<fn::sum<int>>>);
+    CHECK(r2.has_value());
+    CHECK(r2.value() == fn::sum<int>{42});
+    auto r3 = o.or_else([]() -> fn::optional<fn::sum<bool, int>> { return {fn::sum<bool, int>{42}}; });
+    static_assert(std::is_same_v<decltype(r3), fn::optional<fn::sum<bool, int>>>);
+    CHECK(r3.has_value());
+
+    SECTION("constexpr")
+    {
+      static_assert(O{}.or_else([]() -> fn::optional<int> { return {42}; }).has_value());
+      static_assert(not O{}.or_else([]() -> O { return {}; }).has_value());
+      SUCCEED();
+    }
+  }
+}
