@@ -956,11 +956,12 @@ concept can_apply = requires(S s, Fn fn, Args... args) { FWD(s).apply(FWD(fn), F
 template <typename S, typename R, typename Fn>
 concept can_apply_r = requires(S s, Fn fn) { FWD(s).template apply_r<R>(FWD(fn)); };
 
-template <typename S, typename Fn>
-concept can_apply_type = requires(S s, Fn fn) { FWD(s).apply_type(FWD(fn)); };
+template <typename S, typename Fn, typename... Args>
+concept can_apply_type = requires(S s, Fn fn, Args... args) { FWD(s).apply_type(FWD(fn), FWD(args)...); };
 
-template <typename S, typename R, typename Fn>
-concept can_apply_type_r = requires(S s, Fn fn) { FWD(s).template apply_type_r<R>(FWD(fn)); };
+template <typename S, typename R, typename Fn, typename... Args>
+concept can_apply_type_r
+    = requires(S s, Fn fn, Args... args) { FWD(s).template apply_type_r<R>(FWD(fn), FWD(args)...); };
 } // anonymous namespace
 
 TEST_CASE("optional apply", "[optional][apply]")
@@ -1296,6 +1297,28 @@ TEST_CASE("optional apply_type", "[optional][apply_type]")
     CHECK(r.apply_type(rarms) == 42);
     CHECK(optional<int &>{std::nullopt}.apply_type(rarms) == -1);
     CHECK(r.apply_type_r<long>(rarms) == 42L);
+  }
+
+  SECTION("extra arguments")
+  {
+    // trailing arguments follow either arm's content - the nullopt arm receives (tag, extras...)
+    constexpr auto xarms = fn::overload{[](in_place_t, int v, int x) noexcept -> int { return v + x; },
+                                        [](nullopt_t, int x) noexcept -> int { return -x; }};
+    CHECK(a.apply_type(xarms, 2) == 44);
+    CHECK(e.apply_type(xarms, 2) == -2);
+    CHECK(a.apply_type_r<long>(xarms, 2) == 44L);
+    static_assert(noexcept(a.apply_type(xarms, 2)));
+
+    // an arm set that does not take the extra answers non-viable
+    static_assert(not can_apply_type<optional<int> &, decltype(arms) const &, int>);
+    static_assert(can_apply_type<optional<int> &, decltype(xarms) const &, int>);
+
+    SECTION("constexpr")
+    {
+      static_assert(optional<int>{42}.apply_type(xarms, 2) == 44);
+      static_assert(optional<int>{std::nullopt}.apply_type(xarms, 2) == -2);
+      SUCCEED();
+    }
   }
 
   SECTION("apply_type_r")

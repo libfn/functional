@@ -107,11 +107,12 @@ concept can_as_sum_value = requires(T v) { fn::as_sum(FWD(v)); };
 template <typename S, typename Fn>
 concept can_transform = requires(S s, Fn fn) { FWD(s).transform(fn); };
 
-template <typename S, typename Fn>
-concept can_apply_type = requires(S s, Fn fn) { FWD(s).apply_type(FWD(fn)); };
+template <typename S, typename Fn, typename... Args>
+concept can_apply_type = requires(S s, Fn fn, Args... args) { FWD(s).apply_type(FWD(fn), FWD(args)...); };
 
-template <typename S, typename R, typename Fn>
-concept can_apply_type_r = requires(S s, Fn fn) { FWD(s).template apply_type_r<R>(FWD(fn)); };
+template <typename S, typename R, typename Fn, typename... Args>
+concept can_apply_type_r
+    = requires(S s, Fn fn, Args... args) { FWD(s).template apply_type_r<R>(FWD(fn), FWD(args)...); };
 } // anonymous namespace
 
 // A sum brace-initializes the alternative it stores. That is a DESIGN DIRECTION, not an
@@ -1364,6 +1365,33 @@ TEST_CASE("sum apply_type", "[sum][apply_type]")
       static_assert(S{7}.apply_type(marms) == -7);
       static_assert(S{P{2, 3}}.apply_type(marms) == 5);
       static_assert(S{T{9, true}}.apply_type(marms) == 9);
+      SUCCEED();
+    }
+  }
+
+  SECTION("extra arguments")
+  {
+    // trailing arguments follow the alternative's unpacked content, as on apply
+    constexpr auto xarms = fn::overload{[](in_place_type_t<int>, int v, int x) noexcept -> int { return v + x; },
+                                        [](in_place_type_t<double>, double, int x) noexcept -> int { return -x; }};
+    CHECK(a.apply_type(xarms, 2) == 44);
+    CHECK(a.apply_type_r<long>(xarms, 2) == 44L);
+    static_assert(noexcept(a.apply_type(xarms, 2)));
+
+    using P = fn::pack<int, int>;
+    sum<P> p{P{2, 3}};
+    constexpr auto parms
+        = fn::overload{[](in_place_type_t<P>, int x, int y, int z) noexcept -> int { return x + y + z; }};
+    CHECK(p.apply_type(parms, 37) == 42);
+
+    // an arm set that does not take the extra answers non-viable
+    static_assert(not can_apply_type<sum<double, int> &, decltype(arms) const &, int>);
+    static_assert(can_apply_type<sum<double, int> &, decltype(xarms) const &, int>);
+
+    SECTION("constexpr")
+    {
+      static_assert(sum<double, int>{42}.apply_type(xarms, 2) == 44);
+      static_assert(sum<P>{P{2, 3}}.apply_type(parms, 37) == 42);
       SUCCEED();
     }
   }

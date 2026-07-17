@@ -3407,11 +3407,12 @@ concept can_apply = requires(S s, Fn fn, Args... args) { FWD(s).apply(FWD(fn), F
 template <typename S, typename R, typename Fn>
 concept can_apply_r = requires(S s, Fn fn) { FWD(s).template apply_r<R>(FWD(fn)); };
 
-template <typename S, typename Fn>
-concept can_apply_type = requires(S s, Fn fn) { FWD(s).apply_type(FWD(fn)); };
+template <typename S, typename Fn, typename... Args>
+concept can_apply_type = requires(S s, Fn fn, Args... args) { FWD(s).apply_type(FWD(fn), FWD(args)...); };
 
-template <typename S, typename R, typename Fn>
-concept can_apply_type_r = requires(S s, Fn fn) { FWD(s).template apply_type_r<R>(FWD(fn)); };
+template <typename S, typename R, typename Fn, typename... Args>
+concept can_apply_type_r
+    = requires(S s, Fn fn, Args... args) { FWD(s).template apply_type_r<R>(FWD(fn), FWD(args)...); };
 } // anonymous namespace
 
 TEST_CASE("expected apply", "[expected][apply]")
@@ -3743,6 +3744,35 @@ TEST_CASE("expected apply_type", "[expected][apply_type]")
     constexpr auto no_bool = fn::overload{[](in_place_t, int v) noexcept -> int { return v; },
                                           [](unexpect_t, std::string const &) noexcept -> int { return -2; }};
     static_assert(not can_apply_type<expected<int, S> &, decltype(no_bool) const &>);
+  }
+
+  SECTION("extra arguments")
+  {
+    // trailing arguments follow either arm's content - a void value arm receives (tag, extras...)
+    constexpr auto xarms = fn::overload{[](in_place_t, double v, int x) noexcept -> double { return v + x; },
+                                        [](unexpect_t, int e, int x) noexcept -> double { return -e - x; }};
+    CHECK(a.apply_type(xarms, 2) == 23.0);
+    CHECK(e.apply_type(xarms, 2) == -9.0);
+    CHECK(a.apply_type_r<long>(xarms, 2) == 23L);
+    static_assert(noexcept(a.apply_type(xarms, 2)));
+
+    // an arm set that does not take the extra answers non-viable
+    static_assert(not can_apply_type<expected<double, int> &, decltype(arms) const &, int>);
+    static_assert(can_apply_type<expected<double, int> &, decltype(xarms) const &, int>);
+
+    constexpr auto varms = fn::overload{[](in_place_t, int x) noexcept -> int { return x; },
+                                        [](unexpect_t, int e, int x) noexcept -> int { return -e - x; }};
+    expected<void, int> v{};
+    CHECK(v.apply_type(varms, 42) == 42);
+    CHECK(expected<void, int>{fn::unexpect, 7}.apply_type(varms, 2) == -9);
+
+    SECTION("constexpr")
+    {
+      static_assert(expected<double, int>{21.0}.apply_type(xarms, 2) == 23.0);
+      static_assert(expected<double, int>{fn::unexpect, 7}.apply_type(xarms, 2) == -9.0);
+      static_assert(expected<void, int>{}.apply_type(varms, 42) == 42);
+      SUCCEED();
+    }
   }
 
   SECTION("apply_type_r")
