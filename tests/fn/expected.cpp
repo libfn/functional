@@ -3962,4 +3962,56 @@ TEST_CASE("expected with empty sum side", "[expected][sum]")
       SUCCEED();
     }
   }
+
+  SECTION("widening across an empty sum side")
+  {
+    // an empty-sum side contributes nothing to the widened sum, and the arm relocating it is never
+    // named: or_else may widen away from an empty value, and either verb may take a callback whose
+    // own expected carries the empty sum
+    using E = fn::expected<S0, int>;
+    E e{fn::unexpect, 7};
+    constexpr auto widen = [](int v) noexcept -> fn::expected<int, bool> { return {-v}; };
+    auto r1 = e.or_else(widen);
+    static_assert(std::is_same_v<decltype(r1), fn::expected<fn::sum<int>, bool>>);
+    CHECK(r1.value() == fn::sum{-7});
+    static_assert(noexcept(e.or_else(widen)));
+    static_assert(not noexcept(e.or_else([](int v) -> fn::expected<int, bool> { return {-v}; })));
+
+    // or_else, callback's expected carries the empty sum value
+    using X = fn::expected<fn::sum<int>, int>;
+    constexpr auto empty_cb
+        = [](int v) noexcept -> fn::expected<S0, bool> { return fn::expected<S0, bool>{fn::unexpect, v != 0}; };
+    X x{fn::unexpect, 7};
+    auto r2 = x.or_else(empty_cb);
+    static_assert(std::is_same_v<decltype(r2), fn::expected<fn::sum<int>, bool>>);
+    CHECK(r2.error() == true);
+    X y{fn::sum<int>{42}};
+    CHECK(y.or_else(empty_cb).value() == fn::sum{42});
+    static_assert(noexcept(x.or_else(empty_cb)));
+
+    // and_then, callback's expected carries the empty sum error
+    using W = fn::expected<int, fn::sum<int>>;
+    constexpr auto unit_cb = [](int v) noexcept -> fn::expected<bool, S0> { return {v != 0}; };
+    W w{42};
+    auto r3 = w.and_then(unit_cb);
+    static_assert(std::is_same_v<decltype(r3), fn::expected<bool, fn::sum<int>>>);
+    CHECK(r3.value() == true);
+    W u{fn::unexpect, fn::sum<int>{13}};
+    CHECK(std::move(u).and_then(unit_cb).error() == fn::sum{13});
+    static_assert(noexcept(w.and_then(unit_cb)));
+
+    // ... through the void and_then as well
+    fn::expected<void, fn::sum<int>> wv{};
+    constexpr auto unit_cb0 = []() noexcept -> fn::expected<bool, S0> { return {true}; };
+    CHECK(wv.and_then(unit_cb0).value() == true);
+    static_assert(noexcept(wv.and_then(unit_cb0)));
+
+    SECTION("constexpr")
+    {
+      static_assert(E{fn::unexpect, 7}.or_else(widen).value() == fn::sum{-7});
+      static_assert(W{42}.and_then(unit_cb).value() == true);
+      static_assert(X{fn::unexpect, 7}.or_else(empty_cb).error() == true);
+      SUCCEED();
+    }
+  }
 }

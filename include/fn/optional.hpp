@@ -7,6 +7,7 @@
 #define INCLUDE_FN_OPTIONAL
 
 #include <pfn/optional.hpp>
+#include <pfn/utility.hpp>
 
 #include <fn/detail/functional.hpp>
 #include <fn/pack.hpp>
@@ -149,9 +150,32 @@ struct _nothrow_optional_or_else<T, Fn, ValArg> {
   using type = ::std::remove_cvref_t<typename _apply_result<Fn>::type>;
   using new_type = ::fn::optional<sum_for<T, typename type::value_type>>;
 
-  static constexpr bool value
+  // an empty-sum value can never exist to be relocated: that arm is unreachable, and cannot throw
+  static constexpr bool value                                          //
       = _is_nothrow_applicable<Fn>::value                              // the callback
         && _nothrow_initializable<new_type, ::std::in_place_t, ValArg> // self's value
+        && (empty_sum<typename type::value_type>
+            || _nothrow_initializable<new_type, ::std::in_place_t,
+                                      decltype(::std::declval<type>().value())>); // its value
+};
+
+// Twin of the trait above for the empty-sum or_else arm, whose body has no engaged branch: the
+// self's-value conjunct is dropped, and the callback (with the widening of its value) answers alone.
+template <typename T, typename Fn> struct _nothrow_optional_or_else_empty : ::std::false_type {};
+
+template <typename T, typename Fn>
+  requires ::std::is_same_v<::std::remove_cvref_t<typename _apply_result<Fn>::type>, ::fn::optional<T>>
+struct _nothrow_optional_or_else_empty<T, Fn> : ::std::bool_constant<_is_nothrow_applicable<Fn>::value> {};
+
+template <typename T, typename Fn>
+  requires _is_some_optional<::std::remove_cvref_t<typename _apply_result<Fn>::type> &>
+           && (not ::std::is_same_v<::std::remove_cvref_t<typename _apply_result<Fn>::type>, ::fn::optional<T>>)
+struct _nothrow_optional_or_else_empty<T, Fn> {
+  using type = ::std::remove_cvref_t<typename _apply_result<Fn>::type>;
+  using new_type = ::fn::optional<sum_for<T, typename type::value_type>>;
+
+  static constexpr bool value             //
+      = _is_nothrow_applicable<Fn>::value // the callback
         && _nothrow_initializable<new_type, ::std::in_place_t, decltype(::std::declval<type>().value())>; // its value
 };
 
@@ -232,9 +256,12 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
         return new_type{::std::in_place, *FWD(self)};
       else {
         auto t = ::fn::detail::_apply(FWD(fn));
-        if (t.has_value())
-          return new_type{::std::in_place, ::std::move(t).value()};
-        else
+        if (t.has_value()) {
+          if constexpr (not empty_sum<typename type::value_type>)
+            return new_type{::std::in_place, ::std::move(t).value()};
+          else
+            ::pfn::unreachable(); // LCOV_EXCL_LINE
+        } else
           return new_type{::std::nullopt};
       }
     }
@@ -244,9 +271,8 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
   // result - the general overload's engaged arms would have no value to copy. The widening
   // contract is unchanged: sum_for<sum<>, U> is U's own normal form.
   template <typename Self, typename Fn>
-  static constexpr auto _or_else(Self &&, Fn &&fn) //
-      noexcept(
-          ::fn::detail::_nothrow_optional_or_else<T, Fn, ::fn::apply_const_lvalue_t<Self, T &&>>::value) // extension
+  static constexpr auto _or_else(Self &&, Fn &&fn)                          //
+      noexcept(::fn::detail::_nothrow_optional_or_else_empty<T, Fn>::value) // extension
     requires empty_sum<T> && ::fn::detail::_is_applicable<Fn>::value
   {
     using type = ::std::remove_cvref_t<typename ::fn::detail::_apply_result<Fn>::type>;

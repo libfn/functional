@@ -169,6 +169,15 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     constexpr auto fn8 = []() -> fn::optional<fn::sum_for<Xint, int, long>> { throw 0; };
     static_assert(std::is_same_v<decltype(s.or_else(fn8)), fn::optional<fn::sum_for<Xint, int, long>>>);
 
+    // the callback may return an optional of the empty sum: it contributes nothing to the widened
+    // sum, and the arm relocating its value is never named
+    constexpr auto fnE = []() noexcept -> fn::optional<fn::sum<>> { return {}; };
+    static_assert(std::is_same_v<decltype(s.or_else(fnE)), fn::optional<fn::sum<int>>>);
+    CHECK(not s.or_else(fnE).has_value());
+    fn::optional<fn::sum<int>> sv{fn::sum{12}};
+    CHECK(sv.or_else(fnE).value() == fn::sum{12});
+    static_assert(noexcept(s.or_else(fnE)));
+
     // noexcept (extension): true only when the callback is nothrow-applicable, returns exactly
     // optional<sum<int>> (no widening), and *this is nothrow-constructible from itself.
     constexpr auto nothrow_same = []() noexcept -> fn::optional<fn::sum<int>> { return {std::nullopt}; };
@@ -1451,6 +1460,27 @@ TEST_CASE("optional of empty sum", "[optional][sum]")
     auto r3 = o.or_else([]() -> fn::optional<fn::sum<bool, int>> { return {fn::sum<bool, int>{42}}; });
     static_assert(std::is_same_v<decltype(r3), fn::optional<fn::sum<bool, int>>>);
     CHECK(r3.has_value());
+
+    SECTION("noexcept")
+    {
+      // there is no engaged branch, so self's value never weighs in - whatever its category -
+      // only the callback does, and the relocation of the callback's value where it widens
+      constexpr auto nothrow_same = []() noexcept -> O { return {}; };
+      constexpr auto nothrow_widen = []() noexcept -> fn::optional<int> { return {42}; };
+      static_assert(noexcept(std::declval<O &>().or_else(nothrow_same)));
+      static_assert(noexcept(std::declval<O &>().or_else(nothrow_widen)));
+      static_assert(noexcept(std::declval<O const &>().or_else(nothrow_widen)));
+      static_assert(noexcept(std::declval<O &&>().or_else(nothrow_widen)));
+      static_assert(not noexcept(std::declval<O &>().or_else([]() -> O { return {}; })));
+      static_assert(not noexcept(std::declval<O &>().or_else([]() -> fn::optional<int> { return {42}; })));
+
+      struct MoveThrows {
+        MoveThrows(MoveThrows &&) noexcept(false) {}
+      };
+      static_assert(not noexcept(
+          std::declval<O &>().or_else([]() noexcept -> fn::optional<MoveThrows> { return {std::nullopt}; })));
+      SUCCEED();
+    }
 
     SECTION("constexpr")
     {

@@ -57,23 +57,27 @@ template <typename U, typename G> struct _expected_types<::fn::expected<U, G>> {
   using error_type = G;
 };
 
-// A sum<> error is unconstructible, so an expected carrying one can never hold an error: every arm
-// that lifts one is unreachable, and what cannot run cannot throw. Guarded on the SOURCE's error
-// type - the value arms of the same expected still relocate, and still weigh.
-template <typename E, typename Type, typename... Args>
-constexpr inline bool _nothrow_error_arm = _nothrow_initializable<Type, Args...>;
-template <typename E, typename Type, typename... Args>
-  requires ::std::is_same_v<E, sum<>>
-constexpr inline bool _nothrow_error_arm<E, Type, Args...> = true;
+// A sum<> side is unconstructible, so an expected carrying one can never hold it: every arm that
+// relocates such a side - self's or a callback result's, value or error - is unreachable, and what
+// cannot run cannot throw. Keyed on the relocated side's type; the sibling arms still weigh.
+template <typename From, typename Type, typename... Args>
+constexpr inline bool _nothrow_arm = _nothrow_initializable<Type, Args...>;
+template <typename From, typename Type, typename... Args>
+  requires empty_sum<From>
+constexpr inline bool _nothrow_arm<From, Type, Args...> = true;
 
 // Carrying the callback's value across into a widened result. An expected<void, ...> has no value to
-// carry, and `declval<void>()` is not a thing to ask about.
+// carry, and `declval<void>()` is not a thing to ask about; an empty-sum value can never exist to be
+// carried, so that arm is unreachable (as in _nothrow_arm).
 template <typename Type, typename Src>
 constexpr inline bool _nothrow_carry_value
     = _nothrow_initializable<Type, ::std::in_place_t, decltype(::std::declval<Src>().value())>;
 template <typename Type, typename Src>
   requires ::std::is_void_v<typename ::std::remove_cvref_t<Src>::value_type>
 constexpr inline bool _nothrow_carry_value<Type, Src> = _nothrow_initializable<Type, ::std::in_place_t>;
+template <typename Type, typename Src>
+  requires empty_sum<typename ::std::remove_cvref_t<Src>::value_type>
+constexpr inline bool _nothrow_carry_value<Type, Src> = true;
 
 // `and_then` and `or_else` each have two arms - the callback's own expected is returned, or the two
 // error (value) types are widened into a sum - and `if constexpr` picks between them. A
@@ -104,12 +108,12 @@ struct _nothrow_and_then<E, Fn, ErrArg, ValArg...> {
   using type = ::std::remove_cvref_t<typename _apply_result<Fn, ValArg...>::type>;
   using new_type = ::fn::expected<typename type::value_type, sum_for<E, typename type::error_type>>;
 
-  static constexpr bool value
+  static constexpr bool value                        //
       = _is_nothrow_applicable<Fn, ValArg...>::value // the callback
         && _nothrow_carry_value<new_type, type>      // carrying its value across
-        && _nothrow_initializable<new_type, ::fn::unexpect_t,
-                                  decltype(::std::declval<type>().error())> // widening its error
-        && _nothrow_error_arm<E, new_type, ::fn::unexpect_t, ErrArg>;       // widening self's error
+        && _nothrow_arm<typename type::error_type, new_type, ::fn::unexpect_t,
+                        decltype(::std::declval<type>().error())> // widening its error
+        && _nothrow_arm<E, new_type, ::fn::unexpect_t, ErrArg>;   // widening self's error
 };
 
 // or_else's arms, mirrored the same way. ValArg is the type of self's value as the body relocates it
@@ -136,10 +140,10 @@ struct _nothrow_or_else<T, Fn, ErrArg, ValArg> {
   using type = ::std::remove_cvref_t<typename _apply_result<Fn, ErrArg>::type>;
   using new_type = ::fn::expected<sum_for<T, typename type::value_type>, typename type::error_type>;
 
-  static constexpr bool value
-      = _is_nothrow_applicable<Fn, ErrArg>::value                      // the callback
-        && _nothrow_initializable<new_type, ::std::in_place_t, ValArg> // widening self's value
-        && _nothrow_carry_value<new_type, type>                        // widening its value
+  static constexpr bool value                                   //
+      = _is_nothrow_applicable<Fn, ErrArg>::value               // the callback
+        && _nothrow_arm<T, new_type, ::std::in_place_t, ValArg> // widening self's value
+        && _nothrow_carry_value<new_type, type>                 // widening its value
         && _nothrow_initializable<new_type, ::fn::unexpect_t,
                                   decltype(::std::declval<type>().error())>; // carrying its error
 };
@@ -185,10 +189,14 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
             return new_type{::std::in_place, ::std::move(t).value()};
           else
             return new_type{::std::in_place};
-        else
-          return new_type{::fn::unexpect, ::std::move(t).error()};
+        else {
+          if constexpr (not empty_sum<typename type::error_type>)
+            return new_type{::fn::unexpect, ::std::move(t).error()};
+          else
+            ::pfn::unreachable(); // LCOV_EXCL_LINE
+        }
       } else {
-        if constexpr (not ::std::is_same_v<E, sum<>>)
+        if constexpr (not empty_sum<E>)
           return new_type(::fn::unexpect, _pfn_base::_error(FWD(self)));
         else
           ::pfn::unreachable(); // LCOV_EXCL_LINE
@@ -221,10 +229,14 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
             return new_type{::std::in_place, ::std::move(t).value()};
           else
             return new_type{::std::in_place};
-        else
-          return new_type{::fn::unexpect, ::std::move(t).error()};
+        else {
+          if constexpr (not empty_sum<typename type::error_type>)
+            return new_type{::fn::unexpect, ::std::move(t).error()};
+          else
+            ::pfn::unreachable(); // LCOV_EXCL_LINE
+        }
       } else {
-        if constexpr (not ::std::is_same_v<E, sum<>>)
+        if constexpr (not empty_sum<E>)
           return new_type(::fn::unexpect, _pfn_base::_error(FWD(self)));
         else
           ::pfn::unreachable(); // LCOV_EXCL_LINE
@@ -284,13 +296,19 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       static_assert(not ::std::is_void_v<typename type::value_type>);
       using new_value_type = sum_for<T, typename type::value_type>;
       using new_type = ::fn::expected<new_value_type, typename type::error_type>;
-      if (self.has_value())
-        return new_type{::std::in_place, _pfn_base::_value(FWD(self))};
-      else {
-        auto t = ::fn::detail::_apply(FWD(fn), _pfn_base::_error(FWD(self)));
-        if (t.has_value())
-          return new_type{::std::in_place, ::std::move(t).value()};
+      if (self.has_value()) {
+        if constexpr (not empty_sum<T>)
+          return new_type{::std::in_place, _pfn_base::_value(FWD(self))};
         else
+          ::pfn::unreachable(); // LCOV_EXCL_LINE
+      } else {
+        auto t = ::fn::detail::_apply(FWD(fn), _pfn_base::_error(FWD(self)));
+        if (t.has_value()) {
+          if constexpr (not empty_sum<typename type::value_type>)
+            return new_type{::std::in_place, ::std::move(t).value()};
+          else
+            ::pfn::unreachable(); // LCOV_EXCL_LINE
+        } else
           return new_type{::fn::unexpect, ::std::move(t).error()};
       }
     }
@@ -1783,11 +1801,11 @@ constexpr inline bool _nothrow_join_expected
       && _nothrow_initializable<Type, ::fn::unexpect_t, decltype(::std::declval<Lh>().error())>
       && _nothrow_initializable<Type, ::fn::unexpect_t, decltype(::std::declval<Rh>().error())>;
 
-// Lifting an operand's error into a widened error type, through the sum<> guard of _nothrow_error_arm
+// Lifting an operand's error into a widened error type, through the sum<> guard of _nothrow_arm
 // (the joins below assert the same unreachability with pfn::unreachable).
 template <typename Src, typename Err>
 constexpr inline bool _nothrow_error_lift
-    = _nothrow_error_arm<typename ::std::remove_cvref_t<Src>::error_type, Err, decltype(::std::declval<Src>().error())>;
+    = _nothrow_arm<typename ::std::remove_cvref_t<Src>::error_type, Err, decltype(::std::declval<Src>().error())>;
 
 template <typename Type, typename Err, typename Lh, typename Rh, typename... Vs>
 constexpr inline bool _nothrow_join_widened = _nothrow_initializable<Type, ::std::in_place_t, Vs...>
