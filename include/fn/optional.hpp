@@ -203,7 +203,7 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
   static constexpr auto _and_then(Self &&self, Fn &&)                      //
       noexcept(::std::is_nothrow_constructible_v<::fn::optional<T>, Self>) // extension
       -> ::fn::optional<T>
-    requires some_sum<T> && (::std::remove_cvref_t<T>::size == 0) && ::std::is_constructible_v<::fn::optional<T>, Self>
+    requires empty_sum<T> && ::std::is_constructible_v<::fn::optional<T>, Self>
   {
     return FWD(self);
   }
@@ -212,7 +212,7 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
   template <typename Self, typename Fn>
   static constexpr auto _or_else(Self &&self, Fn &&fn)                                      //
       noexcept(::fn::detail::_nothrow_optional_or_else<T, Fn, decltype(*FWD(self))>::value) // extension
-    requires((not some_sum<T>) || (::std::remove_cvref_t<T>::size > 0)) && ::fn::detail::_is_applicable<Fn>::value
+    requires(not empty_sum<T>) && ::fn::detail::_is_applicable<Fn>::value
             && ::std::is_constructible_v<T, decltype(*FWD(self))>
   {
     using type = ::std::remove_cvref_t<typename ::fn::detail::_apply_result<Fn>::type>;
@@ -247,7 +247,7 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
   static constexpr auto _or_else(Self &&, Fn &&fn) //
       noexcept(
           ::fn::detail::_nothrow_optional_or_else<T, Fn, ::fn::apply_const_lvalue_t<Self, T &&>>::value) // extension
-    requires some_sum<T> && (::std::remove_cvref_t<T>::size == 0) && ::fn::detail::_is_applicable<Fn>::value
+    requires empty_sum<T> && ::fn::detail::_is_applicable<Fn>::value
   {
     using type = ::std::remove_cvref_t<typename ::fn::detail::_apply_result<Fn>::type>;
     static_assert(_is_some_optional<type &>);
@@ -299,8 +299,7 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn)  //
       noexcept(noexcept((*FWD(self)).transform(FWD(fn)))) // extension
-    requires some_sum<T> && (::std::remove_cvref_t<T>::size > 0)
-             && ::fn::detail::_typelist_applicable<Fn, decltype(*FWD(self))>
+    requires some_sum<T> && (not empty_sum<T>) && ::fn::detail::_typelist_applicable<Fn, decltype(*FWD(self))>
   {
     using new_value_type = decltype((*FWD(self)).transform(FWD(fn)));
     using type = ::fn::optional<new_value_type>;
@@ -390,7 +389,7 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
   static constexpr auto _apply(Self &&, Fn &&fn, Args &&...args)         //
       noexcept(::fn::detail::_is_nothrow_applicable<Fn, Args...>::value) // extension
       -> decltype(auto)
-    requires some_sum<T> && (::std::remove_cvref_t<T>::size == 0) && ::fn::detail::_is_applicable<Fn, Args...>::value
+    requires empty_sum<T> && ::fn::detail::_is_applicable<Fn, Args...>::value
   {
     return ::fn::detail::_apply(FWD(fn), FWD(args)...);
   }
@@ -399,8 +398,7 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
   static constexpr auto _apply_r(Self &&, Fn &&fn, Args &&...args)              //
       noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, Args...>::value) // extension
       -> Ret
-    requires some_sum<T> && (::std::remove_cvref_t<T>::size == 0)
-             && ::fn::detail::_is_applicable_r<Ret, Fn, Args...>::value
+    requires empty_sum<T> && ::fn::detail::_is_applicable_r<Ret, Fn, Args...>::value
   {
     return ::fn::detail::_apply_r<Ret>(FWD(fn), FWD(args)...);
   }
@@ -410,8 +408,7 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
   static constexpr auto _apply_type(Self &&, Fn &&fn, Args &&...args)                         //
       noexcept(::fn::detail::_is_nothrow_applicable<Fn, ::std::nullopt_t, Args &&...>::value) // extension
       -> decltype(auto)
-    requires some_sum<T> && (::std::remove_cvref_t<T>::size == 0)
-             && ::fn::detail::_is_applicable<Fn, ::std::nullopt_t, Args &&...>::value
+    requires empty_sum<T> && ::fn::detail::_is_applicable<Fn, ::std::nullopt_t, Args &&...>::value
   {
     return ::fn::detail::_apply(FWD(fn), ::std::nullopt_t{::std::nullopt}, FWD(args)...);
   }
@@ -420,8 +417,7 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
   static constexpr auto _apply_type_r(Self &&, Fn &&fn, Args &&...args)                              //
       noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, ::std::nullopt_t, Args &&...>::value) // extension
       -> Ret
-    requires some_sum<T> && (::std::remove_cvref_t<T>::size == 0)
-             && ::fn::detail::_is_applicable_r<Ret, Fn, ::std::nullopt_t, Args &&...>::value
+    requires empty_sum<T> && ::fn::detail::_is_applicable_r<Ret, Fn, ::std::nullopt_t, Args &&...>::value
   {
     return ::fn::detail::_apply_r<Ret>(FWD(fn), ::std::nullopt_t{::std::nullopt}, FWD(args)...);
   }
@@ -433,7 +429,7 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
   static constexpr auto _transform(Self &&self, Fn &&)                     //
       noexcept(::std::is_nothrow_constructible_v<::fn::optional<T>, Self>) // extension
       -> ::fn::optional<T>
-    requires some_sum<T> && (::std::remove_cvref_t<T>::size == 0) && ::std::is_constructible_v<::fn::optional<T>, Self>
+    requires empty_sum<T> && ::std::is_constructible_v<::fn::optional<T>, Self>
   {
     return FWD(self);
   }

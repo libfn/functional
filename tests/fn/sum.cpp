@@ -232,6 +232,10 @@ TEST_CASE("sum basic functionality tests", "[sum]")
     static_assert(std::is_nothrow_move_constructible_v<sum<>>);
     static_assert(std::is_nothrow_copy_assignable_v<sum<>>);
     static_assert(std::is_nothrow_move_assignable_v<sum<>>);
+    static_assert(fn::empty_sum<sum<>>);
+    static_assert(fn::empty_sum<sum<> const &>);
+    static_assert(not fn::empty_sum<sum<int>>);
+    static_assert(not fn::empty_sum<int>);
     static_assert(std::is_nothrow_destructible_v<sum<>>);
     SUCCEED();
   }

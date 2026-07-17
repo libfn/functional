@@ -32,6 +32,14 @@ concept some_sum = detail::_some_sum<T>;
  * @tparam T TODO
  */
 template <typename T>
+concept empty_sum = some_sum<T> && (::std::remove_cvref_t<T>::size == 0);
+
+/**
+ * @brief TODO
+ *
+ * @tparam T TODO
+ */
+template <typename T>
 concept some_in_place_type = detail::_some_in_place_type<T>;
 
 namespace detail {

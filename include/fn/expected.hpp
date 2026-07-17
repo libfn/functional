@@ -239,8 +239,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   static constexpr auto _and_then(Self &&self, Fn &&)                         //
       noexcept(::std::is_nothrow_constructible_v<::fn::expected<T, E>, Self>) // extension
       -> ::fn::expected<T, E>
-    requires some_sum<T> && (::std::remove_cvref_t<T>::size == 0)
-             && ::std::is_constructible_v<::fn::expected<T, E>, Self>
+    requires empty_sum<T> && ::std::is_constructible_v<::fn::expected<T, E>, Self>
   {
     return FWD(self);
   }
@@ -304,8 +303,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   static constexpr auto _or_else(Self &&self, Fn &&)                          //
       noexcept(::std::is_nothrow_constructible_v<::fn::expected<T, E>, Self>) // extension
       -> ::fn::expected<T, E>
-    requires some_sum<E> && (::std::remove_cvref_t<E>::size == 0)
-             && ::std::is_constructible_v<::fn::expected<T, E>, Self>
+    requires empty_sum<E> && ::std::is_constructible_v<::fn::expected<T, E>, Self>
   {
     return FWD(self);
   }
@@ -341,7 +339,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   static constexpr auto _transform(Self &&self, Fn &&fn) //
       noexcept(noexcept(_pfn_base::_value(FWD(self)).transform(FWD(fn)))
                && ::std::is_nothrow_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>) // extension
-    requires some_sum<T> && (::std::remove_cvref_t<T>::size > 0)
+    requires some_sum<T> && (not empty_sum<T>)
              && ::fn::detail::_typelist_applicable<Fn, decltype(_pfn_base::_value(FWD(self)))>
              && ::std::is_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
   {
@@ -365,8 +363,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   static constexpr auto _transform(Self &&self, Fn &&)                        //
       noexcept(::std::is_nothrow_constructible_v<::fn::expected<T, E>, Self>) // extension
       -> ::fn::expected<T, E>
-    requires some_sum<T> && (::std::remove_cvref_t<T>::size == 0)
-             && ::std::is_constructible_v<::fn::expected<T, E>, Self>
+    requires empty_sum<T> && ::std::is_constructible_v<::fn::expected<T, E>, Self>
   {
     return FWD(self);
   }
@@ -425,7 +422,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
                && (::std::is_void_v<T>
                    || ::std::is_nothrow_constructible_v<
                        T, ::fn::apply_const_lvalue_t<Self, typename _pfn_base::_value_t &&>>)) // extension
-    requires some_sum<E> && (::std::remove_cvref_t<E>::size > 0)
+    requires some_sum<E> && (not empty_sum<E>)
              && ::fn::detail::_typelist_applicable<Fn, decltype(_pfn_base::_error(FWD(self)))>
              && (::std::is_void_v<T> || ::std::is_constructible_v<T, decltype(_pfn_base::_value(FWD(self)))>)
   {
@@ -614,8 +611,8 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       noexcept(
           ::fn::detail::_is_nothrow_applicable<Fn, decltype(_pfn_base::_value(FWD(self))), Args...>::value) // extension
       -> decltype(auto)
-    requires(not ::std::is_void_v<T>) && some_sum<E> && (::std::remove_cvref_t<E>::size == 0)
-            && ::fn::detail::_is_applicable<Fn, decltype(_pfn_base::_value(FWD(self))), Args...>::value
+    requires(not ::std::is_void_v<T>)
+            && empty_sum<E> && ::fn::detail::_is_applicable<Fn, decltype(_pfn_base::_value(FWD(self))), Args...>::value
   {
     return ::fn::detail::_apply(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
   }
@@ -625,8 +622,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   static constexpr auto _apply(Self &&, Fn &&fn, Args &&...args)         //
       noexcept(::fn::detail::_is_nothrow_applicable<Fn, Args...>::value) // extension
       -> decltype(auto)
-    requires ::std::is_void_v<T> && some_sum<E> && (::std::remove_cvref_t<E>::size == 0)
-             && ::fn::detail::_is_applicable<Fn, Args...>::value
+    requires ::std::is_void_v<T> && empty_sum<E> && ::fn::detail::_is_applicable<Fn, Args...>::value
   {
     return ::fn::detail::_apply(FWD(fn), FWD(args)...);
   }
@@ -636,7 +632,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, decltype(_pfn_base::_value(FWD(self))),
                                                       Args...>::value) // extension
       -> Ret
-    requires(not ::std::is_void_v<T>) && some_sum<E> && (::std::remove_cvref_t<E>::size == 0)
+    requires(not ::std::is_void_v<T>) && empty_sum<E>
             && ::fn::detail::_is_applicable_r<Ret, Fn, decltype(_pfn_base::_value(FWD(self))), Args...>::value
   {
     return ::fn::detail::_apply_r<Ret>(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
@@ -647,8 +643,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   static constexpr auto _apply_r(Self &&, Fn &&fn, Args &&...args)              //
       noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, Args...>::value) // extension
       -> Ret
-    requires ::std::is_void_v<T> && some_sum<E> && (::std::remove_cvref_t<E>::size == 0)
-             && ::fn::detail::_is_applicable_r<Ret, Fn, Args...>::value
+    requires ::std::is_void_v<T> && empty_sum<E> && ::fn::detail::_is_applicable_r<Ret, Fn, Args...>::value
   {
     return ::fn::detail::_apply_r<Ret>(FWD(fn), FWD(args)...);
   }
@@ -659,7 +654,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       noexcept(noexcept(::fn::detail::_apply_tagged<::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)),
                                                                        FWD(args)...))) // extension
       -> decltype(auto)
-    requires(not ::std::is_void_v<T>) && some_sum<E> && (::std::remove_cvref_t<E>::size == 0) && requires {
+    requires(not ::std::is_void_v<T>) && empty_sum<E> && requires {
       ::fn::detail::_apply_tagged<::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
     }
   {
@@ -671,7 +666,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   static constexpr auto _apply_type(Self &&, Fn &&fn, Args &&...args)                          //
       noexcept(::fn::detail::_is_nothrow_applicable<Fn, ::std::in_place_t, Args &&...>::value) // extension
       -> decltype(auto)
-    requires ::std::is_void_v<T> && some_sum<E> && (::std::remove_cvref_t<E>::size == 0)
+    requires ::std::is_void_v<T> && empty_sum<E>
              && ::fn::detail::_is_applicable<Fn, ::std::in_place_t, Args &&...>::value
   {
     return ::fn::detail::_apply(FWD(fn), ::std::in_place_t{}, FWD(args)...);
@@ -682,7 +677,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       noexcept(noexcept(::fn::detail::_apply_tagged_r<Ret, ::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)),
                                                                               FWD(args)...))) // extension
       -> Ret
-    requires(not ::std::is_void_v<T>) && some_sum<E> && (::std::remove_cvref_t<E>::size == 0) && requires {
+    requires(not ::std::is_void_v<T>) && empty_sum<E> && requires {
       ::fn::detail::_apply_tagged_r<Ret, ::std::in_place_t>(FWD(fn), _pfn_base::_value(FWD(self)), FWD(args)...);
     }
   {
@@ -694,7 +689,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   static constexpr auto _apply_type_r(Self &&, Fn &&fn, Args &&...args)                               //
       noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, ::std::in_place_t, Args &&...>::value) // extension
       -> Ret
-    requires ::std::is_void_v<T> && some_sum<E> && (::std::remove_cvref_t<E>::size == 0)
+    requires ::std::is_void_v<T> && empty_sum<E>
              && ::fn::detail::_is_applicable_r<Ret, Fn, ::std::in_place_t, Args &&...>::value
   {
     return ::fn::detail::_apply_r<Ret>(FWD(fn), ::std::in_place_t{}, FWD(args)...);
@@ -707,8 +702,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       noexcept(
           ::fn::detail::_is_nothrow_applicable<Fn, decltype(_pfn_base::_error(FWD(self))), Args...>::value) // extension
       -> decltype(auto)
-    requires some_sum<T> && (::std::remove_cvref_t<T>::size == 0)
-             && ::fn::detail::_is_applicable<Fn, decltype(_pfn_base::_error(FWD(self))), Args...>::value
+    requires empty_sum<T> && ::fn::detail::_is_applicable<Fn, decltype(_pfn_base::_error(FWD(self))), Args...>::value
   {
     return ::fn::detail::_apply(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
   }
@@ -718,7 +712,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, decltype(_pfn_base::_error(FWD(self))),
                                                       Args...>::value) // extension
       -> Ret
-    requires some_sum<T> && (::std::remove_cvref_t<T>::size == 0)
+    requires empty_sum<T>
              && ::fn::detail::_is_applicable_r<Ret, Fn, decltype(_pfn_base::_error(FWD(self))), Args...>::value
   {
     return ::fn::detail::_apply_r<Ret>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
@@ -730,7 +724,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       noexcept(noexcept(::fn::detail::_apply_tagged<::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)),
                                                                       FWD(args)...))) // extension
       -> decltype(auto)
-    requires some_sum<T> && (::std::remove_cvref_t<T>::size == 0) && requires {
+    requires empty_sum<T> && requires {
       ::fn::detail::_apply_tagged<::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
     }
   {
@@ -742,7 +736,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       noexcept(noexcept(::fn::detail::_apply_tagged_r<Ret, ::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)),
                                                                              FWD(args)...))) // extension
       -> Ret
-    requires some_sum<T> && (::std::remove_cvref_t<T>::size == 0) && requires {
+    requires empty_sum<T> && requires {
       ::fn::detail::_apply_tagged_r<Ret, ::fn::unexpect_t>(FWD(fn), _pfn_base::_error(FWD(self)), FWD(args)...);
     }
   {
@@ -756,8 +750,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   static constexpr auto _transform_error(Self &&self, Fn &&)                  //
       noexcept(::std::is_nothrow_constructible_v<::fn::expected<T, E>, Self>) // extension
       -> ::fn::expected<T, E>
-    requires some_sum<E> && (::std::remove_cvref_t<E>::size == 0)
-             && ::std::is_constructible_v<::fn::expected<T, E>, Self>
+    requires empty_sum<E> && ::std::is_constructible_v<::fn::expected<T, E>, Self>
   {
     return FWD(self);
   }
