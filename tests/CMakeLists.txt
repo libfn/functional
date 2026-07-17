@@ -124,7 +124,7 @@ set(TESTS_FN_SOURCES
     fn/or_else.cpp
     fn/pack.cpp
     fn/recover.cpp
-    fn/sum.cpp
+    fn/copack.cpp
     fn/transform_error.cpp
     fn/transform.cpp
     fn/utility.cpp

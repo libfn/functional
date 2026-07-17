@@ -46,77 +46,77 @@ struct EfnLvalueOnly {
   auto operator()(auto const &) && -> std::nullopt_t = delete;
 };
 
-// Sums whose alternatives include a non-builtin (Xint/std::string_view/fn::pack — any
-// class/struct/enum) have platform-specific order (see sum.cpp); pure-builtin sums keep sum<...>.
+// Copacks whose alternatives include a non-builtin (Xint/std::string_view/fn::pack — any
+// class/struct/enum) have platform-specific order (see copack.cpp); pure-builtin copacks keep copack<...>.
 } // namespace
 
-TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]")
+TEST_CASE("optional graded monad", "[optional][copack][graded][or_else][copack_value]")
 {
-  SECTION("sum_value from sum")
+  SECTION("copack_value from copack")
   {
-    using T = fn::optional<fn::sum<int>>;
+    using T = fn::optional<fn::copack<int>>;
     T s{12};
-    static_assert(std::is_same_v<decltype(s.sum_value()), T &>);
-    static_assert(std::is_same_v<decltype(std::as_const(s).sum_value()), T const &>);
-    static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_value()), T const &&>);
-    static_assert(std::is_same_v<decltype(std::move(s).sum_value()), T &&>);
+    static_assert(std::is_same_v<decltype(s.copack_value()), T &>);
+    static_assert(std::is_same_v<decltype(std::as_const(s).copack_value()), T const &>);
+    static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).copack_value()), T const &&>);
+    static_assert(std::is_same_v<decltype(std::move(s).copack_value()), T &&>);
     // these overloads only return *this
-    static_assert(noexcept(s.sum_value()));
-    static_assert(noexcept(std::as_const(s).sum_value()));
-    static_assert(noexcept(std::move(std::as_const(s)).sum_value()));
-    static_assert(noexcept(std::move(s).sum_value()));
+    static_assert(noexcept(s.copack_value()));
+    static_assert(noexcept(std::as_const(s).copack_value()));
+    static_assert(noexcept(std::move(std::as_const(s)).copack_value()));
+    static_assert(noexcept(std::move(s).copack_value()));
     SECTION("value")
     {
-      CHECK(s.sum_value().value() == fn::sum{12});
-      CHECK(std::as_const(s).sum_value().value() == fn::sum{12});
-      CHECK(std::move(std::as_const(s)).sum_value().value() == fn::sum{12});
-      CHECK(std::move(s).sum_value().value() == fn::sum{12});
+      CHECK(s.copack_value().value() == fn::copack{12});
+      CHECK(std::as_const(s).copack_value().value() == fn::copack{12});
+      CHECK(std::move(std::as_const(s)).copack_value().value() == fn::copack{12});
+      CHECK(std::move(s).copack_value().value() == fn::copack{12});
     }
     SECTION("error")
     {
       T s{std::nullopt};
-      CHECK(not s.sum_value().has_value());
-      CHECK(not std::as_const(s).sum_value().has_value());
-      CHECK(not std::move(std::as_const(s)).sum_value().has_value());
-      CHECK(not std::move(s).sum_value().has_value());
+      CHECK(not s.copack_value().has_value());
+      CHECK(not std::as_const(s).copack_value().has_value());
+      CHECK(not std::move(std::as_const(s)).copack_value().has_value());
+      CHECK(not std::move(s).copack_value().has_value());
     }
 
-    static_assert(std::is_same_v<decltype(fn::sum_value(s)), T &>);
-    static_assert(noexcept(fn::sum_value(s))); // the free function propagates what the member says
+    static_assert(std::is_same_v<decltype(fn::copack_value(s)), T &>);
+    static_assert(noexcept(fn::copack_value(s))); // the free function propagates what the member says
   }
 
-  SECTION("sum_value from non-sum")
+  SECTION("copack_value from non-copack")
   {
     using T = fn::optional<int>;
     T s{12};
-    static_assert(std::is_same_v<decltype(s.sum_value()), fn::optional<fn::sum<int>>>);
-    static_assert(std::is_same_v<decltype(std::as_const(s).sum_value()), fn::optional<fn::sum<int>>>);
-    static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).sum_value()), fn::optional<fn::sum<int>>>);
-    static_assert(std::is_same_v<decltype(std::move(s).sum_value()), fn::optional<fn::sum<int>>>);
-    // these overloads wrap the value in a sum, so they weigh that construction - which for int
+    static_assert(std::is_same_v<decltype(s.copack_value()), fn::optional<fn::copack<int>>>);
+    static_assert(std::is_same_v<decltype(std::as_const(s).copack_value()), fn::optional<fn::copack<int>>>);
+    static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).copack_value()), fn::optional<fn::copack<int>>>);
+    static_assert(std::is_same_v<decltype(std::move(s).copack_value()), fn::optional<fn::copack<int>>>);
+    // these overloads wrap the value in a copack, so they weigh that construction - which for int
     // cannot throw
-    static_assert(noexcept(s.sum_value()));
-    static_assert(noexcept(std::as_const(s).sum_value()));
-    static_assert(noexcept(std::move(std::as_const(s)).sum_value()));
-    static_assert(noexcept(std::move(s).sum_value()));
+    static_assert(noexcept(s.copack_value()));
+    static_assert(noexcept(std::as_const(s).copack_value()));
+    static_assert(noexcept(std::move(std::as_const(s)).copack_value()));
+    static_assert(noexcept(std::move(s).copack_value()));
     SECTION("value")
     {
-      CHECK(s.sum_value().value() == fn::sum{12});
-      CHECK(std::as_const(s).sum_value().value() == fn::sum{12});
-      CHECK(std::move(std::as_const(s)).sum_value().value() == fn::sum{12});
-      CHECK(std::move(s).sum_value().value() == fn::sum{12});
+      CHECK(s.copack_value().value() == fn::copack{12});
+      CHECK(std::as_const(s).copack_value().value() == fn::copack{12});
+      CHECK(std::move(std::as_const(s)).copack_value().value() == fn::copack{12});
+      CHECK(std::move(s).copack_value().value() == fn::copack{12});
     }
     SECTION("error")
     {
       T s{std::nullopt};
-      CHECK(not s.sum_value().has_value());
-      CHECK(not std::as_const(s).sum_value().has_value());
-      CHECK(not std::move(std::as_const(s)).sum_value().has_value());
-      CHECK(not std::move(s).sum_value().has_value());
+      CHECK(not s.copack_value().has_value());
+      CHECK(not std::as_const(s).copack_value().has_value());
+      CHECK(not std::move(std::as_const(s)).copack_value().has_value());
+      CHECK(not std::move(s).copack_value().has_value());
     }
 
-    static_assert(std::is_same_v<decltype(fn::sum_value(s)), fn::optional<fn::sum<int>>>);
-    static_assert(noexcept(fn::sum_value(s))); // the free function propagates what the member says
+    static_assert(std::is_same_v<decltype(fn::copack_value(s)), fn::optional<fn::copack<int>>>);
+    static_assert(noexcept(fn::copack_value(s))); // the free function propagates what the member says
 
     SECTION("throwing value")
     {
@@ -127,8 +127,8 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
         throwing_copy(throwing_copy &&) noexcept;
       };
       using W = fn::optional<throwing_copy>;
-      static_assert(not noexcept(std::declval<W const &>().sum_value())); // copies
-      static_assert(noexcept(std::declval<W &&>().sum_value()));          // moves
+      static_assert(not noexcept(std::declval<W const &>().copack_value())); // copies
+      static_assert(noexcept(std::declval<W &&>().copack_value()));          // moves
       SUCCEED();
     }
 
@@ -136,13 +136,13 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
     {
       static_assert([] {
         fn::optional<int> const a{12};
-        return a.sum_value().value() == fn::sum{12};
+        return a.copack_value().value() == fn::copack{12};
       }());
-      static_assert([] { return fn::optional<int>{12}.sum_value().value() == fn::sum{12}; }());
-      static_assert([] { return not fn::optional<int>{std::nullopt}.sum_value().has_value(); }());
+      static_assert([] { return fn::optional<int>{12}.copack_value().value() == fn::copack{12}; }());
+      static_assert([] { return not fn::optional<int>{std::nullopt}.copack_value().has_value(); }());
       static_assert([] {
         fn::optional<int> a{12};
-        return fn::sum_value(a).value() == fn::sum{12};
+        return fn::copack_value(a).value() == fn::copack{12};
       }());
       SUCCEED();
     }
@@ -150,64 +150,64 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
 
   SECTION("or_else")
   {
-    fn::optional<fn::sum<int>> s{std::nullopt};
+    fn::optional<fn::copack<int>> s{std::nullopt};
 
     constexpr auto fn1 = []() -> fn::optional<Xint> { throw 0; };
-    static_assert(std::is_same_v<decltype(s.or_else(fn1)), fn::optional<fn::sum_for<Xint, int>>>);
+    static_assert(std::is_same_v<decltype(s.or_else(fn1)), fn::optional<fn::copack_for<Xint, int>>>);
     constexpr auto fn2 = []() -> fn::optional<int> { throw 0; };
-    static_assert(std::is_same_v<decltype(s.or_else(fn2)), fn::optional<fn::sum<int>>>);
-    constexpr auto fn3 = []() -> fn::optional<fn::sum<int>> { throw 0; };
-    static_assert(std::is_same_v<decltype(s.or_else(fn3)), fn::optional<fn::sum<int>>>);
-    constexpr auto fn4 = []() -> fn::optional<fn::sum<Xint>> { throw 0; };
-    static_assert(std::is_same_v<decltype(s.or_else(fn4)), fn::optional<fn::sum_for<Xint, int>>>);
-    constexpr auto fn5 = []() -> fn::optional<fn::sum_for<Xint, int>> { throw 0; };
-    static_assert(std::is_same_v<decltype(s.or_else(fn5)), fn::optional<fn::sum_for<Xint, int>>>);
-    constexpr auto fn6 = []() -> fn::optional<fn::sum_for<Xint, long>> { throw 0; };
-    static_assert(std::is_same_v<decltype(s.or_else(fn6)), fn::optional<fn::sum_for<Xint, int, long>>>);
-    constexpr auto fn7 = []() -> fn::optional<fn::sum_for<Xint, int, long>> { throw 0; };
-    static_assert(std::is_same_v<decltype(s.or_else(fn7)), fn::optional<fn::sum_for<Xint, int, long>>>);
-    constexpr auto fn8 = []() -> fn::optional<fn::sum_for<Xint, int, long>> { throw 0; };
-    static_assert(std::is_same_v<decltype(s.or_else(fn8)), fn::optional<fn::sum_for<Xint, int, long>>>);
+    static_assert(std::is_same_v<decltype(s.or_else(fn2)), fn::optional<fn::copack<int>>>);
+    constexpr auto fn3 = []() -> fn::optional<fn::copack<int>> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn3)), fn::optional<fn::copack<int>>>);
+    constexpr auto fn4 = []() -> fn::optional<fn::copack<Xint>> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn4)), fn::optional<fn::copack_for<Xint, int>>>);
+    constexpr auto fn5 = []() -> fn::optional<fn::copack_for<Xint, int>> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn5)), fn::optional<fn::copack_for<Xint, int>>>);
+    constexpr auto fn6 = []() -> fn::optional<fn::copack_for<Xint, long>> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn6)), fn::optional<fn::copack_for<Xint, int, long>>>);
+    constexpr auto fn7 = []() -> fn::optional<fn::copack_for<Xint, int, long>> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn7)), fn::optional<fn::copack_for<Xint, int, long>>>);
+    constexpr auto fn8 = []() -> fn::optional<fn::copack_for<Xint, int, long>> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn8)), fn::optional<fn::copack_for<Xint, int, long>>>);
 
-    // the callback may return an optional of the empty sum: it contributes nothing to the widened
-    // sum, and the arm relocating its value is never named
-    constexpr auto fnE = []() noexcept -> fn::optional<fn::sum<>> { return {}; };
-    static_assert(std::is_same_v<decltype(s.or_else(fnE)), fn::optional<fn::sum<int>>>);
+    // the callback may return an optional of the empty copack: it contributes nothing to the widened
+    // copack, and the arm relocating its value is never named
+    constexpr auto fnE = []() noexcept -> fn::optional<fn::copack<>> { return {}; };
+    static_assert(std::is_same_v<decltype(s.or_else(fnE)), fn::optional<fn::copack<int>>>);
     CHECK(not s.or_else(fnE).has_value());
-    fn::optional<fn::sum<int>> sv{fn::sum{12}};
-    CHECK(sv.or_else(fnE).value() == fn::sum{12});
+    fn::optional<fn::copack<int>> sv{fn::copack{12}};
+    CHECK(sv.or_else(fnE).value() == fn::copack{12});
     static_assert(noexcept(s.or_else(fnE)));
 
     // noexcept (extension): true only when the callback is nothrow-applicable, returns exactly
-    // optional<sum<int>> (no widening), and *this is nothrow-constructible from itself.
-    constexpr auto nothrow_same = []() noexcept -> fn::optional<fn::sum<int>> { return {std::nullopt}; };
+    // optional<copack<int>> (no widening), and *this is nothrow-constructible from itself.
+    constexpr auto nothrow_same = []() noexcept -> fn::optional<fn::copack<int>> { return {std::nullopt}; };
     static_assert(noexcept(s.or_else(nothrow_same)));
     static_assert(noexcept(std::move(s).or_else(nothrow_same)));
     static_assert(not noexcept(s.or_else(fn3))); // fn3 throws
     constexpr auto nothrow_widen = []() noexcept -> fn::optional<Xint> { return {std::nullopt}; };
-    static_assert(noexcept(s.or_else(nothrow_widen))); // nothrow but widens to sum_for<Xint, int>);
+    static_assert(noexcept(s.or_else(nothrow_widen))); // nothrow but widens to copack_for<Xint, int>);
 
     // constraints (extension): a non-applicable argument drops or_else from the overload set via
     // SFINAE (the return-type-is-optional requirement is instead a Mandates static_assert inside).
     constexpr auto can_or_else
-        = [](auto &&f) { return requires { std::declval<fn::optional<fn::sum<int>>>().or_else(f); }; };
+        = [](auto &&f) { return requires { std::declval<fn::optional<fn::copack<int>>>().or_else(f); }; };
     static_assert(can_or_else(nothrow_same));
     static_assert(not can_or_else(42));
 
     SECTION("error to value")
     {
       constexpr auto fn = []() -> fn::optional<Xint> { return {Xint{12}}; };
-      static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::optional<fn::sum_for<Xint, int>>>);
-      CHECK(s.or_else(fn).value() == fn::sum{Xint{12}});
-      CHECK(std::as_const(s).or_else(fn).value() == fn::sum{Xint{12}});
-      CHECK(std::move(std::as_const(s)).or_else(fn).value() == fn::sum{Xint{12}});
-      CHECK(std::move(s).or_else(fn).value() == fn::sum{Xint{12}});
+      static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::optional<fn::copack_for<Xint, int>>>);
+      CHECK(s.or_else(fn).value() == fn::copack{Xint{12}});
+      CHECK(std::as_const(s).or_else(fn).value() == fn::copack{Xint{12}});
+      CHECK(std::move(std::as_const(s)).or_else(fn).value() == fn::copack{Xint{12}});
+      CHECK(std::move(s).or_else(fn).value() == fn::copack{Xint{12}});
     }
 
     SECTION("error to error")
     {
       constexpr auto fn = []() -> fn::optional<Xint> { return {std::nullopt}; };
-      static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::optional<fn::sum_for<Xint, int>>>);
+      static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::optional<fn::copack_for<Xint, int>>>);
       CHECK(not s.or_else(fn).has_value());
       CHECK(not std::as_const(s).or_else(fn).has_value());
       CHECK(not std::move(std::as_const(s)).or_else(fn).has_value());
@@ -216,31 +216,32 @@ TEST_CASE("optional graded monad", "[optional][sum][graded][or_else][sum_value]"
 
     SECTION("value")
     {
-      fn::optional<fn::sum<int>> s{fn::sum{12}};
+      fn::optional<fn::copack<int>> s{fn::copack{12}};
       constexpr auto fn = []() -> fn::optional<Xint> { throw 0; };
-      static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::optional<fn::sum_for<Xint, int>>>);
-      CHECK(s.or_else(fn).value() == fn::sum{12});
-      CHECK(std::as_const(s).or_else(fn).value() == fn::sum{12});
-      CHECK(std::move(std::as_const(s)).or_else(fn).value() == fn::sum{12});
-      CHECK(std::move(s).or_else(fn).value() == fn::sum{12});
+      static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::optional<fn::copack_for<Xint, int>>>);
+      CHECK(s.or_else(fn).value() == fn::copack{12});
+      CHECK(std::as_const(s).or_else(fn).value() == fn::copack{12});
+      CHECK(std::move(std::as_const(s)).or_else(fn).value() == fn::copack{12});
+      CHECK(std::move(s).or_else(fn).value() == fn::copack{12});
     }
 
     SECTION("noexcept")
     {
-      // the widening arm builds a sum from either side's value, and weighs both
-      using T = fn::optional<fn::sum<int>>;
+      // the widening arm builds a copack from either side's value, and weighs both
+      using T = fn::optional<fn::copack<int>>;
       constexpr auto widen = []() noexcept -> fn::optional<double> { return {0.5}; };
-      static_assert(std::is_same_v<decltype(std::declval<T &>().or_else(widen)), fn::optional<fn::sum<double, int>>>);
+      static_assert(
+          std::is_same_v<decltype(std::declval<T &>().or_else(widen)), fn::optional<fn::copack<double, int>>>);
       static_assert(noexcept(std::declval<T &>().or_else(widen)));
       static_assert(not noexcept(std::declval<T &>().or_else([]() -> fn::optional<double> { return {0.5}; })));
 
       // ... including relocating self's value into it
-      using W = fn::optional<fn::sum_for<MoveNothrow, int>>;
+      using W = fn::optional<fn::copack_for<MoveNothrow, int>>;
       static_assert(not noexcept(std::declval<W &>().or_else(widen))); // copies
       static_assert(noexcept(std::declval<W &&>().or_else(widen)));    // moves
 
       // the same-shape arm, which pfn's own or_else would take
-      static_assert(noexcept(std::declval<T &>().or_else([]() noexcept -> T { return {fn::sum{1}}; })));
+      static_assert(noexcept(std::declval<T &>().or_else([]() noexcept -> T { return {fn::copack{1}}; })));
       SUCCEED();
     }
   }
@@ -353,9 +354,9 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
   {
     using P = fn::optional<fn::pack<int, std::string_view>>;
 
-    // noexcept and constraints mirror and_then above (optional.hpp:219-220): the non-sum
-    // _transform is constrained on pack-apply invocability -- contrast the sum case, whose
-    // callback is checked only in its deduced-return body (see "optional transform sum")
+    // noexcept and constraints mirror and_then above (optional.hpp:219-220): the non-copack
+    // _transform is constrained on pack-apply invocability -- contrast the copack case, whose
+    // callback is checked only in its deduced-return body (see "optional transform copack")
     constexpr auto nothrow_two = [](int &, std::string_view &) noexcept -> bool { return true; };
     static_assert(noexcept(std::declval<P &>().transform(nothrow_two)));
     constexpr auto nothrow_generic = [](auto &&...) noexcept -> bool { return true; };
@@ -527,97 +528,97 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                    .has_value());
     }
 
-    SECTION("sum on both sides")
+    SECTION("copack on both sides")
     {
-      using Lh = fn::optional<fn::sum<double, int>>;
-      using Rh = fn::optional<fn::sum<bool, int>>;
+      using Lh = fn::optional<fn::copack<double, int>>;
+      using Rh = fn::optional<fn::copack<bool, int>>;
       static_assert(
           std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
-                       fn::optional<fn::sum< //
+                       fn::optional<fn::copack< //
                            fn::pack<double, bool>, fn::pack<double, int>, fn::pack<int, bool>, fn::pack<int, int>>>>);
 
-      CHECK((Lh{fn::sum{0.5}} & Rh{fn::sum{12}})
+      CHECK((Lh{fn::copack{0.5}} & Rh{fn::copack{12}})
                 .transform([](auto i, auto j) constexpr -> bool {
                   return 0.5 == static_cast<double>(i) && 12 == static_cast<int>(j);
                 })
                 .value()
-            == fn::sum{true});
-      CHECK(not(Lh{std::nullopt} & Rh{fn::sum{12}}).has_value());
-      CHECK(not(Lh{fn::sum{0.5}} & Rh{std::nullopt}).has_value());
+            == fn::copack{true});
+      CHECK(not(Lh{std::nullopt} & Rh{fn::copack{12}}).has_value());
+      CHECK(not(Lh{fn::copack{0.5}} & Rh{std::nullopt}).has_value());
       CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
 
-      SECTION("sum of packs on left")
+      SECTION("copack of packs on left")
       {
-        using Lh = fn::optional<fn::sum_for<fn::pack<double, bool>, fn::pack<double, int>>>;
+        using Lh = fn::optional<fn::copack_for<fn::pack<double, bool>, fn::pack<double, int>>>;
         static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
-                                   fn::optional<fn::sum< //
+                                   fn::optional<fn::copack< //
                                        fn::pack<double, bool, bool>, fn::pack<double, bool, int>,
                                        fn::pack<double, int, bool>, fn::pack<double, int, int>>>>);
 
-        CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{fn::sum{12}})
+        CHECK((Lh{fn::copack{fn::pack{0.5, 3}}} & Rh{fn::copack{12}})
                   .transform([](auto i, auto j, auto k) constexpr -> bool {
                     return 0.5 == static_cast<double>(i) && 3 == static_cast<int>(j) && 12 == static_cast<int>(k);
                   })
                   .value()
-              == fn::sum{true});
-        CHECK(not(Lh{std::nullopt} & Rh{fn::sum{12}}).has_value());
-        CHECK(not(Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{std::nullopt}).has_value());
+              == fn::copack{true});
+        CHECK(not(Lh{std::nullopt} & Rh{fn::copack{12}}).has_value());
+        CHECK(not(Lh{fn::copack{fn::pack{0.5, 3}}} & Rh{std::nullopt}).has_value());
         CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
       }
     }
 
-    SECTION("sum on left side only")
+    SECTION("copack on left side only")
     {
-      using Lh = fn::optional<fn::sum<double, int>>;
+      using Lh = fn::optional<fn::copack<double, int>>;
       using Rh = fn::optional<int>;
       static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
-                                 fn::optional<fn::sum< //
+                                 fn::optional<fn::copack< //
                                      fn::pack<double, int>, fn::pack<int, int>>>>);
 
-      CHECK((Lh{fn::sum{0.5}} & Rh{12})
+      CHECK((Lh{fn::copack{0.5}} & Rh{12})
                 .transform([](auto i, auto j) constexpr -> bool {
                   return 0.5 == static_cast<double>(i) && 12 == static_cast<int>(j);
                 })
                 .value()
-            == fn::sum{true});
+            == fn::copack{true});
       CHECK(not(Lh{std::nullopt} & Rh{12}).has_value());
-      CHECK(not(Lh{fn::sum{0.5}} & Rh{std::nullopt}).has_value());
+      CHECK(not(Lh{fn::copack{0.5}} & Rh{std::nullopt}).has_value());
       CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
 
-      SECTION("sum of packs on left")
+      SECTION("copack of packs on left")
       {
-        using Lh = fn::optional<fn::sum_for<fn::pack<double, bool>, fn::pack<double, int>>>;
+        using Lh = fn::optional<fn::copack_for<fn::pack<double, bool>, fn::pack<double, int>>>;
         static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
-                                   fn::optional<fn::sum< //
+                                   fn::optional<fn::copack< //
                                        fn::pack<double, bool, int>, fn::pack<double, int, int>>>>);
 
-        CHECK((Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{12})
+        CHECK((Lh{fn::copack{fn::pack{0.5, 3}}} & Rh{12})
                   .transform([](auto i, auto j, auto k) constexpr -> bool {
                     return 0.5 == static_cast<double>(i) && 3 == static_cast<int>(j) && 12 == static_cast<int>(k);
                   })
                   .value()
-              == fn::sum{true});
+              == fn::copack{true});
         CHECK(not(Lh{std::nullopt} & Rh{12}).has_value());
-        CHECK(not(Lh{fn::sum{fn::pack{0.5, 3}}} & Rh{std::nullopt}).has_value());
+        CHECK(not(Lh{fn::copack{fn::pack{0.5, 3}}} & Rh{std::nullopt}).has_value());
         CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
       }
     }
 
-    SECTION("sum on right side only")
+    SECTION("copack on right side only")
     {
       using Lh = fn::optional<double>;
-      using Rh = fn::optional<fn::sum<bool, int>>;
+      using Rh = fn::optional<fn::copack<bool, int>>;
       static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
-                                 fn::optional<fn::sum< //
+                                 fn::optional<fn::copack< //
                                      fn::pack<double, bool>, fn::pack<double, int>>>>);
 
-      CHECK((Lh{0.5} & Rh{fn::sum{12}})
+      CHECK((Lh{0.5} & Rh{fn::copack{12}})
                 .transform([](auto i, auto j) constexpr -> bool {
                   return 0.5 == static_cast<double>(i) && 12 == static_cast<int>(j);
                 })
                 .value()
-            == fn::sum{true});
-      CHECK(not(Lh{std::nullopt} & Rh{fn::sum{12}}).has_value());
+            == fn::copack{true});
+      CHECK(not(Lh{std::nullopt} & Rh{fn::copack{12}}).has_value());
       CHECK(not(Lh{0.5} & Rh{std::nullopt}).has_value());
       CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
 
@@ -625,16 +626,16 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       {
         using Lh = fn::optional<fn::pack<double, int>>;
         static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
-                                   fn::optional<fn::sum< //
+                                   fn::optional<fn::copack< //
                                        fn::pack<double, int, bool>, fn::pack<double, int, int>>>>);
 
-        CHECK((Lh{fn::pack{0.5, 3}} & Rh{fn::sum{12}})
+        CHECK((Lh{fn::pack{0.5, 3}} & Rh{fn::copack{12}})
                   .transform([](auto i, auto j, auto k) constexpr -> bool {
                     return 0.5 == static_cast<double>(i) && 3 == static_cast<int>(j) && 12 == static_cast<int>(k);
                   })
                   .value()
-              == fn::sum{true});
-        CHECK(not(Lh{std::nullopt} & Rh{fn::sum{12}}).has_value());
+              == fn::copack{true});
+        CHECK(not(Lh{std::nullopt} & Rh{fn::copack{12}}).has_value());
         CHECK(not(Lh{fn::pack{0.5, 3}} & Rh{std::nullopt}).has_value());
         CHECK(not(Lh{std::nullopt} & Rh{std::nullopt}).has_value());
       }
@@ -652,8 +653,8 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       static_assert(noexcept(std::declval<Lh &&>() & std::declval<Rh &&>())); // moves
       static_assert(noexcept(std::declval<Rh &&>() & std::declval<Lh &&>()));
 
-      // the same, dispatched through a sum
-      using Sh = fn::optional<fn::sum<MoveNothrow>>;
+      // the same, dispatched through a copack
+      using Sh = fn::optional<fn::copack<MoveNothrow>>;
       static_assert(not noexcept(std::declval<Sh &>() & std::declval<Rh &>()));
       static_assert(noexcept(std::declval<Sh &&>() & std::declval<Rh &&>()));
 
@@ -688,22 +689,22 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
                         .transform([](double d, int i) constexpr -> bool { return d == 0.5 && i == 12; })
                         .value());
       static_assert(not(fn::optional<double>{std::nullopt} & fn::optional<int>{12}).has_value());
-      using Lh = fn::optional<fn::sum<double, int>>;
-      using Rh = fn::optional<fn::sum<bool, int>>;
-      static_assert((Lh{fn::sum{0.5}} & Rh{fn::sum{12}})
+      using Lh = fn::optional<fn::copack<double, int>>;
+      using Rh = fn::optional<fn::copack<bool, int>>;
+      static_assert((Lh{fn::copack{0.5}} & Rh{fn::copack{12}})
                         .transform([](auto i, auto j) constexpr -> bool {
                           return 0.5 == static_cast<double>(i) && 12 == static_cast<int>(j);
                         })
                         .value()
-                    == fn::sum{true});
+                    == fn::copack{true});
       SUCCEED();
     }
   }
 }
 
-TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
+TEST_CASE("optional and_then copack", "[optional][copack][and_then]")
 {
-  using S = fn::optional<fn::sum_for<Xint, int>>;
+  using S = fn::optional<fn::copack_for<Xint, int>>;
 
   // noexcept (extension): the spec asks fn's own nothrow-applicable trait, which asks the
   // per-alternative dispatch that will actually run - so a visitor set is weighed alternative by
@@ -714,7 +715,7 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
   constexpr auto nothrow_generic = [](auto &&) noexcept -> fn::optional<bool> { return {true}; };
   static_assert(noexcept(std::declval<S &>().and_then(nothrow_generic)));
 
-  // constraints (extension): exhaustive invocability over the sum's alternatives is a
+  // constraints (extension): exhaustive invocability over the copack's alternatives is a
   // constraint (optional.hpp:147) -- a partial or non-applicable visitor SFINAE-drops, and the
   // alternatives' value category is tracked
   constexpr auto can_and_then_lval = [](auto &&f) { return requires { std::declval<S &>().and_then(f); }; };
@@ -726,7 +727,7 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
 
   SECTION("value")
   {
-    fn::optional<fn::sum_for<Xint, int>> s{12};
+    fn::optional<fn::copack_for<Xint, int>> s{12};
     CHECK(s.and_then( //
                fn::overload{
                    [](int &i) -> fn::optional<bool> { return i == 12; },
@@ -774,7 +775,7 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
 
   SECTION("error")
   {
-    fn::optional<fn::sum_for<Xint, int>> s{};
+    fn::optional<fn::copack_for<Xint, int>> s{};
     CHECK(not s.and_then( //
                    [](auto) -> fn::optional<bool> { throw 0; })
                   .has_value());
@@ -816,7 +817,7 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
                                      [](std::string_view const &) -> fn::optional<bool> { throw 0; },
                                      [](std::string_view &&) -> fn::optional<bool> { throw 0; },
                                      [](std::string_view const &&) -> fn::optional<bool> { throw 0; }};
-    constexpr fn::optional<fn::sum_for<int, std::string_view>> a{fn::sum{42}};
+    constexpr fn::optional<fn::copack_for<int, std::string_view>> a{fn::copack{42}};
     static_assert(std::is_same_v<decltype(a.and_then(fn)), fn::optional<bool>>);
     static_assert(a.and_then(fn).value());
   }
@@ -825,7 +826,7 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
   {
     // the callback is invoked through fn's own dispatch, so only fn's nothrow-applicable trait can
     // answer for it - and it is nothrow only if EVERY alternative's call is
-    using T = fn::optional<fn::sum<double, int>>;
+    using T = fn::optional<fn::copack<double, int>>;
     static_assert(noexcept(std::declval<T &>().and_then([](auto) noexcept -> fn::optional<bool> { return {true}; })));
     static_assert(not noexcept(std::declval<T &>().and_then([](auto) -> fn::optional<bool> { return {true}; })));
     static_assert(not noexcept(std::declval<T &>().and_then(
@@ -835,11 +836,11 @@ TEST_CASE("optional and_then sum", "[optional][sum][and_then]")
   }
 }
 
-TEST_CASE("optional transform sum", "[optional][sum][transform]")
+TEST_CASE("optional transform copack", "[optional][copack][transform]")
 {
-  using S = fn::optional<fn::sum_for<Xint, int>>;
+  using S = fn::optional<fn::copack_for<Xint, int>>;
 
-  // noexcept: the sum-case _transform weighs the per-alternative dispatch, as and_then does
+  // noexcept: the copack-case _transform weighs the per-alternative dispatch, as and_then does
   constexpr auto nothrow_visitor = fn::overload{[](int const &) noexcept -> bool { return true; },
                                                 [](Xint const &) noexcept -> bool { return false; }};
   static_assert(noexcept(std::declval<S &>().transform(nothrow_visitor)));
@@ -851,14 +852,14 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
 
   SECTION("value")
   {
-    fn::optional<fn::sum_for<Xint, int>> s{12};
+    fn::optional<fn::copack_for<Xint, int>> s{12};
     CHECK(s.transform( //
                fn::overload{[](int &i) -> bool { return i == 12; }, [](int const &) -> bool { throw 0; },
                             [](int &&) -> bool { throw 0; }, [](int const &&) -> bool { throw 0; },
                             [](Xint &) -> bool { throw 0; }, [](Xint const &) -> bool { throw 0; },
                             [](Xint &&) -> bool { throw 0; }, [](Xint const &&) -> bool { throw 0; }})
               .value()
-          == fn::sum{true});
+          == fn::copack{true});
 
     CHECK(std::as_const(s)
               .transform( //
@@ -867,7 +868,7 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
                                [](Xint &) -> bool { throw 0; }, [](Xint const &) -> bool { throw 0; },
                                [](Xint &&) -> bool { throw 0; }, [](Xint const &&) -> bool { throw 0; }}) //
               .value()
-          == fn::sum{true});
+          == fn::copack{true});
 
     CHECK(std::move(std::as_const(s))
               .transform( //
@@ -876,7 +877,7 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
                                [](Xint &) -> bool { throw 0; }, [](Xint const &) -> bool { throw 0; },
                                [](Xint &&) -> bool { throw 0; }, [](Xint const &&) -> bool { throw 0; }}) //
               .value()
-          == fn::sum{true});
+          == fn::copack{true});
 
     CHECK(std::move(s)
               .transform( //
@@ -885,12 +886,12 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
                                [](Xint &) -> bool { throw 0; }, [](Xint const &) -> bool { throw 0; },
                                [](Xint &&) -> bool { throw 0; }, [](Xint const &&) -> bool { throw 0; }}) //
               .value()
-          == fn::sum{true});
+          == fn::copack{true});
   }
 
   SECTION("error")
   {
-    fn::optional<fn::sum_for<Xint, int>> s{};
+    fn::optional<fn::copack_for<Xint, int>> s{};
     CHECK(not s.transform( //
                    [](auto) -> bool { throw 0; })
                   .has_value());
@@ -898,7 +899,7 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
                   .transform( //
                       [](auto) -> bool { throw 0; })
                   .has_value());
-    CHECK(not fn::optional<fn::sum_for<Xint, int>>{}
+    CHECK(not fn::optional<fn::copack_for<Xint, int>>{}
                   .transform( //
                       [](auto) -> bool { throw 0; })
                   .has_value());
@@ -918,9 +919,9 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
                                      [](std::string_view const &) -> int { throw 0; },
                                      [](std::string_view &&) -> int { throw 0; },
                                      [](std::string_view const &&) -> int { throw 0; }};
-    constexpr fn::optional<fn::sum_for<int, std::string_view>> a{fn::sum{42}};
-    static_assert(std::is_same_v<decltype(a.transform(fn)), fn::optional<fn::sum<bool, int>>>);
-    static_assert(a.transform(fn).value() == fn::sum{true});
+    constexpr fn::optional<fn::copack_for<int, std::string_view>> a{fn::copack{42}};
+    static_assert(std::is_same_v<decltype(a.transform(fn)), fn::optional<fn::copack<bool, int>>>);
+    static_assert(a.transform(fn).value() == fn::copack{true});
   }
 
   SECTION("constraints")
@@ -939,21 +940,21 @@ TEST_CASE("optional transform sum", "[optional][sum][transform]")
     static_assert(not can_transform_clval(lval_only));
 
     S s{12};
-    CHECK(s.transform(lval_only).value() == fn::sum{true});
+    CHECK(s.transform(lval_only).value() == fn::copack{true});
   }
 
   SECTION("noexcept")
   {
     // the dispatch is nothrow only if every alternative's call is, and only if relocating what each
-    // returns into the result sum is
-    using T = fn::optional<fn::sum<double, int>>;
+    // returns into the result copack is
+    using T = fn::optional<fn::copack<double, int>>;
     static_assert(noexcept(std::declval<T &>().transform([](auto) noexcept -> bool { return true; })));
     static_assert(not noexcept(std::declval<T &>().transform([](auto) -> bool { return true; })));
     static_assert(not noexcept(std::declval<T &>().transform(
         fn::overload{[](double) noexcept -> bool { return true; },
                      [](int) -> bool { return true; }}))); // one throwing alternative is enough
     static_assert(not noexcept(
-        std::declval<fn::optional<fn::sum_for<MoveNothrow, int>> &>().transform([](auto v) noexcept { return v; })));
+        std::declval<fn::optional<fn::copack_for<MoveNothrow, int>> &>().transform([](auto v) noexcept { return v; })));
     SUCCEED();
   }
 }
@@ -1093,9 +1094,9 @@ TEST_CASE("optional apply", "[optional][apply]")
     }
   }
 
-  SECTION("sum payload")
+  SECTION("copack payload")
   {
-    using S = fn::sum<bool, int>;
+    using S = fn::copack<bool, int>;
     optional<S> s{std::in_place, S{42}};
     constexpr auto sarms = fn::overload{[](bool) noexcept -> int { return 1; }, [](int) noexcept -> int { return 2; },
                                         []() noexcept -> int { return -1; }};
@@ -1269,10 +1270,10 @@ TEST_CASE("optional apply_type", "[optional][apply_type]")
     }
   }
 
-  SECTION("sum payload")
+  SECTION("copack payload")
   {
-    // a sum payload dispatches under the tag, and its exhaustiveness composes
-    using S = fn::sum_for<int, Xint>;
+    // a copack payload dispatches under the tag, and its exhaustiveness composes
+    using S = fn::copack_for<int, Xint>;
     optional<S> s{std::in_place, S{42}};
     constexpr auto sarms
         = fn::overload{[](in_place_t, Xint const &) noexcept -> int { return 1; },
@@ -1284,9 +1285,9 @@ TEST_CASE("optional apply_type", "[optional][apply_type]")
         = fn::overload{[](in_place_t, int) noexcept -> int { return 2; }, [](nullopt_t) noexcept -> int { return -1; }};
     static_assert(not can_apply_type<optional<S> &, decltype(no_xint) const &>);
 
-    // within the payload the dispatch is the value path: over sum<bool, int> a lone int arm
-    // absorbs the bool alternative - the tag guards the optional's row, not the sum's
-    static_assert(can_apply_type<optional<fn::sum<bool, int>> &,
+    // within the payload the dispatch is the value path: over copack<bool, int> a lone int arm
+    // absorbs the bool alternative - the tag guards the optional's row, not the copack's
+    static_assert(can_apply_type<optional<fn::copack<bool, int>> &,
                                  decltype(fn::overload{[](in_place_t, int) -> int { return 0; },
                                                        [](nullopt_t) -> int { return 0; }}) const &>);
 
@@ -1374,9 +1375,9 @@ template <typename S, typename Fn>
 concept can_transform = requires(S s, Fn fn) { FWD(s).transform(FWD(fn)); };
 } // anonymous namespace
 
-TEST_CASE("optional of empty sum", "[optional][sum]")
+TEST_CASE("optional of empty copack", "[optional][copack]")
 {
-  using S0 = fn::sum<>;
+  using S0 = fn::copack<>;
   using O = fn::optional<S0>;
   constexpr Poison poison{};
 
@@ -1448,17 +1449,17 @@ TEST_CASE("optional of empty sum", "[optional][sum]")
   SECTION("or_else runs the callback")
   {
     // the empty state is the one inhabited state, so or_else keeps its full meaning, and the
-    // widening contract is unchanged: sum_for<sum<>, U> is U's own normal form
+    // widening contract is unchanged: copack_for<copack<>, U> is U's own normal form
     O o{};
     auto r1 = o.or_else([]() -> O { return {}; });
     static_assert(std::is_same_v<decltype(r1), O>);
     CHECK(not r1.has_value());
     auto r2 = o.or_else([]() -> fn::optional<int> { return {42}; });
-    static_assert(std::is_same_v<decltype(r2), fn::optional<fn::sum<int>>>);
+    static_assert(std::is_same_v<decltype(r2), fn::optional<fn::copack<int>>>);
     CHECK(r2.has_value());
-    CHECK(r2.value() == fn::sum<int>{42});
-    auto r3 = o.or_else([]() -> fn::optional<fn::sum<bool, int>> { return {fn::sum<bool, int>{42}}; });
-    static_assert(std::is_same_v<decltype(r3), fn::optional<fn::sum<bool, int>>>);
+    CHECK(r2.value() == fn::copack<int>{42});
+    auto r3 = o.or_else([]() -> fn::optional<fn::copack<bool, int>> { return {fn::copack<bool, int>{42}}; });
+    static_assert(std::is_same_v<decltype(r3), fn::optional<fn::copack<bool, int>>>);
     CHECK(r3.has_value());
 
     SECTION("noexcept")

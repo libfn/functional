@@ -8,11 +8,11 @@
 
 #include <fn/choice.hpp>
 #include <fn/concepts.hpp>
+#include <fn/copack.hpp>
 #include <fn/expected.hpp>
 #include <fn/functional.hpp>
 #include <fn/functor.hpp>
 #include <fn/optional.hpp>
-#include <fn/sum.hpp>
 
 #include <type_traits>
 
@@ -26,11 +26,11 @@ namespace fn {
 template <typename Fn, typename V>
 concept applicable_transform //
     = (some_expected_non_void<V>//
-           && (not some_sum<typename ::std::remove_cvref_t<V>::value_type>) && requires(Fn &&fn, V &&v) {
+           && (not some_copack<typename ::std::remove_cvref_t<V>::value_type>) && requires(Fn &&fn, V &&v) {
         {
           ::fn::apply(FWD(fn), FWD(v).value())
         } -> convertible_to_expected<typename ::std::remove_cvref_t<decltype(v)>::error_type>;
-      }) || (some_expected<V> && some_sum<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
+      }) || (some_expected<V> && some_copack<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
         {
           FWD(v).value().transform(FWD(fn))
         } -> convertible_to_expected<typename ::std::remove_cvref_t<decltype(v)>::error_type>;
@@ -39,11 +39,11 @@ concept applicable_transform //
           ::fn::apply(FWD(fn))
         } -> convertible_to_expected<typename ::std::remove_cvref_t<decltype(v)>::error_type>;
       }) || (some_optional<V> //
-            && (not some_sum<typename ::std::remove_cvref_t<V>::value_type>) && requires(Fn &&fn, V &&v) {
+            && (not some_copack<typename ::std::remove_cvref_t<V>::value_type>) && requires(Fn &&fn, V &&v) {
         {
           ::fn::apply(FWD(fn), FWD(v).value())
         } -> convertible_to_optional;
-      }) || (some_optional<V> && some_sum<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
+      }) || (some_optional<V> && some_copack<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
         {
           FWD(v).value().transform(FWD(fn))
         } -> convertible_to_optional;

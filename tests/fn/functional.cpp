@@ -3,9 +3,9 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
+#include <fn/copack.hpp>
 #include <fn/functional.hpp>
 #include <fn/pack.hpp>
-#include <fn/sum.hpp>
 #include <fn/utility.hpp>
 #include <pfn/tuple.hpp>
 
@@ -16,11 +16,11 @@
 #include <type_traits>
 #include <utility>
 
-TEST_CASE("apply multidispatch", "[pack][sum][apply][apply_r]")
+TEST_CASE("apply multidispatch", "[pack][copack][apply][apply_r]")
 {
   using namespace ::fn::detail;
+  using ::fn::copack;
   using ::fn::pack;
-  using ::fn::sum;
 
   constexpr auto fn = [](auto &&...a) { return (0 + ... + static_cast<int>(a)); };
 
@@ -29,30 +29,30 @@ TEST_CASE("apply multidispatch", "[pack][sum][apply][apply_r]")
   static_assert(fn::apply(fn, pack{1, 2}) == 1 + 2);
   static_assert(fn::apply(fn, pack{1, 2}, 3) == 1 + 2 + 3);
   static_assert(fn::apply(fn, 1, pack{2, 3, 5}) == 1 + 2 + 3 + 5);
-  static_assert(fn::apply(fn, sum<bool, int>{2}) == 2);
-  static_assert(fn::apply(fn, sum<bool, int>{2}, 3) == 2 + 3);
-  static_assert(fn::apply(fn, 2, sum<bool, int>{3}) == 2 + 3);
-  static_assert(fn::apply(fn, 2, sum<bool, int>{3}, pack{2, 3, 5}) == 2 + 3 + 2 + 3 + 5);
-  static_assert(fn::apply(fn, 2, pack{3, 5}, 7, sum<bool, int>{2}) == 2 + 3 + 5 + 7 + 2);
-  static_assert(fn::apply(fn, sum<bool, int>{3}, 2, pack{2, 3, 5}) == 2 + 3 + 2 + 3 + 5);
-  static_assert(fn::apply(fn, sum<bool, int>{3}, pack{2, 3, 5}, 2) == 2 + 3 + 2 + 3 + 5);
-  static_assert(fn::apply(fn, pack{3, 5}, 2, 7, sum<bool, int>{2}) == 2 + 3 + 5 + 7 + 2);
-  static_assert(fn::apply(fn, pack{3, 5}, sum<bool, int>{2}, 2, 7) == 2 + 3 + 5 + 7 + 2);
+  static_assert(fn::apply(fn, copack<bool, int>{2}) == 2);
+  static_assert(fn::apply(fn, copack<bool, int>{2}, 3) == 2 + 3);
+  static_assert(fn::apply(fn, 2, copack<bool, int>{3}) == 2 + 3);
+  static_assert(fn::apply(fn, 2, copack<bool, int>{3}, pack{2, 3, 5}) == 2 + 3 + 2 + 3 + 5);
+  static_assert(fn::apply(fn, 2, pack{3, 5}, 7, copack<bool, int>{2}) == 2 + 3 + 5 + 7 + 2);
+  static_assert(fn::apply(fn, copack<bool, int>{3}, 2, pack{2, 3, 5}) == 2 + 3 + 2 + 3 + 5);
+  static_assert(fn::apply(fn, copack<bool, int>{3}, pack{2, 3, 5}, 2) == 2 + 3 + 2 + 3 + 5);
+  static_assert(fn::apply(fn, pack{3, 5}, 2, 7, copack<bool, int>{2}) == 2 + 3 + 5 + 7 + 2);
+  static_assert(fn::apply(fn, pack{3, 5}, copack<bool, int>{2}, 2, 7) == 2 + 3 + 5 + 7 + 2);
 
   static_assert(fn::apply_r<long>(fn) == 0);
   static_assert(fn::apply_r<long>(fn, 1, 2) == 3);
   static_assert(fn::apply_r<long>(fn, pack{1, 2}) == 1 + 2);
   static_assert(fn::apply_r<long>(fn, pack{1, 2}, 3) == 1 + 2 + 3);
   static_assert(fn::apply_r<long>(fn, 1, pack{2, 3, 5}) == 1 + 2 + 3 + 5);
-  static_assert(fn::apply_r<long>(fn, sum<bool, int>{2}) == 2);
-  static_assert(fn::apply_r<long>(fn, sum<bool, int>{2}, 3) == 2 + 3);
-  static_assert(fn::apply_r<long>(fn, 2, sum<bool, int>{3}) == 2 + 3);
-  static_assert(fn::apply_r<long>(fn, 2, sum<bool, int>{3}, pack{2, 3, 5}) == 2 + 3 + 2 + 3 + 5);
-  static_assert(fn::apply_r<long>(fn, 2, pack{3, 5}, 7, sum<bool, int>{2}) == 2 + 3 + 5 + 7 + 2);
-  static_assert(fn::apply_r<long>(fn, sum<bool, int>{3}, 2, pack{2, 3, 5}) == 2 + 3 + 2 + 3 + 5);
-  static_assert(fn::apply_r<long>(fn, sum<bool, int>{3}, pack{2, 3, 5}, 2) == 2 + 3 + 2 + 3 + 5);
-  static_assert(fn::apply_r<long>(fn, pack{3, 5}, 2, 7, sum<bool, int>{2}) == 2 + 3 + 5 + 7 + 2);
-  static_assert(fn::apply_r<long>(fn, pack{3, 5}, sum<bool, int>{2}, 2, 7) == 2 + 3 + 5 + 7 + 2);
+  static_assert(fn::apply_r<long>(fn, copack<bool, int>{2}) == 2);
+  static_assert(fn::apply_r<long>(fn, copack<bool, int>{2}, 3) == 2 + 3);
+  static_assert(fn::apply_r<long>(fn, 2, copack<bool, int>{3}) == 2 + 3);
+  static_assert(fn::apply_r<long>(fn, 2, copack<bool, int>{3}, pack{2, 3, 5}) == 2 + 3 + 2 + 3 + 5);
+  static_assert(fn::apply_r<long>(fn, 2, pack{3, 5}, 7, copack<bool, int>{2}) == 2 + 3 + 5 + 7 + 2);
+  static_assert(fn::apply_r<long>(fn, copack<bool, int>{3}, 2, pack{2, 3, 5}) == 2 + 3 + 2 + 3 + 5);
+  static_assert(fn::apply_r<long>(fn, copack<bool, int>{3}, pack{2, 3, 5}, 2) == 2 + 3 + 2 + 3 + 5);
+  static_assert(fn::apply_r<long>(fn, pack{3, 5}, 2, 7, copack<bool, int>{2}) == 2 + 3 + 5 + 7 + 2);
+  static_assert(fn::apply_r<long>(fn, pack{3, 5}, copack<bool, int>{2}, 2, 7) == 2 + 3 + 5 + 7 + 2);
 }
 
 TEST_CASE("apply_result pack", "[apply_result][pack]")
@@ -85,14 +85,14 @@ TEST_CASE("is_applicable pack", "[is_applicable][pack]")
   SUCCEED();
 }
 
-TEST_CASE("is_applicable sum", "[is_applicable][sum]")
+TEST_CASE("is_applicable copack", "[is_applicable][copack]")
 {
+  using fn::copack;
   using fn::is_applicable;
   using fn::is_applicable_v;
   using fn::overload;
-  using fn::sum;
 
-  constexpr sum<double, int> p{3};
+  constexpr copack<double, int> p{3};
   constexpr auto fn1 = overload{[](int i) -> int { return i * 100; }, [](double j) -> int { return (int)j; }};
   static_assert(is_applicable<decltype(fn1), decltype(p)>::value);
   static_assert(is_applicable_v<decltype(fn1), decltype(p)>);
@@ -118,14 +118,14 @@ TEST_CASE("is_applicable_r pack", "[is_applicable_r][pack]")
   static_assert(not is_applicable_r_v<bool, decltype(fn2), decltype(p)>);
 }
 
-TEST_CASE("is_applicable_r sum", "[is_applicable_r][sum]")
+TEST_CASE("is_applicable_r copack", "[is_applicable_r][copack]")
 {
+  using fn::copack;
   using fn::is_applicable_r;
   using fn::is_applicable_r_v;
   using fn::overload;
-  using fn::sum;
 
-  constexpr sum<double, int> p{3};
+  constexpr copack<double, int> p{3};
   constexpr auto fn1 = overload{[](int i) -> int { return i * 100; }, [](double j) -> int { return (int)j; }};
   static_assert(is_applicable_r<bool, decltype(fn1), decltype(p)>::value);
   static_assert(is_applicable_r_v<bool, decltype(fn1), decltype(p)>);
@@ -188,14 +188,14 @@ TEST_CASE("apply_r pack", "[apply_r][pack]")
   CHECK(apply_r<double>(fn, std::move(p)) == 314.0);
 }
 
-TEST_CASE("apply sum", "[apply][sum]")
+TEST_CASE("apply copack", "[apply][copack]")
 {
   using fn::apply;
+  using fn::copack;
   using fn::overload;
-  using fn::sum;
 
   constexpr auto fn = overload{[](int i) -> int { return i * 10; }, [](double) -> int { throw 0; }};
-  sum<double, int> p{3};
+  copack<double, int> p{3};
 
   CHECK(apply(fn, p) == 30);
   CHECK(apply(fn, std::as_const(p)) == 30);
@@ -203,14 +203,14 @@ TEST_CASE("apply sum", "[apply][sum]")
   CHECK(apply(fn, std::move(p)) == 30);
 }
 
-TEST_CASE("apply_r sum", "[apply_r][sum]")
+TEST_CASE("apply_r copack", "[apply_r][copack]")
 {
   using fn::apply_r;
+  using fn::copack;
   using fn::overload;
-  using fn::sum;
 
   constexpr auto fn = overload{[](int) -> bool { throw 0; }, [](double j) -> short { return j * 100; }};
-  sum<double, int> p{14.15};
+  copack<double, int> p{14.15};
 
   CHECK(apply_r<int>(fn, p) == 1415);
   CHECK(apply_r<int>(fn, std::as_const(p)) == 1415);
@@ -231,13 +231,13 @@ TEST_CASE("is_nothrow_applicable", "[is_nothrow_applicable][is_nothrow_applicabl
   static_assert(std::is_nothrow_invocable_r_v<long, decltype(fnNothrow), int>);
   static_assert(fn::is_nothrow_applicable_r_v<long, decltype(fnNothrow), int>);
 
-  // The pack and sum dispatch paths have no std counterpart to fall back on, which is why the traits
+  // The pack and copack dispatch paths have no std counterpart to fall back on, which is why the traits
   // exist at all: they answer by asking the apply chain itself - a pack for the call over its
-  // elements, a sum for the call over every alternative.
+  // elements, a copack for the call over every alternative.
   static_assert(fn::is_nothrow_applicable_v<decltype(fnNothrow), fn::pack<int>>);
-  static_assert(fn::is_nothrow_applicable_v<decltype(fnNothrow), fn::sum<int>>);
+  static_assert(fn::is_nothrow_applicable_v<decltype(fnNothrow), fn::copack<int>>);
   static_assert(not fn::is_nothrow_applicable_v<decltype(fnThrows), fn::pack<int>>);
-  static_assert(not fn::is_nothrow_applicable_v<decltype(fnThrows), fn::sum<int>>);
+  static_assert(not fn::is_nothrow_applicable_v<decltype(fnThrows), fn::copack<int>>);
 
   // so fn::apply propagates what the callable promises
   static_assert(fn::is_applicable_v<decltype(fnNothrow), int>);
@@ -288,23 +288,23 @@ TEST_CASE("apply tuple-like", "[apply][apply_r][tuple]")
 
   SECTION("elements are terminal")
   {
-    // a sum element is handed over whole, exactly as std::apply hands it - never dispatched
+    // a copack element is handed over whole, exactly as std::apply hands it - never dispatched
     struct TakesSum {
-      constexpr int operator()(fn::sum<int> const &) const noexcept { return 7; }
+      constexpr int operator()(fn::copack<int> const &) const noexcept { return 7; }
     };
     struct TakesAlternative {
       constexpr int operator()(int) const noexcept { return 8; }
     };
-    static_assert(fn::apply(TakesSum{}, std::tuple<fn::sum<int>>{fn::sum<int>{1}}) == 7);
-    static_assert(not fn::is_applicable_v<TakesAlternative, std::tuple<fn::sum<int>>>);
-    static_assert(fn::is_applicable_v<TakesSum, std::tuple<fn::sum<int>>>
-                  == pfn::is_applicable_v<TakesSum, std::tuple<fn::sum<int>>>);
-    static_assert(fn::is_applicable_v<TakesAlternative, std::tuple<fn::sum<int>>>
-                  == pfn::is_applicable_v<TakesAlternative, std::tuple<fn::sum<int>>>);
+    static_assert(fn::apply(TakesSum{}, std::tuple<fn::copack<int>>{fn::copack<int>{1}}) == 7);
+    static_assert(not fn::is_applicable_v<TakesAlternative, std::tuple<fn::copack<int>>>);
+    static_assert(fn::is_applicable_v<TakesSum, std::tuple<fn::copack<int>>>
+                  == pfn::is_applicable_v<TakesSum, std::tuple<fn::copack<int>>>);
+    static_assert(fn::is_applicable_v<TakesAlternative, std::tuple<fn::copack<int>>>
+                  == pfn::is_applicable_v<TakesAlternative, std::tuple<fn::copack<int>>>);
     // and a pack is not tuple-like: it keeps fn's own dispatch
     static_assert(fn::apply(arity, fn::pack{1, 2, 3}) == 3);
 
-    CHECK(fn::apply(TakesSum{}, std::tuple<fn::sum<int>>{fn::sum<int>{1}}) == 7);
+    CHECK(fn::apply(TakesSum{}, std::tuple<fn::copack<int>>{fn::copack<int>{1}}) == 7);
     CHECK(fn::apply(arity, fn::pack{1, 2, 3}) == 3);
   }
 

@@ -74,19 +74,19 @@ constexpr std::from_chars_result fallback_parse_int(char const *first, char cons
 enum class NotANumber;
 
 constexpr auto parse(std::string_view s) noexcept
-    -> fn::expected<fn::pack<int, int>, fn::sum<NotANumber>>
+    -> fn::expected<fn::pack<int, int>, fn::copack<NotANumber>>
 {
   int n = 0, d = 1;
   auto const bar = s.find('/');
   auto const head = s.substr(0, bar);
   auto const [p, e] = FROM_CHARS(head.data(), head.data() + head.size(), n);
   if (e != std::errc{} || p != head.data() + head.size())
-    return fn::unexpected{fn::sum{NotANumber{}}};
+    return fn::unexpected{fn::copack{NotANumber{}}};
   if (bar != std::string_view::npos) {
     auto const tail = s.substr(bar + 1);
     auto const [q, f] = FROM_CHARS(tail.data(), tail.data() + tail.size(), d);
     if (f != std::errc{} || q != tail.data() + tail.size())
-      return fn::unexpected{fn::sum{NotANumber{}}};
+      return fn::unexpected{fn::copack{NotANumber{}}};
   }
   return fn::pack<int, int>{n, d};
 }
@@ -105,7 +105,7 @@ enum class Div {};
 
 // `parse` turns a '/' delimited string into a pair of numbers (a numerator and denominator)
 constexpr auto parse(std::string_view s) noexcept
-    -> fn::expected<fn::pack<int, int>, fn::sum<NotANumber>>;
+    -> fn::expected<fn::pack<int, int>, fn::copack<NotANumber>>;
 
 class Rational {
   int n_, d_;
@@ -120,18 +120,18 @@ public:
   // reduced, sign-normalized and representable. Callers receive a value they never need re-check.
   static constexpr struct make_t {
     constexpr auto operator()(long long n, long long d) const noexcept
-        -> fn::expected<Rational, fn::sum_for<DivByZero, Overflow>>
+        -> fn::expected<Rational, fn::copack_for<DivByZero, Overflow>>
     {
-      if (d == 0) return fn::unexpected{fn::sum{DivByZero{}}};
+      if (d == 0) return fn::unexpected{fn::copack{DivByZero{}}};
       if (n == std::numeric_limits<long long>::min() || d == std::numeric_limits<long long>::min())
-        return fn::unexpected{fn::sum{Overflow{}}};
+        return fn::unexpected{fn::copack{Overflow{}}};
 
       auto const g = (d < 0 ? -1 : 1) * std::gcd(n, d);
       n /= g;
       d /= g;
       if (n < std::numeric_limits<int>::min() || n > std::numeric_limits<int>::max()
           || d > std::numeric_limits<int>::max()) {
-        return fn::unexpected{fn::sum{Overflow{}}};
+        return fn::unexpected{fn::copack{Overflow{}}};
       }
 
       return Rational(static_cast<int>(n), static_cast<int>(d));
@@ -165,11 +165,11 @@ public:
 };
 
 // `evaluate` parses each operand, applies the operator, and lets `make` re-check the result.
-// Each stage fails its own way, and the library folds error types into one sum of types.
-constexpr auto evaluate(std::string_view a, fn::sum_for<Add, Sub, Mul, Div> op,
+// Each stage fails its own way, and the library folds error types into one co-product.
+constexpr auto evaluate(std::string_view a, fn::copack_for<Add, Sub, Mul, Div> op,
                         std::string_view b) noexcept
 {
-  using Op = fn::expected<decltype(op), fn::sum<>>;
+  using Op = fn::expected<decltype(op), fn::copack<>>;
   return (Rational::make(a) & Op{op} & Rational::make(b)) //
          | fn::and_then(fn::overload{[](Rational x, Add, Rational y) { return x.add(y); },
                                      [](Rational x, Sub, Rational y) { return x.sub(y); },
@@ -177,11 +177,11 @@ constexpr auto evaluate(std::string_view a, fn::sum_for<Add, Sub, Mul, Div> op,
                                      [](Rational x, Div, Rational y) { return x.div(y); }});
 }
 
-// The error type of a sequence is the derived sum of all failure modes, never spelled by hand:
+// The error type of a sequence is the derived copack of all failure modes, never spelled by hand:
 static_assert(std::is_same_v<decltype(Rational::make("1/1")),
-                             fn::expected<Rational, fn::sum<DivByZero, NotANumber, Overflow>>>);
+                             fn::expected<Rational, fn::copack<DivByZero, NotANumber, Overflow>>>);
 static_assert(std::is_same_v<decltype(evaluate("1/2", Add{}, "3/4")),
-                             fn::expected<Rational, fn::sum<DivByZero, NotANumber, Overflow>>>);
+                             fn::expected<Rational, fn::copack<DivByZero, NotANumber, Overflow>>>);
 // Constant evaluated calculations used to verify both values and errors during compilation:
 static_assert(evaluate("1/2", Add{}, "1/3").value() == Rational::make(5, 6));
 static_assert(evaluate("2/3", Div{}, "0/1").error().has_value<DivByZero>());

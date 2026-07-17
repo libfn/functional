@@ -78,24 +78,24 @@ static_assert(same_kind<expected<void, Error>, expected<int, Error>>);
 static_assert(same_kind<expected<int, Error>, expected<void, Error>>);
 static_assert(same_kind<expected<int, Error>, expected<Value, Error>>);
 static_assert(same_kind<expected<void, Error>, expected<Value, Error>>);
-static_assert(same_kind<expected<Value, fn::sum<Error>>, expected<void, fn::sum<Error>>>);
-static_assert(same_kind<expected<Value, fn::sum<Error>>, expected<void, fn::sum<int>>>);
-// sum_for, not sum<Error,int>: the alternative order is platform-specific (see sum.cpp) — same_kind ignores it.
-static_assert(same_kind<expected<Value, fn::sum<Error>>, expected<void, fn::sum_for<Error, int>>>);
-static_assert(same_kind<expected<Value, fn::sum_for<Error, int>>, expected<void, fn::sum<Error>>>);
-static_assert(same_kind<expected<Value, fn::sum<Error>>, expected<void, fn::sum<Xerror>>>);
-static_assert(same_kind<expected<Value, fn::sum<Error>>, expected<void, fn::sum_for<Error, Xerror>>>);
-static_assert(same_kind<expected<Value, fn::sum<int>>, expected<void, fn::sum_for<Error, Xerror>>>);
+static_assert(same_kind<expected<Value, fn::copack<Error>>, expected<void, fn::copack<Error>>>);
+static_assert(same_kind<expected<Value, fn::copack<Error>>, expected<void, fn::copack<int>>>);
+// copack_for, not copack<Error,int>: the alternative order is platform-specific (see copack.cpp) — same_kind ignores it.
+static_assert(same_kind<expected<Value, fn::copack<Error>>, expected<void, fn::copack_for<Error, int>>>);
+static_assert(same_kind<expected<Value, fn::copack_for<Error, int>>, expected<void, fn::copack<Error>>>);
+static_assert(same_kind<expected<Value, fn::copack<Error>>, expected<void, fn::copack<Xerror>>>);
+static_assert(same_kind<expected<Value, fn::copack<Error>>, expected<void, fn::copack_for<Error, Xerror>>>);
+static_assert(same_kind<expected<Value, fn::copack<int>>, expected<void, fn::copack_for<Error, Xerror>>>);
 static_assert(not same_kind<expected<Value, Error>, expected<void, Xerror>>);
 static_assert(not same_kind<expected<void, Error>, expected<void, Xerror>>);
 static_assert(not same_kind<expected<void, Error>, expected<int, Xerror>>);
 static_assert(not same_kind<expected<int, Error>, expected<void, Xerror>>);
 static_assert(not same_kind<expected<int, Error>, expected<Value, Xerror>>);
 static_assert(not same_kind<expected<void, Error>, expected<Value, Xerror>>);
-static_assert(not same_kind<expected<Value, fn::sum<Error>>, expected<void, Error>>);
-static_assert(not same_kind<expected<Value, fn::sum<Error>>, expected<void, Xerror>>);
-static_assert(not same_kind<expected<Value, Error>, expected<void, fn::sum<Error>>>);
-static_assert(not same_kind<expected<Value, Xerror>, expected<void, fn::sum<Error>>>);
+static_assert(not same_kind<expected<Value, fn::copack<Error>>, expected<void, Error>>);
+static_assert(not same_kind<expected<Value, fn::copack<Error>>, expected<void, Xerror>>);
+static_assert(not same_kind<expected<Value, Error>, expected<void, fn::copack<Error>>>);
+static_assert(not same_kind<expected<Value, Xerror>, expected<void, fn::copack<Error>>>);
 
 static_assert(same_kind<optional<int>          , optional<Value>>);
 static_assert(same_kind<optional<int>          , optional<Value> const>);
@@ -305,14 +305,14 @@ static_assert(not same_value_kind<expected<int, Error>, expected<Value, Error>>)
 static_assert(not same_kind<expected<int, Error>, expected<int, Xerror>>);        // ... and the other way round
 static_assert(same_kind<expected<int, Error>, expected<Value, Error>>);
 
-// a sum-valued expected matches any other sum-valued one, whatever the sums hold - the arm that lets
+// a copack-valued expected matches any other copack-valued one, whatever the copacks hold - the arm that lets
 // the value widen
-static_assert(same_value_kind<expected<sum<int>, Error>, expected<sum<Value>, Xerror>>);
-static_assert(not same_value_kind<expected<sum<int>, Error>, expected<int, Error>>);
+static_assert(same_value_kind<expected<copack<int>, Error>, expected<copack<Value>, Xerror>>);
+static_assert(not same_value_kind<expected<copack<int>, Error>, expected<int, Error>>);
 
 static_assert(same_value_kind<optional<int>, optional<int>>);
 static_assert(not same_value_kind<optional<int>, optional<Value>>);
-static_assert(same_value_kind<optional<sum<int>>, optional<sum<Value>>>);
+static_assert(same_value_kind<optional<copack<int>>, optional<copack<Value>>>);
 
 static_assert(same_value_kind<choice<int>, choice<Value>>);              // any two choices, as for same_kind
 static_assert(not same_value_kind<optional<int>, expected<int, Error>>); // but never across kinds

@@ -194,23 +194,24 @@ TEST_CASE("or_else", "[or_else][expected][expected_value]")
       SUCCEED();
     }
 
-    SECTION("sum")
+    SECTION("copack")
     {
       enum class Error { ThresholdExceeded, SomethingElse, UnexpectedType };
-      using T = fn::expected<int, fn::sum_for<Error, int>>;
+      using T = fn::expected<int, fn::copack_for<Error, int>>;
 
       SECTION("same error type")
       {
-        constexpr auto fn = fn::overload{[](int i) constexpr noexcept -> T {
-                                           if (i < 3)
-                                             return {i + 1};
-                                           return ::fn::unexpected<fn::sum_for<Error, int>>{Error::ThresholdExceeded};
-                                         },
-                                         [](Error v) constexpr noexcept -> T { return {static_cast<int>(v)}; }};
+        constexpr auto fn
+            = fn::overload{[](int i) constexpr noexcept -> T {
+                             if (i < 3)
+                               return {i + 1};
+                             return ::fn::unexpected<fn::copack_for<Error, int>>{Error::ThresholdExceeded};
+                           },
+                           [](Error v) constexpr noexcept -> T { return {static_cast<int>(v)}; }};
         constexpr auto r1 = T{::fn::unexpect, 0} | fn::or_else(fn);
         static_assert(r1.value() == 1);
         constexpr auto r2 = T{::fn::unexpect, 3} | fn::or_else(fn);
-        static_assert(r2.error() == fn::sum{Error::ThresholdExceeded});
+        static_assert(r2.error() == fn::copack{Error::ThresholdExceeded});
 
         SUCCEED();
       }
@@ -240,7 +241,7 @@ TEST_CASE("or_else", "[or_else][expected][expected_value]")
     SECTION("graded")
     {
       enum class Error : int { Unknown, InvalidValue };
-      using T = fn::expected<fn::sum<int>, Error>;
+      using T = fn::expected<fn::copack<int>, Error>;
 
       constexpr auto fn1 = [](Error i) -> fn::expected<int, int> {
         if (i == Error::Unknown)
@@ -249,12 +250,12 @@ TEST_CASE("or_else", "[or_else][expected][expected_value]")
       };
 
       constexpr auto r1 = T{14} | fn::or_else(fn1);
-      static_assert(std::is_same_v<decltype(r1), fn::expected<fn::sum<int>, int> const>);
-      static_assert(r1.value() == fn::sum{14});
+      static_assert(std::is_same_v<decltype(r1), fn::expected<fn::copack<int>, int> const>);
+      static_assert(r1.value() == fn::copack{14});
       constexpr auto r2 = T{::fn::unexpect, Error::InvalidValue} | fn::or_else(fn1);
       static_assert(r2.error() == 1);
       constexpr auto r3 = T{::fn::unexpect, Error::Unknown} | fn::or_else(fn1);
-      static_assert(r3.value() == fn::sum{0});
+      static_assert(r3.value() == fn::copack{0});
 
       SUCCEED();
     }
@@ -510,15 +511,15 @@ TEST_CASE("or_else", "[or_else][optional]")
 
     SUCCEED();
 
-    SECTION("sum")
+    SECTION("copack")
     {
-      using T = fn::optional<fn::sum<int>>;
+      using T = fn::optional<fn::copack<int>>;
       constexpr auto fn = []() constexpr noexcept -> fn::optional<unsigned long> { return {1ul}; };
       constexpr auto r1 = T{0} | fn::or_else(fn);
-      static_assert(std::is_same_v<decltype(r1), fn::optional<fn::sum<int, unsigned long>> const>);
-      static_assert(r1.value() == fn::sum{0});
+      static_assert(std::is_same_v<decltype(r1), fn::optional<fn::copack<int, unsigned long>> const>);
+      static_assert(r1.value() == fn::copack{0});
       constexpr auto r2 = T{} | fn::or_else(fn);
-      static_assert(r2.value() == fn::sum{1ul});
+      static_assert(r2.value() == fn::copack{1ul});
 
       SUCCEED();
     }

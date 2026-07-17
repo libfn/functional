@@ -41,7 +41,7 @@ template <typename T>
 concept _some_optional = _is_some_optional<T &>;
 } // namespace detail
 
-// choice monad (Sum a | ...)
+// choice monad (Copack a | ...)
 template <typename... Ts> struct choice;
 namespace detail {
 template <typename... Ts> constexpr bool _is_some_choice = false;
@@ -62,13 +62,13 @@ concept _some_pack = detail::_is_some_pack<T &>;
 } // namespace detail
 
 // co-product of types
-template <typename... Ts> struct sum;
+template <typename... Ts> struct copack;
 namespace detail {
-template <typename... Ts> constexpr bool _is_sum = false;
-template <typename... Ts> constexpr bool _is_sum<::fn::sum<Ts...> &> = true;
-template <typename... Ts> constexpr bool _is_sum<::fn::sum<Ts...> const &> = true;
+template <typename... Ts> constexpr bool _is_copack = false;
+template <typename... Ts> constexpr bool _is_copack<::fn::copack<Ts...> &> = true;
+template <typename... Ts> constexpr bool _is_copack<::fn::copack<Ts...> const &> = true;
 template <typename T>
-concept _some_sum = detail::_is_sum<T &>;
+concept _some_copack = detail::_is_copack<T &>;
 } // namespace detail
 } // namespace fn
 

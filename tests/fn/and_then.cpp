@@ -434,10 +434,10 @@ TEST_CASE("and_then", "[and_then][expected][expected_value][pack]")
       SUCCEED();
     }
 
-    SECTION("sum")
+    SECTION("copack")
     {
       enum class Error { ThresholdExceeded, SomethingElse, UnexpectedType };
-      using T = fn::expected<fn::sum_for<Xint, int>, Error>;
+      using T = fn::expected<fn::copack_for<Xint, int>, Error>;
 
       SECTION("same value type")
       {
@@ -448,7 +448,7 @@ TEST_CASE("and_then", "[and_then][expected][expected_value][pack]")
                                          },
                                          [](Xint v) constexpr noexcept -> T { return v; }};
         constexpr auto r1 = T{0} | fn::and_then(fn);
-        static_assert(r1.value() == fn::sum{1});
+        static_assert(r1.value() == fn::copack{1});
         constexpr auto r2 = r1 | fn::and_then(fn) | fn::and_then(fn) | fn::and_then(fn);
         static_assert(r2.error() == Error::ThresholdExceeded);
 
@@ -482,7 +482,7 @@ TEST_CASE("and_then", "[and_then][expected][expected_value][pack]")
     SECTION("graded")
     {
       enum class Error { InvalidValue };
-      using T = fn::expected<int, fn::sum<Error>>;
+      using T = fn::expected<int, fn::copack<Error>>;
 
       SECTION("same error type")
       {
@@ -493,14 +493,14 @@ TEST_CASE("and_then", "[and_then][expected][expected_value][pack]")
         };
 
         constexpr auto r1 = T{0} | fn::and_then(fn1);
-        static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::sum_for<Error, int>> const>);
+        static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::copack_for<Error, int>> const>);
         static_assert(r1.value() == 1);
         constexpr auto r2 = r1 | fn::and_then(fn1);
         static_assert(r2.value() == 2);
         constexpr auto r3 = r2 | fn::and_then(fn1);
-        static_assert(r3.error() == fn::sum{2});
+        static_assert(r3.error() == fn::copack{2});
         constexpr auto r4 = r3 | fn::and_then(fn1);
-        static_assert(r4.error() == fn::sum{2});
+        static_assert(r4.error() == fn::copack{2});
 
         SUCCEED();
       }
@@ -514,15 +514,15 @@ TEST_CASE("and_then", "[and_then][expected][expected_value][pack]")
         };
 
         constexpr auto r2 = T{1} | fn::and_then(fn2);
-        static_assert(std::is_same_v<decltype(r2), fn::expected<bool, fn::sum<Error>> const>);
+        static_assert(std::is_same_v<decltype(r2), fn::expected<bool, fn::copack<Error>> const>);
         static_assert(r2.value());
         constexpr auto r3 = T{2} | fn::and_then(fn2);
-        static_assert(r3.error() == fn::sum{Error::InvalidValue});
+        static_assert(r3.error() == fn::copack{Error::InvalidValue});
 
         constexpr auto fn3 = [](int i) -> fn::expected<int, int> { return {i + 1}; };
         constexpr auto r4 = r3 | fn::and_then(fn3);
-        static_assert(std::is_same_v<decltype(r4), fn::expected<int, fn::sum_for<Error, int>> const>);
-        static_assert(r4.error() == fn::sum{Error::InvalidValue});
+        static_assert(std::is_same_v<decltype(r4), fn::expected<int, fn::copack_for<Error, int>> const>);
+        static_assert(r4.error() == fn::copack{Error::InvalidValue});
         constexpr auto r5 = T{2} | fn::and_then(fn3);
         static_assert(r5.value() == 3);
 
@@ -829,9 +829,9 @@ TEST_CASE("and_then", "[and_then][optional][pack]")
       SUCCEED();
     }
 
-    SECTION("sum")
+    SECTION("copack")
     {
-      using T = fn::optional<fn::sum_for<Xint, int>>;
+      using T = fn::optional<fn::copack_for<Xint, int>>;
 
       SECTION("same value type")
       {
@@ -842,7 +842,7 @@ TEST_CASE("and_then", "[and_then][optional][pack]")
                                          },
                                          [](Xint v) constexpr noexcept -> T { return v; }};
         constexpr auto r1 = T{0} | fn::and_then(fn);
-        static_assert(r1.value() == fn::sum{1});
+        static_assert(r1.value() == fn::copack{1});
         constexpr auto r2 = r1 | fn::and_then(fn) | fn::and_then(fn) | fn::and_then(fn);
         static_assert(not r2.has_value());
 
@@ -1038,14 +1038,14 @@ static_assert(applicable_and_then<decltype(fn_int_lvalue<expected<Value, Error>>
 static_assert(applicable_and_then<decltype(fn_int_rvalue<expected<Value, Error>>), expected<int, Error>>);
 static_assert(not applicable_and_then<decltype(fn_int_rvalue<expected<Value, Error>>), expected<int, Error> &>); // cannot bind lvalue to rvalue-ref
 
-// A sum error type grades the monad: the callback may then return an expected with a DIFFERENT error,
-// which the operation widens into the sum. Without one, the error types must match exactly - the two
+// A copack error type grades the monad: the callback may then return an expected with a DIFFERENT error,
+// which the operation widens into the copack. Without one, the error types must match exactly - the two
 // disjuncts above and below are what tell those cases apart.
-static_assert(applicable_and_then<decltype(fn_int<expected<Value, sum<Error>>>), expected<int, sum<Error>>>);
-static_assert(applicable_and_then<decltype(fn_int<expected<Value, Xerror>>), expected<int, sum<Error>>>);         // widens the error
-static_assert(applicable_and_then<decltype(fn_int<expected<Value, Error>>), expected<int, sum<Error, Xerror>>>);  // already covered by the sum
-static_assert(not applicable_and_then<decltype(fn_int<expected<Value, Xerror>>), expected<int, Error>>);          // no sum: error must match
-static_assert(applicable_and_then<decltype(fn_generic<expected<Value, Xerror>>), expected<void, sum<Error>>>);    // ... and the same for void
+static_assert(applicable_and_then<decltype(fn_int<expected<Value, copack<Error>>>), expected<int, copack<Error>>>);
+static_assert(applicable_and_then<decltype(fn_int<expected<Value, Xerror>>), expected<int, copack<Error>>>);         // widens the error
+static_assert(applicable_and_then<decltype(fn_int<expected<Value, Error>>), expected<int, copack<Error, Xerror>>>);  // already covered by the copack
+static_assert(not applicable_and_then<decltype(fn_int<expected<Value, Xerror>>), expected<int, Error>>);          // no copack: error must match
+static_assert(applicable_and_then<decltype(fn_generic<expected<Value, Xerror>>), expected<void, copack<Error>>>);    // ... and the same for void
 static_assert(not applicable_and_then<decltype(fn_generic<expected<Value, Xerror>>), expected<void, Error>>);
 
 // choice - the concept's remaining disjunct

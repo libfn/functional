@@ -1,23 +1,23 @@
+#include <fn/copack.hpp>
 #include <fn/expected.hpp>
 #include <fn/pack.hpp>
-#include <fn/sum.hpp>
 #include <fn/transform.hpp>
 
 #include <cstdio>
 
 int main()
 {
-  constexpr fn::expected<fn::pack<char, char const *>, fn::sum<>> quine
-      = fn::pack<char, char const *>{')', R"(#include <fn/expected.hpp>
+  constexpr fn::expected<fn::pack<char, char const *>, fn::copack<>> quine
+      = fn::pack<char, char const *>{')', R"(#include <fn/copack.hpp>
+#include <fn/expected.hpp>
 #include <fn/pack.hpp>
-#include <fn/sum.hpp>
 #include <fn/transform.hpp>
 
 #include <cstdio>
 
 int main()
 {
-  constexpr fn::expected<fn::pack<char, char const *>, fn::sum<>> quine
+  constexpr fn::expected<fn::pack<char, char const *>, fn::copack<>> quine
       = fn::pack<char, char const *>{'%c', R"(%s%c"};
   return (quine //
           | fn::transform([](char c, char const *s) {

@@ -162,10 +162,10 @@ TEST_CASE("fail", "[fail][expected][expected_value][pack]")
 
     SUCCEED();
 
-    SECTION("sum")
+    SECTION("copack")
     {
       enum class Error { ThresholdExceeded, SomethingElse, Reserved };
-      using T = fn::expected<fn::sum_for<Value, int>, Error>;
+      using T = fn::expected<fn::copack_for<Value, int>, Error>;
       constexpr auto fn = fn::overload{[](int) constexpr noexcept -> Error { return Error::ThresholdExceeded; },
                                        [](Value const &) { return Error::SomethingElse; }};
       constexpr auto r1 = T{0} | fn::fail(fn);
@@ -367,9 +367,9 @@ TEST_CASE("fail", "[fail][optional][pack]")
 
     SUCCEED();
 
-    SECTION("sum")
+    SECTION("copack")
     {
-      using T = fn::optional<fn::sum_for<Value, int>>;
+      using T = fn::optional<fn::copack_for<Value, int>>;
       constexpr auto fn
           = fn::overload{[](int) constexpr noexcept -> void {}, [](Value const &) constexpr noexcept -> void {}};
       constexpr auto r1 = T{0} | fn::fail(fn);

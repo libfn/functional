@@ -73,7 +73,7 @@ template <typename L, typename Lv> struct _fold_lh final {
   }
 };
 
-template <typename Rv> struct _fold_rh_sum final {
+template <typename Rv> struct _fold_rh_copack final {
   Rv rv;
 
   template <typename L>
@@ -85,15 +85,15 @@ template <typename Rv> struct _fold_rh_sum final {
 };
 
 template <typename Lh, typename Rh>
-  requires _some_sum<Lh> && _some_sum<Rh>
+  requires _some_copack<Lh> && _some_copack<Rh>
 [[nodiscard]] constexpr auto fold(auto &&lv, auto &&rv) //
-    noexcept(noexcept(FWD(lv)._transform(_fold_rh_sum<decltype(rv)>{FWD(rv)})))
+    noexcept(noexcept(FWD(lv)._transform(_fold_rh_copack<decltype(rv)>{FWD(rv)})))
 {
-  return FWD(lv)._transform(_fold_rh_sum<decltype(rv)>{FWD(rv)});
+  return FWD(lv)._transform(_fold_rh_copack<decltype(rv)>{FWD(rv)});
 }
 
 template <typename Lh, typename Rh>
-  requires _some_sum<Lh> && (not _some_sum<Rh>)
+  requires _some_copack<Lh> && (not _some_copack<Rh>)
 [[nodiscard]] constexpr auto fold(auto &&lv, auto &&rv) //
     noexcept(noexcept(FWD(lv)._transform(_fold_rh<Rh, decltype(rv)>{FWD(rv)})))
 {
@@ -101,7 +101,7 @@ template <typename Lh, typename Rh>
 }
 
 template <typename Lh, typename Rh>
-  requires(not _some_sum<Lh>) && _some_sum<Rh>
+  requires(not _some_copack<Lh>) && _some_copack<Rh>
 [[nodiscard]] constexpr auto fold(auto &&lv, auto &&rv) //
     noexcept(noexcept(FWD(rv)._transform(_fold_lh<Lh, decltype(lv)>{FWD(lv)})))
 {
@@ -109,7 +109,7 @@ template <typename Lh, typename Rh>
 }
 
 template <typename Lh, typename Rh>
-  requires(not _some_sum<Lh>) && (not _some_sum<Rh>)
+  requires(not _some_copack<Lh>) && (not _some_copack<Rh>)
 [[nodiscard]] constexpr auto fold(auto &&lv, auto &&rv) //
     noexcept(noexcept(_fold<Lh, Rh>(FWD(lv), FWD(rv))))
 {
@@ -119,11 +119,11 @@ template <typename Lh, typename Rh>
 
 namespace _apply_detail {
 // Each overload's noexcept is the noexcept of what it does: `std::invoke` at the bottom, the pack's
-// or sum's own `apply` when dispatching into one, and folding-then-recursing when several operands
+// or copack's own `apply` when dispatching into one, and folding-then-recursing when several operands
 // must be joined first (that fold constructs a pack, which can throw). The chain terminates because
-// every step strictly reduces the number of pack/sum operands.
+// every step strictly reduces the number of pack/copack operands.
 template <typename Fn, typename... Args>
-  requires(not(... || (_some_pack<Args> || _some_sum<Args>))) && ::std::is_invocable_v<Fn, Args...>
+  requires(not(... || (_some_pack<Args> || _some_copack<Args>))) && ::std::is_invocable_v<Fn, Args...>
 [[nodiscard]] constexpr auto apply(Fn &&fn, Args &&...args) noexcept(::std::is_nothrow_invocable_v<Fn, Args...>)
     -> DEDUCED_RETURN(::std::invoke(FWD(fn), FWD(args)...))
 {
@@ -132,9 +132,9 @@ template <typename Fn, typename... Args>
 
 // A lone tuple-like argument takes std::apply's meaning, through the machinery shared with
 // pfn::apply - so fn::apply and pfn::apply agree on the entire std domain by construction, and
-// the elements are terminal: they do not re-enter pack or sum dispatch (a sum element is handed
+// the elements are terminal: they do not re-enter pack or copack dispatch (a copack element is handed
 // over whole). Exactly std::apply's shape - one tuple-like argument, nothing else; composition
-// with packs, sums or further arguments is not offered. Where both this and the pass-whole
+// with packs, copacks or further arguments is not offered. Where both this and the pass-whole
 // terminal above are viable (a generic callable), this non-variadic overload wins partial
 // ordering: std::apply's meaning prevails on std::apply's own domain.
 template <typename Fn, typename Arg>
@@ -146,8 +146,8 @@ template <typename Fn, typename Arg>
 }
 
 template <typename Fn, typename Arg, typename... Args>
-  requires(_some_pack<Arg> || _some_sum<Arg>)
-          && ((sizeof...(Args) == 0) || (not(... || (_some_pack<Args> || _some_sum<Args>))))
+  requires(_some_pack<Arg> || _some_copack<Arg>)
+          && ((sizeof...(Args) == 0) || (not(... || (_some_pack<Args> || _some_copack<Args>))))
           && requires(Fn &&fn, Arg &&arg, Args &&...args) { FWD(arg).apply(FWD(fn), FWD(args)...); }
 [[nodiscard]] constexpr auto apply(Fn &&fn, Arg &&arg, Args &&...args) //
     noexcept(noexcept(FWD(arg).apply(FWD(fn), FWD(args)...))) -> DEDUCED_RETURN(FWD(arg).apply(FWD(fn), FWD(args)...))
@@ -156,7 +156,7 @@ template <typename Fn, typename Arg, typename... Args>
 }
 
 template <typename Fn, typename Arg, typename Arg0, typename... Args>
-  requires((_some_pack<Arg0> || _some_sum<Arg0>) || ... || (_some_pack<Args> || _some_sum<Args>))
+  requires((_some_pack<Arg0> || _some_copack<Arg0>) || ... || (_some_pack<Args> || _some_copack<Args>))
           && requires(Fn &&fn, Arg &&arg, Arg0 &&arg0, Args &&...args) {
                apply<Fn, decltype(::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0))), Args...>(
                    FWD(fn), ::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0)), FWD(args)...);
@@ -173,7 +173,7 @@ template <typename Fn, typename Arg, typename Arg0, typename... Args>
 }
 
 template <typename Ret, typename Fn, typename... Args>
-  requires(not(... || (_some_pack<Args> || _some_sum<Args>))) && ::std::is_invocable_r_v<Ret, Fn, Args...>
+  requires(not(... || (_some_pack<Args> || _some_copack<Args>))) && ::std::is_invocable_r_v<Ret, Fn, Args...>
 [[nodiscard]] constexpr auto apply_r(Fn &&fn, Args &&...args) //
     noexcept(::std::is_nothrow_invocable_r_v<Ret, Fn, Args...>)
         -> DEDUCED_RETURN(::pfn::invoke_r<Ret>(FWD(fn), FWD(args)...))
@@ -267,8 +267,8 @@ template <typename Ret, typename Fn, typename Arg>
 }
 
 template <typename Ret, typename Fn, typename Arg, typename... Args>
-  requires(_some_pack<Arg> || _some_sum<Arg>)
-          && ((sizeof...(Args) == 0) || (not(... || (_some_pack<Args> || _some_sum<Args>))))
+  requires(_some_pack<Arg> || _some_copack<Arg>)
+          && ((sizeof...(Args) == 0) || (not(... || (_some_pack<Args> || _some_copack<Args>))))
           && requires(Fn &&fn, Arg &&arg, Args &&...args) { FWD(arg).template apply_r<Ret>(FWD(fn), FWD(args)...); }
 [[nodiscard]] constexpr auto apply_r(Fn &&fn, Arg &&arg, Args &&...args) //
     noexcept(noexcept(FWD(arg).template apply_r<Ret>(FWD(fn), FWD(args)...)))
@@ -278,7 +278,7 @@ template <typename Ret, typename Fn, typename Arg, typename... Args>
 }
 
 template <typename Ret, typename Fn, typename Arg, typename Arg0, typename... Args>
-  requires((_some_pack<Arg0> || _some_sum<Arg0>) || ... || (_some_pack<Args> || _some_sum<Args>))
+  requires((_some_pack<Arg0> || _some_copack<Arg0>) || ... || (_some_pack<Args> || _some_copack<Args>))
           && requires(Fn &&fn, Arg &&arg, Arg0 &&arg0, Args &&...args) {
                apply_r<Ret, Fn, decltype(::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0))), Args...>(
                    FWD(fn), ::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0)), FWD(args)...);
@@ -317,8 +317,8 @@ template <typename Fn, typename... Args> struct _is_applicable {
 };
 
 // Partial-specialization gate around `_is_applicable`: MSVC doesn't short-circuit a requires-clause
-// `&&`, so a guarded `_is_applicable<Fn, sum>` conjunct gets instantiated even when an earlier guard
-// is already false, tripping sum's uniform-result static_assert; selecting the false_type primary
+// `&&`, so a guarded `_is_applicable<Fn, copack>` conjunct gets instantiated even when an earlier guard
+// is already false, tripping copack's uniform-result static_assert; selecting the false_type primary
 // keeps the probe out of its reach (no-op on compilers that do short-circuit).
 template <bool Enable, typename Fn, typename... Args> struct _is_applicable_if : ::std::false_type {};
 template <typename Fn, typename... Args> struct _is_applicable_if<true, Fn, Args...> : _is_applicable<Fn, Args...> {};
@@ -337,8 +337,8 @@ template <typename Ret, typename Fn, typename... Args> struct _is_applicable_r {
 };
 
 // is_nothrow_applicable and is_nothrow_applicable_v. The apply chain above carries its own spec, so
-// the question is asked of the call itself and composes through pack and sum dispatch: the answer
-// for a sum operand is that every alternative's call is nothrow, and for a pack that the call over
+// the question is asked of the call itself and composes through pack and copack dispatch: the answer
+// for a copack operand is that every alternative's call is nothrow, and for a pack that the call over
 // its elements is. The bool parameter keeps the noexcept operand out of reach when the call is not
 // viable at all, where it would be ill-formed rather than false.
 template <bool Enable, typename Fn, typename... Args> struct _is_nothrow_applicable_impl : ::std::false_type {};
@@ -378,7 +378,7 @@ constexpr auto _apply_r(Fn &&fn, Args &&...args) noexcept(_is_nothrow_applicable
 }
 
 // Named (a lambda cannot appear in a noexcept-specifier): prepends a default-constructed tag to
-// the unpacked elements, one shape for every tagged surface - sum/choice apply_type below, and
+// the unpacked elements, one shape for every tagged surface - copack/choice apply_type below, and
 // the tagged members of optional and expected.
 template <typename Fn, typename Tag> struct _apply_tag_elems final {
   Fn &&fn;
@@ -398,11 +398,11 @@ template <typename Fn, typename T> using _apply_type_elems = _apply_tag_elems<Fn
 // The tagged elimination of one value - the engaged/error arm of optional's and expected's
 // apply_type. The tag is prepended to the value unpacked as _apply would unpack it (trailing
 // arguments follow the elements), except that a tuple-like value's elements form is the row's one
-// signature (no pass-whole fallback), as on sum::apply_type; a pack or sum consumes through its
+// signature (no pass-whole fallback), as on copack::apply_type; a pack or copack consumes through its
 // own member apply, and anything else - including a choice, a nominal boundary - is handed over
 // whole.
 template <typename Tag, typename Fn, typename V, typename... Args>
-  requires(_some_pack<V> || _some_sum<V>) && requires(Fn &&fn, V &&v, Args &&...args) {
+  requires(_some_pack<V> || _some_copack<V>) && requires(Fn &&fn, V &&v, Args &&...args) {
     FWD(v).apply(_apply_tag_elems<Fn, Tag>{FWD(fn)}, FWD(args)...);
   }
 [[nodiscard]] constexpr auto _apply_tagged(Fn &&fn, V &&v, Args &&...args) //
@@ -413,7 +413,7 @@ template <typename Tag, typename Fn, typename V, typename... Args>
 }
 
 template <typename Tag, typename Fn, typename V, typename... Args>
-  requires(not _some_pack<V>) && (not _some_sum<V>) && ::pfn::detail::_tuple_like<V>
+  requires(not _some_pack<V>) && (not _some_copack<V>) && ::pfn::detail::_tuple_like<V>
           && (_apply_detail::_elems_traits<_apply_tag_elems<Fn, Tag>, V, Args...>::_invocable)
 [[nodiscard]] constexpr auto _apply_tagged(Fn &&fn, V &&v, Args &&...args) //
     noexcept(_apply_detail::_elems_traits<_apply_tag_elems<Fn, Tag>, V, Args...>::_nothrow) ->
@@ -427,7 +427,7 @@ template <typename Tag, typename Fn, typename V, typename... Args>
 // The tag is passed as a prvalue, the exact shape the traits above ask about (a named parameter
 // would be an lvalue, splitting the probe from the deed).
 template <typename Tag, typename Fn, typename V, typename... Args>
-  requires(not _some_pack<V>) && (not _some_sum<V>) && (not ::pfn::detail::_tuple_like<V>)
+  requires(not _some_pack<V>) && (not _some_copack<V>) && (not ::pfn::detail::_tuple_like<V>)
           && ::std::is_invocable_v<Fn, Tag, V, Args...>
 [[nodiscard]] constexpr auto _apply_tagged(Fn &&fn, V &&v, Args &&...args) //
     noexcept(::std::is_nothrow_invocable_v<Fn, Tag, V, Args...>)
@@ -437,7 +437,7 @@ template <typename Tag, typename Fn, typename V, typename... Args>
 }
 
 template <typename Ret, typename Tag, typename Fn, typename V, typename... Args>
-  requires(_some_pack<V> || _some_sum<V>) && requires(Fn &&fn, V &&v, Args &&...args) {
+  requires(_some_pack<V> || _some_copack<V>) && requires(Fn &&fn, V &&v, Args &&...args) {
     FWD(v).template apply_r<Ret>(_apply_tag_elems<Fn, Tag>{FWD(fn)}, FWD(args)...);
   }
 [[nodiscard]] constexpr auto _apply_tagged_r(Fn &&fn, V &&v, Args &&...args) //
@@ -447,7 +447,7 @@ template <typename Ret, typename Tag, typename Fn, typename V, typename... Args>
 }
 
 template <typename Ret, typename Tag, typename Fn, typename V, typename... Args>
-  requires(not _some_pack<V>) && (not _some_sum<V>) && ::pfn::detail::_tuple_like<V>
+  requires(not _some_pack<V>) && (not _some_copack<V>) && ::pfn::detail::_tuple_like<V>
           && (_apply_detail::_elems_traits_r<Ret, _apply_tag_elems<Fn, Tag>, V, Args...>::_invocable)
 [[nodiscard]] constexpr auto _apply_tagged_r(Fn &&fn, V &&v, Args &&...args) //
     noexcept(_apply_detail::_elems_traits_r<Ret, _apply_tag_elems<Fn, Tag>, V, Args...>::_nothrow) -> Ret
@@ -458,7 +458,7 @@ template <typename Ret, typename Tag, typename Fn, typename V, typename... Args>
 }
 
 template <typename Ret, typename Tag, typename Fn, typename V, typename... Args>
-  requires(not _some_pack<V>) && (not _some_sum<V>) && (not ::pfn::detail::_tuple_like<V>)
+  requires(not _some_pack<V>) && (not _some_copack<V>) && (not ::pfn::detail::_tuple_like<V>)
           && ::std::is_invocable_r_v<Ret, Fn, Tag, V, Args...>
 [[nodiscard]] constexpr auto _apply_tagged_r(Fn &&fn, V &&v, Args &&...args) //
     noexcept(::std::is_nothrow_invocable_r_v<Ret, Fn, Tag, V, Args...>) -> Ret

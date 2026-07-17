@@ -162,17 +162,17 @@ TEST_CASE("inspect expected", "[inspect][expected][expected_value][pack]")
 
     SUCCEED();
 
-    SECTION("sum")
+    SECTION("copack")
     {
-      using T = fn::expected<fn::sum<bool, int>, Error>;
+      using T = fn::expected<fn::copack<bool, int>, Error>;
       constexpr auto fn1 = [](int) constexpr noexcept -> void {};
       constexpr auto r11 = T{0} | fn::inspect(fn1);
-      static_assert(r11.value() == fn::sum{0});
+      static_assert(r11.value() == fn::copack{0});
       constexpr auto fn2 = [](auto const &v) {
         static_assert(std::is_same_v<decltype(v), int const &> || std::is_same_v<decltype(v), bool const &>);
       };
       constexpr auto r12 = T{0} | fn::inspect(fn2);
-      static_assert(r12.value() == fn::sum{0});
+      static_assert(r12.value() == fn::copack{0});
       constexpr auto r2 = T{::fn::unexpect, Error::SomethingElse} | fn::inspect(fn1);
       static_assert(r2.error() == Error::SomethingElse);
 
@@ -359,17 +359,17 @@ TEST_CASE("inspect optional", "[inspect][optional][pack]")
 
     SUCCEED();
 
-    SECTION("sum")
+    SECTION("copack")
     {
-      using T = fn::optional<fn::sum<bool, int>>;
+      using T = fn::optional<fn::copack<bool, int>>;
       constexpr auto fn1 = [](int) constexpr noexcept -> void {};
       constexpr auto r11 = T{0} | fn::inspect(fn1);
-      static_assert(r11.value() == fn::sum{0});
+      static_assert(r11.value() == fn::copack{0});
       constexpr auto fn2 = [](auto const &v) {
         static_assert(std::is_same_v<decltype(v), int const &> || std::is_same_v<decltype(v), bool const &>);
       };
       constexpr auto r12 = T{0} | fn::inspect(fn2);
-      static_assert(r12.value() == fn::sum{0});
+      static_assert(r12.value() == fn::copack{0});
       constexpr auto r2 = T{} | fn::inspect(fn1);
       static_assert(not r2.has_value());
 

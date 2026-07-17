@@ -2,6 +2,10 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `sum` became `copack` — 17 July 2026
+
+- **The co-product of types renamed** ([#83](https://github.com/libfn/functional/issues/83)): `fn::sum` is `fn::copack`, and the whole vocabulary follows — `copack_for`, `some_copack`, `empty_copack`, `as_copack`, the graded verbs `copack_value` and `copack_error`, and the header `fn/copack.hpp`. The old name read as an arithmetic operation; `copack` names what the type is — the co-product of types, orthogonal to `pack`, the product. A clean break with no alias: the library is pre-0.1 and has no compatibility surface to keep.
+
 ## The `apply` family takes trailing arguments uniformly — 17 July 2026
 
 - **`apply_type` and `apply_type_r` on `sum`, `choice`, `optional` and `expected`, and `choice`'s `apply` and `apply_r`, now accept trailing arguments** ([#342](https://github.com/libfn/functional/issues/342)), appended after each arm's unpacked content — the shape `sum::apply` has always had as the member leg of `fn::apply`'s engine protocol (the free function routes `fn::apply(fn, sum, extras...)` through the member). The disparity was an artifact of that protocol, not a design decision: nothing ever forced the arguments onto the tagged members, which have no free-function counterpart, nor onto `choice`, an atom the free `apply` never dispatches — while the internal type-indexed machinery anticipated them all along. On `optional` the empty arm receives `(std::nullopt, extras...)`, mirroring the untagged empty arm's `(extras...)`; on `expected<void, E>` the value arm receives `(std::in_place, extras...)`.

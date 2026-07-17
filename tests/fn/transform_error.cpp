@@ -168,19 +168,19 @@ TEST_CASE("transform_error", "[transform_error][expected]")
       SUCCEED();
     }
 
-    SECTION("sum")
+    SECTION("copack")
     {
-      using T = fn::expected<int, fn::sum_for<Error, bool>>;
+      using T = fn::expected<int, fn::copack_for<Error, bool>>;
 
       SECTION("same error type")
       {
-        constexpr auto fn = fn::overload{[](bool i) constexpr noexcept -> fn::sum_for<Error, bool> { return not i; },
-                                         [](Error v) constexpr noexcept -> fn::sum_for<Error, bool> { return v; }};
-        constexpr auto r1 = T{::fn::unexpect, fn::sum{Error::SomethingElse}} | fn::transform_error(fn);
-        static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::sum_for<Error, bool>> const>);
-        static_assert(r1.error() == fn::sum{Error::SomethingElse});
-        constexpr auto r2 = T{::fn::unexpect, fn::sum{true}} | fn::transform_error(fn);
-        static_assert(r2.error() == fn::sum{false});
+        constexpr auto fn = fn::overload{[](bool i) constexpr noexcept -> fn::copack_for<Error, bool> { return not i; },
+                                         [](Error v) constexpr noexcept -> fn::copack_for<Error, bool> { return v; }};
+        constexpr auto r1 = T{::fn::unexpect, fn::copack{Error::SomethingElse}} | fn::transform_error(fn);
+        static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::copack_for<Error, bool>> const>);
+        static_assert(r1.error() == fn::copack{Error::SomethingElse});
+        constexpr auto r2 = T{::fn::unexpect, fn::copack{true}} | fn::transform_error(fn);
+        static_assert(r2.error() == fn::copack{false});
         constexpr auto r3 = T{42} | fn::transform_error(fn);
         static_assert(r3.value() == 42);
 
@@ -191,11 +191,11 @@ TEST_CASE("transform_error", "[transform_error][expected]")
       {
         constexpr auto fn = fn::overload{[](bool i) constexpr noexcept -> bool { return not i; },
                                          [](Error v) constexpr noexcept -> int { return static_cast<int>(v) + 1; }};
-        constexpr auto r1 = T{::fn::unexpect, fn::sum{Error::SomethingElse}} | fn::transform_error(fn);
-        static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::sum<bool, int>> const>);
-        static_assert(r1.error() == fn::sum{2});
-        constexpr auto r2 = T{::fn::unexpect, fn::sum{true}} | fn::transform_error(fn);
-        static_assert(r2.error() == fn::sum{false});
+        constexpr auto r1 = T{::fn::unexpect, fn::copack{Error::SomethingElse}} | fn::transform_error(fn);
+        static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::copack<bool, int>> const>);
+        static_assert(r1.error() == fn::copack{2});
+        constexpr auto r2 = T{::fn::unexpect, fn::copack{true}} | fn::transform_error(fn);
+        static_assert(r2.error() == fn::copack{false});
         constexpr auto r3 = T{42} | fn::transform_error(fn);
         static_assert(r3.value() == 42);
 
@@ -273,9 +273,9 @@ static_assert(applicable_transform_error<decltype(fn_Error_lvalue), expected<int
 static_assert(applicable_transform_error<decltype(fn_Error_rvalue), expected<int, Error>>);
 static_assert(not applicable_transform_error<decltype(fn_Error_rvalue), expected<int, Error> &>);  // cannot bind lvalue to rvalue-ref
 
-// A sum error dispatches through sum::transform - the callback must cover ALL alternatives.
-static_assert(applicable_transform_error<decltype(fn_generic<Xerror>), expected<int, sum_for<Error, Value>>>);
-static_assert(not applicable_transform_error<decltype(fn_Error<Xerror>), expected<int, sum_for<Error, Value>>>); // not exhaustive
-static_assert(not applicable_transform_error<decltype(fn_generic<void>), expected<int, sum_for<Error, Value>>>); // a void result has no place in a sum
+// A copack error dispatches through copack::transform - the callback must cover ALL alternatives.
+static_assert(applicable_transform_error<decltype(fn_generic<Xerror>), expected<int, copack_for<Error, Value>>>);
+static_assert(not applicable_transform_error<decltype(fn_Error<Xerror>), expected<int, copack_for<Error, Value>>>); // not exhaustive
+static_assert(not applicable_transform_error<decltype(fn_generic<void>), expected<int, copack_for<Error, Value>>>); // a void result has no place in a copack
 // clang-format on
 } // namespace fn

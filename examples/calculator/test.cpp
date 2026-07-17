@@ -19,22 +19,22 @@ namespace {
 auto run(std::string_view line) -> calc::Result { return calc::evaluate({}, line); }
 } // namespace
 
-// `&` folds two parses into a cartesian product of packs and a sum of errors, all composed by the library:
-static_assert(std::is_same_v<decltype(fn::expected<void, fn::sum<>>{} & calc::parse("") & calc::parse("")),
-                             fn::expected<fn::sum_for<fn::pack<double, double>, fn::pack<double, long>,
-                                                      fn::pack<long, double>, fn::pack<long, long>>,
-                                          fn::sum<calc::ParseError>>>);
+// `&` folds two parses into a cartesian product of packs and a copack of errors, all composed by the library:
+static_assert(std::is_same_v<decltype(fn::expected<void, fn::copack<>>{} & calc::parse("") & calc::parse("")),
+                             fn::expected<fn::copack_for<fn::pack<double, double>, fn::pack<double, long>,
+                                                         fn::pack<long, double>, fn::pack<long, long>>,
+                                          fn::copack<calc::ParseError>>>);
 
 // ... `step` folds the operands AND the operation into one cartesian dispatch table for `execute`:
 static_assert(std::is_same_v<
-              decltype(fn::expected<void, fn::sum<>>{} & calc::pop(std::declval<calc::Stack &>())
-                       & calc::pop(std::declval<calc::Stack &>()) & fn::expected<calc::Div, fn::sum<>>{calc::Div{}}),
-              fn::expected<fn::sum_for<fn::pack<double, double, calc::Div>, fn::pack<double, long, calc::Div>,
-                                       fn::pack<long, double, calc::Div>, fn::pack<long, long, calc::Div>>,
-                           fn::sum<calc::StackError>>>);
+              decltype(fn::expected<void, fn::copack<>>{} & calc::pop(std::declval<calc::Stack &>())
+                       & calc::pop(std::declval<calc::Stack &>()) & fn::expected<calc::Div, fn::copack<>>{calc::Div{}}),
+              fn::expected<fn::copack_for<fn::pack<double, double, calc::Div>, fn::pack<double, long, calc::Div>,
+                                          fn::pack<long, double, calc::Div>, fn::pack<long, long, calc::Div>>,
+                           fn::copack<calc::StackError>>>);
 
-// ... and the calculator's Error alias is exactly the normalized sum of its three error types:
-static_assert(std::is_same_v<calc::Error, fn::sum_for<calc::MathError, calc::ParseError, calc::StackError>>);
+// ... and the calculator's Error alias is exactly the normalized copack of its three error types:
+static_assert(std::is_same_v<calc::Error, fn::copack_for<calc::MathError, calc::ParseError, calc::StackError>>);
 
 TEST_CASE("parse", "[calculator]")
 {
@@ -92,7 +92,7 @@ TEST_CASE("arithmetic dispatches on the runtime types of both operands", "[calcu
 
   SECTION("modulo is defined for longs only")
   {
-    CHECK(run("7 3.0 %").error() == fn::sum{calc::MathError::NotIntegral});
+    CHECK(run("7 3.0 %").error() == fn::copack{calc::MathError::NotIntegral});
   }
 }
 
@@ -109,21 +109,21 @@ TEST_CASE("errors", "[calculator]")
 {
   SECTION("division by zero")
   {
-    CHECK(run("1 0 /").error() == fn::sum{calc::MathError::DivisionByZero});
-    CHECK(run("1 0.0 /").error() == fn::sum{calc::MathError::DivisionByZero});
-    CHECK(run("1 0 %").error() == fn::sum{calc::MathError::DivisionByZero});
+    CHECK(run("1 0 /").error() == fn::copack{calc::MathError::DivisionByZero});
+    CHECK(run("1 0.0 /").error() == fn::copack{calc::MathError::DivisionByZero});
+    CHECK(run("1 0 %").error() == fn::copack{calc::MathError::DivisionByZero});
   }
 
   SECTION("long overflow")
   {
     auto const minimum = std::to_string(std::numeric_limits<long>::min());
     auto const maximum = std::to_string(std::numeric_limits<long>::max());
-    CHECK(run(minimum + " -1 /").error() == fn::sum{calc::MathError::Overflow});
-    CHECK(run(minimum + " -1 %").error() == fn::sum{calc::MathError::Overflow});
-    CHECK(run(maximum + " 1 +").error() == fn::sum{calc::MathError::Overflow});
-    CHECK(run(minimum + " 1 -").error() == fn::sum{calc::MathError::Overflow});
-    CHECK(run(maximum + " 2 *").error() == fn::sum{calc::MathError::Overflow});
-    CHECK(run(minimum + " -1 *").error() == fn::sum{calc::MathError::Overflow});
+    CHECK(run(minimum + " -1 /").error() == fn::copack{calc::MathError::Overflow});
+    CHECK(run(minimum + " -1 %").error() == fn::copack{calc::MathError::Overflow});
+    CHECK(run(maximum + " 1 +").error() == fn::copack{calc::MathError::Overflow});
+    CHECK(run(minimum + " 1 -").error() == fn::copack{calc::MathError::Overflow});
+    CHECK(run(maximum + " 2 *").error() == fn::copack{calc::MathError::Overflow});
+    CHECK(run(minimum + " -1 *").error() == fn::copack{calc::MathError::Overflow});
     // ... while the guards admit the exact bounds
     CHECK(run(maximum + " 0 +").value() == calc::Stack{calc::Number{std::numeric_limits<long>::max()}});
     CHECK(run(minimum + " 1 *").value() == calc::Stack{calc::Number{std::numeric_limits<long>::min()}});
@@ -131,24 +131,24 @@ TEST_CASE("errors", "[calculator]")
 
   SECTION("double overflow")
   {
-    CHECK(run("1e308 1e308 +").error() == fn::sum{calc::MathError::Overflow});
-    CHECK(run("-1e308 1e308 -").error() == fn::sum{calc::MathError::Overflow});
-    CHECK(run("1e308 1e308 *").error() == fn::sum{calc::MathError::Overflow});
-    CHECK(run("1e308 1e-308 /").error() == fn::sum{calc::MathError::Overflow});
+    CHECK(run("1e308 1e308 +").error() == fn::copack{calc::MathError::Overflow});
+    CHECK(run("-1e308 1e308 -").error() == fn::copack{calc::MathError::Overflow});
+    CHECK(run("1e308 1e308 *").error() == fn::copack{calc::MathError::Overflow});
+    CHECK(run("1e308 1e-308 /").error() == fn::copack{calc::MathError::Overflow});
   }
 
   SECTION("stack underflow")
   {
-    CHECK(run("1 +").error() == fn::sum{calc::StackError::NotEnoughOperands});
-    CHECK(run("swap").error() == fn::sum{calc::StackError::NotEnoughOperands});
-    CHECK(run("dup").error() == fn::sum{calc::StackError::NotEnoughOperands});
+    CHECK(run("1 +").error() == fn::copack{calc::StackError::NotEnoughOperands});
+    CHECK(run("swap").error() == fn::copack{calc::StackError::NotEnoughOperands});
+    CHECK(run("dup").error() == fn::copack{calc::StackError::NotEnoughOperands});
   }
 
-  SECTION("unknown token") { CHECK(run("1 2 bogus").error() == fn::sum{calc::ParseError::UnknownToken}); }
+  SECTION("unknown token") { CHECK(run("1 2 bogus").error() == fn::copack{calc::ParseError::UnknownToken}); }
 
   SECTION("the first error short-circuits the rest of the line")
   {
-    CHECK(run("1 0 / 5 5 +").error() == fn::sum{calc::MathError::DivisionByZero});
+    CHECK(run("1 0 / 5 5 +").error() == fn::copack{calc::MathError::DivisionByZero});
   }
 }
 

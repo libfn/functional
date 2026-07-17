@@ -7,10 +7,10 @@
 #define INCLUDE_FN_CONCEPTS
 
 #include <fn/choice.hpp>
+#include <fn/copack.hpp>
 #include <fn/expected.hpp>
 #include <fn/monadic.hpp>
 #include <fn/optional.hpp>
-#include <fn/sum.hpp>
 
 #include <concepts>
 #include <type_traits>
@@ -49,8 +49,8 @@ template <typename T, typename U>
 concept same_kind
     = (some_expected<T> && some_expected<U>
        && ::std::same_as<typename ::std::remove_cvref_t<T>::error_type, typename ::std::remove_cvref_t<U>::error_type>)
-      || (some_expected<T> && some_sum<typename ::std::remove_cvref_t<T>::error_type> //
-          && some_expected<U> && some_sum<typename ::std::remove_cvref_t<U>::error_type>)
+      || (some_expected<T> && some_copack<typename ::std::remove_cvref_t<T>::error_type> //
+          && some_expected<U> && some_copack<typename ::std::remove_cvref_t<U>::error_type>)
       || (some_optional<T> && some_optional<U>) //
       || (some_choice<T> && some_choice<U>);
 
@@ -65,13 +65,13 @@ template <typename T, typename U>
 concept same_value_kind
     = (some_expected<T> && some_expected<U>
        && ::std::same_as<typename ::std::remove_cvref_t<T>::value_type, typename ::std::remove_cvref_t<U>::value_type>)
-      || (some_expected<T> && some_sum<typename ::std::remove_cvref_t<T>::value_type> //
-          && some_expected<U> && some_sum<typename ::std::remove_cvref_t<U>::value_type>)
+      || (some_expected<T> && some_copack<typename ::std::remove_cvref_t<T>::value_type> //
+          && some_expected<U> && some_copack<typename ::std::remove_cvref_t<U>::value_type>)
       || (some_optional<T> && some_optional<U>
           && ::std::same_as<typename ::std::remove_cvref_t<U>::value_type,
-                            typename ::std::remove_cvref_t<T>::value_type>)           //
-      || (some_optional<T> && some_sum<typename ::std::remove_cvref_t<T>::value_type> //
-          && some_optional<U> && some_sum<typename ::std::remove_cvref_t<U>::value_type>)
+                            typename ::std::remove_cvref_t<T>::value_type>)              //
+      || (some_optional<T> && some_copack<typename ::std::remove_cvref_t<T>::value_type> //
+          && some_optional<U> && some_copack<typename ::std::remove_cvref_t<U>::value_type>)
       || (some_choice<T> && some_choice<U>);
 
 /**

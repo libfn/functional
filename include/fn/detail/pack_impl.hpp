@@ -58,10 +58,10 @@ concept _relocatable_element = requires { E{::std::declval<Src>()}; };
 template <typename E, typename Src>
 concept _nothrow_relocatable_element = requires { requires noexcept(E{::std::declval<Src>()}); };
 
-// The algebra's own constructors are not elements: a sum must distribute over the product, and a
+// The algebra's own constructors are not elements: a copack must distribute over the product, and a
 // nested pack is a non-canonical spelling of the flat product with no consistent shape (apply
 // flattens it, the tuple protocol preserves it). Foreign structured types stay opaque atoms.
-template <typename T> static constexpr bool _is_valid_pack_element = (not _some_sum<T>) && (not _some_pack<T>);
+template <typename T> static constexpr bool _is_valid_pack_element = (not _some_copack<T>) && (not _some_pack<T>);
 
 template <typename T> constexpr inline bool _spliceable_pack = false;
 template <typename... Tx>
@@ -70,14 +70,14 @@ constexpr inline bool _spliceable_pack<::fn::pack<Tx...>> = (... && _is_valid_pa
 template <typename, typename... Ts> struct pack_impl;
 
 template <typename... Ts> struct _pack_append;
-// A pack never holds a sum. The specialization is defined but has no `type`, so naming
-// `append_type<sum>` is a substitution failure rather than a use of an incomplete type; and the
+// A pack never holds a copack. The specialization is defined but has no `type`, so naming
+// `append_type<copack>` is a substitution failure rather than a use of an incomplete type; and the
 // specializations must exclude each other, or more than one matches and the choice is ambiguous.
 template <typename T, typename... Ts>
-  requires _some_sum<T>
+  requires _some_copack<T>
 struct _pack_append<T, Ts...> {};
 template <typename T, typename... Ts>
-  requires(not _some_pack<T>) && (not _some_sum<T>)
+  requires(not _some_pack<T>) && (not _some_copack<T>)
 struct _pack_append<T, Ts...> {
   using impl = pack_impl<::std::index_sequence_for<Ts..., T>, Ts..., T>;
   using type = ::fn::pack<Ts..., T>;
@@ -89,7 +89,7 @@ template <typename... Tx, typename... Ts> struct _pack_append_pack<::fn::pack<Tx
   using type = ::fn::pack<Ts..., Tx...>;
 };
 // A tag can NAME a pack type whose own elements are invalid without instantiating it; splicing it
-// would instantiate the ill-formed result. Same shape as the sum case: defined without `type`, so
+// would instantiate the ill-formed result. Same shape as the copack case: defined without `type`, so
 // asking stays a substitution failure.
 template <typename T, typename... Ts>
   requires _some_pack<T> && (not _spliceable_pack<::std::remove_cvref_t<T>>)
@@ -106,7 +106,7 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
   static constexpr ::std::size_t size = sizeof...(Is);
 
   template <typename Self, typename Fn, typename... Args>
-    requires(not(... || (_some_pack<Args> || _some_sum<Args>)))
+    requires(not(... || (_some_pack<Args> || _some_copack<Args>)))
   static constexpr auto _swap_invoke(Self &&self, Fn &&fn, Args &&...args) //
       noexcept(::std::is_nothrow_invocable_v<Fn &&, Args &&..., apply_const_lvalue_t<Self, Ts &&>...>)
           -> ::std::invoke_result<Fn &&, Args &&..., apply_const_lvalue_t<Self, Ts &&>...>::type
@@ -120,7 +120,7 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
   // via INVOKE, never re-entering elimination. Routing through the engine instead would give a
   // lone tuple-like element std::apply's meaning, making its treatment depend on its siblings.
   template <typename Self, typename Fn, typename... Args>
-    requires(not(... || (_some_pack<Args> || _some_sum<Args>)))
+    requires(not(... || (_some_pack<Args> || _some_copack<Args>)))
   static constexpr auto _apply(Self &&self, Fn &&fn, Args &&...args) //
       noexcept(::std::is_nothrow_invocable_v<Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args &&...>)
           -> ::std::invoke_result<Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args &&...>::type
@@ -131,7 +131,7 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
   }
 
   template <typename Ret, typename Self, typename Fn, typename... Args>
-    requires(not(... || (_some_pack<Args> || _some_sum<Args>)))
+    requires(not(... || (_some_pack<Args> || _some_copack<Args>)))
   static constexpr auto _apply_r(Self &&self, Fn &&fn, Args &&...args) //
       noexcept(::std::is_nothrow_invocable_r_v<Ret, Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args &&...>) -> Ret
     requires(::std::is_invocable_r<Ret, Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args && ...>::value)
@@ -164,7 +164,8 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
   static constexpr auto _append(Self &&self, auto &&...args) //
       noexcept(_nothrow_relocatable<Self> && _nothrow_makeable_element<T, decltype(args)...>)
           -> pack_impl<::std::index_sequence<Is..., size>, Ts..., T>
-    requires(not _some_sum<T>) && (not _some_pack<T>) && _relocatable<Self> && _makeable_element<T, decltype(args)...>
+    requires(not _some_copack<T>) && (not _some_pack<T>)
+            && _relocatable<Self> && _makeable_element<T, decltype(args)...>
   {
     return {static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)...,
             _make_element<T>(FWD(args)...)};

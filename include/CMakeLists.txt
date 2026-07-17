@@ -89,7 +89,7 @@ set(INCLUDE_FN_HEADERS
     fn/or_else.hpp
     fn/pack.hpp
     fn/recover.hpp
-    fn/sum.hpp
+    fn/copack.hpp
     fn/transform_error.hpp
     fn/transform.hpp
     fn/utility.hpp

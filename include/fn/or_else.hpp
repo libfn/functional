@@ -24,7 +24,7 @@ concept applicable_or_else //
           ::fn::apply(FWD(fn), FWD(v).error())
         } -> same_value_kind<V>;
       }) || (some_expected<V> //
-         && some_sum<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
+         && some_copack<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
         {
           ::fn::apply(FWD(fn), FWD(v).error())
         } -> some_expected;
@@ -33,7 +33,7 @@ concept applicable_or_else //
           ::fn::apply(FWD(fn))
         } -> same_value_kind<V>;
       }) || (some_optional<V>  //
-         && some_sum<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
+         && some_copack<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
         {
           ::fn::apply(FWD(fn))
         } -> some_optional;

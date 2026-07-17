@@ -6,10 +6,10 @@
 #include "util/helper_types.hpp"
 
 #include <fn/choice.hpp>
+#include <fn/copack.hpp>
 #include <fn/functional.hpp>
 #include <fn/optional.hpp>
 #include <fn/pack.hpp>
-#include <fn/sum.hpp>
 
 #include <catch2/catch_all.hpp>
 
@@ -247,7 +247,7 @@ TEST_CASE("pack", "[pack]")
     static_assert(fn::detail::_is_valid_pack_element<fn::choice<int>>);
     static_assert(not fn::detail::_is_valid_pack_element<fn::pack<int>>);
     static_assert(not fn::detail::_is_valid_pack_element<fn::pack<>>);
-    static_assert(not fn::detail::_is_valid_pack_element<fn::sum<int>>);
+    static_assert(not fn::detail::_is_valid_pack_element<fn::copack<int>>);
 
     // witnesses that the permitted atoms instantiate
     static_assert(pack<std::tuple<int, int>, int>::size == 2);
@@ -509,7 +509,7 @@ TEST_CASE("append value categories", "[pack][append]")
     static_assert(can_append_in_place<T &, B, int, int>);
     static_assert(not can_append_in_place<T &, B, char const *>); // B is not constructible from it
 
-    // the element is brace-initialized, so an aggregate is appended element-wise, exactly as `sum`
+    // the element is brace-initialized, so an aggregate is appended element-wise, exactly as `copack`
     // constructs one - a constraint spelled with is_constructible_v would reject this
     static_assert(can_append_in_place<T &, std::array<int, 3>, int, int, int>);
     static_assert(not can_append_in_place<T &, std::array<int, 3>, int, int, int, int>); // one too many
@@ -524,11 +524,11 @@ TEST_CASE("append value categories", "[pack][append]")
     static_assert(can_append_in_place<T &, C>);
     static_assert(std::same_as<decltype(std::declval<T &>().append(std::in_place_type<C>)), T::append_type<C>>);
 
-    // A pack never holds a sum, in either spelling - and asking must answer, not hard-error
-    static_assert(not can_append<T &, fn::sum<int>>);
-    static_assert(not can_append<T &, fn::sum<int> &>);
-    static_assert(not can_append_in_place<T &, fn::sum<int>, fn::sum<int>>);
-    static_assert(not can_append_in_place<T &, fn::sum_for<bool, int>, fn::sum_for<bool, int>>);
+    // A pack never holds a copack, in either spelling - and asking must answer, not hard-error
+    static_assert(not can_append<T &, fn::copack<int>>);
+    static_assert(not can_append<T &, fn::copack<int> &>);
+    static_assert(not can_append_in_place<T &, fn::copack<int>, fn::copack<int>>);
+    static_assert(not can_append_in_place<T &, fn::copack_for<bool, int>, fn::copack_for<bool, int>>);
 
     // A pack never holds a pack either: appending one splices, in every spelling and every value
     // category of the subject - the deduced form relocates the given pack's elements, the tag form
@@ -553,7 +553,7 @@ TEST_CASE("append value categories", "[pack][append]")
     static_assert(not can_append_in_place<T &, fn::pack<int>, int, int>);           // one too many
     static_assert(not can_append_in_place<T &, fn::pack<double>, fn::pack<float>>); // not the tag's pack
     static_assert(not can_append_in_place<T &, fn::pack<fn::pack<int>>, int>);
-    static_assert(not can_append_in_place<T &, fn::pack<fn::sum<int>>, int>);
+    static_assert(not can_append_in_place<T &, fn::pack<fn::copack<int>>, int>);
 
     // relocation is part of the question: the elements already held move into the new pack in the
     // pack's own value category, and an element which cannot make that move rejects the append
@@ -756,7 +756,7 @@ struct join_via_optional final { // fn::detail::_join over engaged optionals - t
   }
 };
 
-struct join_via_operator final { // the public operator& over bare sums, packs and values
+struct join_via_operator final { // the public operator& over bare copacks, packs and values
   template <typename R, typename LH, typename RH> static constexpr auto join(LH const &lh, RH const &rh)
   {
     auto const r = lh & rh;
@@ -767,66 +767,67 @@ struct join_via_operator final { // the public operator& over bare sums, packs a
 
 template <typename S> constexpr bool join_battery()
 {
+  using fn::copack;
   using fn::pack;
-  using fn::sum;
 
   bool ok = true;
-  { // sum of packs join sum of scalars
-    using R = sum<pack<Alef, Gimel, Heh>, pack<Alef, Gimel, Vav>, pack<Alef, Gimel, Zayn>, //
-                  pack<Bet, Gimel, Heh>, pack<Bet, Gimel, Vav>, pack<Bet, Gimel, Zayn>>;
-    auto const r = S::template join<R>(sum<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}},
-                                       sum<Heh, Vav, Zayn>{Vav{15}});
+  { // copack of packs join copack of scalars
+    using R = copack<pack<Alef, Gimel, Heh>, pack<Alef, Gimel, Vav>, pack<Alef, Gimel, Zayn>, //
+                     pack<Bet, Gimel, Heh>, pack<Bet, Gimel, Vav>, pack<Bet, Gimel, Zayn>>;
+    auto const r = S::template join<R>(copack<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}},
+                                       copack<Heh, Vav, Zayn>{Vav{15}});
     ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.apply(join_witness) == 3 + 14 + 15;
   }
-  {                                                                     // sum of packs join sum of packs
-    using R = sum<pack<Alef, Gimel, Heh, Zayn>, pack<Alef, Gimel, Vav>, //
-                  pack<Bet, Gimel, Heh, Zayn>, pack<Bet, Gimel, Vav>>;
-    auto const r = S::template join<R>(sum<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}},
-                                       sum<pack<Heh, Zayn>, pack<Vav>>{pack{Vav{15}}});
+  {                                                                        // copack of packs join copack of packs
+    using R = copack<pack<Alef, Gimel, Heh, Zayn>, pack<Alef, Gimel, Vav>, //
+                     pack<Bet, Gimel, Heh, Zayn>, pack<Bet, Gimel, Vav>>;
+    auto const r = S::template join<R>(copack<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}},
+                                       copack<pack<Heh, Zayn>, pack<Vav>>{pack{Vav{15}}});
     ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.apply(join_witness) == 3 + 14 + 15;
   }
-  { // sum of scalars join sum of scalars
-    using R = sum<pack<Alef, Heh>, pack<Alef, Vav>, pack<Alef, Zayn>, pack<Bet, Heh>, pack<Bet, Vav>, pack<Bet, Zayn>,
-                  pack<Gimel, Heh>, pack<Gimel, Vav>, pack<Gimel, Zayn>>;
-    auto const r = S::template join<R>(sum<Alef, Bet, Gimel>{Gimel{3}}, sum<Heh, Vav, Zayn>{Vav{14}});
+  { // copack of scalars join copack of scalars
+    using R = copack<pack<Alef, Heh>, pack<Alef, Vav>, pack<Alef, Zayn>, pack<Bet, Heh>, pack<Bet, Vav>,
+                     pack<Bet, Zayn>, pack<Gimel, Heh>, pack<Gimel, Vav>, pack<Gimel, Zayn>>;
+    auto const r = S::template join<R>(copack<Alef, Bet, Gimel>{Gimel{3}}, copack<Heh, Vav, Zayn>{Vav{14}});
     ok = ok && r.template has_value<pack<Gimel, Vav>>() && r.apply(join_witness) == 3 + 14;
   }
-  {                                                                             // sum of scalars join sum of packs
-    using R = sum<pack<Alef, Heh, Zayn>, pack<Alef, Vav>, pack<Bet, Heh, Zayn>, //
-                  pack<Bet, Vav>, pack<Gimel, Heh, Zayn>, pack<Gimel, Vav>>;
-    auto const r = S::template join<R>(sum<Alef, Bet, Gimel>{Gimel{3}}, sum<pack<Heh, Zayn>, pack<Vav>>{pack{Vav{14}}});
+  { // copack of scalars join copack of packs
+    using R = copack<pack<Alef, Heh, Zayn>, pack<Alef, Vav>, pack<Bet, Heh, Zayn>, //
+                     pack<Bet, Vav>, pack<Gimel, Heh, Zayn>, pack<Gimel, Vav>>;
+    auto const r
+        = S::template join<R>(copack<Alef, Bet, Gimel>{Gimel{3}}, copack<pack<Heh, Zayn>, pack<Vav>>{pack{Vav{14}}});
     ok = ok && r.template has_value<pack<Gimel, Vav>>() && r.apply(join_witness) == 3 + 14;
   }
-  { // sum of packs join scalar
-    using R = sum<pack<Alef, Gimel, Vav>, pack<Bet, Gimel, Vav>>;
-    auto const r = S::template join<R>(sum<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}}, Vav{15});
+  { // copack of packs join scalar
+    using R = copack<pack<Alef, Gimel, Vav>, pack<Bet, Gimel, Vav>>;
+    auto const r = S::template join<R>(copack<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}}, Vav{15});
     ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.apply(join_witness) == 3 + 14 + 15;
   }
-  { // sum of packs join pack
-    using R = sum<pack<Alef, Gimel, Vav>, pack<Bet, Gimel, Vav>>;
-    auto const r = S::template join<R>(sum<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}},
+  { // copack of packs join pack
+    using R = copack<pack<Alef, Gimel, Vav>, pack<Bet, Gimel, Vav>>;
+    auto const r = S::template join<R>(copack<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}},
                                        pack<Vav>{pack{Vav{15}}});
     ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.apply(join_witness) == 3 + 14 + 15;
   }
-  { // sum of scalars join scalar
-    using R = sum<pack<Alef, Vav>, pack<Bet, Vav>, pack<Gimel, Vav>>;
-    auto const r = S::template join<R>(sum<Alef, Bet, Gimel>{Gimel{3}}, Vav{14});
+  { // copack of scalars join scalar
+    using R = copack<pack<Alef, Vav>, pack<Bet, Vav>, pack<Gimel, Vav>>;
+    auto const r = S::template join<R>(copack<Alef, Bet, Gimel>{Gimel{3}}, Vav{14});
     ok = ok && r.template has_value<pack<Gimel, Vav>>() && r.apply(join_witness) == 3 + 14;
   }
-  { // sum of scalars join pack
-    using R = sum<pack<Alef, Vav>, pack<Bet, Vav>, pack<Gimel, Vav>>;
-    auto const r = S::template join<R>(sum<Alef, Bet, Gimel>{Gimel{3}}, pack<Vav>{pack{Vav{14}}});
+  { // copack of scalars join pack
+    using R = copack<pack<Alef, Vav>, pack<Bet, Vav>, pack<Gimel, Vav>>;
+    auto const r = S::template join<R>(copack<Alef, Bet, Gimel>{Gimel{3}}, pack<Vav>{pack{Vav{14}}});
     ok = ok && r.template has_value<pack<Gimel, Vav>>() && r.apply(join_witness) == 3 + 14;
   }
-  { // pack join sum of scalars
-    using R = sum<pack<Alef, Gimel, Heh>, pack<Alef, Gimel, Vav>, pack<Alef, Gimel, Zayn>>;
-    auto const r = S::template join<R>(pack<Alef, Gimel>{pack{Alef{3}, Gimel{14}}}, sum<Heh, Vav, Zayn>{Vav{15}});
+  { // pack join copack of scalars
+    using R = copack<pack<Alef, Gimel, Heh>, pack<Alef, Gimel, Vav>, pack<Alef, Gimel, Zayn>>;
+    auto const r = S::template join<R>(pack<Alef, Gimel>{pack{Alef{3}, Gimel{14}}}, copack<Heh, Vav, Zayn>{Vav{15}});
     ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.apply(join_witness) == 3 + 14 + 15;
   }
-  { // pack join sum of packs
-    using R = sum<pack<Alef, Gimel, Heh, Zayn>, pack<Alef, Gimel, Vav>>;
+  { // pack join copack of packs
+    using R = copack<pack<Alef, Gimel, Heh, Zayn>, pack<Alef, Gimel, Vav>>;
     auto const r = S::template join<R>(pack<Alef, Gimel>{pack{Alef{3}, Gimel{14}}},
-                                       sum<pack<Heh, Zayn>, pack<Vav>>{pack{Vav{15}}});
+                                       copack<pack<Heh, Zayn>, pack<Vav>>{pack{Vav{15}}});
     ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.apply(join_witness) == 3 + 14 + 15;
   }
   { // pack join scalar
@@ -845,19 +846,19 @@ template <typename S> constexpr bool join_battery()
 // so these four shapes belong to join_via_optional alone.
 constexpr bool join_value_lhs_battery()
 {
+  using fn::copack;
   using fn::pack;
-  using fn::sum;
   using S = join_via_optional;
 
   bool ok = true;
-  { // scalar join sum of scalars
-    using R = sum<pack<Alef, Heh>, pack<Alef, Vav>, pack<Alef, Zayn>>;
-    auto const r = S::join<R>(Alef{3}, sum<Heh, Vav, Zayn>{Vav{14}});
+  { // scalar join copack of scalars
+    using R = copack<pack<Alef, Heh>, pack<Alef, Vav>, pack<Alef, Zayn>>;
+    auto const r = S::join<R>(Alef{3}, copack<Heh, Vav, Zayn>{Vav{14}});
     ok = ok && r.template has_value<pack<Alef, Vav>>() && r.apply(join_witness) == 3 + 14;
   }
-  { // scalar join sum of packs
-    using R = sum<pack<Alef, Heh, Zayn>, pack<Alef, Vav>>;
-    auto const r = S::join<R>(Alef{3}, sum<pack<Heh, Zayn>, pack<Vav>>{pack{Vav{14}}});
+  { // scalar join copack of packs
+    using R = copack<pack<Alef, Heh, Zayn>, pack<Alef, Vav>>;
+    auto const r = S::join<R>(Alef{3}, copack<pack<Heh, Zayn>, pack<Vav>>{pack{Vav{14}}});
     ok = ok && r.template has_value<pack<Alef, Vav>>() && r.apply(join_witness) == 3 + 14;
   }
   { // scalar join scalar
@@ -872,37 +873,37 @@ constexpr bool join_value_lhs_battery()
 }
 } // namespace
 
-TEMPLATE_TEST_CASE("join of sums, packs and values", "[pack][sum][detail][optional][operator_and]", join_via_optional,
-                   join_via_operator)
+TEMPLATE_TEST_CASE("join of copacks, packs and values", "[pack][copack][detail][optional][operator_and]",
+                   join_via_optional, join_via_operator)
 {
   static_assert(join_battery<TestType>());
   REQUIRE(join_battery<TestType>());
 }
 
-TEST_CASE("detail::_join with value operands", "[detail][pack][sum][optional]")
+TEST_CASE("detail::_join with value operands", "[detail][pack][copack][optional]")
 {
   static_assert(join_value_lhs_battery());
   REQUIRE(join_value_lhs_battery());
 }
 
-TEST_CASE("operator &", "[pack][sum][operator_and]")
+TEST_CASE("operator &", "[pack][copack][operator_and]")
 {
-  constexpr auto r1 = fn::as_sum(12) & 3 & 2.5 & fn::pack{0.5, true}
-                      & fn::sum_for<bool, int, fn::pack<double, int>>(fn::pack{1.5, 12});
+  constexpr auto r1 = fn::as_copack(12) & 3 & 2.5 & fn::pack{0.5, true}
+                      & fn::copack_for<bool, int, fn::pack<double, int>>(fn::pack{1.5, 12});
   static_assert(std::is_same_v<                                     //
                 decltype(r1),                                       //
-                fn::sum_for<                                        //
+                fn::copack_for<                                     //
                     fn::pack<int, int, double, double, bool, bool>, //
                     fn::pack<int, int, double, double, bool, int>,  //
                     fn::pack<int, int, double, double, bool, double, int>> const>);
   static_assert(r1.apply([](auto &&...args) -> double { return (1 * ... * static_cast<double>(args)); })
                 == 12. * 3 * 2.5 * 0.5 * 1 * 1.5 * 12);
 
-  constexpr auto r2
-      = fn::identity(12, 3, 2.5, fn::pack{0.5, true}, fn::sum_for<bool, int, fn::pack<double, int>>(fn::pack{1.5, 12}));
+  constexpr auto r2 = fn::identity(12, 3, 2.5, fn::pack{0.5, true},
+                                   fn::copack_for<bool, int, fn::pack<double, int>>(fn::pack{1.5, 12}));
   static_assert(std::is_same_v<                                     //
                 decltype(r2),                                       //
-                fn::sum_for<                                        //
+                fn::copack_for<                                     //
                     fn::pack<int, int, double, double, bool, bool>, //
                     fn::pack<int, int, double, double, bool, int>,  //
                     fn::pack<int, int, double, double, bool, double, int>> const>);
@@ -910,8 +911,8 @@ TEST_CASE("operator &", "[pack][sum][operator_and]")
                 == 12. * 3 * 2.5 * 0.5 * 1 * 1.5 * 12);
 
   // a pack whose only element is tuple-like splices whole through the join
-  constexpr auto r3 = fn::as_sum(12) & fn::pack<std::tuple<int, int>>{std::tuple{1, 2}};
-  static_assert(std::is_same_v<decltype(r3), fn::sum<fn::pack<int, std::tuple<int, int>>> const>);
+  constexpr auto r3 = fn::as_copack(12) & fn::pack<std::tuple<int, int>>{std::tuple{1, 2}};
+  static_assert(std::is_same_v<decltype(r3), fn::copack<fn::pack<int, std::tuple<int, int>>> const>);
   static_assert(r3.apply([](int i, std::tuple<int, int> const &t) { return i == 12 && std::get<0>(t) == 1; }));
 
   SECTION("noexcept")
@@ -919,7 +920,7 @@ TEST_CASE("operator &", "[pack][sum][operator_and]")
     // This operator& builds a pack from operands it relocates, and weighs that: nothing here can
     // throw, so it promises noexcept - as optional's and expected's joins now do.
     static_assert(noexcept(std::declval<fn::pack<int> &>() & 2));
-    static_assert(noexcept(std::declval<fn::sum<int> &>() & 2));
+    static_assert(noexcept(std::declval<fn::copack<int> &>() & 2));
     SUCCEED();
   }
 }

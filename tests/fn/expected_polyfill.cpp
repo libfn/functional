@@ -5,7 +5,7 @@
 
 // Run the whole pfn polyfill conformance suite against fn::expected. Bring the
 // subject-under-test aliases into the global namespace, then include pfn/expected.cpp.
-// The fn::expected sum/graded/pack behaviour is covered in fn/expected.cpp.
+// The fn::expected copack/graded/pack behaviour is covered in fn/expected.cpp.
 
 #include <fn/expected.hpp>
 

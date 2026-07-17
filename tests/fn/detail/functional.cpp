@@ -65,18 +65,18 @@ TEST_CASE("_is_nothrow_applicable", "[functional][is_nothrow_applicable]")
   static_assert(not _is_nothrow_applicable<decltype([]() { return 0; })>::value);
   static_assert(not _is_nothrow_applicable<decltype([](int) noexcept { return 0; })>::value); // not applicable at all
 
-  // it composes through the dispatch: a pack answers for the call over its elements, a sum for the
+  // it composes through the dispatch: a pack answers for the call over its elements, a copack for the
   // call over every alternative, since which one runs is only known at run time
   constexpr auto nothrow_generic = [](auto &&...) noexcept { return 0; };
   constexpr auto throwing_generic = [](auto &&...) { return 0; };
   static_assert(_is_nothrow_applicable<decltype(nothrow_generic), fn::pack<int, bool> &>::value);
   static_assert(not _is_nothrow_applicable<decltype(throwing_generic), fn::pack<int, bool> &>::value);
-  static_assert(_is_nothrow_applicable<decltype(nothrow_generic), fn::sum<bool, int> &>::value);
-  static_assert(not _is_nothrow_applicable<decltype(throwing_generic), fn::sum<bool, int> &>::value);
+  static_assert(_is_nothrow_applicable<decltype(nothrow_generic), fn::copack<bool, int> &>::value);
+  static_assert(not _is_nothrow_applicable<decltype(throwing_generic), fn::copack<bool, int> &>::value);
 
   // one throwing alternative is enough
   constexpr auto mixed = fn::overload{[](int &) noexcept { return 0; }, [](bool &) { return 0; }};
-  static_assert(not _is_nothrow_applicable<decltype(mixed), fn::sum<bool, int> &>::value);
+  static_assert(not _is_nothrow_applicable<decltype(mixed), fn::copack<bool, int> &>::value);
   SUCCEED();
 }
 
@@ -90,7 +90,7 @@ TEST_CASE("_is_nothrow_applicable_r", "[functional][is_nothrow_applicable_r]")
 
   constexpr auto nothrow_generic = [](auto &&...) noexcept { return 0; };
   static_assert(_is_nothrow_applicable_r<int, decltype(nothrow_generic), fn::pack<int, bool> &>::value);
-  static_assert(_is_nothrow_applicable_r<int, decltype(nothrow_generic), fn::sum<bool, int> &>::value);
+  static_assert(_is_nothrow_applicable_r<int, decltype(nothrow_generic), fn::copack<bool, int> &>::value);
   SUCCEED();
 }
 

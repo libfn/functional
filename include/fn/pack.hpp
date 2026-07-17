@@ -6,11 +6,11 @@
 #ifndef INCLUDE_FN_PACK
 #define INCLUDE_FN_PACK
 
+#include <fn/copack.hpp>
 #include <fn/detail/macro_deduced_return.hpp>
 #include <fn/detail/macro_fwd.hpp>
 #include <fn/detail/meta.hpp>
 #include <fn/detail/pack_impl.hpp>
-#include <fn/sum.hpp>
 
 #include <type_traits>
 
@@ -380,7 +380,7 @@ template <template <typename> typename Tpl>
 } // namespace detail
 
 /**
- * @brief Data concantenation operator - creates a pack or a sum of packs
+ * @brief Data concantenation operator - creates a pack or a copack of packs
  *
  * @param lh TODO
  * @param rh TODO
@@ -389,7 +389,7 @@ template <template <typename> typename Tpl>
 [[nodiscard]] constexpr auto operator&(auto &&lh, auto &&rh) //
     noexcept(noexcept(::fn::detail::_fold_detail::fold<::std::remove_cvref_t<decltype(lh)>,
                                                        ::std::remove_cvref_t<decltype(rh)>>(FWD(lh), FWD(rh))))
-  requires(some_sum<decltype(lh)> || some_pack<decltype(lh)>)
+  requires(some_copack<decltype(lh)> || some_pack<decltype(lh)>)
 {
   using Lh = ::std::remove_cvref_t<decltype(lh)>;
   using Rh = ::std::remove_cvref_t<decltype(rh)>;
@@ -419,7 +419,7 @@ constexpr inline struct identity_t {
    * @return TODO
    */
   template <typename Arg, typename... Args>
-    requires(not some_sum<Arg>) && (not some_pack<Arg>)
+    requires(not some_copack<Arg>) && (not some_pack<Arg>)
   [[nodiscard]] constexpr auto operator()(Arg &&arg, Args &&...args) const
   {
     return (::fn::pack{FWD(arg)} & ... & FWD(args));
@@ -435,7 +435,7 @@ constexpr inline struct identity_t {
    * @return TODO
    */
   template <typename Arg, typename... Args>
-    requires some_sum<Arg> || some_pack<Arg>
+    requires some_copack<Arg> || some_pack<Arg>
   [[nodiscard]] constexpr auto operator()(Arg &&arg, Args &&...args) const
   {
     return (FWD(arg) & ... & FWD(args));
