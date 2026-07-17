@@ -443,7 +443,9 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
 
   // apply: elimination over both states, both arms required outright - each arm eliminates its
   // side's value through fn's own _apply (a pack or tuple-like payload by elements, a sum by
-  // dispatch); a void value arm is invoked without a value.
+  // dispatch); a void value arm is invoked without a value. Over an empty-sum side this overload
+  // set needs no gate: sum<> has no apply, so _is_applicable and _apply_tagged answer false for
+  // every Fn and the general overloads drop out.
   template <typename Self, typename Fn, typename... Args>
   static constexpr auto _apply(Self &&self, Fn &&fn, Args &&...args) //
       noexcept(::fn::detail::_is_nothrow_applicable<Fn, decltype(_pfn_base::_value(FWD(self))), Args...>::value

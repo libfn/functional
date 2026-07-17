@@ -212,7 +212,7 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
   template <typename Self, typename Fn>
   static constexpr auto _or_else(Self &&self, Fn &&fn)                                      //
       noexcept(::fn::detail::_nothrow_optional_or_else<T, Fn, decltype(*FWD(self))>::value) // extension
-    requires(not ::std::is_same_v<T, ::fn::sum<>>) && ::fn::detail::_is_applicable<Fn>::value
+    requires((not some_sum<T>) || (::std::remove_cvref_t<T>::size > 0)) && ::fn::detail::_is_applicable<Fn>::value
             && ::std::is_constructible_v<T, decltype(*FWD(self))>
   {
     using type = ::std::remove_cvref_t<typename ::fn::detail::_apply_result<Fn>::type>;
@@ -247,7 +247,7 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
   static constexpr auto _or_else(Self &&, Fn &&fn) //
       noexcept(
           ::fn::detail::_nothrow_optional_or_else<T, Fn, ::fn::apply_const_lvalue_t<Self, T &&>>::value) // extension
-    requires ::std::is_same_v<T, ::fn::sum<>> && ::fn::detail::_is_applicable<Fn>::value
+    requires some_sum<T> && (::std::remove_cvref_t<T>::size == 0) && ::fn::detail::_is_applicable<Fn>::value
   {
     using type = ::std::remove_cvref_t<typename ::fn::detail::_apply_result<Fn>::type>;
     static_assert(_is_some_optional<type &>);
@@ -313,7 +313,9 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
 
   // apply: elimination over both states, both arms required outright - the engaged arm eliminates
   // the value through fn's own _apply (a pack or tuple-like payload by elements, a sum by
-  // dispatch), the empty arm is invoked without it.
+  // dispatch), the empty arm is invoked without it. Over an empty-sum value this overload set
+  // needs no gate: sum<> has no apply, so _is_applicable and _apply_tagged answer false for every
+  // Fn and the general overloads drop out.
   template <typename Self, typename Fn, typename... Args>
   static constexpr auto _apply(Self &&self, Fn &&fn, Args &&...args) //
       noexcept(::fn::detail::_is_nothrow_applicable<Fn, decltype(*FWD(self)), Args...>::value
