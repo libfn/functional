@@ -272,6 +272,74 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
     else
       return type(::std::nullopt);
   }
+
+  // apply: elimination over both states, both arms required outright - the engaged arm eliminates
+  // the value through fn's own _apply (a pack or tuple-like payload by elements, a sum by
+  // dispatch), the empty arm is invoked without it.
+  template <typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(::fn::detail::_is_nothrow_applicable<Fn, decltype(*FWD(self)), Args...>::value
+               && ::fn::detail::_is_nothrow_applicable<Fn, Args...>::value) // extension
+      -> decltype(auto)
+    requires ::fn::detail::_is_applicable<Fn, decltype(*FWD(self)), Args...>::value
+             && ::fn::detail::_is_applicable<Fn, Args...>::value
+  {
+    // Both arms are viable here, so they must yield the same result type.
+    static_assert(::std::is_same_v<typename ::fn::detail::_apply_result<Fn, decltype(*FWD(self)), Args...>::type,
+                                   typename ::fn::detail::_apply_result<Fn, Args...>::type>);
+    if (self.has_value())
+      return ::fn::detail::_apply(FWD(fn), *FWD(self), FWD(args)...);
+    else
+      return ::fn::detail::_apply(FWD(fn), FWD(args)...);
+  }
+
+  template <typename Ret, typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_r(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, decltype(*FWD(self)), Args...>::value
+               && ::fn::detail::_is_nothrow_applicable_r<Ret, Fn, Args...>::value) // extension
+      -> Ret
+    requires ::fn::detail::_is_applicable_r<Ret, Fn, decltype(*FWD(self)), Args...>::value
+             && ::fn::detail::_is_applicable_r<Ret, Fn, Args...>::value
+  {
+    if (self.has_value())
+      return ::fn::detail::_apply_r<Ret>(FWD(fn), *FWD(self), FWD(args)...);
+    else
+      return ::fn::detail::_apply_r<Ret>(FWD(fn), FWD(args)...);
+  }
+
+  // apply_type: the tagged form - the engaged arm receives ::std::in_place followed by the value
+  // as _apply_tagged hands it over (a tuple-like value's elements form is the row's one
+  // signature), the empty arm ::std::nullopt alone, passed as a prvalue like every tag.
+  template <typename Self, typename Fn>
+  static constexpr auto _apply_type(Self &&self, Fn &&fn) //
+      noexcept(noexcept(::fn::detail::_apply_tagged<::std::in_place_t>(FWD(fn), *FWD(self)))
+               && ::fn::detail::_is_nothrow_applicable<Fn, ::std::nullopt_t>::value) // extension
+      -> decltype(auto)
+    requires requires { ::fn::detail::_apply_tagged<::std::in_place_t>(FWD(fn), *FWD(self)); }
+             && ::fn::detail::_is_applicable<Fn, ::std::nullopt_t>::value
+  {
+    // Both arms are viable here, so they must yield the same result type.
+    static_assert(::std::is_same_v<decltype(::fn::detail::_apply_tagged<::std::in_place_t>(FWD(fn), *FWD(self))),
+                                   typename ::fn::detail::_apply_result<Fn, ::std::nullopt_t>::type>);
+    if (self.has_value())
+      return ::fn::detail::_apply_tagged<::std::in_place_t>(FWD(fn), *FWD(self));
+    else
+      return ::fn::detail::_apply(FWD(fn), ::std::nullopt_t{::std::nullopt});
+  }
+
+  template <typename Ret, typename Self, typename Fn>
+  static constexpr auto _apply_type_r(Self &&self, Fn &&fn) //
+      noexcept(noexcept(::fn::detail::_apply_tagged_r<Ret, ::std::in_place_t>(FWD(fn), *FWD(self)))
+               && ::fn::detail::_is_nothrow_applicable_r<Ret, Fn, ::std::nullopt_t>::value) // extension
+      -> Ret
+    requires requires { ::fn::detail::_apply_tagged_r<Ret, ::std::in_place_t>(FWD(fn), *FWD(self)); }
+             && ::fn::detail::_is_applicable_r<Ret, Fn, ::std::nullopt_t>::value
+  {
+    if (self.has_value())
+      return ::fn::detail::_apply_tagged_r<Ret, ::std::in_place_t>(FWD(fn), *FWD(self));
+    else
+      return ::fn::detail::_apply_r<Ret>(FWD(fn), ::std::nullopt_t{::std::nullopt});
+  }
 };
 
 } // namespace detail
@@ -442,6 +510,125 @@ public:
   using _base::operator->;
   using _base::value;
   using _base::value_or;
+
+  // Elimination over both states, mirroring sum's apply family: the engaged arm takes the value
+  // unpacked as fn::apply would hand it over, the empty arm takes no value (apply) or the nullopt
+  // tag alone (apply_type). Bodies delegate to _optional_base static helpers.
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply(F &&f, Args &&...args) &        //
+      noexcept(noexcept(_base::_apply(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply(*this, FWD(f), FWD(args)...))
+  {
+    return _base::_apply(*this, FWD(f), FWD(args)...);
+  }
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply(F &&f, Args &&...args) &&                    //
+      noexcept(noexcept(_base::_apply(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::_apply(::std::move(*this), FWD(f), FWD(args)...);
+  }
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply(F &&f, Args &&...args) const &  //
+      noexcept(noexcept(_base::_apply(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply(*this, FWD(f), FWD(args)...))
+  {
+    return _base::_apply(*this, FWD(f), FWD(args)...);
+  }
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply(F &&f, Args &&...args) const &&              //
+      noexcept(noexcept(_base::_apply(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::_apply(::std::move(*this), FWD(f), FWD(args)...);
+  }
+
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_r(F &&f, Args &&...args) &                      //
+      noexcept(noexcept(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...);
+  }
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_r(F &&f, Args &&...args) &&                                  //
+      noexcept(noexcept(_base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...);
+  }
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_r(F &&f, Args &&...args) const &                //
+      noexcept(noexcept(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...);
+  }
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_r(F &&f, Args &&...args) const &&                            //
+      noexcept(noexcept(_base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...);
+  }
+
+  template <class F>
+  [[nodiscard]] constexpr auto apply_type(F &&f) &          //
+      noexcept(noexcept(_base::_apply_type(*this, FWD(f)))) // extension
+      -> decltype(_base::_apply_type(*this, FWD(f)))
+  {
+    return _base::_apply_type(*this, FWD(f));
+  }
+  template <class F>
+  [[nodiscard]] constexpr auto apply_type(F &&f) &&                      //
+      noexcept(noexcept(_base::_apply_type(::std::move(*this), FWD(f)))) // extension
+      -> decltype(_base::_apply_type(::std::move(*this), FWD(f)))
+  {
+    return _base::_apply_type(::std::move(*this), FWD(f));
+  }
+  template <class F>
+  [[nodiscard]] constexpr auto apply_type(F &&f) const &    //
+      noexcept(noexcept(_base::_apply_type(*this, FWD(f)))) // extension
+      -> decltype(_base::_apply_type(*this, FWD(f)))
+  {
+    return _base::_apply_type(*this, FWD(f));
+  }
+  template <class F>
+  [[nodiscard]] constexpr auto apply_type(F &&f) const &&                //
+      noexcept(noexcept(_base::_apply_type(::std::move(*this), FWD(f)))) // extension
+      -> decltype(_base::_apply_type(::std::move(*this), FWD(f)))
+  {
+    return _base::_apply_type(::std::move(*this), FWD(f));
+  }
+
+  template <class Ret, class F>
+  [[nodiscard]] constexpr auto apply_type_r(F &&f) &                        //
+      noexcept(noexcept(_base::template _apply_type_r<Ret>(*this, FWD(f)))) // extension
+      -> decltype(_base::template _apply_type_r<Ret>(*this, FWD(f)))
+  {
+    return _base::template _apply_type_r<Ret>(*this, FWD(f));
+  }
+  template <class Ret, class F>
+  [[nodiscard]] constexpr auto apply_type_r(F &&f) &&                                    //
+      noexcept(noexcept(_base::template _apply_type_r<Ret>(::std::move(*this), FWD(f)))) // extension
+      -> decltype(_base::template _apply_type_r<Ret>(::std::move(*this), FWD(f)))
+  {
+    return _base::template _apply_type_r<Ret>(::std::move(*this), FWD(f));
+  }
+  template <class Ret, class F>
+  [[nodiscard]] constexpr auto apply_type_r(F &&f) const &                  //
+      noexcept(noexcept(_base::template _apply_type_r<Ret>(*this, FWD(f)))) // extension
+      -> decltype(_base::template _apply_type_r<Ret>(*this, FWD(f)))
+  {
+    return _base::template _apply_type_r<Ret>(*this, FWD(f));
+  }
+  template <class Ret, class F>
+  [[nodiscard]] constexpr auto apply_type_r(F &&f) const &&                              //
+      noexcept(noexcept(_base::template _apply_type_r<Ret>(::std::move(*this), FWD(f)))) // extension
+      -> decltype(_base::template _apply_type_r<Ret>(::std::move(*this), FWD(f)))
+  {
+    return _base::template _apply_type_r<Ret>(::std::move(*this), FWD(f));
+  }
 
   // Monadic operations. Bodies delegate to _optional_base static helpers, which perform sum-widening.
   template <class F>
@@ -673,6 +860,37 @@ public:
   using _base::operator->;
   using _base::value;
   using _base::value_or;
+
+  // Elimination over both states; a reference optional always hands the referent over as T&.
+  // Bodies delegate to _optional_base static helpers.
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply(F &&f, Args &&...args) const    //
+      noexcept(noexcept(_base::_apply(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply(*this, FWD(f), FWD(args)...))
+  {
+    return _base::_apply(*this, FWD(f), FWD(args)...);
+  }
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_r(F &&f, Args &&...args) const                  //
+      noexcept(noexcept(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...);
+  }
+  template <class F>
+  [[nodiscard]] constexpr auto apply_type(F &&f) const      //
+      noexcept(noexcept(_base::_apply_type(*this, FWD(f)))) // extension
+      -> decltype(_base::_apply_type(*this, FWD(f)))
+  {
+    return _base::_apply_type(*this, FWD(f));
+  }
+  template <class Ret, class F>
+  [[nodiscard]] constexpr auto apply_type_r(F &&f) const                    //
+      noexcept(noexcept(_base::template _apply_type_r<Ret>(*this, FWD(f)))) // extension
+      -> decltype(_base::template _apply_type_r<Ret>(*this, FWD(f)))
+  {
+    return _base::template _apply_type_r<Ret>(*this, FWD(f));
+  }
 
   // Monadic operations. Bodies delegate to _optional_base static helpers.
   template <class F>

@@ -10,6 +10,7 @@
 
 #include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <variant>
 
@@ -3396,5 +3397,368 @@ TEST_CASE("expected pack support transform_error", "[expected][transform_error][
     constexpr S b{1};
     static_assert(b.transform_error([](auto &&...) -> bool { throw 0; }).value() == 1);
     SUCCEED();
+  }
+}
+
+namespace {
+template <typename S, typename Fn, typename... Args>
+concept can_apply = requires(S s, Fn fn, Args... args) { FWD(s).apply(FWD(fn), FWD(args)...); };
+
+template <typename S, typename R, typename Fn>
+concept can_apply_r = requires(S s, Fn fn) { FWD(s).template apply_r<R>(FWD(fn)); };
+
+template <typename S, typename Fn>
+concept can_apply_type = requires(S s, Fn fn) { FWD(s).apply_type(FWD(fn)); };
+
+template <typename S, typename R, typename Fn>
+concept can_apply_type_r = requires(S s, Fn fn) { FWD(s).template apply_type_r<R>(FWD(fn)); };
+} // anonymous namespace
+
+TEST_CASE("expected apply", "[expected][apply]")
+{
+  using fn::expected;
+
+  // both arms are required outright: each arm receives its side's value as fn::apply hands it over
+  constexpr auto arms = fn::overload{[](double v) noexcept -> double { return v; },
+                                     [](std::string const &) noexcept -> double { return -1.0; }};
+  expected<double, std::string> a{21.0};
+  expected<double, std::string> e{fn::unexpect, "boom"};
+
+  SECTION("noexcept")
+  {
+    static_assert(noexcept(a.apply(arms)));
+    static_assert(noexcept(std::move(a).apply(arms)));
+    static_assert(noexcept(a.apply_r<double>(arms)));
+    constexpr auto throwing = fn::overload{[](double v) noexcept(false) -> double { return v; },
+                                           [](std::string const &) noexcept -> double { return -1.0; }};
+    static_assert(not noexcept(a.apply(throwing)));
+    static_assert(not noexcept(a.apply_r<double>(throwing)));
+    SUCCEED();
+  }
+
+  SECTION("both arms required")
+  {
+    static_assert(can_apply<expected<double, std::string> &, decltype(arms) const &>);
+    static_assert(not can_apply<expected<double, std::string> &, decltype(fn::overload{[](double) {}}) const &>);
+    static_assert(
+        not can_apply<expected<double, std::string> &, decltype(fn::overload{[](std::string const &) {}}) const &>);
+
+    // the untagged path is forgetful where T and E interconvert: one arm serves both rows
+    static_assert(can_apply<expected<double, int> &, decltype(fn::overload{[](double) -> int { return 0; }}) const &>);
+
+    CHECK(a.apply(arms) == 21.0);
+    CHECK(e.apply(arms) == -1.0);
+
+    SECTION("constexpr")
+    {
+      constexpr auto xarms
+          = fn::overload{[](double v) noexcept -> int { return int(v); }, [](int e) noexcept -> int { return -e; }};
+      static_assert(expected<double, int>{21.0}.apply(xarms) == 21);
+      static_assert(expected<double, int>{fn::unexpect, 7}.apply(xarms) == -7);
+      SUCCEED();
+    }
+  }
+
+  SECTION("value categories")
+  {
+    CHECK(a.apply(fn::overload{[](std::string const &) -> bool { throw 1; }, //
+                               [](double &) -> bool { return true; }, [](double const &) -> bool { throw 0; },
+                               [](double &&) -> bool { throw 0; }, [](double const &&) -> bool { throw 0; }}));
+    CHECK(std::as_const(a).apply(
+        fn::overload{[](std::string const &) -> bool { throw 1; }, //
+                     [](double &) -> bool { throw 0; }, [](double const &) -> bool { return true; },
+                     [](double &&) -> bool { throw 0; }, [](double const &&) -> bool { throw 0; }}));
+    CHECK(std::move(std::as_const(a))
+              .apply(fn::overload{[](std::string const &) -> bool { throw 1; }, //
+                                  [](double &) -> bool { throw 0; }, [](double const &) -> bool { throw 0; },
+                                  [](double &&) -> bool { throw 0; }, [](double const &&) -> bool { return true; }}));
+    CHECK(std::move(a).apply(fn::overload{[](std::string const &) -> bool { throw 1; }, //
+                                          [](double &) -> bool { throw 0; }, [](double const &) -> bool { throw 0; },
+                                          [](double &&) -> bool { return true; },
+                                          [](double const &&) -> bool { throw 0; }}));
+    // the error side forwards the same way
+    CHECK(e.apply(fn::overload{[](double) -> bool { throw 1; }, //
+                               [](std::string &) -> bool { return true; }, [](std::string const &) -> bool { throw 0; },
+                               [](std::string &&) -> bool { throw 0; }}));
+    CHECK(std::move(e).apply(fn::overload{[](double) -> bool { throw 1; }, //
+                                          [](std::string &) -> bool { throw 0; },
+                                          [](std::string const &) -> bool { throw 0; },
+                                          [](std::string &&) -> bool { return true; }}));
+  }
+
+  SECTION("extra arguments")
+  {
+    constexpr auto xarms = fn::overload{[](double v, int x) noexcept -> double { return v + x; },
+                                        [](std::string const &, int x) noexcept -> double { return -x; }};
+    CHECK(a.apply(xarms, 2) == 23.0);
+    CHECK(e.apply(xarms, 2) == -2.0);
+  }
+
+  SECTION("void value type")
+  {
+    constexpr auto varms = fn::overload{[]() noexcept -> int { return 1; }, [](int v) noexcept -> int { return -v; }};
+    expected<void, int> v{};
+    expected<void, int> ve{fn::unexpect, 7};
+    CHECK(v.apply(varms) == 1);
+    CHECK(ve.apply(varms) == -7);
+    static_assert(not can_apply<expected<void, int> &, decltype(fn::overload{[](int) {}}) const &>);
+
+    SECTION("constexpr")
+    {
+      static_assert(expected<void, int>{}.apply(varms) == 1);
+      static_assert(expected<void, int>{fn::unexpect, 7}.apply(varms) == -7);
+      SUCCEED();
+    }
+  }
+
+  SECTION("pack payload")
+  {
+    using P = fn::pack<int, int>;
+    expected<P, std::string> p{std::in_place, fn::pack{6, 7}};
+    constexpr auto parms = fn::overload{[](int x, int y) noexcept -> int { return x * y; },
+                                        [](std::string const &) noexcept -> int { return -1; }};
+    CHECK(p.apply(parms) == 42);
+    CHECK(expected<P, std::string>{fn::unexpect, "boom"}.apply(parms) == -1);
+  }
+
+  SECTION("tuple-like payload")
+  {
+    using T = std::tuple<int, char>;
+    expected<T, std::string> t{std::in_place, 40, char(2)};
+    constexpr auto tarms = fn::overload{[](int x, char y) noexcept -> int { return x + y; },
+                                        [](std::string const &) noexcept -> int { return -1; }};
+    CHECK(t.apply(tarms) == 42);
+    // pass-whole still serves a whole-tuple arm on the untagged path (contrast apply_type)
+    constexpr auto whole = fn::overload{[](T const &v) noexcept -> int { return std::get<0>(v); },
+                                        [](std::string const &) noexcept -> int { return -1; }};
+    CHECK(t.apply(whole) == 40);
+  }
+
+  SECTION("sum error payload")
+  {
+    using S = fn::sum_for<bool, std::string>;
+    expected<int, S> s{fn::unexpect, S{std::string{"boom"}}};
+    constexpr auto sarms
+        = fn::overload{[](int v) noexcept -> int { return v; }, [](bool) noexcept -> int { return -1; },
+                       [](std::string const &) noexcept -> int { return -2; }};
+    CHECK(s.apply(sarms) == -2);
+    CHECK(expected<int, S>{42}.apply(sarms) == 42);
+  }
+
+  SECTION("apply_r")
+  {
+    static_assert(std::is_same_v<long, decltype(a.apply_r<long>(arms))>);
+    CHECK(a.apply_r<long>(arms) == 21L);
+    CHECK(e.apply_r<long>(arms) == -1L);
+
+    // the conversion to Ret is part of the question
+    static_assert(not can_apply_r<expected<double, std::string> &, char *, decltype(arms) const &>);
+    static_assert(can_apply_r<expected<double, std::string> &, long, decltype(arms) const &>);
+
+    SECTION("constexpr")
+    {
+      constexpr auto xarms
+          = fn::overload{[](double v) noexcept -> int { return int(v); }, [](int e) noexcept -> int { return -e; }};
+      static_assert(expected<double, int>{21.0}.apply_r<long>(xarms) == 21L);
+      SUCCEED();
+    }
+  }
+}
+
+TEST_CASE("expected apply_type", "[expected][apply_type]")
+{
+  using fn::expected;
+  using fn::unexpect_t;
+  using std::in_place_t;
+
+  // the tags are the constructor tags naming each state: std::in_place for the value,
+  // fn::unexpect for the error
+  constexpr auto arms = fn::overload{[](in_place_t, double v) noexcept -> double { return v; },
+                                     [](unexpect_t, int e) noexcept -> double { return -e; }};
+  expected<double, int> a{21.0};
+  expected<double, int> e{fn::unexpect, 7};
+
+  SECTION("noexcept")
+  {
+    static_assert(noexcept(a.apply_type(arms)));
+    static_assert(noexcept(std::move(a).apply_type(arms)));
+    static_assert(noexcept(a.apply_type_r<double>(arms)));
+    constexpr auto throwing = fn::overload{[](in_place_t, double v) noexcept(false) -> double { return v; },
+                                           [](unexpect_t, int e) noexcept -> double { return -e; }};
+    static_assert(not noexcept(a.apply_type(throwing)));
+    static_assert(not noexcept(a.apply_type_r<double>(throwing)));
+    SUCCEED();
+  }
+
+  SECTION("airtight over interconvertible value and error")
+  {
+    // the untagged path is forgetful: a lone double arm serves both rows of expected<double, int>;
+    // the tagged path keys each row by a tag that never converts
+    static_assert(can_apply<expected<double, int> &, decltype(fn::overload{[](double) -> int { return 0; }}) const &>);
+    static_assert(
+        not can_apply_type<expected<double, int> &, decltype(fn::overload{[](double) -> int { return 0; }}) const &>);
+
+    // arm selection is by tag, not by value conversion: generic value parameters stay unambiguous
+    constexpr auto rows = fn::overload{[](in_place_t, auto &&) noexcept -> int { return 1; },
+                                       [](unexpect_t, auto &&) noexcept -> int { return 2; }};
+    CHECK(a.apply_type(rows) == 1);
+    CHECK(e.apply_type(rows) == 2);
+
+    // dropping either arm makes the whole dispatch non-viable
+    static_assert(can_apply_type<expected<double, int> &, decltype(arms) const &>);
+    static_assert(
+        not can_apply_type<expected<double, int> &, decltype(fn::overload{[](in_place_t, double) {}}) const &>);
+    static_assert(not can_apply_type<expected<double, int> &, decltype(fn::overload{[](unexpect_t, int) {}}) const &>);
+
+    // the tags reach the arms as prvalues, so rvalue-tag arms are served - probe and deed agree
+    constexpr auto rv_tag = fn::overload{[](in_place_t &&, double v) noexcept -> double { return v; },
+                                         [](unexpect_t &&, int e) noexcept -> double { return -e; }};
+    static_assert(can_apply_type<expected<double, int> &, decltype(rv_tag) const &>);
+    CHECK(a.apply_type(rv_tag) == 21.0);
+    CHECK(e.apply_type(rv_tag) == -7.0);
+
+    CHECK(a.apply_type(arms) == 21.0);
+    CHECK(e.apply_type(arms) == -7.0);
+
+    SECTION("constexpr")
+    {
+      static_assert(expected<double, int>{21.0}.apply_type(arms) == 21.0);
+      static_assert(expected<double, int>{fn::unexpect, 7}.apply_type(arms) == -7.0);
+      SUCCEED();
+    }
+  }
+
+  SECTION("value categories")
+  {
+    CHECK(a.apply_type(fn::overload{
+        [](unexpect_t, int) -> bool { throw 1; }, //
+        [](in_place_t, double &) -> bool { return true; }, [](in_place_t, double const &) -> bool { throw 0; },
+        [](in_place_t, double &&) -> bool { throw 0; }, [](in_place_t, double const &&) -> bool { throw 0; }}));
+    CHECK(std::as_const(a).apply_type(fn::overload{
+        [](unexpect_t, int) -> bool { throw 1; }, //
+        [](in_place_t, double &) -> bool { throw 0; }, [](in_place_t, double const &) -> bool { return true; },
+        [](in_place_t, double &&) -> bool { throw 0; }, [](in_place_t, double const &&) -> bool { throw 0; }}));
+    CHECK(std::move(std::as_const(a))
+              .apply_type(fn::overload{[](unexpect_t, int) -> bool { throw 1; }, //
+                                       [](in_place_t, double &) -> bool { throw 0; },
+                                       [](in_place_t, double const &) -> bool { throw 0; },
+                                       [](in_place_t, double &&) -> bool { throw 0; },
+                                       [](in_place_t, double const &&) -> bool { return true; }}));
+    CHECK(std::move(a).apply_type(fn::overload{
+        [](unexpect_t, int) -> bool { throw 1; }, //
+        [](in_place_t, double &) -> bool { throw 0; }, [](in_place_t, double const &) -> bool { throw 0; },
+        [](in_place_t, double &&) -> bool { return true; }, [](in_place_t, double const &&) -> bool { throw 0; }}));
+    // the error side forwards the same way
+    CHECK(e.apply_type(fn::overload{[](in_place_t, double) -> bool { throw 1; }, //
+                                    [](unexpect_t, int &) -> bool { return true; },
+                                    [](unexpect_t, int const &) -> bool { throw 0; },
+                                    [](unexpect_t, int &&) -> bool { throw 0; }}));
+    CHECK(std::move(e).apply_type(fn::overload{[](in_place_t, double) -> bool { throw 1; }, //
+                                               [](unexpect_t, int &) -> bool { throw 0; },
+                                               [](unexpect_t, int const &) -> bool { throw 0; },
+                                               [](unexpect_t, int &&) -> bool { return true; }}));
+
+    SECTION("constexpr")
+    {
+      // one result type across both arms is the rule, so selection is encoded in values
+      constexpr expected<double, int> b{21.0};
+      constexpr expected<double, int> be{fn::unexpect, 7};
+      constexpr auto categories = fn::overload{
+          [](in_place_t, double &) -> int { return 1; },     [](in_place_t, double const &) -> int { return 2; },
+          [](in_place_t, double &&) -> int { return 3; },    [](in_place_t, double const &&) -> int { return 4; },
+          [](unexpect_t, int const &) -> int { return 12; }, [](unexpect_t, int const &&) -> int { return 14; }};
+      static_assert(b.apply_type(categories) == 2);
+      static_assert(std::move(b).apply_type(categories) == 4);
+      static_assert(be.apply_type(categories) == 12);
+      static_assert(std::move(be).apply_type(categories) == 14);
+      SUCCEED();
+    }
+  }
+
+  SECTION("void value type")
+  {
+    // the value arm receives the tag alone
+    constexpr auto varms = fn::overload{[](in_place_t) noexcept -> int { return 1; },
+                                        [](unexpect_t, int e) noexcept -> int { return -e; }};
+    expected<void, int> v{};
+    expected<void, int> ve{fn::unexpect, 7};
+    CHECK(v.apply_type(varms) == 1);
+    CHECK(ve.apply_type(varms) == -7);
+    CHECK(v.apply_type_r<long>(varms) == 1L);
+    static_assert(not can_apply_type<expected<void, int> &, decltype(fn::overload{[](unexpect_t, int) {}}) const &>);
+    static_assert(not can_apply_type<expected<void, int> &, decltype(fn::overload{[](in_place_t) {}}) const &>);
+
+    SECTION("constexpr")
+    {
+      static_assert(expected<void, int>{}.apply_type(varms) == 1);
+      static_assert(expected<void, int>{fn::unexpect, 7}.apply_type(varms) == -7);
+      SUCCEED();
+    }
+  }
+
+  SECTION("pack payload")
+  {
+    // the arm receives (tag, elements...)
+    using P = fn::pack<int, int>;
+    expected<P, std::string> p{std::in_place, fn::pack{6, 7}};
+    constexpr auto parms = fn::overload{[](in_place_t, int x, int y) noexcept -> int { return x * y; },
+                                        [](unexpect_t, std::string const &) noexcept -> int { return -1; }};
+    CHECK(p.apply_type(parms) == 42);
+    CHECK(expected<P, std::string>{fn::unexpect, "boom"}.apply_type(parms) == -1);
+  }
+
+  SECTION("tuple-like payload")
+  {
+    using T = std::tuple<int, char>;
+    expected<T, std::string> t{std::in_place, 40, char(2)};
+    constexpr auto tarms = fn::overload{[](in_place_t, int x, char y) noexcept -> int { return x + y; },
+                                        [](unexpect_t, std::string const &) noexcept -> int { return -1; }};
+    CHECK(t.apply_type(tarms) == 42);
+
+    // the elements form is the row's one signature: an arm for the whole tuple is not served
+    static_assert(
+        not can_apply_type<expected<T, std::string> &,
+                           decltype(fn::overload{[](in_place_t, T const &) -> int { return 0; },
+                                                 [](unexpect_t, std::string const &) -> int { return 0; }}) const &>);
+
+    // a tuple-like error unpacks the same way
+    using TE = std::tuple<int, char>;
+    expected<double, TE> te{fn::unexpect, TE{40, char(2)}};
+    CHECK(te.apply_type(fn::overload{[](in_place_t, double) noexcept -> int { return 0; },
+                                     [](unexpect_t, int x, char y) noexcept -> int { return x + y; }})
+          == 42);
+  }
+
+  SECTION("sum error payload")
+  {
+    // a sum error dispatches under fn::unexpect, and its exhaustiveness composes
+    using S = fn::sum_for<bool, std::string>;
+    expected<int, S> s{fn::unexpect, S{std::string{"boom"}}};
+    constexpr auto sarms = fn::overload{[](in_place_t, int v) noexcept -> int { return v; },
+                                        [](unexpect_t, bool) noexcept -> int { return -1; },
+                                        [](unexpect_t, std::string const &) noexcept -> int { return -2; }};
+    CHECK(s.apply_type(sarms) == -2);
+    CHECK(expected<int, S>{42}.apply_type(sarms) == 42);
+
+    constexpr auto no_bool = fn::overload{[](in_place_t, int v) noexcept -> int { return v; },
+                                          [](unexpect_t, std::string const &) noexcept -> int { return -2; }};
+    static_assert(not can_apply_type<expected<int, S> &, decltype(no_bool) const &>);
+  }
+
+  SECTION("apply_type_r")
+  {
+    static_assert(std::is_same_v<long, decltype(a.apply_type_r<long>(arms))>);
+    CHECK(a.apply_type_r<long>(arms) == 21L);
+    CHECK(e.apply_type_r<long>(arms) == -7L);
+
+    // the conversion to Ret is part of the question
+    static_assert(not can_apply_type_r<expected<double, int> &, char *, decltype(arms) const &>);
+    static_assert(can_apply_type_r<expected<double, int> &, long, decltype(arms) const &>);
+
+    SECTION("constexpr")
+    {
+      static_assert(expected<double, int>{21.0}.apply_type_r<long>(arms) == 21L);
+      SUCCEED();
+    }
   }
 }
