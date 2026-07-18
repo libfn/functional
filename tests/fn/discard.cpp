@@ -226,6 +226,90 @@ TEST_CASE("discard", "[discard][optional]")
   }
 }
 
+TEST_CASE("discard", "[discard][choice]")
+{
+  using namespace fn;
+
+  using operand_t = fn::choice<bool, int>;
+  using is = monadic_static_check<discard_t, operand_t>;
+
+  static_assert(is::invocable_with_any());
+  static_assert(is::not_invocable_with_any([] {})); // no arguments allowed
+
+  SECTION("lvalue")
+  {
+    operand_t a{42};
+    a | discard();
+
+    REQUIRE(a == operand_t{42});
+  }
+
+  SECTION("rvalue")
+  {
+    operand_t{42} | discard();
+    SUCCEED();
+  }
+
+  SECTION("constexpr")
+  {
+    constexpr auto test = [](operand_t v) {
+      v | discard();
+      return true;
+    };
+
+    static_assert(test(operand_t{42}));
+    static_assert(test(operand_t{true}));
+
+    SUCCEED();
+  }
+}
+
+TEST_CASE("discard", "[discard][just]")
+{
+  using namespace fn;
+
+  using operand_t = fn::just<int>;
+  using is = monadic_static_check<discard_t, operand_t>;
+
+  static_assert(is::invocable_with_any());
+  static_assert(is::not_invocable_with_any([] {})); // no arguments allowed
+
+  SECTION("lvalue")
+  {
+    operand_t a{42};
+    a | discard();
+
+    REQUIRE(a.value() == 42);
+  }
+
+  SECTION("rvalue")
+  {
+    operand_t{42} | discard();
+    SUCCEED();
+  }
+
+  SECTION("just<void>")
+  {
+    using is_v = monadic_static_check<discard_t, fn::just<void>>;
+    static_assert(is_v::invocable_with_any());
+
+    fn::just<void>{} | discard();
+    SUCCEED();
+  }
+
+  SECTION("constexpr")
+  {
+    constexpr auto test = [](operand_t v) {
+      v | discard();
+      return true;
+    };
+
+    static_assert(test(operand_t{42}));
+
+    SUCCEED();
+  }
+}
+
 TEST_CASE("discard noexcept", "[discard][noexcept]")
 {
   using namespace fn;
@@ -241,6 +325,10 @@ TEST_CASE("discard noexcept", "[discard][noexcept]")
   // and it holds through the pipeline, whatever the operand carries
   static_assert(noexcept(std::declval<fn::expected<int, int> &>() | fn::discard()));
   static_assert(noexcept(std::declval<fn::optional<std::string> &>() | fn::discard()));
+  static_assert(noexcept(std::declval<fn::choice<int> &>() | fn::discard()));
+  static_assert(noexcept(std::declval<fn::just<std::string> &>() | fn::discard()));
+  static_assert(noexcept(std::declval<fn::just<void> &>() | fn::discard()));
+  static_assert(noexcept(std::declval<fn::expected<int, fn::copack<>> &>() | fn::discard()));
 
   SUCCEED();
 }
