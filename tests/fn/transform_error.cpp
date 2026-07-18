@@ -26,6 +26,12 @@ struct Error final {
   operator std::string_view() const { return what; }
   auto fn() const & -> Xerror { return {what.size()}; }
 };
+
+// Instantiating this callable for any argument is a dependent hard error: a verb that compiles
+// while receiving it provably never instantiates its callback.
+struct Poison final {
+  template <typename T> constexpr void operator()(T &&) const { static_assert(sizeof(T) == 0); }
+};
 } // namespace
 
 TEST_CASE("transform_error", "[transform_error][expected]")
@@ -247,6 +253,25 @@ TEST_CASE("transform_error", "[transform_error][optional]")
   SUCCEED();
 }
 
+TEST_CASE("transform_error identity expected", "[transform_error][expected][copack]")
+{
+  using operand_t = fn::expected<int, fn::copack<>>;
+
+  // the error side is uninhabited: a dedicated arm delegates to the vacuous member, which accepts
+  // any callback and never instantiates it; just and choice stay excluded
+  static_assert(monadic_static_check<fn::transform_error_t, operand_t>::invocable_with_any(Poison{}));
+  static_assert(monadic_static_check<fn::transform_error_t, fn::just<int>>::not_invocable_with_any(Poison{}));
+  static_assert(monadic_static_check<fn::transform_error_t, fn::choice<int>>::not_invocable_with_any(Poison{}));
+
+  operand_t a{5};
+  auto r1 = a | fn::transform_error(Poison{});
+  static_assert(std::is_same_v<decltype(r1), operand_t>);
+  CHECK(r1.value() == 5);
+  auto r2 = operand_t{7} | fn::transform_error(Poison{});
+  CHECK(r2.value() == 7);
+  static_assert((operand_t{5} | fn::transform_error(Poison{})).value() == 5);
+}
+
 namespace fn {
 namespace {
 struct Error {};
@@ -277,5 +302,8 @@ static_assert(not applicable_transform_error<decltype(fn_Error_rvalue), expected
 static_assert(applicable_transform_error<decltype(fn_generic<Xerror>), expected<int, copack_for<Error, Value>>>);
 static_assert(not applicable_transform_error<decltype(fn_Error<Xerror>), expected<int, copack_for<Error, Value>>>); // not exhaustive
 static_assert(not applicable_transform_error<decltype(fn_generic<void>), expected<int, copack_for<Error, Value>>>); // a void result has no place in a copack
+
+// at an uninhabited error side the concept stays false - the dedicated arm, not the concept, admits the operand
+static_assert(not applicable_transform_error<decltype(fn_generic<Xerror>), expected<int, copack<>>>);
 // clang-format on
 } // namespace fn

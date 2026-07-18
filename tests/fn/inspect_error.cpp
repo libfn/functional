@@ -26,6 +26,12 @@ struct Error final {
 };
 
 int Error::count = 0;
+
+// Instantiating this callable for any argument is a dependent hard error: a verb that compiles
+// while receiving it provably never instantiates its callback.
+struct Poison final {
+  template <typename T> constexpr void operator()(T &&) const { static_assert(sizeof(T) == 0); }
+};
 } // namespace
 
 TEST_CASE("inspect_error expected", "[inspect_error][expected]")
@@ -241,6 +247,24 @@ TEST_CASE("inspect_error noexcept", "[inspect_error][noexcept]")
   SUCCEED();
 }
 
+TEST_CASE("inspect_error identity expected", "[inspect_error][expected][copack]")
+{
+  using operand_t = fn::expected<int, fn::copack<>>;
+
+  // the error side is uninhabited: there is nothing to observe, the operand passes through and the
+  // callback is never instantiated; just and choice stay excluded
+  static_assert(monadic_static_check<fn::inspect_error_t, operand_t>::invocable_with_any(Poison{}));
+  static_assert(monadic_static_check<fn::inspect_error_t, fn::just<int>>::not_invocable_with_any(Poison{}));
+  static_assert(monadic_static_check<fn::inspect_error_t, fn::choice<int>>::not_invocable_with_any(Poison{}));
+
+  operand_t a{5};
+  using T = decltype(a | fn::inspect_error(Poison{}));
+  static_assert(std::is_same_v<T, operand_t &>);
+  static_assert(noexcept(a | fn::inspect_error(Poison{}))); // no callback is weighed
+  CHECK((a | fn::inspect_error(Poison{})).value() == 5);
+  static_assert((operand_t{5} | fn::inspect_error(Poison{})).value() == 5);
+}
+
 namespace fn {
 namespace {
 struct Error {};
@@ -284,4 +308,7 @@ static_assert(not applicable_inspect_error<decltype(fn_int_const_rvalue), expect
 
 // cannot bind lvalue to rvalue-ref
 static_assert(not applicable_inspect_error<decltype(fn_int_rvalue), expected<void, int>>);
+
+// at an uninhabited error side the concept stays false - the dedicated arm, not the concept, admits the operand
+static_assert(not applicable_inspect_error<decltype(fn_generic<void>), expected<int, copack<>>>);
 } // namespace fn

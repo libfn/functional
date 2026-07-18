@@ -61,16 +61,27 @@ struct transform_error_t::apply final {
   template <some_expected V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept(noexcept(FWD(v).transform_error(FWD(fn))))
       -> same_value_kind<V &&> auto
-    requires applicable_transform_error<Fn &&, V &&>
+    requires(not some_identity<V>) && applicable_transform_error<Fn &&, V &&>
   {
     return FWD(v).transform_error(FWD(fn));
   }
 
-  // No support for optional since there's no error state to operate on
-  auto operator()(some_optional auto &&v, auto &&...args) const noexcept = delete;
-
-  // No support for choice since there's no error to operate on
-  auto operator()(some_choice auto &&v, auto &&...args) const noexcept = delete;
+  /**
+   * @brief TODO
+   *
+   * @param v TODO
+   * @param fn TODO
+   * @return TODO
+   */
+  // An identity expected's error side is uninhabited - delegate to the vacuous member, which
+  // accepts any callback and never instantiates it
+  template <some_expected V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept(noexcept(FWD(v).transform_error(FWD(fn))))
+      -> same_value_kind<V &&> auto
+    requires some_identity<V>
+  {
+    return FWD(v).transform_error(FWD(fn));
+  }
 };
 
 } // namespace fn
