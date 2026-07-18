@@ -9,8 +9,10 @@
 #include <fn/expected.hpp>
 #include <fn/functional.hpp>
 #include <fn/functor.hpp>
+#include <fn/just.hpp>
 
 #include <concepts>
+#include <type_traits>
 #include <utility>
 
 namespace fn {
@@ -30,6 +32,10 @@ concept applicable_inspect //
         { ::fn::apply(FWD(fn), ::std::as_const(v).value()) } -> ::std::same_as<void>;
       }) || (some_choice<V> && requires(Fn &&fn, V &&v) {
         { ::fn::apply(FWD(fn), ::std::as_const(v).value()) } -> ::std::same_as<void>;
+      }) || (some_just<V> && (not ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type>) && requires(Fn &&fn, V &&v) {
+        { ::fn::apply(FWD(fn), ::std::as_const(v).value()) } -> ::std::same_as<void>;
+      }) || (some_just<V> && ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn) {
+        { ::fn::apply(FWD(fn)) } -> ::std::same_as<void>;
       });
 
 /**
@@ -118,6 +124,39 @@ struct inspect_t::apply final {
     requires applicable_inspect<Fn &&, V &&>
   {
     ::fn::apply(FWD(fn), ::std::as_const(v).value()); // side-effects only
+    return FWD(v);
+  }
+
+  /**
+   * @brief TODO
+   *
+   * @param v TODO
+   * @param fn TODO
+   * @return TODO
+   */
+  template <some_just V, typename Fn>
+    requires(not ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type>)
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const
+      noexcept(::fn::is_nothrow_applicable_v<Fn, decltype(::std::as_const(v).value())>) -> V &&
+    requires applicable_inspect<Fn &&, V &&>
+  {
+    ::fn::apply(FWD(fn), ::std::as_const(v).value()); // side-effects only
+    return FWD(v);
+  }
+
+  /**
+   * @brief TODO
+   *
+   * @param v TODO
+   * @param fn TODO
+   * @return TODO
+   */
+  template <some_just V, typename Fn>
+    requires ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept(::fn::is_nothrow_applicable_v<Fn>) -> V &&
+    requires applicable_inspect<Fn &&, V &&>
+  {
+    ::fn::apply(FWD(fn)); // side-effects only
     return FWD(v);
   }
 };

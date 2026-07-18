@@ -51,6 +51,42 @@ concept applicable_transform //
         {
           FWD(v).transform(FWD(fn))
         } -> convertible_to_choice;
+      }) || (some_just<V> && requires(Fn &&fn, V &&v) {
+        {
+          FWD(v).transform(FWD(fn))
+        } -> same_kind<V>;
+      });
+
+namespace detail {
+// A copack result of a just's transform is guaranteed a mandate error as just<copack<...>> - the
+// verb instead promotes it to the carrier which means exactly that: the choice over the same
+// alternatives. Verb-level only, along the canonical isomorphism; the member stays uncoupled.
+template <typename T> struct _promoted_choice;
+template <typename... Ts> struct _promoted_choice<::fn::copack<Ts...>> {
+  using type = ::fn::choice<Ts...>;
+};
+template <typename Fn, typename... V>
+using _promote_t = typename _promoted_choice<::std::remove_cvref_t<typename _apply_result<Fn, V...>::type>>::type;
+} // namespace detail
+
+/**
+ * @brief Checks if `transform` of a `just` operand promotes the callable's copack result to the
+ *        choice over the same alternatives
+ *
+ * @tparam Fn The function to execute on the value
+ * @tparam V The just operand
+ */
+template <typename Fn, typename V>
+concept applicable_transform_promote //
+    = (some_just<V> && (not ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type>) && requires(V &&v) {
+        typename detail::_apply_result<Fn, decltype(FWD(v).value())>::type;
+        requires some_copack<::std::remove_cvref_t<typename detail::_apply_result<Fn, decltype(FWD(v).value())>::type>>;
+        requires not empty_copack<
+            ::std::remove_cvref_t<typename detail::_apply_result<Fn, decltype(FWD(v).value())>::type>>;
+      }) || (some_just<V> && ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type> && requires {
+        typename detail::_apply_result<Fn>::type;
+        requires some_copack<::std::remove_cvref_t<typename detail::_apply_result<Fn>::type>>;
+        requires not empty_copack<::std::remove_cvref_t<typename detail::_apply_result<Fn>::type>>;
       });
 
 /**
@@ -89,6 +125,28 @@ struct transform_t::apply final {
     requires applicable_transform<Fn &&, V &&>
   {
     return FWD(v).transform(FWD(fn));
+  }
+
+  // The promotion arms: a copack result over a just operand becomes the choice over the same
+  // alternatives - verb-level only, along the canonical isomorphism the member's mandate names
+  template <some_monadic_type V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const
+      noexcept(noexcept(detail::_promote_t<Fn &&, decltype(FWD(v).value())>{::fn::apply(FWD(fn), FWD(v).value())})) //
+      -> some_choice auto
+    requires applicable_transform_promote<Fn &&, V &&>
+             && (not ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type>)
+  {
+    return detail::_promote_t<Fn &&, decltype(FWD(v).value())>{::fn::apply(FWD(fn), FWD(v).value())};
+  }
+
+  template <some_monadic_type V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&, Fn &&fn) const            //
+      noexcept(noexcept(detail::_promote_t<Fn &&>{::fn::apply(FWD(fn))})) //
+      -> some_choice auto
+    requires applicable_transform_promote<Fn &&, V &&>
+             && ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type>
+  {
+    return detail::_promote_t<Fn &&>{::fn::apply(FWD(fn))};
   }
 };
 

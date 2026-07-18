@@ -60,11 +60,26 @@ struct inspect_error_t::apply final {
   template <some_expected V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const
       noexcept(::fn::is_nothrow_applicable_v<Fn, decltype(::std::as_const(v).error())>) -> V &&
-    requires applicable_inspect_error<Fn &&, V &&>
+    requires(not some_identity<V>) && applicable_inspect_error<Fn &&, V &&>
   {
     if (not v.has_value()) {
       ::fn::apply(FWD(fn), ::std::as_const(v).error()); // side-effects only
     }
+    return FWD(v);
+  }
+
+  /**
+   * @brief TODO
+   *
+   * @param v TODO
+   * @return TODO
+   */
+  // An identity expected's error side is uninhabited - there is nothing to observe, the operand
+  // passes through and the callback is never instantiated
+  template <some_expected V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&) const noexcept -> V &&
+    requires some_identity<V>
+  {
     return FWD(v);
   }
 
@@ -84,9 +99,6 @@ struct inspect_error_t::apply final {
     }
     return FWD(v);
   }
-
-  // No support for choice since there's no error to operate on
-  auto operator()(some_choice auto &&v, auto &&...args) const noexcept = delete;
 };
 
 } // namespace fn

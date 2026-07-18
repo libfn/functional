@@ -679,11 +679,12 @@ struct choice<Ts...> : copack<Ts...> {
   template <typename Fn>
   constexpr auto and_then(Fn &&fn) & noexcept(
       detail::_is_nothrow_rts_applicable<
-          typename detail::_copack_apply_result<detail::_joining_superset_tag, decltype(fn), choice &>::type, Fn &&,
-          choice &>) -> typename detail::_copack_apply_result<detail::_joining_superset_tag, Fn &&, choice &>::type
+          typename detail::_copack_apply_result<detail::_joining_superset_tag<choice>, decltype(fn), choice &>::type,
+          Fn &&, choice &>) ->
+      typename detail::_copack_apply_result<detail::_joining_superset_tag<choice>, Fn &&, choice &>::type
     requires typelist_applicable<Fn, choice &>
   {
-    using type = detail::_copack_apply_result<detail::_joining_superset_tag, decltype(fn), choice &>::type;
+    using type = detail::_copack_apply_result<detail::_joining_superset_tag<choice>, decltype(fn), choice &>::type;
     static_assert(some_choice<type>);
     return detail::apply_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn));
   }
@@ -697,13 +698,14 @@ struct choice<Ts...> : copack<Ts...> {
    */
   template <typename Fn>
   constexpr auto and_then(Fn &&fn) const & noexcept(
-      detail::_is_nothrow_rts_applicable<
-          typename detail::_copack_apply_result<detail::_joining_superset_tag, decltype(fn), choice const &>::type,
-          Fn &&, choice const &>) ->
-      typename detail::_copack_apply_result<detail::_joining_superset_tag, Fn &&, choice const &>::type
+      detail::_is_nothrow_rts_applicable<typename detail::_copack_apply_result<detail::_joining_superset_tag<choice>,
+                                                                               decltype(fn), choice const &>::type,
+                                         Fn &&, choice const &>) ->
+      typename detail::_copack_apply_result<detail::_joining_superset_tag<choice>, Fn &&, choice const &>::type
     requires typelist_applicable<Fn, choice const &>
   {
-    using type = detail::_copack_apply_result<detail::_joining_superset_tag, decltype(fn), choice const &>::type;
+    using type
+        = detail::_copack_apply_result<detail::_joining_superset_tag<choice>, decltype(fn), choice const &>::type;
     static_assert(some_choice<type>);
     return detail::apply_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn));
   }
@@ -718,11 +720,12 @@ struct choice<Ts...> : copack<Ts...> {
   template <typename Fn>
   constexpr auto and_then(Fn &&fn) && noexcept(
       detail::_is_nothrow_rts_applicable<
-          typename detail::_copack_apply_result<detail::_joining_superset_tag, decltype(fn), choice &&>::type, Fn &&,
-          choice &&>) -> typename detail::_copack_apply_result<detail::_joining_superset_tag, Fn &&, choice &&>::type
+          typename detail::_copack_apply_result<detail::_joining_superset_tag<choice>, decltype(fn), choice &&>::type,
+          Fn &&, choice &&>) ->
+      typename detail::_copack_apply_result<detail::_joining_superset_tag<choice>, Fn &&, choice &&>::type
     requires typelist_applicable<Fn, choice &&>
   {
-    using type = detail::_copack_apply_result<detail::_joining_superset_tag, decltype(fn), choice &&>::type;
+    using type = detail::_copack_apply_result<detail::_joining_superset_tag<choice>, decltype(fn), choice &&>::type;
     static_assert(some_choice<type>);
     return detail::apply_variadic_union<type, typename _impl::data_t>(::std::move(_impl::data), _impl::index, FWD(fn));
   }
@@ -736,13 +739,14 @@ struct choice<Ts...> : copack<Ts...> {
    */
   template <typename Fn>
   constexpr auto and_then(Fn &&fn) const && noexcept(
-      detail::_is_nothrow_rts_applicable<
-          typename detail::_copack_apply_result<detail::_joining_superset_tag, decltype(fn), choice const &&>::type,
-          Fn &&, choice const &&>) ->
-      typename detail::_copack_apply_result<detail::_joining_superset_tag, Fn &&, choice const &&>::type
+      detail::_is_nothrow_rts_applicable<typename detail::_copack_apply_result<detail::_joining_superset_tag<choice>,
+                                                                               decltype(fn), choice const &&>::type,
+                                         Fn &&, choice const &&>) ->
+      typename detail::_copack_apply_result<detail::_joining_superset_tag<choice>, Fn &&, choice const &&>::type
     requires typelist_applicable<Fn, choice const &&>
   {
-    using type = detail::_copack_apply_result<detail::_joining_superset_tag, decltype(fn), choice const &&>::type;
+    using type
+        = detail::_copack_apply_result<detail::_joining_superset_tag<choice>, decltype(fn), choice const &&>::type;
     static_assert(some_choice<type>);
     return detail::apply_variadic_union<type, typename _impl::data_t>(::std::move(_impl::data), _impl::index, FWD(fn));
   }

@@ -25,6 +25,12 @@ struct Error final {
   operator std::string_view() const { return what; }
   auto fn() const & -> int { return static_cast<int>(what.size()); }
 };
+
+// Instantiating this callable for any argument is a dependent hard error: a verb that compiles
+// while receiving it provably never instantiates its callback.
+struct Poison final {
+  template <typename T> constexpr void operator()(T &&) const { static_assert(sizeof(T) == 0); }
+};
 } // namespace
 
 TEST_CASE("recover", "[recover][expected][expected_value]")
@@ -333,6 +339,27 @@ TEST_CASE("recover constraints", "[recover][constraints]")
   SUCCEED();
 }
 
+TEST_CASE("recover identity expected", "[recover][expected][copack]")
+{
+  using operand_t = fn::expected<int, fn::copack<>>;
+  using operand_v = fn::expected<void, fn::copack<>>;
+
+  // there is nothing to recover from: the input passes through and the callback is never
+  // instantiated; just and choice stay excluded
+  static_assert(monadic_static_check<fn::recover_t, operand_t>::invocable_with_any(Poison{}));
+  static_assert(monadic_static_check<fn::recover_t, operand_v>::invocable_with_any(Poison{}));
+  static_assert(monadic_static_check<fn::recover_t, fn::just<int>>::not_invocable_with_any(Poison{}));
+  static_assert(monadic_static_check<fn::recover_t, fn::choice<int>>::not_invocable_with_any(Poison{}));
+
+  operand_t a{5};
+  using T = decltype(a | fn::recover(Poison{}));
+  static_assert(std::is_same_v<T, operand_t &>);
+  static_assert(noexcept(a | fn::recover(Poison{}))); // nothing is rebuilt and no callback weighed
+  CHECK((a | fn::recover(Poison{})).value() == 5);
+  static_assert((operand_t{5} | fn::recover(Poison{})).value() == 5);
+  static_assert((operand_v{} | fn::recover(Poison{})).has_value());
+}
+
 namespace fn {
 namespace {
 struct Error {};
@@ -361,5 +388,8 @@ static_assert(not applicable_recover<decltype(fn_Error_lvalue), expected<int, Er
 static_assert(applicable_recover<decltype(fn_Error_lvalue), expected<int, Error> &>);
 static_assert(applicable_recover<decltype(fn_Error_rvalue), expected<int, Error>>);
 static_assert(not applicable_recover<decltype(fn_Error_rvalue), expected<int, Error> &>); // cannot bind lvalue to rvalue-ref
+
+// at an uninhabited error side the concept stays false - the dedicated arm, not the concept, admits the operand
+static_assert(not applicable_recover<decltype(fn_generic<int>), expected<int, copack<>>>);
 // clang-format on
 } // namespace fn

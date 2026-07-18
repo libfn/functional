@@ -63,20 +63,19 @@ struct value_or_t::apply final {
    */
   // The fallback is built inside, so its construction is weighed here rather than propagated: the
   // callable or_else receives is a lambda, which cannot be named in this specification.
+  // An identity expected is deliberately not excluded with choice and just: its fallback stays
+  // constrained yet dead, the delegated member or_else being vacuous.
   template <some_monadic_type V, typename... Args>
   [[nodiscard]] constexpr auto operator()(V &&v, Args &&...args) const //
       noexcept(
           ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, Args...>
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, decltype(FWD(v).value())>)
           -> ::std::remove_cvref_t<V>
-    requires applicable_value_or<V &&, Args...>
+    requires(not some_choice<V>) && (not some_just<V>) && applicable_value_or<V &&, Args...>
   {
     using type = ::std::remove_cvref_t<V>;
     return FWD(v).or_else([&args...](auto &&...) -> type { return type{::std::in_place, FWD(args)...}; });
   }
-
-  // No support for choice since there's no error to recover from
-  auto operator()(some_choice auto &&v, auto &&...args) const noexcept = delete;
 };
 
 } // namespace fn

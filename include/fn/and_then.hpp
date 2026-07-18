@@ -16,6 +16,18 @@
 #include <type_traits>
 
 namespace fn {
+
+namespace detail {
+// The engine's result over a bound payload, computed assert-free: a copack payload goes through
+// the join trait - all-choice branch results answer the superset choice, others the select
+// convergence - so asking about a divergent-choice callback answers instead of tripping select's
+// convergence assert; a single value goes through _apply_result as always.
+template <typename Fn, typename... V> struct _and_then_result : _apply_result<Fn, V...> {};
+template <typename Fn, typename V>
+  requires _some_copack<::std::remove_cvref_t<V>>
+struct _and_then_result<Fn, V> : _typelist_joining_superset<::fn::choice, Fn, V, ::std::remove_cvref_t<V>> {};
+} // namespace detail
+
 /**
  * @brief Checks if the monadic type can be used with the `and_then` operation
  *
@@ -24,21 +36,19 @@ namespace fn {
  */
 template <typename Fn, typename V>
 concept applicable_and_then //
-    = (some_expected_non_void<V> && requires(Fn &&fn, V &&v) {
-        {
-          ::fn::apply(FWD(fn), FWD(v).value())
-        } -> same_kind<V>;
+    = (some_expected_non_void<V> && requires(V &&v) {
+        typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type;
+        requires same_kind<V, typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type>;
       }) || (some_expected_non_void<V> //
-         && some_copack<typename ::std::remove_cvref_t<V>::error_type> && requires(Fn &&fn, V &&v) {
-        {
-          ::fn::apply(FWD(fn), FWD(v).value())
-        } -> some_expected;
+         && some_copack<typename ::std::remove_cvref_t<V>::error_type> && requires(V &&v) {
+        typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type;
+        requires some_expected<typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type>;
       }) || (some_expected_void<V> && requires(Fn &&fn) {
         {
           ::fn::apply(FWD(fn))
         } -> same_kind<V>;
       }) || (some_expected_void<V> //
-         && some_copack<typename ::std::remove_cvref_t<V>::error_type> && requires(Fn &&fn, V &&v) {
+         && some_copack<typename ::std::remove_cvref_t<V>::error_type> && requires(Fn &&fn) {
         {
           ::fn::apply(FWD(fn))
         } -> some_expected;
@@ -48,9 +58,44 @@ concept applicable_and_then //
         } -> same_kind<V>;
       }) || (some_choice<V> && requires(Fn &&fn, V &&v) {
         {
-          ::fn::apply(FWD(fn), FWD(v).value())
+          FWD(v).and_then(FWD(fn))
+        } -> same_kind<V>;
+      }) || (some_just<V> && requires(Fn &&fn, V &&v) {
+        {
+          FWD(v).and_then(FWD(fn))
         } -> same_kind<V>;
       });
+
+/**
+ * @brief Checks if the identity carrier can be used with `and_then` binding across the cluster's
+ *        carrier kinds
+ *
+ * The callback may return any identity carrier and the bind follows the function; results of the
+ * input's own kind are left to `applicable_and_then` and the carrier's member. Over a copack
+ * payload the branches either all return choices - joined into the superset - or converge on one
+ * carrier type.
+ *
+ * @tparam Fn The function to execute on the value
+ * @tparam V The identity carrier
+ */
+template <typename Fn, typename V>
+concept applicable_and_then_across //
+    = some_identity<V>
+      && ((some_choice<V> && (not applicable_and_then<Fn, V>) && requires(V &&v) {
+            typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type;
+            requires some_identity<typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type>;
+          }) || (some_just<V> && (not applicable_and_then<Fn, V>) && (not ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type>) && requires(V &&v) {
+            typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type;
+            requires some_identity<typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type>;
+          }) || (some_expected_non_void<V> && requires(V &&v) {
+            typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type;
+            requires some_identity<typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type>;
+            requires not some_expected<typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type>;
+          }) || ((some_expected_void<V> || (some_just<V> && ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type> && (not applicable_and_then<Fn, V>))) && requires {
+            typename detail::_and_then_result<Fn>::type;
+            requires some_identity<typename detail::_and_then_result<Fn>::type>;
+            requires not some_expected<typename detail::_and_then_result<Fn>::type>;
+          }));
 
 /**
  * @brief Execute a function on the value of the monadic type if the value is present
@@ -83,9 +128,56 @@ struct and_then_t::apply final {
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //
       noexcept(noexcept(FWD(v).and_then(FWD(fn))))              //
       -> same_kind<V &&> auto
-    requires applicable_and_then<Fn &&, V &&>
+    requires(not(some_expected<V> && some_identity<V>)) && applicable_and_then<Fn &&, V &&>
   {
     return FWD(v).and_then(FWD(fn));
+  }
+
+  // An identity expected keeps its member semantics for expected results - the same-kind and
+  // error-widening paths above - but must not evaluate applicable_and_then's optional/choice
+  // disjuncts through the exclusion in the arm above, hence its own arm.
+  template <some_monadic_type V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //
+      noexcept(noexcept(FWD(v).and_then(FWD(fn))))              //
+      -> same_kind<V &&> auto
+    requires some_expected<V> && some_identity<V> && applicable_and_then<Fn &&, V &&>
+  {
+    return FWD(v).and_then(FWD(fn));
+  }
+
+  // The cluster arms: an identity input binds across the carrier kinds, and the bind follows the
+  // function. Engine-direct - the members are each carrier's own endo-bind, so the cluster cannot
+  // ride delegation, and the verb layer is the licensed cross-carrier place. Dropping the input's
+  // channels forgets nothing: they are uninhabited, which is what admits the input here at all.
+  template <some_monadic_type V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const                //
+      noexcept(noexcept(detail::_join_apply<choice>(FWD(v).value(), FWD(fn)))) //
+      -> some_identity auto
+    requires applicable_and_then_across<Fn &&, V &&>
+             && (not ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type>)
+             && some_copack<::std::remove_cvref_t<decltype(::std::declval<V>().value())>>
+  {
+    return detail::_join_apply<choice>(FWD(v).value(), FWD(fn));
+  }
+
+  template <some_monadic_type V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //
+      noexcept(noexcept(::fn::apply(FWD(fn), FWD(v).value())))  //
+      -> some_identity auto
+    requires applicable_and_then_across<Fn &&, V &&>
+             && (not ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type>)
+             && (not some_copack<::std::remove_cvref_t<decltype(::std::declval<V>().value())>>)
+  {
+    return ::fn::apply(FWD(fn), FWD(v).value());
+  }
+
+  template <some_monadic_type V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&, Fn &&fn) const //
+      noexcept(noexcept(::fn::apply(FWD(fn))))                 //
+      -> some_identity auto
+    requires applicable_and_then_across<Fn &&, V &&> && ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type>
+  {
+    return ::fn::apply(FWD(fn));
   }
 };
 

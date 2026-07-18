@@ -231,6 +231,24 @@ TEST_CASE("value_or constraints", "[value_or][constraints]")
   SUCCEED();
 }
 
+TEST_CASE("value_or identity expected", "[value_or][expected][copack]")
+{
+  using operand_t = fn::expected<int, fn::copack<>>;
+
+  // the general arm serves the uninhabited error side: the held value comes back, the fallback
+  // stays constrained yet dead; just and choice are excluded
+  static_assert(monadic_static_check<fn::value_or_t, operand_t>::invocable_with_any(9));
+  static_assert(monadic_static_check<fn::value_or_t, operand_t>::not_invocable_with_any("nine"));
+  static_assert(monadic_static_check<fn::value_or_t, fn::just<int>>::not_invocable_with_any(9));
+  static_assert(monadic_static_check<fn::value_or_t, fn::choice<int>>::not_invocable_with_any(9));
+
+  operand_t a{5};
+  auto r1 = a | fn::value_or(9);
+  static_assert(std::is_same_v<decltype(r1), operand_t>);
+  CHECK(r1.value() == 5);
+  static_assert((operand_t{5} | fn::value_or(9)).value() == 5);
+}
+
 namespace fn {
 namespace {
 struct Error {};
@@ -249,5 +267,6 @@ static_assert(not applicable_value_or<expected<void, Error>, int>);             
 static_assert(applicable_value_or<optional<int>, int>);
 static_assert(not applicable_value_or<optional<int>, char const *>);
 static_assert(not applicable_value_or<choice<int>, int>);                           // no choice disjunct
+static_assert(applicable_value_or<expected<int, copack<>>, int>);                   // the identity expected keeps value_or
 // clang-format on
 } // namespace fn
