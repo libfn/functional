@@ -1001,6 +1001,106 @@ TEST_CASE("and_then choice", "[and_then][choice]")
   }
 }
 
+TEST_CASE("and_then across the identity cluster", "[and_then][just][choice][expected][identity]")
+{
+  struct A final {
+    bool operator==(A const &) const = default;
+  };
+  struct B final {
+    bool operator==(B const &) const = default;
+  };
+  struct U final {
+    bool operator==(U const &) const = default;
+  };
+  struct V final {
+    bool operator==(V const &) const = default;
+  };
+  using E0 = fn::copack<>;
+
+  SECTION("endo binds stay on the members")
+  {
+    // the piped form of the superset join (the member's), value-returning here to pin the type
+    auto r1 = fn::choice_for<A, B>{A{}}
+              | fn::and_then(fn::overload{[](A) { return fn::choice<U>{U{}}; }, //
+                                          [](B) { return fn::choice_for<U, V>{V{}}; }});
+    static_assert(std::is_same_v<decltype(r1), fn::choice_for<U, V>>);
+    CHECK(r1 == fn::choice_for<U, V>{U{}});
+    auto r2 = fn::just{3} | fn::and_then([](int i) { return fn::just<bool>{i != 0}; });
+    static_assert(std::is_same_v<decltype(r2), fn::just<bool>>);
+    CHECK(r2.value());
+    // an identity expected keeps member semantics for expected results, widening included
+    auto r3 = fn::expected<int, E0>{42} | fn::and_then([](int) { return fn::expected<bool, U>{true}; });
+    static_assert(std::is_same_v<decltype(r3), fn::expected<bool, fn::copack<U>>>);
+    CHECK(r3.value());
+  }
+
+  SECTION("choice crosses to a convergent carrier")
+  {
+    constexpr auto fnJust = fn::overload{[](A) { return fn::just<int>{1}; }, //
+                                         [](B) { return fn::just<int>{2}; }};
+    auto r = fn::choice_for<A, B>{A{}} | fn::and_then(fnJust);
+    static_assert(std::is_same_v<decltype(r), fn::just<int>>);
+    CHECK(r.value() == 1);
+    CHECK((fn::choice_for<A, B>{B{}} | fn::and_then(fnJust)).value() == 2);
+    static_assert((fn::choice_for<A, B>{A{}} | fn::and_then(fnJust)).value() == 1);
+  }
+
+  SECTION("just crosses kinds")
+  {
+    auto r1 = fn::just{3} | fn::and_then([](int) { return fn::choice<U>{U{}}; });
+    static_assert(std::is_same_v<decltype(r1), fn::choice<U>>);
+    CHECK(r1 == fn::choice<U>{U{}});
+    auto r2 = fn::just{3} | fn::and_then([](int i) { return fn::expected<bool, E0>{i != 0}; });
+    static_assert(std::is_same_v<decltype(r2), fn::expected<bool, E0>>);
+    CHECK(r2.value());
+    static_assert((fn::just{3} | fn::and_then([](int) { return fn::choice<U>{U{}}; })) == fn::choice<U>{U{}});
+  }
+
+  SECTION("identity expected evaporates into the superset choice")
+  {
+    constexpr auto fnJoin = fn::overload{[](A) { return fn::choice<U>{U{}}; }, //
+                                         [](B) { return fn::choice_for<U, V>{V{}}; }};
+    fn::expected<fn::copack_for<A, B>, E0> e{fn::copack_for<A, B>{B{}}};
+    auto r = std::move(e) | fn::and_then(fnJoin);
+    static_assert(std::is_same_v<decltype(r), fn::choice_for<U, V>>);
+    CHECK(r == fn::choice_for<U, V>{V{}});
+    static_assert((fn::expected<fn::copack_for<A, B>, E0>{fn::copack_for<A, B>{A{}}} | fn::and_then(fnJoin))
+                  == fn::choice_for<U, V>{U{}});
+  }
+
+  SECTION("identity expected, single and void payloads; the void just")
+  {
+    auto r1 = fn::expected<int, E0>{42} | fn::and_then([](int i) { return fn::just<int>{i}; });
+    static_assert(std::is_same_v<decltype(r1), fn::just<int>>);
+    CHECK(r1.value() == 42);
+    auto r2 = fn::expected<void, E0>{} | fn::and_then([] { return fn::choice<U>{U{}}; });
+    static_assert(std::is_same_v<decltype(r2), fn::choice<U>>);
+    CHECK(r2 == fn::choice<U>{U{}});
+    auto r3 = fn::just{} | fn::and_then([] { return fn::just<int>{9}; });
+    static_assert(std::is_same_v<decltype(r3), fn::just<int>>);
+    CHECK(r3.value() == 9);
+  }
+
+  SECTION("noexcept and constraints")
+  {
+    constexpr auto nothrowCross = [](int) noexcept { return fn::choice<U>{U{}}; };
+    fn::just<int> j{3};
+    static_assert(noexcept(j | fn::and_then(nothrowCross)));
+    static_assert(not noexcept(j | fn::and_then([](int) { return fn::choice<U>{U{}}; })));
+
+    // only an identity input crosses kinds, and only to an identity result
+    static_assert(fn::applicable_and_then_across<decltype(nothrowCross), fn::just<int> &>);
+    constexpr auto fnJust = [](int) { return fn::just<int>{1}; };
+    static_assert(not fn::applicable_and_then_across<decltype(fnJust), fn::expected<int, U> &>);
+    static_assert(not fn::applicable_and_then_across<decltype(fnJust), fn::optional<int> &>);
+    constexpr auto fnValue = [](int i) { return i; };
+    static_assert(not fn::applicable_and_then_across<decltype(fnValue), fn::just<int> &>);
+    // an endo callback is the member's business, not the cluster's
+    static_assert(not fn::applicable_and_then_across<decltype(fnJust), fn::just<int> &>);
+    SUCCEED();
+  }
+}
+
 namespace fn {
 namespace {
 struct Error {};

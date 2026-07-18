@@ -365,4 +365,18 @@ static_assert(convertible_to_expected<void const, Error>);
 static_assert(convertible_to_expected<void const volatile, Error>);
 } // namespace fn
 
+// the identity cluster: carriers whose short-circuit grade is uninhabited
+static_assert(fn::some_identity<fn::choice<int>>);
+static_assert(fn::some_identity<fn::choice<int> const &>);
+static_assert(fn::some_identity<fn::just<int>>);
+static_assert(fn::some_identity<fn::just<void> &>);
+static_assert(fn::some_identity<fn::expected<int, fn::copack<>>>);
+static_assert(fn::some_identity<fn::expected<void, fn::copack<>> &&>);
+static_assert(not fn::some_identity<fn::expected<int, int>>);
+static_assert(not fn::some_identity<fn::expected<int, fn::copack<int>>>);
+static_assert(not fn::some_identity<fn::optional<int>>);
+static_assert(not fn::some_identity<int>);
+static_assert(fn::same_kind<fn::just<int>, fn::just<bool>>);
+static_assert(not fn::same_kind<fn::just<int>, fn::choice<int>>);
+
 TEST_CASE("concepts", "[concepts]") { SUCCEED(); }
