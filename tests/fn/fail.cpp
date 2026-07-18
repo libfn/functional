@@ -443,6 +443,9 @@ static_assert(applicable_fail<decltype(fn_int_lvalue<Error>), expected<int, Erro
 static_assert(applicable_fail<decltype(fn_int_rvalue<Error>), expected<int, Error>>);
 static_assert(
     not applicable_fail<decltype(fn_int_rvalue<Error>), expected<int, Error> &>); // cannot bind lvalue to rvalue-ref
+static_assert(not applicable_fail<decltype(fn_int<Error>), choice<int>>);         // no choice disjunct
+static_assert(not applicable_fail<decltype(fn_int<Error>),
+                                  expected<int, copack<>>>); // nothing converts into the uninhabited error
 } // namespace fn
 
 TEST_CASE("fail constraints", "[fail][constraints]")
@@ -465,5 +468,18 @@ TEST_CASE("fail constraints", "[fail][constraints]")
 
   // An optional discards its value and returns nullopt, relocating nothing
   static_assert(monadic_static_check<fail_t, fn::optional<helper_immovable>>::invocable_with_any([](auto const &) {}));
+  SUCCEED();
+}
+
+TEST_CASE("fail identity expected", "[fail][expected][copack]")
+{
+  // the whole identity cluster is refused: an identity carrier cannot fail - choice and just have
+  // no error channel, and the identity expected has no error to fail into
+  static_assert(
+      monadic_static_check<fn::fail_t, fn::expected<int, fn::copack<>>>::not_invocable_with_any([](int) { return 1; }));
+  static_assert(
+      monadic_static_check<fn::fail_t, fn::expected<void, fn::copack<>>>::not_invocable_with_any([] { return 1; }));
+  static_assert(monadic_static_check<fn::fail_t, fn::just<int>>::not_invocable_with_any([](int) { return 1; }));
+  static_assert(monadic_static_check<fn::fail_t, fn::choice<int>>::not_invocable_with_any([](int) { return 1; }));
   SUCCEED();
 }
