@@ -688,6 +688,59 @@ TEST_CASE("transform noexcept", "[transform][choice][noexcept]")
   SUCCEED();
 }
 
+TEST_CASE("transform just", "[transform][just][choice][identity]")
+{
+  struct U final {
+    bool operator==(U const &) const = default;
+  };
+  struct V final {
+    bool operator==(V const &) const = default;
+  };
+
+  SECTION("endo, on the member")
+  {
+    auto r1 = fn::just{3} | fn::transform([](int i) { return i + 1; });
+    static_assert(std::is_same_v<decltype(r1), fn::just<int>>);
+    CHECK(r1.value() == 4);
+    auto r2 = fn::just{3} | fn::transform([](int) {});
+    static_assert(std::is_same_v<decltype(r2), fn::just<void>>);
+    auto r3 = fn::just{} | fn::transform([] { return 5; });
+    static_assert(std::is_same_v<decltype(r3), fn::just<int>>);
+    CHECK(r3.value() == 5);
+    // a choice result nests as a payload atom - fmap semantics, never promoted
+    auto r4 = fn::just{3} | fn::transform([](int) { return fn::choice<U>{U{}}; });
+    static_assert(std::is_same_v<decltype(r4), fn::just<fn::choice<U>>>);
+    static_assert((fn::just{3} | fn::transform([](int i) { return i + 1; })).value() == 4);
+  }
+
+  SECTION("a copack result promotes to the choice over the same alternatives")
+  {
+    constexpr auto fnCopack = [](int i) { return i > 0 ? fn::copack_for<U, V>{U{}} : fn::copack_for<U, V>{V{}}; };
+    auto r1 = fn::just{3} | fn::transform(fnCopack);
+    static_assert(std::is_same_v<decltype(r1), fn::choice_for<U, V>>);
+    CHECK(r1 == fn::choice_for<U, V>{U{}});
+    CHECK((fn::just{-1} | fn::transform(fnCopack)) == fn::choice_for<U, V>{V{}});
+    auto r2 = fn::just{} | fn::transform([] { return fn::copack<U>{U{}}; });
+    static_assert(std::is_same_v<decltype(r2), fn::choice<U>>);
+    CHECK(r2 == fn::choice<U>{U{}});
+    static_assert((fn::just{3} | fn::transform(fnCopack)) == fn::choice_for<U, V>{U{}});
+  }
+
+  SECTION("noexcept and constraints")
+  {
+    fn::just<int> j{3};
+    static_assert(noexcept(j | fn::transform([](int) noexcept { return 1; })));
+    static_assert(not noexcept(j | fn::transform([](int) { return 1; })));
+    static_assert(noexcept(j | fn::transform([](int) noexcept { return fn::copack<U>{U{}}; })));
+
+    // an inadmissible payload answers: the member's gated result leaves no viable overload
+    constexpr auto probe = [](auto &&v, auto &&fn) { return requires { FWD(v) | fn::transform(FWD(fn)); }; };
+    static_assert(not probe(fn::just<int>{3}, [](int &i) -> int & { return i; }));
+    static_assert(probe(fn::just<int>{3}, [](int i) { return i; }));
+    SUCCEED();
+  }
+}
+
 namespace fn {
 namespace {
 struct Error {};

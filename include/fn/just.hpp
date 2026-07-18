@@ -25,6 +25,25 @@ template <typename T>
 concept some_just = detail::_some_just<T>;
 
 namespace detail {
+// The payload just admits - the class mandates below assert the same set, and the transform verb
+// asks this before naming just<result> anywhere, so an inadmissible result answers instead of
+// firing a mandate inside the probe
+template <typename T>
+concept _just_payload = (not _some_copack<T>) && (not ::std::is_reference_v<T>) && (not ::std::is_array_v<T>)
+                        && (not _some_in_place_type<T>) && ::std::is_same_v<T, ::std::remove_cv_t<T>>;
+
+// transform's declared result, gated: an inadmissible payload - a copack, a reference, an array -
+// leaves no `type`, so the member drops in the immediate context wherever it is named (the verbs'
+// probes and noexcept specifications rely on this answering instead of firing just's mandates; a
+// copack result is promoted to choice by the transform verb instead)
+template <typename Fn, typename... V> struct _just_transform_result {};
+template <typename Fn, typename... V>
+  requires ::std::is_void_v<typename _apply_result<Fn, V...>::type>
+           || _just_payload<typename _apply_result<Fn, V...>::type>
+struct _just_transform_result<Fn, V...> {
+  using type = ::fn::just<typename _apply_result<Fn, V...>::type>;
+};
+
 // transform's result is direct-non-list-initialized from the thunk's invocation: no extra move,
 // and immovable result types work (the pattern of pfn's _expected_from_invoke)
 constexpr inline struct _just_from_invoke_t {
@@ -173,7 +192,7 @@ template <typename T> struct just {
    */
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) & //
-      noexcept(detail::_is_nothrow_applicable<Fn, T &>::value) -> just<typename detail::_apply_result<Fn, T &>::type>
+      noexcept(detail::_is_nothrow_applicable<Fn, T &>::value) -> typename detail::_just_transform_result<Fn, T &>::type
     requires detail::_is_applicable<Fn, T &>::value
   {
     using type = detail::_apply_result<Fn, T &>::type;
@@ -186,8 +205,8 @@ template <typename T> struct just {
 
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) const & //
-      noexcept(detail::_is_nothrow_applicable<Fn, T const &>::value)
-          -> just<typename detail::_apply_result<Fn, T const &>::type>
+      noexcept(detail::_is_nothrow_applicable<Fn, T const &>::value) ->
+      typename detail::_just_transform_result<Fn, T const &>::type
     requires detail::_is_applicable<Fn, T const &>::value
   {
     using type = detail::_apply_result<Fn, T const &>::type;
@@ -200,7 +219,8 @@ template <typename T> struct just {
 
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) && //
-      noexcept(detail::_is_nothrow_applicable<Fn, T &&>::value) -> just<typename detail::_apply_result<Fn, T &&>::type>
+      noexcept(detail::_is_nothrow_applicable<Fn, T &&>::value) ->
+      typename detail::_just_transform_result<Fn, T &&>::type
     requires detail::_is_applicable<Fn, T &&>::value
   {
     using type = detail::_apply_result<Fn, T &&>::type;
@@ -214,8 +234,8 @@ template <typename T> struct just {
 
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) const && //
-      noexcept(detail::_is_nothrow_applicable<Fn, T const &&>::value)
-          -> just<typename detail::_apply_result<Fn, T const &&>::type>
+      noexcept(detail::_is_nothrow_applicable<Fn, T const &&>::value) ->
+      typename detail::_just_transform_result<Fn, T const &&>::type
     requires detail::_is_applicable<Fn, T const &&>::value
   {
     using type = detail::_apply_result<Fn, T const &&>::type;
@@ -483,7 +503,7 @@ template <> struct just<void> {
    */
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) const //
-      noexcept(detail::_is_nothrow_applicable<Fn>::value) -> just<typename detail::_apply_result<Fn>::type>
+      noexcept(detail::_is_nothrow_applicable<Fn>::value) -> typename detail::_just_transform_result<Fn>::type
     requires detail::_is_applicable<Fn>::value
   {
     using type = detail::_apply_result<Fn>::type;

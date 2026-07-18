@@ -3,6 +3,7 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
+#include <fn/copack.hpp>
 #include <fn/just.hpp>
 #include <fn/utility.hpp>
 
@@ -183,6 +184,10 @@ TEST_CASE("just", "[just]")
     // a void result wraps as the void carrier; an immovable result is constructed in place
     static_assert(std::is_same_v<decltype(a.transform([](int) {})), fn::just<void>>);
     CHECK(a.transform([](int i) { return Immovable{i}; }).value().x == 3);
+
+    // a copack result leaves no viable overload - the transform VERB promotes it to choice instead
+    constexpr auto fnCopack = [](int) { return fn::copack<int>{1}; };
+    static_assert(not can_transform<T &, decltype(fnCopack)>);
 
     // noexcept from the callback's applicability
     static_assert(noexcept(a.transform([](int) noexcept { return 1; })));
