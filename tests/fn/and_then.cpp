@@ -1042,7 +1042,10 @@ TEST_CASE("and_then across the identity cluster", "[and_then][just][choice][expe
     static_assert(std::is_same_v<decltype(r), fn::just<int>>);
     CHECK(r.value() == 1);
     CHECK((fn::choice_for<A, B>{B{}} | fn::and_then(fnJust)).value() == 2);
-    static_assert((fn::choice_for<A, B>{A{}} | fn::and_then(fnJust)).value() == 1);
+    // named source: VS 2022 misreads a mid-expression prvalue's empty-class union member
+    // (the workaround's full story is in tests/fn/choice.cpp)
+    constexpr fn::choice_for<A, B> ca{A{}};
+    static_assert((ca | fn::and_then(fnJust)).value() == 1);
   }
 
   SECTION("just crosses kinds")
@@ -1064,8 +1067,9 @@ TEST_CASE("and_then across the identity cluster", "[and_then][just][choice][expe
     auto r = std::move(e) | fn::and_then(fnJoin);
     static_assert(std::is_same_v<decltype(r), fn::choice_for<U, V>>);
     CHECK(r == fn::choice_for<U, V>{V{}});
-    static_assert((fn::expected<fn::copack_for<A, B>, E0>{fn::copack_for<A, B>{A{}}} | fn::and_then(fnJoin))
-                  == fn::choice_for<U, V>{U{}});
+    // named source: the same VS 2022 misread as above
+    constexpr fn::expected<fn::copack_for<A, B>, E0> ea{fn::copack_for<A, B>{A{}}};
+    static_assert((ea | fn::and_then(fnJoin)) == fn::choice_for<U, V>{U{}});
   }
 
   SECTION("identity expected, single and void payloads; the void just")
