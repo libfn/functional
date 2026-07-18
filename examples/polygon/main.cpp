@@ -20,7 +20,7 @@ struct unexpected_exception {
 
 auto main(int argc, char const **argv) -> int
 try {
-  auto get_args = [=]() -> fn::expected<parameters::arguments_t, fn::sum<>> {
+  auto get_args = [=]() -> fn::expected<parameters::arguments_t, fn::copack<>> {
     parameters::arguments_t args;
     args.reserve(static_cast<std::size_t>(argc));
     // Note: std::accumulate used as a move-threaded fold to build a vector.
@@ -35,7 +35,7 @@ try {
           | fn::and_then(inputs::make)     //
           | fn::and_then(algorithm)        //
           | fn::or_else(                   //
-              [](auto &&p) -> fn::expected<int, fn::sum<>> {
+              [](auto &&p) -> fn::expected<int, fn::copack<>> {
                 print_error(FWD(p));
                 return p.code;
               }))

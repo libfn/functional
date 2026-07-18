@@ -24,19 +24,19 @@ namespace fn {
 // A rejected operand is returned whole (`return FWD(v)`), and a kept one is rebuilt around its
 // existing value - so both sides must survive the trip.
 template <typename Pred, typename Err, typename V>
-concept invocable_filter //
+concept applicable_filter //
     = (some_expected_non_void<V> && requires(Pred &&pred, Err &&on_err, V &&v) {
-        { ::fn::invoke(FWD(pred), ::std::as_const(v).value()) } -> convertible_to_bool;
+        { ::fn::apply(FWD(pred), ::std::as_const(v).value()) } -> convertible_to_bool;
         {
-          ::fn::invoke(FWD(on_err), FWD(v).value())
+          ::fn::apply(FWD(on_err), FWD(v).value())
         } -> ::std::convertible_to<typename ::std::remove_cvref_t<V>::error_type>;
         requires detail::_relocatable<V> && detail::_relocatable_value<V>;
       }) || (some_expected_void<V> && requires(Pred &&pred, Err &&on_err, V &&v) {
-        { ::fn::invoke(FWD(pred)) } -> convertible_to_bool;
-        { ::fn::invoke(FWD(on_err)) } -> ::std::convertible_to<typename ::std::remove_cvref_t<V>::error_type>;
+        { ::fn::apply(FWD(pred)) } -> convertible_to_bool;
+        { ::fn::apply(FWD(on_err)) } -> ::std::convertible_to<typename ::std::remove_cvref_t<V>::error_type>;
         requires detail::_relocatable<V>;
       }) || (some_optional<V> && ::std::same_as<Err, void> && requires(Pred &&pred, V &&v) {
-        { ::fn::invoke(FWD(pred), ::std::as_const(v).value()) } -> convertible_to_bool;
+        { ::fn::apply(FWD(pred), ::std::as_const(v).value()) } -> convertible_to_bool;
         requires detail::_relocatable<V> && detail::_relocatable_value<V>;
       });
 
@@ -91,19 +91,19 @@ struct filter_t::apply final {
   template <some_expected_non_void V, typename Pred, typename OnErr>
   [[nodiscard]] constexpr auto operator()(V &&v, Pred &&pred, OnErr &&on_err) const //
       noexcept(
-          ::fn::is_nothrow_invocable_v<Pred, decltype(::std::as_const(v).value())>
-          && ::fn::is_nothrow_invocable_v<OnErr, decltype(FWD(v).value())>
+          ::fn::is_nothrow_applicable_v<Pred, decltype(::std::as_const(v).value())>
+          && ::fn::is_nothrow_applicable_v<OnErr, decltype(FWD(v).value())>
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, decltype(FWD(v).value())>
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::fn::unexpect_t,
-                                               ::fn::invoke_result_t<OnErr, decltype(FWD(v).value())>>
+                                               ::fn::apply_result_t<OnErr, decltype(FWD(v).value())>>
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, V>) -> ::std::remove_cvref_t<V>
-    requires invocable_filter<Pred &&, OnErr &&, V &&>
+    requires applicable_filter<Pred &&, OnErr &&, V &&>
   {
     using type = ::std::remove_cvref_t<V>;
     if (::std::as_const(v).has_value()) {
-      bool const keep = ::fn::invoke(FWD(pred), ::std::as_const(v).value());
+      bool const keep = ::fn::apply(FWD(pred), ::std::as_const(v).value());
       return (keep ? type{::std::in_place, FWD(v).value()}
-                   : type{::fn::unexpect, ::fn::invoke(FWD(on_err), FWD(v).value())});
+                   : type{::fn::unexpect, ::fn::apply(FWD(on_err), FWD(v).value())});
     }
     return FWD(v);
   }
@@ -119,17 +119,17 @@ struct filter_t::apply final {
   template <some_expected_void V, typename Pred, typename OnErr>
   [[nodiscard]] constexpr auto operator()(V &&v, Pred &&pred, OnErr &&on_err) const //
       noexcept(
-          ::fn::is_nothrow_invocable_v<Pred> && ::fn::is_nothrow_invocable_v<OnErr>
+          ::fn::is_nothrow_applicable_v<Pred> && ::fn::is_nothrow_applicable_v<OnErr>
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t>
-          && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::fn::unexpect_t, ::fn::invoke_result_t<OnErr>>
+          && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::fn::unexpect_t, ::fn::apply_result_t<OnErr>>
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, V>) -> ::std::remove_cvref_t<V>
-    requires invocable_filter<Pred &&, OnErr &&, V &&>
+    requires applicable_filter<Pred &&, OnErr &&, V &&>
   {
     using type = ::std::remove_cvref_t<V>;
     if (::std::as_const(v).has_value()) {
-      bool const keep = ::fn::invoke(FWD(pred));
+      bool const keep = ::fn::apply(FWD(pred));
       return (keep ? type{::std::in_place} //
-                   : type{::fn::unexpect, ::fn::invoke(FWD(on_err))});
+                   : type{::fn::unexpect, ::fn::apply(FWD(on_err))});
     }
     return FWD(v);
   }
@@ -144,15 +144,15 @@ struct filter_t::apply final {
   template <some_optional V, typename Pred>
   [[nodiscard]] constexpr auto operator()(V &&v, Pred &&pred) const //
       noexcept(
-          ::fn::is_nothrow_invocable_v<Pred, decltype(::std::as_const(v).value())>
+          ::fn::is_nothrow_applicable_v<Pred, decltype(::std::as_const(v).value())>
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, decltype(FWD(v).value())>
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::nullopt_t>
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, V>) -> ::std::remove_cvref_t<V>
-    requires invocable_filter<Pred &&, void, V &&>
+    requires applicable_filter<Pred &&, void, V &&>
   {
     using type = ::std::remove_cvref_t<V>;
     if (::std::as_const(v).has_value()) {
-      bool const keep = ::fn::invoke(FWD(pred), ::std::as_const(v).value());
+      bool const keep = ::fn::apply(FWD(pred), ::std::as_const(v).value());
       return (keep ? type{::std::in_place, FWD(v).value()} //
                    : type{::std::nullopt});
     }

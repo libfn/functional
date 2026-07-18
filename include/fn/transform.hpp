@@ -8,11 +8,11 @@
 
 #include <fn/choice.hpp>
 #include <fn/concepts.hpp>
+#include <fn/copack.hpp>
 #include <fn/expected.hpp>
 #include <fn/functional.hpp>
 #include <fn/functor.hpp>
 #include <fn/optional.hpp>
-#include <fn/sum.hpp>
 
 #include <type_traits>
 
@@ -24,26 +24,26 @@ namespace fn {
  * @tparam V TODO
  */
 template <typename Fn, typename V>
-concept invocable_transform //
+concept applicable_transform //
     = (some_expected_non_void<V>//
-           && (not some_sum<typename ::std::remove_cvref_t<V>::value_type>) && requires(Fn &&fn, V &&v) {
+           && (not some_copack<typename ::std::remove_cvref_t<V>::value_type>) && requires(Fn &&fn, V &&v) {
         {
-          ::fn::invoke(FWD(fn), FWD(v).value())
+          ::fn::apply(FWD(fn), FWD(v).value())
         } -> convertible_to_expected<typename ::std::remove_cvref_t<decltype(v)>::error_type>;
-      }) || (some_expected<V> && some_sum<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
+      }) || (some_expected<V> && some_copack<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
         {
           FWD(v).value().transform(FWD(fn))
         } -> convertible_to_expected<typename ::std::remove_cvref_t<decltype(v)>::error_type>;
       }) || (some_expected_void<V> && requires(Fn &&fn, V &&v) {
         {
-          ::fn::invoke(FWD(fn))
+          ::fn::apply(FWD(fn))
         } -> convertible_to_expected<typename ::std::remove_cvref_t<decltype(v)>::error_type>;
       }) || (some_optional<V> //
-            && (not some_sum<typename ::std::remove_cvref_t<V>::value_type>) && requires(Fn &&fn, V &&v) {
+            && (not some_copack<typename ::std::remove_cvref_t<V>::value_type>) && requires(Fn &&fn, V &&v) {
         {
-          ::fn::invoke(FWD(fn), FWD(v).value())
+          ::fn::apply(FWD(fn), FWD(v).value())
         } -> convertible_to_optional;
-      }) || (some_optional<V> && some_sum<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
+      }) || (some_optional<V> && some_copack<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
         {
           FWD(v).value().transform(FWD(fn))
         } -> convertible_to_optional;
@@ -86,7 +86,7 @@ struct transform_t::apply final {
   template <some_monadic_type V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept(noexcept(FWD(v).transform(FWD(fn))))
       -> same_kind<V &&> auto
-    requires invocable_transform<Fn &&, V &&>
+    requires applicable_transform<Fn &&, V &&>
   {
     return FWD(v).transform(FWD(fn));
   }

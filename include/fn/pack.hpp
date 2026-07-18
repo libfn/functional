@@ -6,11 +6,11 @@
 #ifndef INCLUDE_FN_PACK
 #define INCLUDE_FN_PACK
 
+#include <fn/copack.hpp>
 #include <fn/detail/macro_deduced_return.hpp>
 #include <fn/detail/macro_fwd.hpp>
 #include <fn/detail/meta.hpp>
 #include <fn/detail/pack_impl.hpp>
-#include <fn/sum.hpp>
 
 #include <type_traits>
 
@@ -33,7 +33,7 @@ concept some_pack = detail::_some_pack<T>;
  */
 template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_for<Ts...>, Ts...> {
   using _impl = detail::pack_impl<::std::index_sequence_for<Ts...>, Ts...>;
-  static_assert((... && (not some_sum<Ts>)));
+  static_assert((... && detail::_is_valid_pack_element<Ts>));
 
   template <typename T> using append_type = _impl::template append_type<T>;
 
@@ -170,12 +170,12 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    * @return TODO
    */
   template <typename Fn>
-  [[nodiscard]] constexpr auto invoke(Fn &&fn, auto &&...args) & //
-      noexcept(noexcept(_impl::_invoke(::std::declval<pack &>(), FWD(fn), FWD(args)...)))
-          -> DEDUCED_RETURN(_impl::_invoke(*this, FWD(fn), FWD(args)...))
-    requires requires { _impl::_invoke(*this, FWD(fn), FWD(args)...); }
+  [[nodiscard]] constexpr auto apply(Fn &&fn, auto &&...args) & //
+      noexcept(noexcept(_impl::_apply(::std::declval<pack &>(), FWD(fn), FWD(args)...)))
+          -> DEDUCED_RETURN(_impl::_apply(*this, FWD(fn), FWD(args)...))
+    requires requires { _impl::_apply(*this, FWD(fn), FWD(args)...); }
   {
-    return _impl::_invoke(*this, FWD(fn), FWD(args)...);
+    return _impl::_apply(*this, FWD(fn), FWD(args)...);
   }
 
   /**
@@ -187,12 +187,12 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    * @return TODO
    */
   template <typename Fn>
-  [[nodiscard]] constexpr auto invoke(Fn &&fn, auto &&...args) const & //
-      noexcept(noexcept(_impl::_invoke(::std::declval<pack const &>(), FWD(fn), FWD(args)...)))
-          -> DEDUCED_RETURN(_impl::_invoke(*this, FWD(fn), FWD(args)...))
-    requires requires { _impl::_invoke(*this, FWD(fn), FWD(args)...); }
+  [[nodiscard]] constexpr auto apply(Fn &&fn, auto &&...args) const & //
+      noexcept(noexcept(_impl::_apply(::std::declval<pack const &>(), FWD(fn), FWD(args)...)))
+          -> DEDUCED_RETURN(_impl::_apply(*this, FWD(fn), FWD(args)...))
+    requires requires { _impl::_apply(*this, FWD(fn), FWD(args)...); }
   {
-    return _impl::_invoke(*this, FWD(fn), FWD(args)...);
+    return _impl::_apply(*this, FWD(fn), FWD(args)...);
   }
 
   /**
@@ -204,12 +204,12 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    * @return TODO
    */
   template <typename Fn>
-  [[nodiscard]] constexpr auto invoke(Fn &&fn, auto &&...args) && //
-      noexcept(noexcept(_impl::_invoke(::std::declval<pack &&>(), FWD(fn), FWD(args)...)))
-          -> DEDUCED_RETURN(_impl::_invoke(::std::move(*this), FWD(fn), FWD(args)...))
-    requires requires { _impl::_invoke(::std::move(*this), FWD(fn), FWD(args)...); }
+  [[nodiscard]] constexpr auto apply(Fn &&fn, auto &&...args) && //
+      noexcept(noexcept(_impl::_apply(::std::declval<pack &&>(), FWD(fn), FWD(args)...)))
+          -> DEDUCED_RETURN(_impl::_apply(::std::move(*this), FWD(fn), FWD(args)...))
+    requires requires { _impl::_apply(::std::move(*this), FWD(fn), FWD(args)...); }
   {
-    return _impl::_invoke(::std::move(*this), FWD(fn), FWD(args)...);
+    return _impl::_apply(::std::move(*this), FWD(fn), FWD(args)...);
   }
 
   /**
@@ -221,12 +221,12 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    * @return TODO
    */
   template <typename Fn>
-  [[nodiscard]] constexpr auto invoke(Fn &&fn, auto &&...args) const && //
-      noexcept(noexcept(_impl::_invoke(::std::declval<pack const &&>(), FWD(fn), FWD(args)...)))
-          -> DEDUCED_RETURN(_impl::_invoke(::std::move(*this), FWD(fn), FWD(args)...))
-    requires requires { _impl::_invoke(::std::move(*this), FWD(fn), FWD(args)...); }
+  [[nodiscard]] constexpr auto apply(Fn &&fn, auto &&...args) const && //
+      noexcept(noexcept(_impl::_apply(::std::declval<pack const &&>(), FWD(fn), FWD(args)...)))
+          -> DEDUCED_RETURN(_impl::_apply(::std::move(*this), FWD(fn), FWD(args)...))
+    requires requires { _impl::_apply(::std::move(*this), FWD(fn), FWD(args)...); }
   {
-    return _impl::_invoke(::std::move(*this), FWD(fn), FWD(args)...);
+    return _impl::_apply(::std::move(*this), FWD(fn), FWD(args)...);
   }
 
   /**
@@ -239,11 +239,11 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    * @return TODO
    */
   template <typename Ret, typename Fn>
-  [[nodiscard]] constexpr auto invoke_r(Fn &&fn, auto &&...args) & //
-      noexcept(noexcept(_impl::template _invoke_r<Ret>(::std::declval<pack &>(), FWD(fn), FWD(args)...))) -> Ret
-    requires requires { _impl::template _invoke_r<Ret>(*this, FWD(fn), FWD(args)...); }
+  [[nodiscard]] constexpr auto apply_r(Fn &&fn, auto &&...args) & //
+      noexcept(noexcept(_impl::template _apply_r<Ret>(::std::declval<pack &>(), FWD(fn), FWD(args)...))) -> Ret
+    requires requires { _impl::template _apply_r<Ret>(*this, FWD(fn), FWD(args)...); }
   {
-    return _impl::template _invoke_r<Ret>(*this, FWD(fn), FWD(args)...);
+    return _impl::template _apply_r<Ret>(*this, FWD(fn), FWD(args)...);
   }
 
   /**
@@ -256,11 +256,11 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    * @return TODO
    */
   template <typename Ret, typename Fn>
-  [[nodiscard]] constexpr auto invoke_r(Fn &&fn, auto &&...args) const & //
-      noexcept(noexcept(_impl::template _invoke_r<Ret>(::std::declval<pack const &>(), FWD(fn), FWD(args)...))) -> Ret
-    requires requires { _impl::template _invoke_r<Ret>(*this, FWD(fn), FWD(args)...); }
+  [[nodiscard]] constexpr auto apply_r(Fn &&fn, auto &&...args) const & //
+      noexcept(noexcept(_impl::template _apply_r<Ret>(::std::declval<pack const &>(), FWD(fn), FWD(args)...))) -> Ret
+    requires requires { _impl::template _apply_r<Ret>(*this, FWD(fn), FWD(args)...); }
   {
-    return _impl::template _invoke_r<Ret>(*this, FWD(fn), FWD(args)...);
+    return _impl::template _apply_r<Ret>(*this, FWD(fn), FWD(args)...);
   }
 
   /**
@@ -273,11 +273,11 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    * @return TODO
    */
   template <typename Ret, typename Fn>
-  [[nodiscard]] constexpr auto invoke_r(Fn &&fn, auto &&...args) && //
-      noexcept(noexcept(_impl::template _invoke_r<Ret>(::std::declval<pack &&>(), FWD(fn), FWD(args)...))) -> Ret
-    requires requires { _impl::template _invoke_r<Ret>(::std::move(*this), FWD(fn), FWD(args)...); }
+  [[nodiscard]] constexpr auto apply_r(Fn &&fn, auto &&...args) && //
+      noexcept(noexcept(_impl::template _apply_r<Ret>(::std::declval<pack &&>(), FWD(fn), FWD(args)...))) -> Ret
+    requires requires { _impl::template _apply_r<Ret>(::std::move(*this), FWD(fn), FWD(args)...); }
   {
-    return _impl::template _invoke_r<Ret>(::std::move(*this), FWD(fn), FWD(args)...);
+    return _impl::template _apply_r<Ret>(::std::move(*this), FWD(fn), FWD(args)...);
   }
 
   /**
@@ -290,11 +290,11 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    * @return TODO
    */
   template <typename Ret, typename Fn>
-  [[nodiscard]] constexpr auto invoke_r(Fn &&fn, auto &&...args) const && //
-      noexcept(noexcept(_impl::template _invoke_r<Ret>(::std::declval<pack const &&>(), FWD(fn), FWD(args)...))) -> Ret
-    requires requires { _impl::template _invoke_r<Ret>(::std::move(*this), FWD(fn), FWD(args)...); }
+  [[nodiscard]] constexpr auto apply_r(Fn &&fn, auto &&...args) const && //
+      noexcept(noexcept(_impl::template _apply_r<Ret>(::std::declval<pack const &&>(), FWD(fn), FWD(args)...))) -> Ret
+    requires requires { _impl::template _apply_r<Ret>(::std::move(*this), FWD(fn), FWD(args)...); }
   {
-    return _impl::template _invoke_r<Ret>(::std::move(*this), FWD(fn), FWD(args)...);
+    return _impl::template _apply_r<Ret>(::std::move(*this), FWD(fn), FWD(args)...);
   }
 };
 
@@ -304,7 +304,7 @@ template <typename... Args> pack(Args &&...args) -> pack<Args...>;
  * @brief Tuple-protocol element access
  *
  * Returns the `I`-th element carrying the pack's cv-qualification and value
- * category, exactly as `invoke` would pass it. Found by ADL, so it also serves
+ * category, exactly as `apply` would pass it. Found by ADL, so it also serves
  * structured bindings and the generic `using ::std::get; get<I>(p)` idiom.
  *
  * @tparam I element index
@@ -380,7 +380,7 @@ template <template <typename> typename Tpl>
 } // namespace detail
 
 /**
- * @brief Data concantenation operator - creates a pack or a sum of packs
+ * @brief Data concantenation operator - creates a pack or a copack of packs
  *
  * @param lh TODO
  * @param rh TODO
@@ -389,7 +389,7 @@ template <template <typename> typename Tpl>
 [[nodiscard]] constexpr auto operator&(auto &&lh, auto &&rh) //
     noexcept(noexcept(::fn::detail::_fold_detail::fold<::std::remove_cvref_t<decltype(lh)>,
                                                        ::std::remove_cvref_t<decltype(rh)>>(FWD(lh), FWD(rh))))
-  requires(some_sum<decltype(lh)> || some_pack<decltype(lh)>)
+  requires(some_copack<decltype(lh)> || some_pack<decltype(lh)>)
 {
   using Lh = ::std::remove_cvref_t<decltype(lh)>;
   using Rh = ::std::remove_cvref_t<decltype(rh)>;
@@ -419,7 +419,7 @@ constexpr inline struct identity_t {
    * @return TODO
    */
   template <typename Arg, typename... Args>
-    requires(not some_sum<Arg>) && (not some_pack<Arg>)
+    requires(not some_copack<Arg>) && (not some_pack<Arg>)
   [[nodiscard]] constexpr auto operator()(Arg &&arg, Args &&...args) const
   {
     return (::fn::pack{FWD(arg)} & ... & FWD(args));
@@ -435,7 +435,7 @@ constexpr inline struct identity_t {
    * @return TODO
    */
   template <typename Arg, typename... Args>
-    requires some_sum<Arg> || some_pack<Arg>
+    requires some_copack<Arg> || some_pack<Arg>
   [[nodiscard]] constexpr auto operator()(Arg &&arg, Args &&...args) const
   {
     return (FWD(arg) & ... & FWD(args));

@@ -1,0 +1,77 @@
+name: select-gcc
+description: >
+  Export CC, CXX and GCOV for the newest complete gcc/g++/gcov trio in `/usr/bin`, whether it is
+  installed unsuffixed (as an image's own toolchain is, via update-alternatives) or as `gcc-N`
+  beside others (as a distribution's are). Selection is by the version each binary REPORTS, so a
+  name is never taken on trust and an image's unsuffixed gcc competes on equal terms with a
+  distribution's versioned one.
+
+inputs:
+  min-version:
+    required: false
+    default: '12'
+    description: >
+      Oldest acceptable gcc major, defaulting to the project's own floor. Nothing older is
+      selected: a coverage build on an unsupported compiler is a failure, not a fallback.
+
+runs:
+  using: composite
+  steps:
+    - name: Select the newest complete GCC
+      shell: bash
+      env:
+        MIN_VERSION: ${{ inputs.min-version }}
+      run: |
+        set -euo pipefail
+
+        # Every way a toolchain shows up in /usr/bin: unsuffixed, and each `gcc-N`. The `[0-9]`
+        # keeps gcc-ar and gcc-ranlib out; they are not compilers.
+        suffixes=('')
+        mapfile -t versioned < <(
+          find /usr/bin -maxdepth 1 -name 'gcc-[0-9]*' -printf '%f\n' \
+            | sed 's/^gcc//' | grep -E '^-[0-9]+$' | sort -u
+        )
+        [ "${#versioned[@]}" -gt 0 ] && suffixes+=("${versioned[@]}")
+
+        major() {
+          # Requires a dot, so the -14 in a binary's own name cannot be mistaken for its version.
+          "$1" --version 2>&1 | head -1 | grep -oE '[0-9]+(\.[0-9]+)+' | head -1 | cut -d. -f1
+        }
+
+        best='' best_sfx=''
+        for sfx in "${suffixes[@]}"; do
+          cc="/usr/bin/gcc$sfx" cxx="/usr/bin/g++$sfx" gcov="/usr/bin/gcov$sfx"
+          if ! { [ -x "$cc" ] && [ -x "$cxx" ] && [ -x "$gcov" ]; }; then
+            printf '  gcc%-4s incomplete trio, skipping\n' "${sfx:-(none)}"
+            continue
+          fi
+          # All three must agree: a gcov that cannot read the compiler's .gcno reports a plausible
+          # and wrong result rather than failing, so a mixed set is worse than no set. A candidate
+          # that will not say what it is is one to skip, so `|| v=''` keeps -e from ending the hunt.
+          v='' vx='' vg=''
+          v=$(major "$cc")    || v=''
+          vx=$(major "$cxx")  || vx=''
+          vg=$(major "$gcov") || vg=''
+          if [ -z "$v" ] || [ "$v" != "$vx" ] || [ "$v" != "$vg" ]; then
+            printf '  gcc%-4s versions disagree (gcc=%s g++=%s gcov=%s), skipping\n' \
+              "${sfx:-(none)}" "${v:-?}" "${vx:-?}" "${vg:-?}"
+            continue
+          fi
+          printf '  gcc%-4s reports %s\n' "${sfx:-(none)}" "$v"
+          if [ "$v" -ge "$MIN_VERSION" ] && { [ -z "$best" ] || [ "$v" -gt "$best" ]; }; then
+            best="$v" best_sfx="$sfx"
+          fi
+        done
+
+        if [ -z "$best" ]; then
+          printf '::error::no complete gcc/g++/gcov trio of version %s or newer in /usr/bin\n' \
+            "$MIN_VERSION"
+          exit 1
+        fi
+
+        {
+          printf 'CC=/usr/bin/gcc%s\n'   "$best_sfx"
+          printf 'CXX=/usr/bin/g++%s\n'  "$best_sfx"
+          printf 'GCOV=/usr/bin/gcov%s\n' "$best_sfx"
+        } >> "$GITHUB_ENV"
+        printf 'selected gcc %s (/usr/bin/gcc%s)\n' "$best" "$best_sfx"

@@ -9,24 +9,31 @@ on:
 
 jobs:
   sonarcloud:
-    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
+    # arm64: the amd64 warp fleet pulls images at 1-2 MB/s; the arm64 fleet serves them in seconds.
+    # Runner and container must match sonarcloud-pr-scan's: it analyses the compile_commands.json
+    # written here, and the compiler paths recorded in it must resolve to the same toolchain there.
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-4x' || 'ubuntu-latest' }}
     container: libfn.azurecr.io/ci-build-gcc:15-sha-08b1133
     env:
-      CC: /usr/local/bin/gcc
-      CXX: /usr/local/bin/g++
-      GCOV: /usr/local/bin/gcov
       # Gates the inline scan below (a fork without a token no-ops); see also resolve-sonar-project.
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      id: checkout
       with:
+        # Head, not checkout's default merge commit: coverage must describe the SHA reported downstream.
+        ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: 0  # Full history for blame info
+
+    - name: Select the toolchain
+      uses: ./.github/actions/select-gcc
 
     - name: Build coverage and package pull request workspace
       uses: ./.github/actions/collect-pr-workspace
       with:
         artifact-name: sonarcloud-pr-inputs
+        build-sha: ${{ steps.checkout.outputs.commit }}
 
     - name: Resolve SonarCloud project
       id: sonar

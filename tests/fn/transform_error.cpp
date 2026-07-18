@@ -41,13 +41,13 @@ TEST_CASE("transform_error", "[transform_error][expected]")
   constexpr auto fnVoid = [](Error) {};
 
   static_assert(is::invocable_with_any(fnError));
-  static_assert(is::invocable_with_any([](auto...) -> Error { throw 0; }));                // allow generic call
-  static_assert(is::invocable_with_any([](Error) -> Error { throw 0; }));                  // allow copy
-  static_assert(is::invocable_with_any([](std::string_view) -> Error { throw 0; }));       // allow conversion
-  static_assert(is::invocable_with_any([](Error const &) -> Error { throw 0; }));          // binds to const ref
-  static_assert(is::invocable<lvalue>([](Error &) -> Error { throw 0; }));                 // binds to lvalue
-  static_assert(is::invocable<rvalue, prvalue>([](Error &&) -> Error { throw 0; }));       // can move
-  static_assert(is::invocable<rvalue, crvalue>([](Error const &&) -> Error { throw 0; })); // binds to const rvalue
+  static_assert(is::invocable_with_any([](auto...) -> Error { throw 0; }));                 // allow generic call
+  static_assert(is::invocable_with_any([](Error) -> Error { throw 0; }));                   // allow copy
+  static_assert(is::invocable_with_any([](std::string_view) -> Error { throw 0; }));        // allow conversion
+  static_assert(is::invocable_with_any([](Error const &) -> Error { throw 0; }));           // binds to const ref
+  static_assert(is::applicable<lvalue>([](Error &) -> Error { throw 0; }));                 // binds to lvalue
+  static_assert(is::applicable<rvalue, prvalue>([](Error &&) -> Error { throw 0; }));       // can move
+  static_assert(is::applicable<rvalue, crvalue>([](Error const &&) -> Error { throw 0; })); // binds to const rvalue
   static_assert(is::not_invocable<clvalue, crvalue, cvalue>([](Error &) -> Error { throw 0; })); // cannot remove const
   static_assert(is::not_invocable<rvalue>([](Error &) -> Error { throw 0; }));                   // disallow bind
   static_assert(is::not_invocable<lvalue, clvalue, crvalue, cvalue>([](Error &&) -> Error { throw 0; })); // cannot move
@@ -168,19 +168,19 @@ TEST_CASE("transform_error", "[transform_error][expected]")
       SUCCEED();
     }
 
-    SECTION("sum")
+    SECTION("copack")
     {
-      using T = fn::expected<int, fn::sum_for<Error, bool>>;
+      using T = fn::expected<int, fn::copack_for<Error, bool>>;
 
       SECTION("same error type")
       {
-        constexpr auto fn = fn::overload{[](bool i) constexpr noexcept -> fn::sum_for<Error, bool> { return not i; },
-                                         [](Error v) constexpr noexcept -> fn::sum_for<Error, bool> { return v; }};
-        constexpr auto r1 = T{::fn::unexpect, fn::sum{Error::SomethingElse}} | fn::transform_error(fn);
-        static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::sum_for<Error, bool>> const>);
-        static_assert(r1.error() == fn::sum{Error::SomethingElse});
-        constexpr auto r2 = T{::fn::unexpect, fn::sum{true}} | fn::transform_error(fn);
-        static_assert(r2.error() == fn::sum{false});
+        constexpr auto fn = fn::overload{[](bool i) constexpr noexcept -> fn::copack_for<Error, bool> { return not i; },
+                                         [](Error v) constexpr noexcept -> fn::copack_for<Error, bool> { return v; }};
+        constexpr auto r1 = T{::fn::unexpect, fn::copack{Error::SomethingElse}} | fn::transform_error(fn);
+        static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::copack_for<Error, bool>> const>);
+        static_assert(r1.error() == fn::copack{Error::SomethingElse});
+        constexpr auto r2 = T{::fn::unexpect, fn::copack{true}} | fn::transform_error(fn);
+        static_assert(r2.error() == fn::copack{false});
         constexpr auto r3 = T{42} | fn::transform_error(fn);
         static_assert(r3.value() == 42);
 
@@ -191,11 +191,11 @@ TEST_CASE("transform_error", "[transform_error][expected]")
       {
         constexpr auto fn = fn::overload{[](bool i) constexpr noexcept -> bool { return not i; },
                                          [](Error v) constexpr noexcept -> int { return static_cast<int>(v) + 1; }};
-        constexpr auto r1 = T{::fn::unexpect, fn::sum{Error::SomethingElse}} | fn::transform_error(fn);
-        static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::sum<bool, int>> const>);
-        static_assert(r1.error() == fn::sum{2});
-        constexpr auto r2 = T{::fn::unexpect, fn::sum{true}} | fn::transform_error(fn);
-        static_assert(r2.error() == fn::sum{false});
+        constexpr auto r1 = T{::fn::unexpect, fn::copack{Error::SomethingElse}} | fn::transform_error(fn);
+        static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::copack<bool, int>> const>);
+        static_assert(r1.error() == fn::copack{2});
+        constexpr auto r2 = T{::fn::unexpect, fn::copack{true}} | fn::transform_error(fn);
+        static_assert(r2.error() == fn::copack{false});
         constexpr auto r3 = T{42} | fn::transform_error(fn);
         static_assert(r3.value() == 42);
 
@@ -261,21 +261,21 @@ constexpr auto fn_Error_rvalue = [](Error &&) -> Xerror { throw 0; };
 
 // clang-format off
 // The callback maps the error; what it returns must convert into an unexpected.
-static_assert(invocable_transform_error<decltype(fn_Error<Xerror>), expected<int, Error>>);
-static_assert(invocable_transform_error<decltype(fn_Error<Xerror>), expected<void, Error>>);      // void value is fine
-static_assert(invocable_transform_error<decltype(fn_generic<Xerror>), expected<Value, Error>>);
-static_assert(not invocable_transform_error<decltype(fn_Error<Xerror>), expected<int, Value>>);   // wrong parameter type
-static_assert(not invocable_transform_error<decltype(fn_Error<void>), expected<int, Error>>);     // no unexpected<void> to convert to
-static_assert(not invocable_transform_error<decltype(fn_generic<Xerror>), optional<int>>);        // optional has no error to map
-static_assert(not invocable_transform_error<decltype(fn_generic<Xerror>), choice<int>>);          // neither has choice
-static_assert(not invocable_transform_error<decltype(fn_Error_lvalue), expected<int, Error>>);    // cannot bind temporary to lvalue
-static_assert(invocable_transform_error<decltype(fn_Error_lvalue), expected<int, Error> &>);
-static_assert(invocable_transform_error<decltype(fn_Error_rvalue), expected<int, Error>>);
-static_assert(not invocable_transform_error<decltype(fn_Error_rvalue), expected<int, Error> &>);  // cannot bind lvalue to rvalue-ref
+static_assert(applicable_transform_error<decltype(fn_Error<Xerror>), expected<int, Error>>);
+static_assert(applicable_transform_error<decltype(fn_Error<Xerror>), expected<void, Error>>);      // void value is fine
+static_assert(applicable_transform_error<decltype(fn_generic<Xerror>), expected<Value, Error>>);
+static_assert(not applicable_transform_error<decltype(fn_Error<Xerror>), expected<int, Value>>);   // wrong parameter type
+static_assert(not applicable_transform_error<decltype(fn_Error<void>), expected<int, Error>>);     // no unexpected<void> to convert to
+static_assert(not applicable_transform_error<decltype(fn_generic<Xerror>), optional<int>>);        // optional has no error to map
+static_assert(not applicable_transform_error<decltype(fn_generic<Xerror>), choice<int>>);          // neither has choice
+static_assert(not applicable_transform_error<decltype(fn_Error_lvalue), expected<int, Error>>);    // cannot bind temporary to lvalue
+static_assert(applicable_transform_error<decltype(fn_Error_lvalue), expected<int, Error> &>);
+static_assert(applicable_transform_error<decltype(fn_Error_rvalue), expected<int, Error>>);
+static_assert(not applicable_transform_error<decltype(fn_Error_rvalue), expected<int, Error> &>);  // cannot bind lvalue to rvalue-ref
 
-// A sum error dispatches through sum::transform - the callback must cover ALL alternatives.
-static_assert(invocable_transform_error<decltype(fn_generic<Xerror>), expected<int, sum_for<Error, Value>>>);
-static_assert(not invocable_transform_error<decltype(fn_Error<Xerror>), expected<int, sum_for<Error, Value>>>); // not exhaustive
-static_assert(not invocable_transform_error<decltype(fn_generic<void>), expected<int, sum_for<Error, Value>>>); // a void result has no place in a sum
+// A copack error dispatches through copack::transform - the callback must cover ALL alternatives.
+static_assert(applicable_transform_error<decltype(fn_generic<Xerror>), expected<int, copack_for<Error, Value>>>);
+static_assert(not applicable_transform_error<decltype(fn_Error<Xerror>), expected<int, copack_for<Error, Value>>>); // not exhaustive
+static_assert(not applicable_transform_error<decltype(fn_generic<void>), expected<int, copack_for<Error, Value>>>); // a void result has no place in a copack
 // clang-format on
 } // namespace fn

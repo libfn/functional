@@ -15,7 +15,7 @@ The approach is to take the existing `std` types in the C++ standard library (wh
 The library provides following utilities:
 
 * functors - extensible system of encapsulation of monadic operations, expressed with a pipe `operator |`
-* sum of types - coproduct of types, similar to `std::variant` but indexed by type rather than order, composes with the product of types
+* copack - coproduct of types (a sum of types), similar to `std::variant` but indexed by type rather than order, composes with the product of types
 * choice monad - monad built on top of the coproduct of types, dispatch by overloading rules
 * pack - product of types, similar to `std::tuple`, composes with the coproduct of types
 * composition - monadic types containing arbitrary types, products or coproducts can be combined with `operator &`

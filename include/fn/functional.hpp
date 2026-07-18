@@ -10,59 +10,59 @@
 
 namespace fn {
 
-// invoke_result and invoke_result_t
-template <typename Fn, typename... Args> struct invoke_result : detail::_invoke_result<Fn, Args...> {};
-template <typename Fn, typename... Args> using invoke_result_t = typename invoke_result<Fn, Args...>::type;
+// apply_result and apply_result_t
+template <typename Fn, typename... Args> struct apply_result : detail::_apply_result<Fn, Args...> {};
+template <typename Fn, typename... Args> using apply_result_t = typename apply_result<Fn, Args...>::type;
 
-// is_invocable and is_invocable_v
-template <typename Fn, typename... Args> struct is_invocable : detail::_is_invocable<Fn, Args...> {};
-template <typename Fn, typename... Args> constexpr inline bool is_invocable_v = is_invocable<Fn, Args...>::value;
+// is_applicable and is_applicable_v
+template <typename Fn, typename... Args> struct is_applicable : detail::_is_applicable<Fn, Args...> {};
+template <typename Fn, typename... Args> constexpr inline bool is_applicable_v = is_applicable<Fn, Args...>::value;
 
-// is_invocable_r and is_invocable_r_v
+// is_applicable_r and is_applicable_r_v
 template <typename Ret, typename Fn, typename... Args>
-struct is_invocable_r : detail::_is_invocable_r<Ret, Fn, Args...> {};
+struct is_applicable_r : detail::_is_applicable_r<Ret, Fn, Args...> {};
 template <typename Ret, typename Fn, typename... Args>
-constexpr inline bool is_invocable_r_v = is_invocable_r<Ret, Fn, Args...>::value;
+constexpr inline bool is_applicable_r_v = is_applicable_r<Ret, Fn, Args...>::value;
 
-// is_nothrow_invocable and is_nothrow_invocable_v
-template <typename Fn, typename... Args> struct is_nothrow_invocable : detail::_is_nothrow_invocable<Fn, Args...> {};
+// is_nothrow_applicable and is_nothrow_applicable_v
+template <typename Fn, typename... Args> struct is_nothrow_applicable : detail::_is_nothrow_applicable<Fn, Args...> {};
 template <typename Fn, typename... Args>
-constexpr inline bool is_nothrow_invocable_v = is_nothrow_invocable<Fn, Args...>::value;
+constexpr inline bool is_nothrow_applicable_v = is_nothrow_applicable<Fn, Args...>::value;
 
-// is_nothrow_invocable_r and is_nothrow_invocable_r_v
+// is_nothrow_applicable_r and is_nothrow_applicable_r_v
 template <typename Ret, typename Fn, typename... Args>
-struct is_nothrow_invocable_r : detail::_is_nothrow_invocable_r<Ret, Fn, Args...> {};
+struct is_nothrow_applicable_r : detail::_is_nothrow_applicable_r<Ret, Fn, Args...> {};
 template <typename Ret, typename Fn, typename... Args>
-constexpr inline bool is_nothrow_invocable_r_v = is_nothrow_invocable_r<Ret, Fn, Args...>::value;
+constexpr inline bool is_nothrow_applicable_r_v = is_nothrow_applicable_r<Ret, Fn, Args...>::value;
 
-// invoke
+// apply
 template <typename Fn, typename... Args>
-  requires is_invocable_v<Fn, Args...>
-constexpr auto invoke(Fn &&fn, Args &&...args) noexcept(is_nothrow_invocable_v<Fn, Args...>)
-    -> invoke_result_t<Fn, Args...>
+  requires is_applicable_v<Fn, Args...>
+constexpr auto apply(Fn &&fn, Args &&...args) noexcept(is_nothrow_applicable_v<Fn, Args...>)
+    -> apply_result_t<Fn, Args...>
 {
-  return detail::_invoke(FWD(fn), FWD(args)...);
+  return detail::_apply(FWD(fn), FWD(args)...);
 }
 
-// invoke_r
+// apply_r
 template <typename Ret, typename Fn, typename... Args>
-  requires is_invocable_r_v<Ret, Fn, Args...>
-constexpr auto invoke_r(Fn &&fn, Args &&...args) noexcept(is_nothrow_invocable_r_v<Ret, Fn, Args...>) -> Ret
+  requires is_applicable_r_v<Ret, Fn, Args...>
+constexpr auto apply_r(Fn &&fn, Args &&...args) noexcept(is_nothrow_applicable_r_v<Ret, Fn, Args...>) -> Ret
 {
-  return detail::_invoke_r<Ret>(FWD(fn), FWD(args)...);
+  return detail::_apply_r<Ret>(FWD(fn), FWD(args)...);
 }
 
-// invocable and regular_invocable
+// applicable and regular_applicable
 template <typename Fn, typename... Args>
-concept invocable = is_invocable_v<Fn, Args...>;
+concept applicable = is_applicable_v<Fn, Args...>;
 
 template <typename Fn, typename... Args>
-concept regular_invocable = invocable<Fn, Args...>;
+concept regular_applicable = applicable<Fn, Args...>;
 
 template <typename Fn, typename T, typename... Args>
-concept typelist_invocable = detail::_typelist_invocable<Fn, T, Args...>;
+concept typelist_applicable = detail::_typelist_applicable<Fn, T, Args...>;
 template <typename Ret, typename Fn, typename T, typename... Args>
-concept typelist_invocable_r = detail::_typelist_invocable_r<Ret, Fn, T, Args...>;
+concept typelist_applicable_r = detail::_typelist_applicable_r<Ret, Fn, T, Args...>;
 
 } // namespace fn
 

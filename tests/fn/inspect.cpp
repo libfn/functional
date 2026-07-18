@@ -162,17 +162,17 @@ TEST_CASE("inspect expected", "[inspect][expected][expected_value][pack]")
 
     SUCCEED();
 
-    SECTION("sum")
+    SECTION("copack")
     {
-      using T = fn::expected<fn::sum<bool, int>, Error>;
+      using T = fn::expected<fn::copack<bool, int>, Error>;
       constexpr auto fn1 = [](int) constexpr noexcept -> void {};
       constexpr auto r11 = T{0} | fn::inspect(fn1);
-      static_assert(r11.value() == fn::sum{0});
+      static_assert(r11.value() == fn::copack{0});
       constexpr auto fn2 = [](auto const &v) {
         static_assert(std::is_same_v<decltype(v), int const &> || std::is_same_v<decltype(v), bool const &>);
       };
       constexpr auto r12 = T{0} | fn::inspect(fn2);
-      static_assert(r12.value() == fn::sum{0});
+      static_assert(r12.value() == fn::copack{0});
       constexpr auto r2 = T{::fn::unexpect, Error::SomethingElse} | fn::inspect(fn1);
       static_assert(r2.error() == Error::SomethingElse);
 
@@ -359,17 +359,17 @@ TEST_CASE("inspect optional", "[inspect][optional][pack]")
 
     SUCCEED();
 
-    SECTION("sum")
+    SECTION("copack")
     {
-      using T = fn::optional<fn::sum<bool, int>>;
+      using T = fn::optional<fn::copack<bool, int>>;
       constexpr auto fn1 = [](int) constexpr noexcept -> void {};
       constexpr auto r11 = T{0} | fn::inspect(fn1);
-      static_assert(r11.value() == fn::sum{0});
+      static_assert(r11.value() == fn::copack{0});
       constexpr auto fn2 = [](auto const &v) {
         static_assert(std::is_same_v<decltype(v), int const &> || std::is_same_v<decltype(v), bool const &>);
       };
       constexpr auto r12 = T{0} | fn::inspect(fn2);
-      static_assert(r12.value() == fn::sum{0});
+      static_assert(r12.value() == fn::copack{0});
       constexpr auto r2 = T{} | fn::inspect(fn1);
       static_assert(not r2.has_value());
 
@@ -445,7 +445,7 @@ TEST_CASE("inspect noexcept", "[inspect][noexcept]")
 
   // inspect has no monadic member to delegate to - its apply IS the implementation, invoking the
   // callback itself (inspect.hpp:61-69). So there was never a spec for it to propagate: it computes
-  // one, from the callback it is about to invoke.
+  // one, from the callback it is about to apply.
   //
   // One test case for every monad, not one each: nothing here differs between them, because no
   // member is consulted.
@@ -485,31 +485,31 @@ constexpr auto fn_int_rvalue = [](int &&) {};
 constexpr auto fn_int_const_rvalue = [](int const &&) {};
 } // namespace
 
-static_assert(invocable_inspect<decltype(fn_int<void>), expected<int, Error>>);
-static_assert(not invocable_inspect<decltype(fn_int<int>), expected<int, Error>>); // wrong return type
-static_assert(invocable_inspect<decltype(fn_generic<void>), expected<void, Error>>);
-static_assert(not invocable_inspect<decltype(fn_generic<int>), expected<void, Error>>); // wrong return type
-static_assert(invocable_inspect<decltype(fn_generic<void>), expected<Value, Error>>);
-static_assert(not invocable_inspect<decltype(fn_int<void>), expected<Value, Error>>); // wrong parameter type
-static_assert(invocable_inspect<decltype(fn_int<void>), expected<unsigned, Xerror>>); // parameter type conversion
-static_assert(not invocable_inspect<decltype(fn_int<void>), expected<Value, Error>>); // wrong parameter type
-static_assert(invocable_inspect<decltype(fn_generic<void>), optional<int>>);
-static_assert(not invocable_inspect<decltype(fn_generic<int>), optional<Value>>); // wrong return type
+static_assert(applicable_inspect<decltype(fn_int<void>), expected<int, Error>>);
+static_assert(not applicable_inspect<decltype(fn_int<int>), expected<int, Error>>); // wrong return type
+static_assert(applicable_inspect<decltype(fn_generic<void>), expected<void, Error>>);
+static_assert(not applicable_inspect<decltype(fn_generic<int>), expected<void, Error>>); // wrong return type
+static_assert(applicable_inspect<decltype(fn_generic<void>), expected<Value, Error>>);
+static_assert(not applicable_inspect<decltype(fn_int<void>), expected<Value, Error>>); // wrong parameter type
+static_assert(applicable_inspect<decltype(fn_int<void>), expected<unsigned, Xerror>>); // parameter type conversion
+static_assert(not applicable_inspect<decltype(fn_int<void>), expected<Value, Error>>); // wrong parameter type
+static_assert(applicable_inspect<decltype(fn_generic<void>), optional<int>>);
+static_assert(not applicable_inspect<decltype(fn_generic<int>), optional<Value>>); // wrong return type
 
 // binding to const lvalue-ref
-static_assert(invocable_inspect<decltype(fn_int_const_lvalue), expected<int, Error>>);
-static_assert(invocable_inspect<decltype(fn_int_const_lvalue), expected<int, Error> const>);
-static_assert(invocable_inspect<decltype(fn_int_const_lvalue), expected<int, Error> &>);
-static_assert(invocable_inspect<decltype(fn_int_const_lvalue), expected<int, Error> const &>);
-static_assert(invocable_inspect<decltype(fn_int_const_lvalue), expected<int, Error> &&>);
-static_assert(invocable_inspect<decltype(fn_int_const_lvalue), expected<int, Error> const &&>);
+static_assert(applicable_inspect<decltype(fn_int_const_lvalue), expected<int, Error>>);
+static_assert(applicable_inspect<decltype(fn_int_const_lvalue), expected<int, Error> const>);
+static_assert(applicable_inspect<decltype(fn_int_const_lvalue), expected<int, Error> &>);
+static_assert(applicable_inspect<decltype(fn_int_const_lvalue), expected<int, Error> const &>);
+static_assert(applicable_inspect<decltype(fn_int_const_lvalue), expected<int, Error> &&>);
+static_assert(applicable_inspect<decltype(fn_int_const_lvalue), expected<int, Error> const &&>);
 
 // cannot bind const to non-const lvalue-ref
-static_assert(not invocable_inspect<decltype(fn_int_lvalue), expected<int, Error>>);
+static_assert(not applicable_inspect<decltype(fn_int_lvalue), expected<int, Error>>);
 
 // cannot bind lvalue to const rvalue-ref
-static_assert(not invocable_inspect<decltype(fn_int_const_rvalue), expected<int, Error>>);
+static_assert(not applicable_inspect<decltype(fn_int_const_rvalue), expected<int, Error>>);
 
 // cannot bind lvalue to rvalue-ref
-static_assert(not invocable_inspect<decltype(fn_int_rvalue), expected<int, Error>>);
+static_assert(not applicable_inspect<decltype(fn_int_rvalue), expected<int, Error>>);
 } // namespace fn

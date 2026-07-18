@@ -26,20 +26,19 @@ namespace fn {
 // reference to it, which a prvalue cannot. The success branch carries the existing value over, so
 // that must survive the trip too.
 template <typename Fn, typename V>
-concept invocable_recover //
+concept applicable_recover //
     = (some_expected_non_void<V> && requires(Fn &&fn, V &&v) {
         {
-          ::fn::invoke(FWD(fn), FWD(v).error())
+          ::fn::apply(FWD(fn), FWD(v).error())
         } -> ::std::convertible_to<typename ::std::remove_cvref_t<V>::value_type>;
         requires ::std::is_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t,
-                                           decltype(::fn::invoke(FWD(fn), FWD(v).error()))>;
+                                           decltype(::fn::apply(FWD(fn), FWD(v).error()))>;
         requires detail::_relocatable_value<V>;
       }) || (some_expected_void<V> && requires(Fn &&fn, V &&v) {
-        { ::fn::invoke(FWD(fn), FWD(v).error()) } -> ::std::same_as<void>;
+        { ::fn::apply(FWD(fn), FWD(v).error()) } -> ::std::same_as<void>;
       }) || (some_optional<V> && requires(Fn &&fn, V &&v) {
-        { ::fn::invoke(FWD(fn)) } -> ::std::convertible_to<typename ::std::remove_cvref_t<V>::value_type>;
-        requires ::std::is_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t,
-                                           decltype(::fn::invoke(FWD(fn)))>;
+        { ::fn::apply(FWD(fn)) } -> ::std::convertible_to<typename ::std::remove_cvref_t<V>::value_type>;
+        requires ::std::is_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, decltype(::fn::apply(FWD(fn)))>;
         requires detail::_relocatable_value<V>;
       });
 
@@ -76,18 +75,18 @@ struct recover_t::apply final {
   template <some_expected_non_void V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //
       noexcept(
-          ::fn::is_nothrow_invocable_v<Fn, decltype(FWD(v).error())>
+          ::fn::is_nothrow_applicable_v<Fn, decltype(FWD(v).error())>
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, decltype(FWD(v).value())>
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t,
-                                               ::fn::invoke_result_t<Fn, decltype(FWD(v).error())>>)
+                                               ::fn::apply_result_t<Fn, decltype(FWD(v).error())>>)
           -> ::std::remove_cvref_t<V>
-    requires invocable_recover<Fn &&, V &&>
+    requires applicable_recover<Fn &&, V &&>
   {
     using type = ::std::remove_cvref_t<V>;
     if (v.has_value()) {
       return type{::std::in_place, FWD(v).value()};
     }
-    return type{::std::in_place, ::fn::invoke(FWD(fn), FWD(v).error())};
+    return type{::std::in_place, ::fn::apply(FWD(fn), FWD(v).error())};
   }
 
   /**
@@ -99,16 +98,16 @@ struct recover_t::apply final {
    */
   template <some_expected_void V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //
-      noexcept(::fn::is_nothrow_invocable_v<Fn, decltype(FWD(v).error())>
+      noexcept(::fn::is_nothrow_applicable_v<Fn, decltype(FWD(v).error())>
                && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t>)
           -> ::std::remove_cvref_t<V>
-    requires invocable_recover<Fn &&, V &&>
+    requires applicable_recover<Fn &&, V &&>
   {
     using type = ::std::remove_cvref_t<V>;
     if (v.has_value()) {
       return type{::std::in_place};
     }
-    ::fn::invoke(FWD(fn), FWD(v).error()); // side-effects only
+    ::fn::apply(FWD(fn), FWD(v).error()); // side-effects only
     return type{::std::in_place};
   }
 
@@ -122,17 +121,17 @@ struct recover_t::apply final {
   template <some_optional V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //
       noexcept(
-          ::fn::is_nothrow_invocable_v<Fn>
+          ::fn::is_nothrow_applicable_v<Fn>
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, decltype(FWD(v).value())>
-          && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, ::fn::invoke_result_t<Fn>>)
+          && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, ::fn::apply_result_t<Fn>>)
           -> ::std::remove_cvref_t<V>
-    requires invocable_recover<Fn &&, V &&>
+    requires applicable_recover<Fn &&, V &&>
   {
     using type = ::std::remove_cvref_t<V>;
     if (v.has_value()) {
       return type{::std::in_place, FWD(v).value()};
     }
-    return type{::std::in_place, ::fn::invoke(FWD(fn))};
+    return type{::std::in_place, ::fn::apply(FWD(fn))};
   }
 
   // No support for choice since there's no error to recover from

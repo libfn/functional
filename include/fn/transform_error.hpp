@@ -18,10 +18,10 @@ namespace fn {
  * @tparam V TODO
  */
 template <typename Fn, typename V>
-concept invocable_transform_error //
-    = (some_expected<V> && (not some_sum<typename ::std::remove_cvref_t<V>::error_type>) && requires(Fn &&fn, V &&v) {
-        { ::fn::invoke(FWD(fn), FWD(v).error()) } -> convertible_to_unexpected;
-      }) || (some_expected<V> && some_sum<typename ::std::remove_cvref_t<V>::error_type> && requires(Fn &&fn, V &&v) {
+concept applicable_transform_error //
+    = (some_expected<V> && (not some_copack<typename ::std::remove_cvref_t<V>::error_type>) && requires(Fn &&fn, V &&v) {
+        { ::fn::apply(FWD(fn), FWD(v).error()) } -> convertible_to_unexpected;
+      }) || (some_expected<V> && some_copack<typename ::std::remove_cvref_t<V>::error_type> && requires(Fn &&fn, V &&v) {
         {
           FWD(v).error().transform(FWD(fn))
         } -> convertible_to_expected<typename ::std::remove_cvref_t<decltype(v)>::error_type>;
@@ -61,7 +61,7 @@ struct transform_error_t::apply final {
   template <some_expected V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept(noexcept(FWD(v).transform_error(FWD(fn))))
       -> same_value_kind<V &&> auto
-    requires invocable_transform_error<Fn &&, V &&>
+    requires applicable_transform_error<Fn &&, V &&>
   {
     return FWD(v).transform_error(FWD(fn));
   }

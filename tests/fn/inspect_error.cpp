@@ -132,17 +132,17 @@ TEST_CASE("inspect_error expected", "[inspect_error][expected]")
 
     SUCCEED();
 
-    SECTION("sum")
+    SECTION("copack")
     {
-      using TS = fn::expected<int, fn::sum_for<Error, bool>>;
-      constexpr auto fnSum
+      using TS = fn::expected<int, fn::copack_for<Error, bool>>;
+      constexpr auto fnCopack
           = fn::overload{[](Error) constexpr noexcept -> void {}, [](bool) constexpr noexcept -> void {}};
-      constexpr auto s1 = TS{0} | fn::inspect_error(fnSum);
+      constexpr auto s1 = TS{0} | fn::inspect_error(fnCopack);
       static_assert(s1.value() == 0);
-      constexpr auto s2 = TS{::fn::unexpect, fn::sum{Error::SomethingElse}} | fn::inspect_error(fnSum);
-      static_assert(s2.error() == fn::sum{Error::SomethingElse});
-      constexpr auto s3 = TS{::fn::unexpect, fn::sum{false}} | fn::inspect_error(fnSum);
-      static_assert(s3.error() == fn::sum{false});
+      constexpr auto s2 = TS{::fn::unexpect, fn::copack{Error::SomethingElse}} | fn::inspect_error(fnCopack);
+      static_assert(s2.error() == fn::copack{Error::SomethingElse});
+      constexpr auto s3 = TS{::fn::unexpect, fn::copack{false}} | fn::inspect_error(fnCopack);
+      static_assert(s3.error() == fn::copack{false});
 
       SUCCEED();
     }
@@ -257,31 +257,31 @@ constexpr auto fn_int_rvalue = [](int &&) {};
 constexpr auto fn_int_const_rvalue = [](int const &&) {};
 } // namespace
 
-static_assert(invocable_inspect_error<decltype(fn_Error<void>), expected<int, Error>>);
-static_assert(invocable_inspect_error<decltype(fn_generic<void>), expected<void, Error>>);
-static_assert(invocable_inspect_error<decltype(fn_int<void>), expected<void, int>>);
-static_assert(not invocable_inspect_error<decltype(fn_int<int>), expected<void, int>>);    // wrong return type
-static_assert(not invocable_inspect_error<decltype(fn_int<void>), expected<void, Error>>); // wrong parameter type
-static_assert(invocable_inspect_error<decltype(fn_Error<void>), expected<void, Xerror>>);  // parameter type conversion
-static_assert(invocable_inspect_error<decltype(fn_generic<void>), expected<Value, Error>>);
-static_assert(not invocable_inspect_error<decltype(fn_int<void>), expected<Value, Error>>); // wrong parameter type
-static_assert(invocable_inspect_error<decltype(fn_generic<void>), optional<int>>);
-static_assert(not invocable_inspect_error<decltype(fn_generic<int>), optional<Value>>); // wrong return type
+static_assert(applicable_inspect_error<decltype(fn_Error<void>), expected<int, Error>>);
+static_assert(applicable_inspect_error<decltype(fn_generic<void>), expected<void, Error>>);
+static_assert(applicable_inspect_error<decltype(fn_int<void>), expected<void, int>>);
+static_assert(not applicable_inspect_error<decltype(fn_int<int>), expected<void, int>>);    // wrong return type
+static_assert(not applicable_inspect_error<decltype(fn_int<void>), expected<void, Error>>); // wrong parameter type
+static_assert(applicable_inspect_error<decltype(fn_Error<void>), expected<void, Xerror>>);  // parameter type conversion
+static_assert(applicable_inspect_error<decltype(fn_generic<void>), expected<Value, Error>>);
+static_assert(not applicable_inspect_error<decltype(fn_int<void>), expected<Value, Error>>); // wrong parameter type
+static_assert(applicable_inspect_error<decltype(fn_generic<void>), optional<int>>);
+static_assert(not applicable_inspect_error<decltype(fn_generic<int>), optional<Value>>); // wrong return type
 
 // binding to const lvalue-ref
-static_assert(invocable_inspect_error<decltype(fn_int_const_lvalue), expected<void, int>>);
-static_assert(invocable_inspect_error<decltype(fn_int_const_lvalue), expected<void, int> const>);
-static_assert(invocable_inspect_error<decltype(fn_int_const_lvalue), expected<void, int> &>);
-static_assert(invocable_inspect_error<decltype(fn_int_const_lvalue), expected<void, int> const &>);
-static_assert(invocable_inspect_error<decltype(fn_int_const_lvalue), expected<void, int> &&>);
-static_assert(invocable_inspect_error<decltype(fn_int_const_lvalue), expected<void, int> const &&>);
+static_assert(applicable_inspect_error<decltype(fn_int_const_lvalue), expected<void, int>>);
+static_assert(applicable_inspect_error<decltype(fn_int_const_lvalue), expected<void, int> const>);
+static_assert(applicable_inspect_error<decltype(fn_int_const_lvalue), expected<void, int> &>);
+static_assert(applicable_inspect_error<decltype(fn_int_const_lvalue), expected<void, int> const &>);
+static_assert(applicable_inspect_error<decltype(fn_int_const_lvalue), expected<void, int> &&>);
+static_assert(applicable_inspect_error<decltype(fn_int_const_lvalue), expected<void, int> const &&>);
 
 // cannot bind const to non-const lvalue-ref
-static_assert(not invocable_inspect_error<decltype(fn_int_lvalue), expected<void, int>>);
+static_assert(not applicable_inspect_error<decltype(fn_int_lvalue), expected<void, int>>);
 
 // cannot bind lvalue to const rvalue-ref
-static_assert(not invocable_inspect_error<decltype(fn_int_const_rvalue), expected<void, int>>);
+static_assert(not applicable_inspect_error<decltype(fn_int_const_rvalue), expected<void, int>>);
 
 // cannot bind lvalue to rvalue-ref
-static_assert(not invocable_inspect_error<decltype(fn_int_rvalue), expected<void, int>>);
+static_assert(not applicable_inspect_error<decltype(fn_int_rvalue), expected<void, int>>);
 } // namespace fn

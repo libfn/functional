@@ -7,10 +7,11 @@
 #define INCLUDE_FN_OPTIONAL
 
 #include <pfn/optional.hpp>
+#include <pfn/utility.hpp>
 
+#include <fn/copack.hpp>
 #include <fn/detail/functional.hpp>
 #include <fn/pack.hpp>
-#include <fn/sum.hpp>
 
 #include <compare>
 #include <functional>
@@ -128,7 +129,7 @@ struct optional_policy {
 };
 
 // `or_else` has two arms - the callback's own optional is returned, or its value type and T are
-// widened into a sum - and `if constexpr` picks between them. A noexcept-specifier is an ordinary
+// widened into a copack - and `if constexpr` picks between them. A noexcept-specifier is an ordinary
 // constant expression, so it cannot pick: the untaken arm's spelling would have to be well-formed
 // too, and it is not. Hence a trait, whose constrained specializations mirror the body's arms. The
 // unconstrained primary answers for a callback returning something that is not an optional at all -
@@ -137,48 +138,71 @@ struct optional_policy {
 template <typename T, typename Fn, typename ValArg> struct _nothrow_optional_or_else : ::std::false_type {};
 
 template <typename T, typename Fn, typename ValArg>
-  requires ::std::is_same_v<::std::remove_cvref_t<typename _invoke_result<Fn>::type>, ::fn::optional<T>>
+  requires ::std::is_same_v<::std::remove_cvref_t<typename _apply_result<Fn>::type>, ::fn::optional<T>>
 struct _nothrow_optional_or_else<T, Fn, ValArg>
-    : ::std::bool_constant<_is_nothrow_invocable<Fn>::value
+    : ::std::bool_constant<_is_nothrow_applicable<Fn>::value
                                && ::std::is_nothrow_constructible_v<::fn::optional<T>, ::std::in_place_t, ValArg>> {};
 
 template <typename T, typename Fn, typename ValArg>
-  requires _is_some_optional<::std::remove_cvref_t<typename _invoke_result<Fn>::type> &>
-           && (not ::std::is_same_v<::std::remove_cvref_t<typename _invoke_result<Fn>::type>, ::fn::optional<T>>)
+  requires _is_some_optional<::std::remove_cvref_t<typename _apply_result<Fn>::type> &>
+           && (not ::std::is_same_v<::std::remove_cvref_t<typename _apply_result<Fn>::type>, ::fn::optional<T>>)
 struct _nothrow_optional_or_else<T, Fn, ValArg> {
-  using type = ::std::remove_cvref_t<typename _invoke_result<Fn>::type>;
-  using new_type = ::fn::optional<sum_for<T, typename type::value_type>>;
+  using type = ::std::remove_cvref_t<typename _apply_result<Fn>::type>;
+  using new_type = ::fn::optional<copack_for<T, typename type::value_type>>;
 
-  static constexpr bool value
-      = _is_nothrow_invocable<Fn>::value                               // the callback
+  // an empty-copack value can never exist to be relocated: that arm is unreachable, and cannot throw
+  static constexpr bool value                                          //
+      = _is_nothrow_applicable<Fn>::value                              // the callback
         && _nothrow_initializable<new_type, ::std::in_place_t, ValArg> // self's value
+        && (empty_copack<typename type::value_type>
+            || _nothrow_initializable<new_type, ::std::in_place_t,
+                                      decltype(::std::declval<type>().value())>); // its value
+};
+
+// Twin of the trait above for the empty-copack or_else arm, whose body has no engaged branch: the
+// self's-value conjunct is dropped, and the callback (with the widening of its value) answers alone.
+template <typename T, typename Fn> struct _nothrow_optional_or_else_empty : ::std::false_type {};
+
+template <typename T, typename Fn>
+  requires ::std::is_same_v<::std::remove_cvref_t<typename _apply_result<Fn>::type>, ::fn::optional<T>>
+struct _nothrow_optional_or_else_empty<T, Fn> : ::std::bool_constant<_is_nothrow_applicable<Fn>::value> {};
+
+template <typename T, typename Fn>
+  requires _is_some_optional<::std::remove_cvref_t<typename _apply_result<Fn>::type> &>
+           && (not ::std::is_same_v<::std::remove_cvref_t<typename _apply_result<Fn>::type>, ::fn::optional<T>>)
+struct _nothrow_optional_or_else_empty<T, Fn> {
+  using type = ::std::remove_cvref_t<typename _apply_result<Fn>::type>;
+  using new_type = ::fn::optional<copack_for<T, typename type::value_type>>;
+
+  static constexpr bool value             //
+      = _is_nothrow_applicable<Fn>::value // the callback
         && _nothrow_initializable<new_type, ::std::in_place_t, decltype(::std::declval<type>().value())>; // its value
 };
 
 // Storage layer for ::fn::optional. Inherits the standard-conformant base from
-// pfn, then hides the three monadic static helpers with sum-aware variants that
+// pfn, then hides the three monadic static helpers with copack-aware variants that
 // materialise their result via `optional_policy::template type<U>`.
 // The transform helpers hand pfn's _optional_from_invoke constructor a zero-argument
 // thunk, so the result's contained value is direct-non-list-initialized from fn's own
-// _invoke (or sum::transform) result: no extra move, and immovable result types work.
+// _apply (or copack::transform) result: no extra move, and immovable result types work.
 // The statics carry the same extension noexcept as pfn's, computed through fn's own machinery:
-// the callback of a sum/pack dispatch is invoked through `_invoke`, not called directly, so it is
-// `_is_nothrow_invocable` - not the std trait, which is false for a callable that is not directly
-// invocable on a sum or a pack - that answers for it.
+// the callback of a copack/pack dispatch is invoked through `_apply`, not called directly, so it is
+// `_is_nothrow_applicable` - not the std trait, which is false for a callable that is not directly
+// applicable on a copack or a pack - that answers for it.
 template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, optional_policy> {
   using _pfn_base = ::pfn::detail::_optional_base<T, optional_policy>;
   using _pfn_base::_pfn_base;
 
   // and_then
   template <typename Self, typename Fn>
-  static constexpr auto _and_then(Self &&self, Fn &&fn)                              //
-      noexcept(::fn::detail::_is_nothrow_invocable<Fn, decltype(*FWD(self))>::value) // extension
-    requires ::fn::detail::_is_invocable<Fn, decltype(*FWD(self))>::value
+  static constexpr auto _and_then(Self &&self, Fn &&fn)                               //
+      noexcept(::fn::detail::_is_nothrow_applicable<Fn, decltype(*FWD(self))>::value) // extension
+    requires ::fn::detail::_is_applicable<Fn, decltype(*FWD(self))>::value
   {
-    using type = ::std::remove_cvref_t<typename ::fn::detail::_invoke_result<Fn, decltype(*FWD(self))>::type>;
+    using type = ::std::remove_cvref_t<typename ::fn::detail::_apply_result<Fn, decltype(*FWD(self))>::type>;
     static_assert(_is_some_optional<type &>);
     if (self.has_value())
-      return ::fn::detail::_invoke(FWD(fn), *FWD(self));
+      return ::fn::detail::_apply(FWD(fn), *FWD(self));
     else {
 #if defined(__clang__) && __clang_major__ <= 18
       // clang 15-18 miscompile the prvalue return below for three of the four Self ref-qualifier
@@ -196,40 +220,79 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
     }
   }
 
-  // or_else (with value-widening into a sum)
+  // and_then, value type is the empty copack: a value can never be constructed, so the callback can
+  // never be presented one - it is left alone, not invoked and not even instantiated, and the
+  // result is *this unchanged.
+  template <typename Self, typename Fn>
+  static constexpr auto _and_then(Self &&self, Fn &&)                      //
+      noexcept(::std::is_nothrow_constructible_v<::fn::optional<T>, Self>) // extension
+      -> ::fn::optional<T>
+    requires empty_copack<T> && ::std::is_constructible_v<::fn::optional<T>, Self>
+  {
+    return FWD(self);
+  }
+
+  // or_else (with value-widening into a copack)
   template <typename Self, typename Fn>
   static constexpr auto _or_else(Self &&self, Fn &&fn)                                      //
       noexcept(::fn::detail::_nothrow_optional_or_else<T, Fn, decltype(*FWD(self))>::value) // extension
-    requires ::fn::detail::_is_invocable<Fn>::value && ::std::is_constructible_v<T, decltype(*FWD(self))>
+    requires(not empty_copack<T>) && ::fn::detail::_is_applicable<Fn>::value
+            && ::std::is_constructible_v<T, decltype(*FWD(self))>
   {
-    using type = ::std::remove_cvref_t<typename ::fn::detail::_invoke_result<Fn>::type>;
+    using type = ::std::remove_cvref_t<typename ::fn::detail::_apply_result<Fn>::type>;
     static_assert(_is_some_optional<type &>);
     // compare whole optional types (not value_type) so optional<T&> instantiations, whose
     // value_type is the unqualified referent, take the same-type arm
-    static_assert(::std::is_same_v<type, ::fn::optional<T>> || some_sum<T>);
+    static_assert(::std::is_same_v<type, ::fn::optional<T>> || some_copack<T>);
     if constexpr (::std::is_same_v<type, ::fn::optional<T>>) {
       if (self.has_value())
         return type(::std::in_place, *FWD(self));
       else
-        return ::fn::detail::_invoke(FWD(fn));
+        return ::fn::detail::_apply(FWD(fn));
     } else {
-      using new_value_type = sum_for<T, typename type::value_type>;
+      using new_value_type = copack_for<T, typename type::value_type>;
       using new_type = ::fn::optional<new_value_type>;
       if (self.has_value())
         return new_type{::std::in_place, *FWD(self)};
       else {
-        auto t = ::fn::detail::_invoke(FWD(fn));
-        if (t.has_value())
-          return new_type{::std::in_place, ::std::move(t).value()};
-        else
+        auto t = ::fn::detail::_apply(FWD(fn));
+        if (t.has_value()) {
+          if constexpr (not empty_copack<typename type::value_type>)
+            return new_type{::std::in_place, ::std::move(t).value()};
+          else
+            ::pfn::unreachable(); // LCOV_EXCL_LINE
+        } else
           return new_type{::std::nullopt};
       }
     }
   }
 
+  // or_else, value type is the empty copack: never engaged, so the callback's optional is the whole
+  // result - the general overload's engaged arms would have no value to copy. The widening
+  // contract is unchanged: copack_for<copack<>, U> is U's own normal form.
+  template <typename Self, typename Fn>
+  static constexpr auto _or_else(Self &&, Fn &&fn)                          //
+      noexcept(::fn::detail::_nothrow_optional_or_else_empty<T, Fn>::value) // extension
+    requires empty_copack<T> && ::fn::detail::_is_applicable<Fn>::value
+  {
+    using type = ::std::remove_cvref_t<typename ::fn::detail::_apply_result<Fn>::type>;
+    static_assert(_is_some_optional<type &>);
+    if constexpr (::std::is_same_v<type, ::fn::optional<T>>)
+      return ::fn::detail::_apply(FWD(fn));
+    else {
+      using new_value_type = copack_for<T, typename type::value_type>;
+      using new_type = ::fn::optional<new_value_type>;
+      auto t = ::fn::detail::_apply(FWD(fn));
+      if (t.has_value())
+        return new_type{::std::in_place, ::std::move(t).value()};
+      else
+        return new_type{::std::nullopt};
+    }
+  }
+
   // or_else for the optional<T&> wrapper: forwards to pfn's reference _or_else (hidden by the
   // _or_else above), propagating its constraints and noexcept -- a reference optional has
-  // nothing to sum-widen, so pfn's semantics apply exactly
+  // nothing to copack-widen, so pfn's semantics apply exactly
   template <typename Self, typename Fn>
   static constexpr auto _or_else_ref(Self &&self, Fn &&fn)        //
       noexcept(noexcept(_pfn_base::_or_else(FWD(self), FWD(fn)))) //
@@ -238,31 +301,31 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
     return _pfn_base::_or_else(FWD(self), FWD(fn));
   }
 
-  // transform, value type is not a sum. In the noexcept spec, only the invoke can throw: the
+  // transform, value type is not a copack. In the noexcept spec, only the apply can throw: the
   // result is direct-non-list-initialized from the thunk's result (guaranteed elision).
   template <typename Self, typename Fn>
-  static constexpr auto _transform(Self &&self, Fn &&fn)                             //
-      noexcept(::fn::detail::_is_nothrow_invocable<Fn, decltype(*FWD(self))>::value) // extension
-    requires(not some_sum<T>) && ::fn::detail::_is_invocable_if<not some_sum<T>, Fn, decltype(*FWD(self))>::value
+  static constexpr auto _transform(Self &&self, Fn &&fn)                              //
+      noexcept(::fn::detail::_is_nothrow_applicable<Fn, decltype(*FWD(self))>::value) // extension
+    requires(not some_copack<T>) && ::fn::detail::_is_applicable_if<not some_copack<T>, Fn, decltype(*FWD(self))>::value
   {
-    using new_value_type = ::std::remove_cv_t<typename ::fn::detail::_invoke_result<Fn, decltype(*FWD(self))>::type>;
+    using new_value_type = ::std::remove_cv_t<typename ::fn::detail::_apply_result<Fn, decltype(*FWD(self))>::type>;
     using type = ::fn::optional<new_value_type>;
     if (self.has_value())
       return type(::pfn::detail::_optional_from_invoke,
-                  [&fn, &self]() -> decltype(auto) { return ::fn::detail::_invoke(FWD(fn), *FWD(self)); });
+                  [&fn, &self]() -> decltype(auto) { return ::fn::detail::_apply(FWD(fn), *FWD(self)); });
     else
       return type(::std::nullopt);
   }
 
-  // transform, value type is a sum (delegates to sum::transform). The callback is constrained here,
+  // transform, value type is a copack (delegates to copack::transform). The callback is constrained here,
   // in the immediate context: the deduced return type instantiates the body, so leaving it to
-  // sum::transform's own constraint would make a bad callback a hard error instead of dropping the
+  // copack::transform's own constraint would make a bad callback a hard error instead of dropping the
   // candidate - and would poison overload resolution, since the losing candidates form their
   // signatures too.
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn)  //
       noexcept(noexcept((*FWD(self)).transform(FWD(fn)))) // extension
-    requires some_sum<T> && ::fn::detail::_typelist_invocable<Fn, decltype(*FWD(self))>
+    requires some_copack<T> && (not empty_copack<T>) && ::fn::detail::_typelist_applicable<Fn, decltype(*FWD(self))>
   {
     using new_value_type = decltype((*FWD(self)).transform(FWD(fn)));
     using type = ::fn::optional<new_value_type>;
@@ -272,13 +335,136 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
     else
       return type(::std::nullopt);
   }
+
+  // apply: elimination over both states, both arms required outright - the engaged arm eliminates
+  // the value through fn's own _apply (a pack or tuple-like payload by elements, a copack by
+  // dispatch), the empty arm is invoked without it. Over an empty-copack value this overload set
+  // needs no gate: copack<> has no apply, so _is_applicable and _apply_tagged answer false for every
+  // Fn and the general overloads drop out.
+  template <typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(::fn::detail::_is_nothrow_applicable<Fn, decltype(*FWD(self)), Args...>::value
+               && ::fn::detail::_is_nothrow_applicable<Fn, Args...>::value) // extension
+      -> decltype(auto)
+    requires ::fn::detail::_is_applicable<Fn, decltype(*FWD(self)), Args...>::value
+             && ::fn::detail::_is_applicable<Fn, Args...>::value
+  {
+    // Both arms are viable here, so they must yield the same result type.
+    static_assert(::std::is_same_v<typename ::fn::detail::_apply_result<Fn, decltype(*FWD(self)), Args...>::type,
+                                   typename ::fn::detail::_apply_result<Fn, Args...>::type>);
+    if (self.has_value())
+      return ::fn::detail::_apply(FWD(fn), *FWD(self), FWD(args)...);
+    else
+      return ::fn::detail::_apply(FWD(fn), FWD(args)...);
+  }
+
+  template <typename Ret, typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_r(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, decltype(*FWD(self)), Args...>::value
+               && ::fn::detail::_is_nothrow_applicable_r<Ret, Fn, Args...>::value) // extension
+      -> Ret
+    requires ::fn::detail::_is_applicable_r<Ret, Fn, decltype(*FWD(self)), Args...>::value
+             && ::fn::detail::_is_applicable_r<Ret, Fn, Args...>::value
+  {
+    if (self.has_value())
+      return ::fn::detail::_apply_r<Ret>(FWD(fn), *FWD(self), FWD(args)...);
+    else
+      return ::fn::detail::_apply_r<Ret>(FWD(fn), FWD(args)...);
+  }
+
+  // apply_type: the tagged form - the engaged arm receives ::std::in_place followed by the value
+  // as _apply_tagged hands it over (a tuple-like value's elements form is the row's one
+  // signature), the empty arm ::std::nullopt alone, passed as a prvalue like every tag; trailing
+  // arguments follow either arm's content.
+  template <typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_type(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(noexcept(::fn::detail::_apply_tagged<::std::in_place_t>(FWD(fn), *FWD(self), FWD(args)...))
+               && ::fn::detail::_is_nothrow_applicable<Fn, ::std::nullopt_t, Args &&...>::value) // extension
+      -> decltype(auto)
+    requires requires { ::fn::detail::_apply_tagged<::std::in_place_t>(FWD(fn), *FWD(self), FWD(args)...); }
+             && ::fn::detail::_is_applicable<Fn, ::std::nullopt_t, Args &&...>::value
+  {
+    // Both arms are viable here, so they must yield the same result type.
+    static_assert(
+        ::std::is_same_v<decltype(::fn::detail::_apply_tagged<::std::in_place_t>(FWD(fn), *FWD(self), FWD(args)...)),
+                         typename ::fn::detail::_apply_result<Fn, ::std::nullopt_t, Args &&...>::type>);
+    if (self.has_value())
+      return ::fn::detail::_apply_tagged<::std::in_place_t>(FWD(fn), *FWD(self), FWD(args)...);
+    else
+      return ::fn::detail::_apply(FWD(fn), ::std::nullopt_t{::std::nullopt}, FWD(args)...);
+  }
+
+  template <typename Ret, typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_type_r(Self &&self, Fn &&fn, Args &&...args) //
+      noexcept(noexcept(::fn::detail::_apply_tagged_r<Ret, ::std::in_place_t>(FWD(fn), *FWD(self), FWD(args)...))
+               && ::fn::detail::_is_nothrow_applicable_r<Ret, Fn, ::std::nullopt_t, Args &&...>::value) // extension
+      -> Ret
+    requires requires { ::fn::detail::_apply_tagged_r<Ret, ::std::in_place_t>(FWD(fn), *FWD(self), FWD(args)...); }
+             && ::fn::detail::_is_applicable_r<Ret, Fn, ::std::nullopt_t, Args &&...>::value
+  {
+    if (self.has_value())
+      return ::fn::detail::_apply_tagged_r<Ret, ::std::in_place_t>(FWD(fn), *FWD(self), FWD(args)...);
+    else
+      return ::fn::detail::_apply_r<Ret>(FWD(fn), ::std::nullopt_t{::std::nullopt}, FWD(args)...);
+  }
+
+  // apply, value type is the empty copack: never engaged, so the empty arm alone is exhaustive and
+  // dispatch needs no branch; nothing names the engaged row, so an arm set carrying an arm for it
+  // never instantiates it.
+  template <typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply(Self &&, Fn &&fn, Args &&...args)         //
+      noexcept(::fn::detail::_is_nothrow_applicable<Fn, Args...>::value) // extension
+      -> decltype(auto)
+    requires empty_copack<T> && ::fn::detail::_is_applicable<Fn, Args...>::value
+  {
+    return ::fn::detail::_apply(FWD(fn), FWD(args)...);
+  }
+
+  template <typename Ret, typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_r(Self &&, Fn &&fn, Args &&...args)              //
+      noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, Args...>::value) // extension
+      -> Ret
+    requires empty_copack<T> && ::fn::detail::_is_applicable_r<Ret, Fn, Args...>::value
+  {
+    return ::fn::detail::_apply_r<Ret>(FWD(fn), FWD(args)...);
+  }
+
+  // apply_type, value type is the empty copack: the nullopt arm alone is exhaustive
+  template <typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_type(Self &&, Fn &&fn, Args &&...args)                         //
+      noexcept(::fn::detail::_is_nothrow_applicable<Fn, ::std::nullopt_t, Args &&...>::value) // extension
+      -> decltype(auto)
+    requires empty_copack<T> && ::fn::detail::_is_applicable<Fn, ::std::nullopt_t, Args &&...>::value
+  {
+    return ::fn::detail::_apply(FWD(fn), ::std::nullopt_t{::std::nullopt}, FWD(args)...);
+  }
+
+  template <typename Ret, typename Self, typename Fn, typename... Args>
+  static constexpr auto _apply_type_r(Self &&, Fn &&fn, Args &&...args)                              //
+      noexcept(::fn::detail::_is_nothrow_applicable_r<Ret, Fn, ::std::nullopt_t, Args &&...>::value) // extension
+      -> Ret
+    requires empty_copack<T> && ::fn::detail::_is_applicable_r<Ret, Fn, ::std::nullopt_t, Args &&...>::value
+  {
+    return ::fn::detail::_apply_r<Ret>(FWD(fn), ::std::nullopt_t{::std::nullopt}, FWD(args)...);
+  }
+
+  // transform, value type is the empty copack: a value can never be constructed, so the callback can
+  // never be presented one - it is left alone, not invoked and not even instantiated, the mapping
+  // is the identity and the result is *this unchanged.
+  template <typename Self, typename Fn>
+  static constexpr auto _transform(Self &&self, Fn &&)                     //
+      noexcept(::std::is_nothrow_constructible_v<::fn::optional<T>, Self>) // extension
+      -> ::fn::optional<T>
+    requires empty_copack<T> && ::std::is_constructible_v<::fn::optional<T>, Self>
+  {
+    return FWD(self);
+  }
 };
 
 } // namespace detail
 
 template <typename T> class optional : private detail::_optional_base<T> { // NOSONAR cpp:S3624 base manages storage
   static_assert(::pfn::detail::_is_valid_optional<T>);
-  static_assert(not ::std::is_same_v<T, ::fn::sum<>>);
   using _base = detail::_optional_base<T>;
 
   // Allow sibling _optional_base instantiations to downcast into the private base.
@@ -443,7 +629,126 @@ public:
   using _base::value;
   using _base::value_or;
 
-  // Monadic operations. Bodies delegate to _optional_base static helpers, which perform sum-widening.
+  // Elimination over both states, mirroring copack's apply family: the engaged arm takes the value
+  // unpacked as fn::apply would hand it over, the empty arm takes no value (apply) or the nullopt
+  // tag alone (apply_type). Bodies delegate to _optional_base static helpers.
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply(F &&f, Args &&...args) &        //
+      noexcept(noexcept(_base::_apply(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply(*this, FWD(f), FWD(args)...))
+  {
+    return _base::_apply(*this, FWD(f), FWD(args)...);
+  }
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply(F &&f, Args &&...args) &&                    //
+      noexcept(noexcept(_base::_apply(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::_apply(::std::move(*this), FWD(f), FWD(args)...);
+  }
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply(F &&f, Args &&...args) const &  //
+      noexcept(noexcept(_base::_apply(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply(*this, FWD(f), FWD(args)...))
+  {
+    return _base::_apply(*this, FWD(f), FWD(args)...);
+  }
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply(F &&f, Args &&...args) const &&              //
+      noexcept(noexcept(_base::_apply(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::_apply(::std::move(*this), FWD(f), FWD(args)...);
+  }
+
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_r(F &&f, Args &&...args) &                      //
+      noexcept(noexcept(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...);
+  }
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_r(F &&f, Args &&...args) &&                                  //
+      noexcept(noexcept(_base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...);
+  }
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_r(F &&f, Args &&...args) const &                //
+      noexcept(noexcept(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...);
+  }
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_r(F &&f, Args &&...args) const &&                            //
+      noexcept(noexcept(_base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...);
+  }
+
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type(F &&f, Args &&...args) &        //
+      noexcept(noexcept(_base::_apply_type(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply_type(*this, FWD(f), FWD(args)...))
+  {
+    return _base::_apply_type(*this, FWD(f), FWD(args)...);
+  }
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type(F &&f, Args &&...args) &&                    //
+      noexcept(noexcept(_base::_apply_type(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply_type(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::_apply_type(::std::move(*this), FWD(f), FWD(args)...);
+  }
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type(F &&f, Args &&...args) const &  //
+      noexcept(noexcept(_base::_apply_type(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply_type(*this, FWD(f), FWD(args)...))
+  {
+    return _base::_apply_type(*this, FWD(f), FWD(args)...);
+  }
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type(F &&f, Args &&...args) const &&              //
+      noexcept(noexcept(_base::_apply_type(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply_type(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::_apply_type(::std::move(*this), FWD(f), FWD(args)...);
+  }
+
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type_r(F &&f, Args &&...args) &                      //
+      noexcept(noexcept(_base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...);
+  }
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type_r(F &&f, Args &&...args) &&                                  //
+      noexcept(noexcept(_base::template _apply_type_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_type_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_type_r<Ret>(::std::move(*this), FWD(f), FWD(args)...);
+  }
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type_r(F &&f, Args &&...args) const &                //
+      noexcept(noexcept(_base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...);
+  }
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type_r(F &&f, Args &&...args) const &&                            //
+      noexcept(noexcept(_base::template _apply_type_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_type_r<Ret>(::std::move(*this), FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_type_r<Ret>(::std::move(*this), FWD(f), FWD(args)...);
+  }
+
+  // Monadic operations. Bodies delegate to _optional_base static helpers, which perform copack-widening.
   template <class F>
   constexpr auto and_then(F &&f) &                        //
       noexcept(noexcept(_base::_and_then(*this, FWD(f)))) // extension
@@ -520,47 +825,48 @@ public:
     return _base::_transform(::std::move(*this), FWD(f));
   }
 
-  // Convert to graded monad. The lifting overloads wrap the value in a sum and that sum in the
-  // result, so they weigh both; the ones whose value type already is a sum only return *this.
-  constexpr auto sum_value() const & noexcept(::std::is_nothrow_constructible_v<sum<value_type>, value_type const &>
-                                              && ::std::is_nothrow_move_constructible_v<sum<value_type>>) // extension
-      -> optional<sum<value_type>>
-    requires(not some_sum<value_type>)
+  // Convert to graded monad. The lifting overloads wrap the value in a copack and that copack in the
+  // result, so they weigh both; the ones whose value type already is a copack only return *this.
+  constexpr auto
+  copack_value() const & noexcept(::std::is_nothrow_constructible_v<copack<value_type>, value_type const &>
+                                  && ::std::is_nothrow_move_constructible_v<copack<value_type>>) // extension
+      -> optional<copack<value_type>>
+    requires(not some_copack<value_type>)
   {
-    using type = optional<sum<value_type>>;
+    using type = optional<copack<value_type>>;
     if (this->has_value())
-      return type{::std::in_place, sum<value_type>(this->value())};
+      return type{::std::in_place, copack<value_type>(this->value())};
     else
       return type{::std::nullopt};
   }
-  constexpr auto sum_value() && noexcept(::std::is_nothrow_constructible_v<sum<value_type>, value_type>
-                                         && ::std::is_nothrow_move_constructible_v<sum<value_type>>) // extension
-      -> optional<sum<value_type>>
-    requires(not some_sum<value_type>)
+  constexpr auto copack_value() && noexcept(::std::is_nothrow_constructible_v<copack<value_type>, value_type>
+                                            && ::std::is_nothrow_move_constructible_v<copack<value_type>>) // extension
+      -> optional<copack<value_type>>
+    requires(not some_copack<value_type>)
   {
-    using type = optional<sum<value_type>>;
+    using type = optional<copack<value_type>>;
     if (this->has_value())
-      return type{::std::in_place, sum<value_type>(::std::move(*this).value())};
+      return type{::std::in_place, copack<value_type>(::std::move(*this).value())};
     else
       return type{::std::nullopt};
   }
-  constexpr auto sum_value() & noexcept -> decltype(auto)
-    requires(some_sum<value_type>)
+  constexpr auto copack_value() & noexcept -> decltype(auto)
+    requires(some_copack<value_type>)
   {
     return *this;
   }
-  constexpr auto sum_value() const & noexcept -> decltype(auto)
-    requires(some_sum<value_type>)
+  constexpr auto copack_value() const & noexcept -> decltype(auto)
+    requires(some_copack<value_type>)
   {
     return *this;
   }
-  constexpr auto sum_value() && noexcept -> decltype(auto)
-    requires(some_sum<value_type>)
+  constexpr auto copack_value() && noexcept -> decltype(auto)
+    requires(some_copack<value_type>)
   {
     return ::std::move(*this);
   }
-  constexpr auto sum_value() const && noexcept -> decltype(auto)
-    requires(some_sum<value_type>)
+  constexpr auto copack_value() const && noexcept -> decltype(auto)
+    requires(some_copack<value_type>)
   {
     return ::std::move(*this);
   }
@@ -673,6 +979,37 @@ public:
   using _base::operator->;
   using _base::value;
   using _base::value_or;
+
+  // Elimination over both states; a reference optional always hands the referent over as T&.
+  // Bodies delegate to _optional_base static helpers.
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply(F &&f, Args &&...args) const    //
+      noexcept(noexcept(_base::_apply(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply(*this, FWD(f), FWD(args)...))
+  {
+    return _base::_apply(*this, FWD(f), FWD(args)...);
+  }
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_r(F &&f, Args &&...args) const                  //
+      noexcept(noexcept(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...);
+  }
+  template <class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type(F &&f, Args &&...args) const    //
+      noexcept(noexcept(_base::_apply_type(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::_apply_type(*this, FWD(f), FWD(args)...))
+  {
+    return _base::_apply_type(*this, FWD(f), FWD(args)...);
+  }
+  template <class Ret, class F, class... Args>
+  [[nodiscard]] constexpr auto apply_type_r(F &&f, Args &&...args) const                  //
+      noexcept(noexcept(_base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
+      -> decltype(_base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...))
+  {
+    return _base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...);
+  }
 
   // Monadic operations. Bodies delegate to _optional_base static helpers.
   template <class F>
@@ -927,11 +1264,11 @@ constexpr optional<T> make_optional(::std::initializer_list<U> il, Args &&...arg
   return optional<T>(::std::in_place, il, FWD(args)...);
 }
 
-// Lifts for sum transformation functions
-[[nodiscard]] constexpr auto sum_value(some_optional auto &&src) noexcept(noexcept(FWD(src).sum_value()))
+// Lifts for copack transformation functions
+[[nodiscard]] constexpr auto copack_value(some_optional auto &&src) noexcept(noexcept(FWD(src).copack_value()))
     -> decltype(auto)
 {
-  return FWD(src).sum_value();
+  return FWD(src).copack_value();
 }
 
 namespace detail {

@@ -43,14 +43,14 @@ TEST_CASE("recover", "[recover][expected][expected_value]")
                                                    | recover([](auto...) -> unsigned { return 0; }))>);
 
   static_assert(is::invocable_with_any(fnError));
-  static_assert(is::invocable_with_any([](auto...) -> int { throw 0; }));          // allow generic call
-  static_assert(is::invocable_with_any([](Error) -> int { throw 0; }));            // allow copy
-  static_assert(is::invocable_with_any([](std::string_view) -> int { throw 0; })); // allow conversion
-  static_assert(is::invocable_with_any([](auto...) -> unsigned { throw 0; }));     // allow conversion to operand_t
-  static_assert(is::invocable_with_any([](Error const &) -> int { throw 0; }));    // binds to const ref
-  static_assert(is::invocable<lvalue>([](Error &) -> int { throw 0; }));           // binds to lvalue
-  static_assert(is::invocable<rvalue, prvalue>([](Error &&) -> int { throw 0; })); // can move
-  static_assert(is::invocable<rvalue, crvalue>([](Error const &&) -> int { throw 0; }));       // binds to const rvalue
+  static_assert(is::invocable_with_any([](auto...) -> int { throw 0; }));           // allow generic call
+  static_assert(is::invocable_with_any([](Error) -> int { throw 0; }));             // allow copy
+  static_assert(is::invocable_with_any([](std::string_view) -> int { throw 0; }));  // allow conversion
+  static_assert(is::invocable_with_any([](auto...) -> unsigned { throw 0; }));      // allow conversion to operand_t
+  static_assert(is::invocable_with_any([](Error const &) -> int { throw 0; }));     // binds to const ref
+  static_assert(is::applicable<lvalue>([](Error &) -> int { throw 0; }));           // binds to lvalue
+  static_assert(is::applicable<rvalue, prvalue>([](Error &&) -> int { throw 0; })); // can move
+  static_assert(is::applicable<rvalue, crvalue>([](Error const &&) -> int { throw 0; }));      // binds to const rvalue
   static_assert(is::not_invocable<clvalue, crvalue, cvalue>([](Error &) -> int { throw 0; })); // cannot remove const
   static_assert(is::not_invocable<rvalue>([](Error &) -> int { throw 0; }));                   // disallow bind
   static_assert(is::not_invocable<lvalue, clvalue, crvalue, cvalue>([](Error &&) -> int { throw 0; })); // cannot move
@@ -124,23 +124,23 @@ TEST_CASE("recover", "[recover][expected][expected_value]")
 
     SUCCEED();
 
-    SECTION("sum")
+    SECTION("copack")
     {
-      using TS = fn::expected<int, fn::sum_for<Error, bool>>;
+      using TS = fn::expected<int, fn::copack_for<Error, bool>>;
 
-      constexpr auto fnSum = fn::overload{[](Error e) constexpr noexcept -> int {
-                                            if (e == Error::SomethingElse)
-                                              return 0;
-                                            return 1;
-                                          },
-                                          [](bool e) constexpr noexcept -> int { return (int)e; }};
-      constexpr auto s1 = TS{2} | fn::recover(fnSum);
+      constexpr auto fnCopack = fn::overload{[](Error e) constexpr noexcept -> int {
+                                               if (e == Error::SomethingElse)
+                                                 return 0;
+                                               return 1;
+                                             },
+                                             [](bool e) constexpr noexcept -> int { return (int)e; }};
+      constexpr auto s1 = TS{2} | fn::recover(fnCopack);
       static_assert(s1.value() == 2);
-      constexpr auto s2 = TS{::fn::unexpect, fn::sum{Error::SomethingElse}} | fn::recover(fnSum);
+      constexpr auto s2 = TS{::fn::unexpect, fn::copack{Error::SomethingElse}} | fn::recover(fnCopack);
       static_assert(s2.value() == 0);
-      constexpr auto s3 = TS{::fn::unexpect, fn::sum{true}} | fn::recover(fnSum);
+      constexpr auto s3 = TS{::fn::unexpect, fn::copack{true}} | fn::recover(fnCopack);
       static_assert(s3.value() == 1);
-      constexpr auto s4 = TS{::fn::unexpect, fn::sum{Error::ThresholdExceeded}} | fn::recover(fnSum);
+      constexpr auto s4 = TS{::fn::unexpect, fn::copack{Error::ThresholdExceeded}} | fn::recover(fnCopack);
       static_assert(s4.value() == 1);
 
       SUCCEED();
@@ -164,9 +164,9 @@ TEST_CASE("recover", "[recover][expected][expected_void]")
   static_assert(is::invocable_with_any([](Error) { throw 0; }));                        // allow copy
   static_assert(is::invocable_with_any([](std::string_view) { throw 0; }));             // allow conversion
   static_assert(is::invocable_with_any([](Error const &) { throw 0; }));                // binds to const ref
-  static_assert(is::invocable<lvalue>([](Error &) { throw 0; }));                       // binds to lvalue
-  static_assert(is::invocable<rvalue, prvalue>([](Error &&) { throw 0; }));             // can move
-  static_assert(is::invocable<rvalue, crvalue>([](Error const &&) { throw 0; }));       // binds to const rvalue
+  static_assert(is::applicable<lvalue>([](Error &) { throw 0; }));                      // binds to lvalue
+  static_assert(is::applicable<rvalue, prvalue>([](Error &&) { throw 0; }));            // can move
+  static_assert(is::applicable<rvalue, crvalue>([](Error const &&) { throw 0; }));      // binds to const rvalue
   static_assert(is::not_invocable<clvalue, crvalue, cvalue>([](Error &) { throw 0; })); // cannot remove const
   static_assert(is::not_invocable<rvalue>([](Error &) { throw 0; }));                   // disallow bind
   static_assert(is::not_invocable<lvalue, clvalue, crvalue, cvalue>([](Error &&) { throw 0; })); // cannot move
@@ -313,8 +313,8 @@ TEST_CASE("recover constraints", "[recover][constraints]")
   // A move-only value type is carried only where it can be moved out of - which is why the question
   // is `is_constructible_v<T, decltype(carried)>` and not `is_move_constructible_v<T>`
   using is = monadic_static_check<recover_t, fn::expected<helper_move_only, Error>>;
-  static_assert(is::invocable<rvalue, prvalue>(from_error));     // moved
-  static_assert(is::invocable<crvalue, cvalue>(from_error));     // const-moved
+  static_assert(is::applicable<rvalue, prvalue>(from_error));    // moved
+  static_assert(is::applicable<crvalue, cvalue>(from_error));    // const-moved
   static_assert(is::not_invocable<lvalue, clvalue>(from_error)); // would have to copy
 
   // A void-valued expected has no value to carry, so nothing constrains it
@@ -324,12 +324,12 @@ TEST_CASE("recover constraints", "[recover][constraints]")
   // cannot bind to the prvalue a callback returns
   using ref_t = fn::optional<int &>;
   static_assert(std::is_constructible_v<ref_t::value_type, int>);
-  static_assert(not invocable_recover<decltype([]() -> int { return 1; }) &, ref_t &>);
-  static_assert(invocable_recover<decltype([]() -> int & {
-                                    static int i = 1;
-                                    return i;
-                                  }) &,
-                                  ref_t &>);
+  static_assert(not applicable_recover<decltype([]() -> int { return 1; }) &, ref_t &>);
+  static_assert(applicable_recover<decltype([]() -> int & {
+                                     static int i = 1;
+                                     return i;
+                                   }) &,
+                                   ref_t &>);
   SUCCEED();
 }
 
@@ -347,19 +347,19 @@ constexpr auto fn_Error_rvalue = [](Error &&) -> int { throw 0; };
 
 // clang-format off
 // The callback consumes the error and must produce the operand's own value type.
-static_assert(invocable_recover<decltype(fn_Error<int>), expected<int, Error>>);
-static_assert(invocable_recover<decltype(fn_Error<unsigned>), expected<int, Error>>);    // conversion to value is enough
-static_assert(not invocable_recover<decltype(fn_Error<Value>), expected<int, Error>>);   // no conversion found
-static_assert(not invocable_recover<decltype(fn_nullary<int>), expected<int, Error>>);   // bad arity
-static_assert(invocable_recover<decltype(fn_generic<int>), expected<int, Error>>);
-static_assert(invocable_recover<decltype(fn_Error<void>), expected<void, Error>>);       // a void value wants void back
-static_assert(not invocable_recover<decltype(fn_Error<int>), expected<void, Error>>);    // never quietly discard a result
-static_assert(invocable_recover<decltype(fn_nullary<int>), optional<int>>);              // optional has no error: nullary
-static_assert(not invocable_recover<decltype(fn_Error<int>), optional<int>>);            // bad arity
-static_assert(not invocable_recover<decltype(fn_generic<int>), choice<int>>);            // no choice disjunct
-static_assert(not invocable_recover<decltype(fn_Error_lvalue), expected<int, Error>>);   // cannot bind temporary to lvalue
-static_assert(invocable_recover<decltype(fn_Error_lvalue), expected<int, Error> &>);
-static_assert(invocable_recover<decltype(fn_Error_rvalue), expected<int, Error>>);
-static_assert(not invocable_recover<decltype(fn_Error_rvalue), expected<int, Error> &>); // cannot bind lvalue to rvalue-ref
+static_assert(applicable_recover<decltype(fn_Error<int>), expected<int, Error>>);
+static_assert(applicable_recover<decltype(fn_Error<unsigned>), expected<int, Error>>);    // conversion to value is enough
+static_assert(not applicable_recover<decltype(fn_Error<Value>), expected<int, Error>>);   // no conversion found
+static_assert(not applicable_recover<decltype(fn_nullary<int>), expected<int, Error>>);   // bad arity
+static_assert(applicable_recover<decltype(fn_generic<int>), expected<int, Error>>);
+static_assert(applicable_recover<decltype(fn_Error<void>), expected<void, Error>>);       // a void value wants void back
+static_assert(not applicable_recover<decltype(fn_Error<int>), expected<void, Error>>);    // never quietly discard a result
+static_assert(applicable_recover<decltype(fn_nullary<int>), optional<int>>);              // optional has no error: nullary
+static_assert(not applicable_recover<decltype(fn_Error<int>), optional<int>>);            // bad arity
+static_assert(not applicable_recover<decltype(fn_generic<int>), choice<int>>);            // no choice disjunct
+static_assert(not applicable_recover<decltype(fn_Error_lvalue), expected<int, Error>>);   // cannot bind temporary to lvalue
+static_assert(applicable_recover<decltype(fn_Error_lvalue), expected<int, Error> &>);
+static_assert(applicable_recover<decltype(fn_Error_rvalue), expected<int, Error>>);
+static_assert(not applicable_recover<decltype(fn_Error_rvalue), expected<int, Error> &>); // cannot bind lvalue to rvalue-ref
 // clang-format on
 } // namespace fn

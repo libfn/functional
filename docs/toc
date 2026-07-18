@@ -28,7 +28,7 @@ choice
     transform
 pack
     index
-sum
+copack
     index
 ci
     index

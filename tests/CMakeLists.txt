@@ -47,8 +47,10 @@ endforeach()
 set(TESTS_PFN_SOURCES
     pfn/expected.cpp
     pfn/optional.cpp
+    pfn/tuple.cpp
     pfn/expected_validation.cpp
     pfn/optional_validation.cpp
+    pfn/tuple_validation.cpp
     pfn/functional.cpp
     pfn/utility.cpp
 )
@@ -108,6 +110,7 @@ set(TESTS_FN_SOURCES
     fn/and_then.cpp
     fn/choice.cpp
     fn/concepts.cpp
+    fn/copack.cpp
     fn/discard.cpp
     fn/expected.cpp
     fn/expected_polyfill.cpp
@@ -122,7 +125,6 @@ set(TESTS_FN_SOURCES
     fn/or_else.cpp
     fn/pack.cpp
     fn/recover.cpp
-    fn/sum.cpp
     fn/transform_error.cpp
     fn/transform.cpp
     fn/utility.cpp

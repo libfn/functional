@@ -5,7 +5,7 @@
 
 // Run the whole pfn polyfill conformance suite against fn::optional. Bring the
 // subject-under-test aliases into the global namespace, then include pfn/optional.cpp.
-// The fn::optional sum/graded/pack behaviour is covered in fn/optional.cpp.
+// The fn::optional copack/graded/pack behaviour is covered in fn/optional.cpp.
 
 #include <fn/optional.hpp>
 

@@ -26,16 +26,16 @@
 
 namespace calc {
 
-// A number is a long or a double, selected by the input's spelling — a type-indexed sum
-using Number = fn::sum<double, long>;
+// A number is a long or a double, selected by the input's spelling — a type-indexed copack
+using Number = fn::copack<double, long>;
 using Stack = std::vector<Number>;
 
 enum class ParseError { UnknownToken };
 enum class StackError { NotEnoughOperands };
 enum class MathError { DivisionByZero, NotIntegral, Overflow };
 
-// Each step contributes its own error type; the API exposes their sum
-using Error = fn::sum<MathError, ParseError, StackError>;
+// Each step contributes its own error type; the API exposes their copack
+using Error = fn::copack<MathError, ParseError, StackError>;
 using Result = fn::expected<Stack, Error>;
 
 // An operation is a tiny struct: argument_count says how many operands it pops. A parsed number is
@@ -68,7 +68,7 @@ struct Sub {
 struct Swap {
   static constexpr int argument_count = 2;
 };
-using Operation = fn::sum<Add, Div, Drop, Dup, Mod, Mul, Push, Sub, Swap>;
+using Operation = fn::copack<Add, Div, Drop, Dup, Mod, Mul, Push, Sub, Swap>;
 
 // "42", "052" and "0x2a" are long, "2.5", "1e-3" and ".5" are double; a long overflow promotes to
 // double, while a double overflow — like the "inf" and "nan" spellings strtod accepts — is no number here
@@ -117,19 +117,19 @@ inline auto pop(Stack &s) -> fn::expected<Number, StackError>
 }
 
 // What an operation pushes back — zero, one or two numbers — or its typed failure
-using Results = fn::expected<fn::sum_for<fn::pack<>,                                      //
-                                         decltype(fn::pack<>{} & std::declval<Number>()), //
-                                         decltype(std::declval<Number>() & std::declval<Number>())>,
+using Results = fn::expected<fn::copack_for<fn::pack<>,                                      //
+                                            decltype(fn::pack<>{} & std::declval<Number>()), //
+                                            decltype(std::declval<Number>() & std::declval<Number>())>,
                              MathError>;
 
-// How: `&` concatenates operands into packs, distributing sum alternatives — two Numbers form the
-// 2×2 cartesian sum of packs — and sum_for absorbs nested sums into one normalized alternative
+// How: `&` concatenates operands into packs, distributing copack alternatives — two Numbers form the
+// 2×2 cartesian copack of packs — and copack_for absorbs nested copacks into one normalized alternative
 // list; fully distributed, the deduction above is exactly:
 static_assert(
-    std::is_same_v<Results,
-                   fn::expected<fn::sum_for<fn::pack<>, fn::pack<long>, fn::pack<double>, fn::pack<long, long>,
-                                            fn::pack<double, long>, fn::pack<long, double>, fn::pack<double, double>>,
-                                MathError>>);
+    std::is_same_v<
+        Results, fn::expected<fn::copack_for<fn::pack<>, fn::pack<long>, fn::pack<double>, fn::pack<long, long>,
+                                             fn::pack<double, long>, fn::pack<long, double>, fn::pack<double, double>>,
+                              MathError>>);
 
 constexpr inline long minimum = std::numeric_limits<long>::min();
 constexpr inline long maximum = std::numeric_limits<long>::max();
@@ -206,10 +206,10 @@ constexpr inline auto execute = fn::overload{
     [](auto x, Dup) -> Results { return {fn::pack<decltype(x), decltype(x)>{x, x}}; },
     [](auto, Drop) -> Results { return {fn::pack<>{}}; },
     // a Push carries a runtime Number; one more dispatch unwraps it into a raw pack
-    [](Push p) -> Results { return p.value.invoke([](auto v) -> Results { return {fn::pack<decltype(v)>{v}}; }); }};
+    [](Push p) -> Results { return p.value.apply([](auto v) -> Results { return {fn::pack<decltype(v)>{v}}; }); }};
 
 // One token = one step: look the operation up, pop as many operands as it declares (folding them and
-// the operation itself into one cartesian sum of packs), execute the matching arm, store what it returns
+// the operation itself into one cartesian copack of packs), execute the matching arm, store what it returns
 inline auto step(Stack s, std::string const &token) -> Result
 {
   auto const store = [&s](auto &&...args) -> fn::expected<Stack, MathError> {
@@ -218,23 +218,23 @@ inline auto step(Stack s, std::string const &token) -> Result
     return {std::move(s)};
   };
 
-  return (fn::expected<void, fn::sum<>>{} & lookup(token)) //
+  return (fn::expected<void, fn::copack<>>{} & lookup(token)) //
          | fn::and_then([&s, &store](auto op) -> Result {
-             // the operation itself cannot fail — sum<> is the empty set of errors
-             using loaded = fn::expected<decltype(op), fn::sum<>>;
+             // the operation itself cannot fail — copack<> is the empty set of errors
+             using loaded = fn::expected<decltype(op), fn::copack<>>;
              constexpr int take = decltype(op)::argument_count;
              if constexpr (take == 0)
                return execute(op) | fn::and_then(store);
              else if constexpr (take == 1)
-               return (fn::expected<void, fn::sum<>>{} & pop(s) & loaded{op}) //
-                      | fn::and_then(execute)                                 //
+               return (fn::expected<void, fn::copack<>>{} & pop(s) & loaded{op}) //
+                      | fn::and_then(execute)                                    //
                       | fn::and_then(store);
              else {
                static_assert(decltype(op)::argument_count == 2);
                auto rhs = pop(s); // popped before lhs: in `2 1 -` the top of the stack, 1, is the right operand
                auto lhs = pop(s);
-               return (fn::expected<void, fn::sum<>>{} & std::move(lhs) & std::move(rhs) & loaded{op}) //
-                      | fn::and_then(execute)                                                          //
+               return (fn::expected<void, fn::copack<>>{} & std::move(lhs) & std::move(rhs) & loaded{op}) //
+                      | fn::and_then(execute)                                                             //
                       | fn::and_then(store);
              }
            });

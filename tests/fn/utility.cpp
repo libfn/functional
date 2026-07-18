@@ -120,7 +120,7 @@ TEST_CASE("overload", "[overload]")
   static_assert(not can_call(fn::overload{[](int) {}})); // missing void overload
 
   // noexcept follows the alternative that overload resolution actually picks, rather than being
-  // flattened across them - the accuracy the verbs and sum do not manage
+  // flattened across them - the accuracy the verbs and copack do not manage
   constexpr auto mixed = fn::overload{[](int) noexcept -> int { return 1; }, //
                                       [](double) -> int { return 2; }};
   static_assert(noexcept(mixed(1)));
@@ -191,7 +191,7 @@ TEST_CASE("make lift", "[make]")
     static_assert(not can_make<Agg, int, int>);     // too many initialisers
 
     // make carries no noexcept specifier, so it reports potentially-throwing even where the
-    // construction cannot throw - the same converse accuracy gap as the as_sum and as_pack lifts.
+    // construction cannot throw - the same converse accuracy gap as the as_copack and as_pack lifts.
     static_assert(std::is_nothrow_constructible_v<int, int>);
     static_assert(not noexcept(fn::make<int>(12))); // brace overload
     static_assert(std::is_nothrow_constructible_v<ParenOnly, int>);

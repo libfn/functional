@@ -457,7 +457,7 @@ TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform
                                         [](std::nullopt_t const &) { return nullptr; }, //
                                         [](auto &i) { return FWD(i); }})
            // ... and add a new type
-           | fn::transform(fn::overload{[](double v) -> fn::sum<double, int> {
+           | fn::transform(fn::overload{[](double v) -> fn::copack<double, int> {
                                           if (std::ceil(v) == v && v >= -2e9 && v <= 2e9) {
                                             return {static_cast<int>(v)};
                                           }
@@ -501,7 +501,7 @@ TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform
   enum NetworkError { ConnectError, ProtocolError, Unknown };
 
   static constexpr auto convert = []<typename T>(std::in_place_type_t<T>, std::string_view v) {
-    return parse(v).invoke([](auto &&v) -> fn::expected<T, InputError> {
+    return parse(v).apply([](auto &&v) -> fn::expected<T, InputError> {
       if constexpr (std::is_same_v<std::decay_t<decltype(v)>, T>) {
         return {FWD(v)};
       } else
@@ -512,15 +512,16 @@ TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform
   static constexpr auto fn2 = [](std::string_view configuration, std::string_view hostname, std::string_view port,
                                  std::string_view filename, std::string_view threshold,
                                  std::string_view test_name = "") {
-    return (fn::expected<void, fn::sum<>>() //
+    return (fn::expected<void, fn::copack<>>() //
             & ([](std::string_view configuration, std::string_view test_name) {
-                using type = fn::expected<
-                    fn::sum<fn::pack<std::type_identity<ConfigTest>, std::string_view>, std::type_identity<ConfigProd>>,
-                    InputError>;
+                using type = fn::expected<fn::copack<fn::pack<std::type_identity<ConfigTest>, std::string_view>,
+                                                     std::type_identity<ConfigProd>>,
+                                          InputError>;
                 if (configuration == "prod")
-                  return type{std::in_place, fn::sum{std::type_identity<ConfigProd>{}}};
+                  return type{std::in_place, fn::copack{std::type_identity<ConfigProd>{}}};
                 else if (configuration == "test")
-                  return type{std::in_place, fn::sum{fn::pack{std::type_identity<ConfigTest>{}, std::move(test_name)}}};
+                  return type{std::in_place,
+                              fn::copack{fn::pack{std::type_identity<ConfigTest>{}, std::move(test_name)}}};
                 else
                   return type{::fn::unexpect, InvalidConfiguration};
               })(configuration, test_name)                            //
@@ -544,7 +545,7 @@ TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform
                                                 .threshold = tshold,
                                                 .test_name = std::string{test_name}};
                             }})
-           | fn::and_then([](auto &&config) -> fn::expected<fn::sum<ConfigProd, ConfigTest>, ConfigError> {
+           | fn::and_then([](auto &&config) -> fn::expected<fn::copack<ConfigProd, ConfigTest>, ConfigError> {
                if (config.hostname.size() < 3 || config.hostname.size() > 127
                    || config.hostname.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789.")
                           != std::string_view::npos
@@ -575,21 +576,22 @@ TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform
   };
 
   auto const b = fn2("prod", "123", "1024", "'file.txt'", "0.5"); // 123 is not valid hostname
-  static_assert(std::is_same_v<decltype(b), fn::expected<int, fn::sum<ConfigError, InputError, NetworkError>> const>);
-  CHECK(b.error() == fn::sum{InvalidType});
-  CHECK(fn2("foobar", "'localhost'", "1024", "'file.txt'", "0.5").error() == fn::sum{InvalidConfiguration});
-  CHECK(fn2("test", "123", "1024", "'file.txt'", "-1.0").error() == fn::sum{InvalidType});
-  CHECK(fn2("test", "'localhost'", "0", "'file.txt'", "-1.0", "foo").error() == fn::sum{InvalidPort});
-  CHECK(fn2("prod", "'localhost'", "'foo'", "'file.txt'", "0.5").error() == fn::sum{InvalidType});
-  CHECK(fn2("prod", "'..'", "0", "''", "0").error() == fn::sum{InvalidType}); // 0 is not a double
-  CHECK(fn2("prod", "'..'", "1024", "'file.txt'", "0.5").error() == fn::sum{InvalidHostname});
-  CHECK(fn2("prod", "'..'", "0", "''", "0.5").error() == fn::sum{InvalidHostname}); // hostname is bound first
-  CHECK(fn2("prod", "'localhost'", "0", "'file.txt'", "0.5").error() == fn::sum{InvalidPort});
-  CHECK(fn2("prod", "'localhost'", "1024", "''", "0.5").error() == fn::sum{InvalidFilename});
-  CHECK(fn2("prod", "'localhost'", "1024", "'file.txt'", "-1.0").error() == fn::sum{InvalidThreshold});
-  CHECK(fn2("test", "'localhost'", "1024", "'file.txt'", "1.0").error() == fn::sum{InvalidTest});
-  CHECK(fn2("test", "'localhost'", "1024", "'file.txt'", "1.0", "bar").error() == fn::sum{InvalidTest});
-  CHECK(fn2("prod", "'localhost'", "1023", "'file.txt'", "0.5").error() == fn::sum{ConnectError});
+  static_assert(
+      std::is_same_v<decltype(b), fn::expected<int, fn::copack<ConfigError, InputError, NetworkError>> const>);
+  CHECK(b.error() == fn::copack{InvalidType});
+  CHECK(fn2("foobar", "'localhost'", "1024", "'file.txt'", "0.5").error() == fn::copack{InvalidConfiguration});
+  CHECK(fn2("test", "123", "1024", "'file.txt'", "-1.0").error() == fn::copack{InvalidType});
+  CHECK(fn2("test", "'localhost'", "0", "'file.txt'", "-1.0", "foo").error() == fn::copack{InvalidPort});
+  CHECK(fn2("prod", "'localhost'", "'foo'", "'file.txt'", "0.5").error() == fn::copack{InvalidType});
+  CHECK(fn2("prod", "'..'", "0", "''", "0").error() == fn::copack{InvalidType}); // 0 is not a double
+  CHECK(fn2("prod", "'..'", "1024", "'file.txt'", "0.5").error() == fn::copack{InvalidHostname});
+  CHECK(fn2("prod", "'..'", "0", "''", "0.5").error() == fn::copack{InvalidHostname}); // hostname is bound first
+  CHECK(fn2("prod", "'localhost'", "0", "'file.txt'", "0.5").error() == fn::copack{InvalidPort});
+  CHECK(fn2("prod", "'localhost'", "1024", "''", "0.5").error() == fn::copack{InvalidFilename});
+  CHECK(fn2("prod", "'localhost'", "1024", "'file.txt'", "-1.0").error() == fn::copack{InvalidThreshold});
+  CHECK(fn2("test", "'localhost'", "1024", "'file.txt'", "1.0").error() == fn::copack{InvalidTest});
+  CHECK(fn2("test", "'localhost'", "1024", "'file.txt'", "1.0", "bar").error() == fn::copack{InvalidTest});
+  CHECK(fn2("prod", "'localhost'", "1023", "'file.txt'", "0.5").error() == fn::copack{ConnectError});
   CHECK(fn2("prod", "'localhost'", "1024", "'file.txt'", "0.5").value() == 0x50eda7a);              // dummy result
   CHECK(fn2("test", "'localhost'", "1024", "'file.txt'", "0.5", "foo").value() == (0x31eda7a + 3)); // dummy result
 }
