@@ -120,8 +120,6 @@ jobs:
           - Release
         compiler:
           - name: appleclang
-            osver: 14
-          - name: appleclang
             osver: 15
           - name: appleclang
             osver: 26

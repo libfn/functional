@@ -50,7 +50,7 @@ TEST_CASE("discard", "[discard][expected][expected_value]")
 
     SECTION("error")
     {
-      operand_t a{::fn::unexpect, Error{"Not good"}};
+      operand_t a{::fn::unexpect, "Not good"};
       a | discard();
 
       REQUIRE(a.error().what == "Not good");
@@ -67,7 +67,7 @@ TEST_CASE("discard", "[discard][expected][expected_value]")
 
     SECTION("error")
     {
-      operand_t{::fn::unexpect, Error{"Not good"}} | discard();
+      operand_t{::fn::unexpect, "Not good"} | discard();
       SUCCEED();
     }
   }
@@ -110,7 +110,7 @@ TEST_CASE("discard with pack", "[discard][expected][expected_value][pack]")
 
   SECTION("error")
   {
-    operand_t b{::fn::unexpect, Error{"Pack error"}};
+    operand_t b{::fn::unexpect, "Pack error"};
     b | discard();
 
     REQUIRE(b.error().what == "Pack error");
@@ -139,7 +139,7 @@ TEST_CASE("discard", "[discard][expected][expected_void]")
 
     SECTION("error")
     {
-      operand_t a{::fn::unexpect, Error{"Not good"}};
+      operand_t a{::fn::unexpect, "Not good"};
       a | discard();
 
       REQUIRE(a.error().what == "Not good");
@@ -156,7 +156,7 @@ TEST_CASE("discard", "[discard][expected][expected_void]")
 
     SECTION("error")
     {
-      operand_t{::fn::unexpect, Error{"Not good"}} | discard();
+      operand_t{::fn::unexpect, "Not good"} | discard();
       SUCCEED();
     }
   }
