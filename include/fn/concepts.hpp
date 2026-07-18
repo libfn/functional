@@ -9,6 +9,7 @@
 #include <fn/choice.hpp>
 #include <fn/copack.hpp>
 #include <fn/expected.hpp>
+#include <fn/just.hpp>
 #include <fn/monadic.hpp>
 #include <fn/optional.hpp>
 
@@ -52,7 +53,8 @@ concept same_kind
       || (some_expected<T> && some_copack<typename ::std::remove_cvref_t<T>::error_type> //
           && some_expected<U> && some_copack<typename ::std::remove_cvref_t<U>::error_type>)
       || (some_optional<T> && some_optional<U>) //
-      || (some_choice<T> && some_choice<U>);
+      || (some_choice<T> && some_choice<U>)     //
+      || (some_just<T> && some_just<U>);
 
 /**
  * @brief TODO
@@ -127,6 +129,20 @@ concept convertible_to_optional
 template <class T>
 concept convertible_to_choice
     = (not ::std::is_void_v<T>) && requires { static_cast<choice<::std::remove_cvref_t<T>>>(::std::declval<T>()); };
+
+/**
+ * @brief Checks if a type is an identity carrier - a monad which never short-circuits
+ *
+ * The equivalence class of the family's unit: `choice` (no error channel at all), `just` (the
+ * canonical minimal carrier) and an `expected` whose error is the empty copack (a channel that
+ * can never engage). Binding across the cluster is lossless exactly because the channels a
+ * carrier switch drops are uninhabited.
+ *
+ * @tparam T Type to check, possibly cv-ref qualified
+ */
+template <typename T>
+concept some_identity = some_choice<T> || some_just<T>
+                        || (some_expected<T> && empty_copack<typename ::std::remove_cvref_t<T>::error_type>);
 
 /**
  * @brief TODO

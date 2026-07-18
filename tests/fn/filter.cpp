@@ -697,6 +697,21 @@ TEST_CASE("filter constraints", "[filter][constraints]")
   SUCCEED();
 }
 
+TEST_CASE("filter identity expected", "[filter][expected][copack]")
+{
+  // the whole identity cluster is refused: an identity carrier cannot reject a value - choice and
+  // just have no error channel, and the identity expected has no error to fail into
+  constexpr auto keep = [](auto const &) -> bool { return true; };
+  constexpr auto on_err = [](auto const &) -> int { return 1; };
+  static_assert(
+      monadic_static_check<fn::filter_t, fn::expected<int, fn::copack<>>>::not_invocable_with_any(keep, on_err));
+  static_assert(monadic_static_check<fn::filter_t, fn::expected<void, fn::copack<>>>::not_invocable_with_any(
+      [] { return true; }, [] { return 1; }));
+  static_assert(monadic_static_check<fn::filter_t, fn::just<int>>::not_invocable_with_any(keep, on_err));
+  static_assert(monadic_static_check<fn::filter_t, fn::choice<int>>::not_invocable_with_any(keep, on_err));
+  SUCCEED();
+}
+
 namespace fn {
 namespace {
 struct Error {};
@@ -724,5 +739,6 @@ static_assert(applicable_filter<decltype(pred_int), void, optional<int>>);
 static_assert(not applicable_filter<decltype(pred_int), decltype(err_int<Error>), optional<int>>);
 static_assert(not applicable_filter<decltype(pred_int), void, optional<Value>>);                               // wrong parameter type
 static_assert(not applicable_filter<decltype(pred_int), void, choice<int>>);                                   // no choice disjunct
+static_assert(not applicable_filter<decltype(pred_int), decltype(err_int<Error>), expected<int, copack<>>>);   // nothing converts into the uninhabited error
 // clang-format on
 } // namespace fn

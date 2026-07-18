@@ -73,13 +73,28 @@ struct or_else_t::apply final {
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //
       noexcept(noexcept(FWD(v).or_else(FWD(fn))))               //
       -> same_value_kind<V &&> auto
-    requires applicable_or_else<Fn &&, V &&>
+    requires(not some_identity<V>) && applicable_or_else<Fn &&, V &&>
   {
     return FWD(v).or_else(FWD(fn));
   }
 
-  // No support for choice since there's no error to recover from
-  auto operator()(some_choice auto &&v, auto &&...args) const noexcept = delete;
+  /**
+   * @brief TODO
+   *
+   * @param v TODO
+   * @param fn TODO
+   * @return TODO
+   */
+  // An identity expected's error side is uninhabited - delegate to the vacuous member, which
+  // accepts any callback and never instantiates it
+  template <some_expected V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //
+      noexcept(noexcept(FWD(v).or_else(FWD(fn))))               //
+      -> same_value_kind<V &&> auto
+    requires some_identity<V>
+  {
+    return FWD(v).or_else(FWD(fn));
+  }
 };
 
 } // namespace fn

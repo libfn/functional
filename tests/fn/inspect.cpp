@@ -435,6 +435,86 @@ TEST_CASE("inspect choice", "[inspect][choice]")
   CHECK(value == 12);
 }
 
+TEST_CASE("inspect just", "[inspect][just]")
+{
+  using namespace fn;
+
+  using operand_t = fn::just<int>;
+  using is = monadic_static_check<inspect_t, operand_t>;
+
+  static_assert(is::invocable_with_any([](auto) -> void {}));
+  static_assert(is::invocable_with_any([](auto...) -> void {}));           // allow generic call
+  static_assert(is::invocable_with_any([](int) -> void {}));               // allow copy
+  static_assert(is::invocable_with_any([](unsigned) -> void {}));          // allow conversion
+  static_assert(is::invocable_with_any([](int const &) -> void {}));       // binds to const ref
+  static_assert(is::not_invocable_with_any([](int &) -> void {}));         // cannot bind lvalue
+  static_assert(is::not_invocable_with_any([](int &&) -> void {}));        // cannot move
+  static_assert(is::not_invocable_with_any([](int) -> int { return 0; })); // bad return type
+  static_assert(is::not_invocable_with_any([](std::string) -> void {}));   // bad type
+  static_assert(is::not_invocable_with_any([]() -> void {}));              // bad arity
+  static_assert(is::not_invocable_with_any([](int, int) -> void {}));      // bad arity
+
+  int value = 0;
+  auto fnValue = [&value](int const &i) { value += i; };
+
+  operand_t a{12};
+  using T = decltype(a | inspect(fnValue));
+  static_assert(std::is_same_v<T, operand_t &>);
+  REQUIRE((a | inspect(fnValue)).value() == 12);
+  CHECK(value == 12);
+
+  SECTION("constexpr")
+  {
+    constexpr auto fn = [](int) constexpr noexcept -> void {};
+    constexpr auto r1 = operand_t{12} | fn::inspect(fn);
+    static_assert(r1.value() == 12);
+    static_assert([] {
+      int seen = 0;
+      (void)(operand_t{12} | fn::inspect([&seen](int const &i) { seen += i; }));
+      return seen;
+    }() == 12);
+
+    SUCCEED();
+  }
+}
+
+TEST_CASE("inspect void just", "[inspect][just]")
+{
+  using namespace fn;
+
+  using operand_t = fn::just<void>;
+  using is = monadic_static_check<inspect_t, operand_t>;
+
+  static_assert(is::invocable_with_any([]() -> void {}));
+  static_assert(is::invocable_with_any([](auto...) -> void {}));        // allow generic call
+  static_assert(is::not_invocable_with_any([](auto) -> void {}));       // bad arity
+  static_assert(is::not_invocable_with_any([](int) -> void {}));        // bad arity
+  static_assert(is::not_invocable_with_any([]() -> int { return 0; })); // bad return type
+
+  int count = 0;
+  auto fnCount = [&count]() { count += 1; };
+
+  operand_t a{};
+  using T = decltype(a | inspect(fnCount));
+  static_assert(std::is_same_v<T, operand_t &>);
+  REQUIRE((a | inspect(fnCount)) == operand_t{});
+  CHECK(count == 1);
+
+  SECTION("constexpr")
+  {
+    constexpr auto fn = []() constexpr noexcept -> void {};
+    constexpr auto r1 = operand_t{} | fn::inspect(fn);
+    static_assert(r1 == operand_t{});
+    static_assert([] {
+      int seen = 0;
+      (void)(operand_t{} | fn::inspect([&seen] { seen += 7; }));
+      return seen;
+    }() == 7);
+
+    SUCCEED();
+  }
+}
+
 TEST_CASE("inspect noexcept", "[inspect][noexcept]")
 {
   using namespace fn;
@@ -444,7 +524,7 @@ TEST_CASE("inspect noexcept", "[inspect][noexcept]")
   static_assert(not noexcept(fnThrows(1)));
 
   // inspect has no monadic member to delegate to - its apply IS the implementation, invoking the
-  // callback itself (inspect.hpp:61-69). So there was never a spec for it to propagate: it computes
+  // callback itself (inspect.hpp:68-77). So there was never a spec for it to propagate: it computes
   // one, from the callback it is about to apply.
   //
   // One test case for every monad, not one each: nothing here differs between them, because no
@@ -462,6 +542,10 @@ TEST_CASE("inspect noexcept", "[inspect][noexcept]")
   static_assert(not noexcept(std::declval<E &>() | fn::inspect([](int) {})));
   static_assert(noexcept(std::declval<O &>() | fn::inspect([](int) noexcept {})));
   static_assert(not noexcept(std::declval<O &>() | fn::inspect([](int) {})));
+  static_assert(noexcept(std::declval<fn::just<int> &>() | fn::inspect([](int) noexcept {})));
+  static_assert(not noexcept(std::declval<fn::just<int> &>() | fn::inspect([](int) {})));
+  static_assert(noexcept(std::declval<fn::just<void> &>() | fn::inspect([]() noexcept {})));
+  static_assert(not noexcept(std::declval<fn::just<void> &>() | fn::inspect([] {})));
 
   // the operand is returned unchanged, so only the callback can throw - not the accessor, which
   // the body only reaches when there is a value
@@ -495,6 +579,17 @@ static_assert(applicable_inspect<decltype(fn_int<void>), expected<unsigned, Xerr
 static_assert(not applicable_inspect<decltype(fn_int<void>), expected<Value, Error>>); // wrong parameter type
 static_assert(applicable_inspect<decltype(fn_generic<void>), optional<int>>);
 static_assert(not applicable_inspect<decltype(fn_generic<int>), optional<Value>>); // wrong return type
+static_assert(applicable_inspect<decltype(fn_int<void>), just<int>>);
+static_assert(not applicable_inspect<decltype(fn_int<int>), just<int>>);    // wrong return type
+static_assert(not applicable_inspect<decltype(fn_int<void>), just<Value>>); // wrong parameter type
+static_assert(applicable_inspect<decltype(fn_generic<void>), just<void>>);
+static_assert(not applicable_inspect<decltype(fn_generic<int>), just<void>>); // wrong return type
+static_assert(not applicable_inspect<decltype(fn_int<void>), just<void>>);    // bad arity
+static_assert(applicable_inspect<decltype(fn_int_const_lvalue), just<int>>);
+static_assert(not applicable_inspect<decltype(fn_int_lvalue), just<int>>); // cannot bind lvalue
+
+// expected-at-bottom needs no leg of its own - a value-side verb reaches it through the expected leg
+static_assert(applicable_inspect<decltype(fn_int<void>), expected<int, copack<>>>);
 
 // binding to const lvalue-ref
 static_assert(applicable_inspect<decltype(fn_int_const_lvalue), expected<int, Error>>);

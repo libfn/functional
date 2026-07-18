@@ -80,7 +80,7 @@ struct recover_t::apply final {
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t,
                                                ::fn::apply_result_t<Fn, decltype(FWD(v).error())>>)
           -> ::std::remove_cvref_t<V>
-    requires applicable_recover<Fn &&, V &&>
+    requires(not some_identity<V>) && applicable_recover<Fn &&, V &&>
   {
     using type = ::std::remove_cvref_t<V>;
     if (v.has_value()) {
@@ -101,7 +101,7 @@ struct recover_t::apply final {
       noexcept(::fn::is_nothrow_applicable_v<Fn, decltype(FWD(v).error())>
                && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t>)
           -> ::std::remove_cvref_t<V>
-    requires applicable_recover<Fn &&, V &&>
+    requires(not some_identity<V>) && applicable_recover<Fn &&, V &&>
   {
     using type = ::std::remove_cvref_t<V>;
     if (v.has_value()) {
@@ -109,6 +109,21 @@ struct recover_t::apply final {
     }
     ::fn::apply(FWD(fn), FWD(v).error()); // side-effects only
     return type{::std::in_place};
+  }
+
+  /**
+   * @brief TODO
+   *
+   * @param v TODO
+   * @return TODO
+   */
+  // An identity expected has nothing to recover from - the input passes through and the callback
+  // is never instantiated
+  template <some_expected V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&) const noexcept -> V &&
+    requires some_identity<V>
+  {
+    return FWD(v);
   }
 
   /**
@@ -133,9 +148,6 @@ struct recover_t::apply final {
     }
     return type{::std::in_place, ::fn::apply(FWD(fn))};
   }
-
-  // No support for choice since there's no error to recover from
-  auto operator()(some_choice auto &&v, auto &&...args) const noexcept = delete;
 };
 
 } // namespace fn

@@ -68,7 +68,9 @@ struct fail_t::apply final {
                                                ::fn::apply_result_t<Fn, decltype(FWD(v).value())>>
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::fn::unexpect_t, decltype(FWD(v).error())>)
           -> ::std::remove_cvref_t<V>
-    requires applicable_fail<Fn &&, V &&>
+      // An identity expected cannot fail - there is no error to fail into - so the refusal is
+      // stated, not left to the impossible conversion
+    requires(not some_identity<V>) && applicable_fail<Fn &&, V &&>
   {
     using type = ::std::remove_cvref_t<V>;
     if (v.has_value()) {
@@ -91,7 +93,7 @@ struct fail_t::apply final {
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::fn::unexpect_t, ::fn::apply_result_t<Fn>>
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::fn::unexpect_t, decltype(FWD(v).error())>)
           -> ::std::remove_cvref_t<V>
-    requires applicable_fail<Fn &&, V &&>
+    requires(not some_identity<V>) && applicable_fail<Fn &&, V &&>
   {
     using type = ::std::remove_cvref_t<V>;
     if (v.has_value()) {
@@ -120,9 +122,6 @@ struct fail_t::apply final {
     }
     return type{::std::nullopt};
   }
-
-  // No support for choice since there's no error to operate on
-  auto operator()(some_choice auto &&v, auto &&...args) const noexcept = delete;
 };
 
 } // namespace fn

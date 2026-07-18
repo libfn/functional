@@ -120,6 +120,7 @@ set(TESTS_FN_SOURCES
     fn/functor.cpp
     fn/inspect_error.cpp
     fn/inspect.cpp
+    fn/just.cpp
     fn/optional.cpp
     fn/optional_polyfill.cpp
     fn/or_else.cpp

@@ -97,7 +97,9 @@ struct filter_t::apply final {
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::fn::unexpect_t,
                                                ::fn::apply_result_t<OnErr, decltype(FWD(v).value())>>
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, V>) -> ::std::remove_cvref_t<V>
-    requires applicable_filter<Pred &&, OnErr &&, V &&>
+      // An identity expected cannot reject a value - there is no error to fail into - so the refusal
+      // is stated, not left to the impossible conversion
+    requires(not some_identity<V>) && applicable_filter<Pred &&, OnErr &&, V &&>
   {
     using type = ::std::remove_cvref_t<V>;
     if (::std::as_const(v).has_value()) {
@@ -123,7 +125,7 @@ struct filter_t::apply final {
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t>
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::fn::unexpect_t, ::fn::apply_result_t<OnErr>>
           && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, V>) -> ::std::remove_cvref_t<V>
-    requires applicable_filter<Pred &&, OnErr &&, V &&>
+    requires(not some_identity<V>) && applicable_filter<Pred &&, OnErr &&, V &&>
   {
     using type = ::std::remove_cvref_t<V>;
     if (::std::as_const(v).has_value()) {
@@ -158,9 +160,6 @@ struct filter_t::apply final {
     }
     return FWD(v);
   }
-
-  // No support for choice since there's no error to operate on
-  auto operator()(some_choice auto &&v, auto &&...args) const noexcept = delete;
 };
 
 } // namespace fn

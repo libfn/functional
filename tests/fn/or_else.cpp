@@ -33,6 +33,12 @@ int Error::count = 0;
 struct Xerror final {
   std::string what;
 };
+
+// Instantiating this callable for any argument is a dependent hard error: a verb that compiles
+// while receiving it provably never instantiates its callback.
+struct Poison final {
+  template <typename T> constexpr void operator()(T &&) const { static_assert(sizeof(T) == 0); }
+};
 } // namespace
 
 TEST_CASE("or_else", "[or_else][expected][expected_value]")
@@ -543,6 +549,25 @@ TEST_CASE("or_else noexcept", "[or_else][optional][noexcept]")
   SUCCEED();
 }
 
+TEST_CASE("or_else identity expected", "[or_else][expected][copack]")
+{
+  using operand_t = fn::expected<int, fn::copack<>>;
+
+  // the error side is uninhabited: a dedicated arm delegates to the vacuous member, which accepts
+  // any callback and never instantiates it; just and choice stay excluded
+  static_assert(monadic_static_check<fn::or_else_t, operand_t>::invocable_with_any(Poison{}));
+  static_assert(monadic_static_check<fn::or_else_t, fn::just<int>>::not_invocable_with_any(Poison{}));
+  static_assert(monadic_static_check<fn::or_else_t, fn::choice<int>>::not_invocable_with_any(Poison{}));
+
+  operand_t a{5};
+  auto r1 = a | fn::or_else(Poison{});
+  static_assert(std::is_same_v<decltype(r1), operand_t>);
+  CHECK(r1.value() == 5);
+  auto r2 = operand_t{7} | fn::or_else(Poison{});
+  CHECK(r2.value() == 7);
+  static_assert((operand_t{5} | fn::or_else(Poison{})).value() == 5);
+}
+
 namespace fn {
 namespace {
 struct Error {};
@@ -577,5 +602,8 @@ static_assert(not applicable_or_else<decltype(fn_int_lvalue<expected<int, int>>)
 static_assert(applicable_or_else<decltype(fn_int_lvalue<expected<int, int>>), expected<int, int> &>);
 static_assert(applicable_or_else<decltype(fn_int_rvalue<expected<int, int>>), expected<int, int>>);
 static_assert(not applicable_or_else<decltype(fn_int_rvalue<expected<int, int>>), expected<int, int> &>); // cannot bind lvalue to rvalue-ref
+
+// at an uninhabited error side the concept stays false - the dedicated arm, not the concept, admits the operand
+static_assert(not applicable_or_else<decltype(fn_generic<expected<Value, copack<>>>), expected<Value, copack<>>>);
 // clang-format on
 } // namespace fn

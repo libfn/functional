@@ -51,6 +51,16 @@ template <typename T>
 concept _some_choice = _is_some_choice<T &>;
 } // namespace detail
 
+// identity carrier (Just a)
+template <typename T> struct just;
+namespace detail {
+template <typename T> constexpr bool _is_some_just = false;
+template <typename T> constexpr bool _is_some_just<::fn::just<T> &> = true;
+template <typename T> constexpr bool _is_some_just<::fn::just<T> const &> = true;
+template <typename T>
+concept _some_just = _is_some_just<T &>;
+} // namespace detail
+
 // product of types
 template <typename... Ts> struct pack;
 namespace detail {
