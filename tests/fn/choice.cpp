@@ -902,8 +902,13 @@ TEST_CASE("choice and_then", "[choice][and_then]")
     CHECK(J{A{}}.and_then(fnOverlap) == fn::choice_for<U, V, W>{U{}});
     CHECK(J{B{}}.and_then(fnOverlap) == fn::choice_for<U, V, W>{W{}});
 
-    static_assert(J{A{}}.and_then(fnJoin) == fn::choice_for<U, V, W>{U{}});
-    static_assert(J{B{}}.and_then(fnOverlap) == fn::choice_for<U, V, W>{W{}});
+    // constexpr twins dispatch from named sources: VS 2022's MSVC (observed through 19.44)
+    // misreads the union's empty-class member as uninitialized when the source is a prvalue
+    // materialized mid-expression - independent of the join, apply's select path trips the same way
+    constexpr J ca{A{}};
+    constexpr J cb{B{}};
+    static_assert(ca.and_then(fnJoin) == fn::choice_for<U, V, W>{U{}});
+    static_assert(std::move(cb).and_then(fnOverlap) == fn::choice_for<U, V, W>{W{}});
 
     // noexcept: the callback and the widening arms both weigh in
     constexpr auto fnNothrow = fn::overload{[](A) noexcept { return fn::choice<U>{U{}}; }, //
