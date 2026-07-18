@@ -75,14 +75,14 @@ TEST_CASE("recover", "[recover][expected][expected_value]")
     }
     SECTION("error")
     {
-      operand_t a{::fn::unexpect, Error{"Not good"}};
+      operand_t a{::fn::unexpect, "Not good"};
       using T = decltype(a | recover(fnError));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a | recover(fnError)).value() == 8);
     }
     SECTION("member function")
     {
-      operand_t a{::fn::unexpect, Error{"Not good"}};
+      operand_t a{::fn::unexpect, "Not good"};
       using T = decltype(a | recover(&Error::fn));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a | recover(&Error::fn)).value() == 8);
@@ -99,15 +99,15 @@ TEST_CASE("recover", "[recover][expected][expected_value]")
     }
     SECTION("error")
     {
-      using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | recover(fnError));
+      using T = decltype(operand_t{::fn::unexpect, "Not good"} | recover(fnError));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{::fn::unexpect, Error{"Not good"}} | recover(fnError)).value() == 8);
+      REQUIRE((operand_t{::fn::unexpect, "Not good"} | recover(fnError)).value() == 8);
     }
     SECTION("member function")
     {
-      using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | recover(&Error::fn));
+      using T = decltype(operand_t{::fn::unexpect, "Not good"} | recover(&Error::fn));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{::fn::unexpect, Error{"Not good"}} | recover(&Error::fn)).value() == 8);
+      REQUIRE((operand_t{::fn::unexpect, "Not good"} | recover(&Error::fn)).value() == 8);
     }
   }
 
@@ -192,7 +192,7 @@ TEST_CASE("recover", "[recover][expected][expected_void]")
     }
     SECTION("error")
     {
-      operand_t a{::fn::unexpect, Error{"Not good"}};
+      operand_t a{::fn::unexpect, "Not good"};
       using T = decltype(a | recover(fnError));
       static_assert(std::is_same_v<T, operand_t>);
       (a | recover(fnError)).value();
@@ -211,9 +211,9 @@ TEST_CASE("recover", "[recover][expected][expected_void]")
     }
     SECTION("error")
     {
-      using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | recover(fnError));
+      using T = decltype(operand_t{::fn::unexpect, "Not good"} | recover(fnError));
       static_assert(std::is_same_v<T, operand_t>);
-      (operand_t{::fn::unexpect, Error{"Not good"}} | recover(fnError)).value();
+      (operand_t{::fn::unexpect, "Not good"} | recover(fnError)).value();
       REQUIRE(count == 1);
     }
   }

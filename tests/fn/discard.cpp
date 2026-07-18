@@ -14,23 +14,13 @@
 
 using namespace util;
 
-namespace {
-struct Error {
-  std::string what;
-};
-
-struct DerivedError : Error {};
-struct IncompatibleError {};
-
-struct Value {
-  int v;
-  constexpr bool operator==(Value const &) const = default;
-};
-} // namespace
-
 TEST_CASE("discard", "[discard][expected][expected_value]")
 {
   using namespace fn;
+
+  struct Error final {
+    std::string what;
+  };
 
   using operand_t = fn::expected<int, Error>;
   using is = monadic_static_check<discard_t, operand_t>;
@@ -50,7 +40,7 @@ TEST_CASE("discard", "[discard][expected][expected_value]")
 
     SECTION("error")
     {
-      operand_t a{::fn::unexpect, Error{"Not good"}};
+      operand_t a{::fn::unexpect, "Not good"};
       a | discard();
 
       REQUIRE(a.error().what == "Not good");
@@ -67,7 +57,7 @@ TEST_CASE("discard", "[discard][expected][expected_value]")
 
     SECTION("error")
     {
-      operand_t{::fn::unexpect, Error{"Not good"}} | discard();
+      operand_t{::fn::unexpect, "Not good"} | discard();
       SUCCEED();
     }
   }
@@ -96,6 +86,11 @@ TEST_CASE("discard with pack", "[discard][expected][expected_value][pack]")
 {
   using namespace fn;
 
+  struct Error final {
+    std::string what;
+    constexpr ~Error() = default; // MSVC workaround
+  };
+
   using operand_t = fn::expected<fn::pack<int, double>, Error>;
   using is = monadic_static_check<discard_t, operand_t>;
   static_assert(is::invocable_with_any());
@@ -110,7 +105,7 @@ TEST_CASE("discard with pack", "[discard][expected][expected_value][pack]")
 
   SECTION("error")
   {
-    operand_t b{::fn::unexpect, Error{"Pack error"}};
+    operand_t b{::fn::unexpect, "Pack error"};
     b | discard();
 
     REQUIRE(b.error().what == "Pack error");
@@ -120,6 +115,10 @@ TEST_CASE("discard with pack", "[discard][expected][expected_value][pack]")
 TEST_CASE("discard", "[discard][expected][expected_void]")
 {
   using namespace fn;
+
+  struct Error final {
+    std::string what;
+  };
 
   using operand_t = fn::expected<void, Error>;
   using is = monadic_static_check<discard_t, operand_t>;
@@ -139,7 +138,7 @@ TEST_CASE("discard", "[discard][expected][expected_void]")
 
     SECTION("error")
     {
-      operand_t a{::fn::unexpect, Error{"Not good"}};
+      operand_t a{::fn::unexpect, "Not good"};
       a | discard();
 
       REQUIRE(a.error().what == "Not good");
@@ -156,7 +155,7 @@ TEST_CASE("discard", "[discard][expected][expected_void]")
 
     SECTION("error")
     {
-      operand_t{::fn::unexpect, Error{"Not good"}} | discard();
+      operand_t{::fn::unexpect, "Not good"} | discard();
       SUCCEED();
     }
   }
@@ -313,6 +312,10 @@ TEST_CASE("discard", "[discard][just]")
 TEST_CASE("discard noexcept", "[discard][noexcept]")
 {
   using namespace fn;
+
+  struct Error final {
+    std::string what;
+  };
 
   // The one verb whose unconditional noexcept is accurate by construction: discard's apply takes the
   // operand by reference, invokes no callback and returns void, so there is nothing in it that can

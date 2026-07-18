@@ -73,7 +73,7 @@ TEST_CASE("transform_error", "[transform_error][expected]")
     }
     SECTION("error")
     {
-      operand_t a{::fn::unexpect, Error{"Not good"}};
+      operand_t a{::fn::unexpect, "Not good"};
       using T = decltype(a | transform_error(fnError));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a //
@@ -108,9 +108,9 @@ TEST_CASE("transform_error", "[transform_error][expected]")
     }
     SECTION("error")
     {
-      using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | transform_error(fnError));
+      using T = decltype(operand_t{::fn::unexpect, "Not good"} | transform_error(fnError));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{::fn::unexpect, Error{"Not good"}} //
+      REQUIRE((operand_t{::fn::unexpect, "Not good"} //
                | transform_error(fnError))
                   .error()
                   .what
@@ -118,16 +118,16 @@ TEST_CASE("transform_error", "[transform_error][expected]")
 
       SECTION("change type")
       {
-        using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | transform_error(fnXerror));
+        using T = decltype(operand_t{::fn::unexpect, "Not good"} | transform_error(fnXerror));
         static_assert(std::is_same_v<T, fn::expected<int, Xerror>>);
-        REQUIRE((operand_t{::fn::unexpect, Error{"Not good"}} | transform_error(fnXerror)).error().value == 8);
+        REQUIRE((operand_t{::fn::unexpect, "Not good"} | transform_error(fnXerror)).error().value == 8);
       }
 
       SECTION("member function")
       {
-        using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | transform_error(&Error::fn));
+        using T = decltype(operand_t{::fn::unexpect, "Not good"} | transform_error(&Error::fn));
         static_assert(std::is_same_v<T, fn::expected<int, Xerror>>);
-        REQUIRE((operand_t{::fn::unexpect, Error{"Not good"}} | transform_error(&Error::fn)).error().value == 8);
+        REQUIRE((operand_t{::fn::unexpect, "Not good"} | transform_error(&Error::fn)).error().value == 8);
       }
     }
   }

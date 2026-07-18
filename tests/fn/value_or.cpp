@@ -41,7 +41,7 @@ TEST_CASE("value_or", "[value_or][expected][expected_value]")
     }
     SECTION("error")
     {
-      operand_t a{::fn::unexpect, Error{"Not good"}};
+      operand_t a{::fn::unexpect, "Not good"};
       using T = decltype(a | value_or(3));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a | value_or(3)).value() == 3);
@@ -58,9 +58,9 @@ TEST_CASE("value_or", "[value_or][expected][expected_value]")
     }
     SECTION("error")
     {
-      using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | value_or(3));
+      using T = decltype(operand_t{::fn::unexpect, "Not good"} | value_or(3));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{::fn::unexpect, Error{"Not good"}} | value_or(3)).value() == 3);
+      REQUIRE((operand_t{::fn::unexpect, "Not good"} | value_or(3)).value() == 3);
     }
   }
 
@@ -76,13 +76,13 @@ TEST_CASE("value_or", "[value_or][expected][expected_value]")
       }
       SECTION("error")
       {
-        operand_t a{::fn::unexpect, Error{"Not good"}};
+        operand_t a{::fn::unexpect, "Not good"};
         REQUIRE((std::move(a) | value_or(3, 5)).value().v == 3 * 5);
       }
     }
     SECTION("move ctor")
     {
-      operand_t a{::fn::unexpect, Error{"Not good"}};
+      operand_t a{::fn::unexpect, "Not good"};
       REQUIRE((std::move(a) | value_or(helper_move_only{3, 7})).value().v == 21 * from_rval * from_rval);
     }
   }

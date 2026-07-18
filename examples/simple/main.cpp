@@ -83,7 +83,7 @@ TEST_CASE("Minimal expected", "[expected][and_then]")
   }
   {
     // example-expected-and_then-error
-    fn::expected<double, Error> ex = ::fn::unexpected<Error>{Error{"Not good"}};
+    fn::expected<double, Error> ex = ::fn::unexpected<Error>{"Not good"};
 
     auto oops = ex
       | fn::and_then([](auto&& v) -> fn::expected<unsigned, Error> {
@@ -139,14 +139,14 @@ TEST_CASE("Demo expected", "[expected][pack][and_then][discard][transform_error]
       if (std::from_chars(str.data(), end, tmp).ptr == end) {
         return {tmp};
       }
-      return ::fn::unexpected<Error>{Error{"Failed to parse " + std::string(str)}};
+      return ::fn::unexpected<Error>{"Failed to parse " + std::string(str)};
     };
 
     // Immovable operations must be captured as lvalues, and functor will store
     // reference to them rather than make a copy
     constexpr auto fn1 = [j = ImmovableValue{-1}](int i) noexcept -> fn::expected<double, Error> {
       if (i < j.value) {
-        return ::fn::unexpected<Error>{Error{"Too small"}};
+        return ::fn::unexpected<Error>{"Too small"};
       }
       return {i + 0.5};
     };
@@ -199,12 +199,12 @@ TEST_CASE("Demo expected", "[expected][pack][and_then][discard][transform_error]
       if (std::from_chars(str.data(), end, tmp).ptr == end) {
         return {tmp};
       }
-      return ::fn::unexpected<Error>{Error{"Failed to parse " + std::string(str)}};
+      return ::fn::unexpected<Error>{"Failed to parse " + std::string(str)};
     };
 
     constexpr auto parse_twelve = [](std::string str) noexcept -> fn::expected<double, Error> {
       if (str != "12")
-        return ::fn::unexpected<Error>{Error{"Not 12"}};
+        return ::fn::unexpected<Error>{"Not 12"};
       return {12.};
     };
 
@@ -235,7 +235,7 @@ TEST_CASE("Demo expected", "[expected][pack][and_then][discard][transform_error]
       | fn::inspect_error([](Error) noexcept { CHECK(false); }) //
       | fn::discard();
 
-  fn::expected<int, Error>{::fn::unexpected<Error>{Error{"discarded"}}}             //
+  fn::expected<int, Error>{::fn::unexpected<Error>{"discarded"}}                    //
       | fn::inspect([](int) noexcept { CHECK(false); })                             //
       | fn::inspect_error([](Error e) noexcept { REQUIRE(e.what == "discarded"); }) //
       | fn::discard();
