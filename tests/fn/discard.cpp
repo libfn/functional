@@ -14,23 +14,13 @@
 
 using namespace util;
 
-namespace {
-struct Error {
-  std::string what;
-};
-
-struct DerivedError : Error {};
-struct IncompatibleError {};
-
-struct Value {
-  int v;
-  constexpr bool operator==(Value const &) const = default;
-};
-} // namespace
-
 TEST_CASE("discard", "[discard][expected][expected_value]")
 {
   using namespace fn;
+
+  struct Error final {
+    std::string what;
+  };
 
   using operand_t = fn::expected<int, Error>;
   using is = monadic_static_check<discard_t, operand_t>;
@@ -96,6 +86,11 @@ TEST_CASE("discard with pack", "[discard][expected][expected_value][pack]")
 {
   using namespace fn;
 
+  struct Error final {
+    std::string what;
+    constexpr ~Error() = default; // MSVC workaround
+  };
+
   using operand_t = fn::expected<fn::pack<int, double>, Error>;
   using is = monadic_static_check<discard_t, operand_t>;
   static_assert(is::invocable_with_any());
@@ -120,6 +115,10 @@ TEST_CASE("discard with pack", "[discard][expected][expected_value][pack]")
 TEST_CASE("discard", "[discard][expected][expected_void]")
 {
   using namespace fn;
+
+  struct Error final {
+    std::string what;
+  };
 
   using operand_t = fn::expected<void, Error>;
   using is = monadic_static_check<discard_t, operand_t>;
@@ -229,6 +228,10 @@ TEST_CASE("discard", "[discard][optional]")
 TEST_CASE("discard noexcept", "[discard][noexcept]")
 {
   using namespace fn;
+
+  struct Error final {
+    std::string what;
+  };
 
   // The one verb whose unconditional noexcept is accurate by construction: discard's apply takes the
   // operand by reference, invokes no callback and returns void, so there is nothing in it that can
