@@ -2,6 +2,10 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `choice::and_then` joins differing branches into the superset choice — 18 July 2026
+
+- **Branches of the dispatch may return different choice types** ([#349](https://github.com/libfn/functional/issues/349)): the result is the grade-spliced superset — all branches' alternatives, normalized and deduplicated exactly as `choice_for` produces. Previously every applicable branch had to agree on one choice type. `and_then` is the join, the one operation licensed to cross the choice boundary, and with the superset collapse `x.transform(f) == x.and_then([](auto &&v) { return choice{f(FWD(v))}; })` holds for heterogeneous branches too. Purely additive: everything now accepted was ill-formed before, and convergent callbacks keep their exact types and behaviour. The join is its own detail fold beside `transform`'s collapse — the collapse keeps a returned choice whole (fmap nests the atom), the join splices its alternatives (bind flattens) — and each branch's result reaches the superset through the existing copack widening constructors, a narrower choice converting through its copack base. A value-returning callback remains rejected, and an inapplicable one still drops `and_then` from the overload set.
+
 ## `sum` became `copack` — 17 July 2026
 
 - **The co-product of types renamed** ([#83](https://github.com/libfn/functional/issues/83)): `fn::sum` is `fn::copack`, and the whole vocabulary follows — `copack_for`, `some_copack`, `empty_copack`, `as_copack`, the graded verbs `copack_value` and `copack_error`, and the header `fn/copack.hpp`. The old name read as an arithmetic operation; `copack` names what the type is — the co-product of types, orthogonal to `pack`, the product. A clean break with no alias: the library is pre-0.1 and has no compatibility surface to keep.

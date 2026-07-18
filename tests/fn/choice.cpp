@@ -54,6 +54,9 @@ concept can_emplace = requires(S &s, Args &&...args) { s.template emplace<T>(sta
 template <typename S, typename Fn>
 concept can_transform = requires(S s, Fn fn) { FWD(s).transform(fn); };
 
+template <typename S, typename Fn>
+concept can_and_then = requires(S s, Fn fn) { FWD(s).and_then(fn); };
+
 template <typename S, typename Fn, typename... Args>
 concept can_apply_type = requires(S s, Fn fn, Args... args) { FWD(s).apply_type(FWD(fn), FWD(args)...); };
 
@@ -865,6 +868,76 @@ TEST_CASE("choice and_then", "[choice][and_then]")
                                  [](int &&) -> fn::choice<bool> { throw 0; },      //
                                  [](int const &&i) -> fn::choice<bool> { return {i == 42}; }})
                 == fn::choice{true});
+
+  SECTION("superset join")
+  {
+    struct A final {
+      bool operator==(A const &) const = default;
+    };
+    struct B final {
+      bool operator==(B const &) const = default;
+    };
+    struct U final {
+      bool operator==(U const &) const = default;
+    };
+    struct V final {
+      bool operator==(V const &) const = default;
+    };
+    struct W final {
+      bool operator==(W const &) const = default;
+    };
+    using J = fn::choice_for<A, B>;
+
+    // divergent branch choices join into the normalized superset choice
+    constexpr auto fnJoin = fn::overload{[](A) { return fn::choice<U>{U{}}; }, //
+                                         [](B) { return fn::choice_for<V, W>{V{}}; }};
+    static_assert(std::is_same_v<decltype(J{A{}}.and_then(fnJoin)), fn::choice_for<U, V, W>>);
+    CHECK(J{A{}}.and_then(fnJoin) == fn::choice_for<U, V, W>{U{}});
+    CHECK(J{B{}}.and_then(fnJoin) == fn::choice_for<U, V, W>{V{}});
+
+    // ... with overlapping alternatives deduplicated
+    constexpr auto fnOverlap = fn::overload{[](A) { return fn::choice_for<U, V>{U{}}; }, //
+                                            [](B) { return fn::choice_for<V, W>{W{}}; }};
+    static_assert(std::is_same_v<decltype(J{A{}}.and_then(fnOverlap)), fn::choice_for<U, V, W>>);
+    CHECK(J{A{}}.and_then(fnOverlap) == fn::choice_for<U, V, W>{U{}});
+    CHECK(J{B{}}.and_then(fnOverlap) == fn::choice_for<U, V, W>{W{}});
+
+    // constexpr twins dispatch from named sources: VS 2022's MSVC (observed through 19.44)
+    // misreads the union's empty-class member as uninitialized when the source is a prvalue
+    // materialized mid-expression - independent of the join, apply's select path trips the same way
+    constexpr J ca{A{}};
+    constexpr J cb{B{}};
+    static_assert(ca.and_then(fnJoin) == fn::choice_for<U, V, W>{U{}});
+    static_assert(std::move(cb).and_then(fnOverlap) == fn::choice_for<U, V, W>{W{}});
+
+    // noexcept: the callback and the widening arms both weigh in
+    constexpr auto fnNothrow = fn::overload{[](A) noexcept { return fn::choice<U>{U{}}; }, //
+                                            [](B) noexcept { return fn::choice_for<V, W>{V{}}; }};
+    J j{A{}};
+    static_assert(noexcept(j.and_then(fnNothrow)));
+    static_assert(noexcept(std::as_const(j).and_then(fnNothrow)));
+    static_assert(noexcept(std::move(j).and_then(fnNothrow)));
+    static_assert(not noexcept(j.and_then(fnJoin))); // fnJoin's branches may throw
+    struct ThrowingMove final {
+      ThrowingMove() = default;
+      ThrowingMove(ThrowingMove &&) noexcept(false) {}
+      bool operator==(ThrowingMove const &) const = default;
+    };
+    // nothrow branches, but relocating one branch's alternative into the superset may throw
+    constexpr auto fnThrowingArm
+        = fn::overload{[](A) noexcept { return fn::choice<ThrowingMove>{std::in_place_type<ThrowingMove>}; },
+                       [](B) noexcept { return fn::choice<U>{U{}}; }};
+    static_assert(not noexcept(j.and_then(fnThrowingArm)));
+
+    // asking answers: an inapplicable callback drops and_then from the overload set; a
+    // value-returning one stays viable - its rejection is the deliberately loud static_assert
+    // on instantiation, not a constraint
+    constexpr auto fnPartial = [](A) { return fn::choice<U>{U{}}; };
+    static_assert(not can_and_then<J &, decltype(fnPartial)>);
+    static_assert(can_and_then<fn::choice<A> &, decltype(fnPartial)>);
+    constexpr auto fnValue = [](auto &&) { return 42; };
+    static_assert(can_and_then<J &, decltype(fnValue)>);
+  }
 }
 
 TEST_CASE("choice transform", "[choice][transform]")
