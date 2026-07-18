@@ -45,9 +45,9 @@ TEST_CASE("or_else", "[or_else][expected][expected_value]")
 
   constexpr auto fnError = [](Error e) -> operand_t { return {e.what.size()}; };
   constexpr auto fnXerror
-      = [](Error e) -> fn::expected<int, Xerror> { return ::fn::unexpected<Xerror>{Xerror{"Was: " + e.what}}; };
+      = [](Error e) -> fn::expected<int, Xerror> { return ::fn::unexpected<Xerror>{"Was: " + e.what}; };
   constexpr auto wrong = [](Error) -> operand_t { throw 0; };
-  constexpr auto fnFail = [](Error v) -> operand_t { return ::fn::unexpected<Error>(Error{"Got: " + v.what}); };
+  constexpr auto fnFail = [](Error v) -> operand_t { return ::fn::unexpected<Error>("Got: " + v.what); };
 
   static_assert(is::invocable_with_any(fnError));
   static_assert(is::invocable_with_any(fnXerror));
@@ -90,7 +90,7 @@ TEST_CASE("or_else", "[or_else][expected][expected_value]")
     }
     SECTION("error")
     {
-      operand_t a{::fn::unexpect, Error{"Not good"}};
+      operand_t a{::fn::unexpect, "Not good"};
       using T = decltype(a | or_else(fnError));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a | or_else(fnError)).value() == 8);
@@ -111,7 +111,7 @@ TEST_CASE("or_else", "[or_else][expected][expected_value]")
     }
     SECTION("member function")
     {
-      operand_t a{::fn::unexpect, Error{"Not good"}};
+      operand_t a{::fn::unexpect, "Not good"};
       using T = decltype(a | or_else(&Error::fn<operand_t>));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE((a | or_else(&Error::fn<operand_t>)).value() == 8);
@@ -128,15 +128,15 @@ TEST_CASE("or_else", "[or_else][expected][expected_value]")
     }
     SECTION("error")
     {
-      using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | or_else(fnError));
+      using T = decltype(operand_t{::fn::unexpect, "Not good"} | or_else(fnError));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{::fn::unexpect, Error{"Not good"}} | or_else(fnError)).value() == 8);
+      REQUIRE((operand_t{::fn::unexpect, "Not good"} | or_else(fnError)).value() == 8);
 
       SECTION("fail")
       {
-        using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | or_else(fnFail));
+        using T = decltype(operand_t{::fn::unexpect, "Not good"} | or_else(fnFail));
         static_assert(std::is_same_v<T, operand_t>);
-        REQUIRE((operand_t{::fn::unexpect, Error{"Not good"}} //
+        REQUIRE((operand_t{::fn::unexpect, "Not good"} //
                  | or_else(fnFail))
                     .error()
                     .what
@@ -145,9 +145,9 @@ TEST_CASE("or_else", "[or_else][expected][expected_value]")
     }
     SECTION("member function")
     {
-      using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | or_else(&Error::fn<operand_t>));
+      using T = decltype(operand_t{::fn::unexpect, "Not good"} | or_else(&Error::fn<operand_t>));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((operand_t{::fn::unexpect, Error{"Not good"}} | or_else(&Error::fn<operand_t>)).value() == 8);
+      REQUIRE((operand_t{::fn::unexpect, "Not good"} | or_else(&Error::fn<operand_t>)).value() == 8);
     }
   }
 
@@ -307,9 +307,9 @@ TEST_CASE("or_else", "[or_else][expected][expected_void]")
     return {};
   };
   constexpr auto fnXerror
-      = [](Error e) -> fn::expected<void, Xerror> { return ::fn::unexpected<Xerror>{Xerror{"Was: " + e.what}}; };
+      = [](Error e) -> fn::expected<void, Xerror> { return ::fn::unexpected<Xerror>{"Was: " + e.what}; };
   constexpr auto wrong = [](Error) -> operand_t { throw 0; };
-  constexpr auto fnFail = [](Error v) -> operand_t { return ::fn::unexpected<Error>(Error{"Got: " + v.what}); };
+  constexpr auto fnFail = [](Error v) -> operand_t { return ::fn::unexpected<Error>("Got: " + v.what); };
 
   static_assert(is::invocable_with_any(fnError));
   static_assert(is::invocable_with_any(fnXerror));
@@ -342,7 +342,7 @@ TEST_CASE("or_else", "[or_else][expected][expected_void]")
     }
     SECTION("error")
     {
-      operand_t a{::fn::unexpect, Error{"Not good"}};
+      operand_t a{::fn::unexpect, "Not good"};
       using T = decltype(a | or_else(fnError));
       static_assert(std::is_same_v<T, operand_t>);
       (a | or_else(fnError)).value();
@@ -365,7 +365,7 @@ TEST_CASE("or_else", "[or_else][expected][expected_void]")
     }
     SECTION("member function")
     {
-      operand_t a{::fn::unexpect, Error{"Not good"}};
+      operand_t a{::fn::unexpect, "Not good"};
       using T = decltype(a | or_else(&Error::finalize<operand_t>));
       static_assert(std::is_same_v<T, operand_t>);
       auto const before = Error::count;
@@ -385,15 +385,15 @@ TEST_CASE("or_else", "[or_else][expected][expected_void]")
     }
     SECTION("error")
     {
-      using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | or_else(fnError));
+      using T = decltype(operand_t{::fn::unexpect, "Not good"} | or_else(fnError));
       static_assert(std::is_same_v<T, operand_t>);
-      (operand_t{::fn::unexpect, Error{"Not good"}} | or_else(fnError)).value();
+      (operand_t{::fn::unexpect, "Not good"} | or_else(fnError)).value();
 
       SECTION("fail")
       {
-        using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | or_else(fnFail));
+        using T = decltype(operand_t{::fn::unexpect, "Not good"} | or_else(fnFail));
         static_assert(std::is_same_v<T, operand_t>);
-        REQUIRE((operand_t{::fn::unexpect, Error{"Not good"}} //
+        REQUIRE((operand_t{::fn::unexpect, "Not good"} //
                  | or_else(fnFail))
                     .error()
                     .what
@@ -402,10 +402,10 @@ TEST_CASE("or_else", "[or_else][expected][expected_void]")
     }
     SECTION("member function")
     {
-      using T = decltype(operand_t{::fn::unexpect, Error{"Not good"}} | or_else(&Error::finalize<operand_t>));
+      using T = decltype(operand_t{::fn::unexpect, "Not good"} | or_else(&Error::finalize<operand_t>));
       static_assert(std::is_same_v<T, operand_t>);
       auto const before = Error::count;
-      (operand_t{::fn::unexpect, Error{"Not good"}} | or_else(&Error::finalize<operand_t>)).value();
+      (operand_t{::fn::unexpect, "Not good"} | or_else(&Error::finalize<operand_t>)).value();
       CHECK(Error::count == before + 8);
     }
   }
