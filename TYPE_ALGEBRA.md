@@ -1,7 +1,7 @@
 # Type algebra and multidispatch in libfn
 
 libfn lets a program compose not only values, but also the *shapes* of those values. `fn::pack` combines
-values that are all present; `fn::sum` represents one value selected from several possible types; and
+values that are all present; `fn::copack` represents one value selected from several possible types; and
 `operator&` combines the two by distributing products over alternatives. The resulting values can be
 passed to ordinary overloaded functions through `fn::apply`.
 
@@ -12,7 +12,7 @@ make the design precise and reviewable; no category theory is needed to use the 
 
 The most important distinction in the design is between two layers:
 
-1. The **type algebra** stores and composes exact C++ types. Its vocabulary is `sum` and `pack`.
+1. The **type algebra** stores and composes exact C++ types. Its vocabulary is `copack` and `pack`.
 2. The **application protocol** exposes a stored value as arguments to a function. Its vocabulary is
    `apply` and ordinary overload resolution.
 
@@ -24,7 +24,7 @@ Distinct types are never merged merely because they apply in the same way:
 ```cpp
 struct A {};
 
-using representations = fn::sum_for<
+using representations = fn::copack_for<
     fn::pack<A>,
     std::tuple<A>,
     std::array<A, 1>>;
@@ -90,7 +90,7 @@ pack<Ts...> · pack<Us...> = pack<Ts..., Us...>
 ```
 
 Order is meaningful, so `pack<A, B>` and `pack<B, A>` are different types. There is no `pack_for`
-analogue of `sum_for`: a product does not sort or deduplicate its elements.
+analogue of `copack_for`: a product does not sort or deduplicate its elements.
 
 `append` is a value operation rather than just a type computation. Its ref-qualified overloads can move
 from an rvalue pack, which makes association a useful performance choice:
@@ -157,31 +157,35 @@ The flat representation chooses one spelling for these association and unit vari
 composition*. It does not identify a one-element `pack<A>` with bare `A`; those remain distinct C++
 types.
 
-## `sum`: a normalized set of alternatives
+## `copack`: a normalized set of alternatives
 
-A `sum<Ts...>` holds exactly one value whose type is one of `Ts...`. Unlike `std::variant`, alternatives
-are identified by type rather than position:
+A `copack<Ts...>` holds exactly one value whose type is one of `Ts...`. Unlike `std::variant`,
+alternatives are identified by type rather than position. The name reflects its role as the coproduct
+dual to `pack`'s product:
+
+In the mathematical notes, *sum* and *coproduct* name this operation; `copack` always names libfn's C++
+carrier.
 
 ```cpp
-using result = fn::sum_for<int, std::string>;
+using result = fn::copack_for<int, std::string>;
 
 result x{42};
 assert(x.has_value<int>());
 ```
 
-`sum_for` is the normalizing maker. It flattens nested sum inputs, removes repeated exact types, and puts
-alternatives in a canonical type order:
+`copack_for` is the normalizing maker. It flattens nested copack inputs, removes repeated exact types,
+and puts alternatives in a canonical type order:
 
 ```cpp
 static_assert(std::same_as<
-    fn::sum_for<int, fn::sum<bool, int>>,
-    fn::sum_for<bool, int>>);
+    fn::copack_for<int, fn::copack<bool, int>>,
+    fn::copack_for<bool, int>>);
 ```
 
-The operation is set union:
+The corresponding sum operation is set union:
 
 ```text
-sum_for<S...> ∪ sum_for<T...> = sum_for<S..., T...>
+copack_for<S...> ∪ copack_for<T...> = copack_for<S..., T...>
 ```
 
 It is therefore:
@@ -189,18 +193,18 @@ It is therefore:
 - commutative: `A ∪ B = B ∪ A`;
 - associative: `(A ∪ B) ∪ C = A ∪ (B ∪ C)`;
 - idempotent: `A ∪ A = A`;
-- unital, with the empty alternative set `sum<>`.
+- unital, with the empty alternative set `copack<>`.
 
-`sum<>` and `pack<>` are opposites in an important practical sense. `sum<>` has no possible value and
-cannot dispatch. `pack<>` is a valid value with zero elements and applies to a nullary function.
+`copack<>` and `pack<>` are opposites in an important practical sense. `copack<>` has no possible value
+and cannot dispatch. `pack<>` is a valid value with zero elements and applies to a nullary function.
 
 ### Arbitrary exact types are alternatives
 
-A sum is not required to contain packs. Bare types, packs, standard tuple-like types, and user types may
-coexist:
+A copack is not required to contain packs. Bare types, packs, standard tuple-like types, and user types
+may coexist:
 
 ```cpp
-using alternatives = fn::sum_for<
+using alternatives = fn::copack_for<
     int,
     fn::pack<int>,
     std::tuple<int>,
@@ -225,12 +229,12 @@ A value can be widened from a smaller alternative set to a larger one without ch
 alternative:
 
 ```cpp
-fn::sum<int> narrow{42};
-fn::sum_for<int, std::string> wide = narrow;
+fn::copack<int> narrow{42};
+fn::copack_for<int, std::string> wide = narrow;
 ```
 
-This is safe because the larger sum accepts every type accepted by the smaller sum. In set notation,
-`E ⊆ F` permits `sum<E> -> sum<F>`.
+This is safe because the larger copack accepts every type accepted by the smaller copack. In set
+notation, `E ⊆ F` permits `copack<E> -> copack<F>`.
 
 For ordinary value-like types, direct and stepwise widening have the same final value. C++ still runs the
 payload's constructors, so a type that observes or changes itself during copying can observe different
@@ -239,32 +243,32 @@ payload behavior.
 
 ## `choice`: computation rather than payload algebra
 
-`choice<Ts...>` wraps a sum-shaped value so that it can occupy the computation position in a pipeline.
+`choice<Ts...>` wraps a copack-shaped value so that it can occupy the computation position in a pipeline.
 The distinction is intentional:
 
-- `sum<Ts...>` is data in the type algebra;
-- `choice<Ts...>` is the identity monad of that sum data.
+- `copack<Ts...>` is data in the type algebra;
+- `choice<Ts...>` is the identity monad of that copack data.
 
-A choice may be stored as the value of `optional` or `expected`, but it is not an element of `sum`,
+A choice may be stored as the value of `optional` or `expected`, but it is not an element of `copack`,
 `pack`, or another `choice`. `choice_for` unwraps and flattens choice inputs where a choice result is
 being constructed. These rules prevent a computation wrapper from entering the payload algebra and
-silently bypassing sum flattening or product distribution.
+silently bypassing copack flattening or product distribution.
 
 > [!NOTE]
 > A provisional design for a future release makes this relationship explicit by introducing a minimal
-> `identity_monad<T>` and defining `choice<Ts...>` as its sum specialization, conceptually:
+> `identity_monad<T>` and defining `choice<Ts...>` as its copack specialization, conceptually:
 >
 > ```cpp
 > template <typename T>
 > class identity_monad;
 >
 > template <typename... Ts>
-> using choice = identity_monad<sum<Ts...>>;
+> using choice = identity_monad<copack<Ts...>>;
 > ```
 >
 > This is not current API. The intended identity carrier contains no state beyond its value and should
 > preserve that value's constant-evaluation, triviality, and structural-type properties whenever C++
-> permits them. The sum specialization would retain `choice`'s direct sum conveniences and
+> permits them. The copack specialization would retain `choice`'s direct copack conveniences and
 > multidispatch while sharing the ordinary identity-monad operations.
 
 ## `apply`: structural elimination
@@ -292,12 +296,12 @@ pack<A, B>                -> f(A, B)
 pack<>                    -> f()
 tuple<A, B>               -> f(A, B)
 array<A, 2>               -> f(A, A)
-sum<A, B> holding A       -> apply f to that A
-sum<pack<A,B>, C> holding pack<A,B> -> f(A, B)
+copack<A, B> holding A       -> apply f to that A
+copack<pack<A,B>, C> holding pack<A,B> -> f(A, B)
 ```
 
 The same protocol therefore covers standard tuple unpacking, libfn product unpacking, runtime selection
-from a sum, and combinations of those operations.
+from a copack, and combinations of those operations.
 
 Application is intentionally non-injective. For example, all of the following may have the same unary
 call shape:
@@ -313,7 +317,7 @@ An untagged overload `f(A)` can handle them uniformly. This is often the desired
 independent behavior. It does not mean that the stored alternatives have become one type.
 
 When the exact selected alternative matters, a type-tagged application mode can pass
-`std::in_place_type_t<Alternative>` before the applied arguments. For a `sum<A, pack<A>>`, its two
+`std::in_place_type_t<Alternative>` before the applied arguments. For a `copack<A, pack<A>>`, its two
 conceptual call shapes are then:
 
 ```text
@@ -321,9 +325,9 @@ f(in_place_type_t<A>,       A)
 f(in_place_type_t<pack<A>>, A)
 ```
 
-The tag names the exact outer sum alternative, before structural unpacking. Today the same information is
-also available through `has_value<T>()` and `get_ptr<T>()`; tagged application provides the exhaustive,
-single-visitor form.
+The tag names the exact outer copack alternative, before structural unpacking. Today the same information
+is also available through `has_value<T>()` and `get_ptr<T>()`; tagged application provides the
+exhaustive, single-visitor form.
 
 In category-theory language, untagged application is a deliberately forgetful interpretation from stored
 alternatives to argument-list shapes. Type-tagged application retains the coproduct injection.
@@ -345,15 +349,15 @@ fn::optional<fn::pack<int, double>>{fn::pack{1, 2.0}}
 // optional<pack<int, double, char>>
 ```
 
-When an operand contains a sum, product distributes over its alternatives. For example:
+When an operand contains a copack, product distributes over its alternatives. For example:
 
 ```text
-sum<A, B> × sum<C, D>
+copack<A, B> × copack<C, D>
 
-  = sum<pack<A, C>,
-        pack<A, D>,
-        pack<B, C>,
-        pack<B, D>>
+  = copack<pack<A, C>,
+           pack<A, D>,
+           pack<B, C>,
+           pack<B, D>>
 ```
 
 At runtime only one row is held. Its exact pack type records the selected combination; `apply` spreads
@@ -369,11 +373,11 @@ auto handle = fn::overload{
 ```
 
 This is multidispatch without a separate dispatch table. The cartesian expansion happens in the result
-type, runtime sum selection chooses a row, and C++ overload resolution chooses the handler.
+type, runtime copack selection chooses a row, and C++ overload resolution chooses the handler.
 
-The sum of flat packs shown above is the canonical output of this distributive composition. It is not a
-restriction on sums in general: `sum<A, pack<A>, tuple<A>>` is valid and preserves all three exact
-alternatives.
+The copack of flat packs shown above is the canonical output of this distributive composition. It is not
+a restriction on copacks in general: `copack<A, pack<A>, tuple<A>>` is valid and preserves all three
+exact alternatives.
 
 Mathematically, this is the familiar distributive correspondence:
 
@@ -382,7 +386,7 @@ Mathematically, this is the familiar distributive correspondence:
   ≅ (A × C) + (A × D) + (B × C) + (B × D)
 ```
 
-libfn materializes the right-hand side as a normalized sum of flat packs.
+libfn materializes the right-hand side as a normalized copack of flat packs.
 
 ## Graded errors
 
@@ -401,30 +405,30 @@ pure : A -> M_empty<A>
 bind : M_E<A> -> (A -> M_F<B>) -> M_(E union F)<B>
 ```
 
-In libfn, the clean instance is an expected value whose error is a sum:
+In libfn, the clean instance is an expected value whose error is a copack:
 
 ```cpp
-fn::expected<A, fn::sum_for<E...>>
+fn::expected<A, fn::copack_for<E...>>
 ```
 
 The error alternatives are the grade. A successful computation with no possible error has error type
-`sum<>`; sequencing two stages unions their error sets:
+`copack<>`; sequencing two stages unions their error sets:
 
 ```cpp
 auto parse(std::string_view)
-    -> fn::expected<int, fn::sum<parse_error>>;
+    -> fn::expected<int, fn::copack<parse_error>>;
 
 auto lookup(int)
-    -> fn::expected<record, fn::sum<missing, io_error>>;
+    -> fn::expected<record, fn::copack<missing, io_error>>;
 
 auto result = parse(text) | fn::and_then(lookup);
-// expected<record, sum_for<parse_error, missing, io_error>>
+// expected<record, copack_for<parse_error, missing, io_error>>
 ```
 
 The programmer writes each local failure type once. Composition derives the complete error set.
 
-The grade algebra is the same normalized union used by `sum_for`. Repeating an error type does not create
-a second positional alternative:
+The grade algebra is the same normalized union used by `copack_for`. Repeating an error type does not
+create a second positional alternative:
 
 ```text
 E union E = E
@@ -433,15 +437,15 @@ E union E = E
 Widening is *effect approximation*: a computation known to fail only with `E` may safely be viewed as one
 that can fail with `E` or `F`.
 
-`fn::optional` remains an ordinary Maybe-like monad with sum-aware extensions; `fn::choice` is an
-identity-monad computation over a sum payload. Neither has the separate `M_E<A>` shape that makes the
+`fn::optional` remains an ordinary Maybe-like monad with copack-aware extensions; `fn::choice` is an
+identity-monad computation over a copack payload. Neither has the separate `M_E<A>` shape that makes the
 expected error channel a graded monad in the precise sense used above.
 
 The proposed `identity_monad<T>` would also make the unit-grade relationship explicit without changing
 the `expected` interface:
 
 ```text
-identity_monad<T> ≅ expected<T, sum<>>
+identity_monad<T> ≅ expected<T, copack<>>
 ```
 
 The two type constructors are naturally isomorphic for regular values and lawful callbacks: wrapping or
@@ -457,16 +461,16 @@ distributes their alternatives for multidispatch.
 
 The whole design can be remembered as five rules:
 
-1. `sum_for` forms a canonical set of exact alternative types by union.
+1. `copack_for` forms a canonical set of exact alternative types by union.
 2. `pack` forms a flat ordered sequence; `append` concatenates packs without sorting or deduplication.
-3. `pack<>` is the empty product and nullary argument list; `sum<>` is the uninhabited empty alternative
-   set.
-4. `operator&` distributes products over sums, producing the combinations needed by multidispatch.
+3. `pack<>` is the empty product and nullary argument list; `copack<>` is the uninhabited empty
+   alternative set.
+4. `operator&` distributes products over copacks, producing the combinations needed by multidispatch.
 5. `apply` separately turns the selected stored value into function arguments; equal call shapes never
    imply equal stored types.
 
-For `expected<A, sum<Es...>>`, a sixth rule connects this algebra to effects: `and_then` unions the error
-sets contributed by sequential stages.
+For `expected<A, copack<Es...>>`, a sixth rule connects this algebra to effects: `and_then` unions the
+error sets contributed by sequential stages.
 
 ## Further reading
 
@@ -478,12 +482,13 @@ For the categorical definition of a graded monad as a lax monoidal functor, and 
 parameterised monads, see Dominic Orchard, Philip Wadler, and Harley Eades III,
 [“Unifying graded and parameterised monads”](https://arxiv.org/pdf/2001.10274), especially Definition 21.
 
-The whole family `E -> sum<E...>` together with its widening conversions resembles a graded object: the
-individual `sum<A,B>` is one component, while the inclusions between components carry the structure. The
-relevant definitions of graded objects and law-governed coercions appear in Dylan McDermott and Tarmo
-Uustalu, [“Flexibly Graded Monads and Graded Algebras”](https://dylanm.org/flexibly-graded-monads.pdf),
-Definitions 1, 2, and 9. This is useful validation vocabulary; libfn does not claim to instantiate that
-paper's flexibly graded construction.
+The whole family `E -> copack<E...>` together with its widening conversions resembles a graded object:
+the individual `copack<A,B>` is one component, while the inclusions between components carry the
+structure. The relevant definitions of graded objects and law-governed coercions appear in Dylan
+McDermott and Tarmo Uustalu,
+[“Flexibly Graded Monads and Graded Algebras”](https://dylanm.org/flexibly-graded-monads.pdf), Definitions
+1, 2, and 9. This is useful validation vocabulary; libfn does not claim to instantiate that paper's
+flexibly graded construction.
 
 Finally, C++26 type ordering is proposed in
 [P2830, “Type and variable template argument ordering”](https://wg21.link/P2830). Its motivation cites
