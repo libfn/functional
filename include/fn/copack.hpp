@@ -130,6 +130,53 @@ template <typename Fn, typename Self, typename... Args>
 struct _copack_apply_result<_collapsing_copack_tag, Fn, Self, Args...> final
     : _typelist_collapsing_copack<Fn, Self, ::std::remove_cvref_t<Self>, Args...> {};
 
+struct _joining_superset_tag final {};
+
+// and_then's join - a sibling of the collapse above with the OPPOSITE convention for a result of
+// Self's own kind: the collapse keeps it whole (fmap nests the nominal atom), the join splices its
+// alternatives into the accumulated list (bind flattens). Only results of Self's own template kind
+// splice - the kind is deduced from Self exactly as the collapse deduces Tpl.
+namespace _joining_superset {
+template <typename... Ts> struct typelist;
+template <typename... Ts> extern typelist<Ts...> const &typelist_v;
+
+template <typename... Ts, template <typename...> typename Tpl, typename... Us>
+auto operator^(typelist<Ts...> const &, typelist<Tpl<Us...>> const &) -> typelist<Ts..., Us...> const &;
+
+template <typename... Ts> using flattened = ::std::remove_cvref_t<decltype((typelist_v<> ^ ... ^ typelist_v<Ts>))>;
+
+template <template <typename...> typename Tpl, typename T> constexpr inline bool is_kind = false;
+template <template <typename...> typename Tpl, typename... Us> constexpr inline bool is_kind<Tpl, Tpl<Us...>> = true;
+
+template <template <typename...> typename Tpl, typename T> struct superset;
+template <template <typename...> typename Tpl, typename... Ts> struct superset<Tpl, typelist<Ts...>> {
+  using type = ::fn::detail::normalized<Ts...>::template apply<Tpl>;
+};
+} // namespace _joining_superset
+
+template <template <typename...> typename Tpl, typename... Rs> struct _joining_superset_type {
+  using type = _joining_superset::superset<Tpl, _joining_superset::flattened<Rs...>>::type;
+};
+
+// Results all of Self's kind join into the normalized superset; anything else falls back to the
+// select trait, so today's diagnostics are preserved verbatim - a convergent result of another
+// kind instantiates the member, whose static_assert names the requirement, and a divergent one
+// trips select's own assert.
+template <typename Fn, typename Self, typename T, typename... Args> struct _typelist_joining_superset;
+template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts, typename... Args>
+struct _typelist_joining_superset<Fn, Self, Tpl<Ts...>, Args...>
+    : ::std::conditional_t<
+          (...
+           && _joining_superset::is_kind<Tpl, ::std::remove_cvref_t<typename ::fn::detail::_apply_result<
+                                                  Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>>),
+          _joining_superset_type<Tpl, ::std::remove_cvref_t<typename ::fn::detail::_apply_result<
+                                          Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...>,
+          _typelist_select_apply_result<Fn, Self, Tpl<Ts...>, Args...>> {};
+
+template <typename Fn, typename Self, typename... Args>
+struct _copack_apply_result<_joining_superset_tag, Fn, Self, Args...> final
+    : _typelist_joining_superset<Fn, Self, ::std::remove_cvref_t<Self>, Args...> {};
+
 template <typename Fn, typename Self, typename T, typename... Args> struct _typelist_type_select_invoke_result;
 template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts, typename... Args>
 struct _typelist_type_select_invoke_result<Fn, Self, Tpl<Ts...>, Args...> {
