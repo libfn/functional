@@ -104,7 +104,7 @@ template <typename T> struct just {
    * @param v Value to initialize the payload from
    */
   template <typename U>
-  constexpr explicit just(U &&v) //
+  constexpr explicit just(U &&v) // NOSONAR cpp:S6458 the some_just constraint excludes same-kind sources
       noexcept(::std::is_nothrow_constructible_v<T, decltype(v)>)
     requires(not some_just<::std::remove_cvref_t<U>>) && (not detail::_some_in_place_type<::std::remove_cvref_t<U>>)
             && ::std::is_constructible_v<T, decltype(v)> && (not ::std::is_convertible_v<decltype(v), T>)
@@ -200,7 +200,8 @@ template <typename T> struct just {
       detail::_apply(FWD(fn), v_);
       return just<type>{};
     } else
-      return just<type>{detail::_just_from_invoke, [&]() -> decltype(auto) { return detail::_apply(FWD(fn), v_); }};
+      return just<type>{detail::_just_from_invoke,
+                        [&fn, this]() -> decltype(auto) { return detail::_apply(FWD(fn), v_); }};
   }
 
   template <typename Fn>
@@ -214,7 +215,8 @@ template <typename T> struct just {
       detail::_apply(FWD(fn), v_);
       return just<type>{};
     } else
-      return just<type>{detail::_just_from_invoke, [&]() -> decltype(auto) { return detail::_apply(FWD(fn), v_); }};
+      return just<type>{detail::_just_from_invoke,
+                        [&fn, this]() -> decltype(auto) { return detail::_apply(FWD(fn), v_); }};
   }
 
   template <typename Fn>
@@ -229,7 +231,7 @@ template <typename T> struct just {
       return just<type>{};
     } else
       return just<type>{detail::_just_from_invoke,
-                        [&]() -> decltype(auto) { return detail::_apply(FWD(fn), ::std::move(v_)); }};
+                        [&fn, this]() -> decltype(auto) { return detail::_apply(FWD(fn), ::std::move(v_)); }};
   }
 
   template <typename Fn>
@@ -244,7 +246,7 @@ template <typename T> struct just {
       return just<type>{};
     } else
       return just<type>{detail::_just_from_invoke,
-                        [&]() -> decltype(auto) { return detail::_apply(FWD(fn), ::std::move(v_)); }};
+                        [&fn, this]() -> decltype(auto) { return detail::_apply(FWD(fn), ::std::move(v_)); }};
   }
 
   /**
@@ -493,7 +495,7 @@ template <> struct just<void> {
   /**
    * @brief Observes the payload; there is nothing to observe
    */
-  constexpr void value() const noexcept {}
+  constexpr void value() const noexcept {} // NOSONAR cpp:S1186 void payload
 
   /**
    * @brief Maps through the callable, invoked with no arguments
@@ -511,7 +513,7 @@ template <> struct just<void> {
       detail::_apply(FWD(fn));
       return just<type>{};
     } else
-      return just<type>{detail::_just_from_invoke, [&]() -> decltype(auto) { return detail::_apply(FWD(fn)); }};
+      return just<type>{detail::_just_from_invoke, [&fn]() -> decltype(auto) { return detail::_apply(FWD(fn)); }};
   }
 
   /**
