@@ -1238,6 +1238,14 @@ TEST_CASE("and_then joins heterogeneous expected branches", "[and_then][expected
     constexpr auto fnBad = fn::overload{[](A) { return fn::expected<X, E0>{X{}}; },
                                         [](B) { return fn::expected<Y, fn::copack<E1>>{Y{}}; }};
     static_assert(not canM(InL{fn::copack_for<A, B>{A{}}}, fnBad));
+
+    // the piped spelling and the concept agree with the member
+    auto p = InL{fn::copack_for<A, B>{B{}}} | fn::and_then(fnMix);
+    static_assert(std::is_same_v<decltype(p), fn::expected<fn::copack_for<X, Y>, fn::copack<E0>>>);
+    CHECK(p.value() == fn::copack_for<X, Y>{Y{}});
+    static_assert(fn::applicable_and_then<decltype(fnMix), InL>);
+    static_assert(fn::applicable_and_then<decltype(fnLift), InL>);
+    static_assert(not fn::applicable_and_then<decltype(fnBad), InL>);
   }
 }
 

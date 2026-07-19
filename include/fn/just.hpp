@@ -209,8 +209,7 @@ template <typename T> struct just {
     requires detail::_is_applicable<Fn, T &>::value
   {
     using type = detail::_apply_result<Fn, T &>::type;
-    static_assert(detail::_just_admissible_result<Fn, T &>,
-                  "a just over a copack is spelled choice, and the transform verb performs that promotion");
+    static_assert(detail::_just_admissible_result<Fn, T &>);
     if constexpr (::std::is_void_v<type>) {
       detail::_apply(FWD(fn), v_);
       return just<type>{};
@@ -228,8 +227,7 @@ template <typename T> struct just {
     requires detail::_is_applicable<Fn, T const &>::value
   {
     using type = detail::_apply_result<Fn, T const &>::type;
-    static_assert(detail::_just_admissible_result<Fn, T const &>,
-                  "a just over a copack is spelled choice, and the transform verb performs that promotion");
+    static_assert(detail::_just_admissible_result<Fn, T const &>);
     if constexpr (::std::is_void_v<type>) {
       detail::_apply(FWD(fn), v_);
       return just<type>{};
@@ -247,8 +245,7 @@ template <typename T> struct just {
     requires detail::_is_applicable<Fn, T &&>::value
   {
     using type = detail::_apply_result<Fn, T &&>::type;
-    static_assert(detail::_just_admissible_result<Fn, T &&>,
-                  "a just over a copack is spelled choice, and the transform verb performs that promotion");
+    static_assert(detail::_just_admissible_result<Fn, T &&>);
     if constexpr (::std::is_void_v<type>) {
       detail::_apply(FWD(fn), ::std::move(v_));
       return just<type>{};
@@ -266,8 +263,7 @@ template <typename T> struct just {
     requires detail::_is_applicable<Fn, T const &&>::value
   {
     using type = detail::_apply_result<Fn, T const &&>::type;
-    static_assert(detail::_just_admissible_result<Fn, T const &&>,
-                  "a just over a copack is spelled choice, and the transform verb performs that promotion");
+    static_assert(detail::_just_admissible_result<Fn, T const &&>);
     if constexpr (::std::is_void_v<type>) {
       detail::_apply(FWD(fn), ::std::move(v_));
       return just<type>{};
@@ -538,9 +534,7 @@ template <> struct just<void> {
     requires detail::_is_applicable<Fn>::value
   {
     using type = detail::_apply_result<Fn>::type;
-    static_assert(detail::_just_admissible_result<Fn>,
-                  "this result cannot be a just's payload - identity over a copack is spelled "
-                  "choice, and the transform verb performs that promotion");
+    static_assert(detail::_just_admissible_result<Fn>);
     if constexpr (::std::is_void_v<type>) {
       detail::_apply(FWD(fn));
       return just<type>{};

@@ -643,6 +643,12 @@ TEST_CASE("or_else joins heterogeneous expected branches", "[or_else][expected][
     CHECK(r.value() == fn::copack<X>{X{}});
     auto v = In{X{}}.or_else(fnR);
     CHECK(v.value() == fn::copack<X>{X{}});
+
+    // the piped spelling and the concept agree with the member
+    auto p = In{fn::unexpect, fn::copack_for<E1, E2>{E1{}}} | fn::or_else(fnR);
+    static_assert(std::is_same_v<decltype(p), fn::expected<fn::copack<X>, E0>>);
+    CHECK(p.value() == fn::copack<X>{X{}});
+    static_assert(fn::applicable_or_else<decltype(fnR), In>);
   }
 }
 

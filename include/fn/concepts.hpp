@@ -52,6 +52,16 @@ concept same_kind
        && ::std::same_as<typename ::std::remove_cvref_t<T>::error_type, typename ::std::remove_cvref_t<U>::error_type>)
       || (some_expected<T> && some_copack<typename ::std::remove_cvref_t<T>::error_type> //
           && some_expected<U> && some_copack<typename ::std::remove_cvref_t<U>::error_type>)
+      || (some_expected<T>
+          && (not some_copack<typename ::std::remove_cvref_t<T>::error_type>) // the singular lift
+          &&some_expected<U>
+          && ::std::is_same_v<typename ::std::remove_cvref_t<U>::error_type,
+                              copack<typename ::std::remove_cvref_t<T>::error_type>>)
+      || (some_expected<U>
+          && (not some_copack<typename ::std::remove_cvref_t<U>::error_type>) // ... and its mirror
+          &&some_expected<T>
+          && ::std::is_same_v<typename ::std::remove_cvref_t<T>::error_type,
+                              copack<typename ::std::remove_cvref_t<U>::error_type>>)
       || (some_optional<T> && some_optional<U>) //
       || (some_choice<T> && some_choice<U>)     //
       || (some_just<T> && some_just<U>);
@@ -74,6 +84,18 @@ concept same_value_kind
                             typename ::std::remove_cvref_t<T>::value_type>)              //
       || (some_optional<T> && some_copack<typename ::std::remove_cvref_t<T>::value_type> //
           && some_optional<U> && some_copack<typename ::std::remove_cvref_t<U>::value_type>)
+      || (some_expected<T>
+          && (not ::std::is_void_v<typename ::std::remove_cvref_t<T>::value_type>) // the singular lift
+          &&(not some_copack<typename ::std::remove_cvref_t<T>::value_type>)
+          && some_expected<U>
+          && ::std::is_same_v<typename ::std::remove_cvref_t<U>::value_type,
+                              copack<typename ::std::remove_cvref_t<T>::value_type>>)
+      || (some_expected<U>
+          && (not ::std::is_void_v<typename ::std::remove_cvref_t<U>::value_type>) // ... and its mirror
+          &&(not some_copack<typename ::std::remove_cvref_t<U>::value_type>)
+          && some_expected<T>
+          && ::std::is_same_v<typename ::std::remove_cvref_t<T>::value_type,
+                              copack<typename ::std::remove_cvref_t<U>::value_type>>)
       || (some_choice<T> && some_choice<U>);
 
 /**
