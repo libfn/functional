@@ -1315,11 +1315,13 @@ template <typename Cp>
 
 namespace detail {
 // The graded joins for expected's binds over a copack side, when the exhaustive branches return
-// DIFFERENT expected types. Convergent sets and any non-expected result fall back to the select
-// trait, preserving today's behaviour and diagnostics verbatim; only a heterogeneous all-expected
-// set engages the join, and an invalid one - mixed void and non-void values, or a plain fixed side
-// some branch does not retain - leaves no `type`, so asking answers instead of erroring. Tpl is
-// the caller's own two-parameter carrier, keeping this header free of the expected dependency.
+// DIFFERENT expected types. Sets convergent in the exact result type fall back to the select
+// trait, preserving today's behaviour and diagnostics verbatim - exact, not stripped, because
+// select compares exact types and a set convergent only after removing cv/ref would reach its
+// assert; such a set engages the join like any heterogeneous all-expected one. An invalid set -
+// a non-expected result, mixed void and non-void values, or a plain fixed side some branch does
+// not retain - leaves no `type`, so asking answers instead of erroring. Tpl is the caller's own
+// two-parameter carrier, keeping this header free of the expected dependency.
 template <template <typename...> typename Tpl, typename E> struct _joining_expected_tag final {};
 template <template <typename...> typename Tpl, typename T> struct _joining_recovery_tag final {};
 template <template <typename...> typename Tpl> struct _joining_optional_tag final {};
@@ -1435,8 +1437,8 @@ struct _typelist_joining_expected<Tpl, E, Fn, Self, Tpl2<Ts...>, Args...>
     : ::std::conditional_t<
           (sizeof...(Ts) == 0), _no_join,
           ::std::conditional_t<
-              _joining_expected::all_same<::std::remove_cvref_t<
-                  typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...>,
+              _joining_expected::all_same<
+                  typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type...>,
               _typelist_select_apply_result<Fn, Self, Tpl2<Ts...>, Args...>,
               ::std::conditional_t<
                   (...
@@ -1455,8 +1457,8 @@ struct _typelist_joining_recovery<Tpl, T, Fn, Self, Tpl2<Ts...>, Args...>
     : ::std::conditional_t<
           (sizeof...(Ts) == 0), _no_join,
           ::std::conditional_t<
-              _joining_expected::all_same<::std::remove_cvref_t<
-                  typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...>,
+              _joining_expected::all_same<
+                  typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type...>,
               _typelist_select_apply_result<Fn, Self, Tpl2<Ts...>, Args...>,
               ::std::conditional_t<
                   (...
@@ -1483,8 +1485,8 @@ struct _typelist_joining_optional<Tpl, Fn, Self, Tpl2<Ts...>, Args...>
     : ::std::conditional_t<
           (sizeof...(Ts) == 0), _no_join,
           ::std::conditional_t<
-              _joining_expected::all_same<::std::remove_cvref_t<
-                  typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...>,
+              _joining_expected::all_same<
+                  typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type...>,
               _typelist_select_apply_result<Fn, Self, Tpl2<Ts...>, Args...>,
               ::std::conditional_t<
                   (...
@@ -1500,9 +1502,11 @@ struct _copack_apply_result<_joining_optional_tag<Tpl>, Fn, Self, Args...>
 
 // The cluster bind's join - the verb layer's licensed cross-carrier dispatch over a bare copack
 // payload. The same superset join as the choice members', under the asking rule of the joining
-// traits here: convergent sets keep the select trait's answer verbatim, an all-Tpl set joins into
-// the normalized superset, every other set leaves no `type` - the members' fall-back to select
-// would assert where a probing concept must get an answer.
+// traits here: an all-Tpl set joins into the normalized superset, a set convergent in the exact
+// result type keeps the select trait's answer verbatim, every other set leaves no `type` - the
+// members' fall-back to select would assert where a probing concept must get an answer. The
+// convergence tier must be exact, not stripped: select compares exact result types, so a set
+// convergent only after removing cv/ref would reach its assert.
 template <template <typename...> typename Tpl> struct _joining_cluster_tag final {};
 
 template <template <typename...> typename Tpl, typename Fn, typename Self, typename T, typename... Args>
@@ -1513,16 +1517,14 @@ struct _typelist_joining_cluster<Tpl, Fn, Self, Tpl2<Ts...>, Args...>
     : ::std::conditional_t<
           (sizeof...(Ts) == 0), _no_join,
           ::std::conditional_t<
-              _joining_expected::all_same<::std::remove_cvref_t<
-                  typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...>,
-              _typelist_select_apply_result<Fn, Self, Tpl2<Ts...>, Args...>,
-              ::std::conditional_t<
-                  (...
-                   && _joining_superset::is_kind<Tpl, ::std::remove_cvref_t<typename ::fn::detail::_apply_result<
-                                                          Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>>),
-                  _joining_superset_type<Tpl, ::std::remove_cvref_t<typename ::fn::detail::_apply_result<
-                                                  Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...>,
-                  _no_join>>> {};
+              (...
+               && _joining_superset::is_kind<Tpl, ::std::remove_cvref_t<typename ::fn::detail::_apply_result<
+                                                      Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>>),
+              _joining_superset_type<Tpl, ::std::remove_cvref_t<typename ::fn::detail::_apply_result<
+                                              Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...>,
+              ::std::conditional_t<_joining_expected::all_same<typename ::fn::detail::_apply_result<
+                                       Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type...>,
+                                   _typelist_select_apply_result<Fn, Self, Tpl2<Ts...>, Args...>, _no_join>>> {};
 
 template <template <typename...> typename Tpl, typename Fn, typename Self, typename... Args>
 struct _copack_apply_result<_joining_cluster_tag<Tpl>, Fn, Self, Args...>

@@ -1200,6 +1200,20 @@ TEST_CASE("and_then joins heterogeneous expected branches", "[and_then][expected
     auto r = In{fn::copack_for<A, B>{A{}}}.and_then(fnConv);
     static_assert(std::is_same_v<decltype(r), fn::expected<X, fn::copack_for<E0, E1>>>);
     CHECK(r.value() == X{});
+
+    // branches convergent only after stripping cv/ref engage the join instead: the hetero tier
+    // already owns reference-returning branches, so a more-alike set must not assert
+    // (no constexpr twin - the reference-returning branch needs static storage, barred in
+    // constant evaluation until C++23)
+    constexpr auto fnRefConv = fn::overload{[](A) -> fn::expected<X, fn::copack<E1>> & {
+                                              static fn::expected<X, fn::copack<E1>> e{X{}};
+                                              return e;
+                                            },
+                                            [](B) { return fn::expected<X, fn::copack<E1>>{X{}}; }};
+    auto rr = In{fn::copack_for<A, B>{A{}}}.and_then(fnRefConv);
+    static_assert(std::is_same_v<decltype(rr), fn::expected<X, fn::copack_for<E0, E1>>>);
+    CHECK(rr.value() == X{});
+    CHECK((In{fn::copack_for<A, B>{B{}}} | fn::and_then(fnRefConv)).value() == X{}); // the pipe agrees
   }
 
   SECTION("all-void branches join to void; mixed void and non-void answers")
@@ -1268,6 +1282,14 @@ TEST_CASE("and_then joins heterogeneous expected branches", "[and_then][expected
     static_assert(not canM(InB{fn::copack_for<A, B>{A{}}}, fnRaw));
     static_assert(not canP(InB{fn::copack_for<A, B>{A{}}}, fnRaw));
     static_assert(canP(InB{fn::copack_for<A, B>{A{}}}, fnJoin)); // converse
+    // ... nor on branches convergent only after stripping cv/ref - select compares exact types
+    constexpr auto fnRef = fn::overload{[](A) -> X & {
+                                          static X x{};
+                                          return x;
+                                        },
+                                        [](B) { return X{}; }};
+    static_assert(not fn::applicable_and_then_across<decltype(fnRef), InB>);
+    static_assert(not canP(InB{fn::copack_for<A, B>{A{}}}, fnRef));
     SUCCEED();
   }
 }
@@ -1316,6 +1338,18 @@ TEST_CASE("and_then joins heterogeneous optional branches", "[and_then][optional
     auto r = In{fn::copack_for<A, B>{A{}}}.and_then(fnConv);
     static_assert(std::is_same_v<decltype(r), fn::optional<X>>);
     CHECK(r.value() == X{});
+
+    // branches convergent only after stripping cv/ref engage the join to the common type
+    // (no constexpr twin - the reference-returning branch needs static storage, barred in
+    // constant evaluation until C++23)
+    constexpr auto fnRefConv = fn::overload{[](A) -> fn::optional<X> & {
+                                              static fn::optional<X> o{X{}};
+                                              return o;
+                                            },
+                                            [](B) { return fn::optional<X>{X{}}; }};
+    auto rr = In{fn::copack_for<A, B>{A{}}}.and_then(fnRefConv);
+    static_assert(std::is_same_v<decltype(rr), fn::optional<X>>);
+    CHECK(rr.value() == X{});
   }
 
   SECTION("constraints and noexcept")
