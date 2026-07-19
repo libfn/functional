@@ -1215,6 +1215,30 @@ TEST_CASE("and_then joins heterogeneous expected branches", "[and_then][expected
                                            [](B) noexcept { return fn::expected<Y, fn::copack<E2>>{Y{}}; }};
     static_assert(not noexcept(v.and_then(fnThrows)));
   }
+
+  SECTION("a plain grade lifts into its singular copack")
+  {
+    // the convergent path: the callback's error side spells copack<E> over a plain-E self
+    using InL = fn::expected<fn::copack_for<A, B>, E0>;
+    constexpr auto fnLift = fn::overload{[](A) { return fn::expected<X, fn::copack<E0>>{X{}}; },
+                                         [](B) { return fn::expected<X, fn::copack<E0>>{X{}}; }};
+    auto r = InL{fn::copack_for<A, B>{A{}}}.and_then(fnLift);
+    static_assert(std::is_same_v<decltype(r), fn::expected<X, fn::copack<E0>>>);
+    CHECK(r.value() == X{});
+    // ... and the heterogeneous path: one branch grades, the plain branches lift with it - the
+    // copack spelling wins, so grading never silently drops
+    constexpr auto fnMix = fn::overload{[](A) { return fn::expected<X, E0>{X{}}; },
+                                        [](B) { return fn::expected<Y, fn::copack<E0>>{Y{}}; }};
+    auto m = InL{fn::copack_for<A, B>{B{}}}.and_then(fnMix);
+    static_assert(std::is_same_v<decltype(m), fn::expected<fn::copack_for<X, Y>, fn::copack<E0>>>);
+    CHECK(m.value() == fn::copack_for<X, Y>{Y{}});
+    auto e = InL{fn::unexpect, E0{}}.and_then(fnMix);
+    CHECK(e.error() == fn::copack<E0>{E0{}});
+    // a DIFFERENT plain error still refuses - the lift is the singular copack of self's own grade
+    constexpr auto fnBad = fn::overload{[](A) { return fn::expected<X, E0>{X{}}; },
+                                        [](B) { return fn::expected<Y, fn::copack<E1>>{Y{}}; }};
+    static_assert(not canM(InL{fn::copack_for<A, B>{A{}}}, fnBad));
+  }
 }
 
 namespace fn {

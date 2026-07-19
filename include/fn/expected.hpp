@@ -245,7 +245,8 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       }
     } else {
       static_assert(_is_some_expected<type &>);
-      static_assert(::std::is_same_v<typename type::error_type, E> || some_copack<E>);
+      static_assert(::std::is_same_v<typename type::error_type, E> || some_copack<E>
+                    || ::std::is_same_v<typename type::error_type, ::fn::copack<E>>);
       if constexpr (::std::is_same_v<typename type::error_type, E>) {
         if (self.has_value())
           return ::fn::detail::_apply(FWD(fn), _pfn_base::_value(FWD(self)));
@@ -286,7 +287,8 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   {
     using type = typename ::fn::detail::_apply_result<Fn>::type;
     static_assert(_is_some_expected<type &>);
-    static_assert(::std::is_same_v<typename type::error_type, E> || some_copack<E>);
+    static_assert(::std::is_same_v<typename type::error_type, E> || some_copack<E>
+                  || ::std::is_same_v<typename type::error_type, ::fn::copack<E>>);
     if constexpr (::std::is_same_v<typename type::error_type, E>) {
       if (self.has_value())
         return ::fn::detail::_apply(FWD(fn));
@@ -360,7 +362,8 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
             _pfn_base::_error(FWD(self)), FWD(fn));
     } else {
       static_assert(_is_some_expected<type &>);
-      static_assert(::std::is_same_v<typename type::value_type, T> || some_copack<T>);
+      static_assert(::std::is_same_v<typename type::value_type, T> || some_copack<T>
+                    || ::std::is_same_v<typename type::value_type, ::fn::copack<T>>);
       if constexpr (::std::is_same_v<typename type::value_type, T>) {
         if (self.has_value())
           if constexpr (not ::std::is_void_v<T>)

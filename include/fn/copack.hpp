@@ -1300,6 +1300,34 @@ using copack_for
     = detail::_collapsing_copack::normalized<::fn::copack, detail::_collapsing_copack::flattened<Ts...>>::type;
 
 namespace detail {
+template <typename T> struct _sole_alternative {};
+template <typename T> struct _sole_alternative<::fn::copack<T>> {
+  using type = T;
+};
+} // namespace detail
+
+/**
+ * @brief Accesses the sole alternative of a singular copack
+ *
+ * Only a `copack` with exactly one alternative qualifies - the access needs no dispatch and cannot
+ * miss. Returns the alternative carrying the copack's cv-qualification and value category, exactly
+ * as `apply` would pass it.
+ *
+ * @param c The singular copack, in any value category
+ * @return Reference to the sole alternative
+ */
+template <typename Cp>
+  requires requires { typename detail::_sole_alternative<::std::remove_cvref_t<Cp>>::type; }
+[[nodiscard]] constexpr decltype(auto) get(Cp &&c) noexcept
+{
+  using type = detail::_sole_alternative<::std::remove_cvref_t<Cp>>::type;
+  if constexpr (::std::is_lvalue_reference_v<Cp>)
+    return (*c.get_ptr(::std::in_place_type<type>));
+  else
+    return ::std::move(*c.get_ptr(::std::in_place_type<type>));
+}
+
+namespace detail {
 // The graded joins for expected's binds over a copack side, when the exhaustive branches return
 // DIFFERENT expected types. Convergent sets and any non-expected result fall back to the select
 // trait, preserving today's behaviour and diagnostics verbatim; only a heterogeneous all-expected
@@ -1347,6 +1375,14 @@ template <typename E, typename... Es>
   requires(not _some_copack<E>) && (... && ::std::is_same_v<E, Es>)
 struct graded_join<E, Es...> {
   using type = E;
+};
+// ... or by its singular lift copack<E>, which then spells the result: grading never silently
+// drops, so one graded branch lifts the plain side and the plain branches with it
+template <typename E, typename... Es>
+  requires(not _some_copack<E>) && (not(... && ::std::is_same_v<E, Es>))
+          && (... && (::std::is_same_v<E, Es> || ::std::is_same_v<::fn::copack<E>, Es>))
+struct graded_join<E, Es...> {
+  using type = ::fn::copack<E>;
 };
 } // namespace _joining_expected
 

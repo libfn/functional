@@ -632,6 +632,18 @@ TEST_CASE("or_else joins heterogeneous expected branches", "[or_else][expected][
                                            [](E2) noexcept { return fn::expected<X, E1>{X{}}; }};
     static_assert(not noexcept(v.or_else(fnThrows)));
   }
+
+  SECTION("a plain value lifts into its singular copack")
+  {
+    using In = fn::expected<X, fn::copack_for<E1, E2>>;
+    constexpr auto fnR = fn::overload{[](E1) { return fn::expected<X, E0>{X{}}; },
+                                      [](E2) { return fn::expected<fn::copack<X>, E0>{fn::copack<X>{X{}}}; }};
+    auto r = In{fn::unexpect, fn::copack_for<E1, E2>{E2{}}}.or_else(fnR);
+    static_assert(std::is_same_v<decltype(r), fn::expected<fn::copack<X>, E0>>);
+    CHECK(r.value() == fn::copack<X>{X{}});
+    auto v = In{X{}}.or_else(fnR);
+    CHECK(v.value() == fn::copack<X>{X{}});
+  }
 }
 
 namespace fn {
