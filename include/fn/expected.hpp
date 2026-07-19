@@ -101,17 +101,6 @@ template <typename T, typename Fn, typename ErrArg>
   requires _some_copack<::std::remove_cvref_t<ErrArg>>
 struct _or_else_dispatch<T, Fn, ErrArg> : _copack_apply_result<_joining_recovery_tag<::fn::expected, T>, Fn, ErrArg> {};
 
-template <typename T>
-concept _is_hetero_join = requires { T::_hetero_join; };
-
-// Applicability of the bind's dispatch: per-branch for a copack side - the autodetect
-// _is_applicable would substitute the select trait's type and trip its convergence assert for the
-// very sets the join owns - plain _is_applicable otherwise.
-template <typename Fn, typename V> constexpr inline bool _bind_applicable = _is_applicable<Fn, V>::value;
-template <typename Fn, typename V>
-  requires _some_copack<::std::remove_cvref_t<V>>
-constexpr inline bool _bind_applicable<Fn, V> = _is_ts_applicable<Fn, V>;
-
 template <typename E, typename Fn, typename ErrArg, typename... ValArg> struct _nothrow_and_then : ::std::false_type {};
 
 template <typename E, typename Fn, typename ErrArg, typename... ValArg>

@@ -1241,6 +1241,76 @@ TEST_CASE("and_then joins heterogeneous expected branches", "[and_then][expected
   }
 }
 
+TEST_CASE("and_then joins heterogeneous optional branches", "[and_then][optional][copack]")
+{
+  struct A final {
+    bool operator==(A const &) const = default;
+  };
+  struct B final {
+    bool operator==(B const &) const = default;
+  };
+  struct X final {
+    bool operator==(X const &) const = default;
+  };
+  struct Y final {
+    bool operator==(Y const &) const = default;
+  };
+  using In = fn::optional<fn::copack_for<A, B>>;
+  constexpr auto fnJoin = fn::overload{[](A) { return fn::optional<X>{X{}}; }, //
+                                       [](B) { return fn::optional<Y>{Y{}}; }};
+  constexpr auto canM = [](auto &&v, auto &&fn) { return requires { FWD(v).and_then(FWD(fn)); }; };
+
+  SECTION("the values join; nullopt passes through as the joined type")
+  {
+    auto r = In{fn::copack_for<A, B>{B{}}}.and_then(fnJoin);
+    static_assert(std::is_same_v<decltype(r), fn::optional<fn::copack_for<X, Y>>>);
+    CHECK(r.value() == fn::copack_for<X, Y>{Y{}});
+    auto n = In{std::nullopt}.and_then(fnJoin);
+    static_assert(std::is_same_v<decltype(n), fn::optional<fn::copack_for<X, Y>>>);
+    CHECK(not n.has_value());
+    // named source: VS 2022 misreads a mid-expression prvalue's empty-class union member
+    constexpr In ca{fn::copack_for<A, B>{A{}}};
+    static_assert(ca.and_then(fnJoin).value() == fn::copack_for<X, Y>{X{}});
+
+    // the piped spelling agrees
+    auto p = In{fn::copack_for<A, B>{A{}}} | fn::and_then(fnJoin);
+    static_assert(std::is_same_v<decltype(p), fn::optional<fn::copack_for<X, Y>>>);
+    CHECK(p.value() == fn::copack_for<X, Y>{X{}});
+  }
+
+  SECTION("convergent branches keep their exact type")
+  {
+    constexpr auto fnConv = fn::overload{[](A) { return fn::optional<X>{X{}}; }, //
+                                         [](B) { return fn::optional<X>{X{}}; }};
+    auto r = In{fn::copack_for<A, B>{A{}}}.and_then(fnConv);
+    static_assert(std::is_same_v<decltype(r), fn::optional<X>>);
+    CHECK(r.value() == X{});
+  }
+
+  SECTION("constraints and noexcept")
+  {
+    // a mixed optional-and-expected set answers, not errors
+    constexpr auto fnMixed
+        = fn::overload{[](A) { return fn::optional<X>{X{}}; }, [](B) { return fn::expected<Y, fn::copack<>>{Y{}}; }};
+    static_assert(not canM(In{fn::copack_for<A, B>{A{}}}, fnMixed));
+    static_assert(canM(In{fn::copack_for<A, B>{A{}}}, fnJoin)); // converse
+    static_assert(fn::applicable_and_then<decltype(fnJoin), In>);
+    static_assert(not fn::applicable_and_then<decltype(fnMixed), In>);
+    // a reference-carrying optional leaves the join unformable rather than copying the referent
+    constexpr auto fnRef = fn::overload{[](A) -> fn::optional<X &> { throw 0; }, //
+                                        [](B) { return fn::optional<Y>{Y{}}; }};
+    static_assert(not canM(In{fn::copack_for<A, B>{A{}}}, fnRef));
+
+    In v{fn::copack_for<A, B>{A{}}};
+    constexpr auto fnNothrow = fn::overload{[](A) noexcept { return fn::optional<X>{X{}}; },
+                                            [](B) noexcept { return fn::optional<Y>{Y{}}; }};
+    static_assert(noexcept(v.and_then(fnNothrow)));
+    constexpr auto fnThrows
+        = fn::overload{[](A) { return fn::optional<X>{X{}}; }, [](B) noexcept { return fn::optional<Y>{Y{}}; }};
+    static_assert(not noexcept(v.and_then(fnThrows)));
+  }
+}
+
 namespace fn {
 namespace {
 struct Error {};

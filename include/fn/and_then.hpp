@@ -56,10 +56,9 @@ concept applicable_and_then //
         {
           ::fn::apply(FWD(fn))
         } -> some_expected;
-      }) || (some_optional<V> && requires(Fn &&fn, V &&v) {
-        {
-          ::fn::apply(FWD(fn), FWD(v).value())
-        } -> same_kind<V>;
+      }) || (some_optional<V> && requires(V &&v) {
+        typename detail::_optional_and_then_dispatch<Fn, decltype(FWD(v).value())>::type;
+        requires same_kind<V, typename detail::_optional_and_then_dispatch<Fn, decltype(FWD(v).value())>::type>;
       }) || (some_choice<V> && requires(Fn &&fn, V &&v) {
         {
           FWD(v).and_then(FWD(fn))

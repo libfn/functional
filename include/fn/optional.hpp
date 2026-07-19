@@ -179,6 +179,24 @@ struct _nothrow_optional_or_else_empty<T, Fn> {
         && _nothrow_initializable<new_type, ::std::in_place_t, decltype(::std::declval<type>().value())>; // its value
 };
 
+// The dispatch result of and_then over the value: a plain value answers through _apply_result as
+// always; a copack value through the graded join - select for a convergent set (today's behaviour
+// and diagnostics verbatim), the joined optional for a heterogeneous all-optional one, absent for
+// an invalid one - so the member and the trait below key on one answer and never instantiate the
+// select assert for a shape the join owns.
+template <typename Fn, typename V> struct _optional_and_then_dispatch : _apply_result<Fn, V> {};
+template <typename Fn, typename V>
+  requires _some_copack<::std::remove_cvref_t<V>>
+struct _optional_and_then_dispatch<Fn, V> : _copack_apply_result<_joining_optional_tag<::fn::optional>, Fn, V> {};
+
+template <typename Fn, typename V>
+struct _nothrow_optional_and_then : ::std::bool_constant<_is_nothrow_applicable<Fn, V>::value> {};
+template <typename Fn, typename V>
+  requires _is_hetero_join<_optional_and_then_dispatch<Fn, V>>
+struct _nothrow_optional_and_then<Fn, V> {
+  static constexpr bool value = _is_nothrow_rts_applicable<typename _optional_and_then_dispatch<Fn, V>::type, Fn, V>;
+};
+
 // Storage layer for ::fn::optional. Inherits the standard-conformant base from
 // pfn, then hides the three monadic static helpers with copack-aware variants that
 // materialise their result via `optional_policy::template type<U>`.
@@ -195,15 +213,23 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
 
   // and_then
   template <typename Self, typename Fn>
-  static constexpr auto _and_then(Self &&self, Fn &&fn)                               //
-      noexcept(::fn::detail::_is_nothrow_applicable<Fn, decltype(*FWD(self))>::value) // extension
-    requires ::fn::detail::_is_applicable<Fn, decltype(*FWD(self))>::value
+  static constexpr auto _and_then(Self &&self, Fn &&fn)                                   //
+      noexcept(::fn::detail::_nothrow_optional_and_then<Fn, decltype(*FWD(self))>::value) // extension
+    requires ::fn::detail::_bind_applicable<Fn, decltype(*FWD(self))>
+             && requires { typename ::fn::detail::_optional_and_then_dispatch<Fn, decltype(*FWD(self))>::type; }
   {
-    using type = ::std::remove_cvref_t<typename ::fn::detail::_apply_result<Fn, decltype(*FWD(self))>::type>;
+    using dispatch = ::fn::detail::_optional_and_then_dispatch<Fn, decltype(*FWD(self))>;
+    using type = ::std::remove_cvref_t<typename dispatch::type>;
     static_assert(_is_some_optional<type &>);
-    if (self.has_value())
-      return ::fn::detail::_apply(FWD(fn), *FWD(self));
-    else {
+    if (self.has_value()) {
+      if constexpr (::fn::detail::_is_hetero_join<dispatch>)
+        // heterogeneous optional branches: the join announced `type`, every branch converts into
+        // it as it returns
+        return ::fn::detail::_tagged_join_apply<::fn::detail::_joining_optional_tag<::fn::optional>>(*FWD(self),
+                                                                                                     FWD(fn));
+      else
+        return ::fn::detail::_apply(FWD(fn), *FWD(self));
+    } else {
 #if defined(__clang__) && __clang_major__ <= 18
       // clang 15-18 miscompile the prvalue return below for three of the four Self ref-qualifier
       // instantiations (&, const &, const &&) at -O1/-O2: the disengaged result is observed with
