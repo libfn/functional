@@ -180,20 +180,6 @@ template <template <typename...> typename Tpl, typename Fn, typename Self, typen
 struct _copack_apply_result<_joining_superset_tag<Tpl>, Fn, Self, Args...> final
     : _typelist_joining_superset<Tpl, Fn, Self, ::std::remove_cvref_t<Self>, Args...> {};
 
-// The engine entry for join-mode dispatch over a bare copack, for the verb layer's cluster bind -
-// the licensed cross-carrier place; a copack's members stay select and collapse.
-template <template <typename...> typename Tpl, typename Cp, typename Fn>
-  requires _some_copack<::std::remove_cvref_t<Cp>>
-[[nodiscard]] constexpr auto _join_apply(Cp &&cp, Fn &&fn) //
-    noexcept(_is_nothrow_rts_applicable<typename _copack_apply_result<_joining_superset_tag<Tpl>, Fn &&, Cp &&>::type,
-                                        Fn &&, Cp &&>) ->
-    typename _copack_apply_result<_joining_superset_tag<Tpl>, Fn &&, Cp &&>::type
-{
-  using type = _copack_apply_result<_joining_superset_tag<Tpl>, Fn &&, Cp &&>::type;
-  using data_t = ::std::remove_cvref_t<Cp>::data_t;
-  return apply_variadic_union<type, data_t>(FWD(cp).data, cp.index, FWD(fn));
-}
-
 template <typename Fn, typename Self, typename T, typename... Args> struct _typelist_type_select_invoke_result;
 template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts, typename... Args>
 struct _typelist_type_select_invoke_result<Fn, Self, Tpl<Ts...>, Args...> {
@@ -1512,8 +1498,38 @@ template <template <typename...> typename Tpl, typename Fn, typename Self, typen
 struct _copack_apply_result<_joining_optional_tag<Tpl>, Fn, Self, Args...>
     : _typelist_joining_optional<Tpl, Fn, Self, ::std::remove_cvref_t<Self>, Args...> {};
 
-// Tag-generic sibling of _join_apply above, for expected's graded binds: dispatch over the copack
-// side with the join's announced result, each branch converting into it
+// The cluster bind's join - the verb layer's licensed cross-carrier dispatch over a bare copack
+// payload. The same superset join as the choice members', under the asking rule of the joining
+// traits here: convergent sets keep the select trait's answer verbatim, an all-Tpl set joins into
+// the normalized superset, every other set leaves no `type` - the members' fall-back to select
+// would assert where a probing concept must get an answer.
+template <template <typename...> typename Tpl> struct _joining_cluster_tag final {};
+
+template <template <typename...> typename Tpl, typename Fn, typename Self, typename T, typename... Args>
+struct _typelist_joining_cluster;
+template <template <typename...> typename Tpl, typename Fn, typename Self, template <typename...> typename Tpl2,
+          typename... Ts, typename... Args>
+struct _typelist_joining_cluster<Tpl, Fn, Self, Tpl2<Ts...>, Args...>
+    : ::std::conditional_t<
+          (sizeof...(Ts) == 0), _no_join,
+          ::std::conditional_t<
+              _joining_expected::all_same<::std::remove_cvref_t<
+                  typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...>,
+              _typelist_select_apply_result<Fn, Self, Tpl2<Ts...>, Args...>,
+              ::std::conditional_t<
+                  (...
+                   && _joining_superset::is_kind<Tpl, ::std::remove_cvref_t<typename ::fn::detail::_apply_result<
+                                                          Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>>),
+                  _joining_superset_type<Tpl, ::std::remove_cvref_t<typename ::fn::detail::_apply_result<
+                                                  Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...>,
+                  _no_join>>> {};
+
+template <template <typename...> typename Tpl, typename Fn, typename Self, typename... Args>
+struct _copack_apply_result<_joining_cluster_tag<Tpl>, Fn, Self, Args...>
+    : _typelist_joining_cluster<Tpl, Fn, Self, ::std::remove_cvref_t<Self>, Args...> {};
+
+// The tag-generic engine entry for join-mode dispatch over a copack side: each branch converts
+// into the tag's announced result. Serves expected's graded binds and the verb layer's cluster arm
 template <typename Tag, typename Cp, typename Fn>
   requires _some_copack<::std::remove_cvref_t<Cp>>
 [[nodiscard]] constexpr auto _tagged_join_apply(Cp &&cp, Fn &&fn) //
