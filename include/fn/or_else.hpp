@@ -19,15 +19,17 @@ namespace fn {
  */
 template <typename Fn, typename V>
 concept applicable_or_else //
-    = (some_expected<V> && requires(Fn &&fn, V &&v) {
-        {
-          ::fn::apply(FWD(fn), FWD(v).error())
-        } -> same_value_kind<V>;
+    = (some_expected<V> && requires(V &&v) {
+        typename detail::_or_else_dispatch<typename ::std::remove_cvref_t<V>::value_type, Fn,
+                                           decltype(FWD(v).error())>::type;
+        requires same_value_kind<V, typename detail::_or_else_dispatch<typename ::std::remove_cvref_t<V>::value_type,
+                                                                       Fn, decltype(FWD(v).error())>::type>;
       }) || (some_expected<V> //
-         && some_copack<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
-        {
-          ::fn::apply(FWD(fn), FWD(v).error())
-        } -> some_expected;
+         && some_copack<typename ::std::remove_cvref_t<V>::value_type> && requires(V &&v) {
+        typename detail::_or_else_dispatch<typename ::std::remove_cvref_t<V>::value_type, Fn,
+                                           decltype(FWD(v).error())>::type;
+        requires some_expected<typename detail::_or_else_dispatch<typename ::std::remove_cvref_t<V>::value_type, Fn,
+                                                                  decltype(FWD(v).error())>::type>;
       }) || (some_optional<V> && requires(Fn &&fn) {
         {
           ::fn::apply(FWD(fn))

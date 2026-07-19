@@ -86,26 +86,43 @@ constexpr inline bool _nothrow_carry_value<Type, Src> = true;
 // body's arms. Both lead with `_is_some_expected`, so a callback returning something else leaves the
 // unconstrained primary to answer, and the body's static_assert to diagnose - a specification must
 // not pre-empt that with a hard error.
+// The dispatch result of a graded bind: a plain side answers through _apply_result as always; a
+// copack side goes through the graded join - select for a convergent set (today's behaviour and
+// diagnostics verbatim), the joined expected for a heterogeneous all-expected one, absent for an
+// invalid one - so the members and the traits below key on ONE answer and never instantiate the
+// select assert for a shape the join owns.
+template <typename E, typename Fn, typename... V> struct _and_then_dispatch : _apply_result<Fn, V...> {};
+template <typename E, typename Fn, typename V>
+  requires _some_copack<::std::remove_cvref_t<V>>
+struct _and_then_dispatch<E, Fn, V> : _copack_apply_result<_joining_expected_tag<::fn::expected, E>, Fn, V> {};
+
+template <typename T, typename Fn, typename ErrArg> struct _or_else_dispatch : _apply_result<Fn, ErrArg> {};
+template <typename T, typename Fn, typename ErrArg>
+  requires _some_copack<::std::remove_cvref_t<ErrArg>>
+struct _or_else_dispatch<T, Fn, ErrArg> : _copack_apply_result<_joining_recovery_tag<::fn::expected, T>, Fn, ErrArg> {};
+
 template <typename E, typename Fn, typename ErrArg, typename... ValArg> struct _nothrow_and_then : ::std::false_type {};
 
 template <typename E, typename Fn, typename ErrArg, typename... ValArg>
-  requires _is_some_expected<::std::remove_cvref_t<typename _apply_result<Fn, ValArg...>::type> &>
-           && ::std::is_same_v<
-               typename _expected_types<::std::remove_cvref_t<typename _apply_result<Fn, ValArg...>::type>>::error_type,
-               E>
+  requires(not _is_hetero_join<_and_then_dispatch<E, Fn, ValArg...>>)
+          && _is_some_expected<::std::remove_cvref_t<typename _and_then_dispatch<E, Fn, ValArg...>::type> &>
+          && ::std::is_same_v<typename _expected_types<::std::remove_cvref_t<
+                                  typename _and_then_dispatch<E, Fn, ValArg...>::type>>::error_type,
+                              E>
 struct _nothrow_and_then<E, Fn, ErrArg, ValArg...>
-    : ::std::bool_constant<
-          _is_nothrow_applicable<Fn, ValArg...>::value // the callback
-              && ::std::is_nothrow_constructible_v<::std::remove_cvref_t<typename _apply_result<Fn, ValArg...>::type>,
-                                                   ::fn::unexpect_t, ErrArg>> {}; // lifting self's error
+    : ::std::bool_constant<_is_nothrow_applicable<Fn, ValArg...>::value // the callback
+                               && ::std::is_nothrow_constructible_v<
+                                   ::std::remove_cvref_t<typename _and_then_dispatch<E, Fn, ValArg...>::type>,
+                                   ::fn::unexpect_t, ErrArg>> {}; // lifting self's error
 
 template <typename E, typename Fn, typename ErrArg, typename... ValArg>
-  requires _is_some_expected<::std::remove_cvref_t<typename _apply_result<Fn, ValArg...>::type> &>
-           && (not ::std::is_same_v<
-               typename _expected_types<::std::remove_cvref_t<typename _apply_result<Fn, ValArg...>::type>>::error_type,
-               E>)
+  requires(not _is_hetero_join<_and_then_dispatch<E, Fn, ValArg...>>)
+          && _is_some_expected<::std::remove_cvref_t<typename _and_then_dispatch<E, Fn, ValArg...>::type> &>
+          && (not ::std::is_same_v<typename _expected_types<::std::remove_cvref_t<
+                                       typename _and_then_dispatch<E, Fn, ValArg...>::type>>::error_type,
+                                   E>)
 struct _nothrow_and_then<E, Fn, ErrArg, ValArg...> {
-  using type = ::std::remove_cvref_t<typename _apply_result<Fn, ValArg...>::type>;
+  using type = ::std::remove_cvref_t<typename _and_then_dispatch<E, Fn, ValArg...>::type>;
   using new_type = ::fn::expected<typename type::value_type, copack_for<E, typename type::error_type>>;
 
   static constexpr bool value                        //
@@ -116,28 +133,43 @@ struct _nothrow_and_then<E, Fn, ErrArg, ValArg...> {
         && _nothrow_arm<E, new_type, ::fn::unexpect_t, ErrArg>;   // widening self's error
 };
 
+// the heterogeneous join: each branch and its conversion into the announced result are weighed by
+// the rts trait; widening self's error is the one other reachable construction, dead for copack<>
+template <typename E, typename Fn, typename ErrArg, typename... ValArg>
+  requires _is_hetero_join<_and_then_dispatch<E, Fn, ValArg...>>
+struct _nothrow_and_then<E, Fn, ErrArg, ValArg...> {
+  using type = typename _and_then_dispatch<E, Fn, ValArg...>::type;
+
+  static constexpr bool value
+      = _is_nothrow_rts_applicable<type, Fn, ValArg...>
+        && (empty_copack<E> || ::std::is_nothrow_constructible_v<type, ::fn::unexpect_t, ErrArg>);
+};
+
 // or_else's arms, mirrored the same way. ValArg is the type of self's value as the body relocates it
 // (spelled through apply_const_lvalue_t by the caller, since for a void T there is no value to name).
 template <typename T, typename Fn, typename ErrArg, typename ValArg> struct _nothrow_or_else : ::std::false_type {};
 
 template <typename T, typename Fn, typename ErrArg, typename ValArg>
-  requires _is_some_expected<::std::remove_cvref_t<typename _apply_result<Fn, ErrArg>::type> &>
-           && ::std::is_same_v<
-               typename _expected_types<::std::remove_cvref_t<typename _apply_result<Fn, ErrArg>::type>>::value_type, T>
+  requires(not _is_hetero_join<_or_else_dispatch<T, Fn, ErrArg>>)
+          && _is_some_expected<::std::remove_cvref_t<typename _or_else_dispatch<T, Fn, ErrArg>::type> &>
+          && ::std::is_same_v<typename _expected_types<
+                                  ::std::remove_cvref_t<typename _or_else_dispatch<T, Fn, ErrArg>::type>>::value_type,
+                              T>
 struct _nothrow_or_else<T, Fn, ErrArg, ValArg>
     : ::std::bool_constant<
           _is_nothrow_applicable<Fn, ErrArg>::value // the callback
           && (::std::is_void_v<T>
-              || _nothrow_initializable<::std::remove_cvref_t<typename _apply_result<Fn, ErrArg>::type>,
+              || _nothrow_initializable<::std::remove_cvref_t<typename _or_else_dispatch<T, Fn, ErrArg>::type>,
                                         ::std::in_place_t, ValArg>)> {}; // carrying self's value
 
 template <typename T, typename Fn, typename ErrArg, typename ValArg>
-  requires _is_some_expected<::std::remove_cvref_t<typename _apply_result<Fn, ErrArg>::type> &>
-           && (not ::std::is_same_v<
-               typename _expected_types<::std::remove_cvref_t<typename _apply_result<Fn, ErrArg>::type>>::value_type,
-               T>)
+  requires(not _is_hetero_join<_or_else_dispatch<T, Fn, ErrArg>>)
+          && _is_some_expected<::std::remove_cvref_t<typename _or_else_dispatch<T, Fn, ErrArg>::type> &>
+          && (not ::std::is_same_v<typename _expected_types<::std::remove_cvref_t<
+                                       typename _or_else_dispatch<T, Fn, ErrArg>::type>>::value_type,
+                                   T>)
 struct _nothrow_or_else<T, Fn, ErrArg, ValArg> {
-  using type = ::std::remove_cvref_t<typename _apply_result<Fn, ErrArg>::type>;
+  using type = ::std::remove_cvref_t<typename _or_else_dispatch<T, Fn, ErrArg>::type>;
   using new_type = ::fn::expected<copack_for<T, typename type::value_type>, typename type::error_type>;
 
   static constexpr bool value                                   //
@@ -146,6 +178,18 @@ struct _nothrow_or_else<T, Fn, ErrArg, ValArg> {
         && _nothrow_carry_value<new_type, type>                 // widening its value
         && _nothrow_initializable<new_type, ::fn::unexpect_t,
                                   decltype(::std::declval<type>().error())>; // carrying its error
+};
+
+// the heterogeneous join, mirrored: the branches and their conversions through the rts trait;
+// carrying self's value into the announced result is the other reachable construction
+template <typename T, typename Fn, typename ErrArg, typename ValArg>
+  requires _is_hetero_join<_or_else_dispatch<T, Fn, ErrArg>>
+struct _nothrow_or_else<T, Fn, ErrArg, ValArg> {
+  using type = typename _or_else_dispatch<T, Fn, ErrArg>::type;
+
+  static constexpr bool value
+      = _is_nothrow_rts_applicable<type, Fn, ErrArg>
+        && (::std::is_void_v<T> || empty_copack<T> || _nothrow_initializable<type, ::std::in_place_t, ValArg>);
 };
 
 // Storage layer for ::fn::expected. Inherits the standard-conformant base from
@@ -168,38 +212,57 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   static constexpr auto _and_then(Self &&self, Fn &&fn) //
       noexcept(::fn::detail::_nothrow_and_then<E, Fn, decltype(_pfn_base::_error(FWD(self))),
                                                decltype(_pfn_base::_value(FWD(self)))>::value) // extension
-    requires(not ::std::is_void_v<T>) && ::fn::detail::_is_applicable<Fn, decltype(_pfn_base::_value(FWD(self)))>::value
-            && ::std::is_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
+    requires(not ::std::is_void_v<T>) && (not empty_copack<T>)
+            && ::fn::detail::_bind_applicable<Fn, decltype(_pfn_base::_value(FWD(self)))>
+            && ::std::is_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))> && requires {
+                 typename ::fn::detail::_and_then_dispatch<E, Fn, decltype(_pfn_base::_value(FWD(self)))>::type;
+               }
   {
-    using type = typename ::fn::detail::_apply_result<Fn, decltype(_pfn_base::_value(FWD(self)))>::type;
-    static_assert(_is_some_expected<type &>);
-    static_assert(::std::is_same_v<typename type::error_type, E> || some_copack<E>);
-    if constexpr (::std::is_same_v<typename type::error_type, E>) {
+    using dispatch = ::fn::detail::_and_then_dispatch<E, Fn, decltype(_pfn_base::_value(FWD(self)))>;
+    using type = typename dispatch::type;
+    if constexpr (::fn::detail::_is_hetero_join<dispatch>) {
+      // heterogeneous expected branches: the join announced `type`, every branch converts into it
+      // as it returns, and the error path widens self's grade the same way
       if (self.has_value())
-        return ::fn::detail::_apply(FWD(fn), _pfn_base::_value(FWD(self)));
-      else
-        return type(::fn::unexpect, _pfn_base::_error(FWD(self)));
+        return ::fn::detail::_tagged_join_apply<::fn::detail::_joining_expected_tag<::fn::expected, E>>(
+            _pfn_base::_value(FWD(self)), FWD(fn));
+      else {
+        if constexpr (not empty_copack<E>)
+          return type(::fn::unexpect, _pfn_base::_error(FWD(self)));
+        else
+          ::pfn::unreachable(); // LCOV_EXCL_LINE
+      }
     } else {
-      using new_error_type = copack_for<E, typename type::error_type>;
-      using new_type = ::fn::expected<typename type::value_type, new_error_type>;
-      if (self.has_value()) {
-        auto t = ::fn::detail::_apply(FWD(fn), _pfn_base::_value(FWD(self)));
-        if (t.has_value())
-          if constexpr (not ::std::is_void_v<typename new_type::value_type>)
-            return new_type{::std::in_place, ::std::move(t).value()};
-          else
-            return new_type{::std::in_place};
-        else {
-          if constexpr (not empty_copack<typename type::error_type>)
-            return new_type{::fn::unexpect, ::std::move(t).error()};
+      static_assert(_is_some_expected<type &>);
+      static_assert(::std::is_same_v<typename type::error_type, E> || some_copack<E>
+                    || ::std::is_same_v<typename type::error_type, ::fn::copack<E>>);
+      if constexpr (::std::is_same_v<typename type::error_type, E>) {
+        if (self.has_value())
+          return ::fn::detail::_apply(FWD(fn), _pfn_base::_value(FWD(self)));
+        else
+          return type(::fn::unexpect, _pfn_base::_error(FWD(self)));
+      } else {
+        using new_error_type = copack_for<E, typename type::error_type>;
+        using new_type = ::fn::expected<typename type::value_type, new_error_type>;
+        if (self.has_value()) {
+          auto t = ::fn::detail::_apply(FWD(fn), _pfn_base::_value(FWD(self)));
+          if (t.has_value())
+            if constexpr (not ::std::is_void_v<typename new_type::value_type>)
+              return new_type{::std::in_place, ::std::move(t).value()};
+            else
+              return new_type{::std::in_place};
+          else {
+            if constexpr (not empty_copack<typename type::error_type>)
+              return new_type{::fn::unexpect, ::std::move(t).error()};
+            else
+              ::pfn::unreachable(); // LCOV_EXCL_LINE
+          }
+        } else {
+          if constexpr (not empty_copack<E>)
+            return new_type(::fn::unexpect, _pfn_base::_error(FWD(self)));
           else
             ::pfn::unreachable(); // LCOV_EXCL_LINE
         }
-      } else {
-        if constexpr (not empty_copack<E>)
-          return new_type(::fn::unexpect, _pfn_base::_error(FWD(self)));
-        else
-          ::pfn::unreachable(); // LCOV_EXCL_LINE
       }
     }
   }
@@ -213,7 +276,8 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   {
     using type = typename ::fn::detail::_apply_result<Fn>::type;
     static_assert(_is_some_expected<type &>);
-    static_assert(::std::is_same_v<typename type::error_type, E> || some_copack<E>);
+    static_assert(::std::is_same_v<typename type::error_type, E> || some_copack<E>
+                  || ::std::is_same_v<typename type::error_type, ::fn::copack<E>>);
     if constexpr (::std::is_same_v<typename type::error_type, E>) {
       if (self.has_value())
         return ::fn::detail::_apply(FWD(fn));
@@ -264,52 +328,72 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   static constexpr auto _or_else(Self &&self, Fn &&fn) //
       noexcept(::fn::detail::_nothrow_or_else<T, Fn, decltype(_pfn_base::_error(FWD(self))),
                                               ::fn::apply_const_lvalue_t<Self, typename _pfn_base::_value_t &&>>::value)
-    requires ::fn::detail::_is_applicable<Fn, decltype(_pfn_base::_error(FWD(self)))>::value
-             && (::std::is_void_v<T> || ::std::is_constructible_v<T, decltype(_pfn_base::_value(FWD(self)))>)
+    requires(not empty_copack<E>) && ::fn::detail::_bind_applicable<Fn, decltype(_pfn_base::_error(FWD(self)))>
+            && (::std::is_void_v<T> || ::std::is_constructible_v<T, decltype(_pfn_base::_value(FWD(self)))>)
+            && requires {
+                 typename ::fn::detail::_or_else_dispatch<T, Fn, decltype(_pfn_base::_error(FWD(self)))>::type;
+               }
   {
-    using type = typename ::fn::detail::_apply_result<Fn, decltype(_pfn_base::_error(FWD(self)))>::type;
-    static_assert(_is_some_expected<type &>);
-    static_assert(::std::is_same_v<typename type::value_type, T> || some_copack<T>);
-    if constexpr (::std::is_same_v<typename type::value_type, T>) {
-      if (self.has_value())
-        if constexpr (not ::std::is_void_v<T>)
-          return type(::std::in_place, _pfn_base::_value(FWD(self)));
-        else {
-          static_assert(::std::is_void_v<typename type::value_type>);
-#if defined(__clang__) && __clang_major__ <= 18
-          // clang 15-18 miscompile the prvalue return below for three of the four Self ref-qualifier
-          // instantiations (&, const &, const &&) at -O1/-O2: the value-state result is observed with
-          // set_ == false (storage-poison). The workaround dodges the buggy mandatory copy-elision,
-          // at the cost of a move -- an immovable error type must keep the prvalue (the workaround
-          // would not compile; the miscompile is not observed in that shape).
-          if constexpr (::std::is_move_constructible_v<type>)
-            return ::std::move(type{::std::in_place});
-          else
-            return type{::std::in_place};
-#else
-          return type{::std::in_place};
-#endif
-        }
-      else
-        return ::fn::detail::_apply(FWD(fn), _pfn_base::_error(FWD(self)));
-    } else {
-      static_assert(not ::std::is_void_v<typename type::value_type>);
-      using new_value_type = copack_for<T, typename type::value_type>;
-      using new_type = ::fn::expected<new_value_type, typename type::error_type>;
+    using dispatch = ::fn::detail::_or_else_dispatch<T, Fn, decltype(_pfn_base::_error(FWD(self)))>;
+    using type = typename dispatch::type;
+    if constexpr (::fn::detail::_is_hetero_join<dispatch>) {
+      // heterogeneous expected branches: the join announced `type`; self's value widens into it on
+      // the value path, and each branch converts into it as it returns on the error path
       if (self.has_value()) {
-        if constexpr (not empty_copack<T>)
-          return new_type{::std::in_place, _pfn_base::_value(FWD(self))};
+        if constexpr (::std::is_void_v<T>)
+          return type{::std::in_place};
+        else if constexpr (not empty_copack<T>)
+          return type{::std::in_place, _pfn_base::_value(FWD(self))};
         else
           ::pfn::unreachable(); // LCOV_EXCL_LINE
+      } else
+        return ::fn::detail::_tagged_join_apply<::fn::detail::_joining_recovery_tag<::fn::expected, T>>(
+            _pfn_base::_error(FWD(self)), FWD(fn));
+    } else {
+      static_assert(_is_some_expected<type &>);
+      static_assert(::std::is_same_v<typename type::value_type, T> || some_copack<T>
+                    || ::std::is_same_v<typename type::value_type, ::fn::copack<T>>);
+      if constexpr (::std::is_same_v<typename type::value_type, T>) {
+        if (self.has_value())
+          if constexpr (not ::std::is_void_v<T>)
+            return type(::std::in_place, _pfn_base::_value(FWD(self)));
+          else {
+            static_assert(::std::is_void_v<typename type::value_type>);
+#if defined(__clang__) && __clang_major__ <= 18
+            // clang 15-18 miscompile the prvalue return below for three of the four Self ref-qualifier
+            // instantiations (&, const &, const &&) at -O1/-O2: the value-state result is observed with
+            // set_ == false (storage-poison). The workaround dodges the buggy mandatory copy-elision,
+            // at the cost of a move -- an immovable error type must keep the prvalue (the workaround
+            // would not compile; the miscompile is not observed in that shape).
+            if constexpr (::std::is_move_constructible_v<type>)
+              return ::std::move(type{::std::in_place});
+            else
+              return type{::std::in_place};
+#else
+            return type{::std::in_place};
+#endif
+          }
+        else
+          return ::fn::detail::_apply(FWD(fn), _pfn_base::_error(FWD(self)));
       } else {
-        auto t = ::fn::detail::_apply(FWD(fn), _pfn_base::_error(FWD(self)));
-        if (t.has_value()) {
-          if constexpr (not empty_copack<typename type::value_type>)
-            return new_type{::std::in_place, ::std::move(t).value()};
+        static_assert(not ::std::is_void_v<typename type::value_type>);
+        using new_value_type = copack_for<T, typename type::value_type>;
+        using new_type = ::fn::expected<new_value_type, typename type::error_type>;
+        if (self.has_value()) {
+          if constexpr (not empty_copack<T>)
+            return new_type{::std::in_place, _pfn_base::_value(FWD(self))};
           else
             ::pfn::unreachable(); // LCOV_EXCL_LINE
-        } else
-          return new_type{::fn::unexpect, ::std::move(t).error()};
+        } else {
+          auto t = ::fn::detail::_apply(FWD(fn), _pfn_base::_error(FWD(self)));
+          if (t.has_value()) {
+            if constexpr (not empty_copack<typename type::value_type>)
+              return new_type{::std::in_place, ::std::move(t).value()};
+            else
+              ::pfn::unreachable(); // LCOV_EXCL_LINE
+          } else
+            return new_type{::fn::unexpect, ::std::move(t).error()};
+        }
       }
     }
   }

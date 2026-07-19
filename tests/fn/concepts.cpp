@@ -92,9 +92,10 @@ static_assert(not same_kind<expected<void, Error>, expected<int, Xerror>>);
 static_assert(not same_kind<expected<int, Error>, expected<void, Xerror>>);
 static_assert(not same_kind<expected<int, Error>, expected<Value, Xerror>>);
 static_assert(not same_kind<expected<void, Error>, expected<Value, Xerror>>);
-static_assert(not same_kind<expected<Value, fn::copack<Error>>, expected<void, Error>>);
+static_assert(same_kind<expected<Value, fn::copack<Error>>, expected<void, Error>>); // the lift, mirrored
 static_assert(not same_kind<expected<Value, fn::copack<Error>>, expected<void, Xerror>>);
-static_assert(not same_kind<expected<Value, Error>, expected<void, fn::copack<Error>>>);
+// the singular lift: a plain grade and its copack<E> spelling are the same kind, both ways
+static_assert(same_kind<expected<Value, Error>, expected<void, fn::copack<Error>>>);
 static_assert(not same_kind<expected<Value, Xerror>, expected<void, fn::copack<Error>>>);
 
 static_assert(same_kind<optional<int>          , optional<Value>>);
@@ -308,7 +309,10 @@ static_assert(same_kind<expected<int, Error>, expected<Value, Error>>);
 // a copack-valued expected matches any other copack-valued one, whatever the copacks hold - the arm that lets
 // the value widen
 static_assert(same_value_kind<expected<copack<int>, Error>, expected<copack<Value>, Xerror>>);
-static_assert(not same_value_kind<expected<copack<int>, Error>, expected<int, Error>>);
+static_assert(same_value_kind<expected<copack<int>, Error>, expected<int, Error>>); // the lift, mirrored
+// the singular lift, value side - both ways
+static_assert(same_value_kind<expected<int, Error>, expected<copack<int>, Xerror>>);
+static_assert(not same_value_kind<expected<int, Error>, expected<copack<Value>, Error>>);
 
 static_assert(same_value_kind<optional<int>, optional<int>>);
 static_assert(not same_value_kind<optional<int>, optional<Value>>);

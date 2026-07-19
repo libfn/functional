@@ -185,9 +185,10 @@ TEST_CASE("just", "[just]")
     static_assert(std::is_same_v<decltype(a.transform([](int) {})), fn::just<void>>);
     CHECK(a.transform([](int i) { return Immovable{i}; }).value().x == 3);
 
-    // a copack result leaves no viable overload - the transform VERB promotes it to choice instead
+    // a copack result keeps the member viable-but-loud, like the family's members - the body's
+    // static_assert names the requirement on use; the transform VERB promotes it to choice instead
     constexpr auto fnCopack = [](int) { return fn::copack<int>{1}; };
-    static_assert(not can_transform<T &, decltype(fnCopack)>);
+    static_assert(can_transform<T &, decltype(fnCopack)>);
 
     // noexcept from the callback's applicability
     static_assert(noexcept(a.transform([](int) noexcept { return 1; })));

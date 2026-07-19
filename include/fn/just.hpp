@@ -6,6 +6,8 @@
 #ifndef INCLUDE_FN_JUST
 #define INCLUDE_FN_JUST
 
+#include <pfn/utility.hpp>
+
 #include <fn/detail/functional.hpp>
 #include <fn/detail/fwd.hpp>
 #include <fn/detail/variadic_union.hpp>
@@ -32,14 +34,25 @@ template <typename T>
 concept _just_payload = (not _some_copack<T>) && (not ::std::is_reference_v<T>) && (not ::std::is_array_v<T>)
                         && (not _some_in_place_type<T>) && ::std::is_same_v<T, ::std::remove_cv_t<T>>;
 
-// transform's declared result, gated: an inadmissible payload - a copack, a reference, an array -
-// leaves no `type`, so the member drops in the immediate context wherever it is named (the verbs'
-// probes and noexcept specifications rely on this answering instead of firing just's mandates; a
-// copack result is promoted to choice by the transform verb instead)
+// What the callback's result may become: void and admissible payloads make a just; anything else
+// keeps the member viable-but-loud below
+template <typename Fn, typename... V>
+concept _just_admissible_result
+    = ::std::is_void_v<typename _apply_result<Fn, V...>::type> || _just_payload<typename _apply_result<Fn, V...>::type>;
+
+// transform's declared result: `just` of an admissible payload; the RAW result type for an
+// inadmissible one - a copack, a reference, an array - always formable, so the member stays
+// viable and the body's static_assert names the requirement on use, the family's own pedagogy
+// (naming just<result> here instead would fire the class mandate inside the verbs' probes and
+// other candidates' noexcept specifications). An inapplicable callback still leaves no `type`.
 template <typename Fn, typename... V> struct _just_transform_result {};
 template <typename Fn, typename... V>
-  requires ::std::is_void_v<typename _apply_result<Fn, V...>::type>
-           || _just_payload<typename _apply_result<Fn, V...>::type>
+  requires(_is_applicable<Fn, V...>::value) && (not _just_admissible_result<Fn, V...>)
+struct _just_transform_result<Fn, V...> {
+  using type = typename _apply_result<Fn, V...>::type;
+};
+template <typename Fn, typename... V>
+  requires(_is_applicable<Fn, V...>::value) && _just_admissible_result<Fn, V...>
 struct _just_transform_result<Fn, V...> {
   using type = ::fn::just<typename _apply_result<Fn, V...>::type>;
 };
@@ -196,12 +209,15 @@ template <typename T> struct just {
     requires detail::_is_applicable<Fn, T &>::value
   {
     using type = detail::_apply_result<Fn, T &>::type;
+    static_assert(detail::_just_admissible_result<Fn, T &>);
     if constexpr (::std::is_void_v<type>) {
       detail::_apply(FWD(fn), v_);
       return just<type>{};
-    } else
+    } else if constexpr (detail::_just_payload<type>)
       return just<type>{detail::_just_from_invoke,
                         [&fn, this]() -> decltype(auto) { return detail::_apply(FWD(fn), v_); }};
+    else
+      ::pfn::unreachable(); // LCOV_EXCL_LINE - rejected by the static_assert above
   }
 
   template <typename Fn>
@@ -211,12 +227,15 @@ template <typename T> struct just {
     requires detail::_is_applicable<Fn, T const &>::value
   {
     using type = detail::_apply_result<Fn, T const &>::type;
+    static_assert(detail::_just_admissible_result<Fn, T const &>);
     if constexpr (::std::is_void_v<type>) {
       detail::_apply(FWD(fn), v_);
       return just<type>{};
-    } else
+    } else if constexpr (detail::_just_payload<type>)
       return just<type>{detail::_just_from_invoke,
                         [&fn, this]() -> decltype(auto) { return detail::_apply(FWD(fn), v_); }};
+    else
+      ::pfn::unreachable(); // LCOV_EXCL_LINE - rejected by the static_assert above
   }
 
   template <typename Fn>
@@ -226,12 +245,15 @@ template <typename T> struct just {
     requires detail::_is_applicable<Fn, T &&>::value
   {
     using type = detail::_apply_result<Fn, T &&>::type;
+    static_assert(detail::_just_admissible_result<Fn, T &&>);
     if constexpr (::std::is_void_v<type>) {
       detail::_apply(FWD(fn), ::std::move(v_));
       return just<type>{};
-    } else
+    } else if constexpr (detail::_just_payload<type>)
       return just<type>{detail::_just_from_invoke,
                         [&fn, this]() -> decltype(auto) { return detail::_apply(FWD(fn), ::std::move(v_)); }};
+    else
+      ::pfn::unreachable(); // LCOV_EXCL_LINE - rejected by the static_assert above
   }
 
   template <typename Fn>
@@ -241,12 +263,15 @@ template <typename T> struct just {
     requires detail::_is_applicable<Fn, T const &&>::value
   {
     using type = detail::_apply_result<Fn, T const &&>::type;
+    static_assert(detail::_just_admissible_result<Fn, T const &&>);
     if constexpr (::std::is_void_v<type>) {
       detail::_apply(FWD(fn), ::std::move(v_));
       return just<type>{};
-    } else
+    } else if constexpr (detail::_just_payload<type>)
       return just<type>{detail::_just_from_invoke,
                         [&fn, this]() -> decltype(auto) { return detail::_apply(FWD(fn), ::std::move(v_)); }};
+    else
+      ::pfn::unreachable(); // LCOV_EXCL_LINE - rejected by the static_assert above
   }
 
   /**
@@ -509,11 +534,14 @@ template <> struct just<void> {
     requires detail::_is_applicable<Fn>::value
   {
     using type = detail::_apply_result<Fn>::type;
+    static_assert(detail::_just_admissible_result<Fn>);
     if constexpr (::std::is_void_v<type>) {
       detail::_apply(FWD(fn));
       return just<type>{};
-    } else
+    } else if constexpr (detail::_just_payload<type>)
       return just<type>{detail::_just_from_invoke, [&fn]() -> decltype(auto) { return detail::_apply(FWD(fn)); }};
+    else
+      ::pfn::unreachable(); // LCOV_EXCL_LINE - rejected by the static_assert above
   }
 
   /**

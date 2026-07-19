@@ -2805,3 +2805,48 @@ TEST_CASE("copack emplace", "[copack][emplace]")
     SUCCEED();
   }
 }
+
+TEST_CASE("get on a singular copack", "[copack][get]")
+{
+  struct A final {
+    int v;
+    constexpr bool operator==(A const &) const = default;
+  };
+  constexpr auto can_get = [](auto &&c) { return requires { fn::get(FWD(c)); }; };
+
+  // the alternative comes back carrying the copack's cv-qualification and value category, exactly
+  // as apply would pass it
+  fn::copack<A> c{A{7}};
+  static_assert(std::is_same_v<decltype(fn::get(c)), A &>);
+  static_assert(std::is_same_v<decltype(fn::get(std::as_const(c))), A const &>);
+  static_assert(std::is_same_v<decltype(fn::get(std::move(c))), A &&>);
+  static_assert(std::is_same_v<decltype(fn::get(std::move(std::as_const(c)))), A const &&>);
+  static_assert(noexcept(fn::get(c)));
+  CHECK(fn::get(c) == A{7});
+  fn::get(c).v = 9;
+  CHECK(fn::get(std::as_const(c)) == A{9});
+  CHECK(fn::get(std::move(c)) == A{9});
+
+  SECTION("constexpr")
+  {
+    constexpr fn::copack<A> cc{A{5}};
+    static_assert(fn::get(cc) == A{5});
+    static_assert([] {
+      fn::copack<A> m{A{1}};
+      fn::get(m).v = 2;
+      return fn::get(std::move(m)).v;
+    }() == 2);
+
+    SUCCEED();
+  }
+
+  SECTION("constraints")
+  {
+    // only the singular copack qualifies; a multi-alternative one dispatches, it does not get
+    static_assert(can_get(fn::copack<A>{A{1}}));
+    static_assert(not can_get(fn::copack_for<A, int>{1}));
+    static_assert(not can_get(A{1}));
+
+    SUCCEED();
+  }
+}

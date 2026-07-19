@@ -568,6 +568,90 @@ TEST_CASE("or_else identity expected", "[or_else][expected][copack]")
   static_assert((operand_t{5} | fn::or_else(Poison{})).value() == 5);
 }
 
+TEST_CASE("or_else joins heterogeneous expected branches", "[or_else][expected][copack]")
+{
+  struct X final {
+    bool operator==(X const &) const = default;
+  };
+  struct Y final {
+    bool operator==(Y const &) const = default;
+  };
+  struct E0 final {
+    bool operator==(E0 const &) const = default;
+  };
+  struct E1 final {
+    bool operator==(E1 const &) const = default;
+  };
+  struct E2 final {
+    bool operator==(E2 const &) const = default;
+  };
+  constexpr auto canO = [](auto &&v, auto &&fn) { return requires { FWD(v).or_else(FWD(fn)); }; };
+
+  SECTION("hetero recovery values need the copack-valued input, which widens in on the value path")
+  {
+    using In = fn::expected<fn::copack<X>, fn::copack_for<E1, E2>>;
+    constexpr auto fnR = fn::overload{[](E1) { return fn::expected<X, fn::copack<E0>>{X{}}; },
+                                      [](E2) { return fn::expected<Y, fn::copack<E0>>{Y{}}; }};
+    auto r = In{fn::unexpect, fn::copack_for<E1, E2>{E2{}}}.or_else(fnR);
+    static_assert(std::is_same_v<decltype(r), fn::expected<fn::copack_for<X, Y>, fn::copack<E0>>>);
+    CHECK(r.value() == fn::copack_for<X, Y>{Y{}});
+    auto v = In{fn::copack<X>{X{}}}.or_else(fnR);
+    CHECK(v.value() == fn::copack_for<X, Y>{X{}});
+    // named source: VS 2022 misreads a mid-expression prvalue's empty-class union member
+    constexpr In cv{fn::copack<X>{X{}}};
+    static_assert(cv.or_else(fnR).value() == fn::copack_for<X, Y>{X{}});
+
+    // a plain input value with hetero recovery values answers, not errors
+    using InP = fn::expected<X, fn::copack_for<E1, E2>>;
+    static_assert(not canO(InP{X{}}, fnR));
+    static_assert(not fn::applicable_or_else<decltype(fnR), InP>);
+  }
+
+  SECTION("convergent values with hetero branch errors union; member and piped spellings agree")
+  {
+    using In = fn::expected<X, fn::copack_for<E1, E2>>;
+    constexpr auto fnR = fn::overload{[](E1) { return fn::expected<X, E0>{X{}}; },
+                                      [](E2) { return fn::expected<X, fn::copack<E2>>{fn::unexpect, E2{}}; }};
+    static_assert(fn::applicable_or_else<decltype(fnR), In>); // converse of the pin above
+    auto r = In{fn::unexpect, fn::copack_for<E1, E2>{E2{}}}.or_else(fnR);
+    static_assert(std::is_same_v<decltype(r), fn::expected<X, fn::copack_for<E0, E2>>>);
+    CHECK(r.error() == fn::copack_for<E0, E2>{E2{}});
+    auto p = In{fn::unexpect, fn::copack_for<E1, E2>{E1{}}} | fn::or_else(fnR);
+    static_assert(std::is_same_v<decltype(p), fn::expected<X, fn::copack_for<E0, E2>>>);
+    CHECK(p.value() == X{});
+  }
+
+  SECTION("noexcept from the reachable constructions")
+  {
+    using In = fn::expected<X, fn::copack_for<E1, E2>>;
+    In v{X{}};
+    constexpr auto fnNothrow = fn::overload{[](E1) noexcept { return fn::expected<X, E0>{X{}}; },
+                                            [](E2) noexcept { return fn::expected<X, E1>{X{}}; }};
+    static_assert(noexcept(v.or_else(fnNothrow)));
+    constexpr auto fnThrows = fn::overload{[](E1) { return fn::expected<X, E0>{X{}}; },
+                                           [](E2) noexcept { return fn::expected<X, E1>{X{}}; }};
+    static_assert(not noexcept(v.or_else(fnThrows)));
+  }
+
+  SECTION("a plain value lifts into its singular copack")
+  {
+    using In = fn::expected<X, fn::copack_for<E1, E2>>;
+    constexpr auto fnR = fn::overload{[](E1) { return fn::expected<X, E0>{X{}}; },
+                                      [](E2) { return fn::expected<fn::copack<X>, E0>{fn::copack<X>{X{}}}; }};
+    auto r = In{fn::unexpect, fn::copack_for<E1, E2>{E2{}}}.or_else(fnR);
+    static_assert(std::is_same_v<decltype(r), fn::expected<fn::copack<X>, E0>>);
+    CHECK(r.value() == fn::copack<X>{X{}});
+    auto v = In{X{}}.or_else(fnR);
+    CHECK(v.value() == fn::copack<X>{X{}});
+
+    // the piped spelling and the concept agree with the member
+    auto p = In{fn::unexpect, fn::copack_for<E1, E2>{E1{}}} | fn::or_else(fnR);
+    static_assert(std::is_same_v<decltype(p), fn::expected<fn::copack<X>, E0>>);
+    CHECK(p.value() == fn::copack<X>{X{}});
+    static_assert(fn::applicable_or_else<decltype(fnR), In>);
+  }
+}
+
 namespace fn {
 namespace {
 struct Error {};

@@ -37,12 +37,16 @@ struct _and_then_result<Fn, V> : _typelist_joining_superset<::fn::choice, Fn, V,
 template <typename Fn, typename V>
 concept applicable_and_then //
     = (some_expected_non_void<V> && requires(V &&v) {
-        typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type;
-        requires same_kind<V, typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type>;
+        typename detail::_and_then_dispatch<typename ::std::remove_cvref_t<V>::error_type, Fn,
+                                            decltype(FWD(v).value())>::type;
+        requires same_kind<V, typename detail::_and_then_dispatch<typename ::std::remove_cvref_t<V>::error_type, Fn,
+                                                                  decltype(FWD(v).value())>::type>;
       }) || (some_expected_non_void<V> //
          && some_copack<typename ::std::remove_cvref_t<V>::error_type> && requires(V &&v) {
-        typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type;
-        requires some_expected<typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type>;
+        typename detail::_and_then_dispatch<typename ::std::remove_cvref_t<V>::error_type, Fn,
+                                            decltype(FWD(v).value())>::type;
+        requires some_expected<typename detail::_and_then_dispatch<typename ::std::remove_cvref_t<V>::error_type, Fn,
+                                                                   decltype(FWD(v).value())>::type>;
       }) || (some_expected_void<V> && requires(Fn &&fn) {
         {
           ::fn::apply(FWD(fn))
@@ -52,10 +56,9 @@ concept applicable_and_then //
         {
           ::fn::apply(FWD(fn))
         } -> some_expected;
-      }) || (some_optional<V> && requires(Fn &&fn, V &&v) {
-        {
-          ::fn::apply(FWD(fn), FWD(v).value())
-        } -> same_kind<V>;
+      }) || (some_optional<V> && requires(V &&v) {
+        typename detail::_optional_and_then_dispatch<Fn, decltype(FWD(v).value())>::type;
+        requires same_kind<V, typename detail::_optional_and_then_dispatch<Fn, decltype(FWD(v).value())>::type>;
       }) || (some_choice<V> && requires(Fn &&fn, V &&v) {
         {
           FWD(v).and_then(FWD(fn))
