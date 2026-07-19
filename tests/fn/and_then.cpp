@@ -1105,6 +1105,118 @@ TEST_CASE("and_then across the identity cluster", "[and_then][just][choice][expe
   }
 }
 
+TEST_CASE("and_then joins heterogeneous expected branches", "[and_then][expected][copack]")
+{
+  struct A final {
+    bool operator==(A const &) const = default;
+  };
+  struct B final {
+    bool operator==(B const &) const = default;
+  };
+  struct X final {
+    bool operator==(X const &) const = default;
+  };
+  struct Y final {
+    bool operator==(Y const &) const = default;
+  };
+  struct E0 final {
+    bool operator==(E0 const &) const = default;
+  };
+  struct E1 final {
+    bool operator==(E1 const &) const = default;
+  };
+  struct E2 final {
+    bool operator==(E2 const &) const = default;
+  };
+  using In = fn::expected<fn::copack_for<A, B>, fn::copack<E0>>;
+  constexpr auto fnJoin = fn::overload{[](A) { return fn::expected<X, fn::copack<E1>>{X{}}; },
+                                       [](B) { return fn::expected<Y, fn::copack<E2>>{Y{}}; }};
+  constexpr auto canM = [](auto &&v, auto &&fn) { return requires { FWD(v).and_then(FWD(fn)); }; };
+
+  SECTION("values join, errors union with self's grade")
+  {
+    auto r = In{fn::copack_for<A, B>{B{}}}.and_then(fnJoin);
+    static_assert(std::is_same_v<decltype(r), fn::expected<fn::copack_for<X, Y>, fn::copack_for<E0, E1, E2>>>);
+    CHECK(r.value() == fn::copack_for<X, Y>{Y{}});
+    auto e = In{fn::unexpect, fn::copack<E0>{E0{}}}.and_then(fnJoin);
+    CHECK(e.error() == fn::copack_for<E0, E1, E2>{E0{}});
+    // named source: VS 2022 misreads a mid-expression prvalue's empty-class union member
+    constexpr In ca{fn::copack_for<A, B>{A{}}};
+    static_assert(ca.and_then(fnJoin).value() == fn::copack_for<X, Y>{X{}});
+
+    // the piped spelling agrees
+    auto p = In{fn::copack_for<A, B>{A{}}} | fn::and_then(fnJoin);
+    static_assert(std::is_same_v<decltype(p), fn::expected<fn::copack_for<X, Y>, fn::copack_for<E0, E1, E2>>>);
+    CHECK(p.value() == fn::copack_for<X, Y>{X{}});
+  }
+
+  SECTION("a plain error is retained exactly while the values still join")
+  {
+    using InP = fn::expected<fn::copack_for<A, B>, E0>;
+    constexpr auto fn2 = fn::overload{[](A) { return fn::expected<X, E0>{X{}}; }, //
+                                      [](B) { return fn::expected<Y, E0>{Y{}}; }};
+    auto r = InP{fn::copack_for<A, B>{A{}}}.and_then(fn2);
+    static_assert(std::is_same_v<decltype(r), fn::expected<fn::copack_for<X, Y>, E0>>);
+    CHECK(r.value() == fn::copack_for<X, Y>{X{}});
+    // ... and a branch changing the plain error answers, not errors
+    constexpr auto fnBad = fn::overload{[](A) { return fn::expected<X, E0>{X{}}; }, //
+                                        [](B) { return fn::expected<Y, E1>{Y{}}; }};
+    static_assert(not canM(InP{fn::copack_for<A, B>{A{}}}, fnBad));
+  }
+
+  SECTION("copack-valued results flatten and overlapping alternatives dedup")
+  {
+    constexpr auto fn3 = fn::overload{
+        [](A) { return fn::expected<fn::copack_for<X, Y>, fn::copack_for<E0, E1>>{fn::copack_for<X, Y>{X{}}}; },
+        [](B) { return fn::expected<Y, fn::copack<E1>>{Y{}}; }};
+    auto r = In{fn::copack_for<A, B>{B{}}}.and_then(fn3);
+    static_assert(std::is_same_v<decltype(r), fn::expected<fn::copack_for<X, Y>, fn::copack_for<E0, E1>>>);
+    CHECK(r.value() == fn::copack_for<X, Y>{Y{}});
+  }
+
+  SECTION("a copack<> grade acquires the branch errors")
+  {
+    using InB = fn::expected<fn::copack_for<A, B>, fn::copack<>>;
+    auto r = InB{fn::copack_for<A, B>{A{}}}.and_then(fnJoin);
+    static_assert(std::is_same_v<decltype(r), fn::expected<fn::copack_for<X, Y>, fn::copack_for<E1, E2>>>);
+    CHECK(r.value() == fn::copack_for<X, Y>{X{}});
+  }
+
+  SECTION("convergent branches keep their exact type and the widening behaviour")
+  {
+    constexpr auto fnConv = fn::overload{[](A) { return fn::expected<X, fn::copack<E1>>{X{}}; },
+                                         [](B) { return fn::expected<X, fn::copack<E1>>{X{}}; }};
+    auto r = In{fn::copack_for<A, B>{A{}}}.and_then(fnConv);
+    static_assert(std::is_same_v<decltype(r), fn::expected<X, fn::copack_for<E0, E1>>>);
+    CHECK(r.value() == X{});
+  }
+
+  SECTION("all-void branches join to void; mixed void and non-void answers")
+  {
+    constexpr auto fnVoid = fn::overload{[](A) { return fn::expected<void, fn::copack<E1>>{}; },
+                                         [](B) { return fn::expected<void, fn::copack<E2>>{}; }};
+    auto r = In{fn::copack_for<A, B>{A{}}}.and_then(fnVoid);
+    static_assert(std::is_same_v<decltype(r), fn::expected<void, fn::copack_for<E0, E1, E2>>>);
+    CHECK(r.has_value());
+    constexpr auto fnMixed = fn::overload{[](A) { return fn::expected<void, fn::copack<E1>>{}; },
+                                          [](B) { return fn::expected<Y, fn::copack<E2>>{Y{}}; }};
+    static_assert(not canM(In{fn::copack_for<A, B>{A{}}}, fnMixed));
+    static_assert(not fn::applicable_and_then<decltype(fnMixed), In>);
+    static_assert(fn::applicable_and_then<decltype(fnJoin), In>); // converse
+  }
+
+  SECTION("noexcept from the reachable constructions")
+  {
+    In v{fn::copack_for<A, B>{A{}}};
+    constexpr auto fnNothrow = fn::overload{[](A) noexcept { return fn::expected<X, fn::copack<E1>>{X{}}; },
+                                            [](B) noexcept { return fn::expected<Y, fn::copack<E2>>{Y{}}; }};
+    static_assert(noexcept(v.and_then(fnNothrow)));
+    constexpr auto fnThrows = fn::overload{[](A) { return fn::expected<X, fn::copack<E1>>{X{}}; },
+                                           [](B) noexcept { return fn::expected<Y, fn::copack<E2>>{Y{}}; }};
+    static_assert(not noexcept(v.and_then(fnThrows)));
+  }
+}
+
 namespace fn {
 namespace {
 struct Error {};

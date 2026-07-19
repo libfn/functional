@@ -1299,6 +1299,149 @@ template <typename... Ts>
 using copack_for
     = detail::_collapsing_copack::normalized<::fn::copack, detail::_collapsing_copack::flattened<Ts...>>::type;
 
+namespace detail {
+// The graded joins for expected's binds over a copack side, when the exhaustive branches return
+// DIFFERENT expected types. Convergent sets and any non-expected result fall back to the select
+// trait, preserving today's behaviour and diagnostics verbatim; only a heterogeneous all-expected
+// set engages the join, and an invalid one - mixed void and non-void values, or a plain fixed side
+// some branch does not retain - leaves no `type`, so asking answers instead of erroring. Tpl is
+// the caller's own two-parameter carrier, keeping this header free of the expected dependency.
+template <template <typename...> typename Tpl, typename E> struct _joining_expected_tag final {};
+template <template <typename...> typename Tpl, typename T> struct _joining_recovery_tag final {};
+
+namespace _joining_expected {
+template <typename T> struct parts;
+template <template <typename...> typename Tpl, typename V, typename E> struct parts<Tpl<V, E>> {
+  using value_type = V;
+  using error_type = E;
+};
+
+template <typename... Ts> constexpr inline bool all_same = true; // zero or one element
+template <typename T0, typename... Ts>
+  requires(sizeof...(Ts) > 0)
+constexpr inline bool all_same<T0, Ts...> = (... && ::std::is_same_v<T0, Ts>);
+
+// the dispatched side's join: exact convergence preserved; heterogeneous types splice through
+// copack_for (a copack-typed result flattens into it); mixed void and non-void has no answer
+template <typename... Ts> struct list_join {};
+template <typename T0, typename... Ts>
+  requires all_same<T0, Ts...>
+struct list_join<T0, Ts...> {
+  using type = T0;
+};
+template <typename T0, typename... Ts>
+  requires(not all_same<T0, Ts...>) && (not ::std::is_void_v<T0>) && (... && (not ::std::is_void_v<Ts>))
+struct list_join<T0, Ts...> {
+  using type = ::fn::copack_for<T0, Ts...>;
+};
+
+// the carried side's join, unioned with self's own grade: a copack side joins everything (an
+// empty one vanishes into the union); a plain side must be retained by every branch exactly
+template <typename E, typename... Es> struct graded_join {};
+template <typename E, typename... Es>
+  requires _some_copack<E>
+struct graded_join<E, Es...> {
+  using type = ::fn::copack_for<E, Es...>;
+};
+template <typename E, typename... Es>
+  requires(not _some_copack<E>) && (... && ::std::is_same_v<E, Es>)
+struct graded_join<E, Es...> {
+  using type = E;
+};
+} // namespace _joining_expected
+
+template <template <typename...> typename Tpl, typename E, typename... Rs> struct _joined_expected {};
+template <template <typename...> typename Tpl, typename E, typename... Rs>
+  requires requires {
+    typename _joining_expected::list_join<typename _joining_expected::parts<Rs>::value_type...>::type;
+    typename _joining_expected::graded_join<E, typename _joining_expected::parts<Rs>::error_type...>::type;
+  }
+struct _joined_expected<Tpl, E, Rs...> {
+  static constexpr bool _hetero_join = true;
+  using type
+      = Tpl<typename _joining_expected::list_join<typename _joining_expected::parts<Rs>::value_type...>::type,
+            typename _joining_expected::graded_join<E, typename _joining_expected::parts<Rs>::error_type...>::type>;
+};
+
+template <template <typename...> typename Tpl, typename T, typename... Rs> struct _joined_recovery {};
+template <template <typename...> typename Tpl, typename T, typename... Rs>
+  requires requires {
+    typename _joining_expected::graded_join<T, typename _joining_expected::parts<Rs>::value_type...>::type;
+    typename _joining_expected::list_join<typename _joining_expected::parts<Rs>::error_type...>::type;
+  }
+struct _joined_recovery<Tpl, T, Rs...> {
+  static constexpr bool _hetero_join = true;
+  using type
+      = Tpl<typename _joining_expected::graded_join<T, typename _joining_expected::parts<Rs>::value_type...>::type,
+            typename _joining_expected::list_join<typename _joining_expected::parts<Rs>::error_type...>::type>;
+};
+
+// a heterogeneous set that is not all-expected answers (no `type`), it does not assert: the join
+// owns every heterogeneous shape, and only convergent sets keep the select trait's diagnostics
+struct _no_join {};
+
+template <template <typename...> typename Tpl, typename E, typename Fn, typename Self, typename T, typename... Args>
+struct _typelist_joining_expected;
+template <template <typename...> typename Tpl, typename E, typename Fn, typename Self,
+          template <typename...> typename Tpl2, typename... Ts, typename... Args>
+struct _typelist_joining_expected<Tpl, E, Fn, Self, Tpl2<Ts...>, Args...>
+    : ::std::conditional_t<
+          (sizeof...(Ts) == 0), _no_join,
+          ::std::conditional_t<
+              _joining_expected::all_same<::std::remove_cvref_t<
+                  typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...>,
+              _typelist_select_apply_result<Fn, Self, Tpl2<Ts...>, Args...>,
+              ::std::conditional_t<
+                  (...
+                   && _joining_superset::is_kind<Tpl, ::std::remove_cvref_t<typename ::fn::detail::_apply_result<
+                                                          Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>>),
+                  _joined_expected<Tpl, E,
+                                   ::std::remove_cvref_t<typename ::fn::detail::_apply_result<
+                                       Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...>,
+                  _no_join>>> {};
+
+template <template <typename...> typename Tpl, typename T, typename Fn, typename Self, typename U, typename... Args>
+struct _typelist_joining_recovery;
+template <template <typename...> typename Tpl, typename T, typename Fn, typename Self,
+          template <typename...> typename Tpl2, typename... Ts, typename... Args>
+struct _typelist_joining_recovery<Tpl, T, Fn, Self, Tpl2<Ts...>, Args...>
+    : ::std::conditional_t<
+          (sizeof...(Ts) == 0), _no_join,
+          ::std::conditional_t<
+              _joining_expected::all_same<::std::remove_cvref_t<
+                  typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...>,
+              _typelist_select_apply_result<Fn, Self, Tpl2<Ts...>, Args...>,
+              ::std::conditional_t<
+                  (...
+                   && _joining_superset::is_kind<Tpl, ::std::remove_cvref_t<typename ::fn::detail::_apply_result<
+                                                          Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>>),
+                  _joined_recovery<Tpl, T,
+                                   ::std::remove_cvref_t<typename ::fn::detail::_apply_result<
+                                       Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...>,
+                  _no_join>>> {};
+
+template <template <typename...> typename Tpl, typename E, typename Fn, typename Self, typename... Args>
+struct _copack_apply_result<_joining_expected_tag<Tpl, E>, Fn, Self, Args...>
+    : _typelist_joining_expected<Tpl, E, Fn, Self, ::std::remove_cvref_t<Self>, Args...> {};
+
+template <template <typename...> typename Tpl, typename T, typename Fn, typename Self, typename... Args>
+struct _copack_apply_result<_joining_recovery_tag<Tpl, T>, Fn, Self, Args...>
+    : _typelist_joining_recovery<Tpl, T, Fn, Self, ::std::remove_cvref_t<Self>, Args...> {};
+
+// Tag-generic sibling of _join_apply above, for expected's graded binds: dispatch over the copack
+// side with the join's announced result, each branch converting into it
+template <typename Tag, typename Cp, typename Fn>
+  requires _some_copack<::std::remove_cvref_t<Cp>>
+[[nodiscard]] constexpr auto _tagged_join_apply(Cp &&cp, Fn &&fn) //
+    noexcept(_is_nothrow_rts_applicable<typename _copack_apply_result<Tag, Fn &&, Cp &&>::type, Fn &&, Cp &&>) ->
+    typename _copack_apply_result<Tag, Fn &&, Cp &&>::type
+{
+  using type = _copack_apply_result<Tag, Fn &&, Cp &&>::type;
+  using data_t = ::std::remove_cvref_t<Cp>::data_t;
+  return apply_variadic_union<type, data_t>(FWD(cp).data, cp.index, FWD(fn));
+}
+} // namespace detail
+
 } // namespace fn
 
 #endif // INCLUDE_FN_COPACK
