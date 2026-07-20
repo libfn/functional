@@ -12,6 +12,7 @@
 #include <exception>
 #include <functional>
 #include <initializer_list>
+#include <libfn_version.hpp>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -22,7 +23,7 @@
 #undef FWD // NOSONAR cpp:S959 saved by push_macro above
 #endif
 
-// Also defined in fn/detail/macro_fwd.hpp but pfn headers are standalone
+// Also defined in fn/detail/macro_begin.hpp but pfn headers are standalone
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 
 #ifdef ASSERT
@@ -46,6 +47,7 @@
 // clause is marked inline with a "// extension" trailing comment.
 
 namespace pfn {
+inline namespace LIBFN_VERSION {
 
 // [expected.bad], class template bad_expected_access
 template <class E> class bad_expected_access;
@@ -1773,6 +1775,7 @@ private:
   }
 };
 
+} // namespace LIBFN_VERSION
 } // namespace pfn
 
 #undef ASSERT

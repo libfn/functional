@@ -14,6 +14,8 @@
 #include <utility>
 #include <variant>
 
+#include <fn/detail/macro_begin.hpp>
+
 namespace {
 enum Error { Unknown, FileNotFound };
 

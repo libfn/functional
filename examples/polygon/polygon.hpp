@@ -25,6 +25,9 @@
 #include <utility>
 #include <vector>
 
+// Functional equivalent of std::forward<decltype(v)>(v)
+#define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
+
 struct parameters {
   std::string characters;
   unsigned char required = '\0';

@@ -5,6 +5,12 @@ set(libfn_VERSION_FULL "@LIBFN_PROJECT_VERSION@")
 
 include("${CMAKE_CURRENT_LIST_DIR}/libfnTargets.cmake")
 
+# version is always installed
+set(libfn_version_FOUND FALSE)
+if(TARGET libfn::version)
+    set(libfn_version_FOUND TRUE)
+endif()
+
 # pfn is always installed
 set(libfn_pfn_FOUND FALSE)
 if(TARGET libfn::pfn)

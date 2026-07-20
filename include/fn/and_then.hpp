@@ -12,10 +12,14 @@
 #include <fn/functional.hpp>
 #include <fn/functor.hpp>
 #include <fn/optional.hpp>
+#include <libfn_version.hpp>
 
 #include <type_traits>
 
+#include <fn/detail/macro_begin.hpp>
+
 namespace fn {
+inline namespace LIBFN_VERSION {
 
 namespace detail {
 // The engine's result over a bound payload, computed assert-free: a copack payload goes through
@@ -186,6 +190,9 @@ struct and_then_t::apply final {
   }
 };
 
+} // namespace LIBFN_VERSION
 } // namespace fn
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_AND_THEN

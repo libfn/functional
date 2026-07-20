@@ -3,8 +3,19 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#ifndef INCLUDE_FN_DETAIL_MACRO_DEDUCED_RETURN
-#define INCLUDE_FN_DETAIL_MACRO_DEDUCED_RETURN
+// Deliberately no include guard: this header and fn/detail/macro_end.hpp bracket the section of a
+// header that uses the macros below; push_macro/pop_macro make the bracketing safe under nesting
+// and preserve any prior user definition.
+
+#pragma push_macro("FWD")
+#undef FWD // NOSONAR cpp:S959 saved by push_macro above
+
+// This FWD macro is a functional equivalent to std::forward<decltype(v)>(v),
+// but it saves compilation time (and typing) when used frequently.
+#define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
+
+#pragma push_macro("DEDUCED_RETURN")
+#undef DEDUCED_RETURN // NOSONAR cpp:S959 saved by push_macro above
 
 // Spell a function's deduced return type explicitly on MSVC only. MSVC mis-resolves a deduced
 // (`auto`/`decltype(auto)`) return whose type derives from a body-local alias, leaking it as an
@@ -21,5 +32,3 @@
 #else
 #define DEDUCED_RETURN(...) decltype(__VA_ARGS__)
 #endif
-
-#endif // INCLUDE_FN_DETAIL_MACRO_DEDUCED_RETURN

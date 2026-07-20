@@ -5,6 +5,49 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(CompilationOptions)
+include(TargetGenerator)
+
+### include/libfn_version.hpp
+
+set(INCLUDE_LIBFN_VERSION_HEADERS
+    libfn_version.hpp
+)
+
+add_library(include_libfn_version INTERFACE)
+set_property(TARGET include_libfn_version PROPERTY CXX_STANDARD 20)
+target_sources(include_libfn_version INTERFACE
+    FILE_SET include_libfn_version_headers
+    TYPE HEADERS
+    FILES ${INCLUDE_LIBFN_VERSION_HEADERS})
+append_compilation_options(include_libfn_version INTERFACE)
+target_include_directories(include_libfn_version SYSTEM INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+set_target_properties(include_libfn_version PROPERTIES EXPORT_NAME version)
+target_compile_features(include_libfn_version INTERFACE cxx_std_20)
+
+install(TARGETS include_libfn_version
+    EXPORT libfnTargets
+    FILE_SET include_libfn_version_headers
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+# Generate sentinel target for the header, as a basic sanity check
+set(mode 20)
+set(target "sentinel_libfn_version_cxx${mode}")
+
+create_target_for_file(
+    NAME "${target}"
+    SOURCE "libfn_version.hpp"
+    NEW_SOURCE "#include <libfn_version.hpp>\n#ifndef LIBFN_VERSION\n#error LIBFN_VERSION not defined\n#endif\nint main() {}\n"
+    SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
+    DEPENDENCIES include_libfn_version
+)
+append_compilation_options("${target}" WARNINGS)
+add_dependencies("sentinels" "${target}")
+set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
+
+unset(target)
+unset(mode)
 
 ### include/pfn
 
@@ -28,14 +71,13 @@ target_include_directories(include_pfn SYSTEM INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 set_target_properties(include_pfn PROPERTIES EXPORT_NAME pfn)
+target_link_libraries(include_pfn INTERFACE include_libfn_version)
 target_compile_features(include_pfn INTERFACE cxx_std_20)
 
 install(TARGETS include_pfn
     EXPORT libfnTargets
     FILE_SET include_pfn_headers
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
-include(TargetGenerator)
 
 # Generate sentinel target for each individual header, as a basic sanity check
 foreach(source IN ITEMS ${INCLUDE_PFN_HEADERS})
@@ -46,7 +88,7 @@ foreach(source IN ITEMS ${INCLUDE_PFN_HEADERS})
     create_target_for_file(
         NAME "${target}"
         SOURCE "${source}"
-        NEW_SOURCE "#include <${source}>\nint main() {}\n"
+        NEW_SOURCE "#include <${source}>\n#ifdef FWD\n#error FWD leaked from ${source}\n#endif\n#ifdef DEDUCED_RETURN\n#error DEDUCED_RETURN leaked from ${source}\n#endif\n#ifdef ASSERT\n#error ASSERT leaked from ${source}\n#endif\nint main() {}\n"
         SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
         DEPENDENCIES include_pfn
     )
@@ -65,8 +107,8 @@ endforeach()
 set(INCLUDE_FN_HEADERS
     fn/detail/functional.hpp
     fn/detail/fwd.hpp
-    fn/detail/macro_deduced_return.hpp
-    fn/detail/macro_fwd.hpp
+    fn/detail/macro_begin.hpp
+    fn/detail/macro_end.hpp
     fn/detail/meta.hpp
     fn/detail/monadic.hpp
     fn/detail/pack_impl.hpp
@@ -108,7 +150,7 @@ target_include_directories(include_fn SYSTEM INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 set_target_properties(include_fn PROPERTIES EXPORT_NAME fn)
-target_link_libraries(include_fn INTERFACE include_pfn)
+target_link_libraries(include_fn INTERFACE include_pfn include_libfn_version)
 target_compile_features(include_fn INTERFACE cxx_std_20)
 
 install(TARGETS include_fn
@@ -118,6 +160,10 @@ install(TARGETS include_fn
 
 # Generate sentinel target for each individual header, as a basic sanity check
 foreach(source IN ITEMS ${INCLUDE_FN_HEADERS})
+    # A lone macro_begin.hpp TU leaves unbalanced pushes and would trip the leak check below
+    if(source MATCHES "fn/detail/macro_(begin|end)\.hpp")
+        continue()
+    endif()
     string(REGEX REPLACE "^(fn)/(detail|)/?([^\.]+)\.hpp$" "\\1_\\2\\3" root_name ${source})
     set(mode 20)
     set(target "sentinel_${root_name}_cxx${mode}")
@@ -125,7 +171,7 @@ foreach(source IN ITEMS ${INCLUDE_FN_HEADERS})
     create_target_for_file(
         NAME "${target}"
         SOURCE "${source}"
-        NEW_SOURCE "#include <${source}>\nint main() {}\n"
+        NEW_SOURCE "#include <${source}>\n#ifdef FWD\n#error FWD leaked from ${source}\n#endif\n#ifdef DEDUCED_RETURN\n#error DEDUCED_RETURN leaked from ${source}\n#endif\n#ifdef ASSERT\n#error ASSERT leaked from ${source}\n#endif\nint main() {}\n"
         SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
         DEPENDENCIES include_fn
     )

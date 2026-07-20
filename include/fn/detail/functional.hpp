@@ -7,9 +7,8 @@
 #define INCLUDE_FN_DETAIL_FUNCTIONAL
 
 #include <fn/detail/fwd.hpp>
-#include <fn/detail/macro_deduced_return.hpp>
-#include <fn/detail/macro_fwd.hpp>
 #include <fn/detail/meta.hpp>
+#include <libfn_version.hpp>
 #include <pfn/functional.hpp>
 #include <pfn/tuple.hpp>
 
@@ -17,7 +16,9 @@
 #include <type_traits>
 #include <utility>
 
-namespace fn::detail {
+#include <fn/detail/macro_begin.hpp>
+
+namespace fn::inline LIBFN_VERSION::detail {
 
 namespace _fold_detail {
 // The branch the fold takes is chosen by `if constexpr`, so a single expression cannot state its
@@ -574,6 +575,8 @@ constexpr inline bool _is_nothrow_rts_applicable<R, Fn, Tpl<Ts...> const &&, Tx.
 template <typename R, typename Fn, typename T, typename... Tx>
 concept _typelist_nothrow_applicable_r = _is_nothrow_rts_applicable<R, Fn, T &&, Tx...>;
 
-} // namespace fn::detail
+} // namespace fn::inline LIBFN_VERSION::detail
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_DETAIL_FUNCTIONAL

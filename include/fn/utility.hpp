@@ -6,10 +6,13 @@
 #ifndef INCLUDE_FN_UTILITY
 #define INCLUDE_FN_UTILITY
 
-#include <fn/detail/macro_fwd.hpp>
 #include <fn/detail/traits.hpp>
+#include <libfn_version.hpp>
+
+#include <fn/detail/macro_begin.hpp>
 
 namespace fn {
+inline namespace LIBFN_VERSION {
 /**
  * @brief TODO
  *
@@ -65,6 +68,9 @@ template <typename T, typename... Args>
   return T(FWD(args)...);
 }
 
+} // namespace LIBFN_VERSION
 } // namespace fn
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_UTILITY

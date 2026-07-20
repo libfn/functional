@@ -7,14 +7,16 @@
 #define INCLUDE_FN_PACK
 
 #include <fn/copack.hpp>
-#include <fn/detail/macro_deduced_return.hpp>
-#include <fn/detail/macro_fwd.hpp>
 #include <fn/detail/meta.hpp>
 #include <fn/detail/pack_impl.hpp>
+#include <libfn_version.hpp>
 
 #include <type_traits>
 
+#include <fn/detail/macro_begin.hpp>
+
 namespace fn {
+inline namespace LIBFN_VERSION {
 
 /**
  * @brief TODO
@@ -442,6 +444,7 @@ constexpr inline struct identity_t {
   }
 } identity;
 
+} // namespace LIBFN_VERSION
 } // namespace fn
 
 namespace std {
@@ -458,5 +461,7 @@ template <::std::size_t I, typename... Ts> struct tuple_element<I, ::fn::pack<Ts
   using type = decltype(::fn::detail::_apply_const<::fn::pack<Ts...> const &, ::fn::detail::select_nth_t<I, Ts...>>);
 };
 } // namespace std
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_PACK

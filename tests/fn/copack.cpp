@@ -20,6 +20,8 @@
 #include <variant>
 #include <vector>
 
+#include <fn/detail/macro_begin.hpp>
+
 namespace {
 struct TestType final {
   static int count;

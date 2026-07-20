@@ -20,6 +20,8 @@
 #include <tuple>
 #include <utility>
 
+#include <fn/detail/macro_begin.hpp>
+
 namespace {
 struct A final {
   int v = 0;

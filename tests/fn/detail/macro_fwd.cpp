@@ -3,7 +3,7 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#include <fn/detail/macro_fwd.hpp>
+#include <fn/detail/macro_begin.hpp>
 
 #include <catch2/catch_all.hpp>
 
@@ -39,3 +39,5 @@ static_assert(      //
         decltype(FWD(const_rvalue)), decltype(std::forward<decltype(const_rvalue)>(const_rvalue))>);
 
 TEST_CASE("Dummy") { SUCCEED(); }
+
+#include <fn/detail/macro_end.hpp>

@@ -6,6 +6,7 @@
 #ifndef INCLUDE_FN_EXPECTED
 #define INCLUDE_FN_EXPECTED
 
+#include <libfn_version.hpp>
 #include <pfn/expected.hpp>
 #include <pfn/utility.hpp>
 
@@ -17,7 +18,10 @@
 #include <type_traits>
 #include <utility>
 
+#include <fn/detail/macro_begin.hpp>
+
 namespace fn {
+inline namespace LIBFN_VERSION {
 
 // Bring the C++23 polyfill primitives into `fn` namespace, for consistent type naming.
 using ::pfn::bad_expected_access;
@@ -2109,6 +2113,9 @@ template <typename Lh, typename Rh>
       FWD(lh), FWD(rh), detail::_expected_efn<new_error_type>{});
 }
 
+} // namespace LIBFN_VERSION
 } // namespace fn
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_EXPECTED

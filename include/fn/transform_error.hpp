@@ -9,8 +9,12 @@
 #include <fn/concepts.hpp>
 #include <fn/functional.hpp>
 #include <fn/functor.hpp>
+#include <libfn_version.hpp>
+
+#include <fn/detail/macro_begin.hpp>
 
 namespace fn {
+inline namespace LIBFN_VERSION {
 /**
  * @brief TODO
  *
@@ -84,6 +88,9 @@ struct transform_error_t::apply final {
   }
 };
 
+} // namespace LIBFN_VERSION
 } // namespace fn
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_TRANSFORM_ERROR

@@ -12,11 +12,15 @@
 #include <fn/just.hpp>
 #include <fn/monadic.hpp>
 #include <fn/optional.hpp>
+#include <libfn_version.hpp>
 
 #include <concepts>
 #include <type_traits>
 
+#include <fn/detail/macro_begin.hpp>
+
 namespace fn {
+inline namespace LIBFN_VERSION {
 
 namespace detail {
 // A verb that returns a fresh monad BY VALUE relocates what the source carries into it, in the value
@@ -174,6 +178,9 @@ concept some_identity = some_choice<T> || some_just<T>
 template <class T>
 concept convertible_to_bool = requires { static_cast<bool>(::std::declval<T>()); };
 
+} // namespace LIBFN_VERSION
 } // namespace fn
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_CONCEPTS
