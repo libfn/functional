@@ -6,6 +6,7 @@
 #ifndef INCLUDE_FN_OPTIONAL
 #define INCLUDE_FN_OPTIONAL
 
+#include <libfn_version.hpp>
 #include <pfn/optional.hpp>
 #include <pfn/utility.hpp>
 
@@ -22,6 +23,7 @@
 #include <fn/detail/macro_begin.hpp>
 
 namespace fn {
+inline namespace LIBFN_VERSION {
 
 template <typename T>
 concept some_optional = detail::_some_optional<T>;
@@ -1314,6 +1316,7 @@ template <some_optional Lh, some_optional Rh>
   return ::fn::detail::_join<fn::optional>(FWD(lh), FWD(rh), detail::_optional_efn{});
 }
 
+} // namespace LIBFN_VERSION
 } // namespace fn
 
 namespace std {

@@ -9,12 +9,14 @@
 #include <fn/copack.hpp>
 #include <fn/detail/meta.hpp>
 #include <fn/detail/pack_impl.hpp>
+#include <libfn_version.hpp>
 
 #include <type_traits>
 
 #include <fn/detail/macro_begin.hpp>
 
 namespace fn {
+inline namespace LIBFN_VERSION {
 
 /**
  * @brief TODO
@@ -442,6 +444,7 @@ constexpr inline struct identity_t {
   }
 } identity;
 
+} // namespace LIBFN_VERSION
 } // namespace fn
 
 namespace std {

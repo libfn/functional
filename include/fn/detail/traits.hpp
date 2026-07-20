@@ -6,10 +6,11 @@
 #ifndef INCLUDE_FN_DETAIL_TRAITS
 #define INCLUDE_FN_DETAIL_TRAITS
 
+#include <libfn_version.hpp>
 #include <type_traits>
 #include <utility>
 
-namespace fn::detail {
+namespace fn::inline LIBFN_VERSION::detail {
 
 // The storage initializes an element as `T{args...}`, so a constraint on it must ask the same
 // question: `is_constructible_v` spells parenthesized initialization, which for an aggregate
@@ -64,11 +65,13 @@ template <typename T, typename V> extern V _apply_lvalue;
 template <typename T, typename V> extern V &_apply_lvalue<T &, V>;
 template <typename T, typename V> extern V &_apply_lvalue<T &, V &&>;
 
-} // namespace fn::detail
+} // namespace fn::inline LIBFN_VERSION::detail
 
 namespace fn {
+inline namespace LIBFN_VERSION {
 template <typename T, typename V>
 using apply_const_lvalue_t = decltype(detail::_apply_const<T &, decltype(detail::_apply_lvalue<T, V>)>);
-}
+} // namespace LIBFN_VERSION
+} // namespace fn
 
 #endif // INCLUDE_FN_DETAIL_TRAITS

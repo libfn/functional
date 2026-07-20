@@ -121,6 +121,7 @@ set(TESTS_FN_SOURCES
     fn/inspect_error.cpp
     fn/inspect.cpp
     fn/just.cpp
+    fn/libfn_version.cpp
     fn/optional.cpp
     fn/optional_polyfill.cpp
     fn/or_else.cpp

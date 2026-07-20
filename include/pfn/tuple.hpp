@@ -10,12 +10,14 @@
 #include <complex>
 #include <cstddef>
 #include <functional>
+#include <libfn_version.hpp>
 #include <ranges>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 
 namespace pfn {
+inline namespace LIBFN_VERSION {
 namespace detail {
 
 // [tuple.like] is enumerative - a specialization of array, complex, pair, tuple or
@@ -90,6 +92,7 @@ constexpr apply_result_t<Fn, Tuple> apply(Fn &&fn, Tuple &&t) noexcept(is_nothro
                              ::std::make_index_sequence<::std::tuple_size_v<::std::remove_reference_t<Tuple>>>{});
 }
 
+} // namespace LIBFN_VERSION
 } // namespace pfn
 
 #endif // INCLUDE_PFN_TUPLE

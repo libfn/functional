@@ -7,10 +7,12 @@
 #define INCLUDE_FN_FUNCTIONAL
 
 #include <fn/detail/functional.hpp>
+#include <libfn_version.hpp>
 
 #include <fn/detail/macro_begin.hpp>
 
 namespace fn {
+inline namespace LIBFN_VERSION {
 
 // apply_result and apply_result_t
 template <typename Fn, typename... Args> struct apply_result : detail::_apply_result<Fn, Args...> {};
@@ -66,6 +68,7 @@ concept typelist_applicable = detail::_typelist_applicable<Fn, T, Args...>;
 template <typename Ret, typename Fn, typename T, typename... Args>
 concept typelist_applicable_r = detail::_typelist_applicable_r<Ret, Fn, T, Args...>;
 
+} // namespace LIBFN_VERSION
 } // namespace fn
 
 #include <fn/detail/macro_end.hpp>

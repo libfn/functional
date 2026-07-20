@@ -8,12 +8,14 @@
 
 #include <fn/concepts.hpp>
 #include <fn/functor.hpp>
+#include <libfn_version.hpp>
 
 #include <type_traits>
 
 #include <fn/detail/macro_begin.hpp>
 
 namespace fn {
+inline namespace LIBFN_VERSION {
 /**
  * @brief TODO
  *
@@ -80,6 +82,7 @@ struct value_or_t::apply final {
   }
 };
 
+} // namespace LIBFN_VERSION
 } // namespace fn
 
 #include <fn/detail/macro_end.hpp>

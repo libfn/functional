@@ -7,6 +7,7 @@
 #define INCLUDE_FN_DETAIL_VARIADIC_UNION
 
 #include <fn/detail/functional.hpp>
+#include <libfn_version.hpp>
 #include <pfn/utility.hpp>
 
 #include <type_traits>
@@ -14,7 +15,7 @@
 
 #include <fn/detail/macro_begin.hpp>
 
-namespace fn::detail {
+namespace fn::inline LIBFN_VERSION::detail {
 
 template <typename T> constexpr bool _is_in_place_type = false;
 template <typename T> constexpr bool _is_in_place_type<::std::in_place_type_t<T> &> = true;
@@ -850,7 +851,7 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, ::std::s
     return invoke_type_variadic_union<R, typename U::more_t>(FWD(v).more, index - 4, FWD(fn), FWD(args)...);
 }
 
-} // namespace fn::detail
+} // namespace fn::inline LIBFN_VERSION::detail
 
 #include <fn/detail/macro_end.hpp>
 

@@ -8,6 +8,7 @@
 
 #include <fn/copack.hpp>
 #include <fn/detail/meta.hpp>
+#include <libfn_version.hpp>
 
 #include <type_traits>
 #include <utility>
@@ -15,6 +16,7 @@
 #include <fn/detail/macro_begin.hpp>
 
 namespace fn {
+inline namespace LIBFN_VERSION {
 
 /**
  * @brief TODO
@@ -806,6 +808,7 @@ template <typename... Ts>
 using choice_for
     = detail::_collapsing_copack::normalized<::fn::choice, detail::_collapsing_copack::flattened<Ts...>>::type;
 
+} // namespace LIBFN_VERSION
 } // namespace fn
 
 #include <fn/detail/macro_end.hpp>

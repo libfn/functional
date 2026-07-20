@@ -8,13 +8,14 @@
 
 #include <algorithm>
 #include <array>
+#include <libfn_version.hpp>
 #include <string>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 
-namespace fn::detail {
+namespace fn::inline LIBFN_VERSION::detail {
 
 // TODO Remove `select_nth` when our compilers start supporting pack indexing https://wg21.link/P2662
 template <::std::size_t, typename...> struct select_nth;
@@ -200,6 +201,6 @@ template <typename... Ts> struct is_normal final {
 
 template <typename... Ts> static constexpr bool is_normal_v = is_normal<Ts...>::value;
 
-} // namespace fn::detail
+} // namespace fn::inline LIBFN_VERSION::detail
 
 #endif // INCLUDE_FN_DETAIL_META

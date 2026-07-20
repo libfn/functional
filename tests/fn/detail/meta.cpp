@@ -4,6 +4,7 @@
 // or copy at https://opensource.org/licenses/ISC
 
 #include <fn/detail/meta.hpp>
+#include <libfn_version.hpp>
 
 #include <catch2/catch_all.hpp>
 
@@ -113,12 +114,20 @@ TEST_CASE("normalized", "[normalized]")
 
   static_assert(type_sortkey_v<int> == "int");
   static_assert(type_sortkey_v<decltype(0)> == "int");
-  // Sortkey is the compiler's type spelling: MSVC __FUNCSIG__ carries the `struct` elaboration and no
-  // comma spaces, GCC/Clang don't (fundamentals like `int` above spell identically). See copack.cpp.
-#ifdef _MSC_VER
-  static_assert(type_sortkey_v<_ts<bool, int>> == "struct fn::detail::_ts<bool,int>");
-#else
+  // Sortkey is the compiler's type spelling: MSVC __FUNCSIG__ carries the `struct` elaboration and
+  // no comma spaces (fundamentals like `int` above spell identically), and GCC spells the ABI
+  // inline namespace where clang omits it — the version stringized to keep the pin
+  // version-agnostic. See copack.cpp.
+#define LIBFN_TESTS_STRINGIZE2(x) #x
+#define LIBFN_TESTS_STRINGIZE(x) LIBFN_TESTS_STRINGIZE2(x)
+#if defined(_MSC_VER)
+  static_assert(type_sortkey_v<_ts<bool, int>>
+                == "struct fn::" LIBFN_TESTS_STRINGIZE(LIBFN_VERSION) "::detail::_ts<bool,int>");
+#elif defined(__clang__)
   static_assert(type_sortkey_v<_ts<bool, int>> == "fn::detail::_ts<bool, int>");
+#else
+  static_assert(type_sortkey_v<_ts<bool, int>>
+                == "fn::" LIBFN_TESTS_STRINGIZE(LIBFN_VERSION) "::detail::_ts<bool, int>");
 #endif
 
   // The collision floor (#326): dedup and canonical order both rest on key injectivity, so

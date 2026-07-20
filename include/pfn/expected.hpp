@@ -12,6 +12,7 @@
 #include <exception>
 #include <functional>
 #include <initializer_list>
+#include <libfn_version.hpp>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -46,6 +47,7 @@
 // clause is marked inline with a "// extension" trailing comment.
 
 namespace pfn {
+inline namespace LIBFN_VERSION {
 
 // [expected.bad], class template bad_expected_access
 template <class E> class bad_expected_access;
@@ -1773,6 +1775,7 @@ private:
   }
 };
 
+} // namespace LIBFN_VERSION
 } // namespace pfn
 
 #undef ASSERT

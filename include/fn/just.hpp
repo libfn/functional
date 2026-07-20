@@ -6,6 +6,7 @@
 #ifndef INCLUDE_FN_JUST
 #define INCLUDE_FN_JUST
 
+#include <libfn_version.hpp>
 #include <pfn/utility.hpp>
 
 #include <fn/detail/functional.hpp>
@@ -19,6 +20,7 @@
 #include <fn/detail/macro_begin.hpp>
 
 namespace fn {
+inline namespace LIBFN_VERSION {
 
 /**
  * @brief Checks if a type is a `just` (with any payload)
@@ -658,6 +660,7 @@ template <typename T> just(T) -> just<T>;
 template <typename T> explicit just(::std::in_place_type_t<T>, auto &&...) -> just<T>;
 just() -> just<void>;
 
+} // namespace LIBFN_VERSION
 } // namespace fn
 
 #include <fn/detail/macro_end.hpp>

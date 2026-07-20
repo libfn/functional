@@ -52,7 +52,9 @@ Choose fixtures with care when probing exception specifications. `helper_t` has 
 
 ## Versioning
 
-`VERSION` (in the repository root) is the single source of truth for the project version. A pre-commit hook (`scripts/sync_versions.py`) mirrors it into `ports/libfn/vcpkg.json` (`version-semver`) and `MODULE.bazel`. Do **not** hand-edit those version literals — edit `VERSION` and let the hook sync them.
+`VERSION` (in the repository root) is the single source of truth for the project version. A pre-commit hook (`scripts/sync_versions.py`) mirrors it into `ports/libfn/vcpkg.json` (`version-semver`), `MODULE.bazel`, and `include/libfn_version.hpp` — the header defining the `LIBFN_VERSION` macro that names the ABI-versioning inline namespace wrapping everything in `fn` and `pfn`. Do **not** hand-edit those version literals — edit `VERSION` and let the hook sync them.
+
+The namespace spelling is derived, not copied: 0.y lines with y ≥ 1 share `v0_<y>` (z bumps are ABI-compatible), the 0.0.z line versions per patch, a SemVer prerelease is appended (`-dev` → `_dev`), and the `_cxx26` twin (selected by defining `LIBFN_CXX26`) keeps `_cxx26` last. A second hook (`scripts/check_namespace_wrap.py`) verifies that every `namespace fn`/`namespace pfn` opening in `include/` carries `inline namespace LIBFN_VERSION`.
 
 ## Pre-commit
 

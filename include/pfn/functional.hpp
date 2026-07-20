@@ -7,10 +7,12 @@
 #define INCLUDE_PFN_FUNCTIONAL
 
 #include <functional>
+#include <libfn_version.hpp>
 #include <type_traits>
 #include <utility>
 
 namespace pfn {
+inline namespace LIBFN_VERSION {
 
 template <class R, class F, class... Args>
   requires ::std::is_invocable_r_v<R, F, Args...>
@@ -22,6 +24,7 @@ constexpr R invoke_r(F &&f, Args &&...args) noexcept(::std::is_nothrow_invocable
     return ::std::invoke(static_cast<F &&>(f), static_cast<Args &&>(args)...);
 }
 
+} // namespace LIBFN_VERSION
 } // namespace pfn
 
 #endif // INCLUDE_PFN_FUNCTIONAL

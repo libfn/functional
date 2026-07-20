@@ -11,6 +11,7 @@
 #include <fn/detail/traits.hpp>
 #include <fn/detail/variadic_union.hpp>
 #include <fn/functional.hpp>
+#include <libfn_version.hpp>
 
 #include <memory>
 #include <type_traits>
@@ -19,6 +20,7 @@
 #include <fn/detail/macro_begin.hpp>
 
 namespace fn {
+inline namespace LIBFN_VERSION {
 
 /**
  * @brief TODO
@@ -1546,6 +1548,7 @@ template <typename Tag, typename Cp, typename Fn>
 }
 } // namespace detail
 
+} // namespace LIBFN_VERSION
 } // namespace fn
 
 #include <fn/detail/macro_end.hpp>

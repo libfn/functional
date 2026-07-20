@@ -55,6 +55,12 @@ repos:
     language: python
     files: ^include/.*(\.hpp|CMakeLists\.txt)$
     pass_filenames: false
+  - id: check-namespace-wrap
+    name: check fn/pfn namespaces carry LIBFN_VERSION
+    entry: python scripts/check_namespace_wrap.py
+    language: python
+    files: ^include/.*\.hpp$
+    pass_filenames: false
   - id: sync-readme-example
     name: sync README example with examples/readme
     entry: python scripts/sync_readme_example.py

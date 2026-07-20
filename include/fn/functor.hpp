@@ -10,6 +10,7 @@
 #include <fn/functional.hpp>
 #include <fn/pack.hpp>
 #include <fn/utility.hpp>
+#include <libfn_version.hpp>
 
 #include <concepts>
 #include <type_traits>
@@ -17,6 +18,7 @@
 #include <fn/detail/macro_begin.hpp>
 
 namespace fn {
+inline namespace LIBFN_VERSION {
 /**
  * @brief TODO
  *
@@ -52,6 +54,7 @@ template <typename Functor, typename... Args> struct functor final {
   }
 };
 
+} // namespace LIBFN_VERSION
 } // namespace fn
 
 #include <fn/detail/macro_end.hpp>

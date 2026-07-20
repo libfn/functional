@@ -11,6 +11,7 @@
 #include <concepts>
 #include <cstddef>
 #include <functional>
+#include <libfn_version.hpp>
 #include <memory>
 #include <optional> // For anything that is not std::optional or std::make_optional
 #include <ranges>   // For std::ranges::enable_view
@@ -45,6 +46,7 @@
 #endif
 
 namespace pfn {
+inline namespace LIBFN_VERSION {
 
 // [optional.optional], class template optional
 template <class T> class optional; // partially freestanding
@@ -1626,6 +1628,7 @@ constexpr optional<T> make_optional(::std::initializer_list<U> il, Args &&...arg
   return optional<T>(::std::in_place, il, FWD(args)...);
 }
 
+} // namespace LIBFN_VERSION
 } // namespace pfn
 
 namespace std {
