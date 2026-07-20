@@ -19,13 +19,14 @@ namespace fn {
 
 namespace detail {
 // The engine's result over a bound payload, computed assert-free: a copack payload goes through
-// the join trait - all-choice branch results answer the superset choice, others the select
-// convergence - so asking about a divergent-choice callback answers instead of tripping select's
-// convergence assert; a single value goes through _apply_result as always.
+// the cluster trait - all-choice branch results answer the superset choice, convergent ones the
+// select trait's answer, and every other set none at all - so asking about any divergent callback
+// answers instead of tripping select's convergence assert; a single value goes through
+// _apply_result as always.
 template <typename Fn, typename... V> struct _and_then_result : _apply_result<Fn, V...> {};
 template <typename Fn, typename V>
   requires _some_copack<::std::remove_cvref_t<V>>
-struct _and_then_result<Fn, V> : _typelist_joining_superset<::fn::choice, Fn, V, ::std::remove_cvref_t<V>> {};
+struct _and_then_result<Fn, V> : _typelist_joining_cluster<::fn::choice, Fn, V, ::std::remove_cvref_t<V>> {};
 } // namespace detail
 
 /**
@@ -153,14 +154,15 @@ struct and_then_t::apply final {
   // ride delegation, and the verb layer is the licensed cross-carrier place. Dropping the input's
   // channels forgets nothing: they are uninhabited, which is what admits the input here at all.
   template <some_monadic_type V, typename Fn>
-  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const                //
-      noexcept(noexcept(detail::_join_apply<choice>(FWD(v).value(), FWD(fn)))) //
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //
+      noexcept(noexcept(detail::_tagged_join_apply<detail::_joining_cluster_tag<choice>>(FWD(v).value(),
+                                                                                         FWD(fn)))) //
       -> some_identity auto
     requires applicable_and_then_across<Fn &&, V &&>
              && (not ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type>)
              && some_copack<::std::remove_cvref_t<decltype(::std::declval<V>().value())>>
   {
-    return detail::_join_apply<choice>(FWD(v).value(), FWD(fn));
+    return detail::_tagged_join_apply<detail::_joining_cluster_tag<choice>>(FWD(v).value(), FWD(fn));
   }
 
   template <some_monadic_type V, typename Fn>

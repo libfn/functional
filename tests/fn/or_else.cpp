@@ -605,6 +605,18 @@ TEST_CASE("or_else joins heterogeneous expected branches", "[or_else][expected][
     using InP = fn::expected<X, fn::copack_for<E1, E2>>;
     static_assert(not canO(InP{X{}}, fnR));
     static_assert(not fn::applicable_or_else<decltype(fnR), InP>);
+
+    // recovery branches convergent only after stripping cv/ref engage the join
+    // (no constexpr twin - the reference-returning branch needs static storage, barred in
+    // constant evaluation until C++23)
+    constexpr auto fnRef = fn::overload{[](E1) -> fn::expected<X, fn::copack<E0>> & {
+                                          static fn::expected<X, fn::copack<E0>> e{X{}};
+                                          return e;
+                                        },
+                                        [](E2) { return fn::expected<X, fn::copack<E0>>{X{}}; }};
+    auto rr = In{fn::unexpect, fn::copack_for<E1, E2>{E1{}}}.or_else(fnRef);
+    static_assert(std::is_same_v<decltype(rr), fn::expected<fn::copack<X>, fn::copack<E0>>>);
+    CHECK(rr.value() == fn::copack<X>{X{}});
   }
 
   SECTION("convergent values with hetero branch errors union; member and piped spellings agree")
