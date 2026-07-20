@@ -11,10 +11,11 @@ set(docs_staged_include ${CMAKE_BINARY_DIR}/docs_include)
 file(MAKE_DIRECTORY ${docs_staged_include})
 add_custom_target(docs_stage_include
     COMMAND ${CMAKE_COMMAND}
-        -DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/include
-        -DDEST_DIR=${docs_staged_include}
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/StripNamespaceWrap.cmake
+        "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/include"
+        "-DDEST_DIR=${docs_staged_include}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/StripNamespaceWrap.cmake"
     COMMENT "Stage include/ with the ABI namespace stripped"
+    VERBATIM
 )
 set(DOXYGEN_STRIP_FROM_PATH ${docs_staged_include})
 
