@@ -7,8 +7,6 @@
 #define INCLUDE_FN_DETAIL_FUNCTIONAL
 
 #include <fn/detail/fwd.hpp>
-#include <fn/detail/macro_deduced_return.hpp>
-#include <fn/detail/macro_fwd.hpp>
 #include <fn/detail/meta.hpp>
 #include <pfn/functional.hpp>
 #include <pfn/tuple.hpp>
@@ -16,6 +14,8 @@
 #include <functional>
 #include <type_traits>
 #include <utility>
+
+#include <fn/detail/macro_begin.hpp>
 
 namespace fn::detail {
 
@@ -575,5 +575,7 @@ template <typename R, typename Fn, typename T, typename... Tx>
 concept _typelist_nothrow_applicable_r = _is_nothrow_rts_applicable<R, Fn, T &&, Tx...>;
 
 } // namespace fn::detail
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_DETAIL_FUNCTIONAL

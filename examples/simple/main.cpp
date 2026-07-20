@@ -26,6 +26,9 @@
 #include <string_view>
 #include <type_traits>
 
+// Functional equivalent of std::forward<decltype(v)>(v)
+#define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
+
 // example-error-struct
 struct Error final {
   std::string what;

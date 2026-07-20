@@ -12,6 +12,8 @@
 #include <type_traits>
 #include <utility>
 
+#include <fn/detail/macro_begin.hpp>
+
 using namespace util;
 
 namespace {

@@ -46,7 +46,7 @@ foreach(source IN ITEMS ${INCLUDE_PFN_HEADERS})
     create_target_for_file(
         NAME "${target}"
         SOURCE "${source}"
-        NEW_SOURCE "#include <${source}>\nint main() {}\n"
+        NEW_SOURCE "#include <${source}>\n#ifdef FWD\n#error FWD leaked from ${source}\n#endif\n#ifdef DEDUCED_RETURN\n#error DEDUCED_RETURN leaked from ${source}\n#endif\n#ifdef ASSERT\n#error ASSERT leaked from ${source}\n#endif\nint main() {}\n"
         SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
         DEPENDENCIES include_pfn
     )
@@ -65,8 +65,8 @@ endforeach()
 set(INCLUDE_FN_HEADERS
     fn/detail/functional.hpp
     fn/detail/fwd.hpp
-    fn/detail/macro_deduced_return.hpp
-    fn/detail/macro_fwd.hpp
+    fn/detail/macro_begin.hpp
+    fn/detail/macro_end.hpp
     fn/detail/meta.hpp
     fn/detail/monadic.hpp
     fn/detail/pack_impl.hpp
@@ -118,6 +118,10 @@ install(TARGETS include_fn
 
 # Generate sentinel target for each individual header, as a basic sanity check
 foreach(source IN ITEMS ${INCLUDE_FN_HEADERS})
+    # A lone macro_begin.hpp TU leaves unbalanced pushes and would trip the leak check below
+    if(source MATCHES "fn/detail/macro_(begin|end)\.hpp")
+        continue()
+    endif()
     string(REGEX REPLACE "^(fn)/(detail|)/?([^\.]+)\.hpp$" "\\1_\\2\\3" root_name ${source})
     set(mode 20)
     set(target "sentinel_${root_name}_cxx${mode}")
@@ -125,7 +129,7 @@ foreach(source IN ITEMS ${INCLUDE_FN_HEADERS})
     create_target_for_file(
         NAME "${target}"
         SOURCE "${source}"
-        NEW_SOURCE "#include <${source}>\nint main() {}\n"
+        NEW_SOURCE "#include <${source}>\n#ifdef FWD\n#error FWD leaked from ${source}\n#endif\n#ifdef DEDUCED_RETURN\n#error DEDUCED_RETURN leaked from ${source}\n#endif\n#ifdef ASSERT\n#error ASSERT leaked from ${source}\n#endif\nint main() {}\n"
         SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel"
         DEPENDENCIES include_fn
     )

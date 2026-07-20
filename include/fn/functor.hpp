@@ -14,6 +14,8 @@
 #include <concepts>
 #include <type_traits>
 
+#include <fn/detail/macro_begin.hpp>
+
 namespace fn {
 /**
  * @brief TODO
@@ -51,5 +53,7 @@ template <typename Functor, typename... Args> struct functor final {
 };
 
 } // namespace fn
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_FUNCTOR

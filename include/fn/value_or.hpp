@@ -11,6 +11,8 @@
 
 #include <type_traits>
 
+#include <fn/detail/macro_begin.hpp>
+
 namespace fn {
 /**
  * @brief TODO
@@ -79,5 +81,7 @@ struct value_or_t::apply final {
 };
 
 } // namespace fn
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_VALUE_OR

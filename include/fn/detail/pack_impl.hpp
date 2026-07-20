@@ -7,7 +7,6 @@
 #define INCLUDE_FN_DETAIL_PACK_IMPL
 
 #include <fn/detail/fwd.hpp>
-#include <fn/detail/macro_fwd.hpp>
 #include <fn/detail/meta.hpp>
 #include <fn/detail/traits.hpp>
 
@@ -16,6 +15,8 @@
 #include <functional>
 #include <type_traits>
 #include <utility>
+
+#include <fn/detail/macro_begin.hpp>
 
 namespace fn::detail {
 template <::std::size_t I, typename T> struct _element {
@@ -213,5 +214,7 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
 };
 
 } // namespace fn::detail
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_DETAIL_PACK_IMPL

@@ -13,6 +13,8 @@
 #include <type_traits>
 #include <utility>
 
+#include <fn/detail/macro_begin.hpp>
+
 namespace fn {
 /**
  * @brief Checks if the monadic type can be used with the `filter` operation
@@ -163,5 +165,7 @@ struct filter_t::apply final {
 };
 
 } // namespace fn
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_FILTER

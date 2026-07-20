@@ -16,6 +16,8 @@
 #include <concepts>
 #include <type_traits>
 
+#include <fn/detail/macro_begin.hpp>
+
 namespace fn {
 
 namespace detail {
@@ -175,5 +177,7 @@ template <class T>
 concept convertible_to_bool = requires { static_cast<bool>(::std::declval<T>()); };
 
 } // namespace fn
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_CONCEPTS

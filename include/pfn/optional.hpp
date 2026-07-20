@@ -28,7 +28,7 @@
 #undef FWD // NOSONAR cpp:S959 saved by push_macro above
 #endif
 
-// Also defined in fn/detail/macro_fwd.hpp but pfn headers are standalone
+// Also defined in fn/detail/macro_begin.hpp but pfn headers are standalone
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 
 #ifdef ASSERT

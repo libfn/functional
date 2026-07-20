@@ -16,6 +16,8 @@
 #include <type_traits>
 #include <utility>
 
+#include <fn/detail/macro_begin.hpp>
+
 namespace fn {
 
 /**
@@ -657,5 +659,7 @@ template <typename T> explicit just(::std::in_place_type_t<T>, auto &&...) -> ju
 just() -> just<void>;
 
 } // namespace fn
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_JUST

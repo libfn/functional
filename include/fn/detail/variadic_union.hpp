@@ -7,11 +7,12 @@
 #define INCLUDE_FN_DETAIL_VARIADIC_UNION
 
 #include <fn/detail/functional.hpp>
-#include <fn/detail/macro_fwd.hpp>
 #include <pfn/utility.hpp>
 
 #include <type_traits>
 #include <utility>
+
+#include <fn/detail/macro_begin.hpp>
 
 namespace fn::detail {
 
@@ -850,5 +851,7 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, ::std::s
 }
 
 } // namespace fn::detail
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_DETAIL_VARIADIC_UNION

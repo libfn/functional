@@ -16,6 +16,8 @@
 #include <type_traits>
 #include <utility>
 
+#include <fn/detail/macro_begin.hpp>
+
 namespace fn {
 
 /**
@@ -1545,5 +1547,7 @@ template <typename Tag, typename Cp, typename Fn>
 } // namespace detail
 
 } // namespace fn
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_COPACK

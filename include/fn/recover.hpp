@@ -14,6 +14,8 @@
 #include <type_traits>
 #include <utility>
 
+#include <fn/detail/macro_begin.hpp>
+
 namespace fn {
 /**
  * @brief TODO
@@ -151,5 +153,7 @@ struct recover_t::apply final {
 };
 
 } // namespace fn
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_RECOVER

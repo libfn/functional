@@ -19,6 +19,8 @@
 #include <type_traits>
 #include <utility>
 
+#include <fn/detail/macro_begin.hpp>
+
 namespace fn {
 
 template <typename T>
@@ -1330,5 +1332,7 @@ namespace ranges {
 template <class T> constexpr bool enable_view<::fn::optional<T>> = true;
 } // namespace ranges
 } // namespace std
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_OPTIONAL

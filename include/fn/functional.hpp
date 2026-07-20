@@ -8,6 +8,8 @@
 
 #include <fn/detail/functional.hpp>
 
+#include <fn/detail/macro_begin.hpp>
+
 namespace fn {
 
 // apply_result and apply_result_t
@@ -65,5 +67,7 @@ template <typename Ret, typename Fn, typename T, typename... Args>
 concept typelist_applicable_r = detail::_typelist_applicable_r<Ret, Fn, T, Args...>;
 
 } // namespace fn
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_FUNCTIONAL

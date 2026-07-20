@@ -15,6 +15,8 @@
 
 #include <type_traits>
 
+#include <fn/detail/macro_begin.hpp>
+
 namespace fn {
 
 namespace detail {
@@ -187,5 +189,7 @@ struct and_then_t::apply final {
 };
 
 } // namespace fn
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_AND_THEN

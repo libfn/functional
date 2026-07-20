@@ -17,6 +17,8 @@
 #include <type_traits>
 #include <utility>
 
+#include <fn/detail/macro_begin.hpp>
+
 namespace fn {
 
 // Bring the C++23 polyfill primitives into `fn` namespace, for consistent type naming.
@@ -2110,5 +2112,7 @@ template <typename Lh, typename Rh>
 }
 
 } // namespace fn
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_EXPECTED

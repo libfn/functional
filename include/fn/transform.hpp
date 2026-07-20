@@ -16,6 +16,8 @@
 
 #include <type_traits>
 
+#include <fn/detail/macro_begin.hpp>
+
 namespace fn {
 /**
  * @brief TODO
@@ -151,5 +153,7 @@ struct transform_t::apply final {
 };
 
 } // namespace fn
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_TRANSFORM

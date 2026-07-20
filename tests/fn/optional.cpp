@@ -11,6 +11,8 @@
 #include <tuple>
 #include <utility>
 
+#include <fn/detail/macro_begin.hpp>
+
 namespace {
 struct Xint {
   int v = {};

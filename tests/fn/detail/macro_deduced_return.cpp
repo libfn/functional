@@ -3,7 +3,7 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#include <fn/detail/macro_deduced_return.hpp>
+#include <fn/detail/macro_begin.hpp>
 
 #include <catch2/catch_all.hpp>
 
@@ -29,3 +29,5 @@ static_assert(std::is_same_v<decltype(returns_xvalue()), int &&>);
 } // namespace
 
 TEST_CASE("Dummy") { SUCCEED(); }
+
+#include <fn/detail/macro_end.hpp>
