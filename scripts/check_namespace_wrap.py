@@ -41,13 +41,14 @@ for path in sorted(include.rglob("*.hpp")):
         root = match.group(1)
         if line == f"namespace {root} {{":
             if lineno >= len(lines) or lines[lineno] != INLINE_OF[root]:
-                errors.append((path, lineno, line))
+                errors.append((path, lineno, line, root))
         elif not line.startswith(NESTED_OF[root]):
-            errors.append((path, lineno, line))
+            errors.append((path, lineno, line, root))
 
-for path, lineno, line in errors:
+MACRO_OF = {"fn": "LIBFN_VERSION", "pfn": "LIBFN_VERSION_BASE"}
+for path, lineno, line, root in errors:
     print(
         f"{path.relative_to(repo).as_posix()}:{lineno}: '{line}' does not open inline namespace"
-        " LIBFN_VERSION: its entities would land outside the versioned ABI namespace"
+        f" {MACRO_OF[root]}: its entities would land outside the versioned ABI namespace"
     )
 sys.exit(1 if errors else 0)
