@@ -23,4 +23,10 @@ if(TARGET libfn::fn)
     set(libfn_fn_FOUND TRUE)
 endif()
 
+# fn_cxx26 is always installed
+set(libfn_fn_cxx26_FOUND FALSE)
+if(TARGET libfn::fn_cxx26)
+    set(libfn_fn_cxx26_FOUND TRUE)
+endif()
+
 check_required_components(libfn)

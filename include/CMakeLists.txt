@@ -14,7 +14,6 @@ set(INCLUDE_LIBFN_VERSION_HEADERS
 )
 
 add_library(include_libfn_version INTERFACE)
-set_property(TARGET include_libfn_version PROPERTY CXX_STANDARD 20)
 target_sources(include_libfn_version INTERFACE
     FILE_SET include_libfn_version_headers
     TYPE HEADERS
@@ -61,7 +60,6 @@ set(INCLUDE_PFN_HEADERS
 )
 
 add_library(include_pfn INTERFACE)
-set_property(TARGET include_pfn PROPERTY CXX_STANDARD 20)
 target_sources(include_pfn INTERFACE
     FILE_SET include_pfn_headers
     TYPE HEADERS
@@ -140,7 +138,6 @@ set(INCLUDE_FN_HEADERS
 )
 
 add_library(include_fn INTERFACE)
-set_property(TARGET include_fn PROPERTY CXX_STANDARD 20)
 target_sources(include_fn INTERFACE
     FILE_SET include_fn_headers
     TYPE HEADERS
@@ -183,3 +180,37 @@ foreach(source IN ITEMS ${INCLUDE_FN_HEADERS})
     unset(mode)
     unset(root_name)
 endforeach()
+
+### fn_cxx26
+
+# Alternative entry point: fn with the C++26 mode selected; a consumer target
+# links exactly one of libfn::fn / libfn::fn_cxx26. Owns no headers.
+add_library(include_fn_cxx26 INTERFACE)
+set_target_properties(include_fn_cxx26 PROPERTIES EXPORT_NAME fn_cxx26)
+target_link_libraries(include_fn_cxx26 INTERFACE include_fn)
+target_compile_definitions(include_fn_cxx26 INTERFACE LIBFN_CXX26)
+target_compile_features(include_fn_cxx26 INTERFACE cxx_std_26)
+
+install(TARGETS include_fn_cxx26
+    EXPORT libfnTargets)
+
+# Sentinel target for include_fn_cxx26 to test the propagation of LIBFN_CXX26 define
+if("cxx_std_26" IN_LIST CMAKE_CXX_COMPILE_FEATURES)
+    set(mode 26)
+    set(target "sentinel_fn_cxx26_cxx${mode}")
+
+    create_target_for_file(
+        NAME "${target}"
+        SOURCE "libfn_version.hpp"
+        NEW_SOURCE "#include <libfn_version.hpp>\n#ifndef LIBFN_CXX26\n#error LIBFN_CXX26 not defined\n#endif\nint main() {}\n"
+        # Own SOURCE_ROOT: the generated TU name derives from SOURCE, shared with the libfn_version sentinel
+        SOURCE_ROOT "${CMAKE_BINARY_DIR}/sentinel/fn_cxx26"
+        DEPENDENCIES include_fn_cxx26
+    )
+    append_compilation_options("${target}" WARNINGS)
+    add_dependencies("sentinels" "${target}")
+    set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
+
+    unset(target)
+    unset(mode)
+endif()

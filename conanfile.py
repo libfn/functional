@@ -51,7 +51,7 @@ class LibfnConan(ConanFile):
 
     def package_info(self):
         # find_package(libfn) -> libfn::libfn aggregate target,
-        # plus libfn::fn and libfn::pfn component targets.
+        # plus libfn::fn, libfn::fn_cxx26 and libfn::pfn component targets.
         self.cpp_info.set_property("cmake_file_name", "libfn")
         self.cpp_info.set_property("cmake_target_name", "libfn::libfn")
 
@@ -69,6 +69,16 @@ class LibfnConan(ConanFile):
         pfn.bindirs = []
         pfn.libdirs = []
         pfn.includedirs = ["include"]
+
+        # fn_cxx26: fn with the C++26 mode selected; owns no headers.
+        # A consumer links exactly one of libfn::fn / libfn::fn_cxx26.
+        fn_cxx26 = self.cpp_info.components["fn_cxx26"]
+        fn_cxx26.set_property("cmake_target_name", "libfn::fn_cxx26")
+        fn_cxx26.bindirs = []
+        fn_cxx26.libdirs = []
+        fn_cxx26.includedirs = []
+        fn_cxx26.requires = ["fn"]
+        fn_cxx26.defines = ["LIBFN_CXX26"]
 
         # CMakeDeps synthesizes its own targets, so the INTERFACE compile options
         # exported by the CMake package do not reach conan consumers; mirror
