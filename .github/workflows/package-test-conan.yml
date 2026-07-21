@@ -25,7 +25,7 @@ jobs:
   test_conan_linux:
     # arm64: the amd64 warp fleet pulls images at 1-2 MB/s; the arm64 fleet serves them in seconds
     runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-2x' || 'ubuntu-latest' }}
-    container: libfn.azurecr.io/ci-build-gcc:15-sha-08b1133
+    container: libfn.azurecr.io/ci-build-gcc:16-sha-08b1133
 
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -38,6 +38,13 @@ jobs:
     - name: Test packaging
       run: |
         conan create . --build=missing -s "compiler.cppstd=20"
+
+    # The C++26 mode: extra_variables turns on the test_package's second executable,
+    # and the test_package conanfile reads the same conf to quine-check it.
+    - name: Test packaging (C++26 mode)
+      run: |
+        conan create . --build=missing -s "compiler.cppstd=26" \
+          -c "tools.cmake.cmaketoolchain:extra_variables={'LIBFN_TEST_CXX26': 'ON'}"
 
   test_conan_windows:
     runs-on: windows-2022
