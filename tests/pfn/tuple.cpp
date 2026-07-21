@@ -112,7 +112,8 @@ TEST_CASE("is_applicable", "[tuple][polyfill][is_applicable]")
       void operator()(double, double) const;
     };
     static_assert(subject::is_applicable_v<f2d_t, std::complex<double> &> == has_tuple_size<std::complex<double>>);
-    static_assert(not subject::is_applicable_v<F2, std::complex<double> &>); // wrong callable regardless
+    static_assert(subject::is_applicable_v<F2, std::complex<double> &>
+                  == has_tuple_size<std::complex<double>>); // the int parameters convert from the doubles
     SUCCEED();
   }
 }

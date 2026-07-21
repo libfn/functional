@@ -770,55 +770,57 @@ struct join_via_operator final { // the public operator& over bare copacks, pack
 template <typename S> constexpr bool join_battery()
 {
   using fn::copack;
+  using fn::copack_for;
   using fn::pack;
 
   bool ok = true;
   { // copack of packs join copack of scalars
-    using R = copack<pack<Alef, Gimel, Heh>, pack<Alef, Gimel, Vav>, pack<Alef, Gimel, Zayn>, //
-                     pack<Bet, Gimel, Heh>, pack<Bet, Gimel, Vav>, pack<Bet, Gimel, Zayn>>;
-    auto const r = S::template join<R>(copack<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}},
+    using R = copack_for<pack<Alef, Gimel, Heh>, pack<Alef, Gimel, Vav>, pack<Alef, Gimel, Zayn>, //
+                         pack<Bet, Gimel, Heh>, pack<Bet, Gimel, Vav>, pack<Bet, Gimel, Zayn>>;
+    auto const r = S::template join<R>(copack_for<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}},
                                        copack<Heh, Vav, Zayn>{Vav{15}});
     ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.apply(join_witness) == 3 + 14 + 15;
   }
-  {                                                                        // copack of packs join copack of packs
-    using R = copack<pack<Alef, Gimel, Heh, Zayn>, pack<Alef, Gimel, Vav>, //
-                     pack<Bet, Gimel, Heh, Zayn>, pack<Bet, Gimel, Vav>>;
-    auto const r = S::template join<R>(copack<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}},
+  {                                                                            // copack of packs join copack of packs
+    using R = copack_for<pack<Alef, Gimel, Heh, Zayn>, pack<Alef, Gimel, Vav>, //
+                         pack<Bet, Gimel, Heh, Zayn>, pack<Bet, Gimel, Vav>>;
+    auto const r = S::template join<R>(copack_for<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}},
                                        copack<pack<Heh, Zayn>, pack<Vav>>{pack{Vav{15}}});
     ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.apply(join_witness) == 3 + 14 + 15;
   }
   { // copack of scalars join copack of scalars
-    using R = copack<pack<Alef, Heh>, pack<Alef, Vav>, pack<Alef, Zayn>, pack<Bet, Heh>, pack<Bet, Vav>,
-                     pack<Bet, Zayn>, pack<Gimel, Heh>, pack<Gimel, Vav>, pack<Gimel, Zayn>>;
-    auto const r = S::template join<R>(copack<Alef, Bet, Gimel>{Gimel{3}}, copack<Heh, Vav, Zayn>{Vav{14}});
+    using R = copack_for<pack<Alef, Heh>, pack<Alef, Vav>, pack<Alef, Zayn>, pack<Bet, Heh>, pack<Bet, Vav>,
+                         pack<Bet, Zayn>, pack<Gimel, Heh>, pack<Gimel, Vav>, pack<Gimel, Zayn>>;
+    auto const r = S::template join<R>(copack_for<Alef, Bet, Gimel>{Gimel{3}}, copack<Heh, Vav, Zayn>{Vav{14}});
     ok = ok && r.template has_value<pack<Gimel, Vav>>() && r.apply(join_witness) == 3 + 14;
   }
   { // copack of scalars join copack of packs
-    using R = copack<pack<Alef, Heh, Zayn>, pack<Alef, Vav>, pack<Bet, Heh, Zayn>, //
-                     pack<Bet, Vav>, pack<Gimel, Heh, Zayn>, pack<Gimel, Vav>>;
-    auto const r
-        = S::template join<R>(copack<Alef, Bet, Gimel>{Gimel{3}}, copack<pack<Heh, Zayn>, pack<Vav>>{pack{Vav{14}}});
+    using R = copack_for<pack<Alef, Heh, Zayn>, pack<Alef, Vav>, pack<Bet, Heh, Zayn>, //
+                         pack<Bet, Vav>, pack<Gimel, Heh, Zayn>, pack<Gimel, Vav>>;
+    auto const r = S::template join<R>(copack_for<Alef, Bet, Gimel>{Gimel{3}},
+                                       copack<pack<Heh, Zayn>, pack<Vav>>{pack{Vav{14}}});
     ok = ok && r.template has_value<pack<Gimel, Vav>>() && r.apply(join_witness) == 3 + 14;
   }
   { // copack of packs join scalar
-    using R = copack<pack<Alef, Gimel, Vav>, pack<Bet, Gimel, Vav>>;
-    auto const r = S::template join<R>(copack<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}}, Vav{15});
+    using R = copack_for<pack<Alef, Gimel, Vav>, pack<Bet, Gimel, Vav>>;
+    auto const r
+        = S::template join<R>(copack_for<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}}, Vav{15});
     ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.apply(join_witness) == 3 + 14 + 15;
   }
   { // copack of packs join pack
-    using R = copack<pack<Alef, Gimel, Vav>, pack<Bet, Gimel, Vav>>;
-    auto const r = S::template join<R>(copack<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}},
+    using R = copack_for<pack<Alef, Gimel, Vav>, pack<Bet, Gimel, Vav>>;
+    auto const r = S::template join<R>(copack_for<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}},
                                        pack<Vav>{pack{Vav{15}}});
     ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.apply(join_witness) == 3 + 14 + 15;
   }
   { // copack of scalars join scalar
-    using R = copack<pack<Alef, Vav>, pack<Bet, Vav>, pack<Gimel, Vav>>;
-    auto const r = S::template join<R>(copack<Alef, Bet, Gimel>{Gimel{3}}, Vav{14});
+    using R = copack_for<pack<Alef, Vav>, pack<Bet, Vav>, pack<Gimel, Vav>>;
+    auto const r = S::template join<R>(copack_for<Alef, Bet, Gimel>{Gimel{3}}, Vav{14});
     ok = ok && r.template has_value<pack<Gimel, Vav>>() && r.apply(join_witness) == 3 + 14;
   }
   { // copack of scalars join pack
-    using R = copack<pack<Alef, Vav>, pack<Bet, Vav>, pack<Gimel, Vav>>;
-    auto const r = S::template join<R>(copack<Alef, Bet, Gimel>{Gimel{3}}, pack<Vav>{pack{Vav{14}}});
+    using R = copack_for<pack<Alef, Vav>, pack<Bet, Vav>, pack<Gimel, Vav>>;
+    auto const r = S::template join<R>(copack_for<Alef, Bet, Gimel>{Gimel{3}}, pack<Vav>{pack{Vav{14}}});
     ok = ok && r.template has_value<pack<Gimel, Vav>>() && r.apply(join_witness) == 3 + 14;
   }
   { // pack join copack of scalars

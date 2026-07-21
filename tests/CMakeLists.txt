@@ -59,8 +59,12 @@ include(TargetGenerator)
 include(CompilationOptions)
 
 # Generate separate target for each individual test source
-foreach(mode 20 23)
+foreach(mode 20 23 26)
     if (NOT VALIDATE_CXX23 AND mode EQUAL 23)
+        continue()
+    endif()
+
+    if (NOT VALIDATE_CXX26 AND mode EQUAL 26)
         continue()
     endif()
 
@@ -134,14 +138,24 @@ set(TESTS_FN_SOURCES
 )
 
 # Generate separate target for each individual test source
-foreach(mode 20 23)
+foreach(mode 20 23 26)
     if (NOT VALIDATE_CXX23 AND mode EQUAL 23)
+        continue()
+    endif()
+
+    if (NOT VALIDATE_CXX26 AND mode EQUAL 26)
         continue()
     endif()
 
     # Current releases of MSVC only support C++20
     if(MSVC AND NOT (mode EQUAL 20))
         continue()
+    endif()
+
+    if(mode EQUAL 26)
+        set(entry_point include_fn_cxx26)
+    else()
+        set(entry_point include_fn)
     endif()
 
     foreach(source IN ITEMS ${TESTS_FN_SOURCES})
@@ -151,7 +165,7 @@ foreach(mode 20 23)
         create_target_for_file(
             NAME "${target}"
             SOURCE "${source}"
-            DEPENDENCIES include_fn tests_util Catch2::Catch2WithMain
+            DEPENDENCIES "${entry_point}" tests_util Catch2::Catch2WithMain
         )
         append_compilation_options("${target}" WARNINGS OPTIMIZATION TESTS)
         add_dependencies("cxx${mode}" "${target}")
@@ -169,4 +183,6 @@ foreach(mode 20 23)
         unset(target)
         unset(root_name)
     endforeach()
+
+    unset(entry_point)
 endforeach()

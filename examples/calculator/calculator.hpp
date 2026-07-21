@@ -35,7 +35,7 @@ enum class StackError { NotEnoughOperands };
 enum class MathError { DivisionByZero, NotIntegral, Overflow };
 
 // Each step contributes its own error type; the API exposes their copack
-using Error = fn::copack<MathError, ParseError, StackError>;
+using Error = fn::copack_for<MathError, ParseError, StackError>;
 using Result = fn::expected<Stack, Error>;
 
 // An operation is a tiny struct: argument_count says how many operands it pops. A parsed number is
@@ -68,7 +68,7 @@ struct Sub {
 struct Swap {
   static constexpr int argument_count = 2;
 };
-using Operation = fn::copack<Add, Div, Drop, Dup, Mod, Mul, Push, Sub, Swap>;
+using Operation = fn::copack_for<Add, Div, Drop, Dup, Mod, Mul, Push, Sub, Swap>;
 
 // "42", "052" and "0x2a" are long, "2.5", "1e-3" and ".5" are double; a long overflow promotes to
 // double, while a double overflow — like the "inf" and "nan" spellings strtod accepts — is no number here

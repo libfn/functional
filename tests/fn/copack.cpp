@@ -1038,7 +1038,8 @@ TEST_CASE("copack basic functionality tests", "[copack]")
           = a.apply([]<std::size_t I>(char const(&)[I], int i, double d) { return I + i + static_cast<int>(d); });
       static_assert(b == 4 + 42 + 12);
 
-      constexpr copack<pack<int, int, int, int>, pack<int, int, int>, pack<int, int>, pack<int>> c = pack{3, 14, 15};
+      constexpr fn::copack_for<pack<int, int, int, int>, pack<int, int, int>, pack<int, int>, pack<int>> c
+          = pack{3, 14, 15};
       static_assert(c.apply([](std::integral auto... args) -> int { return (... + args); }) == 3 + 14 + 15);
 
       SUCCEED();
@@ -1049,7 +1050,7 @@ TEST_CASE("copack basic functionality tests", "[copack]")
       auto const b = a.apply([](char const *s, int i, double d) { return std::strlen(s) + i + static_cast<int>(d); });
       CHECK(b == 3 + 42 + 12);
 
-      constexpr copack<pack<int, int, int, int>, pack<int, int, int>, pack<int, int>, pack<int>> c
+      constexpr fn::copack_for<pack<int, int, int, int>, pack<int, int, int>, pack<int, int>, pack<int>> c
           = pack{3, 14, 15, 92};
       CHECK(c.apply([](std::integral auto... args) -> int { return (... + args); }) == 3 + 14 + 15 + 92);
     }
