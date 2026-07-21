@@ -47,7 +47,7 @@
 // clause is marked inline with a "// extension" trailing comment.
 
 namespace pfn {
-inline namespace LIBFN_VERSION {
+inline namespace LIBFN_VERSION_BASE {
 
 // [expected.bad], class template bad_expected_access
 template <class E> class bad_expected_access;
@@ -1775,7 +1775,7 @@ private:
   }
 };
 
-} // namespace LIBFN_VERSION
+} // namespace LIBFN_VERSION_BASE
 } // namespace pfn
 
 #undef ASSERT

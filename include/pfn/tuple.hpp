@@ -17,7 +17,7 @@
 #include <utility>
 
 namespace pfn {
-inline namespace LIBFN_VERSION {
+inline namespace LIBFN_VERSION_BASE {
 namespace detail {
 
 // [tuple.like] is enumerative - a specialization of array, complex, pair, tuple or
@@ -92,7 +92,7 @@ constexpr apply_result_t<Fn, Tuple> apply(Fn &&fn, Tuple &&t) noexcept(is_nothro
                              ::std::make_index_sequence<::std::tuple_size_v<::std::remove_reference_t<Tuple>>>{});
 }
 
-} // namespace LIBFN_VERSION
+} // namespace LIBFN_VERSION_BASE
 } // namespace pfn
 
 #endif // INCLUDE_PFN_TUPLE

@@ -2,6 +2,10 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `pfn` is mode-less — 21 July 2026
+
+- **`pfn` wraps in the base spelling, never the `_cxx26` twin** (refines the 20 July entry below, where one shared spelling wrapped both layers): mode-dependent layouts come from `copack`/`choice` alternative ordering — `fn`-layer machinery that `pfn`'s spec-fidelity polyfills can never touch — so `pfn::v0_0_9_cxx26::expected` would have been a bit-identical type behind a gratuitously incompatible mangled name. Pinned to `inline namespace LIBFN_VERSION_BASE` (the new mode-less macro in `libfn_version.hpp`, synced from `VERSION` like the rest), `pfn`'s vocabulary types pass legally across mode boundaries — a library exposing `pfn::expected` in its API links from either mode — while `fn` types correctly cannot. The wrap check enforces the layer rule: `fn` opens the mode-sensitive spelling, `pfn` the base.
+
 ## The ABI-versioning inline namespace — 20 July 2026
 
 - **Everything in `fn` and `pfn` lives in `inline namespace LIBFN_VERSION`** ([#352](https://github.com/libfn/functional/issues/352)): spelled `v0_0_9` today, `v0_<y>` once a 0.y line is tagged — the 0.0.z line versions per patch, while z bumps within a tagged 0.y line are ABI-compatible and share the namespace — with a `_dev` suffix available for prerelease builds and a `_cxx26` twin reserved for the C++26 `std::type_order` mode, whose layouts may differ. Two library lines now fail loud at link time instead of silently ODR-colliding. The spelling lives in the new root header `include/libfn_version.hpp` — below both `fn` and `pfn`, the only header either may reach outside its own tree — and is never hand-edited: `scripts/sync_versions.py` derives it from `VERSION` exactly as it mirrors the packaging literals, and a pre-commit check refuses any `fn`/`pfn` namespace opening that drops the wrap.

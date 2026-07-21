@@ -46,7 +46,7 @@
 #endif
 
 namespace pfn {
-inline namespace LIBFN_VERSION {
+inline namespace LIBFN_VERSION_BASE {
 
 // [optional.optional], class template optional
 template <class T> class optional; // partially freestanding
@@ -1628,7 +1628,7 @@ constexpr optional<T> make_optional(::std::initializer_list<U> il, Args &&...arg
   return optional<T>(::std::in_place, il, FWD(args)...);
 }
 
-} // namespace LIBFN_VERSION
+} // namespace LIBFN_VERSION_BASE
 } // namespace pfn
 
 namespace std {

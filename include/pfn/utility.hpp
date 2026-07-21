@@ -9,7 +9,7 @@
 #include <libfn_version.hpp>
 
 namespace pfn {
-inline namespace LIBFN_VERSION {
+inline namespace LIBFN_VERSION_BASE {
 
 // LCOV_EXCL_START unreachable by design
 [[noreturn]] inline void unreachable()
@@ -24,7 +24,7 @@ inline namespace LIBFN_VERSION {
 }
 // LCOV_EXCL_STOP
 
-} // namespace LIBFN_VERSION
+} // namespace LIBFN_VERSION_BASE
 } // namespace pfn
 
 #endif // INCLUDE_PFN_UTILITY
