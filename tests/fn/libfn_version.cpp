@@ -14,6 +14,6 @@
 TEST_CASE("LIBFN_VERSION inline namespace", "[libfn_version]")
 {
   static_assert(std::is_same_v<fn::LIBFN_VERSION::optional<int>, fn::optional<int>>);
-  static_assert(std::is_same_v<pfn::LIBFN_VERSION::expected<int, bool>, pfn::expected<int, bool>>);
+  static_assert(std::is_same_v<pfn::LIBFN_VERSION_BASE::expected<int, bool>, pfn::expected<int, bool>>);
   SUCCEED();
 }

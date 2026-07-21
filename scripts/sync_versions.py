@@ -11,8 +11,9 @@ vcpkg and Bazel accept the full SemVer form (MAJOR.MINOR.PATCH[-prerelease][+bui
 so the VERSION value is copied verbatim. The namespace spellings are derived:
 0.y lines with y >= 1 share v0_<y> (z bumps are ABI-compatible), the 0.0.z line
 versions per patch, a prerelease is appended (-dev -> _dev), and the _cxx26 twin
-keeps _cxx26 last. Run as a pre-commit hook: it rewrites the literals and exits
-non-zero if it changed anything, so the commit is blocked until the change is
+keeps _cxx26 last. LIBFN_VERSION_BASE is the mode-less spelling (pfn wraps in it,
+regardless of LIBFN_CXX26). Run as a pre-commit hook: it rewrites the literals and
+exits non-zero if it changed anything, so the commit is blocked until the change is
 re-staged.
 """
 import json
@@ -25,7 +26,8 @@ SEMVER_RE = re.compile(
 )
 # The version string inside the module(...) directive (not a bazel_dep version).
 MODULE_VERSION_RE = re.compile(r'(module\([^()]*?version\s*=\s*)"[^"]*"', re.DOTALL)
-# The two #define branches of libfn_version.hpp, anchored to their preprocessor context.
+# The #define lines of libfn_version.hpp, anchored to their preprocessor context.
+HEADER_BASE_RE = re.compile(r"(#define LIBFN_VERSION_BASE )\w+")
 HEADER_CXX26_RE = re.compile(r"(#ifdef LIBFN_CXX26\n#define LIBFN_VERSION )\w+")
 HEADER_PLAIN_RE = re.compile(r"(#else\n#define LIBFN_VERSION )\w+")
 
@@ -72,9 +74,10 @@ if prerelease:
     namespace += "_" + re.sub(r"[^0-9a-zA-Z]", "_", prerelease)
 
 content = header_path.read_text()
-new_content, n_cxx26 = HEADER_CXX26_RE.subn(rf"\g<1>{namespace}_cxx26", content, count=1)
+new_content, n_base = HEADER_BASE_RE.subn(rf"\g<1>{namespace}", content, count=1)
+new_content, n_cxx26 = HEADER_CXX26_RE.subn(rf"\g<1>{namespace}_cxx26", new_content, count=1)
 new_content, n_plain = HEADER_PLAIN_RE.subn(rf"\g<1>{namespace}", new_content, count=1)
-if n_cxx26 == 0 or n_plain == 0:
+if n_base == 0 or n_cxx26 == 0 or n_plain == 0:
     sys.stderr.write(f"{header_path.relative_to(repo)}: could not find the LIBFN_VERSION defines to sync\n")
     sys.exit(1)
 if new_content != content:

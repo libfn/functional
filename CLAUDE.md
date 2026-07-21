@@ -38,7 +38,7 @@ Four header layers; each may depend only on those below it:
 - `include/pfn` — C++23/26 polyfill; standalone except for the version header
 - `include/libfn_version.hpp` — base: the sole root header, no dependencies
 
-Every `namespace fn`/`namespace pfn` opening in `include/` carries `inline namespace LIBFN_VERSION` (pre-commit enforced); a header that opens one includes `<libfn_version.hpp>` itself.
+Every `namespace fn` opening in `include/` carries `inline namespace LIBFN_VERSION`, every `namespace pfn` opening `inline namespace LIBFN_VERSION_BASE` — the mode-less spelling; pfn never joins the `_cxx26` ABI twin (pre-commit enforced). A header that opens either includes `<libfn_version.hpp>` itself.
 
 To give an `fn/detail` file something that lives in `fn`, hoist it: the implementation moves into `fn/detail/X.hpp` as `fn::detail::_name` (no doxygen — detail headers aren't user-facing); `fn/X.hpp` stays a thin public wrapper re-exporting it as `fn::name` (pattern: `fn/functional.hpp`).
 
