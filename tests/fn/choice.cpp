@@ -104,8 +104,8 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
         std::same_as<fn::copack_for<NonCopyable, int>, typename fn::choice_for<NonCopyable, int>::value_type>);
     static_assert(std::same_as<fn::copack<int>, typename choice<int>::value_type>);
 
-    using type = fn::choice<bool, helper>;
-    using value_type = fn::copack<bool, helper>;
+    using type = fn::choice_for<bool, helper>;
+    using value_type = fn::copack_for<bool, helper>;
     static_assert(std::same_as<value_type &, decltype(std::declval<type &>().value())>);
     static_assert(std::same_as<value_type const &, decltype(std::declval<type const &>().value())>);
     static_assert(std::same_as<value_type &&, decltype(std::declval<type &&>().value())>);
@@ -217,7 +217,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
     SECTION("constexpr move from rvalue")
     {
-      using T = fn::choice<bool, helper>;
+      using T = fn::choice_for<bool, helper>;
       constexpr auto fn = [](auto i) constexpr noexcept -> T { return {std::move(i)}; };
       constexpr auto a = fn(true);
       static_assert(std::is_same_v<decltype(a), T const>);
@@ -232,7 +232,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
     SECTION("move from rvalue")
     {
-      using T = fn::choice<bool, helper>;
+      using T = fn::choice_for<bool, helper>;
       constexpr auto fn = [](auto i) noexcept -> T { return {std::move(i)}; };
       auto const a = fn(helper{9});
       static_assert(std::is_same_v<decltype(a), T const>);
@@ -247,7 +247,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
     SECTION("constexpr move from const rvalue")
     {
-      using T = fn::choice<bool, helper>;
+      using T = fn::choice_for<bool, helper>;
       constexpr auto fn = [](auto const i) constexpr noexcept -> T { return {std::move(i)}; };
       constexpr auto a = fn(true);
       static_assert(std::is_same_v<decltype(a), T const>);
@@ -262,7 +262,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
     SECTION("move from const rvalue")
     {
-      using T = fn::choice<bool, helper>;
+      using T = fn::choice_for<bool, helper>;
       constexpr auto fn = [](auto const i) noexcept -> T { return {std::move(i)}; };
       auto const a = fn(helper{7});
       static_assert(std::is_same_v<decltype(a), T const>);
@@ -277,7 +277,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
     SECTION("constexpr copy from lvalue")
     {
-      using T = fn::choice<bool, helper>;
+      using T = fn::choice_for<bool, helper>;
       constexpr auto fn = [](auto i) constexpr noexcept -> T { return {i}; };
       constexpr auto a = fn(true);
       static_assert(std::is_same_v<decltype(a), T const>);
@@ -292,7 +292,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
     SECTION("copy from lvalue")
     {
-      using T = fn::choice<bool, helper>;
+      using T = fn::choice_for<bool, helper>;
       constexpr auto fn = [](auto i) noexcept -> T { return {i}; };
       auto const a = fn(true);
       static_assert(std::is_same_v<decltype(a), T const>);
@@ -307,7 +307,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
     SECTION("constexpr copy from const lvalue")
     {
-      using T = fn::choice<bool, helper>;
+      using T = fn::choice_for<bool, helper>;
       constexpr auto fn = [](auto const i) constexpr noexcept -> T { return {i}; };
       constexpr auto a = fn(true);
       static_assert(std::is_same_v<decltype(a), T const>);
@@ -322,7 +322,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
     SECTION("copy from const lvalue")
     {
-      using T = fn::choice<bool, helper>;
+      using T = fn::choice_for<bool, helper>;
       constexpr auto fn = [](auto const i) noexcept -> T { return {i}; };
       auto const a = fn(true);
       static_assert(std::is_same_v<decltype(a), T const>);
@@ -337,7 +337,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
     SECTION("copy ctor")
     {
-      using T = fn::choice<bool, helper>;
+      using T = fn::choice_for<bool, helper>;
       auto a = T{helper{1}};
       a.value().get_ptr<helper>()->v = 23;
       auto const b = std::as_const(a);
@@ -348,7 +348,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
     SECTION("move ctor")
     {
-      using T = fn::choice<bool, helper>;
+      using T = fn::choice_for<bool, helper>;
       auto a = T{helper{1}};
       a.value().get_ptr<helper>()->v = 29;
       auto const b = std::move(a);
@@ -360,7 +360,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
   SECTION("constructor from copack")
   {
-    using T = fn::choice<bool, helper>;
+    using T = fn::choice_for<bool, helper>;
     SECTION("move from rvalue")
     {
       fn::copack h{helper{1}};

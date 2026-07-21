@@ -47,8 +47,9 @@ jobs:
           -DVCPKG_TARGET_TRIPLET=x64-linux
         cmake --build .build
 
+    # main.cpp is a quine: the binary's stdout must reproduce the source exactly.
     - name: Run main
-      run: .build/main
+      run: .build/main | diff - test_package/src/main.cpp
 
   test_vcpkg_windows:
     runs-on: windows-2022
@@ -76,6 +77,15 @@ jobs:
           -DVCPKG_TARGET_TRIPLET=x64-windows
         cmake --build .build --config Release
 
+    # main.cpp is a quine: the binary's stdout must reproduce the source exactly;
+    # text-mode python normalizes \r\n on both sides of the comparison.
     - name: Run main
       shell: pwsh
-      run: .build/Release/main.exe
+      run: |
+        python -c @'
+        import subprocess
+        out = subprocess.run([r".build\Release\main.exe"], capture_output=True, text=True, check=True).stdout
+        src = open("test_package/src/main.cpp").read()
+        if out != src:
+            raise SystemExit("main.exe output differs from test_package/src/main.cpp")
+        '@

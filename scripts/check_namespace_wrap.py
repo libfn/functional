@@ -23,9 +23,11 @@ INLINE_OF = {
     "fn": "inline namespace LIBFN_VERSION {",
     "pfn": "inline namespace LIBFN_VERSION_BASE {",
 }
+
+# Spellings of nested namespaces must be synchronized with cmake/StripNamespaceWrap.cmake
 NESTED_OF = {
-    "fn": "namespace fn::inline LIBFN_VERSION::",
-    "pfn": "namespace pfn::inline LIBFN_VERSION_BASE::",
+    "fn": "namespace fn::inline LIBFN_VERSION::detail {",
+    "pfn": "namespace pfn::inline LIBFN_VERSION_BASE::detail {",
 }
 
 repo = pathlib.Path(__file__).resolve().parents[1]
@@ -41,13 +43,14 @@ for path in sorted(include.rglob("*.hpp")):
         root = match.group(1)
         if line == f"namespace {root} {{":
             if lineno >= len(lines) or lines[lineno] != INLINE_OF[root]:
-                errors.append((path, lineno, line))
-        elif not line.startswith(NESTED_OF[root]):
-            errors.append((path, lineno, line))
+                errors.append((path, lineno, line, root))
+        elif line != NESTED_OF[root]:
+            errors.append((path, lineno, line, root))
 
-for path, lineno, line in errors:
+MACRO_OF = {"fn": "LIBFN_VERSION", "pfn": "LIBFN_VERSION_BASE"}
+for path, lineno, line, root in errors:
     print(
         f"{path.relative_to(repo).as_posix()}:{lineno}: '{line}' does not open inline namespace"
-        " LIBFN_VERSION: its entities would land outside the versioned ABI namespace"
+        f" {MACRO_OF[root]}: its entities would land outside the versioned ABI namespace"
     )
 sys.exit(1 if errors else 0)

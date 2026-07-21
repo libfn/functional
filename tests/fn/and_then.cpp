@@ -23,6 +23,13 @@ struct Error final {
 };
 struct OtherError final {};
 
+// C++26 to_string formats through std::format (P2587): to_string(0.5) is "0.5", not "0.500000"
+#if defined(__cpp_lib_to_string) && __cpp_lib_to_string >= 202306L
+constexpr char const got_84_and_half[] = "Got 84 and 0.5";
+#else
+constexpr char const got_84_and_half[] = "Got 84 and 0.500000";
+#endif
+
 struct Xint final {
   int value;
 
@@ -349,7 +356,7 @@ TEST_CASE("and_then", "[and_then][expected][expected_value][pack]")
           };
           using T = decltype(a | and_then(fnFail));
           static_assert(std::is_same_v<T, fn::expected<int, Error>>);
-          REQUIRE((a | and_then(fnFail)).error().what == "Got 84 and 0.500000");
+          REQUIRE((a | and_then(fnFail)).error().what == got_84_and_half);
         }
       }
 

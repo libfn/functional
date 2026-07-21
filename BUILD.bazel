@@ -27,3 +27,10 @@ cc_library(
         ":version",
     ],
 )
+
+# fn with the C++26 mode selected; a consumer links exactly one of :fn / :fn_cxx26.
+cc_library(
+    name = "fn_cxx26",
+    defines = ["LIBFN_CXX26"],
+    deps = [":fn"],
+)

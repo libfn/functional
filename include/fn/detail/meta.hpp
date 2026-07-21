@@ -15,6 +15,13 @@
 #include <type_traits>
 #include <utility>
 
+#ifdef LIBFN_CXX26
+#include <compare>
+#ifndef __cpp_lib_type_order
+#error "LIBFN_CXX26 requires std::type_order (C++26, feature-test macro __cpp_lib_type_order); see CONTRIBUTING.md"
+#endif
+#endif
+
 namespace fn::inline LIBFN_VERSION::detail {
 
 // TODO Remove `select_nth` when our compilers start supporting pack indexing https://wg21.link/P2662
@@ -147,7 +154,17 @@ template <typename... Ts> constexpr inline ::std::size_t _distinct_types = 0;
 template <typename T, typename... Ts>
 constexpr inline ::std::size_t _distinct_types<T, Ts...> = _distinct_types<Ts...> + (type_one_of<T, Ts...> ? 0 : 1);
 
-// NOTE Normalized order of types - order based on type_sortkey_v
+#ifdef LIBFN_CXX26
+// T's rank within Ts: how many pack members order strictly below it under std::type_order.
+// Ranks of distinct types differ (the order is strong and total), identical types share theirs —
+// an ordering key injective by identity, where the sortkey scrape is injective only by spelling.
+template <typename T, typename... Ts>
+constexpr inline ::std::size_t _type_order_rank
+    = (::std::size_t{0} + ... + (::std::type_order_v<Ts, T> == ::std::strong_ordering::less ? 1 : 0));
+#endif
+
+// NOTE Normalized order of types - order based on type_sortkey_v, or std::type_order in the
+// LIBFN_CXX26 mode (the orders may differ, which is why the mode is a distinct ABI namespace)
 template <typename... Ts> struct normalized final {
   static constexpr ::std::size_t N = sizeof...(Ts);
 
@@ -158,12 +175,16 @@ template <typename... Ts> struct normalized final {
 
   [[nodiscard]] static constexpr auto _indices() noexcept
   {
-    ::std::array<::std::string_view, sizeof...(Ts)> names{type_sortkey_v<Ts>...};
+#ifdef LIBFN_CXX26
+    ::std::array<::std::size_t, sizeof...(Ts)> keys{_type_order_rank<Ts, Ts...>...};
+#else
+    ::std::array<::std::string_view, sizeof...(Ts)> keys{type_sortkey_v<Ts>...};
+#endif
     ::std::array<::std::size_t, sizeof...(Ts)> indices{};
     ::std::ranges::generate(indices, [n = 0]() mutable -> ::std::size_t { return n++; });
-    auto const less = [v = &names](::std::size_t i, ::std::size_t j) constexpr { return (*v)[i] < (*v)[j]; };
+    auto const less = [v = &keys](::std::size_t i, ::std::size_t j) constexpr { return (*v)[i] < (*v)[j]; };
     ::std::ranges::sort(indices, less);
-    auto const equal = [v = &names](::std::size_t i, ::std::size_t j) constexpr { return (*v)[i] == (*v)[j]; };
+    auto const equal = [v = &keys](::std::size_t i, ::std::size_t j) constexpr { return (*v)[i] == (*v)[j]; };
     auto const end = ::std::ranges::unique(indices, equal).begin();
     return _uniqued{indices, static_cast<::std::size_t>(end - indices.begin())};
   }
@@ -174,7 +195,8 @@ template <typename... Ts> struct normalized final {
   // count mismatch is exactly two distinct types sharing one. Known colliders: same-scope lambdas
   // (no positional disambiguator in gcc), same-named function-local types (clang prints no scope).
   // If this assert fires, the user project should rename one of the colliding types to a unique
-  // name (or move it to a different scope); or upgrade to C++26 and switch to std::type_order
+  // name (or move it to a different scope); or enable the LIBFN_CXX26 mode, whose rank keys
+  // cannot collide
   static_assert(_distinct_types<Ts...> == _indices_v.count, "distinct types must not share a sort key");
 
   template <template <typename...> typename F, ::std::size_t... Is>

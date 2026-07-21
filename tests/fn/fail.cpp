@@ -33,6 +33,13 @@ int Value::count = 0;
 
 struct Derived : Error {};
 
+// C++26 to_string formats through std::format (P2587): to_string(0.5) is "0.5", not "0.500000"
+#if defined(__cpp_lib_to_string) && __cpp_lib_to_string >= 202306L
+constexpr char const got_84_and_half[] = "Got 84 and 0.5";
+#else
+constexpr char const got_84_and_half[] = "Got 84 and 0.500000";
+#endif
+
 } // namespace
 
 TEST_CASE("fail", "[fail][expected][expected_value][pack]")
@@ -109,7 +116,7 @@ TEST_CASE("fail", "[fail][expected][expected_value][pack]")
       };
       using T = decltype(a | fail(fnPack));
       static_assert(std::is_same_v<T, operand_t>);
-      REQUIRE((a | fail(fnPack)).error().what == "Got 84 and 0.500000");
+      REQUIRE((a | fail(fnPack)).error().what == got_84_and_half);
     }
 
     SECTION("error")
@@ -319,7 +326,7 @@ TEST_CASE("fail", "[fail][optional][pack]")
       using T = decltype(a | fail(fnPack));
       static_assert(std::is_same_v<T, operand_t>);
       REQUIRE(not(a | fail(fnPack)).has_value());
-      CHECK(what == "Got 84 and 0.500000");
+      CHECK(what == got_84_and_half);
     }
 
     SECTION("error")

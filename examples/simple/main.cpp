@@ -580,7 +580,7 @@ TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform
 
   auto const b = fn2("prod", "123", "1024", "'file.txt'", "0.5"); // 123 is not valid hostname
   static_assert(
-      std::is_same_v<decltype(b), fn::expected<int, fn::copack<ConfigError, InputError, NetworkError>> const>);
+      std::is_same_v<decltype(b), fn::expected<int, fn::copack_for<ConfigError, InputError, NetworkError>> const>);
   CHECK(b.error() == fn::copack{InvalidType});
   CHECK(fn2("foobar", "'localhost'", "1024", "'file.txt'", "0.5").error() == fn::copack{InvalidConfiguration});
   CHECK(fn2("test", "123", "1024", "'file.txt'", "-1.0").error() == fn::copack{InvalidType});

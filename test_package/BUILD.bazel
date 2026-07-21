@@ -16,3 +16,19 @@ cc_binary(
         "@libfn//:pfn",
     ],
 )
+
+cc_binary(
+    name = "main_cxx26",
+    # LIBFN_CXX26 propagates from the dep; the standard does not — Bazel has no
+    # per-target language-level knob, so the C++26 flag is spelled here.
+    copts = [
+        "-std=c++26",
+        "-Wall",
+        "-Werror",
+        "-Wno-missing-braces",
+    ],
+    srcs = ["src/main.cpp"],
+    deps = [
+        "@libfn//:fn_cxx26",
+    ],
+)
