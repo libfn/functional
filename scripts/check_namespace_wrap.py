@@ -23,9 +23,11 @@ INLINE_OF = {
     "fn": "inline namespace LIBFN_VERSION {",
     "pfn": "inline namespace LIBFN_VERSION_BASE {",
 }
+
+# Spellings of nested namespaces must be synchronized with cmake/StripNamespaceWrap.cmake
 NESTED_OF = {
-    "fn": "namespace fn::inline LIBFN_VERSION::",
-    "pfn": "namespace pfn::inline LIBFN_VERSION_BASE::",
+    "fn": "namespace fn::inline LIBFN_VERSION::detail {",
+    "pfn": "namespace pfn::inline LIBFN_VERSION_BASE::detail {",
 }
 
 repo = pathlib.Path(__file__).resolve().parents[1]
@@ -42,7 +44,7 @@ for path in sorted(include.rglob("*.hpp")):
         if line == f"namespace {root} {{":
             if lineno >= len(lines) or lines[lineno] != INLINE_OF[root]:
                 errors.append((path, lineno, line, root))
-        elif not line.startswith(NESTED_OF[root]):
+        elif line != NESTED_OF[root]:
             errors.append((path, lineno, line, root))
 
 MACRO_OF = {"fn": "LIBFN_VERSION", "pfn": "LIBFN_VERSION_BASE"}

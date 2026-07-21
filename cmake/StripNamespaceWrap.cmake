@@ -17,6 +17,7 @@ endforeach()
 
 file(REMOVE_RECURSE "${DEST_DIR}")
 
+# Spellings of nested namespaces must be synchronized with scripts/check_namespace_wrap.py
 file(GLOB_RECURSE headers RELATIVE "${SOURCE_DIR}" "${SOURCE_DIR}/*.hpp")
 foreach(header IN LISTS headers)
     file(READ "${SOURCE_DIR}/${header}" content)
