@@ -79,6 +79,8 @@ jobs:
           - { mode: cxx23, configuration: Release, compiler: "clang-libstdcxx:21" }
           - { mode: cxx23, configuration: Debug,   compiler: "clang-libstdcxx:22" }
           - { mode: cxx23, configuration: Release, compiler: "clang-libstdcxx:22" }
+          - { mode: cxx26, configuration: Debug,   compiler: "gcc:16" }
+          - { mode: cxx26, configuration: Release, compiler: "gcc:16" }
     container: libfn.azurecr.io/ci-build-${{ matrix.compiler }}-sha-08b1133
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -87,7 +89,7 @@ jobs:
       run: |
         mkdir .build
         cd .build
-        cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ${{ matrix.mode == 'cxx23' && '-DVALIDATE_CXX23=ON' || '' }} ..
+        cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ${{ matrix.mode == 'cxx23' && '-DVALIDATE_CXX23=ON' || matrix.mode == 'cxx26' && '-DLIBFN_CXX26=ON -DVALIDATE_CXX26=ON' || '' }} ..
         COMPILER=$( grep -iE "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
         FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ matrix.configuration }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
         printf "C++ compiler path: %s\n" "$COMPILER"
