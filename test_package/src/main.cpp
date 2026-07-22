@@ -31,7 +31,7 @@ int main()
                                                     return fn::as_pack();
                                                   }});
              })
-      .apply([](auto &&...args) -> int { return sizeof...(args); });
+      .apply([]([[maybe_unused]] auto &&...args) -> int { return sizeof...(args); });
 }
 )",
                                       ""};
@@ -50,5 +50,5 @@ int main()
                                                     return fn::as_pack();
                                                   }});
              })
-      .apply([](auto &&...args) -> int { return sizeof...(args); });
+      .apply([]([[maybe_unused]] auto &&...args) -> int { return sizeof...(args); });
 }
