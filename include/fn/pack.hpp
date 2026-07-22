@@ -399,9 +399,9 @@ template <template <typename> typename Tpl>
 }
 
 /**
- * @brief Identity, which is basically lift for operator & above
+ * @brief The n-ary fold of `operator &` above; a single argument is forwarded unchanged
  */
-constexpr inline struct identity_t {
+constexpr inline struct conjoin_t {
   /**
    * @brief TODO
    *
@@ -442,7 +442,7 @@ constexpr inline struct identity_t {
   {
     return (FWD(arg) & ... & FWD(args));
   }
-} identity;
+} conjoin;
 
 } // namespace LIBFN_VERSION
 } // namespace fn

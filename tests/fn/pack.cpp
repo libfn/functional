@@ -903,8 +903,8 @@ TEST_CASE("operator &", "[pack][copack][operator_and]")
   static_assert(r1.apply([](auto &&...args) -> double { return (1 * ... * static_cast<double>(args)); })
                 == 12. * 3 * 2.5 * 0.5 * 1 * 1.5 * 12);
 
-  constexpr auto r2 = fn::identity(12, 3, 2.5, fn::pack{0.5, true},
-                                   fn::copack_for<bool, int, fn::pack<double, int>>(fn::pack{1.5, 12}));
+  constexpr auto r2 = fn::conjoin(12, 3, 2.5, fn::pack{0.5, true},
+                                  fn::copack_for<bool, int, fn::pack<double, int>>(fn::pack{1.5, 12}));
   static_assert(std::is_same_v<                                     //
                 decltype(r2),                                       //
                 fn::copack_for<                                     //
