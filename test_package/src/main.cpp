@@ -4,6 +4,7 @@
 #include <fn/utility.hpp>
 
 #include <cstdio>
+#include <numeric>
 
 static constexpr char const *src[] = {")", R"(#include <fn/and_then.hpp>
 #include <fn/choice.hpp>
@@ -11,38 +12,41 @@ static constexpr char const *src[] = {")", R"(#include <fn/and_then.hpp>
 #include <fn/utility.hpp>
 
 #include <cstdio>
+#include <numeric>
 
 static constexpr char const *src[] = {"%c", R"(%s%c",
                                       ""};
 
 int main()
 {
-  fn::choice_for<fn::pack<>, char, fn::pack<char, char const *>> quine = fn::pack<>{};
-  for (char const *s : src) {
-    quine = quine
-            | fn::and_then(fn::overload{//
-                                        [s]() -> decltype(quine) { return *s; },
-                                        [s](char c) -> decltype(quine) { return fn::pack<char, char const *>{c, s}; },
-                                        [](char c, char const *s) -> decltype(quine) {
-                                          std::printf(s, c, s, c);
-                                          return fn::pack<>{};
-                                        }});
-  }
+  using quine_t = fn::choice_for<fn::pack<>, fn::pack<char>, fn::pack<char, char const *>>;
+  std::accumulate(std::begin(src), std::end(src), quine_t{fn::as_pack()}, //
+                  [](quine_t &&acc, char const *s) -> quine_t {
+                    return acc
+                           | fn::and_then(
+                               fn::overload{[s]() -> quine_t { return fn::pack<char>{*s}; },
+                                            [s](char c) -> quine_t { return fn::pack<char, char const *>{c, s}; },
+                                            [](char c, char const *fmt) -> quine_t {
+                                              std::printf(fmt, c, fmt, c);
+                                              return fn::as_pack();
+                                            }});
+                  });
 }
 )",
                                       ""};
 
 int main()
 {
-  fn::choice_for<fn::pack<>, char, fn::pack<char, char const *>> quine = fn::pack<>{};
-  for (char const *s : src) {
-    quine = quine
-            | fn::and_then(fn::overload{//
-                                        [s]() -> decltype(quine) { return *s; },
-                                        [s](char c) -> decltype(quine) { return fn::pack<char, char const *>{c, s}; },
-                                        [](char c, char const *s) -> decltype(quine) {
-                                          std::printf(s, c, s, c);
-                                          return fn::pack<>{};
-                                        }});
-  }
+  using quine_t = fn::choice_for<fn::pack<>, fn::pack<char>, fn::pack<char, char const *>>;
+  std::accumulate(std::begin(src), std::end(src), quine_t{fn::as_pack()}, //
+                  [](quine_t &&acc, char const *s) -> quine_t {
+                    return acc
+                           | fn::and_then(
+                               fn::overload{[s]() -> quine_t { return fn::pack<char>{*s}; },
+                                            [s](char c) -> quine_t { return fn::pack<char, char const *>{c, s}; },
+                                            [](char c, char const *fmt) -> quine_t {
+                                              std::printf(fmt, c, fmt, c);
+                                              return fn::as_pack();
+                                            }});
+                  });
 }
