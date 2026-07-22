@@ -516,8 +516,9 @@ private:
 template <> struct just<void> {
   using value_type = void;
 
-  constexpr explicit just() = default;
+  constexpr just() = default;
   constexpr explicit just(::std::in_place_type_t<void>) noexcept {}
+  constexpr explicit just(::std::in_place_t) noexcept {}
 
   [[nodiscard]] constexpr bool operator==(just const &) const noexcept = default;
 
@@ -659,6 +660,7 @@ template <typename T, typename U>
 template <typename T> just(T) -> just<T>;
 template <typename T> explicit just(::std::in_place_type_t<T>, auto &&...) -> just<T>;
 just() -> just<void>;
+explicit just(::std::in_place_t) -> just<void>;
 
 } // namespace LIBFN_VERSION
 } // namespace fn
