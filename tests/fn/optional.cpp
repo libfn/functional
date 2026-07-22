@@ -569,6 +569,29 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       }
     }
 
+    SECTION("uninhabited value grade copack<>")
+    {
+      // An always-empty optional<copack<>> composes: a value product with an uninhabited factor is
+      // itself uninhabited, so the join is always empty. Previously a hard error - the join named
+      // copack<>'s value fold in its declared type.
+      using Dead = fn::optional<fn::copack<>>;
+      using Rh = fn::optional<int>;
+      static_assert(std::same_as<decltype(std::declval<Dead>() & std::declval<Rh>()), Dead>);
+      static_assert(std::same_as<decltype(std::declval<Rh>() & std::declval<Dead>()), Dead>);
+      static_assert(std::same_as<decltype(std::declval<Dead>() & std::declval<Dead>()), Dead>);
+      static_assert(noexcept(std::declval<Dead &>() & std::declval<Rh &>()));
+
+      static_assert(not(Dead{} & Rh{12}).has_value());
+      static_assert(not(Rh{12} & Dead{}).has_value());
+      static_assert(not(Rh{std::nullopt} & Dead{}).has_value());
+      static_assert(not(Dead{} & Dead{}).has_value());
+
+      CHECK(not(Dead{} & Rh{12}).has_value());
+      CHECK(not(Rh{12} & Dead{}).has_value());
+      CHECK(not(Rh{std::nullopt} & Dead{}).has_value());
+      CHECK(not(Dead{} & Dead{}).has_value());
+    }
+
     SECTION("copack on left side only")
     {
       using Lh = fn::optional<fn::copack<double, int>>;

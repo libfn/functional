@@ -2462,6 +2462,65 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
       }
     }
 
+    SECTION("uninhabited value grade copack<>")
+    {
+      // An always-erroring expected<copack<>, E> composes too: a value product with an uninhabited
+      // factor is itself uninhabited, so the join always resolves into the error channel.
+      // Previously a hard error - the join named copack<>'s value fold in its declared type.
+      using Dead = fn::expected<fn::copack<>, Error>;
+
+      SECTION("same error type, either order")
+      {
+        using Rh = fn::expected<int, Error>;
+        static_assert(
+            std::same_as<decltype(std::declval<Dead>() & std::declval<Rh>()), fn::expected<fn::copack<>, Error>>);
+        static_assert(
+            std::same_as<decltype(std::declval<Rh>() & std::declval<Dead>()), fn::expected<fn::copack<>, Error>>);
+        static_assert(
+            std::same_as<decltype(std::declval<Dead>() & std::declval<Dead>()), fn::expected<fn::copack<>, Error>>);
+
+        static_assert((Dead{::fn::unexpect, FileNotFound} & Rh{5}).error() == FileNotFound);
+        static_assert((Dead{::fn::unexpect, FileNotFound} & Rh{::fn::unexpect, Unknown}).error() == FileNotFound);
+        static_assert((Rh{5} & Dead{::fn::unexpect, Unknown}).error() == Unknown);
+        static_assert((Rh{::fn::unexpect, FileNotFound} & Dead{::fn::unexpect, Unknown}).error() == FileNotFound);
+
+        CHECK((Dead{::fn::unexpect, FileNotFound} & Rh{5}).error() == FileNotFound);
+        CHECK((Dead{::fn::unexpect, FileNotFound} & Rh{::fn::unexpect, Unknown}).error() == FileNotFound);
+        CHECK((Rh{5} & Dead{::fn::unexpect, Unknown}).error() == Unknown);
+        CHECK((Rh{::fn::unexpect, FileNotFound} & Dead{::fn::unexpect, Unknown}).error() == FileNotFound);
+      }
+
+      SECTION("graded error join, either order")
+      {
+        using Rh = fn::expected<int, fn::copack<Error>>;
+        static_assert(std::same_as<decltype(std::declval<Dead>() & std::declval<Rh>()),
+                                   fn::expected<fn::copack<>, fn::copack<Error>>>);
+        static_assert(std::same_as<decltype(std::declval<Rh>() & std::declval<Dead>()),
+                                   fn::expected<fn::copack<>, fn::copack<Error>>>);
+
+        static_assert((Dead{::fn::unexpect, FileNotFound} & Rh{5}).error() == fn::copack{FileNotFound});
+        static_assert((Rh{::fn::unexpect, fn::copack{Unknown}} & Dead{::fn::unexpect, FileNotFound}).error()
+                      == fn::copack{Unknown});
+
+        CHECK((Dead{::fn::unexpect, FileNotFound} & Rh{5}).error() == fn::copack{FileNotFound});
+        CHECK((Rh{::fn::unexpect, fn::copack{Unknown}} & Dead{::fn::unexpect, FileNotFound}).error()
+              == fn::copack{Unknown});
+      }
+
+      SECTION("noexcept")
+      {
+        // nothing to relocate on the dead value side; the error side weighs as usual
+        using Rh = fn::expected<int, Error>;
+        static_assert(noexcept(std::declval<Dead &>() & std::declval<Rh &>()));
+        static_assert(noexcept(std::declval<Rh &>() & std::declval<Dead &>()));
+        using Th = fn::expected<fn::copack<>, MoveNothrow>;
+        using Rt = fn::expected<int, MoveNothrow>;
+        static_assert(not noexcept(std::declval<Th &>() & std::declval<Rt &>())); // copies the error
+        static_assert(noexcept(std::declval<Th &&>() & std::declval<Rt &&>()));   // moves it
+        SUCCEED();
+      }
+    }
+
     SECTION("noexcept")
     {
       // the join relocates both operands' values and errors into the result, so it promises only

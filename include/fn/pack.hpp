@@ -346,37 +346,66 @@ namespace detail {
 // the accessor spelled as a type rather than as a call which would drag its own throw in.
 template <typename Monad> using _value_of_t = decltype(::std::declval<Monad>().value());
 
+// A product with an uninhabited factor is itself uninhabited, and copack<> has no value fold - the
+// join over such a side must not name the fold, in the declared type, the noexcept specification
+// or the body, and always resolves through `efn`.
 template <typename Lh, typename Rh>
-using _joined_t = decltype(::fn::detail::_fold_detail::fold<typename ::std::remove_cvref_t<Lh>::value_type,
-                                                            typename ::std::remove_cvref_t<Rh>::value_type>(
-    ::std::declval<_value_of_t<Lh>>(), ::std::declval<_value_of_t<Rh>>()));
+constexpr inline bool _uninhabited_join = empty_copack<typename ::std::remove_cvref_t<Lh>::value_type>
+                                          || empty_copack<typename ::std::remove_cvref_t<Rh>::value_type>;
+
+template <bool Uninhabited, typename Lh, typename Rh> struct _joined {
+  using type = copack<>;
+};
+template <typename Lh, typename Rh> struct _joined<false, Lh, Rh> {
+  using type = decltype(::fn::detail::_fold_detail::fold<typename ::std::remove_cvref_t<Lh>::value_type,
+                                                         typename ::std::remove_cvref_t<Rh>::value_type>(
+      ::std::declval<_value_of_t<Lh>>(), ::std::declval<_value_of_t<Rh>>()));
+};
+template <typename Lh, typename Rh> using _joined_t = typename _joined<_uninhabited_join<Lh, Rh>, Lh, Rh>::type;
 
 // `_join` invokes `efn` as an lvalue - a named parameter - so the `Efn &` questions ask about the
 // call the body performs; the reference collapses to it whatever category the callable arrived in.
+template <bool Uninhabited, template <typename> typename Tpl, typename Lh, typename Rh, typename Efn>
+struct _nothrow_join_arm {
+  static constexpr bool value = ::std::is_nothrow_invocable_v<Efn &, Lh> && ::std::is_nothrow_invocable_v<Efn &, Rh>
+                                && _nothrow_initializable<Tpl<copack<>>, ::std::invoke_result_t<Efn &, Lh>>
+                                && _nothrow_initializable<Tpl<copack<>>, ::std::invoke_result_t<Efn &, Rh>>;
+};
 template <template <typename> typename Tpl, typename Lh, typename Rh, typename Efn>
-constexpr inline bool _nothrow_join
-    = noexcept(::fn::detail::_fold_detail::fold<typename ::std::remove_cvref_t<Lh>::value_type,
-                                                typename ::std::remove_cvref_t<Rh>::value_type>(
-          ::std::declval<_value_of_t<Lh>>(), ::std::declval<_value_of_t<Rh>>()))
-      && _nothrow_initializable<Tpl<_joined_t<Lh, Rh>>, ::std::in_place_t, _joined_t<Lh, Rh>>
-      && ::std::is_nothrow_invocable_v<Efn &, Lh> && ::std::is_nothrow_invocable_v<Efn &, Rh>
-      && _nothrow_initializable<Tpl<_joined_t<Lh, Rh>>, ::std::invoke_result_t<Efn &, Lh>>
-      && _nothrow_initializable<Tpl<_joined_t<Lh, Rh>>, ::std::invoke_result_t<Efn &, Rh>>;
+struct _nothrow_join_arm<false, Tpl, Lh, Rh, Efn> {
+  static constexpr bool value
+      = noexcept(::fn::detail::_fold_detail::fold<typename ::std::remove_cvref_t<Lh>::value_type,
+                                                  typename ::std::remove_cvref_t<Rh>::value_type>(
+            ::std::declval<_value_of_t<Lh>>(), ::std::declval<_value_of_t<Rh>>()))
+        && _nothrow_initializable<Tpl<_joined_t<Lh, Rh>>, ::std::in_place_t, _joined_t<Lh, Rh>>
+        && ::std::is_nothrow_invocable_v<Efn &, Lh> && ::std::is_nothrow_invocable_v<Efn &, Rh>
+        && _nothrow_initializable<Tpl<_joined_t<Lh, Rh>>, ::std::invoke_result_t<Efn &, Lh>>
+        && _nothrow_initializable<Tpl<_joined_t<Lh, Rh>>, ::std::invoke_result_t<Efn &, Rh>>;
+};
+template <template <typename> typename Tpl, typename Lh, typename Rh, typename Efn>
+constexpr inline bool _nothrow_join = _nothrow_join_arm<_uninhabited_join<Lh, Rh>, Tpl, Lh, Rh, Efn>::value;
 
 template <template <typename> typename Tpl>
 [[nodiscard]] constexpr auto _join(auto &&lh, auto &&rh, auto &&efn) //
     noexcept(_nothrow_join<Tpl, decltype(lh), decltype(rh), decltype(efn)>)
         -> Tpl<_joined_t<decltype(lh), decltype(rh)>>
 {
-  using Lh = ::std::remove_cvref_t<decltype(lh)>::value_type;
-  using Rh = ::std::remove_cvref_t<decltype(rh)>::value_type;
   using type = Tpl<_joined_t<decltype(lh), decltype(rh)>>;
-  if (lh.has_value() && rh.has_value())
-    return type{::std::in_place, ::fn::detail::_fold_detail::fold<Lh, Rh>(FWD(lh).value(), FWD(rh).value())};
-  else if (not lh.has_value())
-    return type{efn(FWD(lh))};
-  else
-    return type{efn(FWD(rh))};
+  if constexpr (_uninhabited_join<decltype(lh), decltype(rh)>) {
+    if (not lh.has_value())
+      return type{efn(FWD(lh))};
+    else
+      return type{efn(FWD(rh))};
+  } else {
+    using Lh = ::std::remove_cvref_t<decltype(lh)>::value_type;
+    using Rh = ::std::remove_cvref_t<decltype(rh)>::value_type;
+    if (lh.has_value() && rh.has_value())
+      return type{::std::in_place, ::fn::detail::_fold_detail::fold<Lh, Rh>(FWD(lh).value(), FWD(rh).value())};
+    else if (not lh.has_value())
+      return type{efn(FWD(lh))};
+    else
+      return type{efn(FWD(rh))};
+  }
 }
 
 } // namespace detail
