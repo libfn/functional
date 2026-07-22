@@ -12,6 +12,7 @@
 
 #include <fn/copack.hpp>
 #include <fn/detail/functional.hpp>
+#include <fn/fwd.hpp>
 #include <fn/pack.hpp>
 
 #include <compare>
@@ -1314,6 +1315,118 @@ template <some_optional Lh, some_optional Rh>
     noexcept(noexcept(::fn::detail::_join<fn::optional>(FWD(lh), FWD(rh), detail::_optional_efn{})))
 {
   return ::fn::detail::_join<fn::optional>(FWD(lh), FWD(rh), detail::_optional_efn{});
+}
+
+// The identity cluster in the conjunction: a just or choice operand always contributes its value
+// to the product and adds no term to the error sum, so the optional operand's state decides alone.
+// just<void> is the product's unit and elides.
+template <typename Lh, some_optional Rh>
+  requires(::fn::detail::_some_just<Lh> || ::fn::detail::_some_choice<Lh>)
+          && (not ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>)
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
+    noexcept(::fn::detail::_nothrow_join<fn::optional, Lh, Rh, detail::_optional_efn>)
+{
+  using type = optional<::fn::detail::_joined_t<Lh, Rh>>;
+  if constexpr (::fn::detail::_uninhabited_join<Lh, Rh>) {
+    return type{::std::nullopt};
+  } else {
+    using VL = ::std::remove_cvref_t<Lh>::value_type;
+    using VR = ::std::remove_cvref_t<Rh>::value_type;
+    if (rh.has_value())
+      return type{::std::in_place, ::fn::detail::_fold_detail::fold<VL, VR>(FWD(lh).value(), FWD(rh).value())};
+    return type{::std::nullopt};
+  }
+}
+
+template <some_optional Lh, typename Rh>
+  requires(::fn::detail::_some_just<Rh> || ::fn::detail::_some_choice<Rh>)
+          && (not ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>)
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
+    noexcept(::fn::detail::_nothrow_join<fn::optional, Lh, Rh, detail::_optional_efn>)
+{
+  using type = optional<::fn::detail::_joined_t<Lh, Rh>>;
+  if constexpr (::fn::detail::_uninhabited_join<Lh, Rh>) {
+    return type{::std::nullopt};
+  } else {
+    using VL = ::std::remove_cvref_t<Lh>::value_type;
+    using VR = ::std::remove_cvref_t<Rh>::value_type;
+    if (lh.has_value())
+      return type{::std::in_place, ::fn::detail::_fold_detail::fold<VL, VR>(FWD(lh).value(), FWD(rh).value())};
+    return type{::std::nullopt};
+  }
+}
+
+template <typename Lh, some_optional Rh>
+  requires ::fn::detail::_some_just<Lh> && ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>
+[[nodiscard]] constexpr auto operator&(Lh &&, Rh &&rh) //
+    noexcept(::fn::detail::_nothrow_initializable<::std::remove_cvref_t<Rh>, Rh>) -> ::std::remove_cvref_t<Rh>
+{
+  return ::std::remove_cvref_t<Rh>{FWD(rh)};
+}
+
+template <some_optional Lh, typename Rh>
+  requires ::fn::detail::_some_just<Rh> && ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&) //
+    noexcept(::fn::detail::_nothrow_initializable<::std::remove_cvref_t<Lh>, Lh>) -> ::std::remove_cvref_t<Lh>
+{
+  return ::std::remove_cvref_t<Lh>{FWD(lh)};
+}
+
+// The identity expected is the cluster's third member: its uninhabited error contributes nothing
+// to the sum, so against optional it composes exactly as just does - and expected<void, copack<>>
+// elides as the product's unit.
+template <typename Lh, some_optional Rh>
+  requires ::fn::detail::_some_expected<Lh> && empty_copack<typename ::std::remove_cvref_t<Lh>::error_type>
+           && (not ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>)
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
+    noexcept(::fn::detail::_nothrow_join<fn::optional, Lh, Rh, detail::_optional_efn>)
+{
+  using type = optional<::fn::detail::_joined_t<Lh, Rh>>;
+  if constexpr (::fn::detail::_uninhabited_join<Lh, Rh>) {
+    return type{::std::nullopt};
+  } else {
+    using VL = ::std::remove_cvref_t<Lh>::value_type;
+    using VR = ::std::remove_cvref_t<Rh>::value_type;
+    if (rh.has_value())
+      return type{::std::in_place, ::fn::detail::_fold_detail::fold<VL, VR>(FWD(lh).value(), FWD(rh).value())};
+    return type{::std::nullopt};
+  }
+}
+
+template <some_optional Lh, typename Rh>
+  requires ::fn::detail::_some_expected<Rh> && empty_copack<typename ::std::remove_cvref_t<Rh>::error_type>
+           && (not ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>)
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
+    noexcept(::fn::detail::_nothrow_join<fn::optional, Lh, Rh, detail::_optional_efn>)
+{
+  using type = optional<::fn::detail::_joined_t<Lh, Rh>>;
+  if constexpr (::fn::detail::_uninhabited_join<Lh, Rh>) {
+    return type{::std::nullopt};
+  } else {
+    using VL = ::std::remove_cvref_t<Lh>::value_type;
+    using VR = ::std::remove_cvref_t<Rh>::value_type;
+    if (lh.has_value())
+      return type{::std::in_place, ::fn::detail::_fold_detail::fold<VL, VR>(FWD(lh).value(), FWD(rh).value())};
+    return type{::std::nullopt};
+  }
+}
+
+template <typename Lh, some_optional Rh>
+  requires ::fn::detail::_some_expected<Lh> && empty_copack<typename ::std::remove_cvref_t<Lh>::error_type>
+           && ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>
+[[nodiscard]] constexpr auto operator&(Lh &&, Rh &&rh) //
+    noexcept(::fn::detail::_nothrow_initializable<::std::remove_cvref_t<Rh>, Rh>) -> ::std::remove_cvref_t<Rh>
+{
+  return ::std::remove_cvref_t<Rh>{FWD(rh)};
+}
+
+template <some_optional Lh, typename Rh>
+  requires ::fn::detail::_some_expected<Rh> && empty_copack<typename ::std::remove_cvref_t<Rh>::error_type>
+           && ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&) //
+    noexcept(::fn::detail::_nothrow_initializable<::std::remove_cvref_t<Lh>, Lh>) -> ::std::remove_cvref_t<Lh>
+{
+  return ::std::remove_cvref_t<Lh>{FWD(lh)};
 }
 
 } // namespace LIBFN_VERSION

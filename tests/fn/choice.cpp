@@ -4,6 +4,7 @@
 // or copy at https://opensource.org/licenses/ISC
 
 #include <fn/choice.hpp>
+#include <fn/just.hpp>
 
 #include <fn/utility.hpp>
 
@@ -636,6 +637,35 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
             [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::true_type { return {}; }}));
       }
     }
+  }
+
+  SECTION("operator &")
+  {
+    // The conjunction inside the cluster: the copack distributes through the value product and the
+    // result stays a choice; just<void> is the product's unit and elides
+    using C = fn::choice_for<int, bool>;
+    static_assert(std::is_same_v<decltype(std::declval<fn::just<int>>() & std::declval<C>()),
+                                 fn::choice_for<fn::pack<int, int>, fn::pack<int, bool>>>);
+    static_assert(std::is_same_v<decltype(std::declval<C>() & std::declval<fn::just<int>>()),
+                                 fn::choice_for<fn::pack<int, int>, fn::pack<bool, int>>>);
+    static_assert(std::is_same_v<
+                  decltype(std::declval<C>() & std::declval<C>()),
+                  fn::choice_for<fn::pack<int, int>, fn::pack<int, bool>, fn::pack<bool, int>, fn::pack<bool, bool>>>);
+    static_assert(std::is_same_v<decltype(std::declval<fn::just<void>>() & std::declval<C>()), C>);
+    static_assert(std::is_same_v<decltype(std::declval<C>() & std::declval<fn::just<void>>()), C>);
+
+    constexpr auto count = []([[maybe_unused]] auto &&...args) { return static_cast<int>(sizeof...(args)); };
+    constexpr auto probe = fn::overload{[](int a, bool b) { return a == 1 && b; }, [](auto &&...) { return false; }};
+    static_assert((fn::just<int>{1} & C{true}).apply(probe));
+    static_assert((fn::just<int>{1} & C{true}).apply(count) == 2);
+    static_assert((C{2} & fn::just<int>{1}).apply(count) == 2);
+    static_assert((C{true} & C{2}).apply(count) == 2);
+    static_assert((fn::just<void>{} & C{5}).apply(count) == 1);
+    CHECK((fn::just<int>{1} & C{true}).apply(probe));
+    CHECK((fn::just<void>{} & C{5}).apply(count) == 1);
+
+    static_assert(noexcept(C{2} & C{true}));
+    SUCCEED();
   }
 }
 

@@ -8,6 +8,8 @@
 
 #include <fn/copack.hpp>
 #include <fn/detail/meta.hpp>
+#include <fn/fwd.hpp>
+#include <fn/pack.hpp>
 #include <libfn_version.hpp>
 
 #include <type_traits>
@@ -757,6 +759,58 @@ struct choice<Ts...> : copack<Ts...> {
 };
 
 // CTAD for single-element choice
+namespace detail {
+template <typename T> struct _rechoice;
+template <typename... Ts> struct _rechoice<copack<Ts...>> {
+  using type = choice<Ts...>;
+};
+template <typename Lh, typename Rh>
+using _choice_fold_t = decltype(_fold_detail::fold<typename ::std::remove_cvref_t<Lh>::value_type,
+                                                   typename ::std::remove_cvref_t<Rh>::value_type>(
+    ::std::declval<Lh>().value(), ::std::declval<Rh>().value()));
+template <typename Lh, typename Rh>
+constexpr inline bool _nothrow_choice_fold
+    = noexcept(_fold_detail::fold<typename ::std::remove_cvref_t<Lh>::value_type,
+                                  typename ::std::remove_cvref_t<Rh>::value_type>(::std::declval<Lh>().value(),
+                                                                                  ::std::declval<Rh>().value()))
+      && ::std::is_nothrow_constructible_v<typename _rechoice<_choice_fold_t<Lh, Rh>>::type, _choice_fold_t<Lh, Rh>>;
+} // namespace detail
+
+// The conjunction inside the cluster, choice on either side: the copack distributes through the
+// value product, so the fold answers a copack of packs and the result stays a choice. just<void>
+// is the product's unit and elides.
+template <typename Lh, typename Rh>
+  requires(detail::_some_choice<Lh> || detail::_some_choice<Rh>) && (detail::_some_just<Lh> || detail::_some_choice<Lh>)
+          && (detail::_some_just<Rh> || detail::_some_choice<Rh>)
+          && (not ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>)
+          && (not ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>)
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
+    noexcept(detail::_nothrow_choice_fold<Lh, Rh>)
+{
+  using VL = ::std::remove_cvref_t<Lh>::value_type;
+  using VR = ::std::remove_cvref_t<Rh>::value_type;
+  using type = typename detail::_rechoice<detail::_choice_fold_t<Lh, Rh>>::type;
+  return type{::fn::detail::_fold_detail::fold<VL, VR>(FWD(lh).value(), FWD(rh).value())};
+}
+
+template <typename Lh, typename Rh>
+  requires detail::_some_just<Lh> && ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>
+           && detail::_some_choice<Rh>
+[[nodiscard]] constexpr auto operator&(Lh &&, Rh &&rh) //
+    noexcept(::std::is_nothrow_constructible_v<::std::remove_cvref_t<Rh>, Rh>) -> ::std::remove_cvref_t<Rh>
+{
+  return ::std::remove_cvref_t<Rh>{FWD(rh)};
+}
+
+template <typename Lh, typename Rh>
+  requires detail::_some_choice<Lh> && detail::_some_just<Rh>
+           && ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&) //
+    noexcept(::std::is_nothrow_constructible_v<::std::remove_cvref_t<Lh>, Lh>) -> ::std::remove_cvref_t<Lh>
+{
+  return ::std::remove_cvref_t<Lh>{FWD(lh)};
+}
+
 template <typename T> explicit choice(::std::in_place_type_t<T>, auto &&...) -> choice<T>;
 template <typename T> explicit choice(T) -> choice<T>;
 

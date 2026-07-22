@@ -2113,6 +2113,122 @@ template <typename Lh, typename Rh>
       FWD(lh), FWD(rh), detail::_expected_efn<new_error_type>{});
 }
 
+namespace detail {
+// The cluster conjunction's specification: the cluster operand always contributes its value, so
+// only the expected operand's channels weigh - its error relocating unchanged into the result.
+template <bool Uninhabited, typename Type, typename Lh, typename Rh, typename Err> struct _nothrow_amp_cluster {
+  static constexpr bool value = _nothrow_initializable<Type, ::fn::unexpect_t, Err>;
+};
+template <typename Type, typename Lh, typename Rh, typename Err> struct _nothrow_amp_cluster<false, Type, Lh, Rh, Err> {
+  static constexpr bool value
+      = noexcept(::fn::detail::_fold_detail::fold<typename ::std::remove_cvref_t<Lh>::value_type,
+                                                  typename ::std::remove_cvref_t<Rh>::value_type>(
+            ::std::declval<::fn::detail::_value_of_t<Lh>>(), ::std::declval<::fn::detail::_value_of_t<Rh>>()))
+        && _nothrow_initializable<Type, ::std::in_place_t, ::fn::detail::_joined_t<Lh, Rh>>
+        && _nothrow_initializable<Type, ::fn::unexpect_t, Err>;
+};
+} // namespace detail
+
+// The identity cluster in the conjunction: a just or choice operand always contributes its value
+// to the product and adds no term to the error sum - the expected operand's error passes through
+// unchanged, plain or graded, and its state alone decides. just<void> is the product's unit and
+// elides.
+template <typename Lh, some_expected Rh>
+  requires(::fn::detail::_some_just<Lh> || ::fn::detail::_some_choice<Lh>)
+          && (not ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>) && (not some_expected_void<Rh>)
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
+    noexcept(detail::_nothrow_amp_cluster<
+             ::fn::detail::_uninhabited_join<Lh, Rh>,
+             expected<::fn::detail::_joined_t<Lh, Rh>, typename ::std::remove_cvref_t<Rh>::error_type>, Lh, Rh,
+             decltype(FWD(rh).error())>::value)
+{
+  using type = expected<::fn::detail::_joined_t<Lh, Rh>, typename ::std::remove_cvref_t<Rh>::error_type>;
+  if constexpr (::fn::detail::_uninhabited_join<Lh, Rh>) {
+    return type{::fn::unexpect, FWD(rh).error()};
+  } else {
+    using VL = ::std::remove_cvref_t<Lh>::value_type;
+    using VR = ::std::remove_cvref_t<Rh>::value_type;
+    if (rh.has_value())
+      return type{::std::in_place, ::fn::detail::_fold_detail::fold<VL, VR>(FWD(lh).value(), FWD(rh).value())};
+    return type{::fn::unexpect, FWD(rh).error()};
+  }
+}
+
+template <some_expected Lh, typename Rh>
+  requires(::fn::detail::_some_just<Rh> || ::fn::detail::_some_choice<Rh>)
+          && (not ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>) && (not some_expected_void<Lh>)
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
+    noexcept(detail::_nothrow_amp_cluster<
+             ::fn::detail::_uninhabited_join<Lh, Rh>,
+             expected<::fn::detail::_joined_t<Lh, Rh>, typename ::std::remove_cvref_t<Lh>::error_type>, Lh, Rh,
+             decltype(FWD(lh).error())>::value)
+{
+  using type = expected<::fn::detail::_joined_t<Lh, Rh>, typename ::std::remove_cvref_t<Lh>::error_type>;
+  if constexpr (::fn::detail::_uninhabited_join<Lh, Rh>) {
+    return type{::fn::unexpect, FWD(lh).error()};
+  } else {
+    using VL = ::std::remove_cvref_t<Lh>::value_type;
+    using VR = ::std::remove_cvref_t<Rh>::value_type;
+    if (lh.has_value())
+      return type{::std::in_place, ::fn::detail::_fold_detail::fold<VL, VR>(FWD(lh).value(), FWD(rh).value())};
+    return type{::fn::unexpect, FWD(lh).error()};
+  }
+}
+
+template <typename Lh, some_expected_void Rh>
+  requires(::fn::detail::_some_just<Lh> || ::fn::detail::_some_choice<Lh>)
+          && (not ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>)
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
+    noexcept(
+        ::fn::detail::_nothrow_initializable<
+            expected<typename ::std::remove_cvref_t<Lh>::value_type, typename ::std::remove_cvref_t<Rh>::error_type>,
+            ::std::in_place_t, decltype(FWD(lh).value())>
+        && ::fn::detail::_nothrow_initializable<
+            expected<typename ::std::remove_cvref_t<Lh>::value_type, typename ::std::remove_cvref_t<Rh>::error_type>,
+            ::fn::unexpect_t, decltype(FWD(rh).error())>)
+        -> expected<typename ::std::remove_cvref_t<Lh>::value_type, typename ::std::remove_cvref_t<Rh>::error_type>
+{
+  using type = expected<typename ::std::remove_cvref_t<Lh>::value_type, typename ::std::remove_cvref_t<Rh>::error_type>;
+  if (rh.has_value())
+    return type{::std::in_place, FWD(lh).value()};
+  return type{::fn::unexpect, FWD(rh).error()};
+}
+
+template <some_expected_void Lh, typename Rh>
+  requires(::fn::detail::_some_just<Rh> || ::fn::detail::_some_choice<Rh>)
+          && (not ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>)
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
+    noexcept(
+        ::fn::detail::_nothrow_initializable<
+            expected<typename ::std::remove_cvref_t<Rh>::value_type, typename ::std::remove_cvref_t<Lh>::error_type>,
+            ::std::in_place_t, decltype(FWD(rh).value())>
+        && ::fn::detail::_nothrow_initializable<
+            expected<typename ::std::remove_cvref_t<Rh>::value_type, typename ::std::remove_cvref_t<Lh>::error_type>,
+            ::fn::unexpect_t, decltype(FWD(lh).error())>)
+        -> expected<typename ::std::remove_cvref_t<Rh>::value_type, typename ::std::remove_cvref_t<Lh>::error_type>
+{
+  using type = expected<typename ::std::remove_cvref_t<Rh>::value_type, typename ::std::remove_cvref_t<Lh>::error_type>;
+  if (lh.has_value())
+    return type{::std::in_place, FWD(rh).value()};
+  return type{::fn::unexpect, FWD(lh).error()};
+}
+
+template <typename Lh, some_expected Rh>
+  requires ::fn::detail::_some_just<Lh> && ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>
+[[nodiscard]] constexpr auto operator&(Lh &&, Rh &&rh) //
+    noexcept(::fn::detail::_nothrow_initializable<::std::remove_cvref_t<Rh>, Rh>) -> ::std::remove_cvref_t<Rh>
+{
+  return ::std::remove_cvref_t<Rh>{FWD(rh)};
+}
+
+template <some_expected Lh, typename Rh>
+  requires ::fn::detail::_some_just<Rh> && ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&) //
+    noexcept(::fn::detail::_nothrow_initializable<::std::remove_cvref_t<Lh>, Lh>) -> ::std::remove_cvref_t<Lh>
+{
+  return ::std::remove_cvref_t<Lh>{FWD(lh)};
+}
+
 } // namespace LIBFN_VERSION
 } // namespace fn
 

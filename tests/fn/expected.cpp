@@ -3,7 +3,9 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
+#include <fn/choice.hpp>
 #include <fn/expected.hpp>
+#include <fn/just.hpp>
 #include <fn/utility.hpp>
 
 #include <catch2/catch_all.hpp>
@@ -2517,6 +2519,52 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
         using Rt = fn::expected<int, MoveNothrow>;
         static_assert(not noexcept(std::declval<Th &>() & std::declval<Rt &>())); // copies the error
         static_assert(noexcept(std::declval<Th &&>() & std::declval<Rt &&>()));   // moves it
+        SUCCEED();
+      }
+    }
+
+    SECTION("identity cluster operands")
+    {
+      // A just or choice operand always contributes its value to the product and adds no term to
+      // the error sum: the expected operand's error passes through unchanged, plain or graded, and
+      // its state alone decides. just<void> is the product's unit and elides.
+      using E = fn::expected<int, fn::copack<Error>>;
+      using J = fn::just<int>;
+
+      static_assert(std::same_as<decltype(std::declval<J>() & std::declval<E>()),
+                                 fn::expected<fn::pack<int, int>, fn::copack<Error>>>);
+      static_assert(std::same_as<decltype(std::declval<E>() & std::declval<J>()),
+                                 fn::expected<fn::pack<int, int>, fn::copack<Error>>>);
+      static_assert(std::same_as<decltype(std::declval<J>() & std::declval<fn::expected<int, Error>>()),
+                                 fn::expected<fn::pack<int, int>, Error>>);
+      static_assert(std::same_as<decltype(std::declval<fn::just<void>>() & std::declval<E>()), E>);
+      static_assert(std::same_as<decltype(std::declval<E>() & std::declval<fn::just<void>>()), E>);
+      static_assert(std::same_as<decltype(std::declval<J>() & std::declval<fn::expected<void, fn::copack<Error>>>()),
+                                 fn::expected<int, fn::copack<Error>>>);
+      static_assert(
+          std::same_as<decltype(std::declval<fn::choice_for<int, bool>>() & std::declval<E>()),
+                       fn::expected<fn::copack_for<fn::pack<int, int>, fn::pack<bool, int>>, fn::copack<Error>>>);
+
+      static_assert((J{1} & E{2}).value().apply([](int a, int b) { return a == 1 && b == 2; }));
+      static_assert((E{2} & J{1}).value().apply([](int a, int b) { return a == 2 && b == 1; }));
+      static_assert((J{1} & E{::fn::unexpect, fn::copack{FileNotFound}}).error() == fn::copack{FileNotFound});
+      static_assert((fn::just<void>{} & E{5}).value() == 5);
+      static_assert((J{7} & fn::expected<void, fn::copack<Error>>{}).value() == 7);
+      CHECK((J{1} & E{2}).value().apply([](int a, int b) { return a == 1 && b == 2; }));
+      CHECK((J{1} & E{::fn::unexpect, fn::copack{FileNotFound}}).error() == fn::copack{FileNotFound});
+
+      // x0: an uninhabited value side absorbs the product, the cluster operand notwithstanding
+      using Dead = fn::expected<fn::copack<>, Error>;
+      static_assert(std::same_as<decltype(std::declval<J>() & std::declval<Dead>()), Dead>);
+      static_assert((J{1} & Dead{::fn::unexpect, Unknown}).error() == Unknown);
+      CHECK((J{1} & Dead{::fn::unexpect, Unknown}).error() == Unknown);
+
+      SECTION("noexcept")
+      {
+        static_assert(noexcept(std::declval<J &>() & std::declval<E &>()));
+        using Th = fn::expected<MoveNothrow, Error>;
+        static_assert(not noexcept(std::declval<J &>() & std::declval<Th &>())); // copies the value
+        static_assert(noexcept(std::declval<J &&>() & std::declval<Th &&>()));   // moves it
         SUCCEED();
       }
     }
