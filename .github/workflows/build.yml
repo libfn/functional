@@ -83,7 +83,7 @@ jobs:
           - { mode: cxx26, configuration: Release, compiler: "gcc:16" }
     container: libfn.azurecr.io/ci-build-${{ matrix.compiler }}-sha-08b1133
     steps:
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     - name: Prepare build
       run: |
@@ -160,7 +160,7 @@ jobs:
               name: appleclang
               osver: 26
     steps:
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     - name: Prepare build
       run: |
@@ -221,7 +221,7 @@ jobs:
             runner: "windows-2025-vs2026"
 
     steps:
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     - name: Prepare build
       shell: bash
@@ -252,7 +252,7 @@ jobs:
           - gcc
           - clang
     steps:
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     - name: Install Nix
       uses: cachix/install-nix-action@a49548c11d9846ad46ecc0115273879b045f001c # v31.10.7

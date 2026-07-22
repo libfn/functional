@@ -58,7 +58,7 @@ jobs:
     # leaving SonarCloud's git blame unable to read historical blobs.
     - name: Check out base repository
       if: ${{ env.SONAR_TOKEN != '' }}
-      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     - name: Resolve SonarCloud project
       id: sonar
@@ -79,7 +79,7 @@ jobs:
     # Full history (fetch-depth 0): SonarCloud needs git blame for SCM attribution and new-code detection.
     - name: Check out pull request head
       if: ${{ env.SONAR_TOKEN != '' }}
-      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         ref: ${{ steps.pr.outputs.head_sha }}
         fetch-depth: 0
