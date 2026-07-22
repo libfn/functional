@@ -46,6 +46,8 @@ template <typename S, typename Fn, typename... Args>
 concept can_apply = requires(S s, Fn fn, Args... args) { FWD(s).apply(fn, FWD(args)...); };
 template <typename S, typename Fn, typename... Args>
 concept can_apply_type = requires(S s, Fn fn, Args... args) { FWD(s).apply_type(fn, FWD(args)...); };
+template <typename T>
+concept implicitly_default_constructible = requires(void (&sink)(T)) { sink({}); };
 
 } // namespace
 
@@ -59,6 +61,7 @@ TEST_CASE("just", "[just]")
     static_assert(std::is_same_v<decltype(fn::just(std::in_place_type<std::string>, "foo")), fn::just<std::string>>);
     static_assert(std::is_same_v<decltype(fn::just{}), fn::just<void>>);
     static_assert(std::is_same_v<decltype(fn::just(std::in_place_type<void>)), fn::just<void>>);
+    static_assert(std::is_same_v<decltype(fn::just{std::in_place}), fn::just<void>>);
 
     T a{13};
     CHECK(a.value() == 13);
@@ -280,6 +283,15 @@ TEST_CASE("just of void", "[just]")
   static_assert(std::is_trivially_copyable_v<V>);
   static_assert(std::is_trivially_default_constructible_v<V>);
   static_assert(std::is_same_v<V::value_type, void>);
+
+  // implicit default construction, there being nothing to convert from; the in-place tags stay
+  // explicit, following expected<void, E>
+  static_assert(implicitly_default_constructible<V>);
+  static_assert(std::is_constructible_v<V, std::in_place_t>);
+  static_assert(not std::is_convertible_v<std::in_place_t, V>);
+  static_assert(std::is_constructible_v<V, std::in_place_type_t<void>>);
+  static_assert(not std::is_convertible_v<std::in_place_type_t<void>, V>);
+  static_assert(V{std::in_place} == V{std::in_place_type<void>});
 
   constexpr V v{};
   v.value();
