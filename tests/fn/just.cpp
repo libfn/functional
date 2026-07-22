@@ -273,6 +273,29 @@ TEST_CASE("just", "[just]")
     CHECK(T{3} == 3);
     SUCCEED();
   }
+
+  SECTION("operator &")
+  {
+    // just & just folds the payloads and stays just; just<void> is the product's unit and elides
+    static_assert(std::is_same_v<decltype(T{1} & T{2}), fn::just<fn::pack<int, int>>>);
+    static_assert(std::is_same_v<decltype(T{1} & fn::just<void>{}), T>);
+    static_assert(std::is_same_v<decltype(fn::just<void>{} & T{2}), T>);
+    static_assert(std::is_same_v<decltype(fn::just<void>{} & fn::just<void>{}), fn::just<void>>);
+
+    static_assert((T{1} & T{2}).value().apply([](int a, int b) { return a == 1 && b == 2; }));
+    static_assert((fn::just<void>{} & T{7}).value() == 7);
+    static_assert((T{7} & fn::just<void>{}).value() == 7);
+    CHECK((T{1} & T{2}).value().apply([](int a, int b) { return a == 1 && b == 2; }));
+    CHECK((fn::just<void>{} & T{7}).value() == 7);
+
+    static_assert(noexcept(T{1} & T{2}));
+    struct throwing_copy {
+      throwing_copy() = default;
+      // defined, not just declared: the instantiated fold references it
+      throwing_copy(throwing_copy const &) noexcept(false) {}
+    };
+    static_assert(not noexcept(std::declval<fn::just<throwing_copy> &>() & std::declval<T &>())); // copies
+  }
 }
 
 TEST_CASE("just of void", "[just]")

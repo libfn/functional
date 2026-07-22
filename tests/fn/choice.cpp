@@ -4,6 +4,9 @@
 // or copy at https://opensource.org/licenses/ISC
 
 #include <fn/choice.hpp>
+#include <fn/expected.hpp>
+#include <fn/just.hpp>
+#include <fn/optional.hpp>
 
 #include <fn/utility.hpp>
 
@@ -636,6 +639,88 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
             [](int &&) -> std::false_type { return {}; }, [](int const &&) -> std::true_type { return {}; }}));
       }
     }
+  }
+
+  SECTION("operator &")
+  {
+    // The conjunction inside the cluster: the copack distributes through the value product and the
+    // result stays a choice; just<void> is the product's unit and elides
+    using C = fn::choice_for<int, bool>;
+    static_assert(std::is_same_v<decltype(std::declval<fn::just<int>>() & std::declval<C>()),
+                                 fn::choice_for<fn::pack<int, int>, fn::pack<int, bool>>>);
+    static_assert(std::is_same_v<decltype(std::declval<C>() & std::declval<fn::just<int>>()),
+                                 fn::choice_for<fn::pack<int, int>, fn::pack<bool, int>>>);
+    static_assert(std::is_same_v<
+                  decltype(std::declval<C>() & std::declval<C>()),
+                  fn::choice_for<fn::pack<int, int>, fn::pack<int, bool>, fn::pack<bool, int>, fn::pack<bool, bool>>>);
+    static_assert(std::is_same_v<decltype(std::declval<fn::just<void>>() & std::declval<C>()), C>);
+    static_assert(std::is_same_v<decltype(std::declval<C>() & std::declval<fn::just<void>>()), C>);
+
+    constexpr auto count = []([[maybe_unused]] auto &&...args) { return static_cast<int>(sizeof...(args)); };
+    constexpr auto probe = fn::overload{[](int a, bool b) { return a == 1 && b; }, [](auto &&...) { return false; }};
+    static_assert((fn::just<int>{1} & C{true}).apply(probe));
+    static_assert((fn::just<int>{1} & C{true}).apply(count) == 2);
+    static_assert((C{2} & fn::just<int>{1}).apply(count) == 2);
+    static_assert((C{true} & C{2}).apply(count) == 2);
+    static_assert((fn::just<void>{} & C{5}).apply(count) == 1);
+    CHECK((fn::just<int>{1} & C{true}).apply(probe));
+    CHECK((fn::just<void>{} & C{5}).apply(count) == 1);
+
+    static_assert(noexcept(C{2} & C{true}));
+    SUCCEED();
+  }
+}
+
+TEST_CASE("choice disjunction", "[choice][just][operator_or]")
+{
+  using C = fn::choice_for<int, bool>;
+  using J = fn::just<int>;
+  using JV = fn::just<void>;
+
+  SECTION("a cluster operand makes the disjunction total")
+  {
+    // the error product gains an uninhabited factor, so the result never fails and collapses into
+    // the cluster: just when the value sum stays one bare type, choice when the union is genuine
+    static_assert(std::is_same_v<decltype(std::declval<C>() | std::declval<C>()), C>);
+    static_assert(std::is_same_v<decltype(std::declval<C>() | std::declval<fn::just<double>>()),
+                                 fn::choice_for<int, bool, double>>);
+    static_assert(std::is_same_v<decltype(std::declval<J>() | std::declval<C>()), C>);
+    static_assert(std::is_same_v<decltype(std::declval<J>() | std::declval<J>()), J>);
+    static_assert(std::is_same_v<decltype(std::declval<fn::expected<bool, int>>() | std::declval<J>()),
+                                 fn::choice_for<bool, int>>);
+    static_assert(std::is_same_v<decltype(std::declval<fn::expected<int, int>>() | std::declval<J>()), J>);
+    static_assert(
+        std::is_same_v<decltype(std::declval<fn::optional<bool>>() | std::declval<J>()), fn::choice_for<bool, int>>);
+    // the identity expected is a cluster member
+    static_assert(std::is_same_v<decltype(std::declval<fn::expected<int, fn::copack<>>>()
+                                          | std::declval<fn::expected<bool, int>>()),
+                                 fn::choice_for<int, bool>>);
+
+    constexpr auto first = fn::overload{[](int i) { return i; }, [](auto &&) { return -1; }};
+    static_assert((C{7} | fn::just<double>{0.5}).apply(first) == 7);
+    static_assert((J{1} | J{2}) == 1); // left catch: the leftmost total operand absorbs
+    static_assert((fn::expected<bool, int>{::fn::unexpect, 3} | J{9}).apply(first) == 9);
+    static_assert((fn::optional<bool>{} | J{9}).apply(first) == 9);
+    static_assert((fn::expected<bool, int>{true} | J{9}).apply(first) == -1); // engaged fallible left side
+    CHECK((C{7} | fn::just<double>{0.5}).apply(first) == 7);
+    CHECK((J{1} | J{2}) == 1);
+    CHECK((fn::expected<bool, int>{::fn::unexpect, 3} | J{9}).apply(first) == 9);
+    CHECK((fn::expected<bool, int>{true} | J{9}).apply(first) == -1);
+
+    static_assert(noexcept(std::declval<C>() | std::declval<C>()));
+    static_assert(noexcept(std::declval<J>() | std::declval<J>()));
+  }
+
+  SECTION("the unit's round trip")
+  {
+    // void enters a genuine sum as pack<>, and the all-unit pair collapses back to the family's
+    // unit carrier - so both groupings of the mixed chain agree
+    static_assert(std::is_same_v<decltype(std::declval<JV>() | std::declval<J>()), fn::choice_for<fn::pack<>, int>>);
+    static_assert(std::is_same_v<decltype(std::declval<JV>() | std::declval<JV>()), fn::just<void>>);
+    static_assert(std::is_same_v<decltype((std::declval<JV>() | std::declval<JV>()) | std::declval<J>()),
+                                 decltype(std::declval<JV>() | (std::declval<JV>() | std::declval<J>()))>);
+    static_assert((JV{} | J{7}).apply([]([[maybe_unused]] auto &&...args) { return sizeof...(args); }) == 0);
+    CHECK((JV{} | J{7}).apply([]([[maybe_unused]] auto &&...args) { return sizeof...(args); }) == 0);
   }
 }
 
