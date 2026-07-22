@@ -701,9 +701,11 @@ TEST_CASE("choice disjunction", "[choice][just][operator_or]")
     static_assert((J{1} | J{2}) == 1); // left catch: the leftmost total operand absorbs
     static_assert((fn::expected<bool, int>{::fn::unexpect, 3} | J{9}).apply(first) == 9);
     static_assert((fn::optional<bool>{} | J{9}).apply(first) == 9);
+    static_assert((fn::expected<bool, int>{true} | J{9}).apply(first) == -1); // engaged fallible left side
     CHECK((C{7} | fn::just<double>{0.5}).apply(first) == 7);
     CHECK((J{1} | J{2}) == 1);
     CHECK((fn::expected<bool, int>{::fn::unexpect, 3} | J{9}).apply(first) == 9);
+    CHECK((fn::expected<bool, int>{true} | J{9}).apply(first) == -1);
 
     static_assert(noexcept(std::declval<C>() | std::declval<C>()));
     static_assert(noexcept(std::declval<J>() | std::declval<J>()));

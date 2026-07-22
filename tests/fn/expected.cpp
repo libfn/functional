@@ -3933,6 +3933,7 @@ TEST_CASE("expected apply_type", "[expected][apply_type]")
     CHECK(v.apply_type(varms) == 1);
     CHECK(ve.apply_type(varms) == -7);
     CHECK(v.apply_type_r<long>(varms) == 1L);
+    CHECK(ve.apply_type_r<long>(varms) == -7L);
     static_assert(not can_apply_type<expected<void, int> &, decltype(fn::overload{[](unexpect_t, int) {}}) const &>);
     static_assert(not can_apply_type<expected<void, int> &, decltype(fn::overload{[](in_place_t) {}}) const &>);
 

@@ -1153,6 +1153,11 @@ TEST_CASE("and_then joins heterogeneous expected branches", "[and_then][expected
     CHECK(r.value() == fn::copack_for<X, Y>{Y{}});
     auto e = In{fn::unexpect, fn::copack<E0>{E0{}}}.and_then(fnJoin);
     CHECK(e.error() == fn::copack_for<E0, E1, E2>{E0{}});
+    // the error path in every remaining value category
+    In el{fn::unexpect, fn::copack<E0>{E0{}}};
+    CHECK(el.and_then(fnJoin).error() == fn::copack_for<E0, E1, E2>{E0{}});
+    CHECK(std::as_const(el).and_then(fnJoin).error() == fn::copack_for<E0, E1, E2>{E0{}});
+    CHECK(std::move(std::as_const(el)).and_then(fnJoin).error() == fn::copack_for<E0, E1, E2>{E0{}});
     // named source: VS 2022 misreads a mid-expression prvalue's empty-class union member
     constexpr In ca{fn::copack_for<A, B>{A{}}};
     static_assert(ca.and_then(fnJoin).value() == fn::copack_for<X, Y>{X{}});

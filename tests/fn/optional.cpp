@@ -796,6 +796,7 @@ TEST_CASE("optional disjunction", "[optional][operator_or][copack]")
   CHECK(bool((O{} | OB{true}) == fn::copack{true})); // bool(): Catch2 decomposition re-enters the == constraint
   CHECK(not(O{} | OB{}).has_value());
   CHECK((O{1} | O{2}).value() == 1);
+  CHECK((O{} | O{2}).value() == 2); // the right side returned whole
 
   static_assert(noexcept(std::declval<O>() | std::declval<OB>()));
   static_assert(not noexcept(std::declval<fn::optional<MoveNothrow> &>() | std::declval<O &>())); // copies the value
