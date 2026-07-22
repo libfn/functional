@@ -2229,6 +2229,149 @@ template <some_expected Lh, typename Rh>
   return ::std::remove_cvref_t<Lh>{FWD(lh)};
 }
 
+namespace detail {
+// The disjunction's error channel: the product of both operands' errors - the same fold as the
+// conjunction's value product, on the other channel, distributing graded errors the same way.
+template <typename Lh, typename Rh>
+using _error_product_t = decltype(::fn::detail::_fold_detail::fold<typename ::std::remove_cvref_t<Lh>::error_type,
+                                                                   typename ::std::remove_cvref_t<Rh>::error_type>(
+    ::std::declval<Lh>().error(), ::std::declval<Rh>().error()));
+
+template <typename Type, typename Lh, typename Rh>
+constexpr inline bool _nothrow_disj_error
+    = noexcept(::fn::detail::_fold_detail::fold<typename ::std::remove_cvref_t<Lh>::error_type,
+                                                typename ::std::remove_cvref_t<Rh>::error_type>(
+          ::std::declval<Lh>().error(), ::std::declval<Rh>().error()))
+      && _nothrow_initializable<Type, ::fn::unexpect_t, _error_product_t<Lh, Rh>>;
+
+} // namespace detail
+
+// The disjunction: the value channel is the sum of the value types - a same-type pair stays bare,
+// as the conjunction's same-error sum does - and the error channel is the product of both errors,
+// present only when every operand failed, all evidence kept positionally. The leftmost engaged
+// operand wins and injects by type; void enters a genuine sum as pack<>.
+template <typename Lh, typename Rh>
+  requires some_expected<Lh> && some_expected<Rh> && (not some_expected_void<Lh>) && (not some_expected_void<Rh>)
+           && (not empty_copack<typename ::std::remove_cvref_t<Lh>::error_type>)
+           && (not empty_copack<typename ::std::remove_cvref_t<Rh>::error_type>)
+           && ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::value_type,
+                               typename ::std::remove_cvref_t<Rh>::value_type>
+[[nodiscard]] constexpr auto operator|(Lh &&lh, Rh &&rh) //
+    noexcept(::fn::detail::_nothrow_disj_inject<
+                 ::fn::detail::_dead_value<Lh>,
+                 expected<typename ::std::remove_cvref_t<Lh>::value_type, detail::_error_product_t<Lh, Rh>>, Lh>::value
+             && detail::_nothrow_disj_error<
+                 expected<typename ::std::remove_cvref_t<Lh>::value_type, detail::_error_product_t<Lh, Rh>>, Lh, Rh>)
+{
+  using value_type = ::std::remove_cvref_t<Lh>::value_type;
+  using type = expected<value_type, detail::_error_product_t<Lh, Rh>>;
+  using El = ::std::remove_cvref_t<Lh>::error_type;
+  using Er = ::std::remove_cvref_t<Rh>::error_type;
+  if constexpr (not ::fn::detail::_dead_value<Lh>) {
+    if (lh.has_value())
+      return type{::std::in_place, FWD(lh).value()};
+    if (rh.has_value())
+      return type{::std::in_place, FWD(rh).value()};
+  }
+  return type{::fn::unexpect, ::fn::detail::_fold_detail::fold<El, Er>(FWD(lh).error(), FWD(rh).error())};
+}
+
+template <some_expected_void Lh, some_expected_void Rh>
+  requires(not empty_copack<typename ::std::remove_cvref_t<Lh>::error_type>)
+          && (not empty_copack<typename ::std::remove_cvref_t<Rh>::error_type>)
+[[nodiscard]] constexpr auto operator|(Lh &&lh, Rh &&rh) //
+    noexcept(detail::_nothrow_disj_error<expected<void, detail::_error_product_t<Lh, Rh>>, Lh, Rh>)
+{
+  using type = expected<void, detail::_error_product_t<Lh, Rh>>;
+  using El = ::std::remove_cvref_t<Lh>::error_type;
+  using Er = ::std::remove_cvref_t<Rh>::error_type;
+  if (lh.has_value() || rh.has_value())
+    return type{};
+  return type{::fn::unexpect, ::fn::detail::_fold_detail::fold<El, Er>(FWD(lh).error(), FWD(rh).error())};
+}
+
+template <typename Lh, typename Rh>
+  requires some_expected<Lh> && some_expected<Rh> && (not some_expected_void<Lh>) && (not some_expected_void<Rh>)
+           && (not empty_copack<typename ::std::remove_cvref_t<Lh>::error_type>)
+           && (not empty_copack<typename ::std::remove_cvref_t<Rh>::error_type>)
+           && (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::value_type,
+                                    typename ::std::remove_cvref_t<Rh>::value_type>)
+[[nodiscard]] constexpr auto operator|(Lh &&lh, Rh &&rh) //
+    noexcept(::fn::detail::_nothrow_disj_inject<
+                 ::fn::detail::_dead_value<Lh>,
+                 expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, Lh>::value
+             && ::fn::detail::_nothrow_disj_inject<
+                 ::fn::detail::_dead_value<Rh>,
+                 expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, Rh>::value
+             && detail::_nothrow_disj_error<
+                 expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, Lh, Rh>)
+{
+  using type = expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>;
+  using El = ::std::remove_cvref_t<Lh>::error_type;
+  using Er = ::std::remove_cvref_t<Rh>::error_type;
+  if constexpr (not ::fn::detail::_dead_value<Lh>) {
+    if (lh.has_value())
+      return type{::std::in_place, FWD(lh).value()};
+  }
+  if constexpr (not ::fn::detail::_dead_value<Rh>) {
+    if (rh.has_value())
+      return type{::std::in_place, FWD(rh).value()};
+  }
+  return type{::fn::unexpect, ::fn::detail::_fold_detail::fold<El, Er>(FWD(lh).error(), FWD(rh).error())};
+}
+
+template <some_expected_void Lh, typename Rh>
+  requires some_expected<Rh> && (not some_expected_void<Rh>)
+           && (not empty_copack<typename ::std::remove_cvref_t<Lh>::error_type>)
+           && (not empty_copack<typename ::std::remove_cvref_t<Rh>::error_type>)
+[[nodiscard]] constexpr auto operator|(Lh &&lh, Rh &&rh) //
+    noexcept(
+        ::fn::detail::_nothrow_initializable<
+            expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, ::std::in_place_t, pack<>>
+        && ::fn::detail::_nothrow_disj_inject<
+            ::fn::detail::_dead_value<Rh>,
+            expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, Rh>::value
+        && detail::_nothrow_disj_error<expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>,
+                                       Lh, Rh>)
+{
+  using type = expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>;
+  using El = ::std::remove_cvref_t<Lh>::error_type;
+  using Er = ::std::remove_cvref_t<Rh>::error_type;
+  if (lh.has_value())
+    return type{::std::in_place, pack<>{}};
+  if constexpr (not ::fn::detail::_dead_value<Rh>) {
+    if (rh.has_value())
+      return type{::std::in_place, FWD(rh).value()};
+  }
+  return type{::fn::unexpect, ::fn::detail::_fold_detail::fold<El, Er>(FWD(lh).error(), FWD(rh).error())};
+}
+
+template <typename Lh, some_expected_void Rh>
+  requires some_expected<Lh> && (not some_expected_void<Lh>)
+           && (not empty_copack<typename ::std::remove_cvref_t<Lh>::error_type>)
+           && (not empty_copack<typename ::std::remove_cvref_t<Rh>::error_type>)
+[[nodiscard]] constexpr auto operator|(Lh &&lh, Rh &&rh) //
+    noexcept(
+        ::fn::detail::_nothrow_disj_inject<
+            ::fn::detail::_dead_value<Lh>,
+            expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, Lh>::value
+        && ::fn::detail::_nothrow_initializable<
+            expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, ::std::in_place_t, pack<>>
+        && detail::_nothrow_disj_error<expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>,
+                                       Lh, Rh>)
+{
+  using type = expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>;
+  using El = ::std::remove_cvref_t<Lh>::error_type;
+  using Er = ::std::remove_cvref_t<Rh>::error_type;
+  if constexpr (not ::fn::detail::_dead_value<Lh>) {
+    if (lh.has_value())
+      return type{::std::in_place, FWD(lh).value()};
+  }
+  if (rh.has_value())
+    return type{::std::in_place, pack<>{}};
+  return type{::fn::unexpect, ::fn::detail::_fold_detail::fold<El, Er>(FWD(lh).error(), FWD(rh).error())};
+}
+
 } // namespace LIBFN_VERSION
 } // namespace fn
 

@@ -385,6 +385,25 @@ struct _nothrow_join_arm<false, Tpl, Lh, Rh, Efn> {
 template <template <typename> typename Tpl, typename Lh, typename Rh, typename Efn>
 constexpr inline bool _nothrow_join = _nothrow_join_arm<_uninhabited_join<Lh, Rh>, Tpl, Lh, Rh, Efn>::value;
 
+// The disjunction's value channel: the sum of the two value types, with void spelled pack<> -
+// both are the unit, and a copack cannot hold void.
+template <typename V> using _sum_element_t = ::std::conditional_t<::std::is_void_v<V>, pack<>, V>;
+template <typename Lh, typename Rh>
+using _disjoined_t = copack_for<_sum_element_t<typename ::std::remove_cvref_t<Lh>::value_type>,
+                                _sum_element_t<typename ::std::remove_cvref_t<Rh>::value_type>>;
+
+template <typename T> constexpr inline bool _dead_value = empty_copack<typename ::std::remove_cvref_t<T>::value_type>;
+
+// A dead side (uninhabited value) never relocates into the result - its inject arm is if
+// constexpr'd out of the body, and weighs nothing here.
+template <bool Dead, typename Type, typename Side> struct _nothrow_disj_inject {
+  static constexpr bool value = true;
+};
+template <typename Type, typename Side> struct _nothrow_disj_inject<false, Type, Side> {
+  static constexpr bool value
+      = _nothrow_initializable<Type, ::std::in_place_t, decltype(::std::declval<Side>().value())>;
+};
+
 template <template <typename> typename Tpl>
 [[nodiscard]] constexpr auto _join(auto &&lh, auto &&rh, auto &&efn) //
     noexcept(_nothrow_join<Tpl, decltype(lh), decltype(rh), decltype(efn)>)
@@ -472,6 +491,22 @@ constexpr inline struct conjoin_t {
     return (FWD(arg) & ... & FWD(args));
   }
 } conjoin;
+
+/**
+ * @brief The n-ary fold of the disjunction `operator |` over the monadic carriers; a single
+ *        argument is forwarded unchanged
+ */
+constexpr inline struct disjoin_t {
+  template <typename Arg> [[nodiscard]] constexpr auto operator()(Arg &&arg) const -> decltype(arg) { return FWD(arg); }
+
+  template <typename Arg, typename... Args>
+    requires(sizeof...(Args) > 0) && requires(Arg &&a, Args &&...as) { (FWD(a) | ... | FWD(as)); }
+  [[nodiscard]] constexpr auto operator()(Arg &&arg, Args &&...args) const //
+      noexcept(noexcept((FWD(arg) | ... | FWD(args))))
+  {
+    return (FWD(arg) | ... | FWD(args));
+  }
+} disjoin;
 
 } // namespace LIBFN_VERSION
 } // namespace fn

@@ -772,6 +772,35 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
   }
 }
 
+TEST_CASE("optional disjunction", "[optional][operator_or][copack]")
+{
+  using O = fn::optional<int>;
+  using OB = fn::optional<bool>;
+  using OI = fn::optional<fn::copack<>>;
+
+  // the value channel is the sum - a same-type pair stays bare - and the unit errors vanish in
+  // the product, so the result is empty exactly when both operands are
+  static_assert(
+      std::same_as<decltype(std::declval<O>() | std::declval<OB>()), fn::optional<fn::copack_for<int, bool>>>);
+  static_assert(std::same_as<decltype(std::declval<O>() | std::declval<O>()), O>); // same value type collapses
+  // the empty copack adds nothing to the union, but keeps the result graded
+  static_assert(std::same_as<decltype(std::declval<OI>() | std::declval<O>()), fn::optional<fn::copack<int>>>);
+  static_assert(std::same_as<decltype(std::declval<O>() | std::declval<OI>()), fn::optional<fn::copack<int>>>);
+
+  static_assert((O{1} | OB{}) == fn::copack{1});
+  static_assert((O{} | OB{true}) == fn::copack{true});
+  static_assert(not(O{} | OB{}).has_value());
+  static_assert((O{1} | O{2}).value() == 1); // leftmost, and bare
+  static_assert(not(OI{} | O{}).has_value());
+  CHECK(bool((O{1} | OB{}) == fn::copack{1}));       // bool(): Catch2 decomposition re-enters the == constraint
+  CHECK(bool((O{} | OB{true}) == fn::copack{true})); // bool(): Catch2 decomposition re-enters the == constraint
+  CHECK(not(O{} | OB{}).has_value());
+  CHECK((O{1} | O{2}).value() == 1);
+
+  static_assert(noexcept(std::declval<O>() | std::declval<OB>()));
+  static_assert(not noexcept(std::declval<fn::optional<MoveNothrow> &>() | std::declval<O &>())); // copies the value
+}
+
 TEST_CASE("optional and_then copack", "[optional][copack][and_then]")
 {
   using S = fn::optional<fn::copack_for<Xint, int>>;

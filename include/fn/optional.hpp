@@ -1429,6 +1429,42 @@ template <some_optional Lh, typename Rh>
   return ::std::remove_cvref_t<Lh>{FWD(lh)};
 }
 
+// The disjunction: the value channel is the sum of the value types - a same-type pair stays bare -
+// and the unit errors vanish in the product, so the result is empty exactly when both operands
+// are. The leftmost engaged operand wins and injects by type.
+template <some_optional Lh, some_optional Rh>
+  requires ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::value_type,
+                            typename ::std::remove_cvref_t<Rh>::value_type>
+[[nodiscard]] constexpr auto operator|(Lh &&lh, Rh &&rh) //
+    noexcept(::fn::detail::_nothrow_initializable<::std::remove_cvref_t<Lh>, Lh>
+             && ::fn::detail::_nothrow_initializable<::std::remove_cvref_t<Lh>, Rh>) -> ::std::remove_cvref_t<Lh>
+{
+  if (lh.has_value())
+    return ::std::remove_cvref_t<Lh>{FWD(lh)};
+  return ::std::remove_cvref_t<Lh>{FWD(rh)};
+}
+
+template <some_optional Lh, some_optional Rh>
+  requires(not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::value_type,
+                                typename ::std::remove_cvref_t<Rh>::value_type>)
+[[nodiscard]] constexpr auto operator|(Lh &&lh, Rh &&rh) //
+    noexcept(::fn::detail::_nothrow_disj_inject<::fn::detail::_dead_value<Lh>,
+                                                optional<::fn::detail::_disjoined_t<Lh, Rh>>, Lh>::value
+             && ::fn::detail::_nothrow_disj_inject<::fn::detail::_dead_value<Rh>,
+                                                   optional<::fn::detail::_disjoined_t<Lh, Rh>>, Rh>::value)
+{
+  using type = optional<::fn::detail::_disjoined_t<Lh, Rh>>;
+  if constexpr (not ::fn::detail::_dead_value<Lh>) {
+    if (lh.has_value())
+      return type{::std::in_place, FWD(lh).value()};
+  }
+  if constexpr (not ::fn::detail::_dead_value<Rh>) {
+    if (rh.has_value())
+      return type{::std::in_place, FWD(rh).value()};
+  }
+  return type{::std::nullopt};
+}
+
 } // namespace LIBFN_VERSION
 } // namespace fn
 
