@@ -210,6 +210,8 @@ if("cxx_std_26" IN_LIST CMAKE_CXX_COMPILE_FEATURES)
     append_compilation_options("${target}" WARNINGS)
     add_dependencies("sentinels" "${target}")
     set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
+    # Some tooling is unable to deal with -std=c++26, so do not put this target in compile_commands.json
+    set_property(TARGET "${target}" PROPERTY EXPORT_COMPILE_COMMANDS OFF)
 
     unset(target)
     unset(mode)
