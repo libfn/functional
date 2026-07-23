@@ -839,9 +839,12 @@ Furthermore, fallible types like `expected` (with inhabited error states) and `o
 
 Monadic operations behave naturally around this identity cluster:
 
-- `inspect` and `discard` remain meaningful.
-- Dead-side operations like `inspect_error` or `transform_error` reject `just` and `choice`, and act vacuously on `expected<T, copack<>>`.
-- `fail` and `filter` reject the identity cluster entirely, because no failure state can possibly be constructed from an identity carrier.
+- **Success mapping (`transform`)**: Remains meaningful and stays inside the nominal carrier family when using member functions. However, when using the pipeline `operator|`, returning a `copack` from `fn::transform` on an identity carrier automatically promotes the result to `choice` (as detailed in Section 10).
+- **Sequential binding (`and_then`)**: Allows cross-carrier transitions *within* the identity cluster (e.g., `just` to `expected<U, copack<>>`) when using pipeline-scoped `fn::and_then`.
+- **Recovery / dead-side mapping (`transform_error`, `or_else`, `recover`, `inspect_error`)**: Because `just` and `choice` have no error side, these are rejected at compile time. On `expected<T, copack<>>`, they are vacuously well-formed but statically proven unreachable.
+- **Short-circuiting (`fail`, `filter`)**: Strictly rejected for all identity cluster carriers, because no failure state (an inhabited error or empty state) can possibly be constructed from a never-failing identity context.
+- **Elimination fallbacks (`value_or`)**: Strictly rejected on `just` and `choice` since they can never fail, rendering any fallback redundant and dead. On `expected<T, copack<>>`, `value_or` is vacuously well-formed, but the fallback branch is optimized away as unreachable.
+- **Neutral observation (`inspect`, `discard`)**: Fully supported and behave normally.
 
 > [!TIP]
 >
