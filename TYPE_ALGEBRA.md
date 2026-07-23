@@ -124,7 +124,7 @@ auto product_composition() -> void {
 }
 ```
 
-The result contains a `pack` of the successful values and a `copack` of the exact possible errors.
+The result contains a `pack` (a flat, tuple-like product) of the successful values, and a `copack` (a sorted, variant-like disjoint sum) of the exact possible errors.
 
 ### The Two Cooperating Mechanisms
 
@@ -206,7 +206,7 @@ auto test_copack_set_semantics() -> void {
 > - **`copack`** is the core storage type. It requires its template parameters to already be flat, unique, and sorted in strict lexicographical order (the order defined by C++26 `std::type_order`, which `libfn` emulates for pre-C++26 compilers). If you attempt to instantiate it manually with out-of-order parameters (such as `copack<B, A>` when `A` lexicographically precedes `B`) or with nested copacks (such as `copack<A, copack<C, D>>`), **the compiler will reject the instantiation as outright ill-formed.**
 > - **`copack_for`** is the user-facing type alias utility. It acts as the compile-time "compiler gateway," accepting any raw, arbitrary list of types (out-of-order, duplicates, nested copacks), performing the complex compile-time flattening, deduplication, and lexicographical sorting automatically, and resolving directly to the validated canonical `copack` type.
 >
-> To the C++ programmer, they can be used interchangeably because `copack_for` always resolves directly to `copack`. However, in prose and code, `copack` represents the normalized *state shape*, while `copack_for` represents the *construction utility*. Similarly, `choice`—which is the never-failing identity carrier over a `copack`—utilizes the `choice_for` type alias utility to automatically flatten, deduplicate, and sort its alternative types at compile time.
+> To the C++ programmer, they can be used interchangeably because `copack_for` (as a type alias) always resolves directly to `copack`. However, in prose and code, `copack` represents the normalized *state shape*, while `copack_for` represents the *construction utility*. Similarly, `choice`—which is the never-failing identity carrier over a `copack`—utilizes the `choice_for` type alias utility to automatically flatten, deduplicate, and sort its alternative types at compile time.
 
 The laws governing `copack` are:
 
@@ -215,7 +215,7 @@ The laws governing `copack` are:
 - **Idempotent**: Duplicate types are collapsed into one.
 - **Identity**: `copack<>` acts as the union unit (adding `copack<>` changes nothing).
 
-Because canonical ordering collapses identical types, distinct types must never be silently lost if the ordering cannot distinguish them. Consequently, types combined into a `copack` should be strongly typed tag structs or distinct domain objects, not generic primitives whose semantic meaning depends on their position (e.g., `copack<bool, bool>` becomes `copack<bool>`).
+Because canonical ordering collapses identical types, distinct types must never be silently lost if the ordering cannot distinguish them. Consequently, types combined into a `copack` should be strongly typed tag structs or distinct domain objects, not generic primitives whose semantic meaning depends on their position (e.g., `copack_for<bool, bool>` collapses to `copack<bool>`, discarding the positional distinction).
 
 ### The algebra is strictly opt-in
 
@@ -294,9 +294,11 @@ auto test_pack() -> void {
 
 ### copack: one exact alternative is present
 
-A `copack` stores exactly one of its defined alternatives. Consider a system processing different kinds of lexer tokens or configuration values.
+A `copack` represents a canonical disjoint sum (or coproduct) storing exactly one of its defined alternative types. This is ideal for modeling variant-like structures, such as lexical tokens or parsed configuration keys.
 
-When you evaluate a `copack` via its member `apply` function, it expands one selected outer level only. The active alternative currently stored inside the coproduct is passed as a terminal argument to your callback, rather than recursively unpacking any internal structures. To explicitly lift a single scalar value into a single-alternative coproduct, use `fn::as_copack(value)`. When a `copack` contains **exactly one alternative**, it is singular and supports direct value extraction via the `get` utility (resolvable via ADL), which propagates references with the same semantics as `apply`.
+When you evaluate a `copack` via its member `apply` function, it selects the active alternative stored inside the coproduct and passes it to your callback. Because `copack` is self-flattening, you are guaranteed that there is never a nested `copack` inside. However, any nested tuple-like structures—such as `pack`, `std::tuple`, or `std::array`—are recursively unpacked into their individual constituents during multidispatch. By keeping your shapes normalized as a sum-of-products, `libfn` guarantees that your callbacks always receive clean, terminal domain data directly as function arguments.
+
+To explicitly lift a single scalar value into a single-alternative coproduct, use `fn::as_copack(value)`. When a `copack` contains **exactly one alternative**, it is singular and supports direct value extraction via the `get` utility (resolvable via ADL), which propagates references with the same semantics as `apply`.
 
 ```cpp
 #include <fn/copack.hpp>
@@ -328,7 +330,7 @@ A fundamental safety guarantee of `copack` is **exhaustive matching**. Any opera
 
 ### The computation carriers
 
-To model computation, `libfn` uses carrier types:
+To model computation, `libfn` uses carrier types (often referred to as "monadic" contexts in functional programming):
 
 - `just`: Always contains a single successful value.
 - `optional`: Contains a value or is empty.
