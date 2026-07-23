@@ -259,7 +259,7 @@ When a callable supplied to `and_then` needs to produce an error grade, it can e
 
 ### pack: all fields are present
 
-A `pack` acts like a standard C++ tuple (`std::tuple`) by storing multiple fields and supporting `get`, structured bindings, and an `append` mechanism. However, unlike standard tuples, `libfn` packs are strictly flat: attempting to nest a `pack` inside another `pack` via `append` flattens them, as a flat pack is canonical.
+A `pack` acts like a standard C++ tuple (`std::tuple`) by storing multiple fields and supporting `get`, structured bindings, and an `append` mechanism. However, unlike standard tuples, `libfn` packs are strictly flat: attempting to nest a `pack` inside another `pack` via `append` flattens them, as a flat pack is canonical. To explicitly lift a single scalar value into a `pack` (which is useful when conjoining a scalar with another pack or copack), use `fn::as_pack(value)`.
 
 ```cpp
 #include <fn/pack.hpp>
@@ -285,20 +285,10 @@ auto test_pack() -> void {
         decltype(wider),
         fn::pack<UserId, FilePath, bool, int>
     >);
-}
-```
 
-#### Singular lift with fn::as_pack
-
-To explicitly lift a single scalar value into a `pack`, use `fn::as_pack(value)`. This is particularly useful when conjoining a scalar with another pack or copack:
-
-```cpp
-#include <fn/pack.hpp>
-#include <concepts>
-
-auto test_as_pack(int x = 42) -> void {
-    auto p = fn::as_pack(x);
-    static_assert(std::same_as<decltype(p), fn::pack<int>>);
+    // Explicitly lifting a single scalar value into a pack:
+    auto lifted = fn::as_pack(42);
+    static_assert(std::same_as<decltype(lifted), fn::pack<int>>);
 }
 ```
 
@@ -306,7 +296,7 @@ auto test_as_pack(int x = 42) -> void {
 
 A `copack` stores exactly one of its defined alternatives. Consider a system processing different kinds of lexer tokens or configuration values.
 
-When you evaluate a `copack` via its member `apply` function, it expands one selected outer level only. The active alternative currently stored inside the coproduct is passed as a terminal argument to your callback, rather than recursively unpacking any internal structures.
+When you evaluate a `copack` via its member `apply` function, it expands one selected outer level only. The active alternative currently stored inside the coproduct is passed as a terminal argument to your callback, rather than recursively unpacking any internal structures. To explicitly lift a single scalar value into a single-alternative coproduct, use `fn::as_copack(value)`. When a `copack` contains **exactly one alternative**, it is singular and supports direct value extraction via the `get` utility (resolvable via ADL), which propagates references with the same semantics as `apply`.
 
 ```cpp
 #include <fn/copack.hpp>
@@ -326,35 +316,15 @@ auto test_copack() -> void {
     });
 
     static_assert(value == 1);
-}
-```
 
-A fundamental safety guarantee of `copack` is **exhaustive matching**. Any operation that evaluates a `copack` (such as mapping with `transform`, binding with `and_then`, or eliminating with `apply`) eventually delegates to the same underlying multidispatch implementation. This implementation forces compile-time exhaustiveness: if your callback or overload set fails to handle even one of the possible alternatives stored in the `copack`, the compilation is rejected as ill-formed.
-
-#### Singular lift with fn::as_copack
-
-To explicitly lift a single scalar value into a `copack` (creating a single-alternative coproduct), use `fn::as_copack(value)`. This is the primary mechanism to manually lift a raw type into a graded state:
-
-```cpp
-#include <fn/copack.hpp>
-#include <concepts>
-
-auto test_as_copack(int x = 42) -> void {
-    auto cp = fn::as_copack(x);
-    static_assert(std::same_as<decltype(cp), fn::copack<int>>);
-}
-```
-
-When a `copack` contains **exactly one alternative**, it is singular and supports direct value extraction via the `get` utility (resolvable via ADL):
-
-```cpp
-auto extract_singular(fn::copack<int> cp) -> int {
+    // Singular lift and direct value extraction (only allowed for singular copacks):
+    auto cp = fn::as_copack(42);
     using std::get;
-    return get(cp); // Has the exact same reference-propagating semantics as fn::apply / .apply
+    static_assert(std::same_as<decltype(get(cp)), int&>);
 }
 ```
 
-This SFINAE-clean accessor is strictly constrained and disallowed for multi-alternative `copack` types, guaranteeing that compile-time exhaustiveness cannot be bypassed.
+A fundamental safety guarantee of `copack` is **exhaustive matching**. Any operation that evaluates a `copack` (such as mapping with `transform`, binding with `and_then`, or eliminating with `apply`) eventually delegates to the same underlying multidispatch implementation. This implementation forces compile-time exhaustiveness: if your callback or overload set fails to handle even one of the possible alternatives stored in the `copack`, the compilation is rejected as ill-formed. This SFINAE-clean behavior is why direct `get` extraction is strictly constrained and disallowed for multi-alternative `copack` types, ensuring that compile-time exhaustiveness cannot be bypassed.
 
 ### The computation carriers
 
