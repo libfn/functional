@@ -6,17 +6,22 @@
 #ifndef INCLUDE_FN_JUST
 #define INCLUDE_FN_JUST
 
+#include <libfn_version.hpp>
 #include <pfn/utility.hpp>
 
 #include <fn/detail/functional.hpp>
 #include <fn/detail/fwd.hpp>
 #include <fn/detail/variadic_union.hpp>
+#include <fn/pack.hpp>
 
 #include <memory>
 #include <type_traits>
 #include <utility>
 
+#include <fn/detail/macro_begin.hpp>
+
 namespace fn {
+inline namespace LIBFN_VERSION {
 
 /**
  * @brief Checks if a type is a `just` (with any payload)
@@ -512,8 +517,9 @@ private:
 template <> struct just<void> {
   using value_type = void;
 
-  constexpr explicit just() = default;
+  constexpr just() = default;
   constexpr explicit just(::std::in_place_type_t<void>) noexcept {}
+  constexpr explicit just(::std::in_place_t) noexcept {}
 
   [[nodiscard]] constexpr bool operator==(just const &) const noexcept = default;
 
@@ -652,10 +658,59 @@ template <typename T, typename U>
 }
 
 // CTAD for just, including the deduced spelling of the void carrier: just{}
+namespace detail {
+template <typename Lh, typename Rh>
+using _just_fold_t = decltype(_fold_detail::fold<typename ::std::remove_cvref_t<Lh>::value_type,
+                                                 typename ::std::remove_cvref_t<Rh>::value_type>(
+    ::std::declval<Lh>().value(), ::std::declval<Rh>().value()));
+template <typename Lh, typename Rh>
+constexpr inline bool _nothrow_just_fold
+    = noexcept(_fold_detail::fold<typename ::std::remove_cvref_t<Lh>::value_type,
+                                  typename ::std::remove_cvref_t<Rh>::value_type>(::std::declval<Lh>().value(),
+                                                                                  ::std::declval<Rh>().value()))
+      && ::std::is_nothrow_constructible_v<just<_just_fold_t<Lh, Rh>>, _just_fold_t<Lh, Rh>>;
+} // namespace detail
+
+// The conjunction inside the cluster: just & just folds the payloads and stays just, and
+// just<void> is the product's unit - it elides, whatever the other operand.
+template <typename Lh, typename Rh>
+  requires detail::_some_just<Lh> && detail::_some_just<Rh>
+           && (not ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>)
+           && (not ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>)
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
+    noexcept(detail::_nothrow_just_fold<Lh, Rh>)
+{
+  using VL = ::std::remove_cvref_t<Lh>::value_type;
+  using VR = ::std::remove_cvref_t<Rh>::value_type;
+  return just<detail::_just_fold_t<Lh, Rh>>{::fn::detail::_fold_detail::fold<VL, VR>(FWD(lh).value(), FWD(rh).value())};
+}
+
+template <typename Lh, typename Rh>
+  requires detail::_some_just<Lh> && ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>
+           && detail::_some_just<Rh>
+[[nodiscard]] constexpr auto operator&(Lh &&, Rh &&rh) //
+    noexcept(::std::is_nothrow_constructible_v<::std::remove_cvref_t<Rh>, Rh>) -> ::std::remove_cvref_t<Rh>
+{
+  return ::std::remove_cvref_t<Rh>{FWD(rh)};
+}
+
+template <typename Lh, typename Rh>
+  requires detail::_some_just<Lh> && (not ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>)
+           && detail::_some_just<Rh> && ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&) //
+    noexcept(::std::is_nothrow_constructible_v<::std::remove_cvref_t<Lh>, Lh>) -> ::std::remove_cvref_t<Lh>
+{
+  return ::std::remove_cvref_t<Lh>{FWD(lh)};
+}
+
 template <typename T> just(T) -> just<T>;
 template <typename T> explicit just(::std::in_place_type_t<T>, auto &&...) -> just<T>;
 just() -> just<void>;
+explicit just(::std::in_place_t) -> just<void>;
 
+} // namespace LIBFN_VERSION
 } // namespace fn
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_JUST

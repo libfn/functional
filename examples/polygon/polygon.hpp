@@ -25,6 +25,9 @@
 #include <utility>
 #include <vector>
 
+// Functional equivalent of std::forward<decltype(v)>(v)
+#define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
+
 struct parameters {
   std::string characters;
   unsigned char required = '\0';
@@ -56,7 +59,7 @@ struct parameters {
     static constexpr int code = 6;
   };
 
-  using error = fn::copack<non_ascii_characters, too_few_characters, too_few_parameters>;
+  using error = fn::copack_for<non_ascii_characters, too_few_characters, too_few_parameters>;
 
   using arguments_t = std::vector<std::string_view>;
 
@@ -144,7 +147,7 @@ inline void print_error(file_path_error auto &&err)
 }
 
 struct inputs {
-  using error = fn::copack<file_not_found, io_error, permission_denied>;
+  using error = fn::copack_for<file_not_found, io_error, permission_denied>;
 
   struct stream {
     std::filesystem::path path; // "<stdin>" when source is std::cin

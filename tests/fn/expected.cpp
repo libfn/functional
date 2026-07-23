@@ -3,7 +3,10 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
+#include <fn/choice.hpp>
 #include <fn/expected.hpp>
+#include <fn/just.hpp>
+#include <fn/optional.hpp>
 #include <fn/utility.hpp>
 
 #include <catch2/catch_all.hpp>
@@ -13,6 +16,8 @@
 #include <tuple>
 #include <utility>
 #include <variant>
+
+#include <fn/detail/macro_begin.hpp>
 
 namespace {
 enum Error { Unknown, FileNotFound };
@@ -2460,6 +2465,111 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
       }
     }
 
+    SECTION("uninhabited value grade copack<>")
+    {
+      // An always-erroring expected<copack<>, E> composes too: a value product with an uninhabited
+      // factor is itself uninhabited, so the join always resolves into the error channel.
+      // Previously a hard error - the join named copack<>'s value fold in its declared type.
+      using Dead = fn::expected<fn::copack<>, Error>;
+
+      SECTION("same error type, either order")
+      {
+        using Rh = fn::expected<int, Error>;
+        static_assert(
+            std::same_as<decltype(std::declval<Dead>() & std::declval<Rh>()), fn::expected<fn::copack<>, Error>>);
+        static_assert(
+            std::same_as<decltype(std::declval<Rh>() & std::declval<Dead>()), fn::expected<fn::copack<>, Error>>);
+        static_assert(
+            std::same_as<decltype(std::declval<Dead>() & std::declval<Dead>()), fn::expected<fn::copack<>, Error>>);
+
+        static_assert((Dead{::fn::unexpect, FileNotFound} & Rh{5}).error() == FileNotFound);
+        static_assert((Dead{::fn::unexpect, FileNotFound} & Rh{::fn::unexpect, Unknown}).error() == FileNotFound);
+        static_assert((Rh{5} & Dead{::fn::unexpect, Unknown}).error() == Unknown);
+        static_assert((Rh{::fn::unexpect, FileNotFound} & Dead{::fn::unexpect, Unknown}).error() == FileNotFound);
+
+        CHECK((Dead{::fn::unexpect, FileNotFound} & Rh{5}).error() == FileNotFound);
+        CHECK((Dead{::fn::unexpect, FileNotFound} & Rh{::fn::unexpect, Unknown}).error() == FileNotFound);
+        CHECK((Rh{5} & Dead{::fn::unexpect, Unknown}).error() == Unknown);
+        CHECK((Rh{::fn::unexpect, FileNotFound} & Dead{::fn::unexpect, Unknown}).error() == FileNotFound);
+      }
+
+      SECTION("graded error join, either order")
+      {
+        using Rh = fn::expected<int, fn::copack<Error>>;
+        static_assert(std::same_as<decltype(std::declval<Dead>() & std::declval<Rh>()),
+                                   fn::expected<fn::copack<>, fn::copack<Error>>>);
+        static_assert(std::same_as<decltype(std::declval<Rh>() & std::declval<Dead>()),
+                                   fn::expected<fn::copack<>, fn::copack<Error>>>);
+
+        static_assert((Dead{::fn::unexpect, FileNotFound} & Rh{5}).error() == fn::copack{FileNotFound});
+        static_assert((Rh{::fn::unexpect, fn::copack{Unknown}} & Dead{::fn::unexpect, FileNotFound}).error()
+                      == fn::copack{Unknown});
+
+        CHECK((Dead{::fn::unexpect, FileNotFound} & Rh{5}).error() == fn::copack{FileNotFound});
+        CHECK((Rh{::fn::unexpect, fn::copack{Unknown}} & Dead{::fn::unexpect, FileNotFound}).error()
+              == fn::copack{Unknown});
+      }
+
+      SECTION("noexcept")
+      {
+        // nothing to relocate on the dead value side; the error side weighs as usual
+        using Rh = fn::expected<int, Error>;
+        static_assert(noexcept(std::declval<Dead &>() & std::declval<Rh &>()));
+        static_assert(noexcept(std::declval<Rh &>() & std::declval<Dead &>()));
+        using Th = fn::expected<fn::copack<>, MoveNothrow>;
+        using Rt = fn::expected<int, MoveNothrow>;
+        static_assert(not noexcept(std::declval<Th &>() & std::declval<Rt &>())); // copies the error
+        static_assert(noexcept(std::declval<Th &&>() & std::declval<Rt &&>()));   // moves it
+        SUCCEED();
+      }
+    }
+
+    SECTION("identity cluster operands")
+    {
+      // A just or choice operand always contributes its value to the product and adds no term to
+      // the error sum: the expected operand's error passes through unchanged, plain or graded, and
+      // its state alone decides. just<void> is the product's unit and elides.
+      using E = fn::expected<int, fn::copack<Error>>;
+      using J = fn::just<int>;
+
+      static_assert(std::same_as<decltype(std::declval<J>() & std::declval<E>()),
+                                 fn::expected<fn::pack<int, int>, fn::copack<Error>>>);
+      static_assert(std::same_as<decltype(std::declval<E>() & std::declval<J>()),
+                                 fn::expected<fn::pack<int, int>, fn::copack<Error>>>);
+      static_assert(std::same_as<decltype(std::declval<J>() & std::declval<fn::expected<int, Error>>()),
+                                 fn::expected<fn::pack<int, int>, Error>>);
+      static_assert(std::same_as<decltype(std::declval<fn::just<void>>() & std::declval<E>()), E>);
+      static_assert(std::same_as<decltype(std::declval<E>() & std::declval<fn::just<void>>()), E>);
+      static_assert(std::same_as<decltype(std::declval<J>() & std::declval<fn::expected<void, fn::copack<Error>>>()),
+                                 fn::expected<int, fn::copack<Error>>>);
+      static_assert(
+          std::same_as<decltype(std::declval<fn::choice_for<int, bool>>() & std::declval<E>()),
+                       fn::expected<fn::copack_for<fn::pack<int, int>, fn::pack<bool, int>>, fn::copack<Error>>>);
+
+      static_assert((J{1} & E{2}).value().apply([](int a, int b) { return a == 1 && b == 2; }));
+      static_assert((E{2} & J{1}).value().apply([](int a, int b) { return a == 2 && b == 1; }));
+      static_assert((J{1} & E{::fn::unexpect, fn::copack{FileNotFound}}).error() == fn::copack{FileNotFound});
+      static_assert((fn::just<void>{} & E{5}).value() == 5);
+      static_assert((J{7} & fn::expected<void, fn::copack<Error>>{}).value() == 7);
+      CHECK((J{1} & E{2}).value().apply([](int a, int b) { return a == 1 && b == 2; }));
+      CHECK((J{1} & E{::fn::unexpect, fn::copack{FileNotFound}}).error() == fn::copack{FileNotFound});
+
+      // x0: an uninhabited value side absorbs the product, the cluster operand notwithstanding
+      using Dead = fn::expected<fn::copack<>, Error>;
+      static_assert(std::same_as<decltype(std::declval<J>() & std::declval<Dead>()), Dead>);
+      static_assert((J{1} & Dead{::fn::unexpect, Unknown}).error() == Unknown);
+      CHECK((J{1} & Dead{::fn::unexpect, Unknown}).error() == Unknown);
+
+      SECTION("noexcept")
+      {
+        static_assert(noexcept(std::declval<J &>() & std::declval<E &>()));
+        using Th = fn::expected<MoveNothrow, Error>;
+        static_assert(not noexcept(std::declval<J &>() & std::declval<Th &>())); // copies the value
+        static_assert(noexcept(std::declval<J &&>() & std::declval<Th &&>()));   // moves it
+        SUCCEED();
+      }
+    }
+
     SECTION("noexcept")
     {
       // the join relocates both operands' values and errors into the result, so it promises only
@@ -2516,6 +2626,111 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][operat
       SUCCEED();
     }
   }
+}
+
+TEST_CASE("expected disjunction", "[expected][operator_or][graded][copack]")
+{
+  enum OtherError : int { Oops };
+  using EA = fn::expected<int, Error>;
+  using EB = fn::expected<bool, OtherError>;
+
+  SECTION("value sum, error product")
+  {
+    static_assert(std::same_as<decltype(std::declval<EA>() | std::declval<EB>()),
+                               fn::expected<fn::copack_for<int, bool>, fn::pack<Error, OtherError>>>);
+    // the same value type collapses, as the conjunction's same-error sum does; the error product
+    // never dedupes - the pack is tuple-like, and position says where a failure happened
+    static_assert(std::same_as<decltype(std::declval<EA>() | std::declval<fn::expected<int, OtherError>>()),
+                               fn::expected<int, fn::pack<Error, OtherError>>>);
+    static_assert(std::same_as<decltype(std::declval<EA>() | std::declval<EA>()), //
+                               fn::expected<int, fn::pack<Error, Error>>>);
+    // graded errors distribute through the product - the same fold as the conjunction's values
+    static_assert(std::same_as<decltype(std::declval<fn::expected<int, fn::copack_for<Error, OtherError>>>()
+                                        | std::declval<fn::expected<bool, fn::copack<Error>>>()),
+                               fn::expected<fn::copack_for<int, bool>,
+                                            fn::copack_for<fn::pack<Error, Error>, fn::pack<OtherError, Error>>>>);
+    // void enters a genuine sum as pack<>; the all-void pair collapses to void
+    static_assert(std::same_as<decltype(std::declval<fn::expected<void, Error>>() | std::declval<EB>()),
+                               fn::expected<fn::copack_for<fn::pack<>, bool>, fn::pack<Error, OtherError>>>);
+    static_assert(std::same_as<decltype(std::declval<fn::expected<void, Error>>()
+                                        | std::declval<fn::expected<void, OtherError>>()),
+                               fn::expected<void, fn::pack<Error, OtherError>>>);
+    SUCCEED();
+  }
+
+  SECTION("leftmost engaged wins; both-fail folds the errors")
+  {
+    static_assert((EA{1} | EB{true}) == fn::copack{1});
+    static_assert((EA{::fn::unexpect, FileNotFound} | EB{true}) == fn::copack{true});
+    static_assert(
+        (EA{::fn::unexpect, FileNotFound} | EB{::fn::unexpect, Oops}).error().apply([](Error a, OtherError b) {
+          return a == FileNotFound && b == Oops;
+        }));
+    CHECK(bool((EA{1} | EB{true}) == fn::copack{1})); // bool(): Catch2 decomposition re-enters the == constraint
+    CHECK(bool((EA{::fn::unexpect, FileNotFound} | EB{true})
+               == fn::copack{true})); // bool(): Catch2 decomposition re-enters the == constraint
+    CHECK((EA{::fn::unexpect, FileNotFound} | EB{::fn::unexpect, Oops}).error().apply([](Error a, OtherError b) {
+      return a == FileNotFound && b == Oops;
+    }));
+  }
+
+  SECTION("the always-failing carrier is the value channel's identity element")
+  {
+    using Dead = fn::expected<fn::copack<>, Error>;
+    static_assert(std::same_as<decltype(std::declval<Dead>() | std::declval<fn::expected<int, OtherError>>()),
+                               fn::expected<fn::copack<int>, fn::pack<Error, OtherError>>>);
+    static_assert((Dead{::fn::unexpect, FileNotFound} | fn::expected<int, OtherError>{5}) == fn::copack{5});
+    CHECK(bool((Dead{::fn::unexpect, FileNotFound} | fn::expected<int, OtherError>{5})
+               == fn::copack{5})); // bool(): Catch2 decomposition re-enters the == constraint
+  }
+
+  SECTION("associativity: the error product folds flat")
+  {
+    using EC = fn::expected<double, Error>;
+    static_assert(std::same_as<decltype((std::declval<EA>() | std::declval<EB>()) | std::declval<EC>()),
+                               decltype(std::declval<EA>() | (std::declval<EB>() | std::declval<EC>()))>);
+    static_assert(((EA{::fn::unexpect, FileNotFound} | EB{::fn::unexpect, Oops}) | EC{::fn::unexpect, Unknown})
+                      .error()
+                      .apply([](Error a, OtherError b, Error c) { //
+                        return a == FileNotFound && b == Oops && c == Unknown;
+                      }));
+    SUCCEED();
+  }
+
+  SECTION("constraints and noexcept")
+  {
+    // the disjunction stays same-kind plus cluster: the expected/optional mix is refused
+    constexpr auto can_disj = [](auto &&lh, auto &&rh) { return requires { FWD(lh) | FWD(rh); }; };
+    static_assert(can_disj(EA{1}, EB{true}));
+    static_assert(not can_disj(EA{1}, fn::optional<int>{}));
+
+    static_assert(noexcept(std::declval<EA>() | std::declval<EB>()));
+    static_assert(not noexcept(std::declval<fn::expected<MoveNothrow, Error> &>() | std::declval<EA &>()));
+    SUCCEED();
+  }
+}
+
+TEST_CASE("disjoin", "[disjoin][expected][just]")
+{
+  using EA = fn::expected<int, Error>;
+  using EB = fn::expected<bool, int>;
+
+  static_assert(std::same_as<decltype(fn::disjoin(std::declval<EA>(), std::declval<EB>())),
+                             decltype(std::declval<EA>() | std::declval<EB>())>);
+  static_assert(fn::disjoin(EA{1}) == EA{1}); // unary forwards unchanged
+  static_assert(fn::disjoin(EA{::fn::unexpect, FileNotFound}, EB{true}) == fn::copack{true});
+  static_assert(
+      fn::disjoin(fn::just<void>{}, fn::just<void>{}, fn::just<int>{7}).apply([]([[maybe_unused]] auto &&...args) {
+        return sizeof...(args);
+      })
+      == 0); // left catch through the whole chain
+  CHECK(bool(fn::disjoin(EA{::fn::unexpect, FileNotFound}, EB{true})
+             == fn::copack{true})); // bool(): Catch2 decomposition re-enters the == constraint
+
+  // a non-viable fold answers instead of erroring
+  constexpr auto can = [](auto &&...args) { return requires { fn::disjoin(FWD(args)...); }; };
+  static_assert(can(EA{1}, EB{true}));
+  static_assert(not can(EA{1}, 42));
 }
 
 TEST_CASE("expected copack support and_then", "[expected][copack][and_then]")
@@ -3718,6 +3933,7 @@ TEST_CASE("expected apply_type", "[expected][apply_type]")
     CHECK(v.apply_type(varms) == 1);
     CHECK(ve.apply_type(varms) == -7);
     CHECK(v.apply_type_r<long>(varms) == 1L);
+    CHECK(ve.apply_type_r<long>(varms) == -7L);
     static_assert(not can_apply_type<expected<void, int> &, decltype(fn::overload{[](unexpect_t, int) {}}) const &>);
     static_assert(not can_apply_type<expected<void, int> &, decltype(fn::overload{[](in_place_t) {}}) const &>);
 

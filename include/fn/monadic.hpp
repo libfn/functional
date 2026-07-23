@@ -7,8 +7,10 @@
 #define INCLUDE_FN_MONADIC
 
 #include <fn/detail/monadic.hpp>
+#include <libfn_version.hpp>
 
 namespace fn {
+inline namespace LIBFN_VERSION {
 
 /**
  * @brief TODO
@@ -28,6 +30,7 @@ concept some_monadic_type = detail::_some_monadic_type<T>;
 template <typename Functor, typename V, typename... Args>
 concept monadic_invocable = detail::_monadic_invocable<Functor, V, Args...>;
 
+} // namespace LIBFN_VERSION
 } // namespace fn
 
 #endif // INCLUDE_FN_MONADIC

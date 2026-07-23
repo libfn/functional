@@ -8,12 +8,14 @@
 
 #include <fn/concepts.hpp>
 #include <fn/functor.hpp>
+#include <libfn_version.hpp>
 
 #include <concepts>
 #include <type_traits>
 #include <utility>
 
 namespace fn {
+inline namespace LIBFN_VERSION {
 /**
  * @brief Discard the value explicitly
  *
@@ -33,6 +35,7 @@ constexpr inline struct discard_t final {
   };
 } discard = {};
 
+} // namespace LIBFN_VERSION
 } // namespace fn
 
 #endif // INCLUDE_FN_DISCARD

@@ -7,10 +7,11 @@
 #define INCLUDE_FN_DETAIL_MONADIC
 
 #include <fn/detail/fwd.hpp>
+#include <libfn_version.hpp>
 
 #include <concepts>
 
-namespace fn::detail {
+namespace fn::inline LIBFN_VERSION::detail {
 
 template <typename T>
 concept _some_monadic_type = _some_expected<T> || _some_optional<T> || _some_choice<T> || _some_just<T>;
@@ -18,6 +19,6 @@ concept _some_monadic_type = _some_expected<T> || _some_optional<T> || _some_cho
 template <typename Functor, typename V, typename... Args>
 concept _monadic_invocable = _some_monadic_type<V> && ::std::invocable<typename Functor::apply, V, Args...>;
 
-} // namespace fn::detail
+} // namespace fn::inline LIBFN_VERSION::detail
 
 #endif // INCLUDE_FN_DETAIL_MONADIC

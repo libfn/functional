@@ -7,9 +7,9 @@
 #define INCLUDE_FN_DETAIL_PACK_IMPL
 
 #include <fn/detail/fwd.hpp>
-#include <fn/detail/macro_fwd.hpp>
 #include <fn/detail/meta.hpp>
 #include <fn/detail/traits.hpp>
+#include <libfn_version.hpp>
 
 #include <pfn/functional.hpp>
 
@@ -17,7 +17,9 @@
 #include <type_traits>
 #include <utility>
 
-namespace fn::detail {
+#include <fn/detail/macro_begin.hpp>
+
+namespace fn::inline LIBFN_VERSION::detail {
 template <::std::size_t I, typename T> struct _element {
   static_assert(not ::std::is_rvalue_reference_v<T>);
   T v; // NOSONAR cpp:S6226 MSVC ignores the attribute
@@ -212,6 +214,8 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
   }
 };
 
-} // namespace fn::detail
+} // namespace fn::inline LIBFN_VERSION::detail
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_DETAIL_PACK_IMPL

@@ -79,15 +79,17 @@ jobs:
           - { mode: cxx23, configuration: Release, compiler: "clang-libstdcxx:21" }
           - { mode: cxx23, configuration: Debug,   compiler: "clang-libstdcxx:22" }
           - { mode: cxx23, configuration: Release, compiler: "clang-libstdcxx:22" }
+          - { mode: cxx26, configuration: Debug,   compiler: "gcc:16" }
+          - { mode: cxx26, configuration: Release, compiler: "gcc:16" }
     container: libfn.azurecr.io/ci-build-${{ matrix.compiler }}-sha-08b1133
     steps:
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     - name: Prepare build
       run: |
         mkdir .build
         cd .build
-        cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ${{ matrix.mode == 'cxx23' && '-DVALIDATE_CXX23=ON' || '' }} ..
+        cmake -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} ${{ matrix.mode == 'cxx23' && '-DVALIDATE_CXX23=ON' || matrix.mode == 'cxx26' && '-DLIBFN_CXX26=ON -DVALIDATE_CXX26=ON' || '' }} ..
         COMPILER=$( grep -iE "^CMAKE_CXX_COMPILER:FILEPATH=" CMakeCache.txt | sed -n 's/^[^=]*=//p' )
         FLAGS=$( grep -iE "^CMAKE_CXX_FLAGS(_${{ matrix.configuration }})?:STRING" CMakeCache.txt | sed -n 's/^[^=]*=//p' | tr '\n' ' ' )
         printf "C++ compiler path: %s\n" "$COMPILER"
@@ -158,7 +160,7 @@ jobs:
               name: appleclang
               osver: 26
     steps:
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     - name: Prepare build
       run: |
@@ -219,7 +221,7 @@ jobs:
             runner: "windows-2025-vs2026"
 
     steps:
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     - name: Prepare build
       shell: bash
@@ -250,10 +252,10 @@ jobs:
           - gcc
           - clang
     steps:
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     - name: Install Nix
-      uses: cachix/install-nix-action@a49548c11d9846ad46ecc0115273879b045f001c # v31.10.7
+      uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342 # v31.11.0
       with:
         extra_nix_config: |
           access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}

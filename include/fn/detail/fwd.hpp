@@ -6,7 +6,10 @@
 #ifndef INCLUDE_FN_DETAIL_FWD
 #define INCLUDE_FN_DETAIL_FWD
 
+#include <libfn_version.hpp>
+
 namespace fn {
+inline namespace LIBFN_VERSION {
 // NOTE Some forward declarations can lead to hard to troubleshoot compilation
 //      errors. Only declare select, useful datatypes here.
 
@@ -80,6 +83,7 @@ template <typename... Ts> constexpr bool _is_copack<::fn::copack<Ts...> const &>
 template <typename T>
 concept _some_copack = detail::_is_copack<T &>;
 } // namespace detail
+} // namespace LIBFN_VERSION
 } // namespace fn
 
 #endif // INCLUDE_FN_DETAIL_FWD

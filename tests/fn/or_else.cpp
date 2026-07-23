@@ -13,6 +13,8 @@
 #include <string_view>
 #include <utility>
 
+#include <fn/detail/macro_begin.hpp>
+
 using namespace util;
 
 namespace {
@@ -597,6 +599,11 @@ TEST_CASE("or_else joins heterogeneous expected branches", "[or_else][expected][
     CHECK(r.value() == fn::copack_for<X, Y>{Y{}});
     auto v = In{fn::copack<X>{X{}}}.or_else(fnR);
     CHECK(v.value() == fn::copack_for<X, Y>{X{}});
+    // the value path in every remaining value category
+    In vl{fn::copack<X>{X{}}};
+    CHECK(vl.or_else(fnR).value() == fn::copack_for<X, Y>{X{}});
+    CHECK(std::as_const(vl).or_else(fnR).value() == fn::copack_for<X, Y>{X{}});
+    CHECK(std::move(std::as_const(vl)).or_else(fnR).value() == fn::copack_for<X, Y>{X{}});
     // named source: VS 2022 misreads a mid-expression prvalue's empty-class union member
     constexpr In cv{fn::copack<X>{X{}}};
     static_assert(cv.or_else(fnR).value() == fn::copack_for<X, Y>{X{}});

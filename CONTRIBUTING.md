@@ -6,11 +6,17 @@ This is for working *on* libfn; to *use* the library, see the [README](README.md
 
 Building and testing libfn needs a C++20 toolchain (with one exception). `pfn` polyfills C++23/26 standard-library utilities (`pfn::expected`, `pfn::optional`, `pfn::invoke_r`, `pfn::unreachable`); `fn` builds on `pfn` rather than the newer standard library. The minimum supported compilers are [gcc 12][gcc-standard-support] and [clang 16][clang-standard-support]; if your OS does not ship one recent enough, use the [devcontainer] or [Nix][nix] (see [nix/README.md][nixmd]). You may also use Apple Clang 16.0 or Microsoft Visual Studio 2022 or newer.
 
-The exception: the C++23 validation lane (CMake option `VALIDATE_CXX23`, below) needs a compiler with solid C++23 support — gcc 15 or clang 21, or newer — and is rejected with MSVC.
+The exception: the C++23 validation lane (CMake option `VALIDATE_CXX23`, below) needs a compiler with solid C++23 support — gcc 15 or clang 21, or newer — and is rejected with MSVC. Likewise the C++26 lane (`VALIDATE_CXX26`, below) needs a compiler implementing `std::type_order` and is rejected with MSVC.
+
+### Standard-mode feature reliance
+
+The headers rely on C++20 only, in every default-mode build. The C++23 validation lane compiles the same sources under `-std=c++23` and relies on no C++23 feature. The `LIBFN_CXX26` mode relies on exactly one C++26 feature: [`std::type_order`](https://cppreference.com/cpp/utility/compare/type_order) (feature-test macro `__cpp_lib_type_order`; implemented by gcc 16). A compiler without it rejects the mode with an `#error` naming this requirement — if your build fails there, either drop `LIBFN_CXX26` or switch to a compiler that implements the feature. `pfn` never relies on post-C++20 features in any mode: it is a polyfill precisely for compilers without the newer standard library.
 
 ## Building locally
 
 Both `fn` (`include/fn`) and `pfn` (`include/pfn`) target C++20. The unit tests and examples build in C++20 by default. If you have a recent enough compiler, use the CMake option `VALIDATE_CXX23=ON` to additionally build them in C++23 (requires `LIBFN_TESTS=ON`). This also enables `tests/pfn/expected_validation.cpp` and `tests/pfn/optional_validation.cpp`, which run the `pfn` test suites against the standard library's own `std::expected` and `std::optional` — validating the polyfills, and the tests themselves, against the real thing.
+
+The C++26 mode is separate from the standard level: defining `LIBFN_CXX26` switches the library's internal type ordering to `std::type_order` (see the feature-reliance note above) and moves `fn` into its own ABI namespace, since the two orderings may disagree on `copack`/`choice` alternative order and the layouts must never link as one. The CMake option `LIBFN_CXX26=ON` enables the mode for this build tree, and `VALIDATE_CXX26=ON` (requires `LIBFN_TESTS=ON` and `LIBFN_CXX26=ON`) additionally builds the tests and examples in C++26 with the mode enabled.
 
 For a quick check of a single example without the full CMake/Catch2 setup:
 
@@ -52,7 +58,9 @@ Choose fixtures with care when probing exception specifications. `helper_t` has 
 
 ## Versioning
 
-`VERSION` (in the repository root) is the single source of truth for the project version. A pre-commit hook (`scripts/sync_versions.py`) mirrors it into `ports/libfn/vcpkg.json` (`version-semver`) and `MODULE.bazel`. Do **not** hand-edit those version literals — edit `VERSION` and let the hook sync them.
+`VERSION` (in the repository root) is the single source of truth for the project version. A pre-commit hook (`scripts/sync_versions.py`) mirrors it into `ports/libfn/vcpkg.json` (`version-semver`), `MODULE.bazel`, and `include/libfn_version.hpp` — the header defining the `LIBFN_VERSION` macro that names the ABI-versioning inline namespace wrapping `fn`, and its mode-less sibling `LIBFN_VERSION_BASE` wrapping `pfn` (the layer rule below). Do **not** hand-edit those version literals — edit `VERSION` and let the hook sync them.
+
+The namespace spelling is derived, not copied: 0.y lines with y ≥ 1 share `v0_<y>` (z bumps are ABI-compatible), the 0.0.z line versions per patch, a SemVer prerelease is appended (`-dev` → `_dev`), and the `_cxx26` twin (selected by defining `LIBFN_CXX26`) keeps `_cxx26` last. `pfn` is mode-less: its layouts never depend on the C++26 type ordering or other language features, so it wraps in `LIBFN_VERSION_BASE` — the plain spelling regardless of mode — and its types stay link-compatible across modes. A second hook (`scripts/check_namespace_wrap.py`) verifies the layer rule: every `namespace fn` opening in `include/` carries `inline namespace LIBFN_VERSION`, every `namespace pfn` opening `inline namespace LIBFN_VERSION_BASE`.
 
 ## Pre-commit
 

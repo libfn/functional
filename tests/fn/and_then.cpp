@@ -13,6 +13,8 @@
 #include <string>
 #include <utility>
 
+#include <fn/detail/macro_begin.hpp>
+
 using namespace util;
 
 namespace {
@@ -20,6 +22,13 @@ struct Error final {
   std::string what;
 };
 struct OtherError final {};
+
+// C++26 to_string formats through std::format (P2587): to_string(0.5) is "0.5", not "0.500000"
+#if defined(__cpp_lib_to_string) && __cpp_lib_to_string >= 202306L
+constexpr char const got_84_and_half[] = "Got 84 and 0.5";
+#else
+constexpr char const got_84_and_half[] = "Got 84 and 0.500000";
+#endif
 
 struct Xint final {
   int value;
@@ -347,7 +356,7 @@ TEST_CASE("and_then", "[and_then][expected][expected_value][pack]")
           };
           using T = decltype(a | and_then(fnFail));
           static_assert(std::is_same_v<T, fn::expected<int, Error>>);
-          REQUIRE((a | and_then(fnFail)).error().what == "Got 84 and 0.500000");
+          REQUIRE((a | and_then(fnFail)).error().what == got_84_and_half);
         }
       }
 
@@ -1144,6 +1153,11 @@ TEST_CASE("and_then joins heterogeneous expected branches", "[and_then][expected
     CHECK(r.value() == fn::copack_for<X, Y>{Y{}});
     auto e = In{fn::unexpect, fn::copack<E0>{E0{}}}.and_then(fnJoin);
     CHECK(e.error() == fn::copack_for<E0, E1, E2>{E0{}});
+    // the error path in every remaining value category
+    In el{fn::unexpect, fn::copack<E0>{E0{}}};
+    CHECK(el.and_then(fnJoin).error() == fn::copack_for<E0, E1, E2>{E0{}});
+    CHECK(std::as_const(el).and_then(fnJoin).error() == fn::copack_for<E0, E1, E2>{E0{}});
+    CHECK(std::move(std::as_const(el)).and_then(fnJoin).error() == fn::copack_for<E0, E1, E2>{E0{}});
     // named source: VS 2022 misreads a mid-expression prvalue's empty-class union member
     constexpr In ca{fn::copack_for<A, B>{A{}}};
     static_assert(ca.and_then(fnJoin).value() == fn::copack_for<X, Y>{X{}});

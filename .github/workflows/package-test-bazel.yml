@@ -41,12 +41,20 @@ jobs:
       run:
         working-directory: test_package
     steps:
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     - name: Set Bazel version
       run: |
         echo "USE_BAZEL_VERSION=${{ env.BAZEL_RELEASE }}" >> "${GITHUB_ENV}"
 
+    # main.cpp is a quine: each binary's stdout must reproduce the source exactly.
     - name: Test packaging
       run: |
-        bazel run --cxxopt=-std=c++20 //:main
+        bazel run --cxxopt=-std=c++20 //:main | diff - src/main.cpp
+
+    # fn_cxx26 needs __cpp_lib_type_order; of the matrix images only gcc 16 has it.
+    # No --cxxopt here: the command line would override the target's -std=c++26 copt.
+    - name: Test packaging (C++26 mode)
+      if: startsWith(matrix.image, 'ci-build-gcc')
+      run: |
+        bazel run //:main_cxx26 | diff - src/main.cpp

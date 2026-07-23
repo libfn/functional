@@ -10,12 +10,16 @@
 #include <fn/functional.hpp>
 #include <fn/functor.hpp>
 #include <fn/just.hpp>
+#include <libfn_version.hpp>
 
 #include <concepts>
 #include <type_traits>
 #include <utility>
 
+#include <fn/detail/macro_begin.hpp>
+
 namespace fn {
+inline namespace LIBFN_VERSION {
 /**
  * @brief TODO
  *
@@ -161,6 +165,9 @@ struct inspect_t::apply final {
   }
 };
 
+} // namespace LIBFN_VERSION
 } // namespace fn
+
+#include <fn/detail/macro_end.hpp>
 
 #endif // INCLUDE_FN_INSPECT

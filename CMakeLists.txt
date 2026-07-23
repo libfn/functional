@@ -55,6 +55,8 @@ endif()
 # We want to allow tests even when our project is not a top level, e.g. for troubleshooting.
 option(LIBFN_TESTS    "Enable unit tests and examples." ON)
 option(VALIDATE_CXX23 "Enable C++23 tests/examples targets." OFF)
+option(LIBFN_CXX26    "Enable C++26 features." OFF)
+option(VALIDATE_CXX26 "Enable C++26 tests/examples targets." OFF)
 
 # Do not enable sanitizers by default when our project is not a top level or when it is not Debug.
 # Also off by default for MSVC (unsupported), Homebrew GCC on macOS (libasan link path issues), and
@@ -78,6 +80,18 @@ endif()
 
 if(VALIDATE_CXX23 AND MSVC)
     message(FATAL_ERROR "VALIDATE_CXX23=ON is not supported with MSVC")
+endif()
+
+if(VALIDATE_CXX26 AND (NOT LIBFN_TESTS))
+    message(FATAL_ERROR "VALIDATE_CXX26=ON requires LIBFN_TESTS=ON")
+endif()
+
+if(VALIDATE_CXX26 AND (NOT LIBFN_CXX26))
+    message(FATAL_ERROR "VALIDATE_CXX26=ON requires LIBFN_CXX26=ON")
+endif()
+
+if(VALIDATE_CXX26 AND MSVC)
+    message(FATAL_ERROR "VALIDATE_CXX26=ON is not supported with MSVC")
 endif()
 
 if(LIBFN_DOCS AND (NOT LIBFN_TESTS))
@@ -132,10 +146,13 @@ include(GNUInstallDirs)
 add_subdirectory(include)
 
 if(LIBFN_TESTS)
-    # Phony targets for C++20/23 tests/examples builds.
+    # Phony targets for C++20/23/26 tests/examples builds.
     add_custom_target(cxx20)
     if (VALIDATE_CXX23)
         add_custom_target(cxx23)
+    endif()
+    if (VALIDATE_CXX26)
+        add_custom_target(cxx26)
     endif()
 
     add_custom_target(tests)

@@ -17,9 +17,11 @@ stdenv.mkDerivation {
   buildInputs = [ libfn ];
 
   doCheck = true;
+  # main.cpp is a quine: the binary's stdout must reproduce the source exactly.
   checkPhase = ''
     runHook preCheck
-    ./main
+    ./main > main.out
+    diff main.out ../src/main.cpp
     runHook postCheck
   '';
 

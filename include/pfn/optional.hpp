@@ -11,6 +11,7 @@
 #include <concepts>
 #include <cstddef>
 #include <functional>
+#include <libfn_version.hpp>
 #include <memory>
 #include <optional> // For anything that is not std::optional or std::make_optional
 #include <ranges>   // For std::ranges::enable_view
@@ -28,7 +29,7 @@
 #undef FWD // NOSONAR cpp:S959 saved by push_macro above
 #endif
 
-// Also defined in fn/detail/macro_fwd.hpp but pfn headers are standalone
+// Also defined in fn/detail/macro_begin.hpp but pfn headers are standalone
 #define FWD(...) static_cast<decltype(__VA_ARGS__) &&>(__VA_ARGS__)
 
 #ifdef ASSERT
@@ -45,6 +46,7 @@
 #endif
 
 namespace pfn {
+inline namespace LIBFN_VERSION_BASE {
 
 // [optional.optional], class template optional
 template <class T> class optional; // partially freestanding
@@ -1626,6 +1628,7 @@ constexpr optional<T> make_optional(::std::initializer_list<U> il, Args &&...arg
   return optional<T>(::std::in_place, il, FWD(args)...);
 }
 
+} // namespace LIBFN_VERSION_BASE
 } // namespace pfn
 
 namespace std {

@@ -178,10 +178,12 @@ constexpr auto evaluate(std::string_view a, fn::copack_for<Add, Sub, Mul, Div> o
 }
 
 // The error type of a sequence is the derived copack of all failure modes, never spelled by hand:
-static_assert(std::is_same_v<decltype(Rational::make("1/1")),
-                             fn::expected<Rational, fn::copack<DivByZero, NotANumber, Overflow>>>);
-static_assert(std::is_same_v<decltype(evaluate("1/2", Add{}, "3/4")),
-                             fn::expected<Rational, fn::copack<DivByZero, NotANumber, Overflow>>>);
+static_assert(
+    std::is_same_v<decltype(Rational::make("1/1")),
+                   fn::expected<Rational, fn::copack_for<DivByZero, NotANumber, Overflow>>>);
+static_assert(
+    std::is_same_v<decltype(evaluate("1/2", Add{}, "3/4")),
+                   fn::expected<Rational, fn::copack_for<DivByZero, NotANumber, Overflow>>>);
 // Constant evaluated calculations used to verify both values and errors during compilation:
 static_assert(evaluate("1/2", Add{}, "1/3").value() == Rational::make(5, 6));
 static_assert(evaluate("2/3", Div{}, "0/1").error().has_value<DivByZero>());

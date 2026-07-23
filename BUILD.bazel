@@ -2,11 +2,19 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 package(default_visibility = ["//visibility:public"])
 
+# The LIBFN_VERSION macro header; carried by both libraries.
+cc_library(
+    name = "version",
+    hdrs = ["include/libfn_version.hpp"],
+    includes = ["include"],
+)
+
 # C++20-compatible polyfills; always available.
 cc_library(
     name = "pfn",
     hdrs = glob(["include/pfn/**/*.hpp"]),
     includes = ["include"],
+    deps = [":version"],
 )
 
 # The functional library (C++20); built on the pfn polyfills.
@@ -14,5 +22,15 @@ cc_library(
     name = "fn",
     hdrs = glob(["include/fn/**/*.hpp"]),
     includes = ["include"],
-    deps = [":pfn"],
+    deps = [
+        ":pfn",
+        ":version",
+    ],
+)
+
+# fn with the C++26 mode selected; a consumer links exactly one of :fn / :fn_cxx26.
+cc_library(
+    name = "fn_cxx26",
+    defines = ["LIBFN_CXX26"],
+    deps = [":fn"],
 )

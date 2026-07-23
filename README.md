@@ -99,10 +99,12 @@ constexpr auto evaluate(std::string_view a, fn::copack_for<Add, Sub, Mul, Div> o
 }
 
 // The error type of a sequence is the derived copack of all failure modes, never spelled by hand:
-static_assert(std::is_same_v<decltype(Rational::make("1/1")),
-                             fn::expected<Rational, fn::copack<DivByZero, NotANumber, Overflow>>>);
-static_assert(std::is_same_v<decltype(evaluate("1/2", Add{}, "3/4")),
-                             fn::expected<Rational, fn::copack<DivByZero, NotANumber, Overflow>>>);
+static_assert(
+    std::is_same_v<decltype(Rational::make("1/1")),
+                   fn::expected<Rational, fn::copack_for<DivByZero, NotANumber, Overflow>>>);
+static_assert(
+    std::is_same_v<decltype(evaluate("1/2", Add{}, "3/4")),
+                   fn::expected<Rational, fn::copack_for<DivByZero, NotANumber, Overflow>>>);
 // Constant evaluated calculations used to verify both values and errors during compilation:
 static_assert(evaluate("1/2", Add{}, "1/3").value() == Rational::make(5, 6));
 static_assert(evaluate("2/3", Div{}, "0/1").error().has_value<DivByZero>());
@@ -139,7 +141,7 @@ Every `fn` type with a `pfn` counterpart is a strict superset of it: switching a
 
 ### Implementation note
 
-This library requires a total ordering of types, which the standard provides only from C++26 ([`std::type_order`][standardized-type-ordering]) and no compiler implements yet. The library relies on an internal, naive implementation of such a feature which is _not expected to work_ with unnamed types, types without linkage etc. When [`std::type_order`][standardized-type-ordering] is implemented in available compilers, the library will offer a compilation mode to make use of this feature.
+This library requires a total ordering of types, which the standard provides from C++26 ([`std::type_order`][standardized-type-ordering]). By default the library relies on an internal, naive implementation of such a feature which is _not expected to work_ with unnamed types, types without linkage etc. On a compiler implementing C++26 [`std::type_order`][standardized-type-ordering] (gcc 16 or newer), the opt-in `LIBFN_CXX26` mode uses the standard feature instead. The two modes may order types differently, so `fn` types live in a distinct ABI namespace per mode and the two modes never link as one (`pfn` is mode-independent) — see [CONTRIBUTING.md](CONTRIBUTING.md) for the mode's requirements.
 
 ## Using the library
 
@@ -185,7 +187,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the development environment, building
 [docs]: https://libfn.github.io/functional/
 [clang-standard-support]: https://clang.llvm.org/cxx_status.html
 [gcc-standard-support]: https://gcc.gnu.org/projects/cxx-status.html
-[standardized-type-ordering]: https://wg21.link/P2830
+[standardized-type-ordering]: https://cppreference.com/cpp/utility/compare/type_order
 [gasper-functional-presentation]: https://youtu.be/Jhggz8rtHbk?si=T-3DXPcvgE_Y5cpH
 [parametrised-and-graded-monads]: https://arxiv.org/pdf/2001.10274.pdf
 [effect-systems]: https://www.doc.ic.ac.uk/~dorchard/publ/haskell14-effects.pdf

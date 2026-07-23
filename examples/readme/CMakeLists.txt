@@ -9,8 +9,12 @@ set(EXAMPLES_README_SOURCES
     main.cpp
 )
 
-foreach(mode 20 23)
+foreach(mode 20 23 26)
     if (NOT VALIDATE_CXX23 AND mode EQUAL 23)
+        continue()
+    endif()
+
+    if (NOT VALIDATE_CXX26 AND mode EQUAL 26)
         continue()
     endif()
 
@@ -19,10 +23,16 @@ foreach(mode 20 23)
         continue()
     endif()
 
+    if(mode EQUAL 26)
+        set(entry_point include_fn_cxx26)
+    else()
+        set(entry_point include_fn)
+    endif()
+
     set(target "examples_readme_cxx${mode}")
 
     add_executable("${target}" ${EXAMPLES_README_SOURCES})
-    target_link_libraries("${target}" include_fn)
+    target_link_libraries("${target}" "${entry_point}")
     append_compilation_options("${target}" WARNINGS)
     add_dependencies("cxx${mode}" "${target}")
     add_dependencies("examples" "${target}")
@@ -38,4 +48,5 @@ foreach(mode 20 23)
     set_property(TEST "${target}" PROPERTY LABELS examples "cxx${mode}")
 
     unset(target)
+    unset(entry_point)
 endforeach()

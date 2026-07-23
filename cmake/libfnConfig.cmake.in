@@ -5,6 +5,12 @@ set(libfn_VERSION_FULL "@LIBFN_PROJECT_VERSION@")
 
 include("${CMAKE_CURRENT_LIST_DIR}/libfnTargets.cmake")
 
+# version is always installed
+set(libfn_version_FOUND FALSE)
+if(TARGET libfn::version)
+    set(libfn_version_FOUND TRUE)
+endif()
+
 # pfn is always installed
 set(libfn_pfn_FOUND FALSE)
 if(TARGET libfn::pfn)
@@ -15,6 +21,12 @@ endif()
 set(libfn_fn_FOUND FALSE)
 if(TARGET libfn::fn)
     set(libfn_fn_FOUND TRUE)
+endif()
+
+# fn_cxx26 is always installed
+set(libfn_fn_cxx26_FOUND FALSE)
+if(TARGET libfn::fn_cxx26)
+    set(libfn_fn_cxx26_FOUND TRUE)
 endif()
 
 check_required_components(libfn)
