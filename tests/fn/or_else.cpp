@@ -650,6 +650,27 @@ TEST_CASE("or_else joins heterogeneous expected branches", "[or_else][expected][
     constexpr auto fnThrows = fn::overload{[](E1) { return fn::expected<X, E0>{X{}}; },
                                            [](E2) noexcept { return fn::expected<X, E1>{X{}}; }};
     static_assert(not noexcept(v.or_else(fnThrows)));
+
+    // the widening arms weigh in: carrying a throwing-move value across, self's or a branch
+    // result's, makes the recovery throwing even with nothrow branches
+    struct ThrowingMove final {
+      ThrowingMove() = default;
+      ThrowingMove(ThrowingMove &&) noexcept(false) {}
+      bool operator==(ThrowingMove const &) const = default;
+    };
+    constexpr auto fnHetero
+        = fn::overload{[](E1) noexcept { return fn::expected<X, fn::copack<E0>>{X{}}; },
+                       [](E2) noexcept { return fn::expected<ThrowingMove, fn::copack<E0>>{std::in_place}; }};
+    using InW = fn::expected<fn::copack<X>, fn::copack_for<E1, E2>>;
+    static_assert(not noexcept(std::declval<InW &&>().or_else(fnHetero)));
+    using InT = fn::expected<fn::copack<ThrowingMove>, fn::copack_for<E1, E2>>;
+    constexpr auto fnWiden = fn::overload{[](E1) noexcept { return fn::expected<ThrowingMove, E0>{std::in_place}; },
+                                          [](E2) noexcept { return fn::expected<ThrowingMove, E0>{std::in_place}; }};
+    static_assert(not noexcept(std::declval<InT &&>().or_else(fnWiden)));
+    // ... while an uninhabited value side has nothing to carry, and the dead arm cannot weigh
+    using InDead = fn::expected<fn::copack<>, fn::copack_for<E1, E2>>;
+    static_assert(noexcept(std::declval<InDead &&>().or_else(fnNothrow)));
+    SUCCEED();
   }
 
   SECTION("a plain value lifts into its singular copack")

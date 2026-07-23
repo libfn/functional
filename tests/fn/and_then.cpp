@@ -1253,6 +1253,25 @@ TEST_CASE("and_then joins heterogeneous expected branches", "[and_then][expected
     constexpr auto fnThrows = fn::overload{[](A) { return fn::expected<X, fn::copack<E1>>{X{}}; },
                                            [](B) noexcept { return fn::expected<Y, fn::copack<E2>>{Y{}}; }};
     static_assert(not noexcept(v.and_then(fnThrows)));
+
+    // the widening arms weigh in: nothrow branches whose result relocates a throwing-move
+    // alternative into the joined value still make the join throwing
+    struct ThrowingMove final {
+      ThrowingMove() = default;
+      ThrowingMove(ThrowingMove &&) noexcept(false) {}
+      bool operator==(ThrowingMove const &) const = default;
+    };
+    constexpr auto fnThrowingArm
+        = fn::overload{[](A) noexcept { return fn::expected<ThrowingMove, fn::copack<E1>>{std::in_place}; },
+                       [](B) noexcept { return fn::expected<Y, fn::copack<E2>>{Y{}}; }};
+    static_assert(not noexcept(v.and_then(fnThrowingArm)));
+    // lifting self's error into the union weighs on the path that relocates it
+    using InT = fn::expected<fn::copack_for<A, B>, fn::copack<ThrowingMove>>;
+    static_assert(not noexcept(std::declval<InT &&>().and_then(fnNothrow)));
+    // ... while a copack<> grade has no error to lift, and the dead arm cannot weigh
+    InB b{fn::copack_for<A, B>{A{}}};
+    static_assert(noexcept(b.and_then(fnNothrow)));
+    SUCCEED();
   }
 
   SECTION("a plain grade lifts into its singular copack")
@@ -1387,6 +1406,16 @@ TEST_CASE("and_then joins heterogeneous optional branches", "[and_then][optional
     constexpr auto fnThrows
         = fn::overload{[](A) { return fn::optional<X>{X{}}; }, [](B) noexcept { return fn::optional<Y>{Y{}}; }};
     static_assert(not noexcept(v.and_then(fnThrows)));
+    // the widening arms weigh in here too
+    struct ThrowingMove final {
+      ThrowingMove() = default;
+      ThrowingMove(ThrowingMove &&) noexcept(false) {}
+      bool operator==(ThrowingMove const &) const = default;
+    };
+    constexpr auto fnThrowingArm = fn::overload{[](A) noexcept { return fn::optional<ThrowingMove>{std::in_place}; },
+                                                [](B) noexcept { return fn::optional<Y>{Y{}}; }};
+    static_assert(not noexcept(v.and_then(fnThrowingArm)));
+    SUCCEED();
   }
 }
 
