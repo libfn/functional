@@ -29,6 +29,7 @@ In prose, we omit prefixes (writing `apply`, `transform`, `and_then`, `expected`
 Although different types can behave identically during application, they remain strictly distinct in memory. For example, `pack<A, B>`, `std::tuple<A, B>`, and `std::pair<A, B>` all unpack into the same call shape `f(a, b)` during `apply`, but they are separate C++ types with distinct layouts. Application does not silently convert or unify types on the storage side.
 
 To illustrate these concepts, the examples in this document use a reusable set of value and error types:
+<!-- sync-example-types-def -->
 ```cpp
 struct UserId {};
 struct User {};
@@ -38,7 +39,9 @@ struct BlockSize {};
 
 struct NotANumber {};
 struct OutOfRange {};
-struct Missing {};
+struct Missing {
+  auto operator<=>(Missing const &) const = default;
+};
 struct IoError {};
 struct BadSyntax {};
 struct UnknownKey {};
@@ -50,27 +53,19 @@ In idiomatic C++, error handling usually means picking one application-wide erro
 
 With `libfn`, the compiler derives an exact, graded error pipeline. Consider parsing, validating, and loading a user:
 
+<!-- sync-example-graded-pipeline -->
 ```cpp
-#include <fn/expected.hpp>
-#include <fn/copack.hpp>
-#include <fn/and_then.hpp>
-#include <concepts>
-#include <string_view>
-
 auto parse_id(std::string_view) -> fn::expected<UserId, fn::copack<NotANumber>>;
 auto validate(UserId) -> fn::expected<UserId, fn::copack<OutOfRange>>;
 auto load(UserId) -> fn::expected<User, fn::copack<IoError, Missing>>;
 
-auto graded_pipeline(std::string_view sv) -> void {
-    auto pipeline = parse_id(sv)
-        | fn::and_then(validate)
-        | fn::and_then(load);
+auto graded_pipeline(std::string_view sv) -> void
+{
+  auto pipeline = parse_id(sv) | fn::and_then(validate) | fn::and_then(load);
 
-    // The exact derived error union is recorded in the type:
-    static_assert(std::same_as<
-        decltype(pipeline),
-        fn::expected<User, fn::copack<IoError, Missing, NotANumber, OutOfRange>>
-    >);
+  // The exact derived error union is recorded in the type:
+  static_assert(
+      std::same_as<decltype(pipeline), fn::expected<User, fn::copack<IoError, Missing, NotANumber, OutOfRange>>>);
 }
 ```
 
@@ -105,22 +100,16 @@ The resulting error type is **graded**: it dynamically expands (or narrows durin
 
 Simultaneous product composition achieves the same precision for both values and errors. Using `operator&`, you can evaluate independent computations and bundle their results:
 
+<!-- sync-example-product-composition -->
 ```cpp
-#include <fn/expected.hpp>
-#include <fn/pack.hpp>
-#include <fn/copack.hpp>
-#include <concepts>
+auto product_composition() -> void
+{
+  fn::expected<UserId, fn::copack<Missing>> id{};
+  fn::expected<User, fn::copack<IoError>> user{};
 
-auto product_composition() -> void {
-    fn::expected<UserId, fn::copack<Missing>> id{};
-    fn::expected<User, fn::copack<IoError>> user{};
+  auto bundled = id & user;
 
-    auto bundled = id & user;
-
-    static_assert(std::same_as<
-        decltype(bundled),
-        fn::expected<fn::pack<UserId, User>, fn::copack<IoError, Missing>>
-    >);
+  static_assert(std::same_as<decltype(bundled), fn::expected<fn::pack<UserId, User>, fn::copack<IoError, Missing>>>);
 }
 ```
 
@@ -177,21 +166,17 @@ Consider the difference in these carrier states:
 
 A major feature of `libfn` is that `copack` forms canonical sets of types, in contrast to the positional indexing of `std::variant`. When you combine types into a coproduct, `fn::copack_for` guarantees deduplication, flattening, and a canonical ordering.
 
+<!-- sync-example-copack-set-semantics -->
 ```cpp
-#include <fn/copack.hpp>
-#include <concepts>
+auto test_copack_set_semantics() -> void
+{
+  using SetA = fn::copack<NotANumber, OutOfRange>;
+  using SetB = fn::copack<Missing, OutOfRange>;
 
-auto test_copack_set_semantics() -> void {
-    using SetA = fn::copack<NotANumber, OutOfRange>;
-    using SetB = fn::copack<Missing, OutOfRange>;
+  // Flattening, deduplication, and reordering happen automatically:
+  using Union = fn::copack_for<SetA, SetB, Missing, Missing, fn::copack<IoError>>;
 
-    // Flattening, deduplication, and reordering happen automatically:
-    using Union = fn::copack_for<SetA, SetB, Missing, Missing, fn::copack<IoError>>;
-
-    static_assert(std::same_as<
-        Union,
-        fn::copack<IoError, Missing, NotANumber, OutOfRange>
-    >);
+  static_assert(std::same_as<Union, fn::copack<IoError, Missing, NotANumber, OutOfRange>>);
 }
 ```
 
@@ -261,34 +246,33 @@ When a callable supplied to `and_then` needs to produce an error grade, it can e
 
 A `pack` acts like a standard C++ tuple (`std::tuple`) by storing multiple fields and supporting `get`, structured bindings, and an `append` mechanism. However, unlike standard tuples, `libfn` packs are strictly flat: attempting to nest a `pack` inside another `pack` via `append` flattens them, as a flat pack is canonical. To explicitly lift a single scalar value into a `pack` (which is useful when conjoining a scalar with another pack or copack), use `fn::as_pack(value)`.
 
+<!-- sync-example-test-pack -->
 ```cpp
-#include <fn/pack.hpp>
-#include <concepts>
+auto test_pack() -> void
+{
+  fn::pack p{UserId{}, User{}}; // CTAD
 
-auto test_pack() -> void {
-    fn::pack p{UserId{}, User{}}; // CTAD
+  auto [id, user] = p; // Structured bindings work naturally
+  (void)id;
+  (void)user;
 
-    auto [id, user] = p; // Structured bindings work naturally
+  // Ordered, non-deduplicated fields
+  using P = fn::pack<UserId, User, User>;
+  (void)sizeof(P);
 
-    // Ordered, non-deduplicated fields
-    using P = fn::pack<UserId, User, User>;
+  // Found via ADL (like std::get)
+  using std::get;
+  static_assert(std::same_as<decltype(get<0>(p)), UserId &>);
 
-    // Found via ADL (like std::get)
-    using std::get;
-    static_assert(std::same_as<decltype(get<0>(p)), UserId&>);
+  // Splicing scalars or other packs via append:
+  auto row = fn::pack{UserId{}}.append(FilePath{});
+  auto wider = std::move(row).append(fn::pack{true, 3});
 
-    // Splicing scalars or other packs via append:
-    auto row = fn::pack{UserId{}}.append(FilePath{});
-    auto wider = std::move(row).append(fn::pack{true, 3});
+  static_assert(std::same_as<decltype(wider), fn::pack<UserId, FilePath, bool, int>>);
 
-    static_assert(std::same_as<
-        decltype(wider),
-        fn::pack<UserId, FilePath, bool, int>
-    >);
-
-    // Explicitly lifting a single scalar value into a pack:
-    auto lifted = fn::as_pack(42);
-    static_assert(std::same_as<decltype(lifted), fn::pack<int>>);
+  // Explicitly lifting a single scalar value into a pack:
+  auto lifted = fn::as_pack(42);
+  static_assert(std::same_as<decltype(lifted), fn::pack<int>>);
 }
 ```
 
@@ -300,29 +284,24 @@ When you evaluate a `copack` via its member `apply` function, it selects the act
 
 To explicitly lift a single scalar value into a single-alternative coproduct, use `fn::as_copack(value)`. When a `copack` contains **exactly one alternative**, it is singular and supports direct value extraction via the `get` utility (resolvable via ADL), which propagates references with the same semantics as `apply`.
 
+<!-- sync-example-test-copack -->
 ```cpp
-#include <fn/copack.hpp>
-#include <fn/utility.hpp>
-#include <concepts>
-
 struct IntegerToken {};
 struct StringToken {};
 
-auto test_copack() -> void {
-    constexpr fn::copack<IntegerToken, StringToken> token = IntegerToken{};
+auto test_copack() -> void
+{
+  constexpr fn::copack<IntegerToken, StringToken> token = IntegerToken{};
 
-    // Member apply eliminates the copack by routing the active alternative to an overload set:
-    constexpr auto value = token.apply(fn::overload{
-        [](IntegerToken) { return 1; },
-        [](StringToken) { return 2; }
-    });
+  // Member apply eliminates the copack by routing the active alternative to an overload set:
+  constexpr auto value = token.apply(fn::overload{[](IntegerToken) { return 1; }, [](StringToken) { return 2; }});
 
-    static_assert(value == 1);
+  static_assert(value == 1);
 
-    // Singular lift and direct value extraction (only allowed for singular copacks):
-    auto cp = fn::as_copack(42);
-    using std::get;
-    static_assert(std::same_as<decltype(get(cp)), int&>);
+  // Singular lift and direct value extraction (only allowed for singular copacks):
+  auto cp = fn::as_copack(42);
+  using std::get;
+  static_assert(std::same_as<decltype(get(cp)), int &>);
 }
 ```
 
@@ -356,32 +335,19 @@ These carriers impose constraints on their payloads, but reference payloads are 
 
 Mapping allows you to change the contained data without altering the structural success/failure shape of the computation. `libfn` uses `transform` (functor map) to operate on the successful channel, and `transform_error` for the error channel.
 
+<!-- sync-example-mapping-values-and-errors -->
 ```cpp
-#include <fn/expected.hpp>
-#include <fn/copack.hpp>
-#include <fn/transform.hpp>
-#include <fn/transform_error.hpp>
-#include <fn/utility.hpp>
-#include <concepts>
+auto mapping_values_and_errors() -> void
+{
+  fn::expected<UserId, fn::copack_for<Missing, IoError>> ex{};
 
-auto mapping_values_and_errors() -> void {
-    fn::expected<UserId, fn::copack_for<Missing, IoError>> ex{};
+  auto mapped_val = ex | fn::transform([](UserId) { return User{}; });
+  static_assert(std::same_as<decltype(mapped_val), fn::expected<User, fn::copack<IoError, Missing>>>);
 
-    auto mapped_val = ex | fn::transform([](UserId) { return User{}; });
-    static_assert(std::same_as<
-        decltype(mapped_val),
-        fn::expected<User, fn::copack<IoError, Missing>>
-    >);
+  auto mapped_err
+      = ex | fn::transform_error(fn::overload{[](Missing) { return BadSyntax{}; }, [](IoError e) { return e; }});
 
-    auto mapped_err = ex | fn::transform_error(fn::overload{
-        [](Missing) { return BadSyntax{}; },
-        [](IoError e) { return e; }
-    });
-
-    static_assert(std::same_as<
-        decltype(mapped_err),
-        fn::expected<UserId, fn::copack<BadSyntax, IoError>>
-    >);
+  static_assert(std::same_as<decltype(mapped_err), fn::expected<UserId, fn::copack<BadSyntax, IoError>>>);
 }
 ```
 
@@ -411,22 +377,16 @@ Key principles of mapping:
 
 Simultaneous product composition combines independent computations. By evaluating `a & b`, you bundle the results.
 
+<!-- sync-example-operator-and-composition -->
 ```cpp
-#include <fn/expected.hpp>
-#include <fn/pack.hpp>
-#include <fn/copack.hpp>
-#include <concepts>
+auto operator_and_composition() -> void
+{
+  fn::expected<UserId, fn::copack<Missing>> a{};
+  fn::expected<User, fn::copack<IoError>> b{};
 
-auto operator_and_composition() -> void {
-    fn::expected<UserId, fn::copack<Missing>> a{};
-    fn::expected<User, fn::copack<IoError>> b{};
+  auto result = a & b;
 
-    auto result = a & b;
-
-    static_assert(std::same_as<
-        decltype(result),
-        fn::expected<fn::pack<UserId, User>, fn::copack<IoError, Missing>>
-    >);
+  static_assert(std::same_as<decltype(result), fn::expected<fn::pack<UserId, User>, fn::copack<IoError, Missing>>>);
 }
 ```
 
@@ -439,34 +399,22 @@ The runtime failure semantics are exact:
 
 When composing two `copack`s directly, `operator&` performs a Cartesian distribution, yielding a `copack` of `pack`s. The variadic entry point into these rules is `fn::conjoin(...)`. Note that bare `scalar & scalar` is not syntactically valid by itself; you must lift them with `fn::conjoin(a, b)` or `fn::as_pack(a) & b`.
 
+<!-- sync-example-cartesian-distribution -->
 ```cpp
-#include <fn/copack.hpp>
-#include <fn/pack.hpp>
-#include <concepts>
+auto test_cartesian_distribution() -> void
+{
+  constexpr fn::copack<A, B> ab = A{};
+  constexpr fn::copack<C, D> cd = C{};
 
-struct A {};
-struct B {};
-struct C {};
-struct D {};
+  auto result1 = ab & cd;
 
-auto test_cartesian_distribution() -> void {
-    constexpr fn::copack<A, B> ab = A{};
-    constexpr fn::copack<C, D> cd = C{};
+  static_assert(
+      std::same_as<decltype(result1), fn::copack_for<fn::pack<A, C>, fn::pack<A, D>, fn::pack<B, C>, fn::pack<B, D>>>);
 
-    // The product distributes over the coproduct: (A + B) x (C + D) -> AC + AD + BC + BD
-    auto result1 = ab & cd;
-    static_assert(std::same_as<
-        decltype(result1),
-        fn::copack_for<fn::pack<A, C>, fn::pack<A, D>, fn::pack<B, C>, fn::pack<B, D>>
-    >);
+  constexpr fn::pack<A, B> Pab = {A{}, B{}};
+  auto result2 = Pab & cd;
 
-    // The distributive law also works on a pack: (A × B) × (C + D) = ABC + ABD
-    constexpr fn::pack<A, B> Pab = {A{}, B{}};
-    auto result2 = Pab & cd;
-    static_assert(std::same_as<
-        decltype(result2),
-        fn::copack_for<fn::pack<A, B, C>, fn::pack<A, B, D>>
-    >);
+  static_assert(std::same_as<decltype(result2), fn::copack_for<fn::pack<A, B, C>, fn::pack<A, B, D>>>);
 }
 ```
 
@@ -479,35 +427,26 @@ When performing product composition (`operator&`), you can combine fallible carr
 - **Unit elision**: `just<void>` and `expected<void, copack<>>` act as the product's identity unit and are completely elided from the value product (e.g., `expected<T, E> & just<void>` stays `expected<T, E>`).
 - **Choice distribution**: If a `choice` operand is conjoined with a fallible carrier, the coproduct distributes through the product. This yields a `copack` of `pack`s wrapped back inside the fallible carrier.
 
+<!-- sync-example-conjunction-with-identity-cluster -->
 ```cpp
-#include <fn/expected.hpp>
-#include <fn/choice.hpp>
-#include <fn/just.hpp>
-#include <fn/pack.hpp>
-#include <concepts>
+auto test_conjunction_with_identity_cluster() -> void
+{
+  fn::expected<int, Error> ex{42};
+  fn::just<double> j{1.5};
 
-auto test_conjunction_with_identity_cluster() -> void {
-    fn::expected<int, Error> ex{42};
-    fn::just<double> j{1.5};
+  // Conjoining an expected with a just
+  auto res1 = ex & j;
+  static_assert(std::same_as<decltype(res1), fn::expected<fn::pack<int, double>, Error>>);
 
-    // Conjoining an expected with a just
-    auto res1 = ex & j;
-    static_assert(std::same_as<
-        decltype(res1),
-        fn::expected<fn::pack<int, double>, Error>
-    >);
+  // Conjoining with a unit (just<void>) completely elides the unit
+  auto res2 = ex & fn::just<void>{};
+  static_assert(std::same_as<decltype(res2), decltype(ex)>);
 
-    // Conjoining with a unit (just<void>) completely elides the unit
-    auto res2 = ex & fn::just<void>{};
-    static_assert(std::same_as<decltype(res2), decltype(ex)>);
-
-    // Conjoining a choice causes distribution inside the carrier
-    fn::choice_for<double, bool> ch = 1.5;
-    auto res3 = ex & ch;
-    static_assert(std::same_as<
-        decltype(res3),
-        fn::expected<fn::copack_for<fn::pack<int, double>, fn::pack<int, bool>>, Error>
-    >);
+  // Conjoining a choice causes distribution inside the carrier
+  fn::choice_for<double, bool> ch = 1.5;
+  auto res3 = ex & ch;
+  static_assert(
+      std::same_as<decltype(res3), fn::expected<fn::copack_for<fn::pack<int, double>, fn::pack<int, bool>>, Error>>);
 }
 ```
 
@@ -527,22 +466,16 @@ auto test_conjunction_with_identity_cluster() -> void {
 
 Simultaneous sum composition combines alternative computations. By evaluating `a | b`, you attempt the left computation `a`. If it succeeds, its result is preserved. If it fails, you evaluate the right computation `b` as a fallback.
 
+<!-- sync-example-operator-or-composition -->
 ```cpp
-#include <fn/expected.hpp>
-#include <fn/pack.hpp>
-#include <fn/copack.hpp>
-#include <concepts>
+auto operator_or_composition() -> void
+{
+  fn::expected<int, Error> a{};
+  fn::expected<bool, OtherError> b{};
 
-auto operator_or_composition() -> void {
-    fn::expected<int, Error> a{};
-    fn::expected<bool, OtherError> b{};
+  auto result = a | b;
 
-    auto result = a | b;
-
-    static_assert(std::same_as<
-        decltype(result),
-        fn::expected<fn::copack_for<int, bool>, fn::pack<Error, OtherError>>
-    >);
+  static_assert(std::same_as<decltype(result), fn::expected<fn::copack_for<int, bool>, fn::pack<Error, OtherError>>>);
 }
 ```
 
@@ -562,27 +495,21 @@ The runtime and compile-time semantics of disjunction are exact:
 
 The n-ary fold of `operator|` is exposed via `fn::disjoin(...)`:
 
+<!-- sync-example-test-disjoin -->
 ```cpp
-#include <fn/expected.hpp>
-#include <fn/just.hpp>
-#include <fn/copack.hpp>
-#include <concepts>
+auto test_disjoin() -> void
+{
+  fn::expected<int, Error> a = 12;
+  fn::expected<bool, OtherError> b = true;
 
-auto test_disjoin() -> void {
-    fn::expected<int, Error> a = 12;
-    fn::expected<bool, OtherError> b = true;
+  // Unary disjoin forwards unchanged (maintaining rvalue value-categories)
+  static_assert(std::same_as<decltype(fn::disjoin(std::move(a))), decltype(a) &&>);
 
-    // Unary disjoin forwards unchanged
-    static_assert(std::same_as<decltype(fn::disjoin(a)), decltype(a)>);
+  // Multiple fallible and total operands compose cleanly
+  auto result = fn::disjoin(a, b, fn::just<double>{1.5});
 
-    // Multiple fallible and total operands compose cleanly
-    auto result = fn::disjoin(a, b, fn::just<double>{1.5});
-
-    // Because just<double> cannot fail, the entire disjunction becomes total
-    static_assert(std::same_as<
-        decltype(result),
-        fn::choice_for<int, bool, double>
-    >);
+  // Because just<double> cannot fail, the entire disjunction becomes total
+  static_assert(std::same_as<decltype(result), fn::choice_for<int, bool, double>>);
 }
 ```
 
@@ -604,22 +531,16 @@ Sequential composition chains dependent operations where the success of one feed
 
 A monadic carrier wraps a value. A *Kleisli arrow* is the callable passed to `and_then`, which takes a plain value and returns a monadic carrier of the same kind. `and_then(f)` produces a storable operation value that can be piped.
 
+<!-- sync-example-sequential-bind -->
 ```cpp
-#include <fn/expected.hpp>
-#include <fn/copack.hpp>
-#include <fn/and_then.hpp>
-#include <concepts>
+auto parse_numeric() -> fn::expected<UserId, fn::copack<NotANumber>>;
+auto load_user(UserId) -> fn::expected<User, fn::copack<Missing>>;
 
-auto parse() -> fn::expected<UserId, fn::copack<NotANumber>>;
-auto load(UserId) -> fn::expected<User, fn::copack<Missing>>;
+auto sequential_bind() -> void
+{
+  auto result = parse_numeric() | fn::and_then(load_user);
 
-auto sequential_bind() -> void {
-    auto result = parse() | fn::and_then(load);
-
-    static_assert(std::same_as<
-        decltype(result),
-        fn::expected<User, fn::copack<Missing, NotANumber>>
-    >);
+  static_assert(std::same_as<decltype(result), fn::expected<User, fn::copack<Missing, NotANumber>>>);
 }
 ```
 
@@ -635,12 +556,8 @@ The strict "same-kind" contract defines how types interact:
 
 The library formalizes this "same-kind" contract via the `fn::same_kind` concept, which lets generic templates probe whether two carrier types belong to the same monadic family:
 
+<!-- sync-example-test-same-kind -->
 ```cpp
-#include <fn/optional.hpp>
-#include <fn/expected.hpp>
-#include <fn/concepts.hpp>
-#include <concepts>
-
 static_assert(fn::same_kind<fn::optional<int>, fn::optional<User>>);
 static_assert(fn::same_kind<fn::expected<int, IoError>, fn::expected<User, IoError>>);
 static_assert(!fn::same_kind<fn::expected<int, IoError>, fn::expected<User, Missing>>);
@@ -671,33 +588,23 @@ static_assert(!fn::same_kind<fn::expected<int, IoError>, fn::expected<User, Miss
 
 Consider a configuration reader that parses a loosely typed file into specific valid structural alternatives: `MaximumSize`, `FilePath`, or `BlockSize`.
 
+<!-- sync-example-config-pipeline -->
 ```cpp
-#include <fn/expected.hpp>
-#include <fn/copack.hpp>
-#include <fn/and_then.hpp>
-#include <fn/utility.hpp>
-#include <concepts>
+auto read_config()
+    -> fn::expected<fn::copack_for<MaximumSize, FilePath, BlockSize>, fn::copack_for<BadSyntax, UnknownKey>>;
 
-auto read_config() -> fn::expected<
-    fn::copack_for<MaximumSize, FilePath, BlockSize>,
-    fn::copack_for<BadSyntax, UnknownKey>
->;
+auto config_pipeline() -> void
+{
+  auto validated
+      = read_config()
+        | fn::and_then(fn::overload{[](MaximumSize v) { return fn::expected<MaximumSize, fn::copack<OutOfRange>>{v}; },
+                                    [](FilePath v) { return fn::expected<FilePath, fn::copack<Missing>>{v}; },
+                                    [](BlockSize v) { return fn::expected<BlockSize, fn::copack<OutOfRange>>{v}; }});
 
-auto config_pipeline() -> void {
-    auto validated = read_config() | fn::and_then(fn::overload{
-        [](MaximumSize v) { return fn::expected<MaximumSize, fn::copack<OutOfRange>>{v}; },
-        [](FilePath v) { return fn::expected<FilePath, fn::copack<Missing>>{v}; },
-        [](BlockSize v) { return fn::expected<BlockSize, fn::copack<OutOfRange>>{v}; }
-    });
-
-    // The result exactly bounds both the successful paths and the error paths
-    static_assert(std::same_as<
-        decltype(validated),
-        fn::expected<
-            fn::copack<BlockSize, FilePath, MaximumSize>,
-            fn::copack<BadSyntax, Missing, OutOfRange, UnknownKey>
-        >
-    >);
+  // The result exactly bounds both the successful paths and the error paths
+  static_assert(
+      std::same_as<decltype(validated), fn::expected<fn::copack<BlockSize, FilePath, MaximumSize>,
+                                                     fn::copack<BadSyntax, Missing, OutOfRange, UnknownKey>>>);
 }
 ```
 
@@ -708,16 +615,9 @@ Two independent joins occurred during `and_then`:
 
 This seamless unioning is what allows different grades of `expected` to share the same carrier family. While standard, un-graded `expected<T, E>` requires the exact same error type `E` to participate in monadic bind (meaning `expected<int, IoError>` and `expected<User, Missing>` are **not** `same_kind`), any two graded `expected` types are considered `same_kind`, regardless of how their individual error sets differ:
 
+<!-- sync-example-test-same-kind-graded -->
 ```cpp
-#include <fn/expected.hpp>
-#include <fn/copack.hpp>
-#include <fn/concepts.hpp>
-#include <concepts>
-
-static_assert(fn::same_kind<
-    fn::expected<int, fn::copack<IoError>>,
-    fn::expected<User, fn::copack<Missing>>
->);
+static_assert(fn::same_kind<fn::expected<int, fn::copack<IoError>>, fn::expected<User, fn::copack<Missing>>>);
 ```
 
 It is crucial to distinguish value joining from error grading:
@@ -741,33 +641,21 @@ If you need to perform this promotion explicitly on the carrier itself before en
 
 These helper methods provide a compact, explicit alternative to implicit pipeline promotions:
 
+<!-- sync-example-test-explicit-lifting -->
 ```cpp
-#include <fn/expected.hpp>
-#include <fn/optional.hpp>
-#include <fn/copack.hpp>
-#include <concepts>
+auto test_explicit_lifting(fn::expected<User, IoError> result, fn::optional<User> opt) -> void
+{
+  // Explicitly lift the error side of expected:
+  auto graded_err = std::move(result).copack_error();
+  static_assert(std::same_as<decltype(graded_err), fn::expected<User, fn::copack<IoError>>>);
 
-auto test_explicit_lifting(fn::expected<User, IoError> result, fn::optional<User> opt) -> void {
-    // Explicitly lift the error side of expected:
-    auto graded_err = std::move(result).copack_error();
-    static_assert(std::same_as<
-        decltype(graded_err),
-        fn::expected<User, fn::copack<IoError>>
-    >);
+  // Explicitly lift the value side of expected:
+  auto graded_val = std::move(result).copack_value();
+  static_assert(std::same_as<decltype(graded_val), fn::expected<fn::copack<User>, IoError>>);
 
-    // Explicitly lift the value side of expected:
-    auto graded_val = std::move(result).copack_value();
-    static_assert(std::same_as<
-        decltype(graded_val),
-        fn::expected<fn::copack<User>, IoError>
-    >);
-
-    // Explicitly lift the value side of optional:
-    auto graded_opt = std::move(opt).copack_value();
-    static_assert(std::same_as<
-        decltype(graded_opt),
-        fn::optional<fn::copack<User>>
-    >);
+  // Explicitly lift the value side of optional:
+  auto graded_opt = std::move(opt).copack_value();
+  static_assert(std::same_as<decltype(graded_opt), fn::optional<fn::copack<User>>>);
 }
 ```
 
@@ -780,7 +668,8 @@ In accordance with the subeffecting principles of graded monads (Section 1), a n
 The bottom error grade is `copack<>`:
 
 ```cpp
-fn::expected<T, fn::copack<>> cannot_fail{};
+template <typename T>
+using cannot_fail_t = fn::expected<T, fn::copack<>>;
 ```
 
 This computation cannot fail, but it is algebraically prepared to widen if later composition introduces possible errors.
@@ -817,21 +706,16 @@ These three computation carriers have canonically isomorphic state shapes—they
 
 Because they are equivalent, `libfn` provides a licensed pipeline operation that allows binding across these boundaries:
 
+<!-- sync-example-test-identity-cross -->
 ```cpp
-#include <fn/just.hpp>
-#include <fn/expected.hpp>
-#include <fn/copack.hpp>
-#include <fn/and_then.hpp>
+auto test_identity_cross() -> void
+{
+  fn::just<UserId> j{UserId{}};
 
-auto test_identity_cross() -> void {
-    fn::just<UserId> j{UserId{}};
+  // Cross-carrier pipeline bind to another identity carrier
+  auto result = j | fn::and_then([](UserId u) { return fn::expected<UserId, fn::copack<>>{u}; });
 
-    // Cross-carrier pipeline bind to another identity carrier
-    auto result = j | fn::and_then([](UserId u) {
-        return fn::expected<UserId, fn::copack<>>{u};
-    });
-
-    static_assert(std::same_as<decltype(result), fn::expected<UserId, fn::copack<>>>);
+  static_assert(std::same_as<decltype(result), fn::expected<UserId, fn::copack<>>>);
 }
 ```
 
@@ -871,22 +755,16 @@ As established in Section 9, transitions within the identity cluster are strictl
 
 For example, a pipeline-scoped `fn::transform` on a `just` that returns a `copack` is promoted automatically to a `choice`:
 
+<!-- sync-example-test-identity-transformation -->
 ```cpp
-#include <fn/just.hpp>
-#include <fn/choice.hpp>
-#include <fn/copack.hpp>
-#include <fn/transform.hpp>
-#include <concepts>
+auto test_identity_transformation() -> void
+{
+  fn::just<UserId> j{UserId{}};
 
-auto test_identity_transformation() -> void {
-    fn::just<UserId> j{UserId{}};
+  // Transforming a just with a callable returning a copack produces a choice
+  auto mapped = j | fn::transform([](UserId) { return fn::copack_for<Missing, FilePath>{Missing{}}; });
 
-    // Transforming a just with a callable returning a copack produces a choice
-    auto mapped = j | fn::transform([](UserId) {
-        return fn::copack_for<Missing, FilePath>{Missing{}};
-    });
-
-    static_assert(std::same_as<decltype(mapped), fn::choice<FilePath, Missing>>);
+  static_assert(std::same_as<decltype(mapped), fn::choice<FilePath, Missing>>);
 }
 ```
 
@@ -899,38 +777,24 @@ Inside its own carrier domain, `choice` behaves differently from a bare `copack`
 
 Consider a scenario where different branches of a switch return different `choice` types:
 
+<!-- sync-example-test-choice-mapping -->
 ```cpp
-#include <fn/choice.hpp>
-#include <fn/copack.hpp>
-#include <fn/transform.hpp>
-#include <fn/and_then.hpp>
-#include <fn/utility.hpp>
-#include <concepts>
+auto test_choice_mapping() -> void
+{
+  fn::choice_for<UserId, User> ch{UserId{}};
 
-auto test_choice_mapping() -> void {
-    fn::choice_for<UserId, User> ch{UserId{}};
+  constexpr auto mapper = fn::overload{[](UserId) { return fn::choice<Missing>{Missing{}}; },
+                                       [](User) { return fn::choice<FilePath>{FilePath{}}; }};
 
-    // transform nests the returned choice as a mapped value
-    auto mapped = ch | fn::transform(fn::overload{
-        [](UserId) { return fn::choice<Missing>{Missing{}}; },
-        [](User) { return fn::choice<FilePath>{FilePath{}}; }
-    });
+  // transform nests the returned choice as a mapped value
+  auto mapped = ch | fn::transform(mapper);
 
-    static_assert(std::same_as<
-        decltype(mapped),
-        fn::choice_for<fn::choice<FilePath>, fn::choice<Missing>>
-    >);
+  static_assert(std::same_as<decltype(mapped), fn::choice_for<fn::choice<FilePath>, fn::choice<Missing>>>);
 
-    // and_then joins and flattens them into a normalized superset choice
-    auto bound = ch | fn::and_then(fn::overload{
-        [](UserId) { return fn::choice<Missing>{Missing{}}; },
-        [](User) { return fn::choice<FilePath>{FilePath{}}; }
-    });
+  // and_then joins and flattens them into a normalized superset choice
+  auto bound = ch | fn::and_then(mapper);
 
-    static_assert(std::same_as<
-        decltype(bound),
-        fn::choice<FilePath, Missing>
-    >);
+  static_assert(std::same_as<decltype(bound), fn::choice<FilePath, Missing>>);
 }
 ```
 
@@ -963,6 +827,16 @@ It is vital to distinguish `transform` from `apply`:
 - `apply` *eliminates* the structure entirely, requiring all branches to converge on one deduced result type.
 - `apply_r<R>` permits branch results acceptable as the specific type `R`.
 
+> [!NOTE]
+>
+> ### Note — Type Convergence vs. Collapsing
+>
+> To preserve C++ type-safety, there is a fundamental difference in how return types are handled:
+>
+> - **Elimination (`apply`)** strictly requires every branch of your overload set to return the **exact same type** (or be convertible to `R` in `apply_r`). Since `apply` exits the library's algebraic domain to return a raw C++ value, a single convergent return type must be statically deduced.
+>   - *Tip:* You can bypass this strict identical-type constraint by using `apply_r<copack_for<A, B, C>>`. Because any alternative is implicitly convertible to its parent `copack` (via canonical injection constructors), different branches are permitted to return completely heterogeneous types (like `A`, `B`, or `C` respectively) and unify cleanly back into that single copack target!
+> - **Mapping (`transform`)** on `copack` relaxes this restriction by leveraging `libfn`'s **collapsing machinery**. If different branches return different copacks or scalars, `transform` automatically gathers, flattens, and deduplicates those heterogeneous types into a single, unified `copack_for` result—safely keeping the computation within the algebraic domain.
+
 Application expands one selected level only. The call shapes are straightforward:
 
 | Type | Eliminated Call Shape |
@@ -976,20 +850,21 @@ Application expands one selected level only. The call shapes are straightforward
 
 A whole-carrier `expected` application cleanly handles both success and error paths into one result type:
 
+<!-- sync-example-test-elimination -->
 ```cpp
-#include <fn/expected.hpp>
-#include <fn/copack.hpp>
-#include <fn/utility.hpp> // for fn::overload
-
-auto test_elimination(fn::expected<UserId, fn::copack<Missing>> ex) -> int {
-    return ex.apply(fn::overload{
-        [](UserId) { return 1; },
-        [](Missing) { return 0; }
-    });
+auto test_elimination(fn::expected<UserId, fn::copack<Missing>> ex) -> int
+{
+  return ex.apply(fn::overload{[](UserId) { return 1; }, [](Missing) { return 0; }});
 }
 ```
 
 Exhaustiveness is statically constrained. If you omit a handler for a possible type, the compilation fails. `fn::overload` is merely a helper; final selection always relies on ordinary C++ overload resolution.
+
+> [!WARNING]
+>
+> ### Warning — Greedy Catch-Alls Defeat Exhaustiveness
+>
+> Avoid using unconstrained generic template parameters (such as `[](auto &&)` or `[](auto)`) in your overload sets unless you explicitly intend to discard type distinction. Because C++ overload resolution selects these as greedy catch-alls for any unhandled types, they will silently satisfy the compiler and completely defeat `libfn`'s compile-time exhaustiveness guarantees, hiding missing or unhandled branch errors. You may find that constrained template parameters (such as `[](MyConcept auto&&)`) are a useful middle ground.
 
 ### Type-tagged elimination
 
@@ -1058,24 +933,20 @@ To reason about how these operations affect the type algebra of your computation
 
 The algebraic laws governing `libfn` shapes are verified by the compiler where structural capabilities permit. For instance, you can observe functor identity and monad left identity in `constexpr` contexts:
 
+<!-- sync-example-test-laws -->
 ```cpp
-#include <fn/expected.hpp>
-#include <fn/copack.hpp>
-#include <fn/transform.hpp>
-#include <fn/and_then.hpp>
-#include <concepts>
+constexpr auto test_laws() -> void
+{
+  constexpr fn::expected<int, fn::copack<Missing>> ex{42};
 
-constexpr auto test_laws() -> void {
-    fn::expected<int, fn::copack<Missing>> ex{42};
+  // Functor Identity: mapping with identity yields the same value
+  auto id = [](auto v) { return v; };
+  static_assert((ex | fn::transform(id)) == ex);
 
-    // Functor Identity: mapping with identity yields the same value
-    auto id = [](auto v) { return v; };
-    static_assert((ex | fn::transform(id)) == ex);
-
-    // Monad Left Identity: pure(x) >>= f is equivalent to f(x)
-    auto pure = [](int v) { return fn::expected<int, fn::copack<Missing>>{v}; };
-    auto f = [](int v) { return fn::expected<int, fn::copack<Missing>>{v * 2}; };
-    static_assert((pure(42) | fn::and_then(f)) == f(42));
+  // Monad Left Identity: pure(x) >>= f is equivalent to f(x)
+  auto pure = [](int v) { return fn::expected<int, fn::copack<Missing>>{v}; };
+  auto f = [](int v) { return fn::expected<int, fn::copack<Missing>>{v * 2}; };
+  static_assert((pure(42) | fn::and_then(f)) == f(42));
 }
 ```
 
@@ -1105,16 +976,27 @@ Public concepts and `requires` clauses enforce correctness before instantiation.
 - `noexcept` is conditionally computed based on the operations provided.
 - Value categories (lvalue/rvalue) propagate strictly to callbacks, avoiding unnecessary copies.
 - Immovable and move-only payloads are fully supported in place.
-- Reference-bearing packs and `optional<T&>` are deliberately supported. Lifetime responsibility for non-owning references remains with the caller.
+- Reference-bearing `pack<T&...>` and `optional<T&>` are fully supported. Lifetime responsibility for non-owning references remains with the caller.
 
+> [!NOTE]
+>
+> ### Note — Reference Restrictions on Carriers
+>
+> To preserve the C++ standard's structural constraints, raw reference payloads are strictly disallowed as primary template parameters on carriers like `expected`, `copack`, `choice`, or `just`. If you want to propagate references inside these carriers, you must wrap them inside a `pack` (e.g. `expected<pack<T&>, E>`).
+
+<!-- sync-example-test-references -->
 ```cpp
-#include <fn/optional.hpp>
-#include <concepts>
+auto test_references() -> void
+{
+  int x = 42;
 
-auto test_references() -> void {
-    int x = 42;
-    fn::optional<int&> opt{x};
-    static_assert(std::same_as<decltype(opt.value()), int&>);
+  // optional supports references directly
+  fn::optional<int &> opt{x};
+  static_assert(std::same_as<decltype(opt.value()), int &>);
+
+  // expected must wrap references inside a pack
+  fn::expected<fn::pack<int &>, Error> ex{fn::as_pack(x)};
+  static_assert(std::same_as<decltype(ex.value()), fn::pack<int &> &>);
 }
 ```
 

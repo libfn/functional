@@ -67,3 +67,9 @@ repos:
     language: python
     files: ^(README\.md|examples/readme/main\.cpp)$
     pass_filenames: false
+  - id: sync-type-algebra-examples
+    name: sync TYPE_ALGEBRA examples with examples/type_algebra
+    entry: python scripts/sync_type_algebra_examples.py
+    language: python
+    files: ^(TYPE_ALGEBRA\.md|examples/type_algebra/main\.cpp)$
+    pass_filenames: false
