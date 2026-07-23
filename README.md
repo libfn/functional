@@ -126,7 +126,7 @@ The example also demonstrates how well libfn works with general programming idio
 
 These properties also make libfn a natural fit for asynchronous composition, such as coroutines or senders/receivers. Operations and monadic types alike are plain values: `and_then(f)` is a *description* of a step, executed only when a monad is piped into it (an input to the sequence, or the result of the preceding operation). A framework can hold the steps of a computation and apply them as results arrive, with a strongly typed error channel and no hidden control flow — exactly what such programming models need.
 
-Beyond the example: `fn::choice` (a monad over `fn::copack`); the same operations over `fn::optional` as over `fn::expected`; tuple protocol in `fn::pack` (`get<I>(p)` or structured bindings); `fn::pack` and `fn::copack` are both structural types (a `constexpr` value which may be used as a template parameter); support for immovable values and callables; and more — see [examples/](examples/) and the [API reference][docs].
+Beyond the example: `fn::choice` (a monad over `fn::copack`); the same operations over `fn::optional` as over `fn::expected`; simultaneous disjunction (using `operator|` to fallback-combine monadic computations) and its `fn::disjoin` fold; `fn::conjoin` for simultaneous product folds; tuple protocol in `fn::pack` (`get<I>(p)` or structured bindings); `fn::pack` and `fn::copack` are both structural types (a `constexpr` value which may be used as a template parameter); support for immovable values and callables; and more — see [examples/](examples/) and the [API reference][docs].
 
 ## How
 
