@@ -7,7 +7,9 @@
 
 #include <fn/choice.hpp>
 #include <fn/copack.hpp>
+#include <fn/expected.hpp>
 #include <fn/functional.hpp>
+#include <fn/just.hpp>
 #include <fn/optional.hpp>
 #include <fn/pack.hpp>
 
@@ -927,6 +929,30 @@ TEST_CASE("operator &", "[pack][copack][operator_and]")
     static_assert(noexcept(std::declval<fn::copack<int> &>() & 2));
     SUCCEED();
   }
+}
+
+TEST_CASE("disjoin", "[disjoin][pack][expected][just]")
+{
+  enum Error : int { FileNotFound };
+  using EA = fn::expected<int, Error>;
+  using EB = fn::expected<bool, int>;
+
+  static_assert(std::same_as<decltype(fn::disjoin(std::declval<EA>(), std::declval<EB>())),
+                             decltype(std::declval<EA>() | std::declval<EB>())>);
+  static_assert(fn::disjoin(EA{1}) == EA{1}); // unary forwards unchanged
+  static_assert(fn::disjoin(EA{::fn::unexpect, FileNotFound}, EB{true}) == fn::copack{true});
+  static_assert(
+      fn::disjoin(fn::just<void>{}, fn::just<void>{}, fn::just<int>{7}).apply([]([[maybe_unused]] auto &&...args) {
+        return sizeof...(args);
+      })
+      == 0); // left catch through the whole chain
+  CHECK(bool(fn::disjoin(EA{::fn::unexpect, FileNotFound}, EB{true})
+             == fn::copack{true})); // bool(): Catch2 decomposition re-enters the == constraint
+
+  // a non-viable fold answers instead of erroring
+  constexpr auto can = [](auto &&...args) { return requires { fn::disjoin(FWD(args)...); }; };
+  static_assert(can(EA{1}, EB{true}));
+  static_assert(not can(EA{1}, 42));
 }
 
 namespace {

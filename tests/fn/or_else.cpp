@@ -11,6 +11,7 @@
 
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 
 #include <fn/detail/macro_begin.hpp>
@@ -650,6 +651,56 @@ TEST_CASE("or_else joins heterogeneous expected branches", "[or_else][expected][
     constexpr auto fnThrows = fn::overload{[](E1) { return fn::expected<X, E0>{X{}}; },
                                            [](E2) noexcept { return fn::expected<X, E1>{X{}}; }};
     static_assert(not noexcept(v.or_else(fnThrows)));
+
+    // the widening arms weigh in: carrying a throwing-move value across, self's or a branch
+    // result's, makes the recovery throwing even with nothrow branches
+    struct ThrowingMove final {
+      ThrowingMove() = default;
+      ThrowingMove(ThrowingMove &&) noexcept(false) {}
+      bool operator==(ThrowingMove const &) const = default;
+    };
+    constexpr auto fnHetero
+        = fn::overload{[](E1) noexcept { return fn::expected<X, fn::copack<E0>>{X{}}; },
+                       [](E2) noexcept { return fn::expected<ThrowingMove, fn::copack<E0>>{std::in_place}; }};
+    using InW = fn::expected<fn::copack<X>, fn::copack_for<E1, E2>>;
+    static_assert(not noexcept(std::declval<InW &&>().or_else(fnHetero)));
+    using InT = fn::expected<fn::copack<ThrowingMove>, fn::copack_for<E1, E2>>;
+    constexpr auto fnWiden = fn::overload{[](E1) noexcept { return fn::expected<ThrowingMove, E0>{std::in_place}; },
+                                          [](E2) noexcept { return fn::expected<ThrowingMove, E0>{std::in_place}; }};
+    static_assert(not noexcept(std::declval<InT &&>().or_else(fnWiden)));
+    // ... while an uninhabited value side has nothing to carry, and the dead arm cannot weigh
+    using InDead = fn::expected<fn::copack<>, fn::copack_for<E1, E2>>;
+    static_assert(noexcept(std::declval<InDead &&>().or_else(fnNothrow)));
+    SUCCEED();
+  }
+
+  SECTION("exceptions")
+  {
+    // carrying self's value across the recovery join may throw at runtime; the branches, which
+    // recover errors only, never run on that path
+    struct Boom final {
+      int fuse; // the fuse-th relocation throws
+      constexpr explicit Boom(int f) noexcept : fuse(f) {}
+      constexpr Boom(Boom &&o) noexcept(false) : fuse(o.fuse - 1)
+      {
+        if (fuse == 0)
+          throw 0;
+      }
+    };
+    using InB = fn::expected<fn::copack<Boom>, fn::copack_for<E1, E2>>;
+    constexpr auto fnR = fn::overload{[](E1) { return fn::expected<X, fn::copack<E0>>{X{}}; },
+                                      [](E2) { return fn::expected<X, fn::copack<E0>>{X{}}; }};
+    InB self{std::in_place, Boom{2}};
+    CHECK_THROWS_AS(std::move(self).or_else(fnR), int);
+
+    InB good{std::in_place, Boom{99}};
+    auto r = std::move(good).or_else(fnR);
+    CHECK(r.value().has_value(std::in_place_type<Boom>));
+    static_assert([] {
+      constexpr auto fnRX = fn::overload{[](E1) { return fn::expected<X, fn::copack<E0>>{X{}}; },
+                                         [](E2) { return fn::expected<X, fn::copack<E0>>{X{}}; }};
+      return InB{std::in_place, Boom{99}}.or_else(fnRX).value().has_value(std::in_place_type<Boom>);
+    }());
   }
 
   SECTION("a plain value lifts into its singular copack")
@@ -668,6 +719,24 @@ TEST_CASE("or_else joins heterogeneous expected branches", "[or_else][expected][
     static_assert(std::is_same_v<decltype(p), fn::expected<fn::copack<X>, E0>>);
     CHECK(p.value() == fn::copack<X>{X{}});
     static_assert(fn::applicable_or_else<decltype(fnR), In>);
+  }
+}
+
+TEST_CASE("or_else tuple-like error payload", "[or_else][expected][tuple]")
+{
+  // a lone tuple-like error exposes its elements to the recovery callback, member and functor alike
+  using TE = std::tuple<int, int>;
+  constexpr auto fnR = [](int a, int b) noexcept { return fn::expected<bool, TE>{a + b == 42}; };
+
+  fn::expected<bool, TE> e{fn::unexpect, TE{20, 22}};
+  CHECK(e.or_else(fnR).value());
+  CHECK((e | fn::or_else(fnR)).value());
+
+  SECTION("constexpr")
+  {
+    static_assert(fn::expected<bool, TE>{fn::unexpect, TE{20, 22}}.or_else(fnR).value());
+    static_assert((fn::expected<bool, TE>{fn::unexpect, TE{20, 22}} | fn::or_else(fnR)).value());
+    SUCCEED();
   }
 }
 

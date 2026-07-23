@@ -616,6 +616,15 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       static_assert(std::same_as<decltype(std::declval<O>() & std::declval<EVI>()), O>);
       static_assert(std::same_as<decltype(std::declval<fn::choice_for<int, bool>>() & std::declval<O>()),
                                  fn::optional<fn::copack_for<fn::pack<int, int>, fn::pack<bool, int>>>>);
+      // ... and the choice operand's held alternative selects the product row
+      static_assert((fn::choice_for<int, bool>{true} & O{2})
+                        .value()
+                        .apply(fn::overload{[](bool a, int b) { return a && b == 2; }, //
+                                            [](int, int) { return false; }}));
+      CHECK((fn::choice_for<int, bool>{true} & O{2})
+                .value()
+                .apply(fn::overload{[](bool a, int b) { return a && b == 2; }, //
+                                    [](int, int) { return false; }}));
 
       static_assert((J{1} & O{2}).value().apply([](int a, int b) { return a == 1 && b == 2; }));
       static_assert(not(J{1} & O{}).has_value());
@@ -800,6 +809,35 @@ TEST_CASE("optional disjunction", "[optional][operator_or][copack]")
 
   static_assert(noexcept(std::declval<O>() | std::declval<OB>()));
   static_assert(not noexcept(std::declval<fn::optional<MoveNothrow> &>() | std::declval<O &>())); // copies the value
+  static_assert(noexcept(std::declval<fn::optional<MoveNothrow> &&>() | std::declval<O &&>()));   // moves it
+
+  SECTION("exceptions")
+  {
+    // the engaged side's value is copied into the graded result; a throwing copy propagates and
+    // leaves the operand unchanged
+    struct Boom final {
+      int fuse; // the fuse-th copy throws
+      constexpr explicit Boom(int f) noexcept : fuse(f) {}
+      constexpr Boom(Boom const &o) noexcept(false) : fuse(o.fuse - 1)
+      {
+        if (fuse == 0)
+          throw 0;
+      }
+      constexpr Boom(Boom &&) noexcept = default;
+    };
+    fn::optional<Boom> lh{std::in_place, Boom{1}};
+    fn::optional<bool> rh{};
+    CHECK_THROWS_AS(lh | rh, int);
+    CHECK(lh.value().fuse == 1); // unchanged
+
+    fn::optional<Boom> good{std::in_place, Boom{99}};
+    CHECK((good | rh).value().has_value(std::in_place_type<Boom>));
+    static_assert([] {
+      fn::optional<Boom> g{std::in_place, Boom{99}};
+      fn::optional<bool> r{};
+      return (g | r).value().has_value(std::in_place_type<Boom>);
+    }());
+  }
 }
 
 TEST_CASE("optional and_then copack", "[optional][copack][and_then]")
