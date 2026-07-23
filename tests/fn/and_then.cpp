@@ -1113,6 +1113,11 @@ TEST_CASE("and_then across the identity cluster", "[and_then][just][choice][expe
     static_assert(not fn::applicable_and_then_across<decltype(fnJust), fn::just<int> &>);
     // an uninhabited copack payload has no branches to join - the probe answers, not asserts
     static_assert(not fn::applicable_and_then_across<decltype(fnJust), fn::expected<fn::copack<>, E0> &>);
+
+    // the across arm serves every operand category, as the curated verbs do
+    using is_across = monadic_static_check<fn::and_then_t, fn::just<int>>;
+    static_assert(is_across::invocable_with_any([](int) { return fn::choice<U>{U{}}; }));
+    static_assert(is_across::not_invocable_with_any([](int) { return 42; }));
     SUCCEED();
   }
 }
@@ -1229,6 +1234,19 @@ TEST_CASE("and_then joins heterogeneous expected branches", "[and_then][expected
     static_assert(std::is_same_v<decltype(rr), fn::expected<X, fn::copack_for<E0, E1>>>);
     CHECK(rr.value() == X{});
     CHECK((In{fn::copack_for<A, B>{B{}}} | fn::and_then(fnRefConv)).value() == X{}); // the pipe agrees
+
+    // the convergent-exact path returns the callback's expected directly, so an immovable value
+    // works - the widening tier, which must relocate, could not carry it
+    struct Imm final {
+      int v;
+      constexpr explicit Imm(int i) noexcept : v(i) {}
+      Imm(Imm &&) = delete;
+    };
+    using InE = fn::expected<fn::copack_for<A, B>, fn::copack<E1>>;
+    constexpr auto fnImm = fn::overload{[](A) { return fn::expected<Imm, fn::copack<E1>>{std::in_place, 1}; },
+                                        [](B) { return fn::expected<Imm, fn::copack<E1>>{std::in_place, 2}; }};
+    CHECK(InE{fn::copack_for<A, B>{B{}}}.and_then(fnImm).value().v == 2);
+    static_assert(InE{fn::copack_for<A, B>{A{}}}.and_then(fnImm).value().v == 1);
   }
 
   SECTION("all-void branches join to void; mixed void and non-void answers")

@@ -616,6 +616,15 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       static_assert(std::same_as<decltype(std::declval<O>() & std::declval<EVI>()), O>);
       static_assert(std::same_as<decltype(std::declval<fn::choice_for<int, bool>>() & std::declval<O>()),
                                  fn::optional<fn::copack_for<fn::pack<int, int>, fn::pack<bool, int>>>>);
+      // ... and the choice operand's held alternative selects the product row
+      static_assert((fn::choice_for<int, bool>{true} & O{2})
+                        .value()
+                        .apply(fn::overload{[](bool a, int b) { return a && b == 2; }, //
+                                            [](int, int) { return false; }}));
+      CHECK((fn::choice_for<int, bool>{true} & O{2})
+                .value()
+                .apply(fn::overload{[](bool a, int b) { return a && b == 2; }, //
+                                    [](int, int) { return false; }}));
 
       static_assert((J{1} & O{2}).value().apply([](int a, int b) { return a == 1 && b == 2; }));
       static_assert(not(J{1} & O{}).has_value());
@@ -800,6 +809,7 @@ TEST_CASE("optional disjunction", "[optional][operator_or][copack]")
 
   static_assert(noexcept(std::declval<O>() | std::declval<OB>()));
   static_assert(not noexcept(std::declval<fn::optional<MoveNothrow> &>() | std::declval<O &>())); // copies the value
+  static_assert(noexcept(std::declval<fn::optional<MoveNothrow> &&>() | std::declval<O &&>()));   // moves it
 
   SECTION("exceptions")
   {

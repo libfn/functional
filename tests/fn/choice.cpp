@@ -709,6 +709,15 @@ TEST_CASE("choice disjunction", "[choice][just][operator_or]")
 
     static_assert(noexcept(std::declval<C>() | std::declval<C>()));
     static_assert(noexcept(std::declval<J>() | std::declval<J>()));
+    // ... conditionally: relocating a throwing-copy value from an lvalue operand weighs
+    struct CopyThrows final {
+      CopyThrows() = default;
+      // defined, not just declared: the instantiated fold references it
+      CopyThrows(CopyThrows const &) noexcept(false) {}
+      CopyThrows(CopyThrows &&) noexcept = default;
+    };
+    static_assert(not noexcept(std::declval<fn::just<CopyThrows> &>() | std::declval<C &>()));
+    static_assert(noexcept(std::declval<fn::just<CopyThrows> &&>() | std::declval<C &&>())); // moves it
 
     // the total inject relocates the winning value into the choice; a throwing relocation
     // propagates at runtime, and the completing twin pins the same chain

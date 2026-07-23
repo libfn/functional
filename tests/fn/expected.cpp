@@ -2544,6 +2544,15 @@ TEST_CASE("expected conjunction", "[expected][operator_and][graded][copack]")
     static_assert(
         std::same_as<decltype(std::declval<fn::choice_for<int, bool>>() & std::declval<E>()),
                      fn::expected<fn::copack_for<fn::pack<int, int>, fn::pack<bool, int>>, fn::copack<Error>>>);
+    // ... and the choice operand's held alternative selects the product row
+    static_assert((fn::choice_for<int, bool>{true} & E{2})
+                      .value()
+                      .apply(fn::overload{[](bool a, int b) { return a && b == 2; }, //
+                                          [](int, int) { return false; }}));
+    CHECK((fn::choice_for<int, bool>{true} & E{2})
+              .value()
+              .apply(fn::overload{[](bool a, int b) { return a && b == 2; }, //
+                                  [](int, int) { return false; }}));
 
     static_assert((J{1} & E{2}).value().apply([](int a, int b) { return a == 1 && b == 2; }));
     static_assert((E{2} & J{1}).value().apply([](int a, int b) { return a == 2 && b == 1; }));
@@ -2677,13 +2686,31 @@ TEST_CASE("expected disjunction", "[expected][operator_or][graded][copack]")
                                         | std::declval<fn::expected<bool, fn::copack<Error>>>()),
                                fn::expected<fn::copack_for<int, bool>,
                                             fn::copack_for<fn::pack<Error, Error>, fn::pack<OtherError, Error>>>>);
+    // ... and the distributed error's active alternative follows the held errors
+    using GL = fn::expected<int, fn::copack_for<Error, OtherError>>;
+    using GR = fn::expected<bool, fn::copack<Error>>;
+    constexpr auto row = fn::overload{[](OtherError a, Error b) { return a == Oops && b == FileNotFound; },
+                                      [](Error, Error) { return false; }};
+    static_assert(
+        (GL{fn::unexpect, fn::copack_for<Error, OtherError>{Oops}} | GR{fn::unexpect, fn::copack<Error>{FileNotFound}})
+            .error()
+            .apply(row));
+    CHECK(
+        (GL{fn::unexpect, fn::copack_for<Error, OtherError>{Oops}} | GR{fn::unexpect, fn::copack<Error>{FileNotFound}})
+            .error()
+            .apply(row));
     // void enters a genuine sum as pack<>; the all-void pair collapses to void
     static_assert(std::same_as<decltype(std::declval<fn::expected<void, Error>>() | std::declval<EB>()),
                                fn::expected<fn::copack_for<fn::pack<>, bool>, fn::pack<Error, OtherError>>>);
     static_assert(std::same_as<decltype(std::declval<fn::expected<void, Error>>()
                                         | std::declval<fn::expected<void, OtherError>>()),
                                fn::expected<void, fn::pack<Error, OtherError>>>);
-    SUCCEED();
+    static_assert((fn::expected<void, Error>{} | EB{true}).value().has_value(std::in_place_type<fn::pack<>>));
+    static_assert(bool((fn::expected<void, Error>{fn::unexpect, FileNotFound} | EB{true}) == fn::copack{true}));
+    static_assert((fn::expected<void, Error>{} | fn::expected<void, OtherError>{}).has_value());
+    CHECK((fn::expected<void, Error>{} | EB{true}).value().has_value(std::in_place_type<fn::pack<>>));
+    CHECK(bool((fn::expected<void, Error>{fn::unexpect, FileNotFound} | EB{true}) == fn::copack{true}));
+    CHECK((fn::expected<void, Error>{} | fn::expected<void, OtherError>{}).has_value());
   }
 
   SECTION("leftmost engaged wins; both-fail folds the errors")
@@ -2734,6 +2761,7 @@ TEST_CASE("expected disjunction", "[expected][operator_or][graded][copack]")
 
     static_assert(noexcept(std::declval<EA>() | std::declval<EB>()));
     static_assert(not noexcept(std::declval<fn::expected<MoveNothrow, Error> &>() | std::declval<EA &>()));
+    static_assert(noexcept(std::declval<fn::expected<MoveNothrow, Error> &&>() | std::declval<EA &&>())); // moves it
     SUCCEED();
   }
 
