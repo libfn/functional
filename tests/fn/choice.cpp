@@ -1071,11 +1071,9 @@ TEST_CASE("choice and_then", "[choice][and_then]")
     constexpr auto fnBoomSafe = fn::overload{[](A) { return fn::choice<Boom>{std::in_place_type<Boom>, Boom{99}}; },
                                              [](B) { return fn::choice<U>{U{}}; }};
     CHECK(J{A{}}.and_then(fnBoomSafe).has_value(std::in_place_type<Boom>));
-    static_assert([] {
-      constexpr auto fnSafeX = fn::overload{[](A) { return fn::choice<Boom>{std::in_place_type<Boom>, Boom{99}}; },
-                                            [](B) { return fn::choice<U>{U{}}; }};
-      return J{A{}}.and_then(fnSafeX).has_value(std::in_place_type<Boom>);
-    }());
+    // named source: the same VS 2022 misread as above
+    constexpr J cb2{A{}};
+    static_assert(cb2.and_then(fnBoomSafe).has_value(std::in_place_type<Boom>));
   }
 }
 

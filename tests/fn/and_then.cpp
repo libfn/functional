@@ -1246,7 +1246,9 @@ TEST_CASE("and_then joins heterogeneous expected branches", "[and_then][expected
     constexpr auto fnImm = fn::overload{[](A) { return fn::expected<Imm, fn::copack<E1>>{std::in_place, 1}; },
                                         [](B) { return fn::expected<Imm, fn::copack<E1>>{std::in_place, 2}; }};
     CHECK(InE{fn::copack_for<A, B>{B{}}}.and_then(fnImm).value().v == 2);
-    static_assert(InE{fn::copack_for<A, B>{A{}}}.and_then(fnImm).value().v == 1);
+    // named source: VS 2022 misreads a mid-expression prvalue's empty-class union member
+    constexpr InE ci{fn::copack_for<A, B>{A{}}};
+    static_assert(ci.and_then(fnImm).value().v == 1);
   }
 
   SECTION("all-void branches join to void; mixed void and non-void answers")
@@ -1317,11 +1319,9 @@ TEST_CASE("and_then joins heterogeneous expected branches", "[and_then][expected
                                          [](B) { return fn::expected<Y, fn::copack<E2>>{Y{}}; }};
     auto r = In{fn::copack_for<A, B>{A{}}}.and_then(fnSafe);
     CHECK(r.value().has_value(std::in_place_type<Boom>));
-    static_assert([] {
-      constexpr auto fnSafeX = fn::overload{[](A) { return fn::expected<Boom, fn::copack<E1>>{Boom{99}}; },
-                                            [](B) { return fn::expected<Y, fn::copack<E2>>{Y{}}; }};
-      return In{fn::copack_for<A, B>{A{}}}.and_then(fnSafeX).value().has_value(std::in_place_type<Boom>);
-    }());
+    // named source: VS 2022 misreads a mid-expression prvalue's empty-class union member
+    constexpr In cs{fn::copack_for<A, B>{A{}}};
+    static_assert(cs.and_then(fnSafe).value().has_value(std::in_place_type<Boom>));
   }
 
   SECTION("a plain grade lifts into its singular copack")
@@ -1489,11 +1489,9 @@ TEST_CASE("and_then joins heterogeneous optional branches", "[and_then][optional
                                          [](B) { return fn::optional<Y>{Y{}}; }};
     auto r = In{fn::copack_for<A, B>{A{}}}.and_then(fnSafe);
     CHECK(r.value().has_value(std::in_place_type<Boom>));
-    static_assert([] {
-      constexpr auto fnSafeX = fn::overload{[](A) { return fn::optional<Boom>{Boom{99}}; }, //
-                                            [](B) { return fn::optional<Y>{Y{}}; }};
-      return In{fn::copack_for<A, B>{A{}}}.and_then(fnSafeX).value().has_value(std::in_place_type<Boom>);
-    }());
+    // named source: VS 2022 misreads a mid-expression prvalue's empty-class union member
+    constexpr In cs{fn::copack_for<A, B>{A{}}};
+    static_assert(cs.and_then(fnSafe).value().has_value(std::in_place_type<Boom>));
   }
 }
 
