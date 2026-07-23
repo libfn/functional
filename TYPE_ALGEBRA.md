@@ -841,9 +841,9 @@ Monadic operations behave naturally around this identity cluster:
 
 - **Success mapping (`transform`)**: Remains meaningful and stays inside the nominal carrier family when using member functions. However, when using the pipeline `operator|`, returning a `copack` from `fn::transform` on an identity carrier automatically promotes the result to `choice` (as detailed in Section 10).
 - **Sequential binding (`and_then`)**: Allows cross-carrier transitions *within* the identity cluster (e.g., `just` to `expected<U, copack<>>`) when using pipeline-scoped `fn::and_then`.
-- **Recovery / dead-side mapping (`transform_error`, `or_else`, `recover`, `inspect_error`)**: Because `just` and `choice` have no error side, these are rejected at compile time. On `expected<T, copack<>>`, they are vacuously well-formed but statically proven unreachable.
+- **Recovery / dead-side mapping (`transform_error`, `or_else`, `recover`, `inspect_error`)**: Because `just` and `choice` have no error side, these are rejected at compile time. On `expected<T, copack<>>`, they are vacuously well-formed but statically proven unreachable (to allow generic code on `expected` to compile)
 - **Short-circuiting (`fail`, `filter`)**: Strictly rejected for all identity cluster carriers, because no failure state (an inhabited error or empty state) can possibly be constructed from a never-failing identity context.
-- **Elimination fallbacks (`value_or`)**: Strictly rejected on `just` and `choice` since they can never fail, rendering any fallback redundant and dead. On `expected<T, copack<>>`, `value_or` is vacuously well-formed, but the fallback branch is optimized away as unreachable.
+- **Elimination fallbacks (`value_or`)**: Strictly rejected on `just` and `choice` since they can never fail, rendering any fallback redundant and dead. On `expected<T, copack<>>`, `value_or` is vacuously well-formed, but the fallback branch is optimized away as unreachable (to allow generic code on `expected` to compile without errors)
 - **Neutral observation (`inspect`, `discard`)**: Fully supported and behave normally.
 
 > [!TIP]
@@ -1018,18 +1018,18 @@ This is a concise reference for `libfn`'s operations, organized by channel and e
 **Success Channel**
 
 - `transform`: Maps the successful value. Stays inside the carrier.
-- `and_then`: Sequences computations. The mechanism for introducing new errors into a graded expected.
+- `and_then`: Sequences success-path computations. The mechanism for introducing new errors into a graded expected.
 - `filter`: Enters a short-circuit state if a predicate fails. Does not widen error grades.
 - `inspect`: Observes the successful value transparently.
+- `fail`: Intercepts success and forces a transition to a failure state. Does not widen error grades.
 
 **Error/Empty Channel**
 
 - `transform_error`: Maps the error value. Stays inside the carrier.
 - `or_else`: Sequences computations based on errors. Joins recovery values.
-- `recover`: Same as `or_else`, but always wraps raw values back into a success state.
+- `recover`: Intercepts failure and forces a transition back to a success state.
 - `inspect_error`: Observes the error value transparently.
 - `value_or`: Eliminates the carrier by supplying a fallback value on failure.
-- `fail`: Short-circuits success into a forced failure state. Does not widen error grades.
 
 **Neutral**
 
@@ -1046,6 +1046,7 @@ This is a concise reference for `libfn`'s operations, organized by channel and e
 
 To reason about how these operations affect the type algebra of your computation:
 
+- **`fail` and `recover` are dual symmetries**: `fail` intercepts a success-path value and forces a transition to the failure state ($Success \implies Failure$). `recover` intercepts a failure-path error and forces a transition back to the success state ($Failure \implies Success$). Neither operation widens the error set of a graded carrier.
 - **Graded `and_then`** is the primary mechanism for introducing a _new_ error type (widening the error grade) into your pipeline.
 - **`filter` and `fail`** merely enter an _existing_ short-circuit state. They do not widen the error grade (the type must already be capable of holding the failure state).
 - **Error-side monadic operations** (like `transform_error`, `or_else`, `recover`, and `inspect_error`) are only well-formed if the carrier has an appropriate error or empty side (and are rejected on identity carriers like `just` or `choice`).
