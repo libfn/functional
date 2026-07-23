@@ -197,7 +197,7 @@ auto test_copack_set_semantics() -> void {
 
 > [!NOTE]
 >
-> ### Under the Hood: copack vs. copack_for
+> ### Note — copack vs. copack_for
 >
 > In C++, there is no native language feature to represent a "set of types." Template parameter lists are always positional, variadic sequences. Syntactically, this means `copack<A, B>` and `copack<B, A>` would be completely distinct types—a property that directly violates the mathematical commutative law of set union.
 >
@@ -339,9 +339,14 @@ Because `choice` implies that an alternative is always present, `choice<>` is in
 
 **Rule:** A carrier does not need another carrier for multidispatch. Inside an `expected` or `optional`, store your alternative states as `copack<Ts...>`. Use `choice<Ts...>` only when those alternatives are themselves the outer, never-failing computation.
 
-A programmer might be tempted to represent a never-failing, multi-alternative computation by nesting a coproduct inside an identity carrier, spelling it `just<copack<Ts...>>`. In `libfn`'s type algebra, this is precisely the space filled by `choice<Ts...>`. Structurally, `choice<Ts...>` is equivalent to a `just` container of a `copack`, providing a single-layer monadic carrier that represents a never-failing computation over a coproduct.
-
-In fact, attempting to instantiate `just<copack<Ts...>>` will trigger a compile-time static assertion failure inside `just`, explicitly warning the programmer: `"a just over a copack is spelled choice"`.
+> [!NOTE]
+>
+> ### Note — `just<copack<Ts...>>` is spelled `choice<Ts...>`
+>
+>
+> A programmer might be tempted to represent a never-failing, multi-alternative computation by nesting a coproduct inside an identity carrier, spelling it `just<copack<Ts...>>`. In `libfn`'s type algebra, this is precisely the space filled by `choice<Ts...>`. Structurally, `choice<Ts...>` is equivalent to a `just` container of a `copack`, providing a single-layer monadic carrier that represents a never-failing computation over a coproduct.
+>
+> In fact, attempting to instantiate `just<copack<Ts...>>` will trigger a compile-time static assertion failure inside `just`, explicitly warning the programmer: `"a just over a copack is spelled choice"`.
 
 These carriers impose constraints on their payloads, but reference payloads are broadly supported where sound. For example, `optional<T&>` is supported and well-defined.
 
