@@ -709,6 +709,34 @@ TEST_CASE("choice disjunction", "[choice][just][operator_or]")
 
     static_assert(noexcept(std::declval<C>() | std::declval<C>()));
     static_assert(noexcept(std::declval<J>() | std::declval<J>()));
+    // ... conditionally: relocating a throwing-copy value from an lvalue operand weighs
+    struct CopyThrows final {
+      CopyThrows() = default;
+      // defined, not just declared: the instantiated fold references it
+      CopyThrows(CopyThrows const &) noexcept(false) {}
+      CopyThrows(CopyThrows &&) noexcept = default;
+    };
+    static_assert(not noexcept(std::declval<fn::just<CopyThrows> &>() | std::declval<C &>()));
+    static_assert(noexcept(std::declval<fn::just<CopyThrows> &&>() | std::declval<C &&>())); // moves it
+
+    // the total inject relocates the winning value into the choice; a throwing relocation
+    // propagates at runtime, and the completing twin pins the same chain
+    struct Boom final {
+      int fuse; // the fuse-th relocation throws
+      constexpr explicit Boom(int f) noexcept : fuse(f) {}
+      constexpr Boom(Boom &&o) noexcept(false) : fuse(o.fuse - 1)
+      {
+        if (fuse == 0)
+          throw 0;
+      }
+    };
+    CHECK_THROWS_AS((fn::expected<bool, int>{::fn::unexpect, 3} | fn::just(std::in_place_type<Boom>, Boom{2})), int);
+    CHECK((fn::expected<bool, int>{::fn::unexpect, 3} | fn::just(std::in_place_type<Boom>, Boom{99}))
+              .has_value(std::in_place_type<Boom>));
+    static_assert([] {
+      return (fn::expected<bool, int>{::fn::unexpect, 3} | fn::just(std::in_place_type<Boom>, Boom{99}))
+          .has_value(std::in_place_type<Boom>);
+    }());
   }
 
   SECTION("the unit's round trip")
@@ -1024,6 +1052,36 @@ TEST_CASE("choice and_then", "[choice][and_then]")
     static_assert(can_and_then<fn::choice<A> &, decltype(fnPartial)>);
     constexpr auto fnValue = [](auto &&) { return 42; };
     static_assert(can_and_then<J &, decltype(fnValue)>);
+
+    // ... and the throwing relocation at runtime: the exception propagates, self unchanged
+    struct Boom final {
+      int fuse; // the fuse-th relocation throws
+      constexpr explicit Boom(int f) noexcept : fuse(f) {}
+      constexpr Boom(Boom &&o) noexcept(false) : fuse(o.fuse - 1)
+      {
+        if (fuse == 0)
+          throw 0;
+      }
+    };
+    struct S final { // records being moved from, so "unchanged" below is observable
+      int v;
+      constexpr explicit S(int x) noexcept : v(x) {}
+      constexpr S(S const &) noexcept = default;
+      constexpr S(S &&o) noexcept : v(std::exchange(o.v, -1)) {}
+      constexpr bool operator==(S const &) const = default;
+    };
+    constexpr auto fnBoomArm
+        = fn::overload{[](S const &) { return fn::choice<Boom>{std::in_place_type<Boom>, Boom{2}}; },
+                       [](B) { return fn::choice<U>{U{}}; }};
+    fn::choice_for<S, B> jb{S{7}};
+    CHECK_THROWS_AS(jb.and_then(fnBoomArm), int);
+    CHECK(bool(jb == fn::choice_for<S, B>{S{7}})); // not moved from, not modified
+    constexpr auto fnBoomSafe = fn::overload{[](A) { return fn::choice<Boom>{std::in_place_type<Boom>, Boom{99}}; },
+                                             [](B) { return fn::choice<U>{U{}}; }};
+    CHECK(J{A{}}.and_then(fnBoomSafe).has_value(std::in_place_type<Boom>));
+    // named source: the same VS 2022 misread as above
+    constexpr J cb2{A{}};
+    static_assert(cb2.and_then(fnBoomSafe).has_value(std::in_place_type<Boom>));
   }
 }
 

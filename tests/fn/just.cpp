@@ -3,6 +3,7 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
+#include <fn/choice.hpp>
 #include <fn/copack.hpp>
 #include <fn/just.hpp>
 #include <fn/utility.hpp>
@@ -104,6 +105,20 @@ TEST_CASE("just", "[just]")
     static_assert(std::is_constructible_v<M, std::in_place_type_t<Immovable>, int>);
 
     SUCCEED();
+  }
+
+  SECTION("payload mandate")
+  {
+    // the concept-gated surface answers for the algebra's own coproduct - a just over a copack is
+    // spelled choice - while the class-body assert stays the loud diagnosis on direct use
+    static_assert(not fn::detail::_just_payload<fn::copack<int>>);
+    static_assert(not fn::detail::_just_payload<fn::copack<>>);
+    static_assert(fn::detail::_just_payload<int>);
+    // a choice is an atom, and just may box one
+    static_assert(fn::detail::_just_payload<fn::choice<int>>);
+    fn::just<fn::choice<int>> j{fn::choice<int>{1}};
+    CHECK(j.value() == fn::choice<int>{1});
+    static_assert(fn::just<fn::choice<int>>{fn::choice<int>{1}}.value() == fn::choice<int>{1});
   }
 
   SECTION("assignment")

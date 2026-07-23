@@ -11,6 +11,7 @@
 #include <catch2/catch_all.hpp>
 
 #include <string>
+#include <tuple>
 #include <utility>
 
 #include <fn/detail/macro_begin.hpp>
@@ -1112,6 +1113,11 @@ TEST_CASE("and_then across the identity cluster", "[and_then][just][choice][expe
     static_assert(not fn::applicable_and_then_across<decltype(fnJust), fn::just<int> &>);
     // an uninhabited copack payload has no branches to join - the probe answers, not asserts
     static_assert(not fn::applicable_and_then_across<decltype(fnJust), fn::expected<fn::copack<>, E0> &>);
+
+    // the across arm serves every operand category, as the curated verbs do
+    using is_across = monadic_static_check<fn::and_then_t, fn::just<int>>;
+    static_assert(is_across::invocable_with_any([](int) { return fn::choice<U>{U{}}; }));
+    static_assert(is_across::not_invocable_with_any([](int) { return 42; }));
     SUCCEED();
   }
 }
@@ -1228,6 +1234,21 @@ TEST_CASE("and_then joins heterogeneous expected branches", "[and_then][expected
     static_assert(std::is_same_v<decltype(rr), fn::expected<X, fn::copack_for<E0, E1>>>);
     CHECK(rr.value() == X{});
     CHECK((In{fn::copack_for<A, B>{B{}}} | fn::and_then(fnRefConv)).value() == X{}); // the pipe agrees
+
+    // the convergent-exact path returns the callback's expected directly, so an immovable value
+    // works - the widening tier, which must relocate, could not carry it
+    struct Imm final {
+      int v;
+      constexpr explicit Imm(int i) noexcept : v(i) {}
+      Imm(Imm &&) = delete;
+    };
+    using InE = fn::expected<fn::copack_for<A, B>, fn::copack<E1>>;
+    constexpr auto fnImm = fn::overload{[](A) { return fn::expected<Imm, fn::copack<E1>>{std::in_place, 1}; },
+                                        [](B) { return fn::expected<Imm, fn::copack<E1>>{std::in_place, 2}; }};
+    CHECK(InE{fn::copack_for<A, B>{B{}}}.and_then(fnImm).value().v == 2);
+    // named source: VS 2022 misreads a mid-expression prvalue's empty-class union member
+    constexpr InE ci{fn::copack_for<A, B>{A{}}};
+    static_assert(ci.and_then(fnImm).value().v == 1);
   }
 
   SECTION("all-void branches join to void; mixed void and non-void answers")
@@ -1253,6 +1274,62 @@ TEST_CASE("and_then joins heterogeneous expected branches", "[and_then][expected
     constexpr auto fnThrows = fn::overload{[](A) { return fn::expected<X, fn::copack<E1>>{X{}}; },
                                            [](B) noexcept { return fn::expected<Y, fn::copack<E2>>{Y{}}; }};
     static_assert(not noexcept(v.and_then(fnThrows)));
+
+    // the widening arms weigh in: nothrow branches whose result relocates a throwing-move
+    // alternative into the joined value still make the join throwing
+    struct ThrowingMove final {
+      ThrowingMove() = default;
+      ThrowingMove(ThrowingMove &&) noexcept(false) {}
+      bool operator==(ThrowingMove const &) const = default;
+    };
+    constexpr auto fnThrowingArm
+        = fn::overload{[](A) noexcept { return fn::expected<ThrowingMove, fn::copack<E1>>{std::in_place}; },
+                       [](B) noexcept { return fn::expected<Y, fn::copack<E2>>{Y{}}; }};
+    static_assert(not noexcept(v.and_then(fnThrowingArm)));
+    // lifting self's error into the union weighs on the path that relocates it
+    using InT = fn::expected<fn::copack_for<A, B>, fn::copack<ThrowingMove>>;
+    static_assert(not noexcept(std::declval<InT &&>().and_then(fnNothrow)));
+    // ... while a copack<> grade has no error to lift, and the dead arm cannot weigh
+    InB b{fn::copack_for<A, B>{A{}}};
+    static_assert(noexcept(b.and_then(fnNothrow)));
+    SUCCEED();
+  }
+
+  SECTION("exceptions")
+  {
+    // the widening relocation may throw at runtime: the exception propagates, and self - whose
+    // alternative the callback consumed by reference only - is left unchanged; S records being
+    // moved from, so unchanged is observable
+    struct Boom final {
+      int fuse; // the fuse-th relocation throws
+      constexpr explicit Boom(int f) noexcept : fuse(f) {}
+      constexpr Boom(Boom &&o) noexcept(false) : fuse(o.fuse - 1)
+      {
+        if (fuse == 0)
+          throw 0;
+      }
+    };
+    struct S final {
+      int v;
+      constexpr explicit S(int x) noexcept : v(x) {}
+      constexpr S(S const &) noexcept = default;
+      constexpr S(S &&o) noexcept : v(std::exchange(o.v, -1)) {}
+      constexpr bool operator==(S const &) const = default;
+    };
+    constexpr auto fnBoom = fn::overload{[](S const &) { return fn::expected<Boom, fn::copack<E1>>{Boom{2}}; },
+                                         [](B) { return fn::expected<Y, fn::copack<E2>>{Y{}}; }};
+    fn::expected<fn::copack_for<S, B>, fn::copack<E0>> self{fn::copack_for<S, B>{S{7}}};
+    CHECK_THROWS_AS(self.and_then(fnBoom), int);
+    CHECK(self.value() == fn::copack_for<S, B>{S{7}}); // not moved from, not modified
+
+    // the same relocation completing
+    constexpr auto fnSafe = fn::overload{[](A) { return fn::expected<Boom, fn::copack<E1>>{Boom{99}}; },
+                                         [](B) { return fn::expected<Y, fn::copack<E2>>{Y{}}; }};
+    auto r = In{fn::copack_for<A, B>{A{}}}.and_then(fnSafe);
+    CHECK(r.value().has_value(std::in_place_type<Boom>));
+    // named source: VS 2022 misreads a mid-expression prvalue's empty-class union member
+    constexpr In cs{fn::copack_for<A, B>{A{}}};
+    static_assert(cs.and_then(fnSafe).value().has_value(std::in_place_type<Boom>));
   }
 
   SECTION("a plain grade lifts into its singular copack")
@@ -1387,6 +1464,74 @@ TEST_CASE("and_then joins heterogeneous optional branches", "[and_then][optional
     constexpr auto fnThrows
         = fn::overload{[](A) { return fn::optional<X>{X{}}; }, [](B) noexcept { return fn::optional<Y>{Y{}}; }};
     static_assert(not noexcept(v.and_then(fnThrows)));
+    // the widening arms weigh in here too
+    struct ThrowingMove final {
+      ThrowingMove() = default;
+      ThrowingMove(ThrowingMove &&) noexcept(false) {}
+      bool operator==(ThrowingMove const &) const = default;
+    };
+    constexpr auto fnThrowingArm = fn::overload{[](A) noexcept { return fn::optional<ThrowingMove>{std::in_place}; },
+                                                [](B) noexcept { return fn::optional<Y>{Y{}}; }};
+    static_assert(not noexcept(v.and_then(fnThrowingArm)));
+    SUCCEED();
+  }
+
+  SECTION("exceptions")
+  {
+    struct Boom final {
+      int fuse; // the fuse-th relocation throws
+      constexpr explicit Boom(int f) noexcept : fuse(f) {}
+      constexpr Boom(Boom &&o) noexcept(false) : fuse(o.fuse - 1)
+      {
+        if (fuse == 0)
+          throw 0;
+      }
+    };
+    struct S final {
+      int v;
+      constexpr explicit S(int x) noexcept : v(x) {}
+      constexpr S(S const &) noexcept = default;
+      constexpr S(S &&o) noexcept : v(std::exchange(o.v, -1)) {}
+      constexpr bool operator==(S const &) const = default;
+    };
+    constexpr auto fnBoom = fn::overload{[](S const &) { return fn::optional<Boom>{Boom{2}}; }, //
+                                         [](B) { return fn::optional<Y>{Y{}}; }};
+    fn::optional<fn::copack_for<S, B>> self{fn::copack_for<S, B>{S{7}}};
+    CHECK_THROWS_AS(self.and_then(fnBoom), int);
+    CHECK(self.value() == fn::copack_for<S, B>{S{7}}); // not moved from, not modified
+
+    constexpr auto fnSafe = fn::overload{[](A) { return fn::optional<Boom>{Boom{99}}; }, //
+                                         [](B) { return fn::optional<Y>{Y{}}; }};
+    auto r = In{fn::copack_for<A, B>{A{}}}.and_then(fnSafe);
+    CHECK(r.value().has_value(std::in_place_type<Boom>));
+    // named source: VS 2022 misreads a mid-expression prvalue's empty-class union member
+    constexpr In cs{fn::copack_for<A, B>{A{}}};
+    static_assert(cs.and_then(fnSafe).value().has_value(std::in_place_type<Boom>));
+  }
+}
+
+TEST_CASE("and_then tuple-like payload", "[and_then][expected][optional][tuple]")
+{
+  // a lone tuple-like payload exposes its elements to the callback, member and functor alike
+  struct Error final {
+    bool operator==(Error const &) const = default;
+  };
+  using T = std::tuple<int, int>;
+  constexpr auto fnAdd = [](int a, int b) noexcept { return fn::expected<int, Error>{a + b}; };
+
+  fn::expected<T, Error> e{std::in_place, 20, 22};
+  CHECK(e.and_then(fnAdd).value() == 42);
+  CHECK((e | fn::and_then(fnAdd)).value() == 42);
+  constexpr auto fnOpt = [](int a, int b) noexcept { return fn::optional<int>{a + b}; };
+  fn::optional<T> o{std::in_place, 20, 22};
+  CHECK(o.and_then(fnOpt).value() == 42);
+  CHECK((o | fn::and_then(fnOpt)).value() == 42);
+
+  SECTION("constexpr")
+  {
+    static_assert(fn::expected<T, Error>{std::in_place, 20, 22}.and_then(fnAdd).value() == 42);
+    static_assert((fn::optional<T>{std::in_place, 20, 22} | fn::and_then(fnOpt)).value() == 42);
+    SUCCEED();
   }
 }
 
