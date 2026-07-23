@@ -1298,7 +1298,8 @@ TEST_CASE("and_then joins heterogeneous expected branches", "[and_then][expected
   SECTION("exceptions")
   {
     // the widening relocation may throw at runtime: the exception propagates, and self - whose
-    // alternative the callback consumed by reference only - is left unchanged
+    // alternative the callback consumed by reference only - is left unchanged; S records being
+    // moved from, so unchanged is observable
     struct Boom final {
       int fuse; // the fuse-th relocation throws
       constexpr explicit Boom(int f) noexcept : fuse(f) {}
@@ -1308,11 +1309,18 @@ TEST_CASE("and_then joins heterogeneous expected branches", "[and_then][expected
           throw 0;
       }
     };
-    constexpr auto fnBoom = fn::overload{[](A) { return fn::expected<Boom, fn::copack<E1>>{Boom{2}}; },
+    struct S final {
+      int v;
+      constexpr explicit S(int x) noexcept : v(x) {}
+      constexpr S(S const &) noexcept = default;
+      constexpr S(S &&o) noexcept : v(std::exchange(o.v, -1)) {}
+      constexpr bool operator==(S const &) const = default;
+    };
+    constexpr auto fnBoom = fn::overload{[](S const &) { return fn::expected<Boom, fn::copack<E1>>{Boom{2}}; },
                                          [](B) { return fn::expected<Y, fn::copack<E2>>{Y{}}; }};
-    In self{fn::copack_for<A, B>{A{}}};
+    fn::expected<fn::copack_for<S, B>, fn::copack<E0>> self{fn::copack_for<S, B>{S{7}}};
     CHECK_THROWS_AS(self.and_then(fnBoom), int);
-    CHECK(self.value() == fn::copack_for<A, B>{A{}});
+    CHECK(self.value() == fn::copack_for<S, B>{S{7}}); // not moved from, not modified
 
     // the same relocation completing
     constexpr auto fnSafe = fn::overload{[](A) { return fn::expected<Boom, fn::copack<E1>>{Boom{99}}; },
@@ -1479,11 +1487,18 @@ TEST_CASE("and_then joins heterogeneous optional branches", "[and_then][optional
           throw 0;
       }
     };
-    constexpr auto fnBoom = fn::overload{[](A) { return fn::optional<Boom>{Boom{2}}; }, //
+    struct S final {
+      int v;
+      constexpr explicit S(int x) noexcept : v(x) {}
+      constexpr S(S const &) noexcept = default;
+      constexpr S(S &&o) noexcept : v(std::exchange(o.v, -1)) {}
+      constexpr bool operator==(S const &) const = default;
+    };
+    constexpr auto fnBoom = fn::overload{[](S const &) { return fn::optional<Boom>{Boom{2}}; }, //
                                          [](B) { return fn::optional<Y>{Y{}}; }};
-    In self{fn::copack_for<A, B>{A{}}};
+    fn::optional<fn::copack_for<S, B>> self{fn::copack_for<S, B>{S{7}}};
     CHECK_THROWS_AS(self.and_then(fnBoom), int);
-    CHECK(self.value() == fn::copack_for<A, B>{A{}}); // self unchanged
+    CHECK(self.value() == fn::copack_for<S, B>{S{7}}); // not moved from, not modified
 
     constexpr auto fnSafe = fn::overload{[](A) { return fn::optional<Boom>{Boom{99}}; }, //
                                          [](B) { return fn::optional<Y>{Y{}}; }};

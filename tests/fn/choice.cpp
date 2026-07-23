@@ -1063,11 +1063,19 @@ TEST_CASE("choice and_then", "[choice][and_then]")
           throw 0;
       }
     };
-    constexpr auto fnBoomArm = fn::overload{[](A) { return fn::choice<Boom>{std::in_place_type<Boom>, Boom{2}}; },
-                                            [](B) { return fn::choice<U>{U{}}; }};
-    J jb{A{}};
+    struct S final { // records being moved from, so "unchanged" below is observable
+      int v;
+      constexpr explicit S(int x) noexcept : v(x) {}
+      constexpr S(S const &) noexcept = default;
+      constexpr S(S &&o) noexcept : v(std::exchange(o.v, -1)) {}
+      constexpr bool operator==(S const &) const = default;
+    };
+    constexpr auto fnBoomArm
+        = fn::overload{[](S const &) { return fn::choice<Boom>{std::in_place_type<Boom>, Boom{2}}; },
+                       [](B) { return fn::choice<U>{U{}}; }};
+    fn::choice_for<S, B> jb{S{7}};
     CHECK_THROWS_AS(jb.and_then(fnBoomArm), int);
-    CHECK(jb == J{A{}}); // self unchanged
+    CHECK(bool(jb == fn::choice_for<S, B>{S{7}})); // not moved from, not modified
     constexpr auto fnBoomSafe = fn::overload{[](A) { return fn::choice<Boom>{std::in_place_type<Boom>, Boom{99}}; },
                                              [](B) { return fn::choice<U>{U{}}; }};
     CHECK(J{A{}}.and_then(fnBoomSafe).has_value(std::in_place_type<Boom>));
