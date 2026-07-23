@@ -709,6 +709,25 @@ TEST_CASE("choice disjunction", "[choice][just][operator_or]")
 
     static_assert(noexcept(std::declval<C>() | std::declval<C>()));
     static_assert(noexcept(std::declval<J>() | std::declval<J>()));
+
+    // the total inject relocates the winning value into the choice; a throwing relocation
+    // propagates at runtime, and the completing twin pins the same chain
+    struct Boom final {
+      int fuse; // the fuse-th relocation throws
+      constexpr explicit Boom(int f) noexcept : fuse(f) {}
+      constexpr Boom(Boom &&o) noexcept(false) : fuse(o.fuse - 1)
+      {
+        if (fuse == 0)
+          throw 0;
+      }
+    };
+    CHECK_THROWS_AS((fn::expected<bool, int>{::fn::unexpect, 3} | fn::just(std::in_place_type<Boom>, Boom{2})), int);
+    CHECK((fn::expected<bool, int>{::fn::unexpect, 3} | fn::just(std::in_place_type<Boom>, Boom{99}))
+              .has_value(std::in_place_type<Boom>));
+    static_assert([] {
+      return (fn::expected<bool, int>{::fn::unexpect, 3} | fn::just(std::in_place_type<Boom>, Boom{99}))
+          .has_value(std::in_place_type<Boom>);
+    }());
   }
 
   SECTION("the unit's round trip")
@@ -1024,6 +1043,30 @@ TEST_CASE("choice and_then", "[choice][and_then]")
     static_assert(can_and_then<fn::choice<A> &, decltype(fnPartial)>);
     constexpr auto fnValue = [](auto &&) { return 42; };
     static_assert(can_and_then<J &, decltype(fnValue)>);
+
+    // ... and the throwing relocation at runtime: the exception propagates, self unchanged
+    struct Boom final {
+      int fuse; // the fuse-th relocation throws
+      constexpr explicit Boom(int f) noexcept : fuse(f) {}
+      constexpr Boom(Boom &&o) noexcept(false) : fuse(o.fuse - 1)
+      {
+        if (fuse == 0)
+          throw 0;
+      }
+    };
+    constexpr auto fnBoomArm = fn::overload{[](A) { return fn::choice<Boom>{std::in_place_type<Boom>, Boom{2}}; },
+                                            [](B) { return fn::choice<U>{U{}}; }};
+    J jb{A{}};
+    CHECK_THROWS_AS(jb.and_then(fnBoomArm), int);
+    CHECK(jb == J{A{}}); // self unchanged
+    constexpr auto fnBoomSafe = fn::overload{[](A) { return fn::choice<Boom>{std::in_place_type<Boom>, Boom{99}}; },
+                                             [](B) { return fn::choice<U>{U{}}; }};
+    CHECK(J{A{}}.and_then(fnBoomSafe).has_value(std::in_place_type<Boom>));
+    static_assert([] {
+      constexpr auto fnSafeX = fn::overload{[](A) { return fn::choice<Boom>{std::in_place_type<Boom>, Boom{99}}; },
+                                            [](B) { return fn::choice<U>{U{}}; }};
+      return J{A{}}.and_then(fnSafeX).has_value(std::in_place_type<Boom>);
+    }());
   }
 }
 

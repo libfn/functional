@@ -800,6 +800,34 @@ TEST_CASE("optional disjunction", "[optional][operator_or][copack]")
 
   static_assert(noexcept(std::declval<O>() | std::declval<OB>()));
   static_assert(not noexcept(std::declval<fn::optional<MoveNothrow> &>() | std::declval<O &>())); // copies the value
+
+  SECTION("exceptions")
+  {
+    // the engaged side's value is copied into the graded result; a throwing copy propagates and
+    // leaves the operand unchanged
+    struct Boom final {
+      int fuse; // the fuse-th copy throws
+      constexpr explicit Boom(int f) noexcept : fuse(f) {}
+      constexpr Boom(Boom const &o) noexcept(false) : fuse(o.fuse - 1)
+      {
+        if (fuse == 0)
+          throw 0;
+      }
+      constexpr Boom(Boom &&) noexcept = default;
+    };
+    fn::optional<Boom> lh{std::in_place, Boom{1}};
+    fn::optional<bool> rh{};
+    CHECK_THROWS_AS(lh | rh, int);
+    CHECK(lh.value().fuse == 1); // unchanged
+
+    fn::optional<Boom> good{std::in_place, Boom{99}};
+    CHECK((good | rh).value().has_value(std::in_place_type<Boom>));
+    static_assert([] {
+      fn::optional<Boom> g{std::in_place, Boom{99}};
+      fn::optional<bool> r{};
+      return (g | r).value().has_value(std::in_place_type<Boom>);
+    }());
+  }
 }
 
 TEST_CASE("optional and_then copack", "[optional][copack][and_then]")

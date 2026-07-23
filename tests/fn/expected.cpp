@@ -2624,6 +2624,36 @@ TEST_CASE("expected conjunction", "[expected][operator_and][graded][copack]")
                   == FileNotFound);
     SUCCEED();
   }
+
+  SECTION("exceptions")
+  {
+    // the lvalue join copies the operands' values into the product; a throwing copy propagates and
+    // leaves the operands unchanged
+    struct Boom final {
+      int fuse; // the fuse-th copy throws
+      constexpr explicit Boom(int f) noexcept : fuse(f) {}
+      constexpr Boom(Boom const &o) noexcept(false) : fuse(o.fuse - 1)
+      {
+        if (fuse == 0)
+          throw 0;
+      }
+      constexpr Boom(Boom &&) noexcept = default;
+    };
+    using Lh = fn::expected<Boom, Error>;
+    using Rh = fn::expected<int, Error>;
+    Lh lh{std::in_place, Boom{1}}; // in_place moves, burning nothing off the copy fuse
+    Rh rh{5};
+    CHECK_THROWS_AS(lh & rh, int);
+    CHECK(lh.value().fuse == 1); // unchanged
+
+    Lh good{std::in_place, Boom{99}};
+    CHECK((good & rh).value().apply([](Boom const &b, int i) { return b.fuse == 98 && i == 5; }));
+    static_assert([] {
+      Lh g{std::in_place, Boom{99}};
+      Rh r{5};
+      return (g & r).value().apply([](Boom const &b, int i) { return b.fuse == 98 && i == 5; });
+    }());
+  }
 }
 
 TEST_CASE("expected disjunction", "[expected][operator_or][graded][copack]")
@@ -2705,6 +2735,35 @@ TEST_CASE("expected disjunction", "[expected][operator_or][graded][copack]")
     static_assert(noexcept(std::declval<EA>() | std::declval<EB>()));
     static_assert(not noexcept(std::declval<fn::expected<MoveNothrow, Error> &>() | std::declval<EA &>()));
     SUCCEED();
+  }
+
+  SECTION("exceptions")
+  {
+    // the both-fail fold copies every error into the product; a throwing copy propagates and
+    // leaves the operands unchanged
+    struct Boom final {
+      int fuse; // the fuse-th copy throws
+      constexpr explicit Boom(int f) noexcept : fuse(f) {}
+      constexpr Boom(Boom const &o) noexcept(false) : fuse(o.fuse - 1)
+      {
+        if (fuse == 0)
+          throw 0;
+      }
+      constexpr Boom(Boom &&) noexcept = default;
+    };
+    using EL = fn::expected<int, Boom>;
+    EL lh{fn::unexpect, Boom{1}};
+    EB rh{::fn::unexpect, Oops};
+    CHECK_THROWS_AS(lh | rh, int);
+    CHECK(lh.error().fuse == 1); // unchanged
+
+    EL good{fn::unexpect, Boom{99}};
+    CHECK((good | rh).error().apply([](Boom const &b, OtherError o) { return b.fuse == 98 && o == Oops; }));
+    static_assert([] {
+      EL g{fn::unexpect, Boom{99}};
+      EB r{::fn::unexpect, Oops};
+      return (g | r).error().apply([](Boom const &b, OtherError o) { return b.fuse == 98 && o == Oops; });
+    }());
   }
 }
 

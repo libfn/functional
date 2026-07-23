@@ -1274,6 +1274,37 @@ TEST_CASE("and_then joins heterogeneous expected branches", "[and_then][expected
     SUCCEED();
   }
 
+  SECTION("exceptions")
+  {
+    // the widening relocation may throw at runtime: the exception propagates, and self - whose
+    // alternative the callback consumed by reference only - is left unchanged
+    struct Boom final {
+      int fuse; // the fuse-th relocation throws
+      constexpr explicit Boom(int f) noexcept : fuse(f) {}
+      constexpr Boom(Boom &&o) noexcept(false) : fuse(o.fuse - 1)
+      {
+        if (fuse == 0)
+          throw 0;
+      }
+    };
+    constexpr auto fnBoom = fn::overload{[](A) { return fn::expected<Boom, fn::copack<E1>>{Boom{2}}; },
+                                         [](B) { return fn::expected<Y, fn::copack<E2>>{Y{}}; }};
+    In self{fn::copack_for<A, B>{A{}}};
+    CHECK_THROWS_AS(self.and_then(fnBoom), int);
+    CHECK(self.value() == fn::copack_for<A, B>{A{}});
+
+    // the same relocation completing
+    constexpr auto fnSafe = fn::overload{[](A) { return fn::expected<Boom, fn::copack<E1>>{Boom{99}}; },
+                                         [](B) { return fn::expected<Y, fn::copack<E2>>{Y{}}; }};
+    auto r = In{fn::copack_for<A, B>{A{}}}.and_then(fnSafe);
+    CHECK(r.value().has_value(std::in_place_type<Boom>));
+    static_assert([] {
+      constexpr auto fnSafeX = fn::overload{[](A) { return fn::expected<Boom, fn::copack<E1>>{Boom{99}}; },
+                                            [](B) { return fn::expected<Y, fn::copack<E2>>{Y{}}; }};
+      return In{fn::copack_for<A, B>{A{}}}.and_then(fnSafeX).value().has_value(std::in_place_type<Boom>);
+    }());
+  }
+
   SECTION("a plain grade lifts into its singular copack")
   {
     // the convergent path: the callback's error side spells copack<E> over a plain-E self
@@ -1416,6 +1447,34 @@ TEST_CASE("and_then joins heterogeneous optional branches", "[and_then][optional
                                                 [](B) noexcept { return fn::optional<Y>{Y{}}; }};
     static_assert(not noexcept(v.and_then(fnThrowingArm)));
     SUCCEED();
+  }
+
+  SECTION("exceptions")
+  {
+    struct Boom final {
+      int fuse; // the fuse-th relocation throws
+      constexpr explicit Boom(int f) noexcept : fuse(f) {}
+      constexpr Boom(Boom &&o) noexcept(false) : fuse(o.fuse - 1)
+      {
+        if (fuse == 0)
+          throw 0;
+      }
+    };
+    constexpr auto fnBoom = fn::overload{[](A) { return fn::optional<Boom>{Boom{2}}; }, //
+                                         [](B) { return fn::optional<Y>{Y{}}; }};
+    In self{fn::copack_for<A, B>{A{}}};
+    CHECK_THROWS_AS(self.and_then(fnBoom), int);
+    CHECK(self.value() == fn::copack_for<A, B>{A{}}); // self unchanged
+
+    constexpr auto fnSafe = fn::overload{[](A) { return fn::optional<Boom>{Boom{99}}; }, //
+                                         [](B) { return fn::optional<Y>{Y{}}; }};
+    auto r = In{fn::copack_for<A, B>{A{}}}.and_then(fnSafe);
+    CHECK(r.value().has_value(std::in_place_type<Boom>));
+    static_assert([] {
+      constexpr auto fnSafeX = fn::overload{[](A) { return fn::optional<Boom>{Boom{99}}; }, //
+                                            [](B) { return fn::optional<Y>{Y{}}; }};
+      return In{fn::copack_for<A, B>{A{}}}.and_then(fnSafeX).value().has_value(std::in_place_type<Boom>);
+    }());
   }
 }
 

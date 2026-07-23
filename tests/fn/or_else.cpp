@@ -673,6 +673,35 @@ TEST_CASE("or_else joins heterogeneous expected branches", "[or_else][expected][
     SUCCEED();
   }
 
+  SECTION("exceptions")
+  {
+    // carrying self's value across the recovery join may throw at runtime; the branches, which
+    // recover errors only, never run on that path
+    struct Boom final {
+      int fuse; // the fuse-th relocation throws
+      constexpr explicit Boom(int f) noexcept : fuse(f) {}
+      constexpr Boom(Boom &&o) noexcept(false) : fuse(o.fuse - 1)
+      {
+        if (fuse == 0)
+          throw 0;
+      }
+    };
+    using InB = fn::expected<fn::copack<Boom>, fn::copack_for<E1, E2>>;
+    constexpr auto fnR = fn::overload{[](E1) { return fn::expected<X, fn::copack<E0>>{X{}}; },
+                                      [](E2) { return fn::expected<X, fn::copack<E0>>{X{}}; }};
+    InB self{std::in_place, Boom{2}};
+    CHECK_THROWS_AS(std::move(self).or_else(fnR), int);
+
+    InB good{std::in_place, Boom{99}};
+    auto r = std::move(good).or_else(fnR);
+    CHECK(r.value().has_value(std::in_place_type<Boom>));
+    static_assert([] {
+      constexpr auto fnRX = fn::overload{[](E1) { return fn::expected<X, fn::copack<E0>>{X{}}; },
+                                         [](E2) { return fn::expected<X, fn::copack<E0>>{X{}}; }};
+      return InB{std::in_place, Boom{99}}.or_else(fnRX).value().has_value(std::in_place_type<Boom>);
+    }());
+  }
+
   SECTION("a plain value lifts into its singular copack")
   {
     using In = fn::expected<X, fn::copack_for<E1, E2>>;
