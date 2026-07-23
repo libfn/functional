@@ -11,6 +11,7 @@
 #include <catch2/catch_all.hpp>
 
 #include <string>
+#include <tuple>
 #include <utility>
 
 #include <fn/detail/macro_begin.hpp>
@@ -1475,6 +1476,31 @@ TEST_CASE("and_then joins heterogeneous optional branches", "[and_then][optional
                                             [](B) { return fn::optional<Y>{Y{}}; }};
       return In{fn::copack_for<A, B>{A{}}}.and_then(fnSafeX).value().has_value(std::in_place_type<Boom>);
     }());
+  }
+}
+
+TEST_CASE("and_then tuple-like payload", "[and_then][expected][optional][tuple]")
+{
+  // a lone tuple-like payload exposes its elements to the callback, member and functor alike
+  struct Error final {
+    bool operator==(Error const &) const = default;
+  };
+  using T = std::tuple<int, int>;
+  constexpr auto fnAdd = [](int a, int b) noexcept { return fn::expected<int, Error>{a + b}; };
+
+  fn::expected<T, Error> e{std::in_place, 20, 22};
+  CHECK(e.and_then(fnAdd).value() == 42);
+  CHECK((e | fn::and_then(fnAdd)).value() == 42);
+  constexpr auto fnOpt = [](int a, int b) noexcept { return fn::optional<int>{a + b}; };
+  fn::optional<T> o{std::in_place, 20, 22};
+  CHECK(o.and_then(fnOpt).value() == 42);
+  CHECK((o | fn::and_then(fnOpt)).value() == 42);
+
+  SECTION("constexpr")
+  {
+    static_assert(fn::expected<T, Error>{std::in_place, 20, 22}.and_then(fnAdd).value() == 42);
+    static_assert((fn::optional<T>{std::in_place, 20, 22} | fn::and_then(fnOpt)).value() == 42);
+    SUCCEED();
   }
 }
 

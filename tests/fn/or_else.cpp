@@ -11,6 +11,7 @@
 
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 
 #include <fn/detail/macro_begin.hpp>
@@ -718,6 +719,24 @@ TEST_CASE("or_else joins heterogeneous expected branches", "[or_else][expected][
     static_assert(std::is_same_v<decltype(p), fn::expected<fn::copack<X>, E0>>);
     CHECK(p.value() == fn::copack<X>{X{}});
     static_assert(fn::applicable_or_else<decltype(fnR), In>);
+  }
+}
+
+TEST_CASE("or_else tuple-like error payload", "[or_else][expected][tuple]")
+{
+  // a lone tuple-like error exposes its elements to the recovery callback, member and functor alike
+  using TE = std::tuple<int, int>;
+  constexpr auto fnR = [](int a, int b) noexcept { return fn::expected<bool, TE>{a + b == 42}; };
+
+  fn::expected<bool, TE> e{fn::unexpect, TE{20, 22}};
+  CHECK(e.or_else(fnR).value());
+  CHECK((e | fn::or_else(fnR)).value());
+
+  SECTION("constexpr")
+  {
+    static_assert(fn::expected<bool, TE>{fn::unexpect, TE{20, 22}}.or_else(fnR).value());
+    static_assert((fn::expected<bool, TE>{fn::unexpect, TE{20, 22}} | fn::or_else(fnR)).value());
+    SUCCEED();
   }
 }
 

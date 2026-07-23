@@ -11,6 +11,7 @@
 #include <catch2/catch_all.hpp>
 
 #include <string>
+#include <tuple>
 #include <utility>
 
 #include <fn/detail/macro_begin.hpp>
@@ -739,6 +740,33 @@ TEST_CASE("transform just", "[transform][just][choice][identity]")
     constexpr auto probe = [](auto &&v, auto &&fn) { return requires { FWD(v) | fn::transform(FWD(fn)); }; };
     static_assert(not probe(fn::just<int>{3}, [](int &i) -> int & { return i; }));
     static_assert(probe(fn::just<int>{3}, [](int i) { return i; }));
+    SUCCEED();
+  }
+}
+
+TEST_CASE("transform tuple-like payload", "[transform][expected][optional][tuple]")
+{
+  // a lone tuple-like payload exposes its elements to the callback, through the member and the
+  // functor alike - fn::apply's contextual std::apply boundary, one level into the monad
+  constexpr auto add2 = [](int a, int b) noexcept { return a + b; };
+  using T = std::tuple<int, int>;
+
+  fn::expected<T, Error> e{std::in_place, 20, 22};
+  CHECK(e.transform(add2).value() == 42);
+  CHECK((e | fn::transform(add2)).value() == 42);
+  fn::optional<T> o{std::in_place, 20, 22};
+  CHECK(o.transform(add2).value() == 42);
+  CHECK((o | fn::transform(add2)).value() == 42);
+
+  // pass-whole still serves a whole-tuple callable
+  constexpr auto whole = [](T const &t) noexcept { return std::get<0>(t); };
+  CHECK(e.transform(whole).value() == 20);
+  CHECK((o | fn::transform(whole)).value() == 20);
+
+  SECTION("constexpr")
+  {
+    static_assert(fn::expected<T, Error>{std::in_place, 20, 22}.transform(add2).value() == 42);
+    static_assert((fn::optional<T>{std::in_place, 20, 22} | fn::transform(add2)).value() == 42);
     SUCCEED();
   }
 }
