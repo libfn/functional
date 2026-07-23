@@ -11,7 +11,7 @@ The library operates on a few core vocabulary types:
 - `choice`: Never-failing computation holding one of several alternatives.
 - `just`: Identity computation always yielding a single value.
 
-Composition operations include `transform` (mapping), `and_then` (sequential monadic binding), `operator&` (simultaneous product composition), and `apply` (multidispatch elimination).
+Composition operations include `transform` (mapping), `and_then` (sequential monadic binding), `operator&` (conjunction / simultaneous product composition), `operator|` (disjunction / simultaneous sum composition), the n-ary folds `fn::conjoin` and `fn::disjoin`, and `apply` (multidispatch elimination).
 
 ### Member vs. Pipeline Syntax
 
