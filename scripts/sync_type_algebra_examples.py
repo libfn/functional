@@ -52,18 +52,29 @@ print(f"Extracted {len(regions)} verified code regions from {example_path.name}"
 # 2. Read and synchronize TYPE_ALGEBRA.md
 doc_text = doc_path.read_text(encoding="utf-8")
 
-# We find <!-- sync-example-<name> --> followed by ```cpp <content> ```
-# and replace the content with the region.
+# We find <!-- sync-example-<name> --> optionally prefixed by blockquote indicators like '> '
+# followed by ```cpp <content> ```, and replace it while preserving the prefix on every line.
 def replace_snippet(match):
-    name = match.group(1)
+    prefix = match.group(1)
+    name = match.group(2)
     if name not in regions:
         sys.stderr.write(f"Warning: no matching region in main.cpp for sync-example-{name}\n")
         return match.group(0) # Keep unchanged
 
-    return f"<!-- sync-example-{name} -->\n```cpp\n{regions[name]}\n```"
+    # Prefix each line of the synchronized example block if we are inside a blockquote
+    region_lines = regions[name].splitlines()
+    if prefix:
+        prefixed_region = "\n".join(f"{prefix}{line}" if line.strip() else prefix.rstrip() for line in region_lines)
+    else:
+        prefixed_region = "\n".join(region_lines)
 
-# Match: <!-- sync-example-(...) --> followed by whitespace and ```cpp ... ```
-pattern = re.compile(r"<!-- sync-example-([\w-]+) -->\s*```cpp\n.*?```", re.DOTALL)
+    return f"{prefix}<!-- sync-example-{name} -->\n{prefix}```cpp\n{prefixed_region}\n{prefix}```"
+
+# Match: optional blockquote prefix (e.g., '> '), comment, opening fence, body, and closing fence
+pattern = re.compile(
+    r"^([ >]*?)<!-- sync-example-([\w-]+) -->\s*?\n[ >]*?```cpp\n(.*?)\n[ >]*?```",
+    re.MULTILINE | re.DOTALL
+)
 updated_text = pattern.sub(replace_snippet, doc_text)
 
 # Clean up trailing whitespace in the document (like pre-commit trailing whitespace check does)

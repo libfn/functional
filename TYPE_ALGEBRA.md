@@ -756,20 +756,22 @@ Monadic operations behave naturally around this identity cluster:
 >
 > ### Note — the vacuous `or_else` asks nothing
 >
-> This compiles (as illustrated below), even though the "callback" is a plain `int` (not a callable at all). In contrast, if the error grade is inhabited (or on `optional`, where the empty state is a genuine inhabited state), `or_else(42)` is loudly rejected.
+> For instance, the following function compiles successfully, even though the recovery handler is a plain `int` (not a callable at all):
+>
+> <!-- sync-example-vacuous-or-else -->
+> ```cpp
+> auto test_vacuous_or_else() -> void
+> {
+>   using type = decltype(fn::expected<void, fn::copack<>>{} | fn::or_else(std::declval<int>()));
+>   static_assert(std::same_as<type, fn::expected<void, fn::copack<>>>);
+> }
+> ```
+>
+> In contrast, if the error grade is inhabited (or on `optional`, where the empty state is a genuine inhabited state), `or_else(42)` is loudly rejected.
 >
 > This behavior is mathematically rigorous. The `or_else` operation evaluates the callback over the error alternatives. Over the uninhabited `copack<>`, there are zero alternatives, so the underlying fold has zero inputs. The operation trivially collapses to the identity mapping, the callback contributes nothing, and no questions about the callback — not even invocability — are formable. Demanding a constraint on the callback would be an arbitrary invention rather than a logical derivation.
 >
 > This serves a load-bearing design principle: generic code remains closed under all error grades. If `or_else` were rejected on `expected<T, copack<>>`, a recovery step would become ill-formed simply because an upstream stage statically proved that failure is impossible, breaking generic composition. Instead, the recovery step stays writable everywhere—and does nothing where failure is impossible.
-
-<!-- sync-example-vacuous-or-else -->
-```cpp
-auto test_vacuous_or_else() -> void
-{
-  using type = decltype(fn::expected<void, fn::copack<>>{} | fn::or_else(std::declval<int>()));
-  static_assert(std::same_as<type, fn::expected<void, fn::copack<>>>);
-}
-```
 
 > [!TIP]
 >
