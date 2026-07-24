@@ -1155,6 +1155,20 @@ TEST_CASE("and_then across the identity cluster", "[and_then][just][choice][expe
     static_assert((fn::just{1} | fn::and_then([](int i) { return fn::optional<int>{i}; })).value() == 1);
     constexpr fn::expected<int, E0> ce{8};
     static_assert((ce | fn::and_then([](int i) { return fn::optional<int>{i + 1}; })).value() == 9);
+
+    // the void just bridges too - nullary callback, result exactly as declared (no grade to
+    // join); its iso-sibling keeps the member's graded world, a copack<> grade acquiring the
+    // callback's error - each carrier keeps its own vocabulary under one expression
+    auto r6 = fn::just{} | fn::and_then([] { return fn::expected<int, U>{6}; });
+    static_assert(std::is_same_v<decltype(r6), fn::expected<int, U>>);
+    CHECK(r6.value() == 6);
+    auto r7 = fn::just{} | fn::and_then([] { return fn::optional<int>{7}; });
+    static_assert(std::is_same_v<decltype(r7), fn::optional<int>>);
+    CHECK(r7.value() == 7);
+    auto r8 = fn::expected<void, E0>{} | fn::and_then([] { return fn::expected<int, U>{8}; });
+    static_assert(std::is_same_v<decltype(r8), fn::expected<int, fn::copack<U>>>);
+    CHECK(r8.value() == 8);
+    static_assert((fn::just{} | fn::and_then([] { return fn::expected<int, U>{6}; })).value() == 6);
   }
 
   SECTION("the bridge refusals answer, and their converses hold")

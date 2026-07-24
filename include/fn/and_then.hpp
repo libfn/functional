@@ -130,11 +130,18 @@ concept applicable_and_then_across //
             requires some_identity<typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type>
                          || some_optional<typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type>;
             requires not some_expected<typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type>;
-          }) || ((some_expected_void<V> || (some_just<V> && ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type> && (not applicable_and_then<Fn, V>))) && requires {
+          }) || (some_expected_void<V> && requires {
             typename detail::_and_then_result<Fn>::type;
             requires some_identity<typename detail::_and_then_result<Fn>::type>
                          || some_optional<typename detail::_and_then_result<Fn>::type>;
+            // expected results stay on the member: the void identity expected keeps its graded
+            // world (a copack<> grade acquiring the callback's error), never the bare carrier
             requires not some_expected<typename detail::_and_then_result<Fn>::type>;
+          }) || (some_just<V> && ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type> && (not applicable_and_then<Fn, V>) && requires {
+            typename detail::_and_then_result<Fn>::type;
+            requires some_identity<typename detail::_and_then_result<Fn>::type>
+                         || some_optional<typename detail::_and_then_result<Fn>::type>
+                         || some_expected<typename detail::_and_then_result<Fn>::type>;
           }));
 
 /**
