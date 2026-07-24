@@ -53,9 +53,9 @@ fn::expected<UserId, fn::copack<OutOfRange>> validate(UserId)
 {
   return fn::expected<UserId, fn::copack<OutOfRange>>{::fn::unexpect, OutOfRange{}};
 }
-fn::expected<User, fn::copack<IoError, Missing>> load(UserId)
+fn::expected<User, fn::copack_for<IoError, Missing>> load(UserId)
 {
-  return fn::expected<User, fn::copack<IoError, Missing>>{::fn::unexpect, IoError{}};
+  return fn::expected<User, fn::copack_for<IoError, Missing>>{::fn::unexpect, IoError{}};
 }
 fn::expected<UserId, fn::copack<NotANumber>> parse_numeric()
 {
@@ -74,7 +74,7 @@ fn::expected<fn::copack_for<MaximumSize, FilePath, BlockSize>, fn::copack_for<Ba
 // sync-example-graded-pipeline
 auto parse_id(std::string_view) -> fn::expected<UserId, fn::copack<NotANumber>>;
 auto validate(UserId) -> fn::expected<UserId, fn::copack<OutOfRange>>;
-auto load(UserId) -> fn::expected<User, fn::copack<IoError, Missing>>;
+auto load(UserId) -> fn::expected<User, fn::copack_for<IoError, Missing>>;
 
 auto graded_pipeline(std::string_view sv) -> void
 {
@@ -82,7 +82,7 @@ auto graded_pipeline(std::string_view sv) -> void
 
   // The exact derived error union is recorded in the type:
   static_assert(
-      std::same_as<decltype(pipeline), fn::expected<User, fn::copack<IoError, Missing, NotANumber, OutOfRange>>>);
+      std::same_as<decltype(pipeline), fn::expected<User, fn::copack_for<IoError, Missing, NotANumber, OutOfRange>>>);
 }
 // sync-example-graded-pipeline
 
@@ -94,20 +94,21 @@ auto product_composition() -> void
 
   auto bundled = id & user;
 
-  static_assert(std::same_as<decltype(bundled), fn::expected<fn::pack<UserId, User>, fn::copack<IoError, Missing>>>);
+  static_assert(
+      std::same_as<decltype(bundled), fn::expected<fn::pack<UserId, User>, fn::copack_for<IoError, Missing>>>);
 }
 // sync-example-product-composition
 
 // sync-example-copack-set-semantics
 auto test_copack_set_semantics() -> void
 {
-  using SetA = fn::copack<NotANumber, OutOfRange>;
-  using SetB = fn::copack<Missing, OutOfRange>;
+  using SetA = fn::copack_for<NotANumber, OutOfRange>;
+  using SetB = fn::copack_for<Missing, OutOfRange>;
 
   // Flattening, deduplication, and reordering happen automatically:
   using Union = fn::copack_for<SetA, SetB, Missing, Missing, fn::copack<IoError>>;
 
-  static_assert(std::same_as<Union, fn::copack<IoError, Missing, NotANumber, OutOfRange>>);
+  static_assert(std::same_as<Union, fn::copack_for<IoError, Missing, NotANumber, OutOfRange>>);
 }
 // sync-example-copack-set-semantics
 
@@ -135,8 +136,21 @@ auto test_pack() -> void
   static_assert(std::same_as<decltype(wider), fn::pack<UserId, FilePath, bool, int>>);
 
   // Explicitly lifting a single scalar value into a pack:
-  auto lifted = fn::as_pack(42);
-  static_assert(std::same_as<decltype(lifted), fn::pack<int>>);
+  int x = 42;
+  auto lifted_lvalue = fn::as_pack(x);
+  static_assert(std::same_as<decltype(lifted_lvalue), fn::pack<int &>>);
+
+  auto lifted_rvalue = fn::as_pack(42);
+  static_assert(std::same_as<decltype(lifted_rvalue), fn::pack<int>>);
+
+  // Spelling the element type explicitly opts out of reference preservation - an owned copy:
+  auto copied = fn::as_pack<int>(x);
+  static_assert(std::same_as<decltype(copied), fn::pack<int>>);
+
+  // The explicit form also coerces - the argument converts at the call boundary:
+  double d = 3.14;
+  auto coerced = fn::as_pack<bool, int>(x, d);
+  static_assert(std::same_as<decltype(coerced), fn::pack<bool, int>>);
 }
 // sync-example-test-pack
 
@@ -146,7 +160,7 @@ struct StringToken {};
 
 auto test_copack() -> void
 {
-  constexpr fn::copack<IntegerToken, StringToken> token = IntegerToken{};
+  constexpr fn::copack_for<IntegerToken, StringToken> token = IntegerToken{};
 
   // Member apply eliminates the copack by routing the active alternative to an overload set:
   constexpr auto value = token.apply(fn::overload{[](IntegerToken) { return 1; }, [](StringToken) { return 2; }});
@@ -166,12 +180,12 @@ auto mapping_values_and_errors() -> void
   fn::expected<UserId, fn::copack_for<Missing, IoError>> ex{};
 
   auto mapped_val = ex | fn::transform([](UserId) { return User{}; });
-  static_assert(std::same_as<decltype(mapped_val), fn::expected<User, fn::copack<IoError, Missing>>>);
+  static_assert(std::same_as<decltype(mapped_val), fn::expected<User, fn::copack_for<IoError, Missing>>>);
 
   auto mapped_err
       = ex | fn::transform_error(fn::overload{[](Missing) { return BadSyntax{}; }, [](IoError e) { return e; }});
 
-  static_assert(std::same_as<decltype(mapped_err), fn::expected<UserId, fn::copack<BadSyntax, IoError>>>);
+  static_assert(std::same_as<decltype(mapped_err), fn::expected<UserId, fn::copack_for<BadSyntax, IoError>>>);
 }
 // sync-example-mapping-values-and-errors
 
@@ -183,15 +197,15 @@ auto operator_and_composition() -> void
 
   auto result = a & b;
 
-  static_assert(std::same_as<decltype(result), fn::expected<fn::pack<UserId, User>, fn::copack<IoError, Missing>>>);
+  static_assert(std::same_as<decltype(result), fn::expected<fn::pack<UserId, User>, fn::copack_for<IoError, Missing>>>);
 }
 // sync-example-operator-and-composition
 
 // sync-example-cartesian-distribution
 auto test_cartesian_distribution() -> void
 {
-  constexpr fn::copack<A, B> ab = A{};
-  constexpr fn::copack<C, D> cd = C{};
+  constexpr fn::copack_for<A, B> ab = A{};
+  constexpr fn::copack_for<C, D> cd = C{};
 
   auto result1 = ab & cd;
 
@@ -220,7 +234,7 @@ auto test_conjunction_with_identity_cluster() -> void
   static_assert(std::same_as<decltype(res2), decltype(ex)>);
 
   // Conjoining a choice causes distribution inside the carrier
-  fn::choice_for<double, bool> ch = 1.5;
+  fn::choice<bool, double> ch = 1.5;
   auto res3 = ex & ch;
   static_assert(
       std::same_as<decltype(res3), fn::expected<fn::copack_for<fn::pack<int, double>, fn::pack<int, bool>>, Error>>);
@@ -252,7 +266,7 @@ auto test_disjoin() -> void
   auto result = fn::disjoin(a, b, fn::just<double>{1.5});
 
   // Because just<double> cannot fail, the entire disjunction becomes total
-  static_assert(std::same_as<decltype(result), fn::choice_for<int, bool, double>>);
+  static_assert(std::same_as<decltype(result), fn::choice<bool, double, int>>);
 }
 // sync-example-test-disjoin
 
@@ -264,7 +278,7 @@ auto sequential_bind() -> void
 {
   auto result = parse_numeric() | fn::and_then(load_user);
 
-  static_assert(std::same_as<decltype(result), fn::expected<User, fn::copack<Missing, NotANumber>>>);
+  static_assert(std::same_as<decltype(result), fn::expected<User, fn::copack_for<Missing, NotANumber>>>);
 }
 // sync-example-sequential-bind
 
@@ -288,8 +302,8 @@ auto config_pipeline() -> void
 
   // The result exactly bounds both the successful paths and the error paths
   static_assert(
-      std::same_as<decltype(validated), fn::expected<fn::copack<BlockSize, FilePath, MaximumSize>,
-                                                     fn::copack<BadSyntax, Missing, OutOfRange, UnknownKey>>>);
+      std::same_as<decltype(validated), fn::expected<fn::copack_for<BlockSize, FilePath, MaximumSize>,
+                                                     fn::copack_for<BadSyntax, Missing, OutOfRange, UnknownKey>>>);
 }
 // sync-example-config-pipeline
 
@@ -336,14 +350,14 @@ auto test_identity_transformation() -> void
   // Transforming a just with a callable returning a copack produces a choice
   auto mapped = j | fn::transform([](UserId) { return fn::copack_for<Missing, FilePath>{Missing{}}; });
 
-  static_assert(std::same_as<decltype(mapped), fn::choice<FilePath, Missing>>);
+  static_assert(std::same_as<decltype(mapped), fn::choice_for<FilePath, Missing>>);
 }
 // sync-example-test-identity-transformation
 
 // sync-example-test-choice-mapping
 auto test_choice_mapping() -> void
 {
-  fn::choice_for<UserId, User> ch{UserId{}};
+  fn::choice<User, UserId> ch{UserId{}};
 
   constexpr auto mapper = fn::overload{[](UserId) { return fn::choice<Missing>{Missing{}}; },
                                        [](User) { return fn::choice<FilePath>{FilePath{}}; }};
@@ -356,7 +370,7 @@ auto test_choice_mapping() -> void
   // and_then joins and flattens them into a normalized superset choice
   auto bound = ch | fn::and_then(mapper);
 
-  static_assert(std::same_as<decltype(bound), fn::choice<FilePath, Missing>>);
+  static_assert(std::same_as<decltype(bound), fn::choice_for<FilePath, Missing>>);
 }
 // sync-example-test-choice-mapping
 
@@ -373,12 +387,12 @@ constexpr auto test_laws() -> void
   constexpr fn::expected<int, fn::copack<Missing>> ex{42};
 
   // Functor Identity: mapping with identity yields the same value
-  auto id = [](auto v) { return v; };
+  constexpr auto id = [](auto v) { return v; };
   static_assert((ex | fn::transform(id)) == ex);
 
   // Monad Left Identity: pure(x) >>= f is equivalent to f(x)
-  auto pure = [](int v) { return fn::expected<int, fn::copack<Missing>>{v}; };
-  auto f = [](int v) { return fn::expected<int, fn::copack<Missing>>{v * 2}; };
+  constexpr auto pure = [](int v) { return fn::expected<int, fn::copack<Missing>>{v}; };
+  constexpr auto f = [](int v) { return fn::expected<int, fn::copack<Missing>>{v * 2}; };
   static_assert((pure(42) | fn::and_then(f)) == f(42));
 }
 // sync-example-test-laws
@@ -413,10 +427,13 @@ int main()
   test_conjunction_with_identity_cluster();
   operator_or_composition();
   test_disjoin();
+  sequential_bind();
   config_pipeline();
+  test_explicit_lifting(fn::expected<User, IoError>{User{}}, fn::optional<User>{User{}});
   test_identity_cross();
   test_identity_transformation();
   test_choice_mapping();
+  (void)test_elimination(fn::expected<UserId, fn::copack<Missing>>{UserId{}});
   test_laws();
   test_references();
   return 0;

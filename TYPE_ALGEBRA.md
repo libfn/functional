@@ -57,7 +57,7 @@ With `libfn`, the compiler derives an exact, graded error pipeline. Consider par
 ```cpp
 auto parse_id(std::string_view) -> fn::expected<UserId, fn::copack<NotANumber>>;
 auto validate(UserId) -> fn::expected<UserId, fn::copack<OutOfRange>>;
-auto load(UserId) -> fn::expected<User, fn::copack<IoError, Missing>>;
+auto load(UserId) -> fn::expected<User, fn::copack_for<IoError, Missing>>;
 
 auto graded_pipeline(std::string_view sv) -> void
 {
@@ -65,7 +65,7 @@ auto graded_pipeline(std::string_view sv) -> void
 
   // The exact derived error union is recorded in the type:
   static_assert(
-      std::same_as<decltype(pipeline), fn::expected<User, fn::copack<IoError, Missing, NotANumber, OutOfRange>>>);
+      std::same_as<decltype(pipeline), fn::expected<User, fn::copack_for<IoError, Missing, NotANumber, OutOfRange>>>);
 }
 ```
 
@@ -109,7 +109,8 @@ auto product_composition() -> void
 
   auto bundled = id & user;
 
-  static_assert(std::same_as<decltype(bundled), fn::expected<fn::pack<UserId, User>, fn::copack<IoError, Missing>>>);
+  static_assert(
+      std::same_as<decltype(bundled), fn::expected<fn::pack<UserId, User>, fn::copack_for<IoError, Missing>>>);
 }
 ```
 
@@ -170,13 +171,13 @@ A major feature of `libfn` is that `copack` forms canonical sets of types, in co
 ```cpp
 auto test_copack_set_semantics() -> void
 {
-  using SetA = fn::copack<NotANumber, OutOfRange>;
-  using SetB = fn::copack<Missing, OutOfRange>;
+  using SetA = fn::copack_for<NotANumber, OutOfRange>;
+  using SetB = fn::copack_for<Missing, OutOfRange>;
 
   // Flattening, deduplication, and reordering happen automatically:
   using Union = fn::copack_for<SetA, SetB, Missing, Missing, fn::copack<IoError>>;
 
-  static_assert(std::same_as<Union, fn::copack<IoError, Missing, NotANumber, OutOfRange>>);
+  static_assert(std::same_as<Union, fn::copack_for<IoError, Missing, NotANumber, OutOfRange>>);
 }
 ```
 
@@ -191,7 +192,9 @@ auto test_copack_set_semantics() -> void
 > - **`copack`** is the core storage type. It requires its template parameters to already be flat, unique, and sorted in strict lexicographical order (the order defined by C++26 `std::type_order`, which `libfn` emulates for pre-C++26 compilers). If you attempt to instantiate it manually with out-of-order parameters (such as `copack<B, A>` when `A` lexicographically precedes `B`) or with nested copacks (such as `copack<A, copack<C, D>>`), **the compiler will reject the instantiation as outright ill-formed.**
 > - **`copack_for`** is the user-facing type alias utility. It acts as the compile-time "compiler gateway," accepting any raw, arbitrary list of types (out-of-order, duplicates, nested copacks), performing the complex compile-time flattening, deduplication, and lexicographical sorting automatically, and resolving directly to the validated canonical `copack` type.
 >
-> To the C++ programmer, they can be used interchangeably because `copack_for` (as a type alias) always resolves directly to `copack`. However, in prose and code, `copack` represents the normalized *state shape*, while `copack_for` represents the *construction utility*. Similarly, `choice`—which is the never-failing identity carrier over a `copack`—utilizes the `choice_for` type alias utility to automatically flatten, deduplicate, and sort its alternative types at compile time.
+> To the C++ programmer, they can often be treated as equivalent in APIs because `copack_for` (as a type alias) always resolves directly to `copack`. However, in prose and code, `copack` represents the normalized *state shape*, while `copack_for` represents the *construction utility*. When writing types out manually, `copack` requires the types to already be in strict canonical order, whereas `copack_for` handles arbitrary, out-of-order, or duplicated lists.
+>
+> Similarly, `choice`—which is the never-failing identity carrier over a `copack`—utilizes the `choice_for` type alias utility to automatically flatten, deduplicate, and sort its alternative types at compile time. Just like `copack`, `choice` requires its template parameters to be in strict canonical order, whereas `choice_for` accepts arbitrary, out-of-order, or duplicated lists.
 
 The laws governing `copack` are:
 
@@ -244,7 +247,11 @@ When a callable supplied to `and_then` needs to produce an error grade, it can e
 
 ### pack: all fields are present
 
-A `pack` acts like a standard C++ tuple (`std::tuple`) by storing multiple fields and supporting `get`, structured bindings, and an `append` mechanism. However, unlike standard tuples, `libfn` packs are strictly flat: attempting to nest a `pack` inside another `pack` via `append` flattens them, as a flat pack is canonical. To explicitly lift a single scalar value into a `pack` (which is useful when conjoining a scalar with another pack or copack), use `fn::as_pack(value)`.
+A `pack` acts like a standard C++ tuple (`std::tuple`) by storing multiple fields and supporting `get`, structured bindings, and an `append` mechanism. However, unlike standard tuples, `libfn` packs are strictly flat: attempting to nest a `pack` inside another `pack` via `append` flattens them, as a flat pack is canonical.
+
+To explicitly lift values into a `pack` (which is useful when conjoining scalars with other packs or copacks), use `fn::as_pack(...)`. When called without template parameters, `as_pack` is deduction-only and preserves the value category of its arguments: `as_pack(42)` yields `pack<int>`, whereas calling `as_pack(x)` on an lvalue `x` yields `pack<int&>` (a reference rather than a copy).
+
+Symmetrically, explicitly specifying the template parameters (e.g., `as_pack<bool, int>(x, d)`) opts out of reference preservation. In this explicit form, arguments are passed by-value (meaning lvalues are copied or decayed), enabling implicit type conversions and coercions at the call boundary. Note that partial template spelling is not supported; all element types must be spelled out explicitly if template parameters are specified.
 
 <!-- sync-example-test-pack -->
 ```cpp
@@ -271,8 +278,21 @@ auto test_pack() -> void
   static_assert(std::same_as<decltype(wider), fn::pack<UserId, FilePath, bool, int>>);
 
   // Explicitly lifting a single scalar value into a pack:
-  auto lifted = fn::as_pack(42);
-  static_assert(std::same_as<decltype(lifted), fn::pack<int>>);
+  int x = 42;
+  auto lifted_lvalue = fn::as_pack(x);
+  static_assert(std::same_as<decltype(lifted_lvalue), fn::pack<int &>>);
+
+  auto lifted_rvalue = fn::as_pack(42);
+  static_assert(std::same_as<decltype(lifted_rvalue), fn::pack<int>>);
+
+  // Spelling the element type explicitly opts out of reference preservation - an owned copy:
+  auto copied = fn::as_pack<int>(x);
+  static_assert(std::same_as<decltype(copied), fn::pack<int>>);
+
+  // The explicit form also coerces - the argument converts at the call boundary:
+  double d = 3.14;
+  auto coerced = fn::as_pack<bool, int>(x, d);
+  static_assert(std::same_as<decltype(coerced), fn::pack<bool, int>>);
 }
 ```
 
@@ -291,7 +311,7 @@ struct StringToken {};
 
 auto test_copack() -> void
 {
-  constexpr fn::copack<IntegerToken, StringToken> token = IntegerToken{};
+  constexpr fn::copack_for<IntegerToken, StringToken> token = IntegerToken{};
 
   // Member apply eliminates the copack by routing the active alternative to an overload set:
   constexpr auto value = token.apply(fn::overload{[](IntegerToken) { return 1; }, [](StringToken) { return 2; }});
@@ -305,7 +325,7 @@ auto test_copack() -> void
 }
 ```
 
-A fundamental safety guarantee of `copack` is **exhaustive matching**. Any operation that evaluates a `copack` (such as mapping with `transform`, binding with `and_then`, or eliminating with `apply`) eventually delegates to the same underlying multidispatch implementation. This implementation forces compile-time exhaustiveness: if your callback or overload set fails to handle even one of the possible alternatives stored in the `copack`, the compilation is rejected as ill-formed. This SFINAE-clean behavior is why direct `get` extraction is strictly constrained and disallowed for multi-alternative `copack` types, ensuring that compile-time exhaustiveness cannot be bypassed.
+A fundamental safety guarantee of `copack` is **exhaustive matching**. Any operation that evaluates a `copack` (such as mapping with `transform`, binding with `and_then`, or eliminating with `apply`) eventually delegates to the same underlying multidispatch implementation. This implementation forces compile-time exhaustiveness: if your callback or overload set fails to handle even one of the possible alternatives stored in the `copack`, the compilation is rejected as ill-formed. The same discipline explains why direct `get` extraction is disallowed for multi-alternative `copack` types: allowing partial extraction would bypass compile-time exhaustiveness guarantees.
 
 ### The computation carriers
 
@@ -342,12 +362,12 @@ auto mapping_values_and_errors() -> void
   fn::expected<UserId, fn::copack_for<Missing, IoError>> ex{};
 
   auto mapped_val = ex | fn::transform([](UserId) { return User{}; });
-  static_assert(std::same_as<decltype(mapped_val), fn::expected<User, fn::copack<IoError, Missing>>>);
+  static_assert(std::same_as<decltype(mapped_val), fn::expected<User, fn::copack_for<IoError, Missing>>>);
 
   auto mapped_err
       = ex | fn::transform_error(fn::overload{[](Missing) { return BadSyntax{}; }, [](IoError e) { return e; }});
 
-  static_assert(std::same_as<decltype(mapped_err), fn::expected<UserId, fn::copack<BadSyntax, IoError>>>);
+  static_assert(std::same_as<decltype(mapped_err), fn::expected<UserId, fn::copack_for<BadSyntax, IoError>>>);
 }
 ```
 
@@ -386,7 +406,7 @@ auto operator_and_composition() -> void
 
   auto result = a & b;
 
-  static_assert(std::same_as<decltype(result), fn::expected<fn::pack<UserId, User>, fn::copack<IoError, Missing>>>);
+  static_assert(std::same_as<decltype(result), fn::expected<fn::pack<UserId, User>, fn::copack_for<IoError, Missing>>>);
 }
 ```
 
@@ -394,17 +414,17 @@ The runtime failure semantics are exact:
 
 - The result type statically records all possible errors.
 - At runtime, the result stores at most *one* error, not an accumulated collection of errors.
-- If both operands already contain errors, standard short-circuit evaluation applies (the left error is retained).
+- If both operands already contain errors, the left error is retained. Because C++ operators evaluate eagerly, both operands are already fully constructed before `operator&` runs — this is an error-selection rule, not runtime short-circuiting.
 - Normal C++ evaluation rules apply: `operator&` does not magically make I/O lazy or parallel.
 
-When composing two `copack`s directly, `operator&` performs a Cartesian distribution, yielding a `copack` of `pack`s. The variadic entry point into these rules is `fn::conjoin(...)`. Note that bare `scalar & scalar` is not syntactically valid by itself; you must lift them with `fn::conjoin(a, b)` or `fn::as_pack(a) & b`.
+When composing two `copack`s directly, `operator&` performs a Cartesian distribution, yielding a `copack` of `pack`s. The variadic entry point into these rules is `fn::conjoin(...)`. Note that bare `scalar & scalar` never enters the algebra by itself: for class types it fails to compile, and for built-in types like `int` it resolves to the built-in bitwise AND. To conjoin scalars, lift them with `fn::conjoin(a, b)` or `fn::as_pack(a) & b` instead.
 
 <!-- sync-example-cartesian-distribution -->
 ```cpp
 auto test_cartesian_distribution() -> void
 {
-  constexpr fn::copack<A, B> ab = A{};
-  constexpr fn::copack<C, D> cd = C{};
+  constexpr fn::copack_for<A, B> ab = A{};
+  constexpr fn::copack_for<C, D> cd = C{};
 
   auto result1 = ab & cd;
 
@@ -443,7 +463,7 @@ auto test_conjunction_with_identity_cluster() -> void
   static_assert(std::same_as<decltype(res2), decltype(ex)>);
 
   // Conjoining a choice causes distribution inside the carrier
-  fn::choice_for<double, bool> ch = 1.5;
+  fn::choice<bool, double> ch = 1.5;
   auto res3 = ex & ch;
   static_assert(
       std::same_as<decltype(res3), fn::expected<fn::copack_for<fn::pack<int, double>, fn::pack<int, bool>>, Error>>);
@@ -509,7 +529,7 @@ auto test_disjoin() -> void
   auto result = fn::disjoin(a, b, fn::just<double>{1.5});
 
   // Because just<double> cannot fail, the entire disjunction becomes total
-  static_assert(std::same_as<decltype(result), fn::choice_for<int, bool, double>>);
+  static_assert(std::same_as<decltype(result), fn::choice<bool, double, int>>);
 }
 ```
 
@@ -540,7 +560,7 @@ auto sequential_bind() -> void
 {
   auto result = parse_numeric() | fn::and_then(load_user);
 
-  static_assert(std::same_as<decltype(result), fn::expected<User, fn::copack<Missing, NotANumber>>>);
+  static_assert(std::same_as<decltype(result), fn::expected<User, fn::copack_for<Missing, NotANumber>>>);
 }
 ```
 
@@ -603,8 +623,8 @@ auto config_pipeline() -> void
 
   // The result exactly bounds both the successful paths and the error paths
   static_assert(
-      std::same_as<decltype(validated), fn::expected<fn::copack<BlockSize, FilePath, MaximumSize>,
-                                                     fn::copack<BadSyntax, Missing, OutOfRange, UnknownKey>>>);
+      std::same_as<decltype(validated), fn::expected<fn::copack_for<BlockSize, FilePath, MaximumSize>,
+                                                     fn::copack_for<BadSyntax, Missing, OutOfRange, UnknownKey>>>);
 }
 ```
 
@@ -764,7 +784,7 @@ auto test_identity_transformation() -> void
   // Transforming a just with a callable returning a copack produces a choice
   auto mapped = j | fn::transform([](UserId) { return fn::copack_for<Missing, FilePath>{Missing{}}; });
 
-  static_assert(std::same_as<decltype(mapped), fn::choice<FilePath, Missing>>);
+  static_assert(std::same_as<decltype(mapped), fn::choice_for<FilePath, Missing>>);
 }
 ```
 
@@ -781,7 +801,7 @@ Consider a scenario where different branches of a switch return different `choic
 ```cpp
 auto test_choice_mapping() -> void
 {
-  fn::choice_for<UserId, User> ch{UserId{}};
+  fn::choice<User, UserId> ch{UserId{}};
 
   constexpr auto mapper = fn::overload{[](UserId) { return fn::choice<Missing>{Missing{}}; },
                                        [](User) { return fn::choice<FilePath>{FilePath{}}; }};
@@ -794,7 +814,7 @@ auto test_choice_mapping() -> void
   // and_then joins and flattens them into a normalized superset choice
   auto bound = ch | fn::and_then(mapper);
 
-  static_assert(std::same_as<decltype(bound), fn::choice<FilePath, Missing>>);
+  static_assert(std::same_as<decltype(bound), fn::choice_for<FilePath, Missing>>);
 }
 ```
 
@@ -875,7 +895,7 @@ When you eliminate a carrier using `apply_type`, the active handler receives an 
 - On `expected`, the success arm receives `std::in_place` followed by the success value, while the error arm receives `fn::unexpect` followed by the error.
 - On `optional`, the success arm receives `std::in_place` followed by the value, while the empty arm receives `std::nullopt`.
 - On `copack` and `choice`, the active alternative arm receives `std::in_place_type<T>` followed by the payload.
-- On `just`, the active arm receives `std::in_place_type<T>` (or `std::in_place_type<void>` for empty/nullary states).
+- On `just`, the arm receives `std::in_place_type<T>` followed by the value. Symmetrically, `just<void>`'s arm receives `std::in_place_type<void>` alone — representing a nullary unit payload (never an empty or uninitialized state).
 
 > [!TIP]
 >
@@ -940,12 +960,12 @@ constexpr auto test_laws() -> void
   constexpr fn::expected<int, fn::copack<Missing>> ex{42};
 
   // Functor Identity: mapping with identity yields the same value
-  auto id = [](auto v) { return v; };
+  constexpr auto id = [](auto v) { return v; };
   static_assert((ex | fn::transform(id)) == ex);
 
   // Monad Left Identity: pure(x) >>= f is equivalent to f(x)
-  auto pure = [](int v) { return fn::expected<int, fn::copack<Missing>>{v}; };
-  auto f = [](int v) { return fn::expected<int, fn::copack<Missing>>{v * 2}; };
+  constexpr auto pure = [](int v) { return fn::expected<int, fn::copack<Missing>>{v}; };
+  constexpr auto f = [](int v) { return fn::expected<int, fn::copack<Missing>>{v * 2}; };
   static_assert((pure(42) | fn::and_then(f)) == f(42));
 }
 ```
@@ -1005,7 +1025,7 @@ auto test_references() -> void
 The library is divided into layers:
 
 - `pfn` (Polyfill fn) is the standards-facing layer. It provides polyfills of `std::optional` and `std::expected`, conforming to standard C++26 (and later) shapes.
-- `fn` is the strict extension layer. It introduces the `pack`/`copack` algebra, multidispatch, graded errors, `choice`, `just`, and the cross-carrier pipeline monadic operation (`operator|`).
+- `fn` is the strict extension layer. It introduces the `pack`/`copack` algebra, multidispatch, graded errors, `choice`, `just`, the pipeline verbs, and the composition operators `&` and `|`.
 
 ## Functional terminology
 
