@@ -19,6 +19,7 @@
 #include <fn/value_or.hpp>
 #include <string_view>
 
+// sync-example-types-def
 struct Error {};
 struct OtherError {};
 
@@ -27,7 +28,6 @@ struct B {};
 struct C {};
 struct D {};
 
-// sync-example-types-def
 struct UserId {};
 struct User {};
 struct FilePath {};
@@ -188,18 +188,6 @@ auto mapping_values_and_errors() -> void
   static_assert(std::same_as<decltype(mapped_err), fn::expected<UserId, fn::copack_for<BadSyntax, IoError>>>);
 }
 // sync-example-mapping-values-and-errors
-
-// sync-example-operator-and-composition
-auto operator_and_composition() -> void
-{
-  fn::expected<UserId, fn::copack<Missing>> a{};
-  fn::expected<User, fn::copack<IoError>> b{};
-
-  auto result = a & b;
-
-  static_assert(std::same_as<decltype(result), fn::expected<fn::pack<UserId, User>, fn::copack_for<IoError, Missing>>>);
-}
-// sync-example-operator-and-composition
 
 // sync-example-cartesian-distribution
 auto test_cartesian_distribution() -> void
@@ -462,7 +450,6 @@ int main()
   test_pack();
   test_copack();
   mapping_values_and_errors();
-  operator_and_composition();
   test_cartesian_distribution();
   test_conjunction_with_identity_cluster();
   operator_or_composition();
