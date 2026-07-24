@@ -1102,7 +1102,8 @@ TEST_CASE("and_then across the identity cluster", "[and_then][just][choice][expe
     static_assert(noexcept(j | fn::and_then(nothrowCross)));
     static_assert(not noexcept(j | fn::and_then([](int) { return fn::choice<U>{U{}}; })));
 
-    // only an identity input crosses kinds, and only to an identity result
+    // only an identity input crosses kinds - to an identity result, or over the #376 bridge to
+    // optional and expected (their sections below)
     static_assert(fn::applicable_and_then_across<decltype(nothrowCross), fn::just<int> &>);
     constexpr auto fnJust = [](int) { return fn::just<int>{1}; };
     static_assert(not fn::applicable_and_then_across<decltype(fnJust), fn::expected<int, U> &>);
@@ -1118,6 +1119,60 @@ TEST_CASE("and_then across the identity cluster", "[and_then][just][choice][expe
     using is_across = monadic_static_check<fn::and_then_t, fn::just<int>>;
     static_assert(is_across::invocable_with_any([](int) { return fn::choice<U>{U{}}; }));
     static_assert(is_across::not_invocable_with_any([](int) { return 42; }));
+    SUCCEED();
+  }
+
+  SECTION("the bridge: identity inputs cross to optional and expected")
+  {
+    // the value channel is inhabited, so the callback genuinely runs and its kind is the result's
+    auto r1 = fn::just{1} | fn::and_then([](int i) { return fn::optional<int>{i}; });
+    static_assert(std::is_same_v<decltype(r1), fn::optional<int>>);
+    CHECK(r1.value() == 1);
+    auto r2 = fn::expected<int, E0>{1} | fn::and_then([](int i) { return fn::optional<int>{i + 1}; });
+    static_assert(std::is_same_v<decltype(r2), fn::optional<int>>);
+    CHECK(r2.value() == 2);
+    // fallibility introduced by the callback - just carries no grade, the result is as declared
+    auto r3 = fn::just{3} | fn::and_then([](int i) { return fn::expected<int, U>{i}; });
+    static_assert(std::is_same_v<decltype(r3), fn::expected<int, U>>);
+    CHECK(r3.value() == 3);
+    // choice dispatch with convergent optional branches ...
+    constexpr auto fnC = fn::overload{[](A) { return fn::optional<int>{1}; }, //
+                                      [](B) { return fn::optional<int>{2}; }};
+    auto r4 = fn::choice_for<A, B>{B{}} | fn::and_then(fnC);
+    static_assert(std::is_same_v<decltype(r4), fn::optional<int>>);
+    CHECK(r4.value() == 2);
+    CHECK((fn::choice_for<A, B>{A{}} | fn::and_then(fnC)).value() == 1);
+    // ... and heterogeneous ones joining under the #98 rules
+    constexpr auto fnH = fn::overload{[](A) { return fn::optional<U>{U{}}; }, //
+                                      [](B) { return fn::optional<V>{V{}}; }};
+    auto r5 = fn::choice_for<A, B>{A{}} | fn::and_then(fnH);
+    static_assert(std::is_same_v<decltype(r5), fn::optional<fn::copack_for<U, V>>>);
+    CHECK(r5.value() == fn::copack_for<U, V>{U{}});
+    CHECK((fn::choice_for<A, B>{B{}} | fn::and_then(fnH)).value() == fn::copack_for<U, V>{V{}});
+    // named sources: VS 2022 misreads a mid-expression prvalue's empty-class union member
+    constexpr fn::choice_for<A, B> cb{B{}};
+    static_assert((cb | fn::and_then(fnH)).value() == fn::copack_for<U, V>{V{}});
+    static_assert((fn::just{1} | fn::and_then([](int i) { return fn::optional<int>{i}; })).value() == 1);
+    constexpr fn::expected<int, E0> ce{8};
+    static_assert((ce | fn::and_then([](int i) { return fn::optional<int>{i + 1}; })).value() == 9);
+  }
+
+  SECTION("the bridge refusals answer, and their converses hold")
+  {
+    constexpr auto can = [](auto &&v, auto &&fn) { return requires { FWD(v) | fn::and_then(FWD(fn)); }; };
+    constexpr auto fnMixed = fn::overload{[](A) { return fn::optional<int>{}; }, //
+                                          [](B) { return fn::expected<int, U>{1}; }};
+    constexpr auto fnConv = fn::overload{[](A) { return fn::optional<int>{}; }, //
+                                         [](B) { return fn::optional<int>{1}; }};
+    // a branch set mixing the target kinds answers false - and asking no longer trips the select
+    // convergence assert, which naming the member used to do for every divergent non-choice set
+    static_assert(not can(fn::choice_for<A, B>{A{}}, fnMixed));
+    static_assert(can(fn::choice_for<A, B>{A{}}, fnConv)); // the converse
+    static_assert(not fn::applicable_and_then<decltype(fnMixed) &, fn::choice_for<A, B> &&>);
+    static_assert(not fn::applicable_and_then_across<decltype(fnMixed) &, fn::choice_for<A, B> &&>);
+    // a live-error expected still cannot switch kinds - its error would be dropped
+    static_assert(not can(fn::expected<int, U>{1}, [](int) { return fn::optional<int>{}; }));
+    static_assert(can(fn::expected<int, E0>{1}, [](int) { return fn::optional<int>{}; })); // converse
     SUCCEED();
   }
 }
