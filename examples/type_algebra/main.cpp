@@ -342,6 +342,14 @@ auto test_identity_cross() -> void
 }
 // sync-example-test-identity-cross
 
+// sync-example-vacuous-or-else
+auto test_vacuous_or_else() -> void
+{
+  using type = decltype(fn::expected<void, fn::copack<>>{} | fn::or_else(std::declval<int>()));
+  static_assert(std::same_as<type, fn::expected<void, fn::copack<>>>);
+}
+// sync-example-vacuous-or-else
+
 // sync-example-test-identity-transformation
 auto test_identity_transformation() -> void
 {
@@ -431,6 +439,7 @@ int main()
   config_pipeline();
   test_explicit_lifting(fn::expected<User, IoError>{User{}}, fn::optional<User>{User{}});
   test_identity_cross();
+  test_vacuous_or_else();
   test_identity_transformation();
   test_choice_mapping();
   (void)test_elimination(fn::expected<UserId, fn::copack<Missing>>{UserId{}});
