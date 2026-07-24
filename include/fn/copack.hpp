@@ -1329,6 +1329,7 @@ namespace detail {
 template <template <typename...> typename Tpl, typename E> struct _joining_expected_tag final {};
 template <template <typename...> typename Tpl, typename T> struct _joining_recovery_tag final {};
 template <template <typename...> typename Tpl> struct _joining_optional_tag final {};
+template <template <typename...> typename Tpl, typename T> struct _joining_optional_recovery_tag final {};
 
 namespace _joining_expected {
 template <typename T> struct parts;
@@ -1418,6 +1419,20 @@ struct _joined_optional<Tpl, Rs...> {
   using type = Tpl<typename _joining_expected::list_join<typename _joining_expected::parts_one<Rs>::type...>::type>;
 };
 
+// the recovery join into a one-parameter carrier: self's pass-through value joins every branch's
+// value under the grade-sticky rules; unlike the same-kind traits there is no select tier - self's
+// value must always enter the join, which handles exact convergence itself
+template <template <typename...> typename Tpl, typename T, typename... Rs> struct _joined_optional_recovery {};
+template <template <typename...> typename Tpl, typename T, typename... Rs>
+  requires requires {
+    typename _joining_expected::graded_join<T, typename _joining_expected::parts_one<Rs>::type...>::type;
+  }
+struct _joined_optional_recovery<Tpl, T, Rs...> {
+  static constexpr bool _hetero_join = true;
+  using type
+      = Tpl<typename _joining_expected::graded_join<T, typename _joining_expected::parts_one<Rs>::type...>::type>;
+};
+
 // a heterogeneous set that is not all-expected answers (no `type`), it does not assert: the join
 // owns every heterogeneous shape, and only convergent sets keep the select trait's diagnostics
 struct _no_join {};
@@ -1503,6 +1518,26 @@ struct _typelist_joining_optional<Tpl, Fn, Self, Tpl2<Ts...>, Args...>
 template <template <typename...> typename Tpl, typename Fn, typename Self, typename... Args>
 struct _copack_apply_result<_joining_optional_tag<Tpl>, Fn, Self, Args...>
     : _typelist_joining_optional<Tpl, Fn, Self, ::std::remove_cvref_t<Self>, Args...> {};
+
+template <template <typename...> typename Tpl, typename T, typename Fn, typename Self, typename U, typename... Args>
+struct _typelist_joining_optional_recovery;
+template <template <typename...> typename Tpl, typename T, typename Fn, typename Self,
+          template <typename...> typename Tpl2, typename... Ts, typename... Args>
+struct _typelist_joining_optional_recovery<Tpl, T, Fn, Self, Tpl2<Ts...>, Args...>
+    : ::std::conditional_t<
+          (sizeof...(Ts) == 0), _no_join,
+          ::std::conditional_t<
+              (...
+               && _joining_superset::is_kind<Tpl, ::std::remove_cvref_t<typename ::fn::detail::_apply_result<
+                                                      Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>>),
+              _joined_optional_recovery<Tpl, T,
+                                        ::std::remove_cvref_t<typename ::fn::detail::_apply_result<
+                                            Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...>,
+              _no_join>> {};
+
+template <template <typename...> typename Tpl, typename T, typename Fn, typename Self, typename... Args>
+struct _copack_apply_result<_joining_optional_recovery_tag<Tpl, T>, Fn, Self, Args...>
+    : _typelist_joining_optional_recovery<Tpl, T, Fn, Self, ::std::remove_cvref_t<Self>, Args...> {};
 
 // The cluster bind's join - the verb layer's licensed cross-carrier dispatch over a bare copack
 // payload. The same superset join as the choice members', under the asking rule of the joining
