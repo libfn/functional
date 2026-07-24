@@ -5,6 +5,8 @@
 
 #include "util/static_check.hpp"
 
+#include <fn/choice.hpp>
+#include <fn/just.hpp>
 #include <fn/or_else.hpp>
 
 #include <catch2/catch_all.hpp>
@@ -569,6 +571,18 @@ TEST_CASE("or_else identity expected", "[or_else][expected][copack]")
   auto r2 = operand_t{7} | fn::or_else(Poison{});
   CHECK(r2.value() == 7);
   static_assert((operand_t{5} | fn::or_else(Poison{})).value() == 5);
+
+  // even a non-callable is accepted: every question this verb could ask of a callback is formed
+  // with an error alternative, and there are none - not invoked, type not consulted, callability
+  // not demanded
+  auto r3 = a | fn::or_else(42);
+  static_assert(std::is_same_v<decltype(r3), operand_t>);
+  CHECK(r3.value() == 5);
+  auto r4 = operand_t{9}.or_else(42);
+  static_assert(std::is_same_v<decltype(r4), operand_t>);
+  CHECK(r4.value() == 9);
+  static_assert(std::is_same_v<decltype(fn::expected<void, fn::copack<>>{} | fn::or_else(std::declval<int>())),
+                               fn::expected<void, fn::copack<>>>);
 }
 
 TEST_CASE("or_else joins heterogeneous expected branches", "[or_else][expected][copack]")
@@ -779,3 +793,143 @@ static_assert(not applicable_or_else<decltype(fn_int_rvalue<expected<int, int>>)
 static_assert(not applicable_or_else<decltype(fn_generic<expected<Value, copack<>>>), expected<Value, copack<>>>);
 // clang-format on
 } // namespace fn
+
+TEST_CASE("or_else across expected and optional", "[or_else][expected][optional][copack]")
+{
+  struct A final {
+    bool operator==(A const &) const = default;
+  };
+  struct E1 final {
+    bool operator==(E1 const &) const = default;
+  };
+  struct E2 final {
+    bool operator==(E2 const &) const = default;
+  };
+  constexpr auto can = [](auto &&v, auto &&fn) { return requires { FWD(v) | fn::or_else(FWD(fn)); }; };
+
+  SECTION("optional to expected: the empty state invokes, the value passes through")
+  {
+    constexpr auto fnE = []() { return fn::expected<int, E1>{fn::unexpect, E1{}}; };
+    auto r1 = fn::optional<int>{5} | fn::or_else(fnE);
+    static_assert(std::is_same_v<decltype(r1), fn::expected<int, E1>>);
+    CHECK(r1.value() == 5);
+    auto r2 = fn::optional<int>{} | fn::or_else(fnE);
+    CHECK(r2.error() == E1{});
+    // the pass-through in every remaining value category
+    fn::optional<int> vl{7};
+    CHECK((vl | fn::or_else(fnE)).value() == 7);
+    CHECK((std::as_const(vl) | fn::or_else(fnE)).value() == 7);
+    CHECK((std::move(std::as_const(vl)) | fn::or_else(fnE)).value() == 7);
+    CHECK((std::move(vl) | fn::or_else(fnE)).value() == 7);
+    // named source: VS 2022 misreads a mid-expression prvalue's empty-class union member
+    constexpr fn::optional<int> cv{5};
+    static_assert((cv | fn::or_else(fnE)).value() == 5);
+    static_assert((fn::optional<int>{} | fn::or_else(fnE)).error() == E1{});
+  }
+
+  SECTION("optional to expected: graded targets and the sticky value grade")
+  {
+    // the callback's graded error passes as spelled; recovery to identity is admitted
+    auto r1 = fn::optional<int>{1} | fn::or_else([]() { return fn::expected<int, fn::copack<E1>>{1}; });
+    static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::copack<E1>>>);
+    CHECK(r1.value() == 1);
+    auto r2 = fn::optional<int>{} | fn::or_else([]() { return fn::expected<int, fn::copack<>>{7}; });
+    static_assert(std::is_same_v<decltype(r2), fn::expected<int, fn::copack<>>>);
+    CHECK(r2.value() == 7);
+    // a graded self value acquires the branch value, in both states
+    constexpr auto fnA = []() { return fn::expected<A, E1>{A{}}; };
+    auto r3 = fn::optional<fn::copack<int>>{} | fn::or_else(fnA);
+    static_assert(std::is_same_v<decltype(r3), fn::expected<fn::copack_for<int, A>, E1>>);
+    CHECK(r3.value() == fn::copack_for<int, A>{A{}});
+    auto r4 = fn::optional<fn::copack<int>>{fn::copack<int>{3}} | fn::or_else(fnA);
+    CHECK(r4.value() == fn::copack_for<int, A>{3});
+    // the empty value grade converts outright - its callback always runs
+    auto r5 = fn::optional<fn::copack<>>{} | fn::or_else([]() { return fn::expected<int, E1>{2}; });
+    static_assert(std::is_same_v<decltype(r5), fn::expected<fn::copack<int>, E1>>);
+    CHECK(r5.value() == fn::copack<int>{2});
+  }
+
+  SECTION("expected to optional: the error invokes, per alternative when graded")
+  {
+    constexpr auto fnO = [](E1) { return fn::optional<int>{}; };
+    auto r1 = fn::expected<int, E1>{9} | fn::or_else(fnO);
+    static_assert(std::is_same_v<decltype(r1), fn::optional<int>>);
+    CHECK(r1.value() == 9);
+    auto r2 = fn::expected<int, E1>{fn::unexpect, E1{}} | fn::or_else(fnO);
+    CHECK(not r2.has_value());
+    constexpr fn::expected<int, E1> ce{9};
+    static_assert((ce | fn::or_else(fnO)).value() == 9);
+    static_assert(not(fn::expected<int, E1>{fn::unexpect, E1{}} | fn::or_else(fnO)).has_value());
+    // graded dispatch reaches each branch; the value passes through
+    constexpr auto fnB = fn::overload{[](E1) { return fn::optional<int>{}; }, //
+                                      [](E2) { return fn::optional<int>{3}; }};
+    using In = fn::expected<int, fn::copack_for<E1, E2>>;
+    CHECK(not(In{fn::unexpect, fn::copack_for<E1, E2>{E1{}}} | fn::or_else(fnB)).has_value());
+    CHECK((In{fn::unexpect, fn::copack_for<E1, E2>{E2{}}} | fn::or_else(fnB)).value() == 3);
+    CHECK((In{5} | fn::or_else(fnB)).value() == 5);
+    // the sticky grade crosses the kind switch
+    auto r3 = fn::expected<fn::copack<>, E1>{fn::unexpect, E1{}} | fn::or_else([](E1) { return fn::optional<int>{4}; });
+    static_assert(std::is_same_v<decltype(r3), fn::optional<fn::copack<int>>>);
+    CHECK(r3.value() == fn::copack<int>{4});
+    // heterogeneous branch values join under the sticky grade
+    using InG = fn::expected<fn::copack<A>, fn::copack_for<E1, E2>>;
+    constexpr auto fnH = fn::overload{[](E1) { return fn::optional<int>{1}; },
+                                      [](E2) { return fn::optional<fn::copack<int>>{fn::copack<int>{2}}; }};
+    auto r4 = InG{fn::unexpect, fn::copack_for<E1, E2>{E2{}}} | fn::or_else(fnH);
+    static_assert(std::is_same_v<decltype(r4), fn::optional<fn::copack_for<A, int>>>);
+    CHECK(r4.value() == fn::copack_for<A, int>{2});
+    CHECK((InG{fn::copack<A>{A{}}} | fn::or_else(fnH)).value() == fn::copack_for<A, int>{A{}});
+  }
+
+  SECTION("refusals answer, and their converses hold")
+  {
+    static_assert(can(fn::expected<int, E1>{1}, [](E1) { return fn::optional<int>{}; }));    // the converse
+    static_assert(not can(fn::expected<int, E1>{1}, [](E1) { return fn::just<int>{1}; }));   // cluster targets
+    static_assert(not can(fn::expected<int, E1>{1}, [](E1) { return fn::choice<int>{1}; })); // belong to and_then
+    static_assert(not can(fn::optional<int>{}, []() { return fn::just<int>{1}; }));
+    static_assert(not can(fn::optional<int>{}, []() { return 1; })); // bare values stay transform's
+    static_assert(not can(fn::optional<int>{}, 42));                 // the 1-state asks invocability - and refuses
+    // a plain self value must converge with the branch value exactly
+    static_assert(not can(fn::optional<int>{}, []() { return fn::expected<A, E1>{A{}}; }));
+    static_assert(
+        fn::applicable_or_else_across<decltype([](E1) { return fn::optional<int>{}; }) &&, fn::expected<int, E1> &&>);
+    static_assert(not fn::applicable_or_else_across<decltype([]() { return fn::optional<int>{}; }) &&,
+                                                    fn::expected<int, fn::copack<>> &&>);
+    SUCCEED();
+  }
+
+  SECTION("noexcept and exceptions")
+  {
+    constexpr auto fnE = []() noexcept { return fn::expected<int, E1>{fn::unexpect, E1{}}; };
+    static_assert(noexcept(std::declval<fn::optional<int> &>() | fn::or_else(fnE)));
+    constexpr auto fnT = []() { return fn::expected<int, E1>{fn::unexpect, E1{}}; };
+    static_assert(not noexcept(std::declval<fn::optional<int> &>() | fn::or_else(fnT))); // callback may throw
+    // the pass-through relocation weighs in, and throws at runtime when armed
+    struct Boom {
+      int fuse; // defined, not just declared
+      constexpr explicit Boom(int f) : fuse(f) {}
+      constexpr Boom(Boom &&o) noexcept(false) : fuse(o.fuse - 1)
+      {
+        if (fuse == 0)
+          throw 0;
+      }
+      constexpr Boom(Boom const &o) noexcept(false) : fuse(o.fuse - 1)
+      {
+        if (fuse == 0)
+          throw 0;
+      }
+    };
+    constexpr auto fnBm = []() { return fn::expected<Boom, E1>{fn::unexpect, E1{}}; };
+    static_assert(not noexcept(std::declval<fn::optional<Boom> &>() | fn::or_else(fnBm)));
+    fn::optional<Boom> src{std::in_place, Boom{2}}; // in-place relocation burns one: fuse is 1
+    CHECK_THROWS_AS((void)(std::move(src) | fn::or_else(fnBm)), int);
+    CHECK(src.has_value()); // the throw happened constructing the result; self still holds its state
+    fn::optional<Boom> ok{std::in_place, Boom{3}}; // fuse 2: the pass-through completes on 1
+    CHECK((std::move(ok) | fn::or_else(fnBm)).value().fuse == 1);
+    static_assert([] { // the completing twin, replayed in constant evaluation
+      fn::optional<Boom> o{std::in_place, Boom{3}};
+      return (std::move(o) | fn::or_else([]() { return fn::expected<Boom, E1>{fn::unexpect, E1{}}; })).value().fuse
+             == 1;
+    }());
+  }
+}
