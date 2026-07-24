@@ -342,6 +342,38 @@ auto test_identity_cross() -> void
 }
 // sync-example-test-identity-cross
 
+// sync-example-test-success-bridge
+auto test_success_bridge() -> void
+{
+  fn::just<int> j{1};
+
+  // An identity carrier can bridge to fallible carriers on the success path
+  auto to_opt = j | fn::and_then([](int i) { return fn::optional<int>{i}; });
+  static_assert(std::same_as<decltype(to_opt), fn::optional<int>>);
+
+  auto to_exp = j | fn::and_then([](int i) { return fn::expected<int, IoError>{i}; });
+  static_assert(std::same_as<decltype(to_exp), fn::expected<int, IoError>>);
+
+  // Bridging a multi-alternative choice to fallible optional with heterogeneous success join:
+  auto choice_to_opt = fn::choice_for<int, bool>{true}
+                       | fn::and_then(fn::overload{[](int) -> fn::optional<char> { return {'a'}; },
+                                                   [](bool) -> fn::optional<long> { return {2L}; }});
+  static_assert(std::same_as<decltype(choice_to_opt), fn::optional<fn::copack_for<char, long>>>);
+}
+// sync-example-test-success-bridge
+
+// sync-example-test-failure-bridge
+auto test_failure_bridge(fn::expected<int, IoError> ex, fn::optional<int> opt) -> void
+{
+  // Fallible carriers can bridge to each other on the failure/empty recovery path
+  auto expected_to_optional = ex | fn::or_else([](IoError) { return fn::optional<int>{}; });
+  static_assert(std::same_as<decltype(expected_to_optional), fn::optional<int>>);
+
+  auto optional_to_expected = opt | fn::or_else([]() { return fn::expected<int, IoError>{100}; });
+  static_assert(std::same_as<decltype(optional_to_expected), fn::expected<int, IoError>>);
+}
+// sync-example-test-failure-bridge
+
 // sync-example-vacuous-or-else
 auto test_vacuous_or_else() -> void
 {
@@ -439,6 +471,8 @@ int main()
   config_pipeline();
   test_explicit_lifting(fn::expected<User, IoError>{User{}}, fn::optional<User>{User{}});
   test_identity_cross();
+  test_success_bridge();
+  test_failure_bridge(fn::expected<int, IoError>{}, fn::optional<int>{});
   test_vacuous_or_else();
   test_identity_transformation();
   test_choice_mapping();

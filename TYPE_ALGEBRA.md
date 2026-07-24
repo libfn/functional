@@ -118,7 +118,7 @@ The result contains a `pack` (a flat, tuple-like product) of the successful valu
 
 ### The Two Cooperating Mechanisms
 
-Behind these highly precise compiled types are two independent mechanisms that cooperate to derive and eliminate these shapes:
+Behind these precise compiled types are two independent mechanisms that cooperate to derive and eliminate these shapes:
 
 1. **Type algebra** records and normalizes the exact stored C++ types using `pack` and `copack` as you compose operations.
 2. **The application protocol** uses `apply` and ordinary C++ overload resolution to unpack those stored values and route them to your functions or lambdas.
@@ -218,7 +218,7 @@ To invoke the algebra, you use the opt-in mechanisms provided by the library:
 
 - Direct construction of `pack` and `copack_for`.
 - Explicit conversions via `fn::as_pack` and `fn::as_copack`.
-- Member helpers for explicit type lifting (detailed in Section 8).
+- Member helpers for explicit type lifting (detailed in Section 9).
 
 If a side is already a `copack` or `pack`, forwarding it behaves naturally without nesting.
 
@@ -243,7 +243,88 @@ When a callable supplied to `and_then` needs to produce an error grade, it can e
 > C++ types do not form a strict category due to compiler-specific equivalence relations, but `libfn` emulates these properties by enforcing type-level canonical flattening and deduplication.
 >
 >
-## 3. The vocabulary types
+## 3. The computation carriers
+
+To model computation and manage control flow (success, failure, alternatives, and empty states), `libfn` uses **computation carriers** (often called "monadic types"). The library defines exactly four carrier families, divided by their fallibility and payload capacity:
+
+### The fallible carriers
+
+- **`optional<T>`** (representing $T + 1$): A carrier that either holds a successful value of type `T` or is empty (`std::nullopt`).
+- **`expected<T, E>`** (representing $T + E$): A carrier that either holds a successful value of type `T` or an error of type `E`.
+
+*(Note: `libfn` provides highly optimized, standards-conforming polyfills of `std::optional` and `std::expected` under the `pfn` namespace for C++20 compilers, while the `fn` namespace extends them.)*
+
+### The infallible (identity) carriers
+
+- **`just<T>`**: Always contains a single successful value of type `T`.
+- **`choice<Ts...>`**: Always contains one of several selected alternatives, representing the complete state space of the computation.
+- **`expected<T, copack<>>`** (representing $T + 0 \cong T$): Symmetrically to `just`, this carrier can never fail because `copack<>` represents the initial zero object **0** (the uninhabited type). Lacking any possible error alternatives, it acts as an infallible, graded unit context.
+
+Because `choice` implies that an alternative is always present, `choice<>` is incomplete: an always-present selected alternative requires at least one alternative to exist.
+
+> [!NOTE]
+>
+> ### Note — `just<copack<Ts...>>` is spelled `choice<Ts...>`
+>
+> A programmer might be tempted to represent a never-failing, multi-alternative computation by nesting a coproduct inside an identity carrier, spelling it `just<copack<Ts...>>`. In `libfn`'s type algebra, this is precisely the space filled by `choice<Ts...>`. Structurally, `choice<Ts...>` is equivalent to a `just` container of a `copack`, providing a single-layer carrier that represents a never-failing computation over a coproduct.
+>
+> In fact, attempting to instantiate `just<copack<Ts...>>` will trigger a compile-time static assertion failure inside `just`, explicitly warning the programmer: `"a just over a copack is spelled choice"`.
+
+These carriers impose constraints on their payloads, but reference payloads are broadly supported where sound. For example, `optional<T&>` is supported and well-defined.
+
+### Carriers have control flow; raw data does not
+
+It is vital to recognize that raw type algebraic constructs—such as a product `std::tuple` or a sum `std::variant`—are purely passive data layouts. They contain no intrinsic control flow, no concept of short-circuiting, and no built-in notion of "success" versus "failure."
+
+To compose computations, we must wrap these values inside **computation carriers**. When we perform product composition (conjunction) or sum composition (disjunction) later in this document, we are not combining raw data; we are composing carriers. The carrier manages the propagation of success values and the short-circuiting of failures.
+
+### Carrier Bridging: Interoperable Pipelines
+
+Because these carriers represent different computational contexts, pipelines often need to transition between them. `libfn` licenses explicit **cross-carrier bridging** via pipeline-scoped operations using `operator|`:
+
+1. **Failure-Path Bridging (`or_else` between Fallible Carriers)**:
+   Standard fallible carriers can bridge to each other on their error/empty recovery paths via `or_else` (e.g., `expected` to `optional`, or vice versa). This is safe because on the success path, the successful value is preserved and bypasses the recovery callback entirely. The transition only occurs on the handled failure branch, allowing you to gracefully convert a missing value into a concrete error, or decay a detailed error into an empty state:
+
+<!-- sync-example-test-failure-bridge -->
+```cpp
+auto test_failure_bridge(fn::expected<int, IoError> ex, fn::optional<int> opt) -> void
+{
+  // Fallible carriers can bridge to each other on the failure/empty recovery path
+  auto expected_to_optional = ex | fn::or_else([](IoError) { return fn::optional<int>{}; });
+  static_assert(std::same_as<decltype(expected_to_optional), fn::optional<int>>);
+
+  auto optional_to_expected = opt | fn::or_else([]() { return fn::expected<int, IoError>{100}; });
+  static_assert(std::same_as<decltype(optional_to_expected), fn::expected<int, IoError>>);
+}
+```
+
+1. **Success-Path Bridging (`and_then` from Identity to Fallible)**:
+   Identity carriers can safely bridge to any fallible carrier via `and_then`. Since an identity carrier (like `just` or `choice`) is statically proven to be infallible, transitioning to `optional` or standard `expected` merely introduces potential failure downstream. No pre-existing failure state is discarded because none can exist upstream:
+
+<!-- sync-example-test-success-bridge -->
+```cpp
+auto test_success_bridge() -> void
+{
+  fn::just<int> j{1};
+
+  // An identity carrier can bridge to fallible carriers on the success path
+  auto to_opt = j | fn::and_then([](int i) { return fn::optional<int>{i}; });
+  static_assert(std::same_as<decltype(to_opt), fn::optional<int>>);
+
+  auto to_exp = j | fn::and_then([](int i) { return fn::expected<int, IoError>{i}; });
+  static_assert(std::same_as<decltype(to_exp), fn::expected<int, IoError>>);
+
+  // Bridging a multi-alternative choice to fallible optional with heterogeneous success join:
+  auto choice_to_opt = fn::choice_for<int, bool>{true}
+                       | fn::and_then(fn::overload{[](int) -> fn::optional<char> { return {'a'}; },
+                                                   [](bool) -> fn::optional<long> { return {2L}; }});
+  static_assert(std::same_as<decltype(choice_to_opt), fn::optional<fn::copack_for<char, long>>>);
+}
+```
+
+## 4. The sum and product payloads: pack and copack
+
+While the computation carriers manage control flow and fallibility, modeling more complex algebraic structures—such as multi-field products or multi-alternative disjoint sums—requires specialized payload types. `libfn` provides two core vocabulary types for this:
 
 ### pack: all fields are present
 
@@ -327,31 +408,7 @@ auto test_copack() -> void
 
 A fundamental safety guarantee of `copack` is **exhaustive matching**. Any operation that evaluates a `copack` (such as mapping with `transform`, binding with `and_then`, or eliminating with `apply`) eventually delegates to the same underlying multidispatch implementation. This implementation forces compile-time exhaustiveness: if your callback or overload set fails to handle even one of the possible alternatives stored in the `copack`, the compilation is rejected as ill-formed. The same discipline explains why direct `get` extraction is disallowed for multi-alternative `copack` types: allowing partial extraction would bypass compile-time exhaustiveness guarantees.
 
-### The computation carriers
-
-To model computation, `libfn` uses carrier types (often referred to as "monadic" contexts in functional programming):
-
-- `just`: Always contains a single successful value.
-- `optional`: Contains a value or is empty.
-- `expected`: Contains a value or an exact error type.
-- `choice`: Always contains one of several selected alternatives, representing the complete state space of the computation.
-
-Because `choice` implies that an alternative is always present, `choice<>` is incomplete: an always-present selected alternative requires at least one alternative to exist.
-
-**Rule:** A carrier does not need another carrier for multidispatch. Inside an `expected` or `optional`, store your alternative states as `copack<Ts...>`. Use `choice<Ts...>` only when those alternatives are themselves the outer, never-failing computation.
-
-> [!NOTE]
->
-> ### Note — `just<copack<Ts...>>` is spelled `choice<Ts...>`
->
->
-> A programmer might be tempted to represent a never-failing, multi-alternative computation by nesting a coproduct inside an identity carrier, spelling it `just<copack<Ts...>>`. In `libfn`'s type algebra, this is precisely the space filled by `choice<Ts...>`. Structurally, `choice<Ts...>` is equivalent to a `just` container of a `copack`, providing a single-layer monadic carrier that represents a never-failing computation over a coproduct.
->
-> In fact, attempting to instantiate `just<copack<Ts...>>` will trigger a compile-time static assertion failure inside `just`, explicitly warning the programmer: `"a just over a copack is spelled choice"`.
-
-These carriers impose constraints on their payloads, but reference payloads are broadly supported where sound. For example, `optional<T&>` is supported and well-defined.
-
-## 4. Mapping values and errors
+## 5. Mapping values and errors
 
 Mapping allows you to change the contained data without altering the structural success/failure shape of the computation. `libfn` uses `transform` (functor map) to operate on the successful channel, and `transform_error` for the error channel.
 
@@ -393,7 +450,7 @@ Key principles of mapping:
 >
 > In `libfn`, `transform` implements this morphism mapping ($fmap$). Functorial action on the initial object $0$ (the uninhabited `copack<>`) is vacuous: since there are no morphisms originating from $0$ (except the unique initial morphism), mapping over an empty alternative set is vacuously true. The compiler leverages this by optimizing `transform` on `optional<copack<>>` into a static no-op.
 >
-## 5. Product composition with operator& (conjunction)
+## 6. Product composition with operator& (conjunction)
 
 Simultaneous product composition combines independent computations. By evaluating `a & b`, you bundle the results.
 
@@ -440,7 +497,7 @@ auto test_cartesian_distribution() -> void
 
 ### Conjunction with the Identity Cluster
 
-When performing product composition (`operator&`), you can combine fallible carriers (like `expected` or `optional`) with any member of the **identity cluster** (detailed in Section 9):
+When performing product composition (`operator&`), you can combine fallible carriers (like `expected` or `optional`) with any member of the **identity cluster** (detailed in Section 10):
 
 - **Errors are unaffected**: Because identity cluster operands can never fail, they add no new types or terms to the result's error channel. The error side of the fallible operand is preserved exactly (whether plain or copack-graded).
 - **Value bundling**: The value of the identity cluster operand is conjoined with the fallible operand's value channel into a `fn::pack`.
@@ -482,7 +539,7 @@ auto test_conjunction_with_identity_cluster() -> void
 >   This is precisely the Cartesian distribution of `pack` over `copack` implemented statically by `libfn`.
 > - **Error Accumulation**: For `expected<T, E>`, the error grades form a union, which corresponds to the monoidal composition of effects in the underlying monoid $(\mathcal{E}, \cup, \emptyset)$.
 >
-## 6. Sum composition with operator| (disjunction)
+## 7. Sum composition with operator| (disjunction)
 
 Simultaneous sum composition combines alternative computations. By evaluating `a | b`, you attempt the left computation `a`. If it succeeds, its result is preserved. If it fails, you evaluate the right computation `b` as a fallback.
 
@@ -509,7 +566,7 @@ The runtime and compile-time semantics of disjunction are exact:
   - Because the overall disjunction only fails if *both* operands fail, the error channel represents the product of both errors. This is recorded positionally inside `fn::pack<E1, E2>`.
   - If both operands contain graded error sets (`copack`s of errors), the errors distribute through the product: $(El + Er) \times (El') \to (El \times El') + (Er \times El')$. This yields a `copack` of `pack`s, representing all combinations of failure states.
 - **Total Disjunction and the Identity Cluster**:
-  - If at least one operand belongs to the **identity cluster** (detailed in Section 9), the disjunction is guaranteed to never fail at runtime.
+  - If at least one operand belongs to the **identity cluster** (detailed in Section 10), the disjunction is guaranteed to never fail at runtime.
   - The error side gains an uninhabited factor (`copack<>`), which collapses the error channel entirely and prevents the result from failing.
   - The result is folded into a non-failing carrier of the identity cluster: a single-valued `just<T>` if there is only one successful type, or `choice<Ts...>` if the sum is heterogeneous.
 
@@ -545,7 +602,7 @@ auto test_disjoin() -> void
 >   $$E \times 0 \cong 0$$
 >   This mathematical property forces the error channel to collapse, rendering the entire disjunction total (never-failing) and folding the result into the identity cluster.
 >
-## 7. Sequential composition with and_then
+## 8. Sequential composition with and_then
 
 Sequential composition chains dependent operations where the success of one feeds the input of the next. In `libfn`, this is achieved using `and_then` (monadic bind).
 
@@ -600,9 +657,9 @@ static_assert(!fn::same_kind<fn::expected<int, IoError>, fn::expected<User, Miss
 >
 > $$\mu \circ M(\mu) = \mu \circ \mu_M \quad \text{and} \quad \mu \circ M(\eta) = id_M = \mu \circ \eta_M$$
 >
-> In C++, `and_then` implements the bind operation, while `transform` implements the endofunctor map $M(f)$. These laws are verified statically under constant evaluation in Section 13.
+> In C++, `and_then` implements the bind operation, while `transform` implements the endofunctor map $M(f)$. These laws are verified statically under constant evaluation in Section 14.
 >
-## 8. Graded expected: exact error sets
+## 9. Graded expected: exact error sets
 
 `expected` grading provides exactly bounded error sets. When an outer computation holds a coproduct of successful values, and each value requires a different operation to proceed, `libfn` derives a single, normalized `expected` shape.
 
@@ -710,7 +767,7 @@ In practice, `expected<void, copack<>>` acts as **the graded gateway** to start 
 >
 > operating exactly at the neutral identity element $I = \emptyset$ of the error pomonoid. Since $\emptyset \cup F = F$, initiating a computation with this unit trigger ensures that the composition's grade accumulates subsequent effects precisely without introducing spurious terms—making it the rigorous monoidal starting gateway.
 >
-## 9. The identity cluster
+## 10. The identity cluster
 
 Certain operations behave like an identity functor across different carriers. Because some states correspond structurally, `libfn` licenses specific cross-carrier behavior to prevent redundant boilerplate.
 
@@ -743,9 +800,13 @@ The bind operation adopts the carrier family of the provided callback. However, 
 
 Furthermore, fallible types like `expected` (with inhabited error states) and `optional` cannot indiscriminately switch to other carriers, because doing so would risk silently discarding an inhabited state.
 
+### Success-Path Bridging
+
+As detailed and illustrated in Section 3, while standard fallible carriers cannot change families on the success path, **identity carriers are licensed to bridge to any fallible carrier** via the pipeline `and_then`. Because identity carriers (like `just`, `choice`, or `expected<T, copack<>>`) are statically proven infallible, transitioning to a fallible carrier simply introduces potential failure downstream without discarding any pre-existing error or empty state.
+
 Monadic operations behave naturally around this identity cluster:
 
-- **Success mapping (`transform`)**: Remains meaningful and stays inside the nominal carrier family when using member functions. However, when using the pipeline `operator|`, returning a `copack` from `fn::transform` on an identity carrier automatically promotes the result to `choice` (as detailed in Section 10).
+- **Success mapping (`transform`)**: Remains meaningful and stays inside the nominal carrier family when using member functions. However, when using the pipeline `operator|`, returning a `copack` from `fn::transform` on an identity carrier automatically promotes the result to `choice` (as detailed in Section 11).
 - **Sequential binding (`and_then`)**: Allows cross-carrier transitions *within* the identity cluster (e.g., `just` to `expected<U, copack<>>`) when using pipeline-scoped `fn::and_then`.
 - **Recovery / dead-side mapping (`transform_error`, `or_else`, `recover`, `inspect_error`)**: Because `just` and `choice` have no error side, these are rejected at compile time. On `expected<T, copack<>>`, they are vacuously well-formed but statically proven unreachable (to allow generic code on `expected` to compile)
 - **Short-circuiting (`fail`, `filter`)**: Strictly rejected for all identity cluster carriers, because no failure state (an inhabited error or empty state) can possibly be constructed from a never-failing identity context.
@@ -786,13 +847,13 @@ Monadic operations behave naturally around this identity cluster:
 >
 > While these objects are canonically isomorphic, C++ enforces strong nominal type boundaries. `libfn` respects this by refusing implicit conversions (which would pollute the compiler's overload resolution space), choosing instead to expose these isomorphisms through **licensed binds** (cross-carrier pipeline functors) that preserve the information-theoretic equivalence without introducing implicit conversion cycles.
 >
-## 10. choice: identity over a coproduct
+## 11. choice: identity over a coproduct
 
 The `choice` carrier represents a computation that always succeeds by selecting one of several alternatives. Structurally, it serves as the single-layer carrier for coproduct states, avoiding the invalid nested `just<copack<Ts...>>` representation discussed in Section 3.
 
 ### Decoupling via Pipeline Functors
 
-As established in Section 9, transitions within the identity cluster are strictly restricted to pipeline-scoped functors to preserve decoupling between carriers.
+As established in Section 10, transitions within the identity cluster are strictly restricted to pipeline-scoped functors to preserve decoupling between carriers.
 
 For example, a pipeline-scoped `fn::transform` on a `just` that returns a `copack` is promoted automatically to a `choice`:
 
@@ -858,7 +919,7 @@ Bare-value callbacks are rejected by `choice`'s `and_then`.
 >    - **Bind**: Composes callbacks by mapping and explicitly flattening via `join`. This explicit step grants control over *when* flattening occurs, turning a loose collection of types into a rigorous Monad.
 >
 >
-## 11. Elimination and multidispatch
+## 12. Elimination and multidispatch
 
 Once your computation shapes are fully derived, you must eliminate the structure to yield an ordinary C++ value. This is done via `apply` or `apply_r`.
 
@@ -929,7 +990,7 @@ When you eliminate a carrier using `apply_type`, the active handler receives an 
 >
 > Carrier elimination (`apply_type`) preserves the canonical injections by supplying explicit state tags (such as `std::in_place` or `std::in_place_type<T>`) alongside the payload. This ensures that the caller retains the exact information of *which* injection morphism placed the value into the structure.
 >
-## 12. The monadic operations map
+## 13. The monadic operations map
 
 This is a concise reference for `libfn`'s operations, organized by channel and effect:
 
@@ -970,7 +1031,7 @@ To reason about how these operations affect the type algebra of your computation
 - **Error-side monadic operations** (like `transform_error`, `or_else`, `recover`, and `inspect_error`) are only well-formed if the carrier has an appropriate error or empty side (and are rejected on identity carriers like `just` or `choice`).
 
 
-## 13. Laws as C++ equalities
+## 14. Laws as C++ equalities
 
 The algebraic laws governing `libfn` shapes are verified by the compiler where structural capabilities permit. For instance, you can observe functor identity and monad left identity in `constexpr` contexts:
 
@@ -1001,7 +1062,7 @@ Other properties hold structurally:
 - **Identity cluster binds**: Laws hold across `just`, `choice`, and `expected<T, copack<>>` via the canonical payload-preserving state-shape correspondence.
 
 
-## 14. C++ mechanics that preserve the algebra
+## 15. C++ mechanics that preserve the algebra
 
 To make the algebraic model reliable in everyday C++, `libfn` uses extensive compiler mechanisms to reject malformed usage and preserve performance properties.
 
