@@ -331,9 +331,22 @@ template <::std::size_t I, some_pack P>
  * @return TODO
  */
 [[nodiscard]] constexpr auto as_pack() noexcept -> pack<> { return {}; }
+// The unnamed leading pack absorbs explicit template arguments and the constraint rejects them:
+// this overload is deduction-only (value-category preserving), the overload below serves spelled types
+template <typename... Explicit, typename T, typename... Args>
+  requires(sizeof...(Explicit) == 0) && (not some_in_place_type<T>)
+          && detail::_initializable<pack<T, Args...>, T, Args...>
+[[nodiscard]] constexpr auto as_pack(T &&src, Args &&...args) //
+    noexcept(detail::_nothrow_initializable<pack<T, Args...>, T, Args...>) -> pack<T, Args...>
+{
+  return pack<T, Args...>{FWD(src), FWD(args)...};
+}
+// No element type is deduced: the explicit form names ALL of pack<T, Args...> or is not viable
+// (a partial spelling fails on arity); by-value parameters admit conversion at the call boundary
+// (narrowing included) while still relocating rvalue arguments
 template <typename T, typename... Args>
   requires(not some_in_place_type<T>) && detail::_initializable<pack<T, Args...>, T, Args...>
-[[nodiscard]] constexpr auto as_pack(T &&src, Args &&...args) //
+[[nodiscard]] constexpr auto as_pack(::std::type_identity_t<T> src, ::std::type_identity_t<Args>... args) //
     noexcept(detail::_nothrow_initializable<pack<T, Args...>, T, Args...>) -> pack<T, Args...>
 {
   return pack<T, Args...>{FWD(src), FWD(args)...};

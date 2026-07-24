@@ -52,6 +52,15 @@ using Throwing = helper_t<prop::throw_copy | prop::throw_move>;
 template <typename... Args>
 concept can_as_pack = requires(Args &&...args) { fn::as_pack(FWD(args)...); };
 
+template <typename... Ts>
+concept can_as_pack_explicit = requires(int &i, double &d) { fn::as_pack<Ts...>(i, d); };
+
+template <typename... Ts>
+concept can_as_pack_explicit_rvalue_head = requires(double &d) { fn::as_pack<Ts...>(42, d); };
+
+template <typename T>
+concept can_as_pack_explicit_lvalue = requires(T &v) { fn::as_pack<T>(v); };
+
 // pack declares no special member, so each one is implicit - composed from the _element bases which
 // hold the data. Ask the elements, not the element types: a holder of a reference or of a const
 // member answers assignment differently than the bare type would.
@@ -228,6 +237,44 @@ TEST_CASE("pack", "[pack]")
     else
       return false;
   }));
+
+  // the deduced form preserves value category; naming the types opts out into owned values,
+  // converting at the call boundary - and it is all-or-none: a partial spelling is not viable
+  int k = 42;
+  static_assert(std::same_as<decltype(fn::as_pack(k)), fn::pack<int &>>);
+  static_assert(std::same_as<decltype(fn::as_pack(std::as_const(k))), fn::pack<int const &>>);
+  static_assert(std::same_as<decltype(fn::as_pack<int>(k)), fn::pack<int>>);
+  static_assert(std::same_as<decltype(fn::as_pack<int>(std::as_const(k))), fn::pack<int>>);
+  static_assert(std::same_as<decltype(fn::as_pack<int &>(k)), fn::pack<int &>>); // the view, explicitly requested
+  static_assert(std::same_as<decltype(fn::as_pack<bool, long>(k, 12)), fn::pack<bool, long>>); // converts
+
+  static_assert(can_as_pack_explicit<int, double>); // the converses of the refusals below
+  static_assert(can_as_pack_explicit<bool, int>);   // conversion per element, narrowing included
+  static_assert(can_as_pack_explicit_rvalue_head<int, double>);
+  static_assert(not can_as_pack_explicit<int>);               // fewer types than arguments
+  static_assert(not can_as_pack_explicit<int, double, long>); // more types than arguments
+  static_assert(not can_as_pack_explicit<int, char *>);       // no conversion admits the argument
+  static_assert(not can_as_pack_explicit_rvalue_head<int>);   // an rvalue head cannot smuggle a partial
+                                                              // spelling through the deduced overload
+  auto owned = fn::as_pack<int>(k);
+  k += 1;
+  CHECK(owned.apply([](int v) { return v == 42; })); // an owned copy, not a view
+  double frac = 3.14; // a variable, not a literal - clang's -Wliteral-conversion polices literals
+  CHECK(fn::as_pack<bool, int>(k, frac).apply([](bool b, int i) { return b && i == 3; }));
+  static_assert([] { // constant-evaluation twin
+    double v = 12.5;
+    return fn::as_pack<int>(v).apply([](int i) { return i == 12; });
+  }());
+
+  // evaluated on purpose, head and tail: decltype never instantiates the body, so only an
+  // evaluated call proves the body FORWARDS - a move would leave pack<T&>{xvalue} ill-formed here
+  long l = 7;
+  auto view = fn::as_pack<int &, long &>(k, l);
+  CHECK(view.apply([&](int &a, long &b) { return &a == &k && &b == &l; }));
+  static_assert([] {
+    int q = 5;
+    return fn::as_pack<int &>(q).apply([&q](int &r) { return &r == &q; });
+  }());
 
   // pack is a structural type: a constexpr pack can be a template parameter, with
   // template-argument equivalence comparing element-wise
@@ -662,6 +709,19 @@ TEST_CASE("pack noexcept", "[pack][noexcept]")
     static_assert(not can_as_pack<NoMove>); // constrained on the same initialization ...
     static_assert(can_as_pack<NoMove &>);   // ... which a binding reference element satisfies
     CHECK(fn::as_pack(t, 12).apply([&t](Throwy const &x, int i) { return &x == &t && i == 12; }));
+
+    // the explicit form relocates through a by-value parameter: the lvalue that merely bound
+    // above now copies in, and the body's move into the pack can throw
+    static_assert(not noexcept(fn::as_pack<Throwy>(t)));
+    static_assert(noexcept(fn::as_pack<int>(1))); // ... where the element permits, it cannot
+    struct NoCopy {
+      NoCopy() = default;
+      NoCopy(NoCopy &&) = default;
+      NoCopy(NoCopy const &) = delete;
+    };
+    static_assert(not can_as_pack_explicit_lvalue<NoCopy>); // the by-value parameter needs the copy ...
+    static_assert(can_as_pack_explicit_lvalue<int>);        // ... converse
+    static_assert(std::same_as<decltype(fn::as_pack<NoCopy>(NoCopy{})), fn::pack<NoCopy>>); // rvalues relocate
   }
 
   SECTION("apply")
