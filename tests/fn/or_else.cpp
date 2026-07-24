@@ -815,6 +815,10 @@ TEST_CASE("or_else across expected and optional", "[or_else][expected][optional]
     CHECK(r1.value() == 5);
     auto r2 = fn::optional<int>{} | fn::or_else(fnE);
     CHECK(r2.error() == E1{});
+    // a mutable source defeats the front end's constant folding of the whole prvalue pipeline
+    // above, so the disengaged arm genuinely executes and gcov sees it
+    fn::optional<int> mut{};
+    CHECK((mut | fn::or_else(fnE)).error() == E1{});
     // the pass-through in every remaining value category
     fn::optional<int> vl{7};
     CHECK((vl | fn::or_else(fnE)).value() == 7);
@@ -859,7 +863,9 @@ TEST_CASE("or_else across expected and optional", "[or_else][expected][optional]
     CHECK(not r2.has_value());
     constexpr fn::expected<int, E1> ce{9};
     static_assert((ce | fn::or_else(fnO)).value() == 9);
-    static_assert(not(fn::expected<int, E1>{fn::unexpect, E1{}} | fn::or_else(fnO)).has_value());
+    // named source: VS 2022 misreads a mid-expression prvalue's empty-class union member
+    constexpr fn::expected<int, E1> cerr{fn::unexpect, E1{}};
+    static_assert(not(cerr | fn::or_else(fnO)).has_value());
     // graded dispatch reaches each branch; the value passes through
     constexpr auto fnB = fn::overload{[](E1) { return fn::optional<int>{}; }, //
                                       [](E2) { return fn::optional<int>{3}; }};
