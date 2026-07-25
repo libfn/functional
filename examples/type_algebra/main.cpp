@@ -89,18 +89,6 @@ auto graded_pipeline(std::string_view sv) -> void
 }
 // sync-example-graded-pipeline
 
-// sync-example-product-composition
-auto product_composition(fn::expected<UserId, fn::copack<Missing>> id,
-                         fn::expected<User, fn::copack<IoError>> user) -> void
-{
-  auto bundled = id & user;
-
-  static_assert(
-      std::same_as<decltype(bundled),
-                   fn::expected<fn::pack<UserId, User>, fn::copack_for<IoError, Missing>>>);
-}
-// sync-example-product-composition
-
 // sync-example-copack-set-semantics
 auto test_copack_set_semantics() -> void
 {
@@ -195,6 +183,16 @@ auto mapping_values_and_errors() -> void
       std::same_as<decltype(mapped_err), fn::expected<UserId, fn::copack_for<BadSyntax, IoError>>>);
 }
 // sync-example-mapping-values-and-errors
+
+// sync-example-operator-and-composition
+auto operator_and_composition(fn::expected<int, fn::copack<Error>> a,
+                              fn::expected<bool, fn::copack<OtherError>> b) -> void
+{
+  auto result = a & b;
+  static_assert(std::same_as<decltype(result),
+                             fn::expected<fn::pack<int, bool>, fn::copack_for<Error, OtherError>>>);
+}
+// sync-example-operator-and-composition
 
 // sync-example-cartesian-distribution
 auto test_cartesian_distribution(fn::copack_for<A, B> ab, fn::copack_for<C, D> cd) -> void
@@ -444,7 +442,7 @@ int main()
   // Touch all functions to prove compilability and execution
   std::string_view sv = "";
   graded_pipeline(sv);
-  product_composition({}, {});
+  operator_and_composition({}, {});
   test_copack_set_semantics();
   test_pack();
   test_copack();
