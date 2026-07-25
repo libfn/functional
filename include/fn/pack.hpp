@@ -9,6 +9,7 @@
 #include <fn/copack.hpp>
 #include <fn/detail/meta.hpp>
 #include <fn/detail/pack_impl.hpp>
+#include <fn/monadic.hpp>
 #include <libfn_version.hpp>
 
 #include <type_traits>
@@ -459,6 +460,14 @@ template <template <typename> typename Tpl>
   return ::fn::detail::_fold_detail::fold<Lh, Rh>(FWD(lh), FWD(rh));
 }
 
+namespace detail {
+// The data fold takes data. A monadic carrier among the arguments would become a pack element,
+// silently answering a question the caller did not ask: `&` over carriers conjoins the carriers
+// themselves, and their values cannot be reached without `value()`, which throws.
+template <typename... Ts>
+concept _no_carrier = (... && (not some_monadic_type<Ts>));
+} // namespace detail
+
 /**
  * @brief The n-ary fold of `operator &` above; a single argument is forwarded unchanged
  */
@@ -482,7 +491,7 @@ constexpr inline struct conjoin_t {
    * @return TODO
    */
   template <typename Arg, typename... Args>
-    requires(not some_copack<Arg>) && (not some_pack<Arg>)
+    requires(not some_copack<Arg>) && (not some_pack<Arg>) && detail::_no_carrier<Arg, Args...>
   [[nodiscard]] constexpr auto operator()(Arg &&arg, Args &&...args) const
   {
     return (::fn::pack{FWD(arg)} & ... & FWD(args));
@@ -498,7 +507,7 @@ constexpr inline struct conjoin_t {
    * @return TODO
    */
   template <typename Arg, typename... Args>
-    requires some_copack<Arg> || some_pack<Arg>
+    requires(some_copack<Arg> || some_pack<Arg>) && detail::_no_carrier<Args...>
   [[nodiscard]] constexpr auto operator()(Arg &&arg, Args &&...args) const
   {
     return (FWD(arg) & ... & FWD(args));

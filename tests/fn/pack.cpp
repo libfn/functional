@@ -989,6 +989,27 @@ TEST_CASE("operator &", "[pack][copack][operator_and]")
     static_assert(noexcept(std::declval<fn::copack<int> &>() & 2));
     SUCCEED();
   }
+
+  SECTION("the data fold takes data, never a carrier")
+  {
+    // A carrier passed here would have become a pack element - the pack of the carriers, not the
+    // conjunction of what they carry - so the fold refuses it, in any position.
+    constexpr auto can = [](auto &&...args) { return requires { fn::conjoin(FWD(args)...); }; };
+    static_assert(can(12, 2.5));
+    static_assert(can(fn::pack{1, 2}, 3));
+    static_assert(can(fn::as_copack(12), 3));
+    static_assert(not can(fn::expected<int, bool>{1}, 3));
+    static_assert(not can(12, fn::expected<int, bool>{1}));
+    static_assert(not can(fn::pack{1, 2}, fn::expected<int, bool>{1}));
+    static_assert(not can(fn::as_copack(12), fn::optional<int>{1}));
+    static_assert(not can(fn::optional<int>{1}, fn::optional<int>{2}));
+    static_assert(not can(fn::just<int>{1}, fn::just<bool>{true}));
+    static_assert(not can(fn::choice<int>{1}, 2));
+    // ... while a single argument is forwarded unchanged, carrier or not: nothing is packed
+    static_assert(can(fn::expected<int, bool>{1}));
+    static_assert(fn::conjoin(fn::expected<int, bool>{1}) == fn::expected<int, bool>{1});
+    SUCCEED();
+  }
 }
 
 TEST_CASE("disjoin", "[disjoin][pack][expected][just]")
