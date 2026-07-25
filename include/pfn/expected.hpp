@@ -1079,18 +1079,12 @@ template <class T, class E, class Policy> struct _expected_base {
       return true;
     return x.error() == y.error();
   }
-  template <class T2>
-    requires(not ::std::is_void_v<T> && not Policy::template is_specialization<T2>)
-  constexpr friend bool operator==(typename Policy::template type<T, E> const &x, T2 const &v) //
-      noexcept(noexcept(detail::_implicit_to_bool(*x == v)))                                   // extension
-    requires requires {
-      { *x == v } -> ::std::convertible_to<bool>;
-    }
-  {
-    if (!x.has_value())
-      return false;
-    return *x == v;
-  }
+  // The comparison against a value is NOT here: alone among these, its constraint asks about the
+  // other operand, and a hidden friend can only spell its own operand as `Policy::type<T, E>` - a
+  // non-deduced context, which leaves deduction unable to reject anything. The constraint would then
+  // be evaluated for every left operand there is, and where that operand reaches this same operator
+  // by ADL, satisfaction depends on itself. It lives at namespace scope instead, one per carrier, so
+  // that its operand is deduced and a left operand which is not that carrier answers first.
   template <class E2>
   constexpr friend bool operator==(typename Policy::template type<T, E> const &x, unexpected<E2> const &e) //
       noexcept(noexcept(detail::_implicit_to_bool(x.error() == e.error())))                                // extension
@@ -1774,6 +1768,26 @@ private:
   {
   }
 };
+
+// [expected.object.eq], the comparison against a value. Alone among the equality operators this one
+// constrains itself on the OTHER operand, which is safe only where its own operand is deduced - so
+// it cannot be a hidden friend of `_expected_base`, whose only spelling for that operand is
+// `Policy::type<T, E>`, a non-deduced context. Deduction would then reject nothing, the constraint
+// would be evaluated for every left operand there is, and where that operand reaches this operator
+// by ADL - a function pointer returning this expected, or a class template over one - satisfaction
+// would depend on itself, which is a hard error rather than an answer.
+template <class T, class E, class T2>
+  requires(not ::std::is_void_v<T> && not detail::_is_some_expected<T2>)
+constexpr bool operator==(expected<T, E> const &x, T2 const &v) //
+    noexcept(noexcept(detail::_implicit_to_bool(*x == v)))      // extension
+  requires requires {
+    { *x == v } -> ::std::convertible_to<bool>;
+  }
+{
+  if (!x.has_value())
+    return false;
+  return *x == v;
+}
 
 } // namespace LIBFN_VERSION_BASE
 } // namespace pfn
