@@ -12,6 +12,7 @@ The purpose of this library is to exercise an approach to functional programming
 
 ## Example
 
+<!-- sync-example-readme -->
 ```cpp
 // Various error types.
 enum class NotANumber {};

@@ -91,7 +91,7 @@ constexpr auto parse(std::string_view s) noexcept
   return fn::pack<int, int>{n, d};
 }
 
-// readme-example
+// sync-example-readme
 // Various error types.
 enum class NotANumber {};
 enum class DivByZero {};
@@ -187,7 +187,7 @@ static_assert(
 // Constant evaluated calculations used to verify both values and errors during compilation:
 static_assert(evaluate("1/2", Add{}, "1/3").value() == Rational::make(5, 6));
 static_assert(evaluate("2/3", Div{}, "0/1").error().has_value<DivByZero>());
-// readme-example
+// sync-example-readme
 
 int main()
 {
