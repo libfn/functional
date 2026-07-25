@@ -16,6 +16,7 @@
 #include <catch2/catch_all.hpp>
 
 #include <array>
+#include <compare>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -1212,6 +1213,23 @@ TEST_CASE("pack comparison", "[pack][comparison]")
     static_assert(fn::pack<>{} == fn::pack<>{});                             // the empty product
     CHECK(a == b);
     CHECK(a < c);
+
+    // Both directions of each fold, from mutable sources: the first element decides, or the fold
+    // walks past it. Constant evaluation instantiates these bodies without executing a branch, so
+    // the rows above leave them cold.
+    fn::pack<int, double> u{1, 2.5};
+    fn::pack<int, double> v{2, 2.5}; // differs at the first element
+    fn::pack<int, double> w{1, 3.5}; // ... and at the second
+    CHECK(not(u == v));              // `&&` stops at the first element
+    CHECK(not(u == w));              // ... or walks past it to stop at the second
+    CHECK(u == fn::pack<int, double>{1, 2.5});
+    CHECK(u < v);      // `<=>` orders at the first element
+    CHECK(u < w);      // ... or walks past it
+    CHECK(not(v < u)); // and the other way round
+    CHECK(not(w < u));
+    CHECK((u <=> w) == std::partial_ordering::less);
+    // ... and the fold running to the end, no element ordering
+    CHECK((u <=> fn::pack<int, double>{1, 2.5}) == std::partial_ordering::equivalent);
   }
 
   SECTION("a reference element compares its referent")
@@ -1231,7 +1249,16 @@ TEST_CASE("pack comparison", "[pack][comparison]")
     CHECK(x < z);
     fn::pack<int &, int> const m{i, 5};
     fn::pack<int &, int> const n{j, 5};
+    fn::pack<int &, int> const o{k, 5}; // differs at the referent
+    fn::pack<int &, int> const p{i, 6}; // ... and at the plain element
     CHECK(m == n);
+    CHECK(not(m == o));
+    CHECK(not(m == p));
+    CHECK(m < o);
+    CHECK(m < p);
+    CHECK(not(o < m));
+    CHECK((x <=> y) == std::strong_ordering::equal); // equal referents order the same
+    CHECK((m <=> n) == std::strong_ordering::equal);
   }
 
   SECTION("every element decides, and asking answers")
@@ -1251,6 +1278,18 @@ TEST_CASE("pack comparison", "[pack][comparison]")
     // a payload whose ADL reaches an expected answers like any other (#381)
     using F = fn::expected<int, bool> (*)(int);
     static_assert(can_eq<fn::pack<F>>);
+
+    // an element whose `<=>` answers something which is not a comparison category leaves the pack
+    // with no common category - `void`, a valid return type rather than a substitution failure - so
+    // the ordering must refuse rather than look viable and then fail inside
+    struct Miscompares {
+      int i;
+      constexpr bool operator==(Miscompares const &) const = default;
+      constexpr int operator<=>(Miscompares const &) const { return 0; }
+    };
+    static_assert(can_eq<fn::pack<Miscompares>>);
+    static_assert(not can_lt<fn::pack<Miscompares>>);
+    static_assert(not can_lt<fn::pack<int, Miscompares>>); // one such element decides for the pack
     SUCCEED();
   }
 

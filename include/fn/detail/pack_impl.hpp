@@ -123,10 +123,16 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
     return (... && static_cast<bool>(lh._element<Is, Ts>::v == rh._element<Is, Ts>::v));
   }
 
+  // The common category is `void` - a valid return type, not a substitution failure - when an
+  // element's `<=>` answers something that is not a comparison category, or when the elements'
+  // categories have no common one. Left unsaid, that would make the operator viable to ask about and
+  // ill-formed to use, so it is said.
   template <typename Self>
   static constexpr auto _compare(Self const &lh, Self const &rh) //
       noexcept((... && noexcept(lh._element<Is, Ts>::v <=> rh._element<Is, Ts>::v)))
           -> ::std::common_comparison_category_t<decltype(lh._element<Is, Ts>::v <=> rh._element<Is, Ts>::v)...>
+    requires(not ::std::is_void_v<
+             ::std::common_comparison_category_t<decltype(lh._element<Is, Ts>::v <=> rh._element<Is, Ts>::v)...>>)
   {
     using type = ::std::common_comparison_category_t<decltype(lh._element<Is, Ts>::v <=> rh._element<Is, Ts>::v)...>;
     type result = type::equivalent;
