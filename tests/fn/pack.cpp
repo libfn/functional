@@ -1002,12 +1002,38 @@ TEST_CASE("operator &", "[pack][copack][operator_and]")
     static_assert(not can(12, fn::expected<int, bool>{1}));
     static_assert(not can(fn::pack{1, 2}, fn::expected<int, bool>{1}));
     static_assert(not can(fn::as_copack(12), fn::optional<int>{1}));
-    static_assert(not can(fn::optional<int>{1}, fn::optional<int>{2}));
-    static_assert(not can(fn::just<int>{1}, fn::just<bool>{true}));
     static_assert(not can(fn::choice<int>{1}, 2));
     // ... while a single argument is forwarded unchanged, carrier or not: nothing is packed
     static_assert(can(fn::expected<int, bool>{1}));
     static_assert(fn::conjoin(fn::expected<int, bool>{1}) == fn::expected<int, bool>{1});
+    SUCCEED();
+  }
+
+  SECTION("all carriers instead, and the fold is the carrier conjunction")
+  {
+    // The same spelling over carriers folds `operator &` over the carriers themselves - the
+    // conjunction, whose value side is the product - and it is the fold of that operator, exactly
+    using EA = fn::expected<int, bool>;
+    using EB = fn::expected<double, bool>;
+    static_assert(std::same_as<decltype(fn::conjoin(std::declval<EA>(), std::declval<EB>())),
+                               decltype(std::declval<EA>() & std::declval<EB>())>);
+    constexpr auto is_1_2_5 = [](int i, double d) { return i == 1 && d == 2.5; };
+    static_assert(fn::conjoin(EA{1}, EB{2.5}).value().apply(is_1_2_5));
+    static_assert(fn::conjoin(EA{fn::unexpect, true}, EB{2.5}).error() == true);
+
+    // n-ary, and the product splices rather than nesting
+    constexpr auto is_1_true_2 = [](int a, bool b, int c) { return a == 1 && b && c == 2; };
+    static_assert(fn::conjoin(fn::just<int>{1}, fn::just<bool>{true}, fn::just<int>{2}).value().apply(is_1_true_2));
+    constexpr auto is_1_true = [](int i, bool b) { return i == 1 && b; };
+    static_assert(fn::conjoin(fn::optional<int>{1}, fn::optional<bool>{true}).value().apply(is_1_true));
+    CHECK(fn::conjoin(fn::optional<int>{1}, fn::optional<bool>{true}).value().apply(is_1_true));
+    static_assert(not fn::conjoin(fn::optional<int>{}, fn::optional<bool>{true}).has_value());
+
+    // the two worlds never mix: the refusals above hold in both directions
+    constexpr auto can = [](auto &&...args) { return requires { fn::conjoin(FWD(args)...); }; };
+    static_assert(can(fn::optional<int>{1}, fn::optional<bool>{true}));
+    static_assert(not can(fn::optional<int>{1}, true));
+    static_assert(not can(fn::optional<int>{1}, fn::expected<int, bool>{1})); // no mixed-kind `&`
     SUCCEED();
   }
 }
@@ -1034,6 +1060,12 @@ TEST_CASE("disjoin", "[disjoin][pack][expected][just]")
   constexpr auto can = [](auto &&...args) { return requires { fn::disjoin(FWD(args)...); }; };
   static_assert(can(EA{1}, EB{true}));
   static_assert(not can(EA{1}, 42));
+
+  // carriers only, in every arity: `|` over anything else is the built-in operator, and the fold of
+  // two integers is 3, an answer this verb has no business giving
+  static_assert(not can(1, 2));
+  static_assert(not can(42));
+  static_assert(can(EA{1}));
 }
 
 namespace {

@@ -466,6 +466,11 @@ namespace detail {
 // themselves, and their values cannot be reached without `value()`, which throws.
 template <typename... Ts>
 concept _no_carrier = (... && (not some_monadic_type<Ts>));
+
+// ... and the carrier folds take carriers, all of them: a mixed argument list belongs to neither
+// world and is refused, rather than resolved by the leading argument.
+template <typename... Ts>
+concept _all_carriers = (... && some_monadic_type<Ts>);
 } // namespace detail
 
 /**
@@ -512,6 +517,24 @@ constexpr inline struct conjoin_t {
   {
     return (FWD(arg) & ... & FWD(args));
   }
+
+  /**
+   * @brief The same fold over carriers, where `operator &` is the conjunction of the carriers
+   *
+   * @tparam Arg TODO
+   * @tparam Args TODO
+   * @param arg TODO
+   * @param args TODO
+   * @return TODO
+   */
+  template <typename Arg, typename... Args>
+    requires(sizeof...(Args) > 0)
+            && detail::_all_carriers<Arg, Args...> && requires(Arg &&a, Args &&...as) { (FWD(a) & ... & FWD(as)); }
+  [[nodiscard]] constexpr auto operator()(Arg &&arg, Args &&...args) const //
+      noexcept(noexcept((FWD(arg) & ... & FWD(args))))
+  {
+    return (FWD(arg) & ... & FWD(args));
+  }
 } conjoin;
 
 /**
@@ -519,10 +542,16 @@ constexpr inline struct conjoin_t {
  *        argument is forwarded unchanged
  */
 constexpr inline struct disjoin_t {
-  template <typename Arg> [[nodiscard]] constexpr auto operator()(Arg &&arg) const -> decltype(arg) { return FWD(arg); }
+  // Carriers only, in every arity: `|` over anything else is the built-in operator, and folding
+  // integers into 3 is not what this asks for
+  template <some_monadic_type Arg> [[nodiscard]] constexpr auto operator()(Arg &&arg) const -> decltype(arg)
+  {
+    return FWD(arg);
+  }
 
   template <typename Arg, typename... Args>
-    requires(sizeof...(Args) > 0) && requires(Arg &&a, Args &&...as) { (FWD(a) | ... | FWD(as)); }
+    requires(sizeof...(Args) > 0)
+            && detail::_all_carriers<Arg, Args...> && requires(Arg &&a, Args &&...as) { (FWD(a) | ... | FWD(as)); }
   [[nodiscard]] constexpr auto operator()(Arg &&arg, Args &&...args) const //
       noexcept(noexcept((FWD(arg) | ... | FWD(args))))
   {
