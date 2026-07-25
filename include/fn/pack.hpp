@@ -41,6 +41,28 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
   template <typename T> using append_type = _impl::template append_type<T>;
 
   /**
+   * @brief Compares two packs of the same type element by element, `<=>` lexicographically
+   *
+   * Every element decides: one that cannot be compared leaves the operator non-viable, which asking
+   * answers rather than erroring on, and a reference element compares its referent, as
+   * `fn::optional<T&>` and `std::tuple` do. `<=>` asks each element for its own, synthesizing no
+   * ordering from `<`. `!=`, `<`, `>`, `<=` and `>=` follow from these two by rewriting.
+   */
+  [[nodiscard]] constexpr auto operator==(pack const &other) const //
+      noexcept(noexcept(_impl::_equal(*this, other))) -> bool
+    requires requires(pack const &a, pack const &b) { _impl::_equal(a, b); }
+  {
+    return _impl::_equal(*this, other);
+  }
+
+  [[nodiscard]] constexpr auto operator<=>(pack const &other) const //
+      noexcept(noexcept(_impl::_compare(*this, other)))
+    requires requires(pack const &a, pack const &b) { _impl::_compare(a, b); }
+  {
+    return _impl::_compare(*this, other);
+  }
+
+  /**
    * @brief appends a thing
    *
    * @tparam T TODO
