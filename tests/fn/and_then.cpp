@@ -31,6 +31,12 @@ constexpr char const got_84_and_half[] = "Got 84 and 0.5";
 constexpr char const got_84_and_half[] = "Got 84 and 0.500000";
 #endif
 
+// Instantiating this callable for any argument is a dependent hard error: a verb that compiles
+// while receiving it provably never instantiates its callback.
+struct Poison final {
+  template <typename T> constexpr void operator()(T &&) const { static_assert(sizeof(T) == 0); }
+};
+
 struct Xint final {
   int value;
 
@@ -1604,6 +1610,58 @@ TEST_CASE("and_then tuple-like payload", "[and_then][expected][optional][tuple]"
   }
 }
 
+TEST_CASE("and_then over an uninhabited value side", "[and_then][expected][optional][copack]")
+{
+  // The mirror of transform's case: a copack<> value can never be constructed, so there is nothing
+  // to bind - the callback is neither invoked nor instantiated, and the verb delegates to the
+  // member, which is the identity there. applicable_and_then keeps answering false.
+  using E = fn::expected<fn::copack<>, int>;
+  using O = fn::optional<fn::copack<>>;
+  constexpr Poison poison{};
+
+  SECTION("expected: always the error, carried through unchanged")
+  {
+    E e{fn::unexpect, 7};
+    auto r = e | fn::and_then(poison);
+    static_assert(std::is_same_v<decltype(r), E>);
+    CHECK(r.error() == 7);
+    CHECK((std::as_const(e) | fn::and_then(poison)).error() == 7);
+    CHECK((std::move(e) | fn::and_then(poison)).error() == 7);
+  }
+
+  SECTION("optional: never engaged")
+  {
+    O o{};
+    auto r = o | fn::and_then(poison);
+    static_assert(std::is_same_v<decltype(r), O>);
+    CHECK(not r.has_value());
+    CHECK(not(std::as_const(o) | fn::and_then(poison)).has_value());
+    CHECK(not(std::move(o) | fn::and_then(poison)).has_value());
+  }
+
+  SECTION("noexcept weighs the pass-through, the only relocation left")
+  {
+    struct Throwing final {
+      Throwing() = default;
+      Throwing(Throwing const &) {} // and hence no move constructor either
+    };
+    static_assert(noexcept(std::declval<E &&>() | fn::and_then(poison)));
+    static_assert(noexcept(std::declval<O &&>() | fn::and_then(poison)));
+    static_assert(not noexcept(std::declval<fn::expected<fn::copack<>, Throwing> &&>() | fn::and_then(poison)));
+    SUCCEED();
+  }
+
+  SECTION("constexpr")
+  {
+    // named source: VS 2022 misreads a mid-expression prvalue's empty-class union member
+    constexpr E ce{fn::unexpect, 7};
+    constexpr O co{};
+    static_assert((ce | fn::and_then(Poison{})).error() == 7);
+    static_assert(not(co | fn::and_then(Poison{})).has_value());
+    SUCCEED();
+  }
+}
+
 namespace fn {
 namespace {
 struct Error {};
@@ -1659,5 +1717,13 @@ static_assert(not applicable_and_then<decltype(fn_generic<expected<int, Error>>)
 static_assert(not applicable_and_then<decltype(fn_generic<choice<int>>), optional<int>>);                        // mixed choice and optional
 static_assert(not applicable_and_then<decltype(fn_int_lvalue<choice<int>>), choice<int>>);                       // cannot bind temporary to lvalue
 static_assert(applicable_and_then<decltype(fn_int_lvalue<choice<int>>), choice<int> &>);
+
+// An uninhabited value side has nothing to bind, so the concept answers false where the inhabited rows
+// above answer true: applicability is a property of the callback, and a vacuous bind consults none.
+// The verb still applies - its own arm admits the operand - which is what monadic_invocable answers.
+static_assert(not applicable_and_then<decltype(fn_generic<expected<int, Error>>), expected<copack<>, Error>>);
+static_assert(not applicable_and_then<decltype(fn_generic<optional<int>>), optional<copack<>>>);
+static_assert(monadic_invocable<and_then_t, expected<copack<>, Error>, decltype(fn_generic<expected<int, Error>>)>);
+static_assert(monadic_invocable<and_then_t, optional<copack<>>, decltype(fn_generic<optional<int>>)>);
 // clang-format on
 } // namespace fn

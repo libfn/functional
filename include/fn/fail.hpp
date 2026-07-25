@@ -126,6 +126,18 @@ struct fail_t::apply final {
     }
     return type{::std::nullopt};
   }
+
+  // An uninhabited value side never holds a value to fail on, so the failure can never fire: the
+  // operand passes through, and the callback is neither invoked nor instantiated. Unlike an identity
+  // carrier, which is refused above, such an operand does have somewhere to fail into - it is
+  // already there.
+  template <some_monadic_type V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&) const
+      noexcept(::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, V>) -> ::std::remove_cvref_t<V>
+    requires some_empty_value<V> && detail::_relocatable<V>
+  {
+    return FWD(v);
+  }
 };
 
 } // namespace LIBFN_VERSION
