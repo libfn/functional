@@ -429,8 +429,8 @@ Key principles of mapping:
 - Heterogeneous branch results inside `transform_error` or `transform` form a normalized result `copack`.
 - Applying an error-side operation like `transform_error` to a carrier that has no error side (like `just` or `choice`) is rejected by the compiler.
 - If a side is uninhabited (`copack<>`), the transformation is well-formed, but vacuous (i.e., a no-op):
-  - `transform_error` on `expected<T, copack<>>` is proven unreachable and a no-op.
-  - The member `transform` on `optional<copack<>>` is proven unreachable and a no-op.
+  - Value-side verbs and member functions over an uninhabited value side (such as `optional<copack<>>` or `expected<copack<>, E>`) are proven unreachable and act as the identity (meaning the callback is never instantiated).
+  - Error-side verbs and member functions over an uninhabited error side (such as `expected<T, copack<>>`) behave symmetrically, acting as a vacuous no-op.
 
 > [!TIP]
 >
@@ -441,11 +441,11 @@ Key principles of mapping:
 > - **Identity**: $F(id_A) = id_{F(A)}$
 > - **Composition**: $F(g \circ f) = F(g) \circ F(f)$
 >
-> In `libfn`, `transform` implements this morphism mapping ($fmap$). Functorial action on the initial object $0$ (the uninhabited `copack<>`) is vacuous: since there are no morphisms originating from $0$ (except the unique initial morphism), mapping over an empty alternative set is vacuously true. `libfn` leverages this by constraint-selecting a dedicated identity overload for the member `transform` on `optional<copack<>>`: the callback is neither invoked nor instantiated, making its type-correctness irrelevant.
+> In `libfn`, `transform` implements this morphism mapping ($fmap$). Functorial action on the initial object $0$ (the uninhabited `copack<>`) is vacuous: since there are no morphisms originating from $0$ (except the unique initial morphism), mapping over an empty alternative set is vacuously true. `libfn` leverages this by constraint-selecting dedicated identity overloads for both the member and freestanding pipeline transform operations on `optional<copack<>>` and `expected<copack<>, E>`: the callback is neither invoked nor instantiated, making its type-correctness irrelevant.
 >
 ## 6. Product composition with operator& (conjunction)
 
-Simultaneous product composition combines independent computations. By evaluating `a & b`, you bundle the results into a `pack` of the successful values over a `copack` of the exact errors either operand can produce — the conjunction of two `expected`s shown in Section 1. While the operator (`operator&`) applies to both monadic carriers (combining computations) and data-level types (packs, copacks, and scalars), the n-ary fold utility `fn::conjoin` is strictly for data-level types. If you pass a computation carrier to `fn::conjoin`, it will be wrapped inside a `pack` rather than conjoining the computation.
+Simultaneous product composition combines independent computations. By evaluating `a & b`, you bundle the results into a `pack` of the successful values over a `copack` of the exact errors either operand can produce — the conjunction of two `expected`s shown in Section 1. The operator (`operator&`) can be applied to both monadic carriers (conjoining computations) and data-level types (packs, copacks, and scalars). The variadic fold utility `fn::conjoin(...)` operates in two symmetric modes: if all of its arguments are computation carriers, it folds them as a monadic conjunction (producing the exact same type as cascading `operator&`); if none of its arguments are carriers, it conjoins them as a data-level Cartesian product or pack combination. Mixing carriers with non-carrier/data-level types in a single `fn::conjoin` call is strictly rejected by SFINAE constraints.
 
 The runtime failure semantics are exact:
 
@@ -518,7 +518,7 @@ auto test_conjunction_with_identity_cluster(fn::expected<int, Error> ex, fn::jus
 >
 ## 7. Sum composition with operator| (disjunction)
 
-Simultaneous sum composition is the symmetric dual of product composition (Section 6), with the roles of value and error channels precisely reversed: conjunction (`operator&`) multiplies values (producing a product `pack`) and adds errors (producing a coproduct `copack`), while disjunction (`operator|`) adds values (producing a coproduct `copack`) and multiplies errors (producing a product `pack`). Unlike conjunction, disjunction operations (both the operator `operator|` and the n-ary fold `fn::disjoin`) apply strictly to monadic carriers. Disjunction is not defined on bare data-level types like `pack` or `copack`.
+Simultaneous sum composition is the symmetric dual of product composition (Section 6), with the roles of value and error channels precisely reversed: conjunction (`operator&`) multiplies values (producing a product `pack`) and adds errors (producing a coproduct `copack`), while disjunction (`operator|`) adds values (producing a coproduct `copack`) and multiplies errors (producing a product `pack`). Unlike conjunction, disjunction operations (both the operator `operator|` and the n-ary fold `fn::disjoin`) apply strictly to monadic carriers. Disjunction is not defined on bare data-level types like `pack` or `copack`. The variadic fold utility `fn::disjoin(...)` is strictly constrained to monadic carriers in every arity, completely preventing built-in C++ operations (such as bitwise OR on integers) from accidentally entering the disjunction.
 
 By evaluating `a | b`, the leftmost operand holding a value wins: if `a` succeeded its result is preserved, otherwise `b`'s is. As with `operator&`, both operands are fully constructed before the operator runs — this is a value-selection rule, not a lazy fallback.
 
@@ -734,7 +734,7 @@ using cannot_fail_t = fn::expected<T, fn::copack<>>;
 
 This computation cannot fail, but it is algebraically prepared to widen if later composition introduces possible errors.
 
-A concrete example of this is `expected<void, copack<>>`. Because `void` represents the unit `1` and `copack<>` represents the zero `0`, this type maps algebraically to $1 + 0 \cong 1$. Having a cardinality of exactly one, it has no possible errors, can never fail, and can only succeed with a single empty trigger (`void`). This makes it structurally isomorphic to the **unit type**.
+A concrete example of this is `expected<void, copack<>>` (aliased as `fn::expected_unit` in the library). Because `void` represents the unit `1` and `copack<>` represents the zero `0`, this type maps algebraically to $1 + 0 \cong 1$. Having a cardinality of exactly one, it has no possible errors, can never fail, and can only succeed with a single empty trigger (`void`). This makes it structurally isomorphic to the **unit type**.
 
 In practice, `expected<void, copack<>>` acts as **the graded gateway** to start your pipelines. By initiating a chain with this unit trigger, you seamlessly opt-in all subsequent `and_then` bindings into graded error-set unioning, without having to invent any fake starting errors or manually wrap your initial steps. Since its starting error set is empty (`copack<>`), unioning it with subsequent steps' errors (say, `copack<IoError>`) yields exactly those errors. There is also an alternative **unit type** without error channel, spelled `just<void>` (see section 10).
 
@@ -815,7 +815,7 @@ Monadic operations behave naturally around this identity cluster:
 - **Sequential binding (`and_then`)**: Allows cross-carrier transitions *within* the identity cluster (e.g., `just` to `expected<U, copack<>>`) when using pipeline-scoped `fn::and_then`.
 - **Recovery / dead-side mapping (`transform_error`, `or_else`, `recover`, `inspect_error`)**: Because `just` and `choice` have no error side, these are rejected at compile time. On `expected<T, copack<>>`, they are vacuously well-formed but statically proven unreachable (to allow generic code on `expected` to compile).
 - **Short-circuiting (`fail`, `filter`)**: Strictly rejected for all identity cluster carriers, because no failure state (an inhabited error or empty state) can possibly be constructed from a never-failing identity context.
-- **Elimination fallbacks (`value_or`)**: Strictly rejected on `just` and `choice` since they can never fail, rendering any fallback redundant and dead. On `expected<T, copack<>>`, `value_or` stays well-formed so that generic code on `expected` compiles: the fallback must still be a valid initializer for `T`, but its branch is statically dead.
+- **Elimination fallbacks (`value_or`)**: Strictly rejected on `just` and `choice` since they can never fail, rendering any fallback redundant and dead. On `expected<T, copack<>>`, `value_or` stays well-formed so that generic code on `expected` compiles: the fallback must still be a valid initializer for `T`, but its branch is statically dead. Both the member and pipeline forms of `value_or` support a `void` value side as well.
 - **Neutral observation (`inspect`, `discard`)**: Fully supported and behave normally.
 
 > [!NOTE]
@@ -1085,6 +1085,7 @@ Public concepts and `requires` clauses enforce correctness before instantiation.
 - Value categories (lvalue/rvalue) propagate strictly to callbacks, avoiding unnecessary copies.
 - Immovable and move-only payloads are fully supported in place.
 - Reference-bearing `pack<T&...>` and `optional<T&>` are fully supported. Lifetime responsibility for non-owning references remains with the caller.
+- Elements inside a `pack` are compared element-by-element (similar to `std::tuple`), which correctly supports reference-bearing elements `pack<T&...>`. To preserve correctness across heterogeneous elements, `pack`'s comparison operators (such as `operator<=>`) are SFINAE-constrained: they are only enabled if all elements are comparable, and their common comparison category is valid (non-void).
 
 > [!NOTE]
 >
