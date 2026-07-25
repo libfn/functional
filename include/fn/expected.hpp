@@ -1866,6 +1866,14 @@ private:
   }
 };
 
+/**
+ * @brief The unit of the `expected` family: a carrier over `void` whose error side is uninhabited
+ *
+ * It always holds its empty value - `copack<>` offers no alternative to fail with - so it belongs to
+ * the identity cluster, and `operator&` elides it from a product.
+ */
+using expected_unit = expected<void, copack<>>;
+
 // The comparison against a value, at namespace scope for the reason given where its siblings are
 // declared in pfn: it is the one equality operator constrained on the OTHER operand, and that is
 // safe only where this operand is deduced.

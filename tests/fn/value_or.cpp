@@ -249,6 +249,46 @@ TEST_CASE("value_or identity expected", "[value_or][expected][copack]")
   static_assert((operand_t{5} | fn::value_or(9)).value() == 5);
 }
 
+TEST_CASE("value_or void expected", "[value_or][expected][expected_void]")
+{
+  // The empty value is substituted by naming no arguments at all - there is nothing to build it
+  // from - so the failed operand comes back engaged and any argument makes the call non-viable.
+  using operand_t = fn::expected<void, int>;
+  static_assert(monadic_static_check<fn::value_or_t, operand_t>::invocable_with_any());
+  static_assert(monadic_static_check<fn::value_or_t, operand_t>::not_invocable_with_any(9));
+
+  operand_t a{fn::unexpect, 7};
+  auto r1 = a | fn::value_or();
+  static_assert(std::is_same_v<decltype(r1), operand_t>);
+  CHECK(r1.has_value());
+  operand_t b{};
+  CHECK((b | fn::value_or()).has_value());
+
+  // the unit keeps it too, its fallback constrained yet dead: the delegated member or_else is vacuous
+  static_assert(monadic_static_check<fn::value_or_t, fn::expected_unit>::invocable_with_any());
+  fn::expected_unit u{};
+  CHECK((u | fn::value_or()).has_value());
+
+  SECTION("noexcept: no value to carry, and the error is discarded rather than relocated")
+  {
+    static_assert(noexcept(std::declval<operand_t &>() | fn::value_or()));
+    static_assert(noexcept(std::declval<fn::expected_unit &>() | fn::value_or()));
+    static_assert(not std::is_nothrow_copy_constructible_v<std::string>);
+    static_assert(noexcept(std::declval<fn::expected<void, std::string> &>() | fn::value_or()));
+    SUCCEED();
+  }
+
+  SECTION("constexpr")
+  {
+    // named source: VS 2022 misreads a mid-expression prvalue's empty-class union member
+    constexpr operand_t ce{fn::unexpect, 7};
+    constexpr fn::expected_unit cu{};
+    static_assert((ce | fn::value_or()).has_value());
+    static_assert((cu | fn::value_or()).has_value());
+    SUCCEED();
+  }
+}
+
 namespace fn {
 namespace {
 struct Error {};
@@ -263,7 +303,9 @@ static_assert(applicable_value_or<expected<helper_move_only, Error>, int, int>);
 static_assert(not applicable_value_or<expected<int, Error>, char const *>);         // no conversion found
 static_assert(not applicable_value_or<expected<int, Error>, int, int>);             // too many initialisers
 static_assert(not applicable_value_or<expected<Value, Error>, int>);                // wrong type
-static_assert(not applicable_value_or<expected<void, Error>, int>);                 // void has no value to fall back to
+static_assert(not applicable_value_or<expected<void, Error>, int>);                 // void: an argument has nothing to build
+static_assert(applicable_value_or<expected<void, Error>>);                          // ... and the empty value needs none
+static_assert(applicable_value_or<expected_unit>);                                  // the unit keeps it, its fallback dead
 static_assert(applicable_value_or<optional<int>, int>);
 static_assert(not applicable_value_or<optional<int>, char const *>);
 static_assert(not applicable_value_or<choice<int>, int>);                           // no choice disjunct

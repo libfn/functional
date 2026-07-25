@@ -164,6 +164,25 @@ struct filter_t::apply final {
     }
     return FWD(v);
   }
+
+  // An uninhabited value side never holds a value to test, so nothing can be rejected: the operand
+  // passes through, and neither callback is invoked or instantiated. Unlike an identity carrier,
+  // which is refused above, such an operand does have somewhere to fail into - it is already there.
+  template <some_expected V, typename Pred, typename OnErr>
+  [[nodiscard]] constexpr auto operator()(V &&v, Pred &&, OnErr &&) const
+      noexcept(::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, V>) -> ::std::remove_cvref_t<V>
+    requires some_empty_value<V> && detail::_relocatable<V>
+  {
+    return FWD(v);
+  }
+
+  template <some_optional V, typename Pred>
+  [[nodiscard]] constexpr auto operator()(V &&v, Pred &&) const
+      noexcept(::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, V>) -> ::std::remove_cvref_t<V>
+    requires some_empty_value<V> && detail::_relocatable<V>
+  {
+    return FWD(v);
+  }
 };
 
 } // namespace LIBFN_VERSION

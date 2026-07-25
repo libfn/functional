@@ -33,6 +33,12 @@ int Value::count = 0;
 
 struct Derived : Error {};
 
+// Instantiating this callable for any argument is a dependent hard error: a verb that compiles
+// while receiving it provably never instantiates its callback.
+struct Poison final {
+  template <typename T> constexpr void operator()(T &&) const { static_assert(sizeof(T) == 0); }
+};
+
 // C++26 to_string formats through std::format (P2587): to_string(0.5) is "0.5", not "0.500000"
 #if defined(__cpp_lib_to_string) && __cpp_lib_to_string >= 202306L
 constexpr char const got_84_and_half[] = "Got 84 and 0.5";
@@ -418,6 +424,51 @@ TEST_CASE("fail noexcept", "[fail][noexcept]")
   static_assert(not noexcept(std::declval<O &>() | fn::fail([](int) {})));
 
   SUCCEED();
+}
+
+TEST_CASE("fail over an uninhabited value side", "[fail][expected][optional][copack]")
+{
+  // There is no value to fail on, so the failure can never fire: the operand passes through and the
+  // callback is neither invoked nor instantiated. The identity cluster is refused instead - it has
+  // no error to fail into - while such an operand is in the error state already.
+  constexpr Poison poison{};
+  using E = fn::expected<fn::copack<>, int>;
+  using O = fn::optional<fn::copack<>>;
+  static_assert(monadic_static_check<fn::fail_t, E>::invocable_with_any(poison));
+  static_assert(monadic_static_check<fn::fail_t, O>::invocable_with_any(poison));
+  static_assert(monadic_static_check<fn::fail_t, fn::expected<int, fn::copack<>>>::not_invocable_with_any(poison));
+
+  E e{fn::unexpect, 7};
+  auto r = e | fn::fail(poison);
+  static_assert(std::is_same_v<decltype(r), E>);
+  CHECK(r.error() == 7);
+  CHECK((std::move(e) | fn::fail(poison)).error() == 7);
+  O o{};
+  auto r2 = o | fn::fail(poison);
+  static_assert(std::is_same_v<decltype(r2), O>);
+  CHECK(not r2.has_value());
+
+  SECTION("noexcept weighs the pass-through, the only relocation left")
+  {
+    struct Throwing final {
+      Throwing() = default;
+      Throwing(Throwing const &) {} // and hence no move constructor either
+    };
+    static_assert(noexcept(std::declval<E &&>() | fn::fail(poison)));
+    static_assert(noexcept(std::declval<O &&>() | fn::fail(poison)));
+    static_assert(not noexcept(std::declval<fn::expected<fn::copack<>, Throwing> &&>() | fn::fail(poison)));
+    SUCCEED();
+  }
+
+  SECTION("constexpr")
+  {
+    // named source: VS 2022 misreads a mid-expression prvalue's empty-class union member
+    constexpr E ce{fn::unexpect, 7};
+    constexpr O co{};
+    static_assert((ce | fn::fail(Poison{})).error() == 7);
+    static_assert(not(co | fn::fail(Poison{})).has_value());
+    SUCCEED();
+  }
 }
 
 namespace fn {

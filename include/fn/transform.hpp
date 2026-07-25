@@ -131,6 +131,17 @@ struct transform_t::apply final {
     return FWD(v).transform(FWD(fn));
   }
 
+  // An uninhabited value side leaves no value to map - delegate to the member, which is the
+  // identity there and neither invokes nor instantiates the callback. The verb must reach wherever
+  // the member does, so this arm mirrors transform_error's over an uninhabited error side.
+  template <some_monadic_type V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept(noexcept(FWD(v).transform(FWD(fn))))
+      -> same_kind<V &&> auto
+    requires some_empty_value<V>
+  {
+    return FWD(v).transform(FWD(fn));
+  }
+
   // The promotion arms: a copack result over a just operand becomes the choice over the same
   // alternatives - verb-level only, along the canonical isomorphism the member's mandate names
   template <some_monadic_type V, typename Fn>

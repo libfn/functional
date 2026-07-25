@@ -16,6 +16,7 @@
 #include <catch2/catch_all.hpp>
 
 #include <array>
+#include <compare>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -989,6 +990,53 @@ TEST_CASE("operator &", "[pack][copack][operator_and]")
     static_assert(noexcept(std::declval<fn::copack<int> &>() & 2));
     SUCCEED();
   }
+
+  SECTION("the data fold takes data, never a carrier")
+  {
+    // A carrier passed here would have become a pack element - the pack of the carriers, not the
+    // conjunction of what they carry - so the fold refuses it, in any position.
+    constexpr auto can = [](auto &&...args) { return requires { fn::conjoin(FWD(args)...); }; };
+    static_assert(can(12, 2.5));
+    static_assert(can(fn::pack{1, 2}, 3));
+    static_assert(can(fn::as_copack(12), 3));
+    static_assert(not can(fn::expected<int, bool>{1}, 3));
+    static_assert(not can(12, fn::expected<int, bool>{1}));
+    static_assert(not can(fn::pack{1, 2}, fn::expected<int, bool>{1}));
+    static_assert(not can(fn::as_copack(12), fn::optional<int>{1}));
+    static_assert(not can(fn::choice<int>{1}, 2));
+    // ... while a single argument is forwarded unchanged, carrier or not: nothing is packed
+    static_assert(can(fn::expected<int, bool>{1}));
+    static_assert(fn::conjoin(fn::expected<int, bool>{1}) == fn::expected<int, bool>{1});
+    SUCCEED();
+  }
+
+  SECTION("all carriers instead, and the fold is the carrier conjunction")
+  {
+    // The same spelling over carriers folds `operator &` over the carriers themselves - the
+    // conjunction, whose value side is the product - and it is the fold of that operator, exactly
+    using EA = fn::expected<int, bool>;
+    using EB = fn::expected<double, bool>;
+    static_assert(std::same_as<decltype(fn::conjoin(std::declval<EA>(), std::declval<EB>())),
+                               decltype(std::declval<EA>() & std::declval<EB>())>);
+    constexpr auto is_1_2_5 = [](int i, double d) { return i == 1 && d == 2.5; };
+    static_assert(fn::conjoin(EA{1}, EB{2.5}).value().apply(is_1_2_5));
+    static_assert(fn::conjoin(EA{fn::unexpect, true}, EB{2.5}).error() == true);
+
+    // n-ary, and the product splices rather than nesting
+    constexpr auto is_1_true_2 = [](int a, bool b, int c) { return a == 1 && b && c == 2; };
+    static_assert(fn::conjoin(fn::just<int>{1}, fn::just<bool>{true}, fn::just<int>{2}).value().apply(is_1_true_2));
+    constexpr auto is_1_true = [](int i, bool b) { return i == 1 && b; };
+    static_assert(fn::conjoin(fn::optional<int>{1}, fn::optional<bool>{true}).value().apply(is_1_true));
+    CHECK(fn::conjoin(fn::optional<int>{1}, fn::optional<bool>{true}).value().apply(is_1_true));
+    static_assert(not fn::conjoin(fn::optional<int>{}, fn::optional<bool>{true}).has_value());
+
+    // the two worlds never mix: the refusals above hold in both directions
+    constexpr auto can = [](auto &&...args) { return requires { fn::conjoin(FWD(args)...); }; };
+    static_assert(can(fn::optional<int>{1}, fn::optional<bool>{true}));
+    static_assert(not can(fn::optional<int>{1}, true));
+    static_assert(not can(fn::optional<int>{1}, fn::expected<int, bool>{1})); // no mixed-kind `&`
+    SUCCEED();
+  }
 }
 
 TEST_CASE("disjoin", "[disjoin][pack][expected][just]")
@@ -1013,11 +1061,22 @@ TEST_CASE("disjoin", "[disjoin][pack][expected][just]")
   constexpr auto can = [](auto &&...args) { return requires { fn::disjoin(FWD(args)...); }; };
   static_assert(can(EA{1}, EB{true}));
   static_assert(not can(EA{1}, 42));
+
+  // carriers only, in every arity: `|` over anything else is the built-in operator, and the fold of
+  // two integers is 3, an answer this verb has no business giving
+  static_assert(not can(1, 2));
+  static_assert(not can(42));
+  static_assert(can(EA{1}));
 }
 
 namespace {
 template <typename P, std::size_t I>
 concept can_get = requires(P p) { fn::get<I>(static_cast<P &&>(p)); };
+
+template <typename A, typename B = A>
+concept can_eq = requires(A const &a, B const &b) { a == b; };
+template <typename A, typename B = A>
+concept can_lt = requires(A const &a, B const &b) { a < b; };
 } // namespace
 
 TEST_CASE("pack get and tuple protocol", "[pack][get][tuple]")
@@ -1126,4 +1185,128 @@ TEST_CASE("pack get and tuple protocol", "[pack][get][tuple]")
     auto const &[e0] = std::as_const(s);
     return e0 == 5;
   }());
+}
+
+TEST_CASE("pack comparison", "[pack][comparison]")
+{
+  struct NoEq {
+    int i;
+  };
+  struct EqOnly {
+    int i;
+    constexpr bool operator==(EqOnly const &) const = default;
+  };
+  struct Throwing {
+    int i;
+    constexpr bool operator==(Throwing const &o) const noexcept(false) { return i == o.i; }
+  };
+
+  SECTION("element by element, lexicographically")
+  {
+    constexpr fn::pack<int, double> a{1, 2.5};
+    constexpr fn::pack<int, double> b{1, 2.5};
+    constexpr fn::pack<int, double> c{1, 3.5};
+    static_assert(a == b);
+    static_assert(a != c);
+    static_assert(a < c);
+    static_assert(std::is_same_v<decltype(a <=> b), std::partial_ordering>); // double weakens it
+    static_assert(fn::pack<>{} == fn::pack<>{});                             // the empty product
+    CHECK(a == b);
+    CHECK(a < c);
+
+    // Both directions of each fold, from mutable sources: the first element decides, or the fold
+    // walks past it. Constant evaluation instantiates these bodies without executing a branch, so
+    // the rows above leave them cold.
+    fn::pack<int, double> u{1, 2.5};
+    fn::pack<int, double> v{2, 2.5}; // differs at the first element
+    fn::pack<int, double> w{1, 3.5}; // ... and at the second
+    CHECK(not(u == v));              // `&&` stops at the first element
+    CHECK(not(u == w));              // ... or walks past it to stop at the second
+    CHECK(u == fn::pack<int, double>{1, 2.5});
+    CHECK(u < v);      // `<=>` orders at the first element
+    CHECK(u < w);      // ... or walks past it
+    CHECK(not(v < u)); // and the other way round
+    CHECK(not(w < u));
+    CHECK((u <=> w) == std::partial_ordering::less);
+    // ... and the fold running to the end, no element ordering
+    CHECK((u <=> fn::pack<int, double>{1, 2.5}) == std::partial_ordering::equivalent);
+  }
+
+  SECTION("a reference element compares its referent")
+  {
+    // as fn::optional<T&> and std::tuple do - where a defaulted comparison would instead be deleted,
+    // leaving every pack that as_pack builds from lvalues uncomparable
+    int i = 1;
+    int j = 1;
+    int k = 2;
+    fn::pack<int &> const x{i};
+    fn::pack<int &> const y{j};
+    fn::pack<int &> const z{k};
+    static_assert(can_eq<fn::pack<int &>>);
+    CHECK(&get<0>(x) != &get<0>(y)); // distinct objects ...
+    CHECK(x == y);                   // ... equal values
+    CHECK(x != z);
+    CHECK(x < z);
+    fn::pack<int &, int> const m{i, 5};
+    fn::pack<int &, int> const n{j, 5};
+    fn::pack<int &, int> const o{k, 5}; // differs at the referent
+    fn::pack<int &, int> const p{i, 6}; // ... and at the plain element
+    CHECK(m == n);
+    CHECK(not(m == o));
+    CHECK(not(m == p));
+    CHECK(m < o);
+    CHECK(m < p);
+    CHECK(not(o < m));
+    CHECK((x <=> y) == std::strong_ordering::equal); // equal referents order the same
+    CHECK((m <=> n) == std::strong_ordering::equal);
+  }
+
+  SECTION("every element decides, and asking answers")
+  {
+    static_assert(can_eq<fn::pack<EqOnly>>);
+    static_assert(not can_lt<fn::pack<EqOnly>>); // no ordering is synthesized from == alone
+    static_assert(not can_eq<fn::pack<NoEq>>);
+    static_assert(not can_lt<fn::pack<NoEq>>);
+    static_assert(can_eq<fn::pack<int, EqOnly>>); // one bad element is enough to refuse ...
+    static_assert(not can_eq<fn::pack<int, NoEq>>);
+    static_assert(can_lt<fn::pack<int, double>>); // ... and the converse holds for both
+
+    // the comparison is between packs of the same type: nothing converts element-wise
+    static_assert(not can_eq<fn::pack<int>, fn::pack<long>>);
+    static_assert(can_eq<fn::pack<int>, fn::pack<int>>);
+
+    // a payload whose ADL reaches an expected answers like any other (#381)
+    using F = fn::expected<int, bool> (*)(int);
+    static_assert(can_eq<fn::pack<F>>);
+
+    // an element whose `<=>` answers something which is not a comparison category leaves the pack
+    // with no common category - `void`, a valid return type rather than a substitution failure - so
+    // the ordering must refuse rather than look viable and then fail inside
+    struct Miscompares {
+      int i;
+      constexpr bool operator==(Miscompares const &) const = default;
+      constexpr int operator<=>(Miscompares const &) const { return 0; }
+    };
+    static_assert(can_eq<fn::pack<Miscompares>>);
+    static_assert(not can_lt<fn::pack<Miscompares>>);
+    static_assert(not can_lt<fn::pack<int, Miscompares>>); // one such element decides for the pack
+    SUCCEED();
+  }
+
+  SECTION("noexcept is computed from the elements")
+  {
+    static_assert(noexcept(std::declval<fn::pack<int> const &>() == std::declval<fn::pack<int> const &>()));
+    static_assert(
+        not noexcept(std::declval<fn::pack<Throwing> const &>() == std::declval<fn::pack<Throwing> const &>()));
+    static_assert(noexcept(std::declval<fn::pack<int, int> const &>() <=> std::declval<fn::pack<int, int> const &>()));
+    SUCCEED();
+  }
+
+  SECTION("a copack over packs compares, which needs the pack comparison to exist")
+  {
+    using C = fn::copack<fn::pack<int, double>>;
+    static_assert(can_eq<C>);
+    CHECK(C{fn::pack{1, 2.5}} == C{fn::pack{1, 2.5}});
+    CHECK(C{fn::pack{1, 2.5}} != C{fn::pack{1, 3.5}});
+  }
 }

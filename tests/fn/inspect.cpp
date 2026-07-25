@@ -33,6 +33,12 @@ struct Value final {
 };
 
 int Value::count = 0;
+
+// Instantiating this callable for any argument is a dependent hard error: a verb that compiles
+// while receiving it provably never instantiates its callback.
+struct Poison final {
+  template <typename T> constexpr void operator()(T &&) const { static_assert(sizeof(T) == 0); }
+};
 } // namespace
 
 TEST_CASE("inspect expected", "[inspect][expected][expected_value][pack]")
@@ -552,6 +558,45 @@ TEST_CASE("inspect noexcept", "[inspect][noexcept]")
   static_assert(noexcept(std::declval<fn::expected<std::string, int> &>() | fn::inspect([](auto const &) noexcept {})));
 
   SUCCEED();
+}
+
+TEST_CASE("inspect over an uninhabited value side", "[inspect][expected][optional][copack]")
+{
+  // Nothing can be observed, because nothing can ever be there: the operand passes through and the
+  // callback is neither invoked nor instantiated, in every value category.
+  constexpr Poison poison{};
+  using E = fn::expected<fn::copack<>, int>;
+  using O = fn::optional<fn::copack<>>;
+  static_assert(monadic_static_check<fn::inspect_t, E>::invocable_with_any(poison));
+  static_assert(monadic_static_check<fn::inspect_t, O>::invocable_with_any(poison));
+
+  E e{fn::unexpect, 7};
+  static_assert(std::is_same_v<decltype(e | fn::inspect(poison)), E &>);
+  CHECK((e | fn::inspect(poison)).error() == 7);
+  O o{};
+  static_assert(std::is_same_v<decltype(o | fn::inspect(poison)), O &>);
+  CHECK(not(o | fn::inspect(poison)).has_value());
+
+  SECTION("the operand is returned by reference, so the specification is unconditional")
+  {
+    struct Throwing final {
+      Throwing() = default;
+      Throwing(Throwing const &) {} // and hence no move constructor either
+    };
+    static_assert(noexcept(std::declval<E &&>() | fn::inspect(poison)));
+    static_assert(noexcept(std::declval<fn::expected<fn::copack<>, Throwing> &&>() | fn::inspect(poison)));
+    SUCCEED();
+  }
+
+  SECTION("constexpr")
+  {
+    // named source: VS 2022 misreads a mid-expression prvalue's empty-class union member
+    constexpr E ce{fn::unexpect, 7};
+    constexpr O co{};
+    static_assert((ce | fn::inspect(Poison{})).error() == 7);
+    static_assert(not(co | fn::inspect(Poison{})).has_value());
+    SUCCEED();
+  }
 }
 
 namespace fn {

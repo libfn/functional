@@ -380,6 +380,45 @@ static_assert(not fn::some_identity<fn::expected<int, int>>);
 static_assert(not fn::some_identity<fn::expected<int, fn::copack<int>>>);
 static_assert(not fn::some_identity<fn::optional<int>>);
 static_assert(not fn::some_identity<int>);
+
+// the two uninhabited sides, named apart: the error one is the identity expected and only it, while
+// optional joins expected on the value one - its empty state is a state that is
+static_assert(fn::some_empty_error<fn::expected<int, fn::copack<>>>);
+static_assert(fn::some_empty_error<fn::expected_unit>);
+static_assert(fn::some_empty_error<fn::expected<int, fn::copack<>> const &>);
+static_assert(not fn::some_empty_error<fn::expected<int, fn::copack<int>>>);
+static_assert(not fn::some_empty_error<fn::choice<int>>);
+static_assert(not fn::some_empty_error<fn::just<int>>);
+static_assert(not fn::some_empty_error<fn::optional<int>>);
+
+static_assert(fn::some_empty_value<fn::expected<fn::copack<>, int>>);
+static_assert(fn::some_empty_value<fn::optional<fn::copack<>>>);
+static_assert(fn::some_empty_value<fn::optional<fn::copack<>> &&>);
+static_assert(not fn::some_empty_value<fn::optional<fn::copack<int>>>);
+static_assert(not fn::some_empty_value<fn::expected<void, int>>);
+static_assert(not fn::some_empty_value<fn::choice<int>>);
+static_assert(not fn::some_empty_value<fn::just<int>>);
+
+// a carrier may be both, and each answer is independent of the other side
+static_assert(fn::some_empty_value<fn::expected<fn::copack<>, fn::copack<>>>);
+static_assert(fn::some_empty_error<fn::expected<fn::copack<>, fn::copack<>>>);
+
+// Both are well-formed for anything, answering false: the carrier test short-circuits before the
+// value or error type is ever named, so nothing is substituted where it does not exist - and the
+// answers survive negation, which an equivalent conjunction spelled inline would not.
+struct Incomplete;
+template <typename T>
+concept not_empty_value = not fn::some_empty_value<T>;
+template <typename T>
+concept not_empty_error = not fn::some_empty_error<T>;
+static_assert(not_empty_value<void> && not_empty_error<void>);
+static_assert(not_empty_value<int[]> && not_empty_error<int[]>);
+static_assert(not_empty_value<void()> && not_empty_error<void()>);
+static_assert(not_empty_value<int fn::pack<int>::*> && not_empty_error<int fn::pack<int>::*>);
+static_assert(not_empty_value<Incomplete> && not_empty_error<Incomplete>);
+static_assert(not_empty_value<fn::copack<>> && not_empty_error<fn::copack<>>);
+static_assert(not not_empty_value<fn::optional<fn::copack<>>>); // the converse: negation is not vacuous
+static_assert(not not_empty_error<fn::expected_unit>);
 static_assert(fn::same_kind<fn::just<int>, fn::just<bool>>);
 static_assert(not fn::same_kind<fn::just<int>, fn::choice<int>>);
 

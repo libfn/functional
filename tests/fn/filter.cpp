@@ -31,6 +31,12 @@ struct Value final {
   Error error() const { return {"Got " + std::to_string(v)}; }
   Error error_() { return {"Got " + std::to_string(v)}; }
 };
+
+// Instantiating this callable for any argument is a dependent hard error: a verb that compiles
+// while receiving it provably never instantiates its callback.
+struct Poison final {
+  template <typename T> constexpr void operator()(T &&) const { static_assert(sizeof(T) == 0); }
+};
 } // namespace
 
 TEST_CASE("filter", "[filter][expected][expected_value]")
@@ -710,6 +716,51 @@ TEST_CASE("filter identity expected", "[filter][expected][copack]")
   static_assert(monadic_static_check<fn::filter_t, fn::just<int>>::not_invocable_with_any(keep, on_err));
   static_assert(monadic_static_check<fn::filter_t, fn::choice<int>>::not_invocable_with_any(keep, on_err));
   SUCCEED();
+}
+
+TEST_CASE("filter over an uninhabited value side", "[filter][expected][optional][copack]")
+{
+  // The mirror of the case above, and it goes the other way: there is no value to test, so nothing
+  // is rejected and the operand passes through, neither callback invoked nor instantiated. An
+  // identity carrier is refused because a rejection has nowhere to go; here it has - the operand is
+  // in the error state already, which the type system knows.
+  constexpr Poison poison{};
+  using E = fn::expected<fn::copack<>, int>;
+  using O = fn::optional<fn::copack<>>;
+  static_assert(monadic_static_check<fn::filter_t, E>::invocable_with_any(poison, poison));
+  static_assert(monadic_static_check<fn::filter_t, O>::invocable_with_any(poison));
+
+  E e{fn::unexpect, 7};
+  auto r = e | fn::filter(poison, poison);
+  static_assert(std::is_same_v<decltype(r), E>);
+  CHECK(r.error() == 7);
+  CHECK((std::move(e) | fn::filter(poison, poison)).error() == 7);
+  O o{};
+  auto r2 = o | fn::filter(poison);
+  static_assert(std::is_same_v<decltype(r2), O>);
+  CHECK(not r2.has_value());
+
+  SECTION("noexcept weighs the pass-through, the only relocation left")
+  {
+    struct Throwing final {
+      Throwing() = default;
+      Throwing(Throwing const &) {} // and hence no move constructor either
+    };
+    static_assert(noexcept(std::declval<E &&>() | fn::filter(poison, poison)));
+    static_assert(noexcept(std::declval<O &&>() | fn::filter(poison)));
+    static_assert(not noexcept(std::declval<fn::expected<fn::copack<>, Throwing> &&>() | fn::filter(poison, poison)));
+    SUCCEED();
+  }
+
+  SECTION("constexpr")
+  {
+    // named source: VS 2022 misreads a mid-expression prvalue's empty-class union member
+    constexpr E ce{fn::unexpect, 7};
+    constexpr O co{};
+    static_assert((ce | fn::filter(Poison{}, Poison{})).error() == 7);
+    static_assert(not(co | fn::filter(Poison{})).has_value());
+    SUCCEED();
+  }
 }
 
 namespace fn {

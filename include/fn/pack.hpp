@@ -9,6 +9,7 @@
 #include <fn/copack.hpp>
 #include <fn/detail/meta.hpp>
 #include <fn/detail/pack_impl.hpp>
+#include <fn/monadic.hpp>
 #include <libfn_version.hpp>
 
 #include <type_traits>
@@ -38,6 +39,28 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
   static_assert((... && detail::_is_valid_pack_element<Ts>));
 
   template <typename T> using append_type = _impl::template append_type<T>;
+
+  /**
+   * @brief Compares two packs of the same type element by element, `<=>` lexicographically
+   *
+   * Every element decides: one that cannot be compared leaves the operator non-viable, which asking
+   * answers rather than erroring on, and a reference element compares its referent, as
+   * `fn::optional<T&>` and `std::tuple` do. `<=>` asks each element for its own, synthesizing no
+   * ordering from `<`. `!=`, `<`, `>`, `<=` and `>=` follow from these two by rewriting.
+   */
+  [[nodiscard]] constexpr auto operator==(pack const &other) const //
+      noexcept(noexcept(_impl::_equal(*this, other))) -> bool
+    requires requires(pack const &a, pack const &b) { _impl::_equal(a, b); }
+  {
+    return _impl::_equal(*this, other);
+  }
+
+  [[nodiscard]] constexpr auto operator<=>(pack const &other) const //
+      noexcept(noexcept(_impl::_compare(*this, other)))
+    requires requires(pack const &a, pack const &b) { _impl::_compare(a, b); }
+  {
+    return _impl::_compare(*this, other);
+  }
 
   /**
    * @brief appends a thing
@@ -459,6 +482,19 @@ template <template <typename> typename Tpl>
   return ::fn::detail::_fold_detail::fold<Lh, Rh>(FWD(lh), FWD(rh));
 }
 
+namespace detail {
+// The data fold takes data. A monadic carrier among the arguments would become a pack element,
+// silently answering a question the caller did not ask: `&` over carriers conjoins the carriers
+// themselves, and their values cannot be reached without `value()`, which throws.
+template <typename... Ts>
+concept _no_carrier = (... && (not some_monadic_type<Ts>));
+
+// ... and the carrier folds take carriers, all of them: a mixed argument list belongs to neither
+// world and is refused, rather than resolved by the leading argument.
+template <typename... Ts>
+concept _all_carriers = (... && some_monadic_type<Ts>);
+} // namespace detail
+
 /**
  * @brief The n-ary fold of `operator &` above; a single argument is forwarded unchanged
  */
@@ -482,7 +518,7 @@ constexpr inline struct conjoin_t {
    * @return TODO
    */
   template <typename Arg, typename... Args>
-    requires(not some_copack<Arg>) && (not some_pack<Arg>)
+    requires(not some_copack<Arg>) && (not some_pack<Arg>) && detail::_no_carrier<Arg, Args...>
   [[nodiscard]] constexpr auto operator()(Arg &&arg, Args &&...args) const
   {
     return (::fn::pack{FWD(arg)} & ... & FWD(args));
@@ -498,8 +534,26 @@ constexpr inline struct conjoin_t {
    * @return TODO
    */
   template <typename Arg, typename... Args>
-    requires some_copack<Arg> || some_pack<Arg>
+    requires(some_copack<Arg> || some_pack<Arg>) && detail::_no_carrier<Args...>
   [[nodiscard]] constexpr auto operator()(Arg &&arg, Args &&...args) const
+  {
+    return (FWD(arg) & ... & FWD(args));
+  }
+
+  /**
+   * @brief The same fold over carriers, where `operator &` is the conjunction of the carriers
+   *
+   * @tparam Arg TODO
+   * @tparam Args TODO
+   * @param arg TODO
+   * @param args TODO
+   * @return TODO
+   */
+  template <typename Arg, typename... Args>
+    requires(sizeof...(Args) > 0)
+            && detail::_all_carriers<Arg, Args...> && requires(Arg &&a, Args &&...as) { (FWD(a) & ... & FWD(as)); }
+  [[nodiscard]] constexpr auto operator()(Arg &&arg, Args &&...args) const //
+      noexcept(noexcept((FWD(arg) & ... & FWD(args))))
   {
     return (FWD(arg) & ... & FWD(args));
   }
@@ -510,10 +564,16 @@ constexpr inline struct conjoin_t {
  *        argument is forwarded unchanged
  */
 constexpr inline struct disjoin_t {
-  template <typename Arg> [[nodiscard]] constexpr auto operator()(Arg &&arg) const -> decltype(arg) { return FWD(arg); }
+  // Carriers only, in every arity: `|` over anything else is the built-in operator, and folding
+  // integers into 3 is not what this asks for
+  template <some_monadic_type Arg> [[nodiscard]] constexpr auto operator()(Arg &&arg) const -> decltype(arg)
+  {
+    return FWD(arg);
+  }
 
   template <typename Arg, typename... Args>
-    requires(sizeof...(Args) > 0) && requires(Arg &&a, Args &&...as) { (FWD(a) | ... | FWD(as)); }
+    requires(sizeof...(Args) > 0)
+            && detail::_all_carriers<Arg, Args...> && requires(Arg &&a, Args &&...as) { (FWD(a) | ... | FWD(as)); }
   [[nodiscard]] constexpr auto operator()(Arg &&arg, Args &&...args) const //
       noexcept(noexcept((FWD(arg) | ... | FWD(args))))
   {

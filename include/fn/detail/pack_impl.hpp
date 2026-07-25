@@ -107,6 +107,40 @@ template <::std::size_t... Is, typename... Ts>
 struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
   static constexpr ::std::size_t size = sizeof...(Is);
 
+  // Comparison is element-wise rather than defaulted, because a defaulted comparison over a
+  // reference member is deleted outright, where a reference element must compare its REFERENT - the
+  // semantics of optional<T&> and of std::tuple. Asked of the elements as the fold reaches them, so
+  // an element which cannot be compared leaves the operator non-viable rather than ill-formed; the
+  // `&&` fold answers true for the empty pack, and the `||` fold stops at the first element that
+  // orders. No ordering is synthesized from `<`: an element brings its own `<=>` or none.
+  template <typename Self>
+  static constexpr auto _equal(Self const &lh, Self const &rh) //
+      noexcept((... && noexcept(static_cast<bool>(lh._element<Is, Ts>::v == rh._element<Is, Ts>::v)))) -> bool
+    requires(... && requires {
+      { lh._element<Is, Ts>::v == rh._element<Is, Ts>::v } -> ::std::convertible_to<bool>;
+    })
+  {
+    return (... && static_cast<bool>(lh._element<Is, Ts>::v == rh._element<Is, Ts>::v));
+  }
+
+  // The common category is `void` - a valid return type, not a substitution failure - when an
+  // element's `<=>` answers something that is not a comparison category, or when the elements'
+  // categories have no common one. Left unsaid, that would make the operator viable to ask about and
+  // ill-formed to use, so it is said.
+  template <typename Self>
+  static constexpr auto _compare(Self const &lh, Self const &rh) //
+      noexcept((... && noexcept(lh._element<Is, Ts>::v <=> rh._element<Is, Ts>::v)))
+          -> ::std::common_comparison_category_t<decltype(lh._element<Is, Ts>::v <=> rh._element<Is, Ts>::v)...>
+    requires(not ::std::is_void_v<
+             ::std::common_comparison_category_t<decltype(lh._element<Is, Ts>::v <=> rh._element<Is, Ts>::v)...>>)
+  {
+    using type = ::std::common_comparison_category_t<decltype(lh._element<Is, Ts>::v <=> rh._element<Is, Ts>::v)...>;
+    type result = type::equivalent;
+    [[maybe_unused]] bool const ordered
+        = (((result = (lh._element<Is, Ts>::v <=> rh._element<Is, Ts>::v)) != 0) || ...);
+    return result;
+  }
+
   template <typename Self, typename Fn, typename... Args>
     requires(not(... || (_some_pack<Args> || _some_copack<Args>)))
   static constexpr auto _swap_invoke(Self &&self, Fn &&fn, Args &&...args) //
