@@ -533,6 +533,9 @@ concept is_nothrow_swappable = requires {
   { swap(std::declval<T &>(), std::declval<T &>()) } noexcept;
 };
 
+template <typename A, typename B>
+concept can_compare = requires(A const &a, B const &b) { a == b; };
+
 } // namespace
 
 TEST_CASE("expected non void", "[expected][polyfill]")
@@ -3929,6 +3932,22 @@ TEST_CASE("expected non void", "[expected][polyfill]")
         constexpr helper u2{helper_list_t(), 3, 2, 2};
         static_assert(not(t2 == u2));
         static_assert(t2 != u2);
+      }
+
+      SECTION("a left operand which is not this expected answers")
+      {
+        // This comparison constrains itself on the OTHER operand, so its own operand is deduced
+        // rather than named: naming it would leave deduction unable to reject anything, and the
+        // constraint would then be evaluated for every left operand there is - including ones that
+        // reach this same operator by ADL, where satisfaction would depend on itself.
+        using T = expected<int, bool>;
+        using F = T (*)(int); // a function pointer whose ADL reaches T
+        static_assert(not can_compare<int, F>);
+        static_assert(not can_compare<double, F>);
+        static_assert(not can_compare<bool, F>);
+        static_assert(can_compare<T, int>); // ... while the comparison it exists for still applies
+        static_assert(can_compare<T, T>);
+        SUCCEED();
       }
 
       SUCCEED();
