@@ -13,12 +13,12 @@
      apply/apply_r/append (include/fn/pack.hpp:175-299). -->
 The library operates on two payload types and four computation carriers:
 
-- `pack`: Product type containing all fields.
-- `copack`: Canonical coproduct containing exactly one alternative.
+- `pack`: Product type containing all fields; a tuple-like data structure.
+- `copack`: Canonical coproduct containing exactly one alternative; a variant-like disjoint set of types.
 - `optional`: Computation yielding a value or empty.
 - `expected`: Computation yielding success or error.
 - `choice`: Never-failing computation holding one of several alternatives.
-- `just`: Identity computation always yielding a single value.
+- `just`: Never-failing computation yielding a single value or a `void`.
 
 <!-- why: §12 is explicit that apply eliminates rather than composes ("the structure entirely: the
      result type is deduced from the branches"), so listing it here as a composition operation
@@ -39,20 +39,20 @@ Some operations are exposed in two forms:
 - **Member functions** (e.g., `.transform()`, `.and_then()`, `.apply()`) called directly on a carrier or payload (e.g., `ex.transform(f)`, `cp.apply(f)`).
 - **Pipeline functors** in namespace `fn` (e.g., `fn::transform`, `fn::and_then`) applied via `operator|` (e.g., `ex | fn::transform(f)`).
 
-The remaining pipeline functors — `recover`, `fail`, `filter`, `inspect`, `inspect_error`, `discard` — have no member spelling, and `apply`, `apply_r` and `apply_type` have no pipeline spelling.
+There are also pipeline functors (`recover`, `fail`, `filter`, `inspect`, `inspect_error`, `discard`) which have no member spelling, and member functions (`apply`, `apply_r`, `apply_type`) which have no pipeline spelling.
 
 <!-- why: operator| carries two unrelated meanings from two independent overload families
      (functor.hpp:48 for the pipeline feed; expected.hpp:2259-2353 for disjunction) and the
      document used both before ever saying so - §7 opens on `a | b` with no warning that this is
      not the `| fn::transform(f)` the reader has been seeing since §1. -->
-`operator|` carries two meanings, told apart by its right operand: a pipeline functor on the right feeds the carrier into that operation, while another carrier on the right is disjunction (Section 7).
+The `operator|` carries two meanings, told apart by its right operand: a pipeline functor on the right feeds the carrier into that operation, while another carrier on the right is disjunction (explained in Section 7).
 
 <!-- why: fn::apply is the variadic multidispatch entry point (functional.hpp:43,
      `apply(Fn&&, Args&&...)`), dispatching over sums as well as unpacking products
      (tests/fn/functional.cpp:32-40). The std::apply-shaped two-argument utility is pfn::apply
      (include/pfn/tuple.hpp:89). As written this demoted the document's own multidispatch
      entry point - the subject of §12 - to a tuple helper. -->
-Freestanding `fn::apply(f, args...)` is the general multidispatch entry point: it accepts any mix of scalars, tuple-like structures, `pack`s and `copack`s, unpacking products and dispatching over alternatives in a single call. The `std::apply`-shaped two-argument utility is `pfn::apply`.
+Freestanding `fn::apply(f, args...)` is the general multidispatch entry point: it accepts any mix of scalars, tuple-like structures, `pack`s and `copack`s, unpacking products and dispatching over alternatives in a single call. Do not confuse with `pfn::apply`, which is a polyfill for the C++26 `std::apply`, meant for C++20 compilers. The `fn::apply` is an extension on top of `pfn::apply`.
 
 In prose, we omit prefixes (writing `apply`, `transform`, `and_then`, `expected`, `pack`) when referring to both forms or core vocabulary types generally.
 
@@ -61,16 +61,10 @@ In prose, we omit prefixes (writing `apply`, `transform`, `and_then`, `expected`
 Although different types can behave identically during application, they remain strictly distinct in memory. For example, `pack<A, B>`, `std::tuple<A, B>`, and `std::pair<A, B>` all unpack into the same call shape `f(a, b)` during `apply`, but they are separate C++ types with distinct layouts. Application does not silently convert or unify types on the storage side.
 
 To illustrate these concepts, the examples in this document use a reusable set of value and error types:
+<!-- note: keep the following self-explanatory types out of the code quotation block below:
+     Error, OtherError, A, B, C, D -->
 <!-- sync-example-types-def -->
 ```cpp
-struct Error {};
-struct OtherError {};
-
-struct A {};
-struct B {};
-struct C {};
-struct D {};
-
 struct UserId {};
 struct User {};
 struct FilePath {};
@@ -105,7 +99,8 @@ auto graded_pipeline(std::string_view sv) -> void
 
   // The exact derived error union is recorded in the type:
   static_assert(
-      std::same_as<decltype(pipeline), fn::expected<User, fn::copack_for<IoError, Missing, NotANumber, OutOfRange>>>);
+      std::same_as<decltype(pipeline),
+                   fn::expected<User, fn::copack_for<IoError, Missing, NotANumber, OutOfRange>>>);
 }
 ```
 
@@ -115,15 +110,17 @@ The resulting `expected` statically records that the pipeline yields a `User` on
 
 Standard monads are rigid: an `expected<T, E>` requires every step in a pipeline to return the identical error type `E`. This forces you to define a monolithic global error union upfront.
 
-A **graded monad** relaxes this restriction. Each operation is indexed by a "grade"—a set representing its specific possible errors (its "effects"). As you chain operations, the compiler automatically unions these grades.
-
-<!-- why: "dynamically" contradicts "strict static effect tracking" in its own sentence - the
+A **graded monad** relaxes this restriction. Each operation is indexed by a "grade"—a set representing all its specific possible errors (its "effects") by means of `copack`, which is a disjoint set of types. As you chain operations, the compiler automatically adds these grades to the set.
+     <!-- why: "dynamically" contradicts
+     "strict static effect tracking" in its own sentence - the
      grade is a compile-time type derivation throughout (concepts.hpp:54). The opt-in clause is
      added because §2 ("A plain expected<T, E> does not automatically become graded") and §9
      ("A copack on the error side is the strict opt-in") both insist on it, and without it this
      paragraph promises every expected is graded; examples/type_algebra/main.cpp:288 vs :311
      is the exact contrast (plain errors are not same_kind, copack-graded ones are). -->
-The resulting error type is **graded**: it expands (or narrows during recovery) to match the *exact* subset of errors possible in the compiled path, providing strict static effect tracking (subeffecting) with zero boilerplate. Grading is opt-in: a `copack` on the error side is what enrols an `expected` in this union arithmetic; a plain `expected<T, E>` keeps the rigid single-error contract.
+The resulting error type is **graded**: it expands (or narrows during recovery) to match the *exact* subset of errors possible in the compiled path, providing strict static effect tracking (subeffecting) with zero boilerplate.
+
+You may also use `copack` on a value side of most carriers (except for `just<copack<Ts...>>`, which must be spelled `choice<Ts...>`). Grading is opt-in: a `copack` on the error side enrols an `expected` in this union arithmetic; a plain `expected<T, E>` keeps the rigid single-error contract. Similarly, a `copack` on value side enrolls an `expected` or `optional` into union arithmetics on values.
 
 > [!TIP]
 >
@@ -138,29 +135,28 @@ The resulting error type is **graded**: it expands (or narrows during recovery) 
 > - **Identity ($I$)**: The empty set ($\emptyset$), representing the zero-error/never-failing state.
 > - **Partial order ($\le$)**: Subset relation ($\subseteq$), which licenses effect approximation (subeffecting / widening).
 >
-> For a standard monad $M$, the binding operation maps $M\langle A\rangle \to (A \to M\langle B\rangle) \to M\langle B\rangle$. In `libfn`'s graded monad, bind accumulates effects across the pomonoid:
+> For a standard monad $M$, the binding operation maps $M\langle A\rangle \to (A \to M\langle B\rangle) \to M\langle B\rangle$. In `libfn`'s graded monad, *bind* accumulates effects across the pomonoid:
 >
 > $$bind : M_E\langle A\rangle \to (A \to M_F\langle B\rangle) \to M_{E \cup F}\langle B\rangle$$
 >
 > This formulation enables strict static effect tracking. A lax monoidal functor maps this pomonoid $\mathcal{E}$ into the endofunctor category $[\mathcal{C}, \mathcal{C}]$, formalizing how C++ type derivations trace exact computational side effects.
 
-Simultaneous product composition achieves the same precision for both values and errors. Using `operator&`, you can evaluate independent computations and bundle their results:
+Simultaneous product composition achieves the same type precision for both values and errors. Using `operator&` (i.e. conjunction, explained in section 6), you can evaluate independent computations and bundle their results into a single carrier:
 
 <!-- sync-example-product-composition -->
 ```cpp
-auto product_composition() -> void
+auto product_composition(fn::expected<UserId, fn::copack<Missing>> id,
+                         fn::expected<User, fn::copack<IoError>> user) -> void
 {
-  fn::expected<UserId, fn::copack<Missing>> id{};
-  fn::expected<User, fn::copack<IoError>> user{};
-
   auto bundled = id & user;
 
   static_assert(
-      std::same_as<decltype(bundled), fn::expected<fn::pack<UserId, User>, fn::copack_for<IoError, Missing>>>);
+      std::same_as<decltype(bundled),
+                   fn::expected<fn::pack<UserId, User>, fn::copack_for<IoError, Missing>>>);
 }
 ```
 
-The result contains a `pack` (a flat, tuple-like product) of the successful values, and a `copack` (a sorted, variant-like disjoint sum) of the exact possible errors.
+The result contains a `pack` of the successful values, and a `copack` of the exact possible errors.
 
 ### The Two Cooperating Mechanisms
 
@@ -175,7 +171,7 @@ Behind these precise compiled types are two independent mechanisms that cooperat
      always relies on ordinary C++ overload resolution") stated eleven sections early. -->
 To route multiple alternative paths inside `apply`, the library provides `fn::overload`, which fuses unrelated lambdas into a single overload set.
 
-These derived types are the actual explanation of the library's design, not an internal template-metaprogramming implementation detail. Understanding the precise algebraic rules of this type algebra and the mechanics of application is key to mastering the library.
+These derived types are the actual explanation of the library's design, not an internal template-metaprogramming implementation detail. Understanding the precise algebraic rules of this type algebra and the mechanics of application is key to mastering the `libfn` library.
 
 ## 2. Types as an algebra: zero, unit, alternatives, and products
 
@@ -204,8 +200,8 @@ The symbol ≅ indicates an equivalent state shape (an information-level corresp
 
 In `libfn`'s algebra, zero and unit are strictly separated:
 
-- `copack<>` is uninhabited. You cannot construct it. Algebraically, it is `0`.
-- `pack<>` is the one nullary product value. You can construct it via `pack<>{}`. Algebraically, it is `1`.
+- `copack<>` is uninhabited: you cannot construct it. Algebraically, it is `0`.
+- `pack<>` is the one nullary product value. You can construct it via `pack<>{}` or `fn::as_pack()`. Algebraically, it is `1`.
 
 Because `pack<>` exists, applying a callable to it invokes a nullary function. Because `copack<>` is uninhabited, providing a callback over `copack<>` is statically proven to be unreachable code (dead code).
 
@@ -252,12 +248,15 @@ auto test_copack_set_semantics() -> void
 >      "the orders may differ, which is why the mode is a distinct ABI namespace" - so claiming one
 >      emulates the other inverts the reason the C++26 twin exists. "Lexicographical" goes with it:
 >      the sortkey order is not lexicographic in all modes. -->
-> - **`copack`** is the core storage type. It requires its template parameters to already be flat, unique, and sorted in a strict total order over types (derived from the compiler's own spelling of each type; a build targeting C++26 uses `std::type_order` instead, which is why the two orders form separate ABIs). If you attempt to instantiate it manually with out-of-order parameters (such as `copack<B, A>` when `A` precedes `B` in that order) or with nested copacks (such as `copack<A, copack<C, D>>`), **the compiler will reject the instantiation as outright ill-formed.**
+> - **`copack`** is the core storage type. It requires its template parameters to already be flat, unique, and sorted in a strict total order over types. The order is derived from the compiler's own spelling of each type; a build targeting C++26 with `LIBFN_CXX26` set will use `std::type_order` to derive the order of types, while a build for older compilers will use a limited emulation implemented in `libfn` (the two orders may be different and form separate ABIs). If you attempt to instantiate `copack` manually with out-of-order parameters (such as `copack<B, A>` when `A` precedes `B` in that order) or with nested copacks (such as `copack<A, copack<C, D>>`), **the compiler will reject the instantiation as outright ill-formed.**
+>
 > - **`copack_for`** is the user-facing type alias utility. It acts as the compile-time "compiler gateway," accepting any raw, arbitrary list of types (out-of-order, duplicates, nested copacks), performing the complex compile-time flattening, deduplication, and canonical sorting automatically, and resolving directly to the validated canonical `copack` type.
 >
 > To the C++ programmer, they can often be treated as equivalent in APIs because `copack_for` (as a type alias) always resolves directly to `copack`. However, in prose and code, `copack` represents the normalized *state shape*, while `copack_for` represents the *construction utility*. When writing types out manually, `copack` requires the types to already be in strict canonical order, whereas `copack_for` handles arbitrary, out-of-order, or duplicated lists.
 >
 > Similarly, `choice`—which is the never-failing identity carrier over a `copack`—utilizes the `choice_for` type alias utility to automatically flatten, deduplicate, and sort its alternative types at compile time. Just like `copack`, `choice` requires its template parameters to be in strict canonical order, whereas `choice_for` accepts arbitrary, out-of-order, or duplicated lists.
+>
+> **Best practice**: a project will typically **not** name `copack` / `choice` directly, instead it will use `copack_for` / `choice_for` to ensure that the order of types is not tied to a particular compiler / build options.
 
 The laws governing `copack` are:
 
@@ -273,7 +272,7 @@ The laws governing `copack` are:
      silently merged: detail/meta.hpp:189-196 hard-errors with "distinct types must not share a
      sort key". So the warning "distinct types must never be silently lost" described a hazard
      the library already forecloses. -->
-Idempotence means a set cannot carry positional meaning: `copack_for<bool, bool>` is one alternative, `copack<bool>`, not two. Types combined into a `copack` should therefore be strongly typed tag structs or distinct domain objects, never generic primitives whose meaning depends on where they sit. Two *distinct* types that the canonical ordering cannot tell apart are a different matter: the library rejects them outright rather than merging them, so nothing is ever silently lost.
+Idempotence means a set cannot carry positional meaning: `copack_for<bool, bool>` is one alternative, `copack<bool>`, not two. Types combined into a `copack` should therefore be strongly typed tag structs or distinct domain objects, never generic primitives whose meaning depends on where they sit. Two *distinct* types that the ordering of types in `copack` cannot tell apart are a different matter: the library rejects them outright rather than merging them, so nothing is ever silently lost. This limitation in particular affects the builds without access to C++26 `std::type_order`, because the limited emulation of type ordering implemented in `libfn` does not have access to full type information.
 
 ### The algebra is strictly opt-in
 
@@ -321,6 +320,7 @@ To model computation and manage control flow (success, failure, alternatives, an
 
 - **`optional<T>`** (representing $T + 1$): A carrier that either holds a successful value of type `T` or is empty (`std::nullopt`).
 - **`expected<T, E>`** (representing $T + E$): A carrier that either holds a successful value of type `T` or an error of type `E`.
+  - As explained below, `expected` can be also infallible, if its error side is a `copack<>`.
 
 <!-- why: §15 (### pfn and fn) gives the layer split in full, so this restated it at equal depth;
      "highly optimized" is also a claim nothing in include/pfn or tests/ establishes. -->
@@ -330,13 +330,15 @@ To model computation and manage control flow (success, failure, alternatives, an
 
 - **`just<T>`**: Always contains a single successful value of type `T`.
 - **`choice<Ts...>`**: Always contains one of several selected alternatives, representing the complete state space of the computation.
+
+Because `choice` implies that an alternative is always present, `choice<>` is incomplete: an always-present selected alternative requires at least one alternative to exist.
+
 <!-- why: two bullets above plus three here read as five families against the "exactly four" of
      the section's opening line. There are four carrier templates (detail/fwd.hpp:30-64);
      expected<T, copack<>> is a *state* of expected, classified as identity by a predicate on its
      error type (concepts.hpp:169-171), not a family of its own. -->
-- **`expected<T, copack<>>`** (representing $T + 0 \cong T$): not a fifth family but a state of `expected` — symmetrically to `just`, this shape can never fail because `copack<>` represents the initial zero object **0** (the uninhabited type). Lacking any possible error alternatives, it acts as an infallible, graded unit context.
 
-Because `choice` implies that an alternative is always present, `choice<>` is incomplete: an always-present selected alternative requires at least one alternative to exist.
+Additionally, among the infallible types is also **`expected<T, copack<>>`** (representing $T + 0 \cong T$). It is a state of `expected` which can never fail, because `copack<>` represents the initial zero object **0** (the uninhabited type). Lacking any possible error alternatives, it acts as an infallible, graded unit context. It is **not** a separate computation carrier from `expected`.
 
 > [!NOTE]
 >
@@ -370,7 +372,7 @@ To compose computations, we must wrap these values inside **computation carriers
      between them terminated the first list. -->
 Because these carriers represent different computational contexts, pipelines often need to transition between them. `libfn` licenses explicit **cross-carrier bridging** via pipeline-scoped operations using `operator|`.
 
-Standard fallible carriers can bridge to each other on their error/empty recovery paths via `or_else` (e.g., `expected` to `optional`, or vice versa). This is safe because on the success path, the successful value is preserved and bypasses the recovery callback entirely. The transition only occurs on the handled failure branch, allowing you to gracefully convert a missing value into a concrete error, or decay a detailed error into an empty state:
+Standard fallible carriers can bridge to each other on their error/empty recovery paths via pipeline functor `fn::or_else` (e.g., `expected` to `optional`, or vice versa). This is safe because on the success path, the successful value is preserved and bypasses the recovery callback entirely. The transition only occurs on the handled failure branch, allowing you to gracefully convert a missing value into a concrete error, or decay a detailed error into an empty state:
 
 <!-- sync-example-test-failure-bridge -->
 ```cpp
@@ -385,6 +387,8 @@ auto test_failure_bridge(fn::expected<int, IoError> ex, fn::optional<int> opt) -
 }
 ```
 
+The member function `.or_else` (or `.and_then`, see sections 8 and 10) cannot be used for cross-carrier bridging, as such operation would require coupling between different carriers. Since pipeline functors are a layer above carriers, they can provide such operation without undue coupling.
+
 Identity carriers bridge in the other direction, on the success path; Section 10 covers that together with the identity cluster.
 
 ## 4. The sum and product payloads: pack and copack
@@ -397,7 +401,7 @@ While the computation carriers manage control flow and fallibility, modeling mor
      pack element outright (detail/pack_impl.hpp:66), so fn::pack<fn::pack<int>> is ill-formed and
      never a legal-but-non-canonical spelling. append splices precisely because nesting was never
      representable. -->
-A `pack` acts like a standard C++ tuple (`std::tuple`) by storing multiple fields and supporting `get`, structured bindings, and an `append` mechanism. However, unlike standard tuples, `libfn` packs are strictly flat: a `pack` is not a valid element of a `pack`, so `append`ing one splices its fields into the outer pack rather than nesting it.
+A `pack` acts like a standard C++ tuple (`std::tuple`) by storing multiple fields and supporting standard tuple protocol (`get`, `tuple_size`, `tuple_element`, structured bindings), and an `append` mechanism. However, unlike standard tuples, `libfn` packs are strictly flat: a `pack` is not a valid element of a `pack`, so `append`-ing one splices its fields into the outer pack rather than nesting it.
 
 To explicitly lift values into a `pack` (which is useful when conjoining scalars with other packs or copacks), use `fn::as_pack(...)`. When called without template parameters, `as_pack` is deduction-only and preserves the value category of its arguments: `as_pack(42)` yields `pack<int>`, whereas calling `as_pack(x)` on an lvalue `x` yields `pack<int&>` (a reference rather than a copy).
 
@@ -406,21 +410,18 @@ To explicitly lift values into a `pack` (which is useful when conjoining scalars
      reference element: as_pack<int&>(k) is pack<int&> (tests/fn/pack.cpp:248,272,276). "Opts out
      of reference preservation" told the reader the opposite. "Symmetrically" was also the wrong
      connector: the two forms contrast rather than mirror. -->
-Spelling the template parameters instead (e.g., `as_pack<bool, int>(x, d)`) takes deduction out of the picture: each argument is passed by value in the type you named, so lvalues are copied and implicit conversions happen at the call boundary. A reference element becomes something you ask for explicitly — `as_pack<int&>(x)` yields `pack<int&>`. Note that partial template spelling is not supported; all element types must be spelled out explicitly if template parameters are specified.
+Spelling the template parameters instead (e.g., `as_pack<bool, int>(x, d)`) takes deduction out of the picture: each argument is passed as the type you named, enabling implicit conversions to happen at the call boundary. A reference element becomes something you ask for explicitly — `as_pack<int const&>(x)` yields `pack<int const&>`. Note that partial template spelling is not supported; all element types must be spelled out explicitly if template parameters are specified.
 
 <!-- sync-example-test-pack -->
 ```cpp
-auto test_pack() -> void
+auto test_pack(int x = 12, double d = 3.14) -> void
 {
-  fn::pack p{UserId{}, User{}}; // CTAD
-
-  auto [id, user] = p; // Structured bindings work naturally
-  (void)id;
-  (void)user;
+  fn::pack p{UserId{}, User{}};         // CTAD
+  [[maybe_unused]] auto [id, user] = p; // Structured bindings work naturally
 
   // Ordered, non-deduplicated fields
   using P = fn::pack<UserId, User, User>;
-  (void)sizeof(P);
+  static_assert(std::tuple_size_v<P> == 3);
 
   // Found via ADL (like std::get)
   using std::get;
@@ -433,19 +434,20 @@ auto test_pack() -> void
   static_assert(std::same_as<decltype(wider), fn::pack<UserId, FilePath, bool, int>>);
 
   // Explicitly lifting a single scalar value into a pack:
-  int x = 42;
   auto lifted_lvalue = fn::as_pack(x);
   static_assert(std::same_as<decltype(lifted_lvalue), fn::pack<int &>>);
 
   auto lifted_rvalue = fn::as_pack(42);
   static_assert(std::same_as<decltype(lifted_rvalue), fn::pack<int>>);
 
-  // Spelling the element type explicitly opts out of reference preservation - an owned copy:
+  // Spelling the element type explicitly can be used to opt out of reference preservation:
   auto copied = fn::as_pack<int>(x);
   static_assert(std::same_as<decltype(copied), fn::pack<int>>);
+  // ... or to force a specific reference type (subject to parameter binding rules):
+  auto referenced = fn::as_pack<int const &>(x);
+  static_assert(std::same_as<decltype(referenced), fn::pack<int const &>>);
 
   // The explicit form also coerces - the argument converts at the call boundary:
-  double d = 3.14;
   auto coerced = fn::as_pack<bool, int>(x, d);
   static_assert(std::same_as<decltype(coerced), fn::pack<bool, int>>);
 }
@@ -456,7 +458,7 @@ auto test_pack() -> void
 <!-- why: §2 already defines it ("copack<A, B> represents A + B (Alternatives) - a coproduct where
      exactly one alternative is present"), and the subsection heading says it a second time; §2
      owns the definition, §4 owns the payload mechanics. -->
-As a payload, a `copack` models variant-like structures such as lexical tokens or parsed configuration keys.
+As a payload, a `copack` models variant-like structures — i.e. a discriminated union of types.
 
 <!-- why: "recursively" contradicts §12 ("Application expands one selected level only"),
      and the library is explicit that it does not recurse: detail/pack_impl.hpp:121-133 - "every
@@ -471,6 +473,8 @@ When you evaluate a `copack` via its member `apply` function, it selects the act
      and a reference alternative is structurally impossible (copack.hpp:51-56, enforced at :256). -->
 To explicitly lift a single scalar value into a single-alternative coproduct, use `fn::as_copack(value)`. Unlike `as_pack`, it always decays: a `copack` alternative can never be a reference. When a `copack` contains **exactly one alternative**, it is singular and supports direct value extraction via the `get` utility (resolvable via ADL), which propagates references with the same semantics as `apply`.
 
+You can lift a `pack` into a `copack` (including `pack` holding references), however you cannot store `copack` inside a `pack`. There is algebraic equivalence between a hypothetical `pack` containing a `copack` (which is disallowed) and a specific shape of `copack` containing a `pack` — see section 6 for details.
+
 <!-- sync-example-test-copack -->
 ```cpp
 struct IntegerToken {};
@@ -478,12 +482,16 @@ struct StringToken {};
 
 auto test_copack() -> void
 {
-  constexpr fn::copack_for<IntegerToken, StringToken> token = IntegerToken{};
+  static constexpr fn::copack_for<IntegerToken, StringToken> token = IntegerToken{};
 
   // Member apply eliminates the copack by routing the active alternative to an overload set:
-  constexpr auto value = token.apply(fn::overload{[](IntegerToken) { return 1; }, [](StringToken) { return 2; }});
-
+  static constexpr auto value
+      = token.apply(fn::overload{[](IntegerToken) { return 1; }, [](StringToken) { return 2; }});
   static_assert(value == 1);
+
+  // Storing a pack inside a copack is allowed, including a pack holding a reference:
+  auto cpr = fn::as_copack(fn::as_pack<int const &>(value));
+  static_assert(std::same_as<decltype(cpr), fn::copack<fn::pack<int const &>>>);
 
   // Singular lift and direct value extraction (only allowed for singular copacks):
   auto cp = fn::as_copack(42);
@@ -503,7 +511,7 @@ A fundamental safety guarantee of `copack` is **exhaustive matching**. Every ope
 
 ## 5. Mapping values and errors
 
-Mapping allows you to change the contained data without altering the structural success/failure shape of the computation. `libfn` uses `transform` (functor map) to operate on the successful channel, and `transform_error` for the error channel.
+Mapping allows you to change the contained data without altering the structural success/failure shape of the computation. `libfn` uses `transform` (functor *map*) to operate on the successful channel, and `transform_error` for the error channel.
 
 <!-- sync-example-mapping-values-and-errors -->
 ```cpp
@@ -512,12 +520,15 @@ auto mapping_values_and_errors() -> void
   fn::expected<UserId, fn::copack_for<Missing, IoError>> ex{};
 
   auto mapped_val = ex | fn::transform([](UserId) { return User{}; });
-  static_assert(std::same_as<decltype(mapped_val), fn::expected<User, fn::copack_for<IoError, Missing>>>);
+  static_assert(
+      std::same_as<decltype(mapped_val), fn::expected<User, fn::copack_for<IoError, Missing>>>);
 
-  auto mapped_err
-      = ex | fn::transform_error(fn::overload{[](Missing) { return BadSyntax{}; }, [](IoError e) { return e; }});
+  auto mapped_err = ex
+                    | fn::transform_error(fn::overload{[](Missing) { return BadSyntax{}; },
+                                                       [](IoError e) { return e; }});
 
-  static_assert(std::same_as<decltype(mapped_err), fn::expected<UserId, fn::copack_for<BadSyntax, IoError>>>);
+  static_assert(
+      std::same_as<decltype(mapped_err), fn::expected<UserId, fn::copack_for<BadSyntax, IoError>>>);
 }
 ```
 
@@ -533,11 +544,11 @@ Key principles of mapping:
 - `transform` stays within the carrier: the member form never leaves its own carrier family.
 - Success and error states are rigidly preserved.
 - A bare `copack` has a member `transform`, allowing mapping across alternatives; being data rather than a carrier, it takes no pipeline verb.
-- Heterogeneous branch results inside `transform_error` form a normalized result `copack`.
+- Heterogeneous branch results inside `transform_error` or `transform` form a normalized result `copack`.
 - Applying an error-side operation like `transform_error` to a carrier that has no error side (like `just` or `choice`) is rejected by the compiler.
 - If a side is uninhabited (`copack<>`), the transformation is well-formed, but vacuous (i.e., a no-op):
   - `transform_error` on `expected<T, copack<>>` is proven unreachable and a no-op.
-<!-- why: qualified to "member" because only the member holds. optional.hpp:485-492 selects a
+  <!-- why: qualified to "member" because only the member holds. optional.hpp:485-492 selects a
      vacuous identity overload, but the pipeline verb is rejected: applicable_transform's two
      optional arms (transform.hpp:45-53) both fail, since copack<> has no transform member at all.
      transform_error.hpp:82-88 has a dedicated some_identity arm that transform.hpp lacks, which is
@@ -588,24 +599,23 @@ The runtime failure semantics are exact:
      over packs, copacks, or scalars").
      (3) The data operator& constrains only its LEFT operand (pack.hpp:452-455), so the offered
      workaround works in one direction only - as_pack(a) & b compiles, a & as_pack(b) does not. -->
-When either operand is a `copack`, `operator&` performs a Cartesian distribution, yielding a `copack` of `pack`s — a `pack` on the other side simply widens each of those `pack`s. The variadic entry point into these data rules is `fn::conjoin(...)`, which folds packs, copacks and scalars; conjoining carriers stays with `operator&`. Note that bare `scalar & scalar` never enters the algebra by itself: for class types it fails to compile, and for built-in types like `int` it resolves to the built-in bitwise AND. To conjoin scalars, lift them with `fn::conjoin(a, b)`, or with `fn::as_pack(a) & b` — the lift has to be the left operand, the side `operator&` dispatches on.
+When either operand is a `copack`, `operator&` performs a Cartesian distribution, yielding a `copack` of `pack`s — a `pack` on the other side simply widens each of those `pack`s. The variadic entry point into these data rules is `fn::conjoin(...)`, which folds packs, copacks and scalars. Carriers need to be conjoined with `operator&`. Note that bare `scalar & scalar` never enters the algebra by itself: for class types it fails to compile, and for built-in types like `int` it resolves to the built-in bitwise AND. To conjoin scalars, lift them with `fn::conjoin(a, b)`, or with `fn::as_pack(a) & b` — the lift has to be the left operand, the side `operator&` dispatches on.
 
 <!-- sync-example-cartesian-distribution -->
 ```cpp
-auto test_cartesian_distribution() -> void
+auto test_cartesian_distribution(fn::copack_for<A, B> ab, fn::copack_for<C, D> cd) -> void
 {
-  constexpr fn::copack_for<A, B> ab = A{};
-  constexpr fn::copack_for<C, D> cd = C{};
-
+  // Cartesian distribution of copacks: (A + B) x (C + D) = (A x C) + (A x D) + (B x C) + (B x D)
   auto result1 = ab & cd;
-
   static_assert(
-      std::same_as<decltype(result1), fn::copack_for<fn::pack<A, C>, fn::pack<A, D>, fn::pack<B, C>, fn::pack<B, D>>>);
+      std::same_as<decltype(result1),
+                   fn::copack_for<fn::pack<A, C>, fn::pack<A, D>, fn::pack<B, C>, fn::pack<B, D>>>);
 
+  // Cartesian distribution of a pack and a copack: (A x B) x (C + D) = (A x B x C) + (A x B x D)
   constexpr fn::pack<A, B> Pab = {A{}, B{}};
   auto result2 = Pab & cd;
-
-  static_assert(std::same_as<decltype(result2), fn::copack_for<fn::pack<A, B, C>, fn::pack<A, B, D>>>);
+  static_assert(
+      std::same_as<decltype(result2), fn::copack_for<fn::pack<A, B, C>, fn::pack<A, B, D>>>);
 }
 ```
 
@@ -619,18 +629,15 @@ When performing product composition (`operator&`), you can combine fallible carr
      copack_for<E, copack<>>. Probe: expected<int,Error> & expected<void,copack<>> yields
      expected<int, copack<Error>>, not expected<int, Error>. No alternative is added either way,
      so the "errors are unaffected" headline stands - the spelling of the error side does change. -->
-- **Errors are unaffected**: Because identity cluster operands can never fail, they add no alternative to the result's error channel. A `just` or `choice` operand leaves the fallible operand's error side exactly as it was, plain or copack-graded. An `expected<T, copack<>>` operand instead contributes its uninhabited grade to the error union — no alternative is added, but a plain error `E` is thereafter spelled as the singular `copack<E>`.
+- **Errors are unaffected**: Because identity cluster operands can never fail, they add no alternative to the result's error channel. A `just` or `choice` operand leaves the fallible operand's error side exactly as it was, plain or graded. An `expected<T, copack<>>` operand instead contributes its uninhabited grade to the error union — no alternative is added, but a plain error `E` is thereafter spelled as the singular `copack<E>`.
 - **Value bundling**: The value of the identity cluster operand is conjoined with the fallible operand's value channel into a `fn::pack`.
 - **Unit elision**: `just<void>` and `expected<void, copack<>>` act as the product's identity unit and are completely elided from the value product (e.g., `expected<T, E> & just<void>` stays `expected<T, E>`).
 - **Choice distribution**: If a `choice` operand is conjoined with a fallible carrier, the coproduct distributes through the product. This yields a `copack` of `pack`s wrapped back inside the fallible carrier.
 
 <!-- sync-example-conjunction-with-identity-cluster -->
 ```cpp
-auto test_conjunction_with_identity_cluster() -> void
+auto test_conjunction_with_identity_cluster(fn::expected<int, Error> ex, fn::just<double> j) -> void
 {
-  fn::expected<int, Error> ex{42};
-  fn::just<double> j{1.5};
-
   // Conjoining an expected with a just
   auto res1 = ex & j;
   static_assert(std::same_as<decltype(res1), fn::expected<fn::pack<int, double>, Error>>);
@@ -642,8 +649,9 @@ auto test_conjunction_with_identity_cluster() -> void
   // Conjoining a choice causes distribution inside the carrier
   fn::choice<bool, double> ch = 1.5;
   auto res3 = ex & ch;
-  static_assert(
-      std::same_as<decltype(res3), fn::expected<fn::copack_for<fn::pack<int, double>, fn::pack<int, bool>>, Error>>);
+  static_assert(std::same_as<
+                decltype(res3),
+                fn::expected<fn::copack_for<fn::pack<int, double>, fn::pack<int, bool>>, Error>>);
 }
 ```
 
@@ -677,8 +685,8 @@ auto operator_or_composition() -> void
   fn::expected<bool, OtherError> b{};
 
   auto result = a | b;
-
-  static_assert(std::same_as<decltype(result), fn::expected<fn::copack_for<int, bool>, fn::pack<Error, OtherError>>>);
+  static_assert(std::same_as<decltype(result),
+                             fn::expected<fn::copack_for<int, bool>, fn::pack<Error, OtherError>>>);
 }
 ```
 
@@ -690,7 +698,7 @@ The runtime and compile-time semantics of disjunction are exact:
   - `void` results enter a genuine sum as `pack<>`. If both operands are `void`, they collapse back to `void`.
 - **Error-side product**:
   - Because the overall disjunction only fails if *both* operands fail, the error channel represents the product of both errors. This is recorded positionally inside `fn::pack<E1, E2>`.
-<!-- why: the premise and the formula disagreed with each other - the premise said "both operands",
+  <!-- why: the premise and the formula disagreed with each other - the premise said "both operands",
      while the formula shown is the one-sided case. Distribution fires when *either* side is graded
      (detail/functional.hpp:88-110 via _error_product_t, expected.hpp:2235-2238). Probe:
      expected<int,copack_for<A,B>> | expected<bool,C> already distributes to
@@ -705,19 +713,16 @@ The n-ary fold of `operator|` is exposed via `fn::disjoin(...)`:
 
 <!-- sync-example-test-disjoin -->
 ```cpp
-auto test_disjoin() -> void
+auto test_disjoin(fn::expected<int, Error> a, fn::expected<bool, OtherError> b) -> void
 {
-  fn::expected<int, Error> a = 12;
-  fn::expected<bool, OtherError> b = true;
+  // Multiple fallible operands compose cleanly
+  auto res1 = fn::disjoin(a, b);
+  static_assert(std::same_as<decltype(res1),
+                             fn::expected<fn::copack_for<int, bool>, fn::pack<Error, OtherError>>>);
 
-  // Unary disjoin forwards unchanged (maintaining rvalue value-categories)
-  static_assert(std::same_as<decltype(fn::disjoin(std::move(a))), decltype(a) &&>);
-
-  // Multiple fallible and total operands compose cleanly
-  auto result = fn::disjoin(a, b, fn::just<double>{1.5});
-
-  // Because just<double> cannot fail, the entire disjunction becomes total
-  static_assert(std::same_as<decltype(result), fn::choice<bool, double, int>>);
+  // Because just<double> cannot fail, the entire disjunction with infallible operands becomes total
+  auto res2 = fn::disjoin(a, b, fn::just<double>{1.5});
+  static_assert(std::same_as<decltype(res2), fn::choice<bool, double, int>>);
 }
 ```
 
@@ -731,11 +736,12 @@ auto test_disjoin() -> void
 > - **Error multiplication (Product)**: Error channels are composed as a cartesian product ($\otimes$), yielding a `pack` of errors.
 > - **Product annihilation**: Admitting an identity carrier (whose error side is the initial object $0 \cong \text{copack<>}$) annihilates the error cartesian product:
 >   $$E \times 0 \cong 0$$
->   This mathematical property forces the error channel to collapse, rendering the entire disjunction total (never-failing) and folding the result into the identity cluster.
+>
+> This mathematical property forces the error channel to collapse, rendering the entire disjunction total (never-failing) and folding the result into the identity cluster.
 >
 ## 8. Sequential composition with and_then
 
-Sequential composition chains dependent operations where the success of one feeds the input of the next. In `libfn`, this is achieved using `and_then` (monadic bind).
+Sequential composition chains dependent operations where the success of one feeds the input of the next. In `libfn`, this is achieved using `and_then` (monadic *bind*).
 
 <!-- why: "of the same kind" is contradicted by §10's success-path bridging, where just<int> binds
      to a callback returning optional<int> or expected<int, IoError>. The verb layer licenses an
@@ -744,9 +750,9 @@ Sequential composition chains dependent operations where the success of one feed
      refer back to. Second paragraph: §1's graded_pipeline already showed and_then unioning error
      grades with a static_assert on the derived type, so the fence below re-demonstrates one fact;
      naming that makes it a deliberate narrowing rather than a repeat. -->
-A monadic carrier wraps a value. A *Kleisli arrow* is the callable passed to `and_then`, which takes a plain value and returns a monadic carrier of the same kind — or, from an infallible input, of the fallible kind it bridges to (Section 10). `and_then(f)` produces a storable operation value that can be piped.
+A monadic carrier wraps a value. A *Kleisli arrow* is the callable passed to `and_then`, which takes a plain value and returns a monadic carrier of the same kind — or, from an infallible input, either an infallible carrier or a fallible kind it bridges to (Section 10).
 
-The graded pipeline of Section 1 is this bind chained; here is the rule on its own:
+The graded pipeline of Section 1 is this *bind* chained; here is the rule on its own:
 
 <!-- sync-example-sequential-bind -->
 ```cpp
@@ -756,15 +762,15 @@ auto load_user(UserId) -> fn::expected<User, fn::copack<Missing>>;
 auto sequential_bind() -> void
 {
   auto result = parse_numeric() | fn::and_then(load_user);
-
-  static_assert(std::same_as<decltype(result), fn::expected<User, fn::copack_for<Missing, NotANumber>>>);
+  static_assert(
+      std::same_as<decltype(result), fn::expected<User, fn::copack_for<Missing, NotANumber>>>);
 }
 ```
 
-The strict "same-kind" contract defines how types interact:
+The member function `.and_then` cannot perform a carrier conversion — it can only be performed with a functor operation `fn::and_then`, for the same reason member `.or_else` cannot do cross-carrier bridging (section 3). This means that a *Kleisli arrow* passed to `.and_then` has to follow a strict "same-kind" rule in regard to its return type: the "same-kind" contract defines how types interact:
 
 - An `optional` binds to an `optional`.
-<!-- why: same_kind admits a "singular lift" - concepts.hpp:59-68 makes expected<T,E> and
+  <!-- why: same_kind admits a "singular lift" - concepts.hpp:59-68 makes expected<T,E> and
      expected<U, copack<E>> same-kind, and expected.hpp:241-242 accepts a callback whose
      error_type is copack<E>. Probe: expected<int,IoError> | and_then(f) with f returning
      expected<double, copack<IoError>> compiles and yields the graded type. Stated as a closed
@@ -805,7 +811,7 @@ static_assert(!fn::same_kind<fn::expected<int, IoError>, fn::expected<User, Miss
 > <!-- why: §14 machine-checks two laws (functor identity, monad left identity); the remaining seven
 >      are listed there as holding structurally, with no compiled witness. "These laws are verified"
 >      promised more than §14 delivers. -->
-> In C++, `and_then` implements the bind operation, while `transform` implements the endofunctor map $M(f)$. Two of these laws are checked statically under constant evaluation in Section 14.
+> In C++, `and_then` implements the *bind* operation, while `transform` implements the endofunctor *map* $M(f)$. Two of these laws are checked statically under constant evaluation in Section 14.
 >
 ## 9. Graded expected: exact error sets
 
@@ -815,21 +821,23 @@ Consider a configuration reader that parses a loosely typed file into specific v
 
 <!-- sync-example-config-pipeline -->
 ```cpp
-auto read_config()
-    -> fn::expected<fn::copack_for<MaximumSize, FilePath, BlockSize>, fn::copack_for<BadSyntax, UnknownKey>>;
+auto read_config() -> fn::expected<fn::copack_for<MaximumSize, FilePath, BlockSize>,
+                                   fn::copack_for<BadSyntax, UnknownKey>>;
 
 auto config_pipeline() -> void
 {
   auto validated
       = read_config()
-        | fn::and_then(fn::overload{[](MaximumSize v) { return fn::expected<MaximumSize, fn::copack<OutOfRange>>{v}; },
-                                    [](FilePath v) { return fn::expected<FilePath, fn::copack<Missing>>{v}; },
-                                    [](BlockSize v) { return fn::expected<BlockSize, fn::copack<OutOfRange>>{v}; }});
+        | fn::and_then(fn::overload{
+            [](MaximumSize v) { return fn::expected<MaximumSize, fn::copack<OutOfRange>>{v}; },
+            [](FilePath v) { return fn::expected<FilePath, fn::copack<Missing>>{v}; },
+            [](BlockSize v) { return fn::expected<BlockSize, fn::copack<OutOfRange>>{v}; }});
 
   // The result exactly bounds both the successful paths and the error paths
   static_assert(
-      std::same_as<decltype(validated), fn::expected<fn::copack_for<BlockSize, FilePath, MaximumSize>,
-                                                     fn::copack_for<BadSyntax, Missing, OutOfRange, UnknownKey>>>);
+      std::same_as<decltype(validated),
+                   fn::expected<fn::copack_for<BlockSize, FilePath, MaximumSize>,
+                                fn::copack_for<BadSyntax, Missing, OutOfRange, UnknownKey>>>);
 }
 ```
 
@@ -843,11 +851,12 @@ Two independent joins occurred during `and_then`:
      expected<T,E> and expected<U, copack<E>> are same-kind. The parenthetical is accurate and
      stays: two *different* plain error types are indeed not same_kind
      (examples/type_algebra/main.cpp:288). -->
-This seamless unioning is what allows different grades of `expected` to share the same carrier family. While standard, un-graded `expected<T, E>` admits only the same error type `E`, or its singular lift `copack<E>`, to participate in monadic bind (meaning `expected<int, IoError>` and `expected<User, Missing>` are **not** `same_kind`), any two graded `expected` types are considered `same_kind`, regardless of how their individual error sets differ:
+This seamless unioning is what allows different grades of `expected` to share the same carrier family. While standard, un-graded `expected<T, E>` admits only the same error type `E`, or its singular lift `copack<E>`, to participate in monadic *bind* (meaning `expected<int, IoError>` and `expected<User, Missing>` are **not** `same_kind`), any two **graded** `expected` types are considered `same_kind`, regardless of how their individual error sets differ (since a union of both sets can always be formed):
 
 <!-- sync-example-test-same-kind-graded -->
 ```cpp
-static_assert(fn::same_kind<fn::expected<int, fn::copack<IoError>>, fn::expected<User, fn::copack<Missing>>>);
+static_assert(
+    fn::same_kind<fn::expected<int, fn::copack<IoError>>, fn::expected<User, fn::copack<Missing>>>);
 ```
 
 It is crucial to distinguish value joining from error grading:
@@ -858,8 +867,8 @@ It is crucial to distinguish value joining from error grading:
 
 To make composition more user-friendly, `libfn` allows explicit **type promotion** during sequential composition:
 
-- In `and_then` (success binding), a plain error type `E` is automatically promoted to `copack<E>` if the returning error type of the callback is `copack<E>`.
-- In `or_else` (recovery/error binding), a plain success type `T` is automatically promoted to `copack<T>` if the returning success type of the callback is `copack<T>`.
+- In `and_then` (success binding), a plain error type `E` is automatically promoted to `copack<E>` if the returning **error type** of the callback is `copack<E>`.
+- In `or_else` (recovery/error binding), a plain success type `T` is automatically promoted to `copack<T>` if the returning **success type** of the callback is `copack<T>`.
 
 This ensures that you can smoothly transition from a simple, un-graded computation to a graded, multi-alternative computation when entering a pipeline step that introduces alternative paths, without needing to manually wrap or lift your starting types.
 
@@ -902,7 +911,8 @@ Recovery via `or_else` behaves symmetrically. It handles input error alternative
 
 ### Widening is subeffecting
 
-In accordance with the subeffecting principles of graded monads (Section 1), a narrow error set can be safely widened during composition, but narrowing requires explicit mitigation. Implicit narrowing (without handling the removed errors) is unsafe and rejected by the compiler. <!-- why: mapping every alternative onto one type does not leave the graded world - transform_error
+In accordance with the subeffecting principles of graded monads (Section 1), a narrow error set can be safely widened during composition, but narrowing requires explicit mitigation. Implicit narrowing (without handling the removed errors) is unsafe and rejected by the compiler.
+     <!-- why: mapping every alternative onto one type does not leave the graded world - transform_error
      over a copack error delegates to copack::transform (expected.hpp:526-545) and re-normalizes
      through the collapsing gate (copack.hpp:108-113). Probe: expected<int, copack_for<A,B>> mapped
      onto Bad yields expected<int, copack<Bad>>, not expected<int, Bad>. A reader following the old
@@ -918,9 +928,9 @@ using cannot_fail_t = fn::expected<T, fn::copack<>>;
 
 This computation cannot fail, but it is algebraically prepared to widen if later composition introduces possible errors.
 
-A concrete example of this is `expected<void, copack<>>`. Because `void` represents the unit `1` and `copack<>` represents the zero `0`, this type maps algebraically to $1 + 0 \cong 1$. Having a cardinality of exactly one, it has no possible errors, can never fail, and can only succeed with a single empty trigger (`void`). This makes it structurally isomorphic to the **Unit type**.
+A concrete example of this is `expected<void, copack<>>`. Because `void` represents the unit `1` and `copack<>` represents the zero `0`, this type maps algebraically to $1 + 0 \cong 1$. Having a cardinality of exactly one, it has no possible errors, can never fail, and can only succeed with a single empty trigger (`void`). This makes it structurally isomorphic to the **unit type**.
 
-In practice, `expected<void, copack<>>` acts as **the graded gateway** to start your pipelines. By initiating a chain with this unit trigger, you seamlessly opt-in all subsequent `and_then` bindings into graded error-set unioning, without having to invent any fake starting errors or manually wrap your initial steps. Since its starting error set is empty (`copack<>`), unioning it with subsequent steps' errors (say, `copack<IoError>`) yields exactly those errors.
+In practice, `expected<void, copack<>>` acts as **the graded gateway** to start your pipelines. By initiating a chain with this unit trigger, you seamlessly opt-in all subsequent `and_then` bindings into graded error-set unioning, without having to invent any fake starting errors or manually wrap your initial steps. Since its starting error set is empty (`copack<>`), unioning it with subsequent steps' errors (say, `copack<IoError>`) yields exactly those errors. There is also an alternative **unit type** without error channel, spelled `just<void>` (see section 10).
 
 > [!TIP]
 >
@@ -977,11 +987,11 @@ auto test_identity_cross() -> void
      as do just.hpp:294 and :565. Nor is it a single operation: transform.hpp:64-67 ("Verb-level
      only ... the member stays uncoupled") is a second crossing. §11 already words this correctly
      as "pipeline-scoped functors", so this line also disagreed with its own sequel. -->
-The bind operation adopts the carrier family of the provided callback. However, the member `and_then` remains strict to its own carrier family. The pipeline-scoped functors are the licensed cross-carrier place; the members stay uncoupled from one another.
-
-Furthermore, fallible types like `expected` (with inhabited error states) and `optional` cannot indiscriminately switch to other carriers, because doing so would risk silently discarding an inhabited state.
+The *bind* operation adopts the carrier family of the provided callback. However, the member `.and_then` remains strict to its own carrier family (for reasons explained in section 3). The pipeline-scoped functors are the licensed cross-carriers.
 
 ### Success-Path Bridging
+
+Fallible types like `expected` (with inhabited error states — `expected<T, copack<>>` excluded) and `optional` cannot switch to infallible carriers, because doing so would risk silently discarding an inhabited (i.e. error) state.
 
 <!-- why: this subsection previously restated §3's success-path bridging at equal depth, opening
      with "As detailed and illustrated in Section 3" - a self-declared repeat. The bridges are now
@@ -990,14 +1000,12 @@ Furthermore, fallible types like `expected` (with inhabited error states) and `o
      moves here from §3 with it; the sync script matches fences by name anywhere in the file
      (sync_type_algebra_examples.py:74-77), so examples/type_algebra/main.cpp is unchanged. Moving
      it also puts it after §9's copack join, which the choice_for branch depends on. -->
-While standard fallible carriers cannot change families on the success path (Section 3), **identity carriers are licensed to bridge to any fallible carrier** via the pipeline `and_then`. Because an identity carrier is statically proven infallible, transitioning to `optional` or a standard `expected` merely introduces potential failure downstream. No pre-existing failure state is discarded, because none can exist upstream:
+However, identity carriers are licensed to bridge to any fallible carrier via the pipeline `fn::and_then`. Because an identity carrier is statically proven infallible, transitioning to `optional` or a standard `expected` merely introduces potential failure downstream. No pre-existing failure state is discarded, because none can exist upstream:
 
 <!-- sync-example-test-success-bridge -->
 ```cpp
-auto test_success_bridge() -> void
+auto test_success_bridge(fn::just<int> j) -> void
 {
-  fn::just<int> j{1};
-
   // An identity carrier can bridge to fallible carriers on the success path
   auto to_opt = j | fn::and_then([](int i) { return fn::optional<int>{i}; });
   static_assert(std::same_as<decltype(to_opt), fn::optional<int>>);
@@ -1006,14 +1014,15 @@ auto test_success_bridge() -> void
   static_assert(std::same_as<decltype(to_exp), fn::expected<int, IoError>>);
 
   // Bridging a multi-alternative choice to fallible optional with heterogeneous success join:
-  auto choice_to_opt = fn::choice_for<int, bool>{true}
-                       | fn::and_then(fn::overload{[](int) -> fn::optional<char> { return {'a'}; },
-                                                   [](bool) -> fn::optional<long> { return {2L}; }});
+  auto choice_to_opt
+      = fn::choice_for<int, bool>{true}
+        | fn::and_then(fn::overload{[](int) -> fn::optional<char> { return {'a'}; },
+                                    [](bool) -> fn::optional<long> { return {2L}; }});
   static_assert(std::same_as<decltype(choice_to_opt), fn::optional<fn::copack_for<char, long>>>);
 }
 ```
 
-All three cluster members bridge this way: `just`, `choice`, and `expected<T, copack<>>`.
+All three cluster members (`just`, `choice`, and `expected<T, copack<>>`) can bridge to fallible carriers.
 
 Monadic operations behave naturally around this identity cluster:
 
@@ -1027,7 +1036,7 @@ Monadic operations behave naturally around this identity cluster:
 - **Sequential binding (`and_then`)**: Allows cross-carrier transitions *within* the identity cluster (e.g., `just` to `expected<U, copack<>>`) when using pipeline-scoped `fn::and_then`.
 - **Recovery / dead-side mapping (`transform_error`, `or_else`, `recover`, `inspect_error`)**: Because `just` and `choice` have no error side, these are rejected at compile time. On `expected<T, copack<>>`, they are vacuously well-formed but statically proven unreachable (to allow generic code on `expected` to compile).
 - **Short-circuiting (`fail`, `filter`)**: Strictly rejected for all identity cluster carriers, because no failure state (an inhabited error or empty state) can possibly be constructed from a never-failing identity context.
-<!-- why: "vacuously well-formed ... optimized away" overstates it, and sits three lines above a NOTE
+  <!-- why: "vacuously well-formed ... optimized away" overstates it, and sits three lines above a NOTE
      whose whole point is that the vacuous or_else asks *nothing* of its callback. value_or is not
      that: the fallback stays constrained (value_or.hpp:70-71 - "its fallback stays constrained yet
      dead"; the applicable_value_or check at :78), and tests/fn/value_or.cpp:240-241 asserts an
@@ -1081,12 +1090,11 @@ For example, a pipeline-scoped `fn::transform` on a `just` that returns a `copac
 
 <!-- sync-example-test-identity-transformation -->
 ```cpp
-auto test_identity_transformation() -> void
+auto test_identity_transformation(fn::just<UserId> j) -> void
 {
-  fn::just<UserId> j{UserId{}};
-
   // Transforming a just with a callable returning a copack produces a choice
-  auto mapped = j | fn::transform([](UserId) { return fn::copack_for<Missing, FilePath>{Missing{}}; });
+  auto mapped
+      = j | fn::transform([](UserId) { return fn::copack_for<Missing, FilePath>{Missing{}}; });
 
   static_assert(std::same_as<decltype(mapped), fn::choice_for<FilePath, Missing>>);
 }
@@ -1110,21 +1118,18 @@ Consider a scenario where different branches of a switch return different `choic
 
 <!-- sync-example-test-choice-mapping -->
 ```cpp
-auto test_choice_mapping() -> void
+auto test_choice_mapping(fn::choice<User, UserId> ch) -> void
 {
-  fn::choice<User, UserId> ch{UserId{}};
-
   constexpr auto mapper = fn::overload{[](UserId) { return fn::choice<Missing>{Missing{}}; },
                                        [](User) { return fn::choice<FilePath>{FilePath{}}; }};
 
   // transform nests the returned choice as a mapped value
   auto mapped = ch | fn::transform(mapper);
-
-  static_assert(std::same_as<decltype(mapped), fn::choice_for<fn::choice<FilePath>, fn::choice<Missing>>>);
+  static_assert(
+      std::same_as<decltype(mapped), fn::choice_for<fn::choice<FilePath>, fn::choice<Missing>>>);
 
   // and_then joins and flattens them into a normalized superset choice
   auto bound = ch | fn::and_then(mapper);
-
   static_assert(std::same_as<decltype(bound), fn::choice_for<FilePath, Missing>>);
 }
 ```
@@ -1134,7 +1139,7 @@ auto test_choice_mapping() -> void
      fires a named diagnostic on instantiation rather than dropping out of the overload set
      (choice.hpp:695; tests/fn/choice.cpp:1050-1054 asserts can_and_then holds precisely so the
      static_assert can speak). -->
-A callback returning a bare value belongs to `transform`, not `and_then`: `choice`'s `and_then` rejects it, and does so with a named diagnostic rather than by silently dropping out of the overload set.
+A callback returning a bare value belongs to `transform`, not `and_then`: `choice`'s `and_then` rejects it with a named diagnostic.
 
 > [!TIP]
 >
@@ -1159,12 +1164,17 @@ A callback returning a bare value belongs to `transform`, not `and_then`: `choic
 >
 ## 12. Elimination and multidispatch
 
-Once your computation shapes are fully derived, you must eliminate the structure to yield an ordinary C++ value. This is done via `apply` or `apply_r`.
+<!-- why: `.value()` on a fallible carrier does not discard the error channel - it is partial and
+     throws on the failure state (pfn/optional.hpp:646-651 throws bad_optional_access; expected
+     throws bad_expected_access, pfn/expected.hpp:52-56). Describing it as discarding invites the
+     reader to reach for it where the carrier may hold an error, which is exactly where it throws.
+     "Carriers" also matches the term used throughout; "monads" appears nowhere else in the prose. -->
+Once your computation shapes are fully derived, you may want to eliminate the structure to yield an ordinary C++ value. This is typically done via `apply` or `apply_r`. You can also use `get` on a singular `copack` (as explained in section 4); or directly read `.value()` from a `just`, where it is total. On fallible carriers `.value()` is partial: it yields the value if there is one, and otherwise throws (`bad_expected_access`, `bad_optional_access`).
 
 It is vital to distinguish `transform` from `apply`:
 
 - `transform` stays *inside* the carrier or copack, producing a new carried type.
-<!-- why: "converge on" reads as common-type conversion; the rule is exact identity, which the NOTE
+  <!-- why: "converge on" reads as common-type conversion; the rule is exact identity, which the NOTE
      below then states correctly. copack.hpp:74-81, expected.hpp:562-565 and optional.hpp:418-421
      all static_assert is_same_v across branches, with no conversion step. -->
 - `apply` *eliminates* the structure entirely: the result type is deduced from the branches, which must then all yield that one same type.
@@ -1213,7 +1223,7 @@ Exhaustiveness is statically constrained. If you omit a handler for a possible t
 
 <!-- why: the pack-vs-tuple illustration is the introduction's "Storage Shape vs. Call Shape",
      restated here at equal depth; the intro is the definition site, so this refers back instead. -->
-Because storage shape and call shape are distinct, untagged `apply` can sometimes erase the structural context of the state. To preserve this context and prevent permissive C++ implicit conversions from accidentally conflating different states, `libfn` provides the **`apply_type`** (and `apply_type_r`) member functions.
+Because storage shape and call shape are distinct, untagged `apply` can sometimes erase the structural context of the state (for example from `expected<int, int>`). To preserve this context and prevent permissive C++ implicit conversions from accidentally conflating different states, `libfn` provides the **`apply_type`** (and `apply_type_r`) member functions.
 
 When you eliminate a carrier using `apply_type`, the active handler receives an explicit C++ state tag or constructor tag as its first argument, followed by the unpacked payload:
 
@@ -1244,7 +1254,7 @@ This is a concise reference for `libfn`'s operations, organized by channel and e
 
 - `transform`: Maps the successful value. Stays inside the carrier.
 - `and_then`: Sequences success-path computations. The mechanism for introducing new errors into a graded expected.
-<!-- why: "Does not widen error grades" appears on both of these one-liners and again in the
+  <!-- why: "Does not widen error grades" appears on both of these one-liners and again in the
      Architectural Rules below, three statements of one fact within thirty lines; the rules block
      is where it earns its place, so the duplicates go. -->
 - `filter`: Enters a short-circuit state if a predicate fails.
@@ -1291,7 +1301,7 @@ To reason about how these operations affect the type algebra of your computation
 - **`fail` and `recover` are dual symmetries**: `fail` intercepts a success-path value and forces a transition to the failure state ($Success \implies Failure$). `recover` intercepts a failure-path error and forces a transition back to the success state ($Failure \implies Success$). Neither operation widens the error set of a graded carrier.
 - **Graded `and_then`** is the primary mechanism for introducing a _new_ error type (widening the error grade) into your pipeline.
 - **`filter` and `fail`** merely enter an _existing_ short-circuit state: the carrier must already be capable of holding the failure state.
-<!-- why: "rejected on identity carriers" is true of just and choice but not of the third cluster
+  <!-- why: "rejected on identity carriers" is true of just and choice but not of the third cluster
      member - on expected<T, copack<>> these stay vacuously well-formed, which §10 states
      ("Recovery / dead-side mapping ... they are vacuously well-formed but statically proven
      unreachable") and the NOTE below it establishes as a load-bearing design principle
@@ -1360,7 +1370,7 @@ Public concepts and `requires` clauses enforce correctness before instantiation.
 
 `libfn` thoroughly respects C++ value mechanics:
 - Core operations are fully `constexpr`.
-<!-- why: the unqualified "Types are ..." reads as universal and is false for two of the six -
+  <!-- why: the unqualified "Types are ..." reads as universal and is false for two of the six -
      probe: expected<int,int> and optional<int> are both rejected as "not a valid type for a
      template non-type parameter because it is not structural". It holds for the algebra's own
      types (tests/fn/pack.cpp:279-288, tests/fn/copack.cpp:1195-1197, just.hpp:80-81). Wording
