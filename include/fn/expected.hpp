@@ -1971,8 +1971,6 @@ template <typename Lh, typename Rh>
   requires some_expected_void<Lh> && (not some_expected_void<Rh>)
            && (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type,
                                     typename ::std::remove_cvref_t<Rh>::error_type>)
-           && (some_copack<typename ::std::remove_cvref_t<Lh>::error_type>
-               || some_copack<typename ::std::remove_cvref_t<Rh>::error_type>)
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
     noexcept(detail::_nothrow_join_widened<
              expected<typename ::std::remove_cvref_t<Rh>::value_type,
@@ -2024,8 +2022,6 @@ template <typename Lh, typename Rh>
   requires(not some_expected_void<Lh>) && some_expected_void<Rh>
           && (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type,
                                    typename ::std::remove_cvref_t<Rh>::error_type>)
-          && (some_copack<typename ::std::remove_cvref_t<Lh>::error_type>
-              || some_copack<typename ::std::remove_cvref_t<Rh>::error_type>)
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
     noexcept(detail::_nothrow_join_widened<
              expected<typename ::std::remove_cvref_t<Lh>::value_type,
@@ -2074,8 +2070,6 @@ template <typename Lh, typename Rh>
   requires some_expected_void<Lh> && some_expected_void<Rh>
            && (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type,
                                     typename ::std::remove_cvref_t<Rh>::error_type>)
-           && (some_copack<typename ::std::remove_cvref_t<Lh>::error_type>
-               || some_copack<typename ::std::remove_cvref_t<Rh>::error_type>)
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
     noexcept(detail::_nothrow_join_widened<
              expected<void, copack_for<typename ::std::remove_cvref_t<Lh>::error_type,
@@ -2121,8 +2115,6 @@ template <typename Lh, typename Rh>
   requires(not some_expected_void<Lh>) && (not some_expected_void<Rh>)
           && (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type,
                                    typename ::std::remove_cvref_t<Rh>::error_type>)
-          && (some_copack<typename ::std::remove_cvref_t<Lh>::error_type>
-              || some_copack<typename ::std::remove_cvref_t<Rh>::error_type>)
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
     noexcept(noexcept(
         ::fn::detail::_join<
