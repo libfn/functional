@@ -1085,12 +1085,13 @@ TEST_CASE("expected conjunction", "[expected][operator_and][graded][copack]")
   static_assert(
       not noexcept(std::declval<fn::expected<throwing_copy, Error> &>() & std::declval<fn::expected<int, Error> &>()));
 
-  // constraints: both operands are expected, and their error types must match or be graded
+  // constraints: both operands are expected; their error types may differ, graded or not
   constexpr auto can_amp = [](auto &&rh) { return requires { std::declval<fn::expected<int, Error> &>() & rh; }; };
   static_assert(can_amp(fn::expected<void, Error>{}));
   static_assert(not can_amp(42));
   enum class other_error {};
-  static_assert(not can_amp(fn::expected<int, other_error>{1})); // mismatched non-graded error
+  static_assert(can_amp(fn::expected<int, other_error>{1})); // mismatched non-graded error
+  static_assert(not can_amp(fn::optional<int>{1}));          // ... but the kinds still have to match
 
   SECTION("same error type")
   {
@@ -1467,6 +1468,61 @@ TEST_CASE("expected conjunction", "[expected][operator_and][graded][copack]")
         CHECK((Lh{fn::pack{0.5, 3}} & Rh{::fn::unexpect, Unknown}).error() == Unknown);
         CHECK((Lh{::fn::unexpect, FileNotFound} & Rh{::fn::unexpect, Unknown}).error() == FileNotFound);
       }
+    }
+  }
+
+  SECTION("different plain error types")
+  {
+    // The conjunction produces the error sum rather than requiring it: two unrelated, ungraded
+    // error types conjoin into their copack, exactly as an already graded operand does.
+    enum OtherError : int { Oops };
+    using EA = fn::expected<int, Error>;
+    using EB = fn::expected<bool, OtherError>;
+    using Sum = fn::copack_for<Error, OtherError>;
+
+    static_assert(
+        std::same_as<decltype(std::declval<EA>() & std::declval<EB>()), fn::expected<fn::pack<int, bool>, Sum>>);
+    static_assert(std::same_as<decltype(std::declval<fn::expected<void, Error>>() & std::declval<EB>()),
+                               fn::expected<bool, Sum>>);
+    static_assert(std::same_as<decltype(std::declval<EA>() & std::declval<fn::expected<void, OtherError>>()),
+                               fn::expected<int, Sum>>);
+    static_assert(std::same_as<decltype(std::declval<fn::expected<void, Error>>()
+                                        & std::declval<fn::expected<void, OtherError>>()),
+                               fn::expected<void, Sum>>);
+
+    constexpr auto is_1_true = [](int i, bool b) { return i == 1 && b; };
+    // which alternative the sum holds: the failing operand's error injects by type, leftmost first
+    constexpr auto which = fn::overload{[](Error e) { return e == FileNotFound ? 1 : 0; },
+                                        [](OtherError e) { return e == Oops ? 2 : 0; }};
+
+    static_assert((EA{1} & EB{true}).value().apply(is_1_true));
+    static_assert((EA{::fn::unexpect, FileNotFound} & EB{true}).error().apply(which) == 1);
+    static_assert((EA{1} & EB{::fn::unexpect, Oops}).error().apply(which) == 2);
+    static_assert((EA{::fn::unexpect, FileNotFound} & EB{::fn::unexpect, Oops}).error().apply(which) == 1);
+    static_assert((fn::expected<void, Error>{} & EB{true}).value());
+    static_assert((EA{1} & fn::expected<void, OtherError>{}).value() == 1);
+    static_assert(
+        (fn::expected<void, Error>{} & fn::expected<void, OtherError>{::fn::unexpect, Oops}).error().apply(which) == 2);
+
+    CHECK((EA{1} & EB{true}).value().apply(is_1_true));
+    CHECK((EA{::fn::unexpect, FileNotFound} & EB{true}).error().apply(which) == 1);
+    CHECK((EA{1} & EB{::fn::unexpect, Oops}).error().apply(which) == 2);
+    CHECK((EA{::fn::unexpect, FileNotFound} & EB{::fn::unexpect, Oops}).error().apply(which) == 1);
+    CHECK((fn::expected<void, Error>{} & EB{true}).value());
+    CHECK((EA{1} & fn::expected<void, OtherError>{}).value() == 1);
+    CHECK((fn::expected<void, Error>{} & fn::expected<void, OtherError>{::fn::unexpect, Oops}).error().apply(which)
+          == 2);
+
+    SECTION("noexcept")
+    {
+      // both operands' errors are lifted into the sum, so both relocations weigh
+      using Th = fn::expected<int, MoveNothrow>;
+      static_assert(noexcept(std::declval<EA &>() & std::declval<EB &>()));
+      static_assert(not noexcept(std::declval<Th &>() & std::declval<EA &>())); // copies the error
+      static_assert(noexcept(std::declval<Th &&>() & std::declval<EA &&>()));   // moves it
+      static_assert(not noexcept(std::declval<EA &>() & std::declval<Th &>()));
+      static_assert(noexcept(std::declval<EA &&>() & std::declval<Th &&>()));
+      SUCCEED();
     }
   }
 
