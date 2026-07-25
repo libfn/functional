@@ -286,6 +286,13 @@ TEST_CASE("just", "[just]")
     static_assert(T{3} != 4);
     static_assert(noexcept(T{3} == T{3}));
     CHECK(T{3} == 3);
+
+    // A payload whose ADL reaches an expected must answer like any other: comparing the payloads
+    // brings that expected's own comparisons into the candidate set, where one of them used to ask
+    // a question that depended on itself - which is a hard error, not an answer.
+    using F = fn::expected<int, bool> (*)(int);
+    static_assert(fn::just<F>{nullptr} == fn::just<F>{nullptr});
+    static_assert(not(fn::just<F>{nullptr} != fn::just<F>{nullptr}));
     SUCCEED();
   }
 
