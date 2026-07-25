@@ -1865,6 +1865,15 @@ private:
   {
   }
 };
+
+/**
+ * @brief The unit of the `expected` family: a carrier over `void` whose error side is uninhabited
+ *
+ * It always holds its empty value - `copack<>` offers no alternative to fail with - so it belongs to
+ * the identity cluster, and `operator&` elides it from a product.
+ */
+using expected_unit = expected<void, copack<>>;
+
 // Lifts for copack transformation functions
 [[nodiscard]] constexpr auto copack_value(some_expected_non_void auto &&src) noexcept(noexcept(FWD(src).copack_value()))
     -> decltype(auto)

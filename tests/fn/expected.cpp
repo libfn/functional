@@ -4,6 +4,7 @@
 // or copy at https://opensource.org/licenses/ISC
 
 #include <fn/choice.hpp>
+#include <fn/concepts.hpp>
 #include <fn/expected.hpp>
 #include <fn/just.hpp>
 #include <fn/optional.hpp>
@@ -4181,7 +4182,9 @@ TEST_CASE("expected with empty copack side", "[expected][copack]")
 
   SECTION("empty copack error, void value")
   {
-    using E = fn::expected<void, S0>;
+    using E = fn::expected_unit;
+    static_assert(std::is_same_v<E, fn::expected<void, S0>>);
+    static_assert(fn::some_identity<E>);
     E e{};
     CHECK(e.transform_error(poison).has_value());
     CHECK(e.or_else(poison).has_value());
