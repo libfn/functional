@@ -63,13 +63,13 @@ repos:
     pass_filenames: false
   - id: sync-readme-example
     name: sync README example with examples/readme
-    entry: python scripts/sync_readme_example.py
+    entry: python scripts/sync_md_examples.py readme
     language: python
     files: ^(README\.md|examples/readme/main\.cpp)$
     pass_filenames: false
   - id: sync-type-algebra-examples
     name: sync TYPE_ALGEBRA examples with examples/type_algebra
-    entry: python scripts/sync_type_algebra_examples.py
+    entry: python scripts/sync_md_examples.py type-algebra
     language: python
     files: ^(TYPE_ALGEBRA\.md|examples/type_algebra/main\.cpp)$
     pass_filenames: false

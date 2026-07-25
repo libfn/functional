@@ -33,9 +33,9 @@ class Rational {
   constexpr Rational(int n, int d) noexcept : n_(n), d_(d) {}
 
 public:
-  constexpr bool operator==(Rational const &) const noexcept = default;
-  constexpr int num() const noexcept { return n_; }
-  constexpr int den() const noexcept { return d_; }
+  constexpr auto operator==(Rational const &) const noexcept -> bool = default;
+  constexpr auto num() const noexcept -> int { return n_; }
+  constexpr auto den() const noexcept -> int { return d_; }
 
   // The invariants live in the type: `make` is the only way to build a `Rational`, and every one is
   // reduced, sign-normalized and representable. Callers receive a value they never need re-check.
@@ -58,28 +58,28 @@ public:
       return Rational(static_cast<int>(n), static_cast<int>(d));
     }
 
-    constexpr auto operator()(std::string_view s) const noexcept
+    constexpr auto operator()(std::string_view s) const noexcept -> decltype(auto)
     {
       return parse(s) | fn::and_then(*this);
     }
   } make{};
 
-  constexpr auto neg() const noexcept { return make(-1LL * n_, d_); }
-  constexpr auto inv() const noexcept { return make(d_, n_); }
-  constexpr auto add(Rational const &other) const noexcept
+  constexpr auto neg() const noexcept -> decltype(auto) { return make(-1LL * n_, d_); }
+  constexpr auto inv() const noexcept -> decltype(auto) { return make(d_, n_); }
+  constexpr auto add(Rational const &other) const noexcept -> decltype(auto)
   {
     return make(1LL * n_ * other.d_ + 1LL * other.n_ * d_, //
                 1LL * d_ * other.d_);
   }
-  constexpr auto sub(Rational const &other) const noexcept
+  constexpr auto sub(Rational const &other) const noexcept -> decltype(auto)
   {
     return other.neg() | fn::and_then([*this](Rational y) { return add(y); });
   }
-  constexpr auto mul(Rational const &other) const noexcept
+  constexpr auto mul(Rational const &other) const noexcept -> decltype(auto)
   {
     return make(1LL * n_ * other.n_, 1LL * d_ * other.d_);
   }
-  constexpr auto div(Rational const &other) const noexcept
+  constexpr auto div(Rational const &other) const noexcept -> decltype(auto)
   {
     return other.inv() | fn::and_then([*this](Rational y) { return mul(y); });
   }
@@ -88,7 +88,7 @@ public:
 // `evaluate` parses each operand, applies the operator, and lets `make` re-check the result.
 // Each stage fails its own way, and the library folds error types into one co-product.
 constexpr auto evaluate(std::string_view a, fn::copack_for<Add, Sub, Mul, Div> op,
-                        std::string_view b) noexcept
+                        std::string_view b) noexcept -> decltype(auto)
 {
   using Op = fn::expected<decltype(op), fn::copack<>>;
   return (Rational::make(a) & Op{op} & Rational::make(b)) //
@@ -114,19 +114,19 @@ static_assert(evaluate("2/3", Div{}, "0/1").error().has_value<DivByZero>());
 
 The library features demonstrated by the code example above:
 
-* **Monadic sequences** — `operator|` pipes a `fn::expected` (or `fn::optional`) through operations: `and_then` and `transform` act on the value, `or_else`, `recover` and `transform_error` on the error, with `filter`, `inspect`, `fail` and more besides.
-* **Graded errors** — each stage fails its own way — a malformed string, a zero denominator, an out-of-range result — and the library folds these into one `fn::copack` whose type it derives for you: here `fn::copack<DivByZero, NotANumber, Overflow>`, never spelled by hand.
-* **Composing values** — `operator&` gathers successful operands left to right: two values become a `fn::pack`, a third appends to it. A `fn::pack` is a heterogeneous product — the operands as one value, spread into the next call; for example in `make`, where a `pack<int, int>` returned from `parse` is passed to an overload taking two numbers.
-* **Composing alternatives** — when a side is a `fn::copack` (a co-product — one of several types, indexed by type, not by position like `std::variant`), `&` distributes over it, pairing every alternative with the other operand. Two copacks yield the full cartesian product. The result type is flattened, deduplicated and sorted for you.
+* **Monadic sequences** — `operator|` pipes a `expected` (or `optional`) through operations: `and_then` and `transform` act on the value, `or_else`, `recover` and `transform_error` on the error, with `filter`, `inspect`, `fail` and more besides.
+* **Graded errors** — each stage fails its own way — a malformed string, a zero denominator, an out-of-range result — and the library folds these into one `copack` whose type it derives for you: here `copack<DivByZero, NotANumber, Overflow>`, never spelled by hand.
+* **Composing values** — `operator&` gathers successful operands left to right: two values become a `pack`, a third appends to it. A `pack` is a heterogeneous product — the operands as one value, spread into the next call; for example in `make`, where a `pack<int, int>` returned from `parse` is passed to an overload taking two numbers.
+* **Composing alternatives** — when a side is a `copack` (a co-product — one of several types, indexed by type, not by position like `std::variant`), `&` distributes over it, pairing every alternative with the other operand. Two copacks yield the full cartesian product. The result type is flattened, deduplicated and sorted for you.
 * **Multidispatch** — the pack (or copack of packs) flows into the next stage as separate arguments. An `fn::overload` — or any function — dispatches on the runtime alternative by ordinary overload resolution. Dispatch is exhaustive: a missing handler is a compile error.
-* **Identity monad** — `fn::expected<T, fn::copack<>>` cannot hold an error (enforced at compile time), a spelling of the identity monad; the example lifts `op` into it as `Op`.
+* **Identity monad** — `expected<T, copack<>>` cannot hold an error (enforced at compile time), a spelling of the identity monad; the example lifts `op` into it as `Op`.
 * **No surprises** — libfn throws no exceptions of its own (only `value()`, as the standard mandates), and composes safely with callables that do; it allocates no memory of its own and performs no I/O. Being fully `constexpr`, it can drive a program evaluated entirely at compile time, where the compiler diagnoses any undefined behaviour.
 
-The example also demonstrates how well libfn works with general programming idioms. `make` is a *smart constructor* — the only way to build a `Rational` — enforcing the type's invariants and returning `fn::expected`: callers never need to re-check what the type guarantees. Treating *callables as values* lets operations such as `and_then` accept `make` whole, carrying its overload set.
+The example also demonstrates how well libfn works with general programming idioms. `make` is a *smart constructor* — the only way to build a `Rational` — enforcing the type's invariants and returning `expected`: callers never need to re-check what the type guarantees. Treating *callables as values* lets operations such as `and_then` accept `make` whole, carrying its overload set.
 
 These properties also make libfn a natural fit for asynchronous composition, such as coroutines or senders/receivers. Operations and monadic types alike are plain values: `and_then(f)` is a *description* of a step, executed only when a monad is piped into it (an input to the sequence, or the result of the preceding operation). A framework can hold the steps of a computation and apply them as results arrive, with a strongly typed error channel and no hidden control flow — exactly what such programming models need.
 
-Beyond the example: `fn::choice` (a monad over `fn::copack`); the same operations over `fn::optional` as over `fn::expected`; simultaneous disjunction (using `operator|` to fallback-combine monadic computations) and its `fn::disjoin` fold; `fn::conjoin` for simultaneous product folds; tuple protocol in `fn::pack` (`get<I>(p)` or structured bindings); `fn::pack` and `fn::copack` are both structural types (a `constexpr` value which may be used as a template parameter); support for immovable values and callables; and more — see [examples/](examples/) and the [API reference][docs].
+Beyond the example: `choice` (a monad over `copack`); the same operations over `optional` as over `expected`; simultaneous disjunction (using `operator|` to fallback-combine monadic computations) and its `fn::disjoin` fold; `fn::conjoin` for simultaneous product folds; tuple protocol in `pack` (`get<I>(p)` or structured bindings); `pack` and `copack` are both structural types (a `constexpr` value which may be used as a template parameter); support for immovable values and callables; and more — see [examples/](examples/) and the [API reference][docs].
 
 ## How
 

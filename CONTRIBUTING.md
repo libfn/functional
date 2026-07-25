@@ -75,7 +75,7 @@ This repository uses [pre-commit](https://pre-commit.com/) to enforce formatting
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r ci/pre-commit/requirements.txt
-# Now install the pre-commit hooks locally
+# Install the pre-commit hooks locally
 pre-commit install
 ```
 
