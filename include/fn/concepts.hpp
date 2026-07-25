@@ -157,6 +157,31 @@ concept convertible_to_choice
     = (not ::std::is_void_v<T>) && requires { static_cast<choice<::std::remove_cvref_t<T>>>(::std::declval<T>()); };
 
 /**
+ * @brief Checks if a carrier's error side is uninhabited - it can never hold an error
+ *
+ * The identity `expected`, and only it: `choice` and `just` have no error channel to empty, so they
+ * answer false here while `some_identity` below accepts all three.
+ *
+ * @tparam T Type to check, possibly cv-ref qualified
+ */
+template <typename T>
+concept some_empty_error = some_expected<T> && empty_copack<typename ::std::remove_cvref_t<T>::error_type>;
+
+/**
+ * @brief Checks if a carrier's value side is uninhabited - it can never hold a value
+ *
+ * An `optional<copack<>>`, which is never engaged, or an `expected<copack<>, E>`, which always holds
+ * its error: every value-side operation over one is the identity, and its callback is neither
+ * invoked nor instantiated. `optional` belongs here where it cannot belong to the mirror above - its
+ * empty state is a state that is, not a channel that can never engage.
+ *
+ * @tparam T Type to check, possibly cv-ref qualified
+ */
+template <typename T>
+concept some_empty_value
+    = (some_expected<T> || some_optional<T>) && empty_copack<typename ::std::remove_cvref_t<T>::value_type>;
+
+/**
  * @brief Checks if a type is an identity carrier - a monad which never short-circuits
  *
  * The equivalence class of the family's unit: `choice` (no error channel at all), `just` (the
@@ -167,8 +192,7 @@ concept convertible_to_choice
  * @tparam T Type to check, possibly cv-ref qualified
  */
 template <typename T>
-concept some_identity = some_choice<T> || some_just<T>
-                        || (some_expected<T> && empty_copack<typename ::std::remove_cvref_t<T>::error_type>);
+concept some_identity = some_choice<T> || some_just<T> || some_empty_error<T>;
 
 /**
  * @brief TODO

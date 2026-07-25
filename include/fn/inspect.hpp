@@ -6,6 +6,7 @@
 #ifndef INCLUDE_FN_INSPECT
 #define INCLUDE_FN_INSPECT
 
+#include <fn/concepts.hpp>
 #include <fn/expected.hpp>
 #include <fn/functional.hpp>
 #include <fn/functor.hpp>
@@ -161,6 +162,15 @@ struct inspect_t::apply final {
     requires applicable_inspect<Fn &&, V &&>
   {
     ::fn::apply(FWD(fn)); // side-effects only
+    return FWD(v);
+  }
+
+  // An uninhabited value side never holds a value, so there is nothing to observe: the operand
+  // passes through, and the callback is neither invoked nor instantiated.
+  template <some_monadic_type V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&) const noexcept -> V &&
+    requires some_empty_value<V>
+  {
     return FWD(v);
   }
 };

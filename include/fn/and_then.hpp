@@ -192,6 +192,17 @@ struct and_then_t::apply final {
     return FWD(v).and_then(FWD(fn));
   }
 
+  // An uninhabited value side leaves no value to bind - delegate to the member, which is the
+  // identity there and neither invokes nor instantiates the callback, as in transform.
+  template <some_monadic_type V, typename Fn>
+  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //
+      noexcept(noexcept(FWD(v).and_then(FWD(fn))))              //
+      -> same_kind<V &&> auto
+    requires some_empty_value<V>
+  {
+    return FWD(v).and_then(FWD(fn));
+  }
+
   // The cluster arms: an identity input binds across the carrier kinds, and the bind follows the
   // function. Engine-direct - the members are each carrier's own endo-bind, so the cluster cannot
   // ride delegation, and the verb layer is the licensed cross-carrier place. Dropping the input's

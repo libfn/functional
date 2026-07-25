@@ -28,6 +28,12 @@ struct Xint final {
 
   auto fn() const & -> int { return value + 1; }
 };
+
+// Instantiating this callable for any argument is a dependent hard error: a verb that compiles
+// while receiving it provably never instantiates its callback.
+struct Poison final {
+  template <typename T> constexpr void operator()(T &&) const { static_assert(sizeof(T) == 0); }
+};
 } // namespace
 
 TEST_CASE("transform", "[transform][expected][expected_value][pack]")
@@ -771,6 +777,59 @@ TEST_CASE("transform tuple-like payload", "[transform][expected][optional][tuple
   }
 }
 
+TEST_CASE("transform over an uninhabited value side", "[transform][expected][optional][copack]")
+{
+  // A copack<> value can never be constructed, so the callback can never be presented one: the
+  // mapping is the identity and the callback is neither invoked nor instantiated. The verb reaches
+  // as far as the member does - its own arm admits the operand, while applicable_transform keeps
+  // answering false (the static_asserts at the end of the file).
+  using E = fn::expected<fn::copack<>, int>;
+  using O = fn::optional<fn::copack<>>;
+  constexpr Poison poison{};
+
+  SECTION("expected: always the error, carried through unchanged")
+  {
+    E e{fn::unexpect, 7};
+    auto r = e | fn::transform(poison);
+    static_assert(std::is_same_v<decltype(r), E>);
+    CHECK(r.error() == 7);
+    CHECK((std::as_const(e) | fn::transform(poison)).error() == 7);
+    CHECK((std::move(e) | fn::transform(poison)).error() == 7);
+  }
+
+  SECTION("optional: never engaged")
+  {
+    O o{};
+    auto r = o | fn::transform(poison);
+    static_assert(std::is_same_v<decltype(r), O>);
+    CHECK(not r.has_value());
+    CHECK(not(std::as_const(o) | fn::transform(poison)).has_value());
+    CHECK(not(std::move(o) | fn::transform(poison)).has_value());
+  }
+
+  SECTION("noexcept weighs the pass-through, the only relocation left")
+  {
+    struct Throwing final {
+      Throwing() = default;
+      Throwing(Throwing const &) {} // and hence no move constructor either
+    };
+    static_assert(noexcept(std::declval<E &&>() | fn::transform(poison)));
+    static_assert(noexcept(std::declval<O &&>() | fn::transform(poison)));
+    static_assert(not noexcept(std::declval<fn::expected<fn::copack<>, Throwing> &&>() | fn::transform(poison)));
+    SUCCEED();
+  }
+
+  SECTION("constexpr")
+  {
+    // named source: VS 2022 misreads a mid-expression prvalue's empty-class union member
+    constexpr E ce{fn::unexpect, 7};
+    constexpr O co{};
+    static_assert((ce | fn::transform(Poison{})).error() == 7);
+    static_assert(not(co | fn::transform(Poison{})).has_value());
+    SUCCEED();
+  }
+}
+
 namespace fn {
 namespace {
 struct Error {};
@@ -811,5 +870,13 @@ static_assert(applicable_transform<decltype(fn_generic<int>), optional<copack_fo
 static_assert(not applicable_transform<decltype(fn_int<int>), optional<copack_for<Value, int>>>);
 static_assert(not applicable_transform<decltype(fn_generic<void>), expected<copack_for<Value, int>, Error>>); // a void result has no place in a copack
 static_assert(not applicable_transform<decltype(fn_generic<void>), optional<copack_for<Value, int>>>);
+
+// An uninhabited value side has no alternative to dispatch, so the concept answers false where the rows
+// above answer true: applicability is a property of the callback, and a vacuous mapping consults none.
+// The verb still applies - its own arm admits the operand - which is what monadic_invocable answers.
+static_assert(not applicable_transform<decltype(fn_generic<int>), expected<copack<>, Error>>);
+static_assert(not applicable_transform<decltype(fn_generic<int>), optional<copack<>>>);
+static_assert(monadic_invocable<transform_t, expected<copack<>, Error>, decltype(fn_generic<int>)>);
+static_assert(monadic_invocable<transform_t, optional<copack<>>, decltype(fn_generic<int>)>);
 // clang-format on
 } // namespace fn
