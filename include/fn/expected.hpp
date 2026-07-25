@@ -1865,6 +1865,23 @@ private:
   {
   }
 };
+
+// The comparison against a value, at namespace scope for the reason given where its siblings are
+// declared in pfn: it is the one equality operator constrained on the OTHER operand, and that is
+// safe only where this operand is deduced.
+template <typename T, typename Err, typename T2>
+  requires(not ::std::is_void_v<T> && not detail::_is_some_expected<T2 &>)
+constexpr bool operator==(expected<T, Err> const &x, T2 const &v) //
+    noexcept(noexcept(::pfn::detail::_implicit_to_bool(*x == v))) // extension
+  requires requires {
+    { *x == v } -> ::std::convertible_to<bool>;
+  }
+{
+  if (!x.has_value())
+    return false;
+  return *x == v;
+}
+
 // Lifts for copack transformation functions
 [[nodiscard]] constexpr auto copack_value(some_expected_non_void auto &&src) noexcept(noexcept(FWD(src).copack_value()))
     -> decltype(auto)
