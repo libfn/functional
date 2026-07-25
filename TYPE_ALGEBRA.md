@@ -445,7 +445,7 @@ Key principles of mapping:
 >
 ## 6. Product composition with operator& (conjunction)
 
-Simultaneous product composition combines independent computations. By evaluating `a & b`, you bundle the results into a `pack` of the successful values over a `copack` of the exact errors either operand can produce — the conjunction of two `expected`s shown in Section 1.
+Simultaneous product composition combines independent computations. By evaluating `a & b`, you bundle the results into a `pack` of the successful values over a `copack` of the exact errors either operand can produce — the conjunction of two `expected`s shown in Section 1. While the operator (`operator&`) applies to both monadic carriers (combining computations) and data-level types (packs, copacks, and scalars), the n-ary fold utility `fn::conjoin` is strictly for data-level types. If you pass a computation carrier to `fn::conjoin`, it will be wrapped inside a `pack` rather than conjoining the computation.
 
 The runtime failure semantics are exact:
 
@@ -518,7 +518,9 @@ auto test_conjunction_with_identity_cluster(fn::expected<int, Error> ex, fn::jus
 >
 ## 7. Sum composition with operator| (disjunction)
 
-Simultaneous sum composition combines alternative computations. By evaluating `a | b`, the leftmost operand holding a value wins: if `a` succeeded its result is preserved, otherwise `b`'s is. As with `operator&`, both operands are fully constructed before the operator runs — this is a value-selection rule, not a lazy fallback.
+Simultaneous sum composition is the symmetric dual of product composition (Section 6), with the roles of value and error channels precisely reversed: conjunction (`operator&`) multiplies values (producing a product `pack`) and adds errors (producing a coproduct `copack`), while disjunction (`operator|`) adds values (producing a coproduct `copack`) and multiplies errors (producing a product `pack`). Unlike conjunction, disjunction operations (both the operator `operator|` and the n-ary fold `fn::disjoin`) apply strictly to monadic carriers. Disjunction is not defined on bare data-level types like `pack` or `copack`.
+
+By evaluating `a | b`, the leftmost operand holding a value wins: if `a` succeeded its result is preserved, otherwise `b`'s is. As with `operator&`, both operands are fully constructed before the operator runs — this is a value-selection rule, not a lazy fallback.
 
 <!-- sync-example-operator-or-composition -->
 ```cpp
