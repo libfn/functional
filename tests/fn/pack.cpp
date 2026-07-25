@@ -1022,6 +1022,16 @@ TEST_CASE("operator &", "[pack][copack][operator_and]")
     static_assert(fn::conjoin(EA{1}, EB{2.5}).value().apply(is_1_2_5));
     static_assert(fn::conjoin(EA{fn::unexpect, true}, EB{2.5}).error() == true);
 
+    // ... and the operands' errors need not agree: the conjunction sums them, ungraded or not
+    using EC = fn::expected<double, int>;
+    static_assert(std::same_as<decltype(fn::conjoin(std::declval<EA>(), std::declval<EC>())),
+                               fn::expected<fn::pack<int, double>, fn::copack_for<bool, int>>>);
+    static_assert(fn::conjoin(EA{1}, EC{2.5}).value().apply(is_1_2_5));
+    static_assert(fn::conjoin(EA{fn::unexpect, true}, EC{2.5}).error() == fn::copack_for<bool, int>{true});
+    static_assert(fn::conjoin(EA{1}, EC{fn::unexpect, 7}).error() == fn::copack_for<bool, int>{7});
+    CHECK(fn::conjoin(EA{1}, EC{2.5}).value().apply(is_1_2_5));
+    CHECK(bool(fn::conjoin(EA{1}, EC{fn::unexpect, 7}).error() == fn::copack_for<bool, int>{7}));
+
     // n-ary, and the product splices rather than nesting
     constexpr auto is_1_true_2 = [](int a, bool b, int c) { return a == 1 && b && c == 2; };
     static_assert(fn::conjoin(fn::just<int>{1}, fn::just<bool>{true}, fn::just<int>{2}).value().apply(is_1_true_2));
