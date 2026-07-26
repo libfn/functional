@@ -185,8 +185,7 @@ auto mapping_values_and_errors() -> void
 // sync-example-mapping-values-and-errors
 
 // sync-example-operator-and-composition
-auto operator_and_composition(fn::expected<int, fn::copack<Error>> a,
-                              fn::expected<bool, fn::copack<OtherError>> b) -> void
+auto operator_and_composition(fn::expected<int, Error> a, fn::expected<bool, OtherError> b) -> void
 {
   auto result = a & b;
   static_assert(std::same_as<decltype(result),
@@ -232,11 +231,8 @@ auto test_conjunction_with_identity_cluster(fn::expected<int, Error> ex, fn::jus
 // sync-example-conjunction-with-identity-cluster
 
 // sync-example-operator-or-composition
-auto operator_or_composition() -> void
+auto operator_or_composition(fn::expected<int, Error> a, fn::expected<bool, OtherError> b) -> void
 {
-  fn::expected<int, Error> a{};
-  fn::expected<bool, OtherError> b{};
-
   auto result = a | b;
   static_assert(std::same_as<decltype(result),
                              fn::expected<fn::copack_for<int, bool>, fn::pack<Error, OtherError>>>);
@@ -449,7 +445,7 @@ int main()
   mapping_values_and_errors();
   test_cartesian_distribution(A{}, C{});
   test_conjunction_with_identity_cluster({42}, {1.5});
-  operator_or_composition();
+  operator_or_composition({}, {});
   test_disjoin({12}, {true});
   sequential_bind();
   config_pipeline();
