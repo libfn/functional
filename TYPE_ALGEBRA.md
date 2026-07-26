@@ -1,6 +1,6 @@
 # Type algebra and functional composition in libfn
 
-A C++20 functional programming library, `libfn` lets the compiler derive the complete static shape of a computation alongside its values. Rather than collapsing failure into one wide error type, `libfn` tracks the precise algebraic combinations of success, alternative, and error states during composition.
+A C++20 functional programming library, `libfn` lets the compiler derive the static shape of a computation alongside its values. Rather than collapsing failure into one wide error type, `libfn` tracks the precise algebraic combinations of success, alternative, and error states during composition.
 
 The library operates on two payload types and four computation carriers:
 
@@ -119,7 +119,7 @@ Behind these precise compiled types are two independent mechanisms that cooperat
 
 To route multiple alternative paths inside `apply`, the library provides `fn::overload`, which fuses unrelated lambdas into a single overload set.
 
-These derived types are the actual explanation of the library's design, not an internal template-metaprogramming implementation detail. Understanding the precise algebraic rules of this type algebra and the mechanics of application is key to mastering the `libfn` library.
+These derived types are the explanation of the library's design, not an internal template-metaprogramming implementation detail.
 
 ## 2. Types as an algebra: zero, unit, alternatives, and products
 
@@ -181,13 +181,13 @@ auto test_copack_set_semantics() -> void
 >
 > In C++, there is no native language feature to represent a "set of types." Template parameter lists are always positional, variadic sequences. Syntactically, this means `copack<A, B>` and `copack<B, A>` would be completely distinct types—a property that directly violates the mathematical commutative law of set union.
 >
-> To enforce strict, mathematically sound set semantics at compile time, `libfn` defines a single, strict canonical representation and actively rejects any instantiation that diverges from it:
+> To enforce set semantics at compile time, `libfn` defines one canonical representation and rejects any instantiation that diverges from it:
 >
 > - **`copack`** is the core storage type. It requires its template parameters to already be flat, unique, and sorted in a strict total order over types. The order is derived from the compiler's own spelling of each type; a build targeting C++26 with `LIBFN_CXX26` set will use `std::type_order` to derive the order of types, while the default build uses a type sorting mechanism based on compiler-specific type names (since these two orders may differ, each defines a distinct ABI namespace). If you attempt to instantiate `copack` manually with out-of-order parameters (such as `copack<B, A>` when `A` precedes `B` in that order) or with nested copacks (such as `copack<A, copack<C, D>>`), **the compiler will reject the instantiation as outright ill-formed.**
 >
-> - **`copack_for`** is the user-facing type alias. It accepts any arbitrary list of types (out-of-order, duplicates, nested copacks), performs the flattening, deduplication, and canonical sorting, and resolves to the validated `copack`.
+> - **`copack_for`** is the user-facing type alias. It accepts any list of types (out-of-order, duplicates, nested copacks), performs the flattening, deduplication, and canonical sorting, and resolves to the validated `copack`.
 >
-> In an API signature the two are the same type, since the alias resolves to `copack`; in prose and code, `copack` names the normalized *state shape* and `copack_for` the *construction utility*. `choice` and `choice_for` stand in exactly the same relation, over the alternatives of the underlying `copack`.
+> In an API signature the two are the same type, since the alias resolves to `copack`; in prose and code, `copack` names the normalized *state shape* and `copack_for` the *construction utility*. `choice` and `choice_for` stand in the same relation, over the alternatives of the underlying `copack`.
 >
 > **Best practice**: spell `copack_for` / `choice_for` rather than `copack` / `choice`, so that no spelling in your project is tied to one compiler's ordering.
 
@@ -256,7 +256,7 @@ To compose computations, we must wrap these values inside **computation carriers
 
 Because these carriers represent different computational contexts, pipelines often need to transition between them. `libfn` licenses explicit **cross-carrier bridging** via pipeline-scoped operations using `operator|`.
 
-Standard fallible carriers can bridge to each other on their error/empty recovery paths via pipeline functor `fn::or_else` (e.g., `expected` to `optional`, or vice versa). This is safe because on the success path, the successful value is preserved and bypasses the recovery callback entirely. The transition only occurs on the handled failure branch, allowing you to gracefully convert a missing value into a concrete error, or decay a detailed error into an empty state:
+Standard fallible carriers can bridge to each other on their error/empty recovery paths via pipeline functor `fn::or_else` (e.g., `expected` to `optional`, or vice versa). This is safe because on the success path, the successful value is preserved and bypasses the recovery callback. The transition only occurs on the handled failure branch, allowing you to gracefully convert a missing value into a concrete error, or decay a detailed error into an empty state:
 
 <!-- sync-example-test-failure-bridge -->
 ```cpp
@@ -271,7 +271,7 @@ auto test_failure_bridge(fn::expected<int, IoError> ex, fn::optional<int> opt) -
 }
 ```
 
-The member function `.or_else` (or `.and_then`, see sections 8 and 10) cannot be used for cross-carrier bridging, as such operation would require coupling between different carriers. Since pipeline functors are a layer above carriers, they can provide such operation without undue coupling.
+The member function `.or_else` (or `.and_then`, see Sections 8 and 10) cannot be used for cross-carrier bridging, as such operation would require coupling between different carriers. Since pipeline functors are a layer above carriers, they can provide such operation without undue coupling.
 
 Identity carriers bridge in the other direction, on the success path; Section 10 covers that together with the identity cluster.
 
@@ -336,7 +336,7 @@ When you evaluate a `copack` via its member `apply` function, it selects the act
 
 To explicitly lift a single scalar value into a single-alternative coproduct, use `fn::as_copack(value)`. Unlike `as_pack`, it always decays: a `copack` alternative can never be a reference. When a `copack` contains **exactly one alternative**, it is singular and supports direct value extraction via the `get` utility (resolvable via ADL), which propagates references with the same semantics as `apply`.
 
-You can lift a `pack` into a `copack` (including `pack` holding references), however you cannot store `copack` inside a `pack`. There is algebraic equivalence between a hypothetical `pack` containing a `copack` (which is disallowed) and a specific shape of `copack` containing a `pack` — see section 6 for details.
+You can lift a `pack` into a `copack` (including `pack` holding references), however you cannot store `copack` inside a `pack`. There is algebraic equivalence between a hypothetical `pack` containing a `copack` (which is disallowed) and a specific shape of `copack` containing a `pack` — see Section 6 for details.
 
 <!-- sync-example-test-copack -->
 ```cpp
@@ -625,7 +625,7 @@ Two independent joins occurred during `and_then`:
 1. The successful branch values formed the normalized value copack.
 2. The existing outer errors (`BadSyntax`, `UnknownKey`) and the new branch errors (`OutOfRange`, `Missing`) formed the normalized error copack.
 
-This seamless unioning is what allows different grades of `expected` to share the same carrier family. While standard, un-graded `expected<T, E>` admits only the identical error type `E` (or its singular lift `copack<E>`) to participate in monadic *bind* (meaning `expected<int, IoError>` and `expected<User, Missing>` are **not** `same_kind`), any two **graded** `expected` types are considered `same_kind` regardless of how their individual error sets differ, as the compiler can always derive their union:
+This unioning is what allows different grades of `expected` to share the same carrier family. While standard, un-graded `expected<T, E>` admits only the identical error type `E` (or its singular lift `copack<E>`) to participate in monadic *bind* (meaning `expected<int, IoError>` and `expected<User, Missing>` are **not** `same_kind`), any two **graded** `expected` types are considered `same_kind` regardless of how their individual error sets differ, as the compiler can always derive their union:
 
 <!-- sync-example-test-same-kind-graded -->
 ```cpp
@@ -640,7 +640,7 @@ During sequential composition, `libfn` derives the promoted type from the `copac
 - In `and_then` (success binding), a plain error type `E` is promoted to `copack<E>` if the returning **error type** of the callback is `copack<E>`.
 - In `or_else` (recovery/error binding), a plain success type `T` is promoted to `copack<T>` if the returning **success type** of the callback is `copack<T>`.
 
-This ensures that you can smoothly transition from a simple, un-graded computation to a graded, multi-alternative computation when entering a pipeline step that introduces alternative paths, without needing to manually wrap or lift your starting types.
+An un-graded computation thus enters a graded pipeline without manual lifting.
 
 If you need to perform this promotion explicitly on the carrier itself before entering a composition, `libfn` provides direct member helpers:
 
@@ -686,7 +686,7 @@ This computation cannot fail, but it is algebraically prepared to widen if later
 
 A concrete example of this is `expected<void, copack<>>` (aliased as `fn::expected_unit` in the library). Because `void` represents the unit `1` and `copack<>` represents the zero `0`, this type maps algebraically to $1 + 0 \cong 1$. Having a cardinality of exactly one, it has no possible errors, can never fail, and can only succeed with a single empty trigger (`void`). This makes it structurally isomorphic to the **unit type**.
 
-In practice, `expected<void, copack<>>` acts as **the graded gateway** to start your pipelines. By initiating a chain with this unit trigger, you seamlessly opt-in all subsequent `and_then` bindings into graded error-set unioning, without having to invent any fake starting errors or manually wrap your initial steps. Since its starting error set is empty (`copack<>`), unioning it with subsequent steps' errors (say, `copack<IoError>`) yields exactly those errors. There is also an alternative **unit type** without error channel, spelled `just<void>` (see section 10).
+In practice, `expected<void, copack<>>` acts as **the graded gateway** to start your pipelines. By initiating a chain with this unit trigger, you opt in all subsequent `and_then` bindings to graded error-set unioning, without having to invent any fake starting errors or manually wrap your initial steps. Since its starting error set is empty (`copack<>`), unioning it with subsequent steps' errors (say, `copack<IoError>`) yields exactly those errors. There is also an alternative **unit type** without error channel, spelled `just<void>` (see Section 10).
 
 > [!TIP]
 >
@@ -783,7 +783,7 @@ Monadic operations behave naturally around this identity cluster:
 >
 > In contrast, if the error grade is inhabited (or on `optional`, where the empty state is a genuine inhabited state), `or_else(42)` is loudly rejected.
 >
-> This behavior is mathematically rigorous. The `or_else` operation evaluates the callback over the error alternatives. Over the uninhabited `copack<>`, there are zero alternatives, so the underlying fold has zero inputs. The operation trivially collapses to the identity mapping, the callback contributes nothing, and no questions about the callback — not even invocability — are formable. Demanding a constraint on the callback would be an arbitrary invention rather than a logical derivation.
+> The `or_else` operation evaluates the callback over the error alternatives. Over the uninhabited `copack<>`, there are zero alternatives, so the underlying fold has zero inputs. The operation trivially collapses to the identity mapping, the callback contributes nothing, and no questions about the callback — not even invocability — are formable. Demanding a constraint on the callback would be an arbitrary invention rather than a logical derivation.
 >
 > This serves a load-bearing design principle: generic code remains closed under all error grades. If `or_else` were rejected on `expected<T, copack<>>`, a recovery step would become ill-formed simply because an upstream stage statically proved that failure is impossible, breaking generic composition. Instead, the recovery step stays writable everywhere—and does nothing where failure is impossible.
 
@@ -854,7 +854,7 @@ A callback returning a bare value belongs to `transform`, not `and_then`: `choic
 >    Naked sums are naturally self-flattening (e.g., $(A + B) + C \cong A + B + C$), and `libfn` enforces it syntactically: a nested `copack` is ill-formed by design. But the multiplication $\mu_A : M(M(A)) \to M(A)$ presupposes that $M \circ M$ is expressible as a type, so *join* has no domain to act on. The constraint is intentional: it allows `transform` on `copack` to collapse every branch's results into a flat, deduplicated set instead of an ever-nesting type.
 >
 > 2. **`choice` is the monad (the "structural suspend button")**:
->    To restore monad laws, the monadic carrier `choice<Ts...>` wraps the sum in an "identity layer" to preserve structural depth: `choice<choice<T>>` $\ne$ `choice<T>`. This "structural suspend button" holds eager flattening in check.
+>    To restore monad laws, the monadic carrier `choice<Ts...>` wraps the sum in an "identity layer" to preserve structural depth: `choice<choice<T>>` $\ne$ `choice<T>`. That layer holds eager flattening in check.
 >    Thus, `choice` acts as a lawful monad under $M(A) = \text{choice}\langle A\rangle$ over coproduct objects $A = \bigoplus_{j} T_j$ — the *nominal* identity wrapper, which Haskell spells as the `Identity` newtype. Because $M(A) \cong A$ yet is a distinct C++ type, the unit and the multiplication are exactly the wrapping and unwrapping that nominal typing makes observable:
 >    - **Unit / return** ($\eta_A : A \to M(A)$): wraps the coproduct in the `choice` layer. Building a `choice` from a single alternative composes this with the coproduct's own injection $\iota_i : T_i \to \bigoplus_j T_j$.
 >    - **Join / flatten** ($\mu_A : M(M(A)) \to M(A)$): strips one `choice` layer, letting the underlying sum deduplicate its alternatives (the codiagonal fold $[id, id]$, executed statically via `choice_for`).
@@ -863,7 +863,7 @@ A callback returning a bare value belongs to `transform`, not `and_then`: `choic
 >
 ## 12. Elimination and multidispatch
 
-Once your computation shapes are fully derived, you may want to eliminate the structure to yield an ordinary C++ value. This is typically done via `apply` or `apply_r`. You can also use `get` on a singular `copack` (as explained in section 4); or directly read `.value()` from a `just`, where it is total. On fallible carriers `.value()` is partial: it yields the value if there is one, and otherwise throws (`bad_expected_access`, `bad_optional_access`).
+Once your computation shapes are fully derived, you may want to eliminate the structure to yield an ordinary C++ value. This is typically done via `apply` or `apply_r`. You can also use `get` on a singular `copack` (as explained in Section 4); or directly read `.value()` from a `just`, where it is total. On fallible carriers `.value()` is partial: it yields the value if there is one, and otherwise throws (`bad_expected_access`, `bad_optional_access`).
 
 The operations `transform` and `apply` differ in whether the structure survives:
 
@@ -968,7 +968,7 @@ This is a concise reference for `libfn`'s operations, organized by channel and e
 
 To reason about how these operations affect the type algebra of your computation:
 
-- **`fail` and `recover` are dual symmetries**: `fail` intercepts a success-path value and forces a transition to the failure state ($Success \implies Failure$). `recover` intercepts a failure-path error and forces a transition back to the success state ($Failure \implies Success$). Neither operation widens the error set of a graded carrier.
+- **`fail` and `recover` are duals**: `fail` intercepts a success-path value and forces a transition to the failure state ($Success \implies Failure$). `recover` intercepts a failure-path error and forces a transition back to the success state ($Failure \implies Success$). Neither operation widens the error set of a graded carrier.
 - **Graded `and_then`** is the primary mechanism for introducing a _new_ error type (widening the error grade) into your pipeline.
 - **`filter` and `fail`** merely enter an *existing* short-circuit state: the carrier must already be capable of holding the failure state.
 - **Error-side monadic operations** (like `transform_error`, `or_else`, `recover`, and `inspect_error`) require a carrier with an error or empty side. They are rejected on `just` and `choice`, and stay vacuously well-formed on `expected<T, copack<>>`, whose error side exists but is uninhabited (Section 10).
@@ -998,7 +998,7 @@ Other properties hold structurally:
 
 - **Functor composition**: `m | transform(f) | transform(g)` equals `m | transform([](auto v) { return g(f(v)); })`.
 - **Monad right identity**: `m | and_then(pure)` equals `m`.
-- **Monad associativity**: `(m | and_then(f)) | and_then(g)` equals `m | and_then([](auto v) { return f(v) | and_then(g); })`. For graded expected, both sides of the associativity derive the exact same normalized union grade.
+- **Monad associativity**: `(m | and_then(f)) | and_then(g)` equals `m | and_then([](auto v) { return f(v) | and_then(g); })`. For graded expected, both sides of the associativity derive the same normalized union grade.
 - **Product associativity**: Holds after canonical `pack` normalization.
 - **Coproduct set semantics**: Union associativity, commutativity, and idempotence apply.
 - **Coherent widening**: Upcasting an error through intermediate supersets yields the same final type as upcasting directly to the broadest superset.
@@ -1014,14 +1014,14 @@ Public concepts and `requires` clauses enforce correctness before instantiation.
 
 ### C++ value properties
 
-The library thoroughly respects C++ value mechanics:
+The library respects C++ value mechanics:
 
 - Core operations are fully `constexpr`.
 - The algebra's own types — `pack`, `copack`, `just` and `choice` — are structural when their elements are, so a `constexpr` value of one can be used as a template parameter.
 - `noexcept` is conditionally computed based on the operations provided.
 - Value categories (lvalue/rvalue) propagate strictly to callbacks, avoiding unnecessary copies.
-- Immovable and move-only payloads are fully supported in place.
-- Reference-bearing `pack<T&...>` and `optional<T&>` are fully supported. Lifetime responsibility for non-owning references remains with the caller.
+- Immovable and move-only payloads are supported in place.
+- Reference-bearing `pack<T&...>` and `optional<T&>` are supported. Lifetime responsibility for non-owning references remains with the caller.
 - `pack` compares element-wise, like `std::tuple`, supporting both equality and three-way comparison; for a reference-bearing `pack<T&...>` this compares the referents rather than the references themselves.
 
 > [!NOTE]
