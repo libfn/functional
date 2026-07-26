@@ -858,8 +858,8 @@ A callback returning a bare value belongs to `transform`, not `and_then`: `choic
 > 2. **`choice` is the monad (the "structural suspend button")**:
 >    To restore monad laws, the monadic carrier `choice<Ts...>` wraps the sum in an "identity layer" to preserve structural depth: `choice<choice<T>>` $\ne$ `choice<T>`. That layer holds eager flattening in check.
 >    Thus, `choice` acts as a lawful monad under $M(A) = \text{choice}\langle A\rangle$ over coproduct objects $A = \bigoplus_{j} T_j$ — the *nominal* identity wrapper, which Haskell spells as the `Identity` newtype. Because $M(A) \cong A$ yet is a distinct C++ type, the unit and the multiplication are exactly the wrapping and unwrapping that nominal typing makes observable:
->    - **Unit / return** ($\eta_A : A \to M(A)$): wraps the coproduct in the `choice` layer. Building a `choice` from a single alternative composes this with the coproduct's own injection $\iota_i : T_i \to \bigoplus_j T_j$.
->    - **Join / flatten** ($\mu_A : M(M(A)) \to M(A)$): strips one `choice` layer, letting the underlying sum deduplicate its alternatives (the codiagonal fold $[id, id]$, executed statically via `choice_for`).
+>    - **Unit / return** $\eta_A : A \to M(A)$ : wraps the coproduct in the `choice` layer. Building a `choice` from a single alternative composes this with the coproduct's own injection $\iota_i : T_i \to \bigoplus_j T_j$.
+>    - **Join / flatten** $\mu_A : M(M(A)) \to M(A)$ : strips one `choice` layer, letting the underlying sum deduplicate its alternatives (the codiagonal fold $[id, id]$, executed statically via `choice_for`).
 >    - **Bind**: maps, then flattens explicitly via *join*. Making that step explicit is what grants control over *when* flattening occurs.
 >
 >
