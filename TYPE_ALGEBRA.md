@@ -238,6 +238,8 @@ Because `choice` implies that an alternative is always present, `choice<>` is in
 
 Additionally, the infallible state **`expected<T, copack<>>`** (representing $T + 0 \cong T$) can never fail because `copack<>` represents the initial zero object **0** (the uninhabited type). Lacking any possible error alternatives, it acts as an infallible, graded unit context. Since it is a specialized state of `expected` rather than a unique template, it is classified under the same computation carrier.
 
+Together, `just`, `choice` and `expected<T, copack<>>` form the **identity cluster**.
+
 > [!NOTE]
 >
 > ### Note — `just<copack<Ts...>>` is spelled `choice<Ts...>`
@@ -392,7 +394,7 @@ Key principles of mapping:
 
 - `transform` stays within the carrier: the member form never leaves its own carrier family.
 - Success and error states are rigidly preserved.
-- A bare `copack` has a member `transform`, allowing mapping across alternatives; being data rather than a carrier, it takes no pipeline verb.
+- A bare `copack` has a member `transform`, allowing mapping across alternatives; being data rather than a carrier, it takes no pipeline functor.
 - Heterogeneous branch results inside `transform_error` or `transform` form a normalized result `copack`.
 - Applying an error-side operation like `transform_error` to a carrier that has no error side (like `just` or `choice`) is rejected by the compiler.
 - If a side is uninhabited (`copack<>`), the transformation is well-formed but vacuous: both the member and the pipeline form are proven unreachable, and the callback is never instantiated. This covers `optional<copack<>>` and `expected<copack<>, E>` on the value side, and `expected<T, copack<>>` on the error side.
@@ -457,7 +459,7 @@ Mixing the two in one call is rejected.
 
 ### Conjunction with the Identity Cluster
 
-When one operand belongs to the **identity cluster** (detailed in Section 10), it contributes a value but never a failure:
+When one operand belongs to the identity cluster (detailed in Section 10), it contributes a value but never a failure:
 
 - **Errors are unaffected**: Because identity cluster operands can never fail, they add no new alternative to the resulting error channel. A `just` or `choice` operand preserves the fallible operand's error side exactly as it was (plain or graded). An `expected<T, copack<>>` operand instead contributes its uninhabited grade to the error union: no active alternative is added, though the resulting type's error channel is promoted to a graded copack (e.g. mapping `E` to `copack<E>`).
 - **Value bundling**: The value of the identity cluster operand is conjoined with the fallible operand's value channel into a `fn::pack`.
@@ -522,7 +524,7 @@ Unlike conjunction, disjunction has no data-level form. Neither `operator|` nor 
 
 ### Disjunction with the Identity Cluster
 
-When at least one operand belongs to the **identity cluster** (detailed in Section 10), the disjunction can never fail:
+When at least one operand belongs to the identity cluster (detailed in Section 10), the disjunction can never fail:
 
 - The error side gains an uninhabited factor (`copack<>`), which annihilates the error product and collapses the channel entirely.
 - The result is folded into a non-failing carrier: a single-valued `just<T>` if there is only one successful type, or `choice<Ts...>` if the sum is heterogeneous.
@@ -1051,7 +1053,7 @@ auto test_references() -> void
 The library is divided into layers:
 
 - `pfn` (Polyfill fn) is the standards-facing layer. It provides `std::optional` and `std::expected` in their C++26 shape — monadic member functions, `optional<T&>`, range support — plus smaller utilities such as `std::invoke_r` and `std::unreachable`, all available to a C++20 compiler.
-- `fn` is the strict extension layer. It introduces the `pack`/`copack` algebra, multidispatch, graded errors, `choice`, `just`, the pipeline verbs, and the composition operators `&` and `|`.
+- `fn` is the strict extension layer. It introduces the `pack`/`copack` algebra, multidispatch, graded errors, `choice`, `just`, the pipeline functors, and the composition operators `&` and `|`.
 
 Every `fn` type with a `pfn` counterpart is a strict superset of it: switching a valid program from `pfn` to `fn` changes neither compilation nor behaviour.
 
