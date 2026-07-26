@@ -91,7 +91,7 @@ You may also use `copack` on a value side of most carriers (except for `just<cop
 >
 > ### Mathematical note — graded monads
 >
-> Formally, a **graded monad** (also known as an effect monad) indexes a family of monadic carriers over a partially ordered monoid (pomonoid) of effects $(\mathcal{E}, \bullet, I, \le)$.
+> Formally, a graded monad (also known as an effect monad) indexes a family of monadic carriers over a partially ordered monoid (pomonoid) of effects $(\mathcal{E}, \bullet, I, \le)$.
 >
 > In `libfn` that pomonoid is carried by the finite sets of C++ types:
 >
@@ -183,7 +183,7 @@ auto test_copack_set_semantics() -> void
 >
 > To enforce set semantics at compile time, `libfn` defines one canonical representation and rejects any instantiation that diverges from it:
 >
-> - **`copack`** is the core storage type. It requires its template parameters to already be flat, unique, and sorted in a strict total order over types. The order is derived from the compiler's own spelling of each type; a build targeting C++26 with `LIBFN_CXX26` set will use `std::type_order` to derive the order of types, while the default build uses a type sorting mechanism based on compiler-specific type names (since these two orders may differ, each defines a distinct ABI namespace). If you attempt to instantiate `copack` manually with out-of-order parameters (such as `copack<B, A>` when `A` precedes `B` in that order) or with nested copacks (such as `copack<A, copack<C, D>>`), **the compiler will reject the instantiation as outright ill-formed.**
+> - **`copack`** is the core storage type. It requires its template parameters to already be flat, unique, and sorted in a strict total order over types. The order is derived from the compiler's own spelling of each type; a build targeting C++26 with `LIBFN_CXX26` set will use `std::type_order` to derive the order of types, while the default build uses a type sorting mechanism based on compiler-specific type names (since these two orders may differ, each defines a distinct ABI namespace). If you attempt to instantiate `copack` manually with out-of-order parameters (such as `copack<B, A>` when `A` precedes `B` in that order) or with nested copacks (such as `copack<A, copack<C, D>>`), the compiler will reject the instantiation as outright ill-formed.
 >
 > - **`copack_for`** is the user-facing type alias. It accepts any list of types (out-of-order, duplicates, nested copacks), performs the flattening, deduplication, and canonical sorting, and resolves to the validated `copack`.
 >
@@ -252,7 +252,7 @@ These carriers constrain their payloads. While `optional<T&>` is supported as a 
 
 Raw type algebraic constructs—such as a product `std::tuple` or a sum `std::variant`—are purely passive data layouts. They contain no intrinsic control flow, no concept of short-circuiting, and no built-in notion of "success" versus "failure."
 
-To compose computations, we must wrap these values inside **computation carriers**. When we perform product composition (conjunction) or sum composition (disjunction) later in this document, we are not combining raw data; we are composing carriers. The carrier manages the propagation of success values and the short-circuiting of failures.
+To compose computations, we must wrap these values inside computation carriers. When we perform product composition (conjunction) or sum composition (disjunction) later in this document, we are not combining raw data; we are composing carriers. The carrier manages the propagation of success values and the short-circuiting of failures.
 
 ### Carrier Bridging: Interoperable Pipelines
 
@@ -336,7 +336,7 @@ As a payload, a `copack` models variant-like structures — i.e. a discriminated
 
 When you evaluate a `copack` via its member `apply` function, it selects the active alternative stored inside the coproduct and passes it to your callback. Because `copack` is self-flattening, you are guaranteed that there is never a nested `copack` inside. However, a selected alternative that is itself tuple-like—a `pack`, `std::tuple`, or `std::array`—is unpacked one level into its immediate constituents, which reach your callback as separate arguments. Because normalized shapes are sums of products, one level is all they need: your callback receives the product's fields directly as function arguments.
 
-To explicitly lift a single scalar value into a single-alternative coproduct, use `fn::as_copack(value)`. Unlike `as_pack`, it always decays: a `copack` alternative can never be a reference. When a `copack` contains **exactly one alternative**, it is singular and supports direct value extraction via the `get` utility (resolvable via ADL), which propagates references with the same semantics as `apply`.
+To explicitly lift a single scalar value into a single-alternative coproduct, use `fn::as_copack(value)`. Unlike `as_pack`, it always decays: a `copack` alternative can never be a reference. When a `copack` contains exactly one alternative, it is **singular** and supports direct value extraction via the `get` utility (resolvable via ADL), which propagates references with the same semantics as `apply`.
 
 You can lift a `pack` into a `copack` (including `pack` holding references), however you cannot store `copack` inside a `pack`. There is algebraic equivalence between a hypothetical `pack` containing a `copack` (which is disallowed) and a specific shape of `copack` containing a `pack` — see Section 6 for details.
 
@@ -675,7 +675,7 @@ Recovery via `or_else` behaves symmetrically. It handles input error alternative
 ### Widening is subeffecting
 
 In accordance with the subeffecting principles of graded monads (Section 1), a narrow error set can be safely widened during composition, but narrowing requires explicit mitigation. Implicit narrowing (without handling the removed errors) is unsafe and rejected by the compiler.
-However, you can **safely narrow or collapse** an error grade at any point by explicitly handling and mapping the errors using `transform_error`. Because `transform_error` on a graded `expected` forces exhaustive matching over all possible alternatives, you can map multiple diverse error types into one common error type — the grade collapses to the singular `copack` of it — or into a narrower `copack`, safely reducing the static error grade of your pipeline.
+However, you can safely narrow or collapse an error grade at any point by explicitly handling and mapping the errors using `transform_error`. Because `transform_error` on a graded `expected` forces exhaustive matching over all possible alternatives, you can map multiple diverse error types into one common error type — the grade collapses to the singular `copack` of it — or into a narrower `copack`, safely reducing the static error grade of your pipeline.
 
 The bottom error grade is `copack<>`:
 
@@ -688,7 +688,7 @@ This computation cannot fail, but it is algebraically prepared to widen if later
 
 A concrete example of this is `expected<void, copack<>>` (aliased as `fn::expected_unit` in the library). Because `void` represents the unit `1` and `copack<>` represents the zero `0`, this type maps algebraically to $1 + 0 \cong 1$. Having a cardinality of exactly one, it has no possible errors, can never fail, and can only succeed with a single empty trigger (`void`). This makes it structurally isomorphic to the **unit type**.
 
-In practice, `expected<void, copack<>>` acts as **the graded gateway** to start your pipelines. By initiating a chain with this unit trigger, you opt in all subsequent `and_then` bindings to graded error-set unioning, without having to invent any fake starting errors or manually wrap your initial steps. Since its starting error set is empty (`copack<>`), unioning it with subsequent steps' errors (say, `copack<IoError>`) yields exactly those errors. There is also an alternative **unit type** without error channel, spelled `just<void>` (see Section 10).
+In practice, `expected<void, copack<>>` acts as **the graded gateway** to start your pipelines. By initiating a chain with this unit trigger, you opt in all subsequent `and_then` bindings to graded error-set unioning, without having to invent any fake starting errors or manually wrap your initial steps. Since its starting error set is empty (`copack<>`), unioning it with subsequent steps' errors (say, `copack<IoError>`) yields exactly those errors. There is also an alternative unit type without error channel, spelled `just<void>` (see Section 10).
 
 > [!TIP]
 >
@@ -764,9 +764,9 @@ Monadic operations behave naturally around this identity cluster:
 - **Success mapping (`transform`)**: Remains meaningful, and the member always stays inside its own carrier family. The pipeline `fn::transform` adds one licensed crossing: a `copack` returned from a callable mapped over a `just` is promoted to the `choice` over the same alternatives (as detailed in Section 11).
 - **Sequential binding (`and_then`)**: Allows cross-carrier transitions *within* the identity cluster (e.g., `just` to `expected<U, copack<>>`) when using pipeline-scoped `fn::and_then`.
 - **Recovery / dead-side mapping (`transform_error`, `or_else`, `recover`, `inspect_error`)**: Because `just` and `choice` have no error side, these are rejected at compile time. On `expected<T, copack<>>`, they are vacuously well-formed but statically proven unreachable (to allow generic code on `expected` to compile).
-- **Short-circuiting (`fail`, `filter`)**: Strictly rejected for all identity cluster carriers, because no failure state (an inhabited error or empty state) can possibly be constructed from a never-failing identity context.
-- **Elimination fallbacks (`value_or`)**: Strictly rejected on `just` and `choice`, which can never fail. On `expected<T, copack<>>` it stays well-formed so that generic code on `expected` compiles — but the fallback is still constrained: it must be a valid initializer for `T`, and only its branch is statically dead. Where the value side is `void`, `value_or()` takes no fallback at all.
-- **Neutral observation (`inspect`, `discard`)**: Fully supported and behave normally.
+- **Short-circuiting (`fail`, `filter`)**: Rejected for all identity cluster carriers, because no failure state (an inhabited error or empty state) can possibly be constructed from a never-failing identity context.
+- **Elimination fallbacks (`value_or`)**: Rejected on `just` and `choice`, which can never fail. On `expected<T, copack<>>` it stays well-formed so that generic code on `expected` compiles — but the fallback is still constrained: it must be a valid initializer for `T`, and only its branch is statically dead. Where the value side is `void`, `value_or()` takes no fallback at all.
+- **Neutral observation (`inspect`, `discard`)**: Supported and behave normally.
 
 > [!NOTE]
 >
