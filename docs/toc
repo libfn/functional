@@ -1,47 +1,27 @@
-expected
-    index
-    and_then
-    discard
-    fail
-    filter
-    inspect_error
-    inspect
-    or_else
-    recover
-    transform_error
-    transform
-    value_or
-optional
-    index
-    and_then
-    discard
-    fail
-    filter
-    inspect_error
-    inspect
-    or_else
-    recover
-    transform_error
-    transform
-    value_or
-choice
-    index
-    and_then
-    transform
-pack
-    index
-copack
-    index
-just
-    index
-composition
-    index
-multidispatch
-    index
-pfn
-    index
+reference {title: "REFERENCE"}
+    pack
+    copack
     expected
     optional
+    just
+    choice
+    and_then
+    transform
+    transform_error
+    or_else
+    recover
+    filter
+    inspect
+    inspect_error
+    fail
+    discard
+    value_or
+    conjoin
+    disjoin
+    apply
+    functor
+    concepts
     utility
-continuous-integration
+    pfn
+continuous-integration {title: "CONTINUOUS INTEGRATION"}
     index
