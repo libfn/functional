@@ -18,10 +18,10 @@
 namespace fn {
 inline namespace LIBFN_VERSION {
 /**
- * @brief TODO
+ * @brief Checks if the monadic type can be used with the `inspect_error` operation
  *
- * @tparam Fn TODO
- * @tparam V TODO
+ * @tparam Fn The function to observe the error
+ * @tparam V The monadic type
  */
 template <typename Fn, typename V>
 concept applicable_inspect_error //
@@ -32,14 +32,20 @@ concept applicable_inspect_error //
       });
 
 /**
- * @brief TODO
+ * @brief Observe the error for side-effects, passing the operand through unchanged
+ *
+ * The callback receives the error as const and must return `void`; on `optional` it is invoked
+ * with no arguments - the empty state carries no error value. Rejected on `choice` and `just`,
+ * which have no error side; on the identity `expected` it is vacuous - the operand passes through
+ * and the callback is never instantiated.
+ *
+ * Use through the `fn::inspect_error` nielbloid.
  */
 constexpr inline struct inspect_error_t final {
   /**
-   * @brief TODO
-   *
-   * @param fn TODO
-   * @return TODO
+   * @brief Observe the error for side-effects, passing the operand through unchanged
+   * @param fn The function to observe the error; invoked with no arguments on `optional`
+   * @return A functor that will execute the function on the error
    */
   [[nodiscard]] constexpr auto operator()(auto &&fn) const
       noexcept(noexcept(functor<inspect_error_t, decltype(fn)>{FWD(fn)})) -> functor<inspect_error_t, decltype(fn)> //
@@ -50,16 +56,13 @@ constexpr inline struct inspect_error_t final {
   struct apply;
 } inspect_error = {};
 
-/**
- * @brief TODO
- */
 struct inspect_error_t::apply final {
   /**
-   * @brief TODO
+   * @brief Observes the error for side-effects, when one is present
    *
-   * @param v TODO
-   * @param fn TODO
-   * @return TODO
+   * @param v The monad
+   * @param fn The function to observe the error
+   * @return The operand, forwarded unchanged
    */
   template <some_expected V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const
@@ -72,12 +75,6 @@ struct inspect_error_t::apply final {
     return FWD(v);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @param v TODO
-   * @return TODO
-   */
   // An identity expected's error side is uninhabited - there is nothing to observe, the operand
   // passes through and the callback is never instantiated
   template <some_expected V, typename Fn>
@@ -87,13 +84,6 @@ struct inspect_error_t::apply final {
     return FWD(v);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @param v TODO
-   * @param fn TODO
-   * @return TODO
-   */
   template <some_optional V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept(::fn::is_nothrow_applicable_v<Fn>) -> V &&
     requires applicable_inspect_error<Fn &&, V &&>

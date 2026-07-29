@@ -1041,6 +1041,20 @@ template <class Opt, class T> struct _optional_hash_base<Opt, T, false> {
 
 } // namespace detail
 
+/**
+ * @brief `std::optional` in its C++26 shape: a computation yielding a value `T` or empty
+ *
+ * A polyfill for C++20 compilers, tracking the C++ working draft: members are as
+ * [optional.optional] specifies them, including the monadic operations, iterator support (an
+ * engaged optional is a contiguous range of one element) and hashing; lvalue reference payloads
+ * are served by the `optional<T&>` partial specialization. Deliberate deviations:
+ * - a `noexcept` specification is derived from `T` and the callable arguments wherever the
+ *   standard leaves one unstated; each such clause is marked `// extension` inline;
+ * - the draft's hardened preconditions are checked by an assertion, customizable by defining
+ *   `LIBFN_ASSERT` before inclusion.
+ *
+ * @tparam T Type of the contained value; an lvalue reference selects the specialization
+ */
 template <class T> class optional : private detail::_optional_base<T, detail::optional_policy> {
   static_assert(detail::_is_valid_optional<T>);
   using _base = detail::_optional_base<T, detail::optional_policy>;
@@ -1296,6 +1310,20 @@ private:
 
 template <class T> optional(T) -> optional<T>;
 
+/**
+ * @brief The `std::optional` partial specialization for lvalue references
+ *        ([optional.optional.ref]): a non-owning reference to `T`, or empty
+ *
+ * Specified for C++26. Copy assignment and `emplace` rebind the reference - nothing ever assigns
+ * through it - and `const` on the optional does not constify the referent; the referent's
+ * lifetime stays the caller's responsibility. The `noexcept` and assertion deviations of the
+ * primary template apply here equally, plus one deferral: the draft rejects a construction that
+ * would bind the reference to a temporary via `reference_constructs_from_temporary_v`, a C++23
+ * trait with no portable C++20 fallback - those guards are deferred, and such a construction
+ * compiles and dangles.
+ *
+ * @tparam T Referenced type
+ */
 template <class T> class optional<T &> : private detail::_optional_base<T &, detail::optional_policy> {
   static_assert(detail::_is_valid_optional<T>);
   using _base = detail::_optional_base<T &, detail::optional_policy>;

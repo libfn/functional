@@ -26,6 +26,11 @@
 namespace fn {
 inline namespace LIBFN_VERSION {
 
+/**
+ * @brief Checks if a type is an `fn::optional` (with any value type)
+ *
+ * @tparam T Type to check, possibly cv-ref qualified
+ */
 template <typename T>
 concept some_optional = detail::_some_optional<T>;
 
@@ -494,6 +499,20 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
 
 } // namespace detail
 
+/**
+ * @brief The fallible carrier over an empty state: a computation yielding a value or nothing
+ *
+ * A strict superset of `std::optional` as specified for C++26, provided here by `pfn::optional`:
+ * construction, assignment, observers, iterators and comparisons are the standard's, and a valid
+ * program switching from `pfn` to `fn` changes neither compilation nor behaviour. On top of the
+ * standard contract come the extensions: a `copack` value side enrols the carrier in graded value
+ * arithmetic, `copack_value` lifting a plain one; the `apply` family eliminates over both states,
+ * the empty arm invoked without a value; `operator&` conjoins and `operator|` disjoins carriers.
+ * A `pack` value spreads into callbacks as separate arguments; `optional<T&>` is served by the
+ * specialization.
+ *
+ * @tparam T Value type; an lvalue reference selects the specialization
+ */
 template <typename T> class optional : private detail::_optional_base<T> { // NOSONAR cpp:S3624 base manages storage
   static_assert(::pfn::detail::_is_valid_optional<T>);
   using _base = detail::_optional_base<T>;
@@ -663,6 +682,17 @@ public:
   // Elimination over both states, mirroring copack's apply family: the engaged arm takes the value
   // unpacked as fn::apply would hand it over, the empty arm takes no value (apply) or the nullopt
   // tag alone (apply_type). Bodies delegate to _optional_base static helpers.
+  /**
+   * @brief Eliminates over both states: the engaged arm receives the value, the empty arm nothing
+   *
+   * The engaged arm receives the value as `fn::apply` hands it over - a `pack` or tuple-like
+   * value by elements - and the empty arm is invoked with the trailing arguments alone; the arms
+   * must yield one result type.
+   *
+   * @param f Callable with arms for both states; `fn::overload` fuses them
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result
+   */
   template <class F, class... Args>
   [[nodiscard]] constexpr auto apply(F &&f, Args &&...args) &        //
       noexcept(noexcept(_base::_apply(*this, FWD(f), FWD(args)...))) // extension
@@ -692,6 +722,14 @@ public:
     return _base::_apply(::std::move(*this), FWD(f), FWD(args)...);
   }
 
+  /**
+   * @brief Eliminates over both states, converting the result to `Ret`
+   *
+   * @tparam Ret Type the results convert to
+   * @param f Callable with arms for both states; `fn::overload` fuses them
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result, converted to `Ret`
+   */
   template <class Ret, class F, class... Args>
   [[nodiscard]] constexpr auto apply_r(F &&f, Args &&...args) &                      //
       noexcept(noexcept(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
@@ -721,6 +759,16 @@ public:
     return _base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...);
   }
 
+  /**
+   * @brief Eliminates over both states, keyed by the tag naming the state
+   *
+   * The engaged arm receives `std::in_place` followed by the value's content, and the empty arm
+   * receives `std::nullopt`.
+   *
+   * @param f Callable with arms for both tagged states
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result
+   */
   template <class F, class... Args>
   [[nodiscard]] constexpr auto apply_type(F &&f, Args &&...args) &        //
       noexcept(noexcept(_base::_apply_type(*this, FWD(f), FWD(args)...))) // extension
@@ -750,6 +798,14 @@ public:
     return _base::_apply_type(::std::move(*this), FWD(f), FWD(args)...);
   }
 
+  /**
+   * @brief Eliminates over both states, keyed by the tag, converting the result to `Ret`
+   *
+   * @tparam Ret Type the results convert to
+   * @param f Callable with arms for both tagged states
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result, converted to `Ret`
+   */
   template <class Ret, class F, class... Args>
   [[nodiscard]] constexpr auto apply_type_r(F &&f, Args &&...args) &                      //
       noexcept(noexcept(_base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
@@ -780,6 +836,17 @@ public:
   }
 
   // Monadic operations. Bodies delegate to _optional_base static helpers, which perform copack-widening.
+  /**
+   * @brief Binds the value through the callable, which returns an `optional`
+   *
+   * As the standard member, extended over the algebra: a copack-valued operand dispatches per
+   * alternative, exhaustively, heterogeneous branch values joining into a normalized copack. An
+   * empty operand passes through, and over an uninhabited value side the callback is neither
+   * invoked nor instantiated.
+   *
+   * @param f Callable applied on the value, returning an `optional`
+   * @return The callback's `optional`; heterogeneous branch values join into a copack
+   */
   template <class F>
   constexpr auto and_then(F &&f) &                        //
       noexcept(noexcept(_base::_and_then(*this, FWD(f)))) // extension
@@ -812,6 +879,16 @@ public:
   // or_else has only const& and && overloads (mirroring pfn::optional): an extra & or const&&
   // overload would silently change which reference category an engaged value is copied through
   // in a program switched over from pfn::optional.
+  /**
+   * @brief Binds the empty state through the callable, which returns an `optional`
+   *
+   * The recovery bind: an engaged operand passes through, and the callback - invoked with no
+   * arguments, the empty state carrying no value - names the result. The value sides join under
+   * the grading rules, a plain side admitting its singular lift `copack<T>`.
+   *
+   * @param f Callable invoked with no arguments, returning an `optional`
+   * @return The recovery's `optional`, its value side joined with the operand's
+   */
   template <class F>
   constexpr auto or_else(F &&f) const &                  //
       noexcept(noexcept(_base::_or_else(*this, FWD(f)))) // extension
@@ -827,6 +904,17 @@ public:
     return _base::_or_else(::std::move(*this), FWD(f));
   }
 
+  /**
+   * @brief Maps the value through the callable, staying inside the carrier
+   *
+   * As the standard member, extended over the algebra: a `pack` value spreads into the callable
+   * by elements, and a copack-valued operand dispatches per alternative - heterogeneous branch
+   * results joining into a normalized copack. Over an uninhabited value side the mapping is the
+   * identity, and the callback is neither invoked nor instantiated.
+   *
+   * @param f Callable applied on the value
+   * @return An `optional` holding the callable's result
+   */
   template <class F>
   constexpr auto transform(F &&f) &                        //
       noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
@@ -858,6 +946,15 @@ public:
 
   // Convert to graded monad. The lifting overloads wrap the value in a copack and that copack in the
   // result, so they weigh both; the ones whose value type already is a copack only return *this.
+  /**
+   * @brief Lifts the value side into its singular copack: `optional<T>` becomes
+   *        `optional<copack<T>>`
+   *
+   * The explicit entry into the graded world; an already-copack value side returns `*this`
+   * unchanged.
+   *
+   * @return The graded `optional`, relocating the value
+   */
   constexpr auto
   copack_value() const & noexcept(::std::is_nothrow_constructible_v<copack<value_type>, value_type const &>
                                   && ::std::is_nothrow_move_constructible_v<copack<value_type>>) // extension
@@ -915,6 +1012,15 @@ private:
 
 template <class T> optional(T) -> optional<T>;
 
+/**
+ * @brief The `optional` specialization over an lvalue reference: a rebindable, non-owning view
+ *
+ * As `std::optional<T&>` is specified for C++26 - the one carrier that holds a raw reference.
+ * Lifetime responsibility for the referent stays with the caller. The extensions mirror
+ * `optional<T>`'s, the callable always receiving a plain `T&`.
+ *
+ * @tparam T Referent type
+ */
 // Partial specialization for lvalue reference types, mirroring pfn::optional<T&>. The monadic
 // operations delegate to the same fn::detail::_optional_base statics as optional<T>'s, which
 // the underlying pfn reference base makes shallow: the callable always receives plain T&, and
@@ -1310,6 +1416,18 @@ struct _optional_efn final {
 };
 } // namespace detail
 
+/**
+ * @brief The conjunction of optionals: values multiply into a `pack`, empty is the one failure
+ *
+ * `a & b` is engaged only if both operands are, the values folding into one `pack` - a copack
+ * value distributing into a copack of packs - and empty otherwise: `optional`'s unit error needs
+ * no summing. Both operands are fully constructed before the operator runs. An identity-cluster
+ * operand contributes its value and can never be the empty side.
+ *
+ * @param lh Left operand
+ * @param rh Right operand
+ * @return An `optional` of the folded value product
+ */
 template <some_optional Lh, some_optional Rh>
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
     noexcept(noexcept(::fn::detail::_join<fn::optional>(FWD(lh), FWD(rh), detail::_optional_efn{})))
@@ -1429,6 +1547,18 @@ template <some_optional Lh, typename Rh>
   return ::std::remove_cvref_t<Lh>{FWD(lh)};
 }
 
+/**
+ * @brief The disjunction of optionals: values sum into a `copack`, empty only when both are
+ *
+ * `a | b` holds the leftmost engaged operand's value, injected into the sum of the value types -
+ * a same-type pair stays bare. The unit errors vanish in the error product, so the result is
+ * empty exactly when both operands are. Both operands are fully constructed before the operator
+ * runs: a value-selection rule, not a lazy fallback.
+ *
+ * @param lh Left operand
+ * @param rh Right operand
+ * @return An `optional` of the summed value side
+ */
 // The disjunction: the value channel is the sum of the value types - a same-type pair stays bare -
 // and the unit errors vanish in the product, so the result is empty exactly when both operands
 // are. The leftmost engaged operand wins and injects by type.

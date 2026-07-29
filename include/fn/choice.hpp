@@ -22,9 +22,9 @@ namespace fn {
 inline namespace LIBFN_VERSION {
 
 /**
- * @brief TODO
+ * @brief Checks if a type is a `choice` (with any alternatives)
  *
- * @tparam T TODO
+ * @tparam T Type to check, possibly cv-ref qualified
  */
 template <typename T>
 concept some_choice = detail::_some_choice<T>;
@@ -42,9 +42,17 @@ static constexpr bool _is_valid_choice_subtype //
 }
 
 /**
- * @brief TODO
+ * @brief The identity carrier over a coproduct: always holds one of the alternatives
  *
- * @tparam Ts TODO
+ * A never-failing computation whose result is one of `Ts...` - the one canonical spelling of that
+ * shape, as `just` over a copack is rejected. Where a bare `copack` is self-flattening data, a
+ * `choice` is an atom: mapping keeps a returned choice whole, and only `and_then` joins the
+ * branches' choices away into the normalized superset. The alternatives obey the same canonical
+ * form as `copack`'s - flat, unique, sorted - so spell `choice_for`; `choice<>` is deliberately
+ * incomplete, an always-present alternative needing at least one alternative to exist. A
+ * structural type when its alternatives are.
+ *
+ * @tparam Ts The alternatives - flat, unique and sorted in the canonical order
  */
 template <typename... Ts>
   requires(sizeof...(Ts) > 0)
@@ -58,12 +66,6 @@ struct choice<Ts...> : copack<Ts...> {
   template <::std::size_t I> using select_nth = detail::select_nth_t<I, Ts...>;
   template <typename T> static constexpr bool has_type = _impl::template has_type<T>;
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Ret TODO
-   * @param fn TODO
-   */
   template <typename Ret>
   [[nodiscard]] constexpr auto
   _invoke(auto &&fn) const & noexcept(detail::_is_nothrow_rtst_invocable<Ret, decltype(fn), choice const &>)
@@ -71,12 +73,6 @@ struct choice<Ts...> : copack<Ts...> {
     return detail::invoke_type_variadic_union<Ret, typename _impl::data_t>(this->data, this->index, FWD(fn));
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Ret TODO
-   * @param fn TODO
-   */
   template <typename Ret>
   [[nodiscard]] constexpr auto
   _invoke(auto &&fn) && noexcept(detail::_is_nothrow_rtst_invocable<Ret, decltype(fn), choice &&>)
@@ -86,10 +82,9 @@ struct choice<Ts...> : copack<Ts...> {
   }
 
   /**
-   * @brief TODO
+   * @brief Constructs the alternative matching the value's decayed type
    *
-   * @tparam T TODO
-   * @param v TODO
+   * @param v Value of one alternative
    */
   template <typename T>
   constexpr choice(T &&v) // NOSONAR cpp:S1709,S6458 implicit arm of the explicit pair; has_type excludes self
@@ -102,10 +97,10 @@ struct choice<Ts...> : copack<Ts...> {
   }
 
   /**
-   * @brief TODO
+   * @brief Constructs the alternative matching the value's decayed type, where that conversion is
+   *        explicit
    *
-   * @tparam T TODO
-   * @param v TODO
+   * @param v Value of one alternative
    */
   template <typename T>
   constexpr explicit choice(T &&v) // NOSONAR cpp:S6458 has_type excludes self
@@ -118,11 +113,11 @@ struct choice<Ts...> : copack<Ts...> {
   }
 
   /**
-   * @brief TODO
+   * @brief Constructs the alternative `T` in place from the arguments
    *
-   * @tparam T TODO
-   * @param d TODO
-   * @param v TODO
+   * @tparam T The alternative to construct
+   * @param d Tag naming the alternative
+   * @param args Arguments to construct the alternative from
    */
   template <typename T>
   constexpr explicit choice(::std::in_place_type_t<T> d, auto &&...args) //
@@ -133,10 +128,12 @@ struct choice<Ts...> : copack<Ts...> {
   }
 
   /**
-   * @brief TODO
+   * @brief Widening constructor from a copack over a subset of the alternatives
    *
-   * @tparam Tx TODO
-   * @param v TODO
+   * A copack converts implicitly into any choice that can hold its alternatives: the lift from
+   * data to the never-failing carrier over it.
+   *
+   * @param v The copack to lift
    */
   template <typename... Tx>
   constexpr choice(copack<Tx...> const &v) // NOSONAR cpp:S1709 implicit widening by design
@@ -147,12 +144,6 @@ struct choice<Ts...> : copack<Ts...> {
   {
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Tx TODO
-   * @param v TODO
-   */
   template <typename... Tx>
   constexpr choice(copack<Tx...> &&v) // NOSONAR cpp:S1709 implicit widening by design
       noexcept(::std::is_nothrow_constructible_v<_impl, ::std::in_place_type_t<copack<Tx...>>, copack<Tx...>>)
@@ -163,10 +154,9 @@ struct choice<Ts...> : copack<Ts...> {
   }
 
   /**
-   * @brief TODO
+   * @brief Widening constructor from a copack whose type is spelled as a tag
    *
-   * @tparam Tx TODO
-   * @param v TODO
+   * @param v The copack to lift
    */
   template <typename... Tx>
   constexpr choice(::std::in_place_type_t<copack<Tx...>>, some_copack auto &&v) //
@@ -222,41 +212,27 @@ struct choice<Ts...> : copack<Ts...> {
   }
 
   /**
-   * @brief TODO
+   * @brief Accesses the alternatives as the underlying `copack`
    *
-   * @return TODO
+   * Always present - a choice cannot fail - so the access is total, never throwing.
+   *
+   * @return Reference to `*this` as its `copack` base, in `*this`'s value category
    */
   [[nodiscard]] constexpr value_type &value() & noexcept { return *this; }
-
-  /**
-   * @brief TODO
-   *
-   * @return TODO
-   */
   [[nodiscard]] constexpr value_type const &value() const & noexcept { return *this; }
-
-  /**
-   * @brief TODO
-   *
-   * @return TODO
-   */
   [[nodiscard]] constexpr value_type &&value() && noexcept { return ::std::move(*this); }
-
-  /**
-   * @brief TODO
-   *
-   * @return TODO
-   */
   [[nodiscard]] constexpr value_type const &&value() const && noexcept { return ::std::move(*this); }
 
   /**
-   * @brief TODO
+   * @brief Eliminates the choice: the active alternative routes into the callable
    *
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
+   * Exactly `copack`'s `apply`, over the alternatives: exhaustive dispatch by ordinary overload
+   * resolution, one deduced result type, a tuple-like alternative unpacked one level into its
+   * elements, trailing arguments after the content.
+   *
+   * @param fn Callable applied on the active alternative; `fn::overload` fuses arms into one
+   * @param args Additional arguments, appended after the alternative's content
+   * @return The callable's result
    */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply(Fn &&fn, Args &&...args) & noexcept(
@@ -269,15 +245,6 @@ struct choice<Ts...> : copack<Ts...> {
     return detail::apply_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn), FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply(Fn &&fn, Args &&...args) const & noexcept(
       detail::_is_nothrow_rts_applicable<
@@ -291,15 +258,6 @@ struct choice<Ts...> : copack<Ts...> {
     return detail::apply_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn), FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply(Fn &&fn, Args &&...args) && noexcept(
       detail::_is_nothrow_rts_applicable<typename detail::_copack_apply_result<
@@ -312,15 +270,6 @@ struct choice<Ts...> : copack<Ts...> {
                                                                       FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply(Fn &&fn, Args &&...args) const && noexcept(
       detail::_is_nothrow_rts_applicable<
@@ -336,14 +285,12 @@ struct choice<Ts...> : copack<Ts...> {
   }
 
   /**
-   * @brief TODO
+   * @brief Eliminates the choice, converting each branch's result to `T`
    *
-   * @tparam T TODO
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
+   * @tparam T Type the results convert to
+   * @param fn Callable applied on the active alternative
+   * @param args Additional arguments, appended after the alternative's content
+   * @return The callable's result, converted to `T`
    */
   template <typename T, typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply_r(Fn &&fn, Args &&...args) & noexcept(
@@ -356,16 +303,6 @@ struct choice<Ts...> : copack<Ts...> {
     return detail::apply_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn), FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam T TODO
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename T, typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply_r(Fn &&fn, Args &&...args) const & noexcept(
       detail::_is_nothrow_rts_applicable<
@@ -377,16 +314,6 @@ struct choice<Ts...> : copack<Ts...> {
     return detail::apply_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn), FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam T TODO
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename T, typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply_r(Fn &&fn, Args &&...args) && noexcept(
       detail::_is_nothrow_rts_applicable<
@@ -399,16 +326,6 @@ struct choice<Ts...> : copack<Ts...> {
                                                                       FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam T TODO
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename T, typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply_r(Fn &&fn, Args &&...args) const && noexcept(
       detail::_is_nothrow_rts_applicable<
@@ -422,13 +339,14 @@ struct choice<Ts...> : copack<Ts...> {
   }
 
   /**
-   * @brief TODO
+   * @brief Eliminates the choice, keyed by the alternative's type
    *
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
+   * The active arm receives `std::in_place_type<T>` for the alternative held, followed by its
+   * content as `copack`'s `apply_type` hands it over.
+   *
+   * @param fn Callable applied on the tag and the alternative's content
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result
    */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply_type(Fn &&fn, Args &&...args) & noexcept(
@@ -446,15 +364,6 @@ struct choice<Ts...> : copack<Ts...> {
         _impl::data, _impl::index, detail::_apply_type_fn<Fn>{FWD(fn)}, FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply_type(Fn &&fn, Args &&...args) const & noexcept(
       detail::_is_nothrow_rtst_invocable<
@@ -471,15 +380,6 @@ struct choice<Ts...> : copack<Ts...> {
         _impl::data, _impl::index, detail::_apply_type_fn<Fn>{FWD(fn)}, FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply_type(Fn &&fn, Args &&...args) && noexcept(
       detail::_is_nothrow_rtst_invocable<
@@ -496,15 +396,6 @@ struct choice<Ts...> : copack<Ts...> {
         ::std::move(_impl::data), _impl::index, detail::_apply_type_fn<Fn>{FWD(fn)}, FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply_type(Fn &&fn, Args &&...args) const && noexcept(
       detail::_is_nothrow_rtst_invocable<
@@ -522,14 +413,12 @@ struct choice<Ts...> : copack<Ts...> {
   }
 
   /**
-   * @brief TODO
+   * @brief Eliminates the choice, keyed by the alternative's type, converting the result to `Ret`
    *
-   * @tparam Ret TODO
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
+   * @tparam Ret Type the results convert to
+   * @param fn Callable applied on the tag and the alternative's content
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result, converted to `Ret`
    */
   template <typename Ret, typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply_type_r(Fn &&fn, Args &&...args) & noexcept(
@@ -541,16 +430,6 @@ struct choice<Ts...> : copack<Ts...> {
         _impl::data, _impl::index, detail::_apply_type_fn<Fn>{FWD(fn)}, FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Ret TODO
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename Ret, typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply_type_r(Fn &&fn, Args &&...args) const & noexcept(
       detail::_is_nothrow_rtst_invocable<Ret, detail::_apply_type_fn<Fn>, choice const &, Args &&...>) -> Ret
@@ -561,16 +440,6 @@ struct choice<Ts...> : copack<Ts...> {
         _impl::data, _impl::index, detail::_apply_type_fn<Fn>{FWD(fn)}, FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Ret TODO
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename Ret, typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply_type_r(Fn &&fn, Args &&...args) && noexcept(
       detail::_is_nothrow_rtst_invocable<Ret, detail::_apply_type_fn<Fn>, choice &&, Args &&...>) -> Ret
@@ -581,16 +450,6 @@ struct choice<Ts...> : copack<Ts...> {
         ::std::move(_impl::data), _impl::index, detail::_apply_type_fn<Fn>{FWD(fn)}, FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Ret TODO
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename Ret, typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply_type_r(Fn &&fn, Args &&...args) const && noexcept(
       detail::_is_nothrow_rtst_invocable<Ret, detail::_apply_type_fn<Fn>, choice const &&, Args &&...>) -> Ret
@@ -603,11 +462,14 @@ struct choice<Ts...> : copack<Ts...> {
 
   // NOTE Monadic operations, only `and_then` and `transform` are supported
   /**
-   * @brief TODO
+   * @brief Maps the alternatives, the branch results forming a new normalized choice
    *
-   * @tparam Fn TODO
-   * @param fn TODO
-   * @return TODO
+   * As `copack`'s `transform`, staying a carrier: the branch results flatten, deduplicate and
+   * sort. A returned `choice` stays whole - an atom, nested as one alternative - where a returned
+   * bare `copack` dissolves into the set.
+   *
+   * @param fn Callable applied on the active alternative; `fn::overload` fuses arms into one
+   * @return A choice of the normalized branch-result set, holding the active branch's result
    */
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) & noexcept(
@@ -620,13 +482,6 @@ struct choice<Ts...> : copack<Ts...> {
     return detail::apply_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn));
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Fn TODO
-   * @param fn TODO
-   * @return TODO
-   */
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) const & noexcept(
       detail::_is_nothrow_rts_applicable<
@@ -639,13 +494,6 @@ struct choice<Ts...> : copack<Ts...> {
     return detail::apply_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn));
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Fn TODO
-   * @param fn TODO
-   * @return TODO
-   */
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) && noexcept(
       detail::_is_nothrow_rts_applicable<
@@ -657,13 +505,6 @@ struct choice<Ts...> : copack<Ts...> {
     return detail::apply_variadic_union<type, typename _impl::data_t>(::std::move(_impl::data), _impl::index, FWD(fn));
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Fn TODO
-   * @param fn TODO
-   * @return TODO
-   */
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) const && noexcept(
       detail::_is_nothrow_rts_applicable<
@@ -677,11 +518,15 @@ struct choice<Ts...> : copack<Ts...> {
   }
 
   /**
-   * @brief TODO
+   * @brief Binds the alternatives: every branch returns a `choice`, joined into the superset
    *
-   * @tparam Fn TODO
-   * @param fn TODO
-   * @return TODO
+   * The member is the carrier's own bind: each branch's returned choice splices its alternatives
+   * into one normalized superset choice. A branch returning a bare value belongs to `transform`
+   * instead, and is rejected with a named diagnostic; branches converging on another carrier kind
+   * belong to the pipeline `fn::and_then`, the licensed cross-carrier place.
+   *
+   * @param fn Callable applied on the active alternative; `fn::overload` fuses arms into one
+   * @return The normalized superset choice of the branches' alternatives
    */
   template <typename Fn>
   constexpr auto and_then(Fn &&fn) & noexcept(
@@ -696,13 +541,6 @@ struct choice<Ts...> : copack<Ts...> {
     return detail::apply_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn));
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Fn TODO
-   * @param fn TODO
-   * @return TODO
-   */
   template <typename Fn>
   constexpr auto and_then(Fn &&fn) const & noexcept(
       detail::_is_nothrow_rts_applicable<typename detail::_copack_apply_result<detail::_joining_superset_tag<choice>,
@@ -717,13 +555,6 @@ struct choice<Ts...> : copack<Ts...> {
     return detail::apply_variadic_union<type, typename _impl::data_t>(_impl::data, _impl::index, FWD(fn));
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Fn TODO
-   * @param fn TODO
-   * @return TODO
-   */
   template <typename Fn>
   constexpr auto and_then(Fn &&fn) && noexcept(
       detail::_is_nothrow_rts_applicable<
@@ -737,13 +568,6 @@ struct choice<Ts...> : copack<Ts...> {
     return detail::apply_variadic_union<type, typename _impl::data_t>(::std::move(_impl::data), _impl::index, FWD(fn));
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Fn TODO
-   * @param fn TODO
-   * @return TODO
-   */
   template <typename Fn>
   constexpr auto and_then(Fn &&fn) const && noexcept(
       detail::_is_nothrow_rts_applicable<typename detail::_copack_apply_result<detail::_joining_superset_tag<choice>,
@@ -937,13 +761,14 @@ template <typename T> explicit choice(::std::in_place_type_t<T>, auto &&...) -> 
 template <typename T> explicit choice(T) -> choice<T>;
 
 /**
- * @brief TODO
+ * @brief Compares two choices: equal when they hold the same alternative type with equal values
  *
- * @tparam Ts TODO
- * @tparam Tx TODO
- * @param lh TODO
- * @param rh TODO
- * @return TODO
+ * The alternative sets need not match; an alternative the other side cannot hold compares unequal
+ * without being compared.
+ *
+ * @param lh Left choice
+ * @param rh Right choice
+ * @return Whether the active alternatives are the same type with equal values
  */
 template <typename... Ts, typename... Tx>
 [[nodiscard]] constexpr bool operator==(choice<Ts...> const &lh, choice<Tx...> const &rh) noexcept
@@ -960,13 +785,11 @@ template <typename... Ts, typename... Tx>
 }
 
 /**
- * @brief TODO
+ * @brief The negation of `==` for two choices
  *
- * @tparam Ts TODO
- * @tparam Tx TODO
- * @param lh TODO
- * @param rh TODO
- * @return TODO
+ * @param lh Left choice
+ * @param rh Right choice
+ * @return Whether the choices differ in alternative type or value
  */
 template <typename... Ts, typename... Tx>
 [[nodiscard]] constexpr bool operator!=(choice<Ts...> const &lh, choice<Tx...> const &rh) noexcept
@@ -976,9 +799,13 @@ template <typename... Ts, typename... Tx>
 }
 
 /**
- * @brief TODO
+ * @brief Builds the canonical `choice` for any list of types
  *
- * @tparam Ts TODO
+ * The construction alias over `choice`, exactly as `copack_for` stands to `copack`: flattens,
+ * deduplicates and sorts into the canonical order. Spell `choice_for` rather than `choice`, so
+ * that no spelling in your project is tied to one compiler's alternative order.
+ *
+ * @tparam Ts Types to combine - alternatives and copacks of them, in any order, duplicates allowed
  */
 template <typename... Ts>
 using choice_for

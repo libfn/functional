@@ -9,9 +9,10 @@ title: Packs
 :include-doxygen-doc: fn::pack
 
 ## Append {style: "api"}
-Some text explaining this section...
+Grows the product without nesting: appending a value adds one field, and appending a pack
+splices its fields in.
 :include-doxygen-member: fn::pack::append { signatureOnly: false, includeAllMatches: true }
 
 ## Apply {style: "api"}
-Some text explaining this section...
+Elimination: the elements spread into a callable as separate arguments.
 :include-doxygen-member: fn::pack::apply { signatureOnly: false, includeAllMatches: true }

@@ -19,12 +19,10 @@
 namespace fn {
 inline namespace LIBFN_VERSION {
 /**
- * @brief TODO
+ * @brief Checks if the monadic type can be used with the `fail` operation
  *
- * @tparam Fn TODO
- * @tparam V TODO
- * @param fn TODO
- * @param v TODO
+ * @tparam Fn The function to map the value into the error, or to observe it on `optional`
+ * @tparam V The monadic type
  */
 template <typename Fn, typename V>
 concept applicable_fail //
@@ -41,9 +39,24 @@ concept applicable_fail //
       });
 
 /**
- * @brief TODO
+ * @brief Intercept the success value and force a transition to the failure state
+ *
+ * The dual of `recover`. On `expected` the callback maps the value into the operand's existing
+ * error type - `fail` never widens a graded error set - and an operand already holding an error
+ * carries it over. On `optional` the callback observes the value, and must return `void`; the
+ * result is empty. Rejected on the identity carriers, which have no failure state to enter; over
+ * an uninhabited value side the operand passes through and the callback is neither invoked nor
+ * instantiated.
+ *
+ * Use through the `fn::fail` nielbloid.
  */
 constexpr inline struct fail_t final {
+  /**
+   * @brief Intercept the success value and force a transition to the failure state
+   * @param fn On `expected`, the function to map the value into the existing error type; on
+   *        `optional`, the function to observe the value, returning `void`
+   * @return A functor that will fail the monadic type
+   */
   [[nodiscard]] constexpr auto operator()(auto &&fn) const noexcept(noexcept(functor<fail_t, decltype(fn)>{FWD(fn)}))
       -> functor<fail_t, decltype(fn)> //
   {
@@ -53,16 +66,13 @@ constexpr inline struct fail_t final {
   struct apply;
 } fail = {};
 
-/**
- * @brief TODO
- */
 struct fail_t::apply final {
   /**
-   * @brief TODO
+   * @brief Fails the operand: a value maps into an error, an existing error carries over
    *
-   * @param v TODO
-   * @param fn TODO
-   * @return TODO
+   * @param v The monad
+   * @param fn The function to map the value into the error
+   * @return An `expected` of the same type, holding an error
    */
   template <some_expected_non_void V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //
@@ -83,13 +93,6 @@ struct fail_t::apply final {
     return type{::fn::unexpect, FWD(v).error()};
   }
 
-  /**
-   * @brief TODO
-   *
-   * @param v TODO
-   * @param fn TODO
-   * @return TODO
-   */
   template <some_expected_void V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //
       noexcept(
@@ -107,11 +110,11 @@ struct fail_t::apply final {
   }
 
   /**
-   * @brief TODO
+   * @brief Fails the operand: the value is observed, the result is empty
    *
-   * @param v TODO
-   * @param fn TODO
-   * @return TODO
+   * @param v The optional
+   * @param fn The function to observe the value; must return `void`
+   * @return An `optional` of the same type, empty
    */
   template <some_optional V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //

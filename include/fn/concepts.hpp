@@ -43,12 +43,16 @@ concept _relocatable // `return FWD(v);` - the whole monad, hence both sides
 } // namespace detail
 
 /**
- * @brief TODO
- * @note `same_kind` is a fundamental concept in category theory; it allows
- * transformation of a value_type, but not an error_type (where applicable)
+ * @brief Checks if two carriers are of the same monadic family, with compatible error sides
  *
- * @tparam T TODO
- * @tparam U TODO
+ * What `and_then` and the other success-path operations hold a callback's result to: the value
+ * side may change freely, the family may not. For `expected` the error sides must also agree -
+ * identical plain types, any two graded (copack) sides, or a plain side meeting its own singular
+ * lift `copack<E>`, either way round. Any two `optional`s, any two `choice`s and any two `just`s
+ * are the same kind.
+ *
+ * @tparam T Carrier type, possibly cv-ref qualified
+ * @tparam U Carrier type, possibly cv-ref qualified
  */
 template <typename T, typename U>
 concept same_kind
@@ -71,11 +75,15 @@ concept same_kind
       || (some_just<T> && some_just<U>);
 
 /**
- * @brief TODO
- * @note symmetrical to the above
+ * @brief The mirror of `same_kind`: the value side is pinned and the error side may vary
  *
- * @tparam T TODO
- * @tparam U TODO
+ * What the error-side operations hold a callback's result to. Value sides agree when identical,
+ * when both are graded (copack), or - on `expected` - when a plain non-void side meets its own
+ * singular lift `copack<T>`, either way round. Any two `choice`s qualify; never two carriers of
+ * different families.
+ *
+ * @tparam T Carrier type, possibly cv-ref qualified
+ * @tparam U Carrier type, possibly cv-ref qualified
  */
 template <typename T, typename U>
 concept same_value_kind
@@ -103,18 +111,24 @@ concept same_value_kind
       || (some_choice<T> && some_choice<U>);
 
 /**
- * @brief TODO
+ * @brief Checks if two carriers agree on family, value side and error side alike
  *
- * @tparam T TODO
- * @tparam U TODO
+ * The conjunction of `same_kind` and `same_value_kind`.
+ *
+ * @tparam T Carrier type, possibly cv-ref qualified
+ * @tparam U Carrier type, possibly cv-ref qualified
  */
 template <typename T, typename U>
 concept same_monadic_type_as = same_kind<T, U> && same_value_kind<T, U>;
 
 /**
- * @brief TODO
+ * @brief Checks if `fn::unexpected` over the decayed type can be built from the value by a cast
  *
- * @tparam T TODO
+ * A `void` answers false - `unexpected<void>` is ill-formed to instantiate, and the concept
+ * answers instead. An immovable value answers false as well: there is nothing to move or copy
+ * into the carrier.
+ *
+ * @tparam T Type of the value, possibly cv-ref qualified
  */
 // The void conjunct is load-bearing: `unexpected<void>` is ill-formed by a class-body mandate,
 // which fires during instantiation - outside any immediate context - so without it the question
@@ -126,10 +140,13 @@ concept convertible_to_unexpected = (not ::std::is_void_v<T>) && requires {
 };
 
 /**
- * @brief TODO
+ * @brief Checks if an `expected` over the decayed type can be built from the value by a cast
  *
- * @tparam T TODO
- * @tparam E TODO
+ * Unlike the other `convertible_to_*` concepts here, `void` is admitted outright by its own arm:
+ * `expected<void, E>` is a legitimate carrier with no value to convert.
+ *
+ * @tparam T Type of the value, possibly cv-ref qualified
+ * @tparam E Error type of the target `expected`
  */
 template <class T, typename E>
 concept convertible_to_expected
@@ -137,9 +154,12 @@ concept convertible_to_expected
       || (::std::is_void_v<T>);
 
 /**
- * @brief TODO
+ * @brief Checks if an `optional` over the decayed type can be built from the value by a cast
  *
- * @tparam T TODO
+ * A `void` answers false - `optional<void>` is ill-formed to instantiate, and the concept answers
+ * instead.
+ *
+ * @tparam T Type of the value, possibly cv-ref qualified
  */
 // The same load-bearing void conjunct as `convertible_to_unexpected`'s: `optional<void>` and
 // `choice<void>` (below) are likewise ill-formed to instantiate, by a class-body mandate.
@@ -148,9 +168,12 @@ concept convertible_to_optional
     = (not ::std::is_void_v<T>) && requires { static_cast<optional<::std::remove_cvref_t<T>>>(::std::declval<T>()); };
 
 /**
- * @brief TODO
+ * @brief Checks if a `choice` over the decayed type can be built from the value by a cast
  *
- * @tparam T TODO
+ * A `void` answers false - `choice<void>` is ill-formed to instantiate, and the concept answers
+ * instead.
+ *
+ * @tparam T Type of the value, possibly cv-ref qualified
  */
 template <class T>
 concept convertible_to_choice
@@ -195,9 +218,12 @@ template <typename T>
 concept some_identity = some_choice<T> || some_just<T> || some_empty_error<T>;
 
 /**
- * @brief TODO
+ * @brief Checks if the type casts to `bool` - what `filter` holds its predicate's result to
  *
- * @tparam T TODO
+ * An explicit `operator bool` suffices: the concept casts, it does not ask for an implicit
+ * conversion.
+ *
+ * @tparam T Type to check, possibly cv-ref qualified
  */
 template <class T>
 concept convertible_to_bool = requires { static_cast<bool>(::std::declval<T>()); };

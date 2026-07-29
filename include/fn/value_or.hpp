@@ -17,10 +17,10 @@
 namespace fn {
 inline namespace LIBFN_VERSION {
 /**
- * @brief TODO
+ * @brief Checks if the monadic type can be used with the pipeline `value_or` operation
  *
- * @tparam V TODO
- * @tparam Args TODO
+ * @tparam V The monadic type
+ * @tparam Args Arguments the fallback value is built from
  */
 // The fallback builds the RESULT, not merely its value type: for an `optional<T&>` those differ -
 // the value type is the referent, which a prvalue can construct, but the result binds a reference to
@@ -37,14 +37,21 @@ concept applicable_value_or                                                     
           && detail::_relocatable_value<V>);
 
 /**
- * @brief TODO
+ * @brief Supply a fallback for the failure state, keeping the carrier
+ *
+ * Unlike the member `value_or`, which eliminates the carrier and yields a value, the pipeline form
+ * returns the carrier engaged with either its own value or a fallback built in place from the
+ * arguments. Where the value type is `void`, `value_or()` takes no arguments at all. Rejected on
+ * `choice` and `just`, which can never lack a value; on the identity `expected` the fallback stays
+ * constrained yet dead - generic code compiles, the branch is never taken.
+ *
+ * Use through the `fn::value_or` nielbloid.
  */
 constexpr inline struct value_or_t final {
   /**
-   * @brief TODO
-   *
-   * @param args TODO
-   * @return TODO
+   * @brief Supply a fallback for the failure state, keeping the carrier
+   * @param args Arguments the fallback value is built from, in place
+   * @return A functor that will substitute the fallback where the value is missing
    */
   template <typename... Args>
   [[nodiscard]] constexpr auto operator()(Args &&...args) const
@@ -56,16 +63,13 @@ constexpr inline struct value_or_t final {
   struct apply;
 } value_or = {};
 
-/**
- * @brief TODO
- */
 struct value_or_t::apply final {
   /**
-   * @brief TODO
+   * @brief Returns the operand engaged with its own value, or the fallback built from the arguments
    *
-   * @param v TODO
-   * @param args TODO
-   * @return TODO
+   * @param v The monad
+   * @param args Arguments the fallback value is built from, in place
+   * @return A carrier of the same type, holding a value
    */
   // The fallback is built inside, so its construction is weighed here rather than propagated: the
   // callable or_else receives is a lambda, which cannot be named in this specification.

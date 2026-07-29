@@ -166,10 +166,11 @@ constexpr inline struct and_then_t final {
 
 struct and_then_t::apply final {
   /**
-   * @brief TODO
+   * @brief Binds through the carrier's own `and_then` member
    *
    * @param v The monad
    * @param fn The function to apply
+   * @return A carrier of the same kind, possibly with a widened error grade
    */
   template <some_monadic_type V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //

@@ -22,10 +22,10 @@
 namespace fn {
 inline namespace LIBFN_VERSION {
 /**
- * @brief TODO
+ * @brief Checks if the monadic type can be used with the `inspect` operation
  *
- * @tparam Fn TODO
- * @tparam V TODO
+ * @tparam Fn The function to observe the value
+ * @tparam V The monadic type
  */
 template <typename Fn, typename V>
 concept applicable_inspect //
@@ -44,14 +44,20 @@ concept applicable_inspect //
       });
 
 /**
- * @brief TODO
+ * @brief Observe the value for side-effects, passing the operand through unchanged
+ *
+ * The callback receives the value as const and must return `void`: observation can neither mutate
+ * the operand nor replace it. Where the carrier can be empty or hold an error, the callback runs
+ * only when a value is present; on `choice` and `just` it always runs; over an uninhabited value
+ * side it is neither invoked nor instantiated.
+ *
+ * Use through the `fn::inspect` nielbloid.
  */
 constexpr inline struct inspect_t final {
   /**
-   * @brief TODO
-   *
-   * @param fn TODO
-   * @return TODO
+   * @brief Observe the value for side-effects, passing the operand through unchanged
+   * @param fn The function to observe the value; invoked with no arguments where the value is `void`
+   * @return A functor that will execute the function on the value
    */
   [[nodiscard]] constexpr auto operator()(auto &&fn) const noexcept(noexcept(functor<inspect_t, decltype(fn)>{FWD(fn)}))
       -> functor<inspect_t, decltype(fn)>
@@ -64,11 +70,11 @@ constexpr inline struct inspect_t final {
 
 struct inspect_t::apply final {
   /**
-   * @brief TODO
+   * @brief Observes the value for side-effects, when one is present
    *
-   * @param v TODO
-   * @param fn TODO
-   * @return TODO
+   * @param v The monad
+   * @param fn The function to observe the value
+   * @return The operand, forwarded unchanged
    */
   template <some_expected_non_void V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const
@@ -81,13 +87,6 @@ struct inspect_t::apply final {
     return FWD(v);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @param v TODO
-   * @param fn TODO
-   * @return TODO
-   */
   template <some_expected_void V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept(::fn::is_nothrow_applicable_v<Fn>) -> V &&
     requires applicable_inspect<Fn &&, V &&>
@@ -98,13 +97,6 @@ struct inspect_t::apply final {
     return FWD(v);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @param v TODO
-   * @param fn TODO
-   * @return TODO
-   */
   template <some_optional V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const
       noexcept(::fn::is_nothrow_applicable_v<Fn, decltype(::std::as_const(v).value())>) -> V &&
@@ -116,13 +108,6 @@ struct inspect_t::apply final {
     return FWD(v);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @param v TODO
-   * @param fn TODO
-   * @return TODO
-   */
   template <some_choice V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const
       noexcept(::fn::is_nothrow_applicable_v<Fn, decltype(::std::as_const(v).value())>) -> V &&
@@ -132,13 +117,6 @@ struct inspect_t::apply final {
     return FWD(v);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @param v TODO
-   * @param fn TODO
-   * @return TODO
-   */
   template <some_just V, typename Fn>
     requires(not ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type>)
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const
@@ -149,13 +127,6 @@ struct inspect_t::apply final {
     return FWD(v);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @param v TODO
-   * @param fn TODO
-   * @return TODO
-   */
   template <some_just V, typename Fn>
     requires ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept(::fn::is_nothrow_applicable_v<Fn>) -> V &&
