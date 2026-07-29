@@ -18,4 +18,7 @@ the whole call not applicable.
 :include-doxygen-member: fn::apply_r { signatureOnly: false, includeAllMatches: true }
 
 ## overload {style: "api"}
+
+##### Defined in {style: "api", badge: "#include <fn/utility.hpp>"}
+
 :include-doxygen-doc: fn::overload
