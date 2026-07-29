@@ -38,5 +38,10 @@ composition
     index
 multidispatch
     index
+pfn
+    index
+    expected
+    optional
+    utility
 ci
     index
