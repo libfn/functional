@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Stage the znai source tree, adding one chapter per root document.
+"""Stage the znai source tree, giving the site a front page and a chapter per root document.
 
-znai renders a directory as a chapter and each file in it as a page, so a root document reaches
-the site split at its `##` boundaries. Section numbering stays in the source and never reaches
-the site: page titles carry the name alone, and the prose's `Section N` cross-references become
-links to the pages they name. Repo-relative links, which znai would otherwise resolve as page
-references and reject, become links to the sibling chapter or to the file on GitHub.
+README is the front page, whole: it introduces the library once, and splitting it would scatter
+that introduction. The longer documents become chapters instead — znai renders a directory as a
+chapter and each file in it as a page, so they reach the site split at their `##` boundaries.
+Section numbering stays in the source and never reaches the site: page titles carry the name
+alone, and the prose's `Section N` cross-references become links to the pages they name.
+Repo-relative links, which znai would otherwise resolve as page references and reject, become
+links to the sibling chapter or to the file on GitHub.
 """
 from __future__ import annotations
 
@@ -18,9 +20,11 @@ import sys
 
 REPO = "https://github.com/libfn/functional"
 
+LANDING = "README.md"
+
 # Root document -> chapter directory. The toc lists LEADING, then the chapters docs/toc names,
 # then TRAILING; znai titles a chapter from its directory, so `type-algebra` reads "Type Algebra".
-LEADING = (("README.md", "overview"), ("TYPE_ALGEBRA.md", "type-algebra"))
+LEADING = (("TYPE_ALGEBRA.md", "type-algebra"),)
 TRAILING = (("CONTRIBUTING.md", "contributing"),)
 
 NUMBERED = re.compile(r"^\d+\.\s+")
@@ -75,17 +79,22 @@ def split(text: str, where: str) -> tuple[str, str, list[tuple[str, str]]]:
     return title, "\n".join(preamble).strip(), [(t, "\n".join(b).strip()) for t, b in sections]
 
 
-def target(link: str, page: dict[str, str], chapter: str, repo: pathlib.Path) -> str:
+def target(link: str, page: dict[str, str] | None, chapter: str, repo: pathlib.Path) -> str:
     """Point a document-relative link at the staged site, or at the file on GitHub."""
     if re.match(r"^[a-z][a-z0-9+.-]*:", link) or link.startswith("//"):
         return link
     if link.startswith("#"):
+        # The front page keeps its own anchors; a chapter has none, its sections being pages.
+        if page is None:
+            return link
         anchor = link[1:]
         if anchor not in page:
             fail(f"link to #{anchor} matches no section")
         return f"{chapter}/{page[anchor]}"
 
     path, _, anchor = link.partition("#")
+    if path == LANDING:
+        return "/"
     for source, elsewhere in LEADING + TRAILING:
         if path == source:
             return f"{elsewhere}/index"
@@ -107,9 +116,9 @@ def outside_code(line: str, rewrite) -> str:
     return "".join(parts) + rewrite(line[last:])
 
 
-def render(body: str, page: dict[str, str], number: dict[str, tuple[str, str]],
-           chapter: str, repo: pathlib.Path) -> str:
-    """Rewrite one section's body for the site: heading depth, links, cross-references."""
+def render(body: str, page: dict[str, str] | None, number: dict[str, tuple[str, str]],
+           chapter: str | None, repo: pathlib.Path) -> str:
+    """Rewrite a body for the site: heading depth, links, cross-references."""
     def prose(text: str) -> str:
         text = INLINE_LINK.sub(
             lambda m: f"({target(m.group(1), page, chapter, repo)}{m.group(2)})", text)
@@ -123,11 +132,21 @@ def render(body: str, page: dict[str, str], number: dict[str, tuple[str, str]],
     lines = []
     for _, line, fenced in outside_fences(body):
         if not fenced:
-            # The section's own heading became the page title, so its subheadings move up to
-            # take its place in znai's per-page navigation.
-            line = outside_code(HEADING.sub(lambda m: m.group(1)[1:], line), prose)
+            if chapter is not None:
+                # The section's own heading became the page title, so its subheadings move up to
+                # take its place in znai's per-page navigation.
+                line = HEADING.sub(lambda m: m.group(1)[1:], line)
+            line = outside_code(line, prose)
         lines.append(line)
     return "\n".join(lines)
+
+
+def landing(source: pathlib.Path, out: pathlib.Path, repo: pathlib.Path) -> None:
+    """Write the front page: the document entire, its headings and anchors left as they are."""
+    if not source.exists():
+        fail(f"{source.name} does not exist")
+    body = render(source.read_text(encoding="utf-8"), None, {}, None, repo)
+    (out / "index.md").write_text(body.strip() + "\n", encoding="utf-8")
 
 
 def write(path: pathlib.Path, title: str, body: str) -> None:
@@ -186,6 +205,7 @@ def main() -> None:
     (out / "lookup-paths").write_text(
         "".join(f"{(repo / 'docs' / path).resolve()}\n" for path in paths), encoding="utf-8")
 
+    landing(repo / LANDING, out, repo)
     generated = {name: chapter(repo / source, name, out, repo)
                  for source, name in LEADING + TRAILING}
     toc(out, generated)
