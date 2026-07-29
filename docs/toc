@@ -1,4 +1,5 @@
 expected
+    index
     and_then
     discard
     fail
@@ -11,6 +12,7 @@ expected
     transform
     value_or
 optional
+    index
     and_then
     discard
     fail
@@ -31,6 +33,10 @@ pack
 copack
     index
 just
+    index
+composition
+    index
+multidispatch
     index
 ci
     index

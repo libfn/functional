@@ -16,4 +16,5 @@ title: fn::transform_error
 ---
 
 ## Return value {style: "api"}
-A monadic type of the same kind.
+Not applicable: `transform_error` is rejected on `optional`, which has no error value to map.
+Use `or_else` to act on the empty state instead.
