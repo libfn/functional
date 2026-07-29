@@ -22,10 +22,10 @@
 namespace fn {
 inline namespace LIBFN_VERSION {
 /**
- * @brief TODO
+ * @brief Checks if the monadic type can be used with the `transform` operation
  *
- * @tparam Fn TODO
- * @tparam V TODO
+ * @tparam Fn The function to execute on the value
+ * @tparam V The monadic type
  */
 template <typename Fn, typename V>
 concept applicable_transform //
@@ -94,14 +94,21 @@ concept applicable_transform_promote //
       });
 
 /**
- * @brief TODO
+ * @brief Map the value of the monadic type, keeping the carrier's shape
+ *
+ * The callable's result becomes the new value, in the same carrier family; a bare (non-monadic)
+ * callback result belongs here rather than to `and_then`. Over a copack-valued carrier the
+ * callable is dispatched per alternative, heterogeneous branch results joining into a normalized
+ * copack. In the pipeline form only, a copack result over a `just` operand is promoted to the
+ * `choice` over the same alternatives.
+ *
+ * Use through the `fn::transform` nielbloid.
  */
 constexpr inline struct transform_t final {
   /**
-   * @brief TODO
-   *
-   * @param fn TODO
-   * @return TODO
+   * @brief Map the value of the monadic type, keeping the carrier's shape
+   * @param fn The function to execute on the value
+   * @return A functor that will execute the function on the value
    */
   [[nodiscard]] constexpr auto operator()(auto &&fn) const
       noexcept(noexcept(functor<transform_t, decltype(fn)>{FWD(fn)})) -> functor<transform_t, decltype(fn)> //
@@ -112,16 +119,13 @@ constexpr inline struct transform_t final {
   struct apply;
 } transform = {};
 
-/**
- * @brief TODO
- */
 struct transform_t::apply final {
   /**
-   * @brief TODO
+   * @brief Maps the value through the carrier's own `transform` member
    *
-   * @param v TODO
-   * @param fn TODO
-   * @return TODO
+   * @param v The monad
+   * @param fn The function to apply
+   * @return A carrier of the same kind, holding the mapped value
    */
   template <some_monadic_type V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept(noexcept(FWD(v).transform(FWD(fn))))

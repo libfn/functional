@@ -87,10 +87,10 @@ struct _nothrow_or_else_to_optional<T, Fn, ErrArg, ValArg> {
 };
 } // namespace detail
 /**
- * @brief TODO
+ * @brief Checks if the monadic type can be used with the `or_else` operation
  *
- * @tparam Fn TODO
- * @tparam V TODO
+ * @tparam Fn The function to execute on the dead state
+ * @tparam V The monadic type
  */
 template <typename Fn, typename V>
 concept applicable_or_else //
@@ -147,14 +147,24 @@ concept applicable_or_else_across //
                }));
 
 /**
- * @brief TODO
+ * @brief Sequence a recovery computation on the failure path, joining its values
+ *
+ * The callback witnesses the dead state - `expected`'s error, per alternative when graded, or
+ * `optional`'s empty state, with no arguments - and returns a carrier; a successful operand passes
+ * through, bypassing it. Recovery branches may return heterogeneous carriers of the same value
+ * kind: their values join, and an error alternative handled by a branch leaves the grade unless
+ * re-returned. In the pipeline form the callback's carrier may also bridge across the
+ * expected/optional pair; on the identity `expected` the operation is vacuous - nothing is asked
+ * of the handler, not even that it be callable.
+ *
+ * Use through the `fn::or_else` nielbloid.
  */
 constexpr inline struct or_else_t final {
   /**
-   * @brief TODO
-   *
-   * @param fn TODO
-   * @return TODO
+   * @brief Sequence a recovery computation on the failure path, joining its values
+   * @param fn The function to execute on the dead state - the error on `expected`, no arguments
+   *        on `optional` - returning a carrier
+   * @return A functor that will recover the monadic type
    */
   [[nodiscard]] constexpr auto operator()(auto &&fn) const noexcept(noexcept(functor<or_else_t, decltype(fn)>{FWD(fn)}))
       -> functor<or_else_t, decltype(fn)> //
@@ -165,16 +175,13 @@ constexpr inline struct or_else_t final {
   struct apply;
 } or_else = {};
 
-/**
- * @brief TODO
- */
 struct or_else_t::apply final {
   /**
-   * @brief TODO
+   * @brief Recovers through the carrier's own `or_else` member
    *
-   * @param v TODO
-   * @param fn TODO
-   * @return TODO
+   * @param v The monad
+   * @param fn The function to execute on the dead state
+   * @return A carrier of the same value kind
    */
   template <some_monadic_type V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const //
@@ -185,13 +192,6 @@ struct or_else_t::apply final {
     return FWD(v).or_else(FWD(fn));
   }
 
-  /**
-   * @brief TODO
-   *
-   * @param v TODO
-   * @param fn TODO
-   * @return TODO
-   */
   // An identity expected's error side is uninhabited - delegate to the vacuous member, which
   // accepts any callback and never instantiates it
   template <some_expected V, typename Fn>

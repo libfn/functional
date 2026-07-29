@@ -56,7 +56,8 @@ constexpr inline struct filter_t final {
   /**
    * @brief Filter the value of the monadic type using a predicate and an error handler
    * @param pred The predicate to filter the value, takes the value by const reference and returns bool
-   * @param on_err The error handler, takes the value by const reference and returns the error type
+   * @param on_err The error handler, returning the error type; consumes the value in the operand's
+   *        value category
    * @return A functor that will filter the value of the monadic type
    */
   [[nodiscard]] constexpr auto operator()(auto &&pred, auto &&on_err) const
@@ -80,17 +81,14 @@ constexpr inline struct filter_t final {
   struct apply;
 } filter = {};
 
-/**
- * @brief TODO
- */
 struct filter_t::apply final {
   /**
-   * @brief TODO
+   * @brief Filters the operand: a value failing the predicate is replaced by the handler's error
    *
-   * @param v TODO
-   * @param pred TODO
-   * @param on_err TODO
-   * @return TODO
+   * @param v The monad
+   * @param pred The predicate, applied on the value as const
+   * @param on_err The error handler, consuming the value where the predicate answered false
+   * @return An `expected` of the same type
    */
   template <some_expected_non_void V, typename Pred, typename OnErr>
   [[nodiscard]] constexpr auto operator()(V &&v, Pred &&pred, OnErr &&on_err) const //
@@ -114,14 +112,6 @@ struct filter_t::apply final {
     return FWD(v);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @param v TODO
-   * @param pred TODO
-   * @param on_err TODO
-   * @return TODO
-   */
   template <some_expected_void V, typename Pred, typename OnErr>
   [[nodiscard]] constexpr auto operator()(V &&v, Pred &&pred, OnErr &&on_err) const //
       noexcept(
@@ -141,11 +131,11 @@ struct filter_t::apply final {
   }
 
   /**
-   * @brief TODO
+   * @brief Filters the operand: a value failing the predicate is replaced by the empty state
    *
-   * @param v TODO
-   * @param pred TODO
-   * @return TODO
+   * @param v The optional
+   * @param pred The predicate, applied on the value as const
+   * @return An `optional` of the same type
    */
   template <some_optional V, typename Pred>
   [[nodiscard]] constexpr auto operator()(V &&v, Pred &&pred) const //

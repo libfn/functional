@@ -9,18 +9,19 @@ title: Choice monad
 :include-doxygen-doc: fn::choice
 
 ## choice_for {style: "api"}
-Used to generate `fn::choice` correctly. Sorts and deduplicates types under the hood.
-
-Some text explaining this section...
+The construction alias: accepts alternatives in any order, with duplicates and nested copacks,
+and resolves to the canonical `fn::choice`. Prefer it over spelling `choice` directly, so that no
+spelling in your project is tied to one compiler's alternative order.
 
 :include-doxygen-member: fn::choice_for { signatureOnly: false, includeAllMatches: true }
 
 ## choice {style: "api"}
-Some text explaining this section...
+Construction: from a value of one alternative, in place from arguments, or widening from a
+`copack` over a subset of the alternatives.
 
 :include-doxygen-member: fn::choice { signatureOnly: false, includeAllMatches: true }
 
 ## value {style: "api"}
-Some text explaining this section...
+The alternatives as the underlying `copack`, always present.
 
 :include-doxygen-member: fn::choice< Ts... >::value { signatureOnly: false, includeAllMatches: true }

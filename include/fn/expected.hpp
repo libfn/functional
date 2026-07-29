@@ -29,14 +29,29 @@ using ::pfn::unexpect;
 using ::pfn::unexpect_t;
 using ::pfn::unexpected;
 
+/**
+ * @brief Checks if a type is an `fn::expected` (with any sides)
+ *
+ * @tparam T Type to check, possibly cv-ref qualified
+ */
 template <typename T>
 concept some_expected = detail::_some_expected<T>;
 
+/**
+ * @brief Checks if a type is an `fn::expected` with a non-void value type
+ *
+ * @tparam T Type to check, possibly cv-ref qualified
+ */
 template <typename T>
 concept some_expected_non_void = //
     some_expected<T>             //
     && !::std::is_same_v<void, typename ::std::remove_cvref_t<T>::value_type>;
 
+/**
+ * @brief Checks if a type is an `fn::expected` over `void`
+ *
+ * @tparam T Type to check, possibly cv-ref qualified
+ */
 template <typename T>
 concept some_expected_void = //
     some_expected<T>         //
@@ -864,7 +879,23 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
 
 } // namespace detail
 
-// Primary template - non-void value type
+/**
+ * @brief The fallible carrier: a computation yielding success `T` or error `Err`
+ *
+ * A strict superset of `std::expected` as specified for C++26, provided here by `pfn::expected`:
+ * construction, assignment, observers and comparisons are the standard's, and a valid program
+ * switching from `pfn` to `fn` changes neither compilation nor behaviour. On top of the standard
+ * contract come the extensions: a `copack` error side enrols the carrier in graded error-set
+ * unioning, and a `copack` value side in the same arithmetic on values; the `apply` family
+ * eliminates over both states; `copack_error` and `copack_value` lift a plain side into its
+ * singular copack; `operator&` conjoins and `operator|` disjoins carriers. An error side
+ * `copack<>` makes the carrier infallible - the identity `expected` - and a `pack` value spreads
+ * into callbacks as separate arguments. This primary template serves a non-void `T`; the
+ * specialization over `void` mirrors it.
+ *
+ * @tparam T Value type; `void` selects the specialization
+ * @tparam Err Error type; a `copack` makes the carrier graded
+ */
 template <typename T, typename Err> class expected : private detail::_expected_base<T, Err> {
   using _base = detail::_expected_base<T, Err>;
 
@@ -1087,6 +1118,17 @@ public:
   // unpacked as fn::apply would hand it over, keyed (apply_type) by the constructor tag naming
   // the state - ::std::in_place for the value, ::fn::unexpect for the error. Bodies delegate to
   // _expected_base static helpers.
+  /**
+   * @brief Eliminates over both states: the active side routes into the callable
+   *
+   * The value arm receives the value as `fn::apply` hands it over - a `pack` or tuple-like value
+   * by elements - and the error arm receives the error likewise; the arms must yield one result
+   * type. Over an uninhabited side the other arm alone is exhaustive.
+   *
+   * @param f Callable with arms for both states; `fn::overload` fuses them
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result
+   */
   template <class F, class... Args>
   [[nodiscard]] constexpr auto apply(F &&f, Args &&...args) &        //
       noexcept(noexcept(_base::_apply(*this, FWD(f), FWD(args)...))) // extension
@@ -1116,6 +1158,14 @@ public:
     return _base::_apply(::std::move(*this), FWD(f), FWD(args)...);
   }
 
+  /**
+   * @brief Eliminates over both states, converting the result to `Ret`
+   *
+   * @tparam Ret Type the results convert to
+   * @param f Callable with arms for both states; `fn::overload` fuses them
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result, converted to `Ret`
+   */
   template <class Ret, class F, class... Args>
   [[nodiscard]] constexpr auto apply_r(F &&f, Args &&...args) &                      //
       noexcept(noexcept(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
@@ -1145,6 +1195,17 @@ public:
     return _base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...);
   }
 
+  /**
+   * @brief Eliminates over both states, keyed by the constructor tag naming the state
+   *
+   * The value arm receives `std::in_place` followed by the value's content - `std::in_place`
+   * alone where the value type is `void` - and the error arm receives `fn::unexpect` followed by
+   * the error.
+   *
+   * @param f Callable with arms for both tagged states
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result
+   */
   template <class F, class... Args>
   [[nodiscard]] constexpr auto apply_type(F &&f, Args &&...args) &        //
       noexcept(noexcept(_base::_apply_type(*this, FWD(f), FWD(args)...))) // extension
@@ -1174,6 +1235,15 @@ public:
     return _base::_apply_type(::std::move(*this), FWD(f), FWD(args)...);
   }
 
+  /**
+   * @brief Eliminates over both states, keyed by the constructor tag, converting the result to
+   *        `Ret`
+   *
+   * @tparam Ret Type the results convert to
+   * @param f Callable with arms for both tagged states
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result, converted to `Ret`
+   */
   template <class Ret, class F, class... Args>
   [[nodiscard]] constexpr auto apply_type_r(F &&f, Args &&...args) &                      //
       noexcept(noexcept(_base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
@@ -1204,6 +1274,18 @@ public:
   }
 
   // Monadic operations. Bodies delegate to _expected_base static helpers, which perform copack-widening.
+  /**
+   * @brief Binds the value through the callable, which returns an `expected`
+   *
+   * As the standard member, extended by grading: a plain error side admits a callback returning
+   * the identical error type, or its singular lift `copack<E>` - the opt-in to the graded world -
+   * while a graded (copack) error side unions the callback's error set into its own. A
+   * copack-valued operand dispatches per alternative, exhaustively, heterogeneous branch values
+   * joining into a normalized copack. The one bind that widens an error grade.
+   *
+   * @param f Callable applied on the value, returning an `expected`
+   * @return The callback's `expected`, its error side widened by the operand's grade
+   */
   template <class F>
   constexpr auto and_then(F &&f) &                        //
       noexcept(noexcept(_base::_and_then(*this, FWD(f)))) // extension
@@ -1233,6 +1315,19 @@ public:
     return _base::_and_then(::std::move(*this), FWD(f));
   }
 
+  /**
+   * @brief Binds the error through the callable, which returns an `expected`
+   *
+   * The recovery bind: a successful operand passes through, and the callback maps the error - per
+   * alternative when graded, exhaustively - into a new `expected`. The value sides join under the
+   * grading rules, a plain side admitting its singular lift `copack<T>`; an error alternative
+   * handled by a branch leaves the grade unless re-returned, and on a plain error side the
+   * callback's error type replaces the operand's. On the identity `expected` the operation is
+   * vacuous: nothing is asked of the handler, not even that it be callable.
+   *
+   * @param f Callable applied on the error, returning an `expected`
+   * @return The recovery's `expected`, its value side joined with the operand's
+   */
   template <class F>
   constexpr auto or_else(F &&f) &                        //
       noexcept(noexcept(_base::_or_else(*this, FWD(f)))) // extension
@@ -1262,6 +1357,17 @@ public:
     return _base::_or_else(::std::move(*this), FWD(f));
   }
 
+  /**
+   * @brief Maps the value through the callable, staying inside the carrier
+   *
+   * As the standard member, extended over the algebra: a `pack` value spreads into the callable
+   * by elements, and a copack-valued operand dispatches per alternative - heterogeneous branch
+   * results joining into a normalized copack. Over an uninhabited value side the mapping is the
+   * identity, and the callback is neither invoked nor instantiated.
+   *
+   * @param f Callable applied on the value
+   * @return An `expected` holding the callable's result, with the same error side
+   */
   template <class F>
   constexpr auto transform(F &&f) &                        //
       noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
@@ -1291,6 +1397,17 @@ public:
     return _base::_transform(::std::move(*this), FWD(f));
   }
 
+  /**
+   * @brief Maps the error through the callable, staying inside the carrier
+   *
+   * As the standard member, extended by grading: over a graded (copack) error side the matching
+   * is exhaustive, and the branches may collapse diverse alternatives into one type - the grade
+   * narrows to its singular copack - or into a narrower copack. Over the uninhabited `copack<>`
+   * error side the mapping is the identity, and the callback is neither invoked nor instantiated.
+   *
+   * @param f Callable applied on the error
+   * @return An `expected` with the same value side and the mapped error side
+   */
   template <class F>
   constexpr auto transform_error(F &&f) &                        //
       noexcept(noexcept(_base::_transform_error(*this, FWD(f)))) // extension
@@ -1322,6 +1439,15 @@ public:
 
   // Convert to graded monad. A lifting overload wraps one side in a copack and relocates the other
   // untouched, so it weighs both; the ones whose side already is a copack only return *this.
+  /**
+   * @brief Lifts the error side into its singular copack: `expected<T, E>` becomes
+   *        `expected<T, copack<E>>`
+   *
+   * The explicit entry into the graded world; an already-graded error side returns `*this`
+   * unchanged.
+   *
+   * @return The graded `expected`, relocating both sides
+   */
   constexpr auto
   copack_error() const & noexcept(::std::is_nothrow_constructible_v<value_type, value_type const &>
                                   && ::std::is_nothrow_constructible_v<copack<error_type>, error_type const &>
@@ -1368,6 +1494,15 @@ public:
     return ::std::move(*this);
   }
 
+  /**
+   * @brief Lifts the value side into its singular copack: `expected<T, E>` becomes
+   *        `expected<copack<T>, E>`
+   *
+   * The value-side twin of `copack_error`; an already-copack value side returns `*this`
+   * unchanged.
+   *
+   * @return The graded `expected`, relocating both sides
+   */
   constexpr auto
   copack_value() const & noexcept(::std::is_nothrow_constructible_v<copack<value_type>, value_type const &>
                                   && ::std::is_nothrow_move_constructible_v<copack<value_type>>
@@ -1425,6 +1560,15 @@ private:
   }
 };
 
+/**
+ * @brief The `expected` specialization over `void`: success carries no value
+ *
+ * As the primary, with the value side the unit: success-path callbacks are invoked with no
+ * arguments, the `apply` family's value arm receives the trailing arguments alone, and a
+ * conjunction elides the void side from the value product.
+ *
+ * @tparam Err Error type; a `copack` makes the carrier graded
+ */
 template <typename Err> class expected<void, Err> : private detail::_expected_base<void, Err> {
   using _base = detail::_expected_base<void, Err>;
 
@@ -1890,12 +2034,24 @@ constexpr bool operator==(expected<T, Err> const &x, T2 const &v) //
   return *x == v;
 }
 
-// Lifts for copack transformation functions
+/**
+ * @brief Free-function form of the member `copack_value` lift
+ *
+ * @param src The `expected` to lift
+ * @return `src.copack_value()`
+ */
 [[nodiscard]] constexpr auto copack_value(some_expected_non_void auto &&src) noexcept(noexcept(FWD(src).copack_value()))
     -> decltype(auto)
 {
   return FWD(src).copack_value();
 }
+
+/**
+ * @brief Free-function form of the member `copack_error` lift
+ *
+ * @param src The `expected` to lift
+ * @return `src.copack_error()`
+ */
 [[nodiscard]] constexpr auto copack_error(some_expected auto &&src) noexcept(noexcept(FWD(src).copack_error()))
     -> decltype(auto)
 {
@@ -1945,6 +2101,21 @@ template <typename E> struct _expected_efn final {
 };
 } // namespace detail
 
+/**
+ * @brief The conjunction of fallible carriers: values multiply into a `pack`, errors sum into a
+ *        `copack`
+ *
+ * `a & b` succeeds only if both operands succeed, the values folding into one `pack` - a `void`
+ * side elides, and a copack value distributes into a copack of packs - while at runtime the error
+ * side holds the leftmost failing operand's error. Two identical error types stay as they are;
+ * any other pair sums into their normalized `copack_for`, grading not required of the operands.
+ * Both operands are fully constructed before the operator runs: an error-selection rule, not
+ * short-circuiting. An identity-cluster operand contributes its value and no error term.
+ *
+ * @param lh Left operand
+ * @param rh Right operand
+ * @return An `expected` of the folded value product and the summed error side
+ */
 // When any of the sides is expected<void, ...>, we do not produce expected<pack<...>, ...>
 // Instead just elide void and carry non-void (or elide both voids if that's what we get)
 template <typename Lh, typename Rh>
@@ -2263,6 +2434,21 @@ constexpr inline bool _nothrow_disj_error
 
 } // namespace detail
 
+/**
+ * @brief The disjunction of fallible carriers: values sum into a `copack`, errors multiply into a
+ *        `pack`
+ *
+ * `a | b` fails only if both operands fail: the leftmost engaged operand's value wins, injected
+ * into the sum of the value types - a same-type pair stays bare, and a `void` side enters a
+ * genuine sum as `pack<>` - while the error side is the product of both errors, present only when
+ * every operand failed, all evidence kept positionally. Both operands are fully constructed
+ * before the operator runs: a value-selection rule, not a lazy fallback. An identity-cluster
+ * operand makes the disjunction total, collapsing the result into `just` or `choice`.
+ *
+ * @param lh Left operand
+ * @param rh Right operand
+ * @return An `expected` of the summed value side and the error product
+ */
 // The disjunction: the value channel is the sum of the value types - a same-type pair stays bare,
 // as the conjunction's same-error sum does - and the error channel is the product of both errors,
 // present only when every operand failed, all evidence kept positionally. The leftmost engaged
