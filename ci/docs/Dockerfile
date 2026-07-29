@@ -11,7 +11,7 @@ RUN set -ex ;\
 ARG DEBIAN_VERSION=trixie
 FROM debian:${DEBIAN_VERSION} AS build
 ARG DOXYGEN_RELEASE=1.12.0
-ARG ZNAI_RELEASE=1.73
+ARG ZNAI_RELEASE=1.91
 
 ARG DEBIAN_FRONTEND=noninteractive
 WORKDIR /work
@@ -83,7 +83,7 @@ RUN set -ex ;\
     apt-get update ;\
     apt-get install -y --no-install-recommends \
       ca-certificates gnupg unzip wget vim curl jq \
-      cmake ninja-build binutils libc6-dev git \
+      cmake ninja-build binutils libc6-dev git python3 \
       ${JAVA_VERSION} graphviz  ;\
     bash /work/fetch-node.sh ;\
     rm /work/fetch-node.sh ;\

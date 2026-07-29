@@ -81,7 +81,7 @@ jobs:
           - { mode: cxx23, configuration: Release, compiler: "clang-libstdcxx:22" }
           - { mode: cxx26, configuration: Debug,   compiler: "gcc:16" }
           - { mode: cxx26, configuration: Release, compiler: "gcc:16" }
-    container: libfn.azurecr.io/ci-build-${{ matrix.compiler }}-sha-08b1133
+    container: libfn.azurecr.io/ci-build-${{ matrix.compiler }}-sha-95f599d
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

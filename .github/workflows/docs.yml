@@ -35,7 +35,7 @@ permissions:
 jobs:
   generate_docs:
     runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-2x' || 'ubuntu-latest' }}
-    container: libfn.azurecr.io/ci-docs:sha-08b1133
+    container: libfn.azurecr.io/ci-docs:sha-95f599d
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
