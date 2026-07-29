@@ -1,5 +1,6 @@
 find_package(Doxygen REQUIRED)
 find_package(Znai REQUIRED)
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
 set(DOXYGEN_GENERATE_HTML NO)
 set(DOXYGEN_GENERATE_XML YES)
@@ -34,11 +35,23 @@ doxygen_add_docs(
 )
 add_dependencies(docs_xml docs_stage_include)
 
+# znai reads a staged copy of docs/, which carries a chapter per root document alongside the
+# API reference; the root documents themselves stay whole, and out of the site's source.
+set(docs_staged_source ${CMAKE_BINARY_DIR}/docs_source)
+add_custom_target(docs_stage_source
+    COMMAND ${Python3_EXECUTABLE}
+        "${CMAKE_CURRENT_SOURCE_DIR}/scripts/stage_docs_source.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}"
+        "${docs_staged_source}"
+    COMMENT "Stage docs/ with a chapter per root document"
+    VERBATIM
+)
+
 znai_export_docs(
     export_docs
-    ${CMAKE_CURRENT_SOURCE_DIR}/docs
+    ${docs_staged_source}
     ${CMAKE_BINARY_DIR}/docs
     COMMENT "Export final documentation"
 )
 
-add_dependencies(export_docs docs_xml)
+add_dependencies(export_docs docs_xml docs_stage_source)

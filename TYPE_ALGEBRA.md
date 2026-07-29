@@ -1061,7 +1061,7 @@ Every `fn` type with a `pfn` counterpart is a strict superset of it: switching a
 
 For readers with a background in functional languages (like Haskell or OCaml), this table translates standard terminology to `libfn`'s C++ vocabulary:
 
-| Functional Term | `libfn` Equivalent |
+| Functional Term | libfn Equivalent |
 | --------------- | ------------------ |
 | `fmap` / `map` | `transform` / `transform_error` |
 | `bind` / `>>=` | `and_then` |
