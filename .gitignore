@@ -7,7 +7,7 @@ build/
 .scratch*/
 dist*/
 result*
-__pycache__/**
+__pycache__/
 .cache/
 .devcontainer/
 .venv/

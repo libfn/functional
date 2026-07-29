@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Stage the znai source tree, giving the site a front page and a chapter per root document.
+"""Stage the znai source tree, giving the site a section per root document.
 
-README is the front page, whole: it introduces the library once, and splitting it would scatter
-that introduction. The longer documents become chapters instead — znai renders a directory as a
-chapter and each file in it as a page, so they reach the site split at their `##` boundaries.
-Section numbering stays in the source and never reaches the site: page titles carry the name
-alone, and the prose's `Section N` cross-references become links to the pages they name.
-Repo-relative links, which znai would otherwise resolve as page references and reject, become
-links to the sibling chapter or to the file on GitHub.
+Each section is named for the document it carries, so a reader can tell which file of the
+repository they are reading; its pages keep the document's own titles. znai renders a directory
+as a chapter and each file in it as a page, so a document either stays whole as a single page or
+splits at its `##` boundaries. Section numbering stays in the source and never reaches the site:
+a page carries the name alone, and the prose's `Section N` cross-references become links to the
+pages they name. Repo-relative links, which znai would otherwise resolve as page references and
+reject, become links to the sibling section or to the file on GitHub.
 """
 from __future__ import annotations
 
@@ -20,13 +20,27 @@ import sys
 
 REPO = "https://github.com/libfn/functional"
 
-LANDING = "README.md"
+# The site's sections in order: a root document, the directory carrying it, and whether its `##`
+# sections become pages of their own. README, CONTRIBUTING and LICENSE each read as one piece, so
+# they stay whole; TYPE_ALGEBRA is long enough that its sections navigate better as pages. With no
+# index.md of its own the site gets a generated one, redirecting the root to the first page below
+# — so README needs no second copy to serve as a front page.
+HAND_WRITTEN = None  # where the chapters docs/toc names are threaded into the order
 
-# Root document -> chapter directory. The toc lists LEADING, then the chapters docs/toc names,
-# then TRAILING; znai titles a chapter from its directory, so `type-algebra` reads "Type Algebra".
-LEADING = (("TYPE_ALGEBRA.md", "type-algebra"),)
-TRAILING = (("CONTRIBUTING.md", "contributing"),)
+SECTIONS = (
+    ("README.md", "readme", False),
+    ("TYPE_ALGEBRA.md", "type-algebra", True),
+    ("CONTRIBUTING.md", "contributing", False),
+    HAND_WRITTEN,
+    ("LICENSE.md", "license", False),
+)
+DOCUMENTS = tuple(section for section in SECTIONS if section is not HAND_WRITTEN)
 
+# A line that is nothing but a linked image: a badge, which belongs on the repository page and
+# not on the documentation site.
+BADGE = re.compile(r"^\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)$|^!\[[^\]]*\]\([^)]*\)$")
+
+SUBTITLE = re.compile(r"^\*\*([^*]+)\*\*$")
 NUMBERED = re.compile(r"^\d+\.\s+")
 SECTION_REF = re.compile(r"\bSection (\d+)\b")
 INLINE_LINK = re.compile(r"(?<=\])\((?!\()([^()\s]+)((?:\s+\"[^\"]*\")?)\)")
@@ -59,6 +73,7 @@ def outside_fences(text: str):
 def split(text: str, where: str) -> tuple[str, str, list[tuple[str, str]]]:
     """Split a document into its title, the prose above the first section, and the sections."""
     title = ""
+    subtitle = True
     preamble: list[str] = []
     sections: list[tuple[str, list[str]]] = []
 
@@ -67,6 +82,14 @@ def split(text: str, where: str) -> tuple[str, str, list[tuple[str, str]]]:
             if not title and line.startswith("# "):
                 title = line[2:].strip()
                 continue
+            # A document may follow its heading with a tagline, bold and alone on its line, which
+            # completes the title rather than opening the prose.
+            if title and subtitle and line.strip():
+                match = SUBTITLE.match(line.strip())
+                subtitle = False
+                if match and not sections:
+                    title = f"{title} - {match.group(1)}"
+                    continue
             if line.startswith("## "):
                 sections.append((line[3:].strip(), []))
                 continue
@@ -74,8 +97,6 @@ def split(text: str, where: str) -> tuple[str, str, list[tuple[str, str]]]:
 
     if not title:
         fail(f"{where} has no level-one heading to title its chapter")
-    if not sections:
-        fail(f"{where} has no level-two headings to split into pages")
     return title, "\n".join(preamble).strip(), [(t, "\n".join(b).strip()) for t, b in sections]
 
 
@@ -93,9 +114,7 @@ def target(link: str, page: dict[str, str] | None, chapter: str, repo: pathlib.P
         return f"{chapter}/{page[anchor]}"
 
     path, _, anchor = link.partition("#")
-    if path == LANDING:
-        return "/"
-    for source, elsewhere in LEADING + TRAILING:
+    for source, elsewhere, _split in DOCUMENTS:
         if path == source:
             return f"{elsewhere}/index"
     if not (repo / path).exists():
@@ -132,32 +151,36 @@ def render(body: str, page: dict[str, str] | None, number: dict[str, tuple[str, 
     lines = []
     for _, line, fenced in outside_fences(body):
         if not fenced:
+            if BADGE.match(line.strip()):
+                continue
             if chapter is not None:
                 # The section's own heading became the page title, so its subheadings move up to
                 # take its place in znai's per-page navigation.
                 line = HEADING.sub(lambda m: m.group(1)[1:], line)
             line = outside_code(line, prose)
         lines.append(line)
-    return "\n".join(lines)
-
-
-def landing(source: pathlib.Path, out: pathlib.Path, repo: pathlib.Path) -> None:
-    """Write the front page: the document entire, its headings and anchors left as they are."""
-    if not source.exists():
-        fail(f"{source.name} does not exist")
-    body = render(source.read_text(encoding="utf-8"), None, {}, None, repo)
-    (out / "index.md").write_text(body.strip() + "\n", encoding="utf-8")
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines))
 
 
 def write(path: pathlib.Path, title: str, body: str) -> None:
     path.write_text(f"---\ntitle: {json.dumps(title)}\n---\n\n{body}\n", encoding="utf-8")
 
 
-def chapter(source: pathlib.Path, name: str, out: pathlib.Path, repo: pathlib.Path) -> list[str]:
-    """Write one chapter and report the page names, in order, for the toc."""
+def chapter(source: pathlib.Path, name: str, split_sections: bool,
+            out: pathlib.Path, repo: pathlib.Path) -> list[str]:
+    """Write one chapter and report its page names, in order, for the toc."""
     if not source.exists():
         fail(f"{source.name} does not exist")
     title, preamble, sections = split(source.read_text(encoding="utf-8"), source.name)
+    if split_sections and not sections:
+        fail(f"{source.name} has no level-two headings to split into pages")
+    directory = out / name
+    directory.mkdir(parents=True, exist_ok=True)
+
+    if not split_sections:
+        body = "\n\n".join([preamble] + [f"## {heading}\n\n{text}" for heading, text in sections])
+        write(directory / "index.md", title, render(body, None, {}, None, repo))
+        return ["index"]
 
     # Resolve every name a link may use before rendering any of it: both the anchor GitHub
     # would have produced for the original heading, and the number the prose refers to.
@@ -165,10 +188,7 @@ def chapter(source: pathlib.Path, name: str, out: pathlib.Path, repo: pathlib.Pa
     number = {NUMBERED.match(h).group(0).rstrip(". "): (NUMBERED.sub("", h), slug(NUMBERED.sub("", h)))
               for h, _ in sections if NUMBERED.match(h)}
 
-    directory = out / name
-    directory.mkdir(parents=True, exist_ok=True)
     write(directory / "index.md", title, render(preamble, page, number, name, repo))
-
     names = ["index"]
     for heading, body in sections:
         stripped = NUMBERED.sub("", heading)
@@ -178,13 +198,19 @@ def chapter(source: pathlib.Path, name: str, out: pathlib.Path, repo: pathlib.Pa
 
 
 def toc(out: pathlib.Path, generated: dict[str, list[str]]) -> None:
-    """Rebuild the toc with the generated chapters around the ones docs/toc names."""
+    """Rebuild the toc with the generated chapters ahead of the ones docs/toc names."""
+    hand_written = (out / "toc").read_text(encoding="utf-8").strip().splitlines()
     lines = []
-    for _, name in LEADING:
-        lines += [name] + [f"    {page}" for page in generated[name]]
-    lines += (out / "toc").read_text(encoding="utf-8").strip().splitlines()
-    for _, name in TRAILING:
-        lines += [name] + [f"    {page}" for page in generated[name]]
+    for section in SECTIONS:
+        if section is HAND_WRITTEN:
+            lines += hand_written
+            continue
+        source, name, _split = section
+        # A section is named for the document it carries, so a reader browsing the site can tell
+        # which file of the repository they are reading; the pages keep the document's own titles.
+        title = pathlib.Path(source).stem.replace("_", " ")
+        lines += [f"{name} {{title: {json.dumps(title)}}}"]
+        lines += [f"    {page}" for page in generated[name]]
     (out / "toc").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -205,9 +231,8 @@ def main() -> None:
     (out / "lookup-paths").write_text(
         "".join(f"{(repo / 'docs' / path).resolve()}\n" for path in paths), encoding="utf-8")
 
-    landing(repo / LANDING, out, repo)
-    generated = {name: chapter(repo / source, name, out, repo)
-                 for source, name in LEADING + TRAILING}
+    generated = {name: chapter(repo / source, name, split_sections, out, repo)
+                 for source, name, split_sections in DOCUMENTS}
     toc(out, generated)
 
 

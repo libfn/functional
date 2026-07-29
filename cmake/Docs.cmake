@@ -24,6 +24,8 @@ macro(znai_export_docs TARGET SOURCE_DIR DEPLOY_DIR)
     add_custom_target(
         ${TARGET}
         COMMAND ${Znai} --source ${SOURCE_DIR} --deploy ${DEPLOY_DIR} --doc-id '""' --lookup-paths ${CMAKE_BINARY_DIR}
+        COMMAND ${Python3_EXECUTABLE}
+            "${CMAKE_CURRENT_SOURCE_DIR}/scripts/fix_site_urls.py" "${DEPLOY_DIR}"
         COMMENT "Exporting documentation to ${DEPLOY_DIR}"
     )
 endmacro()

@@ -1,6 +1,6 @@
-# functional
+# libfn
 
-Functional programming in C++
+**Functional programming in C++**
 
 [![codecov](https://codecov.io/gh/libfn/functional/graph/badge.svg?token=3RHT38SEU0)](https://codecov.io/gh/libfn/functional)
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Flibfn%2Ffunctional.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Flibfn%2Ffunctional?ref=badge_shield)
@@ -181,6 +181,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the development environment, building
 * [Ripple][ripple], for allowing the main author the time to work on this library
 
 ## License
+
+Distributed under the ISC License; see [LICENSE.md](LICENSE.md) for the terms.
 
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Flibfn%2Ffunctional.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Flibfn%2Ffunctional?ref=badge_large)
 
