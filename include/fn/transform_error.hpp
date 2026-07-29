@@ -16,10 +16,10 @@
 namespace fn {
 inline namespace LIBFN_VERSION {
 /**
- * @brief TODO
+ * @brief Checks if the monadic type can be used with the `transform_error` operation
  *
- * @tparam Fn TODO
- * @tparam V TODO
+ * @tparam Fn The function to execute on the error
+ * @tparam V The monadic type
  */
 template <typename Fn, typename V>
 concept applicable_transform_error //
@@ -32,14 +32,21 @@ concept applicable_transform_error //
       });
 
 /**
- * @brief TODO
+ * @brief Map the error of the `expected`, keeping the carrier's shape
+ *
+ * The operation that narrows a graded error set: over a graded (copack) error side the matching is
+ * exhaustive, so the branches may map diverse alternatives into one common type - the grade
+ * collapses to its singular copack - or into a narrower copack. Rejected on `optional`, which has
+ * no error value to map; on the identity `expected` it is vacuous - well-formed, with the callback
+ * neither invoked nor instantiated.
+ *
+ * Use through the `fn::transform_error` nielbloid.
  */
 constexpr inline struct transform_error_t final {
   /**
-   * @brief TODO
-   *
-   * @param fn TODO
-   * @return TODO
+   * @brief Map the error of the `expected`, keeping the carrier's shape
+   * @param fn The function to execute on the error
+   * @return A functor that will execute the function on the error
    */
   [[nodiscard]] constexpr auto operator()(auto &&fn) const
       noexcept(noexcept(functor<transform_error_t, decltype(fn)>{FWD(fn)}))
@@ -51,16 +58,13 @@ constexpr inline struct transform_error_t final {
   struct apply;
 } transform_error = {};
 
-/**
- * @brief TODO
- */
 struct transform_error_t::apply final {
   /**
-   * @brief TODO
+   * @brief Maps the error through the carrier's own `transform_error` member
    *
-   * @param v TODO
-   * @param fn TODO
-   * @return TODO
+   * @param v The monad
+   * @param fn The function to apply
+   * @return An `expected` with the same value side and the mapped error side
    */
   template <some_expected V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const noexcept(noexcept(FWD(v).transform_error(FWD(fn))))
@@ -70,13 +74,6 @@ struct transform_error_t::apply final {
     return FWD(v).transform_error(FWD(fn));
   }
 
-  /**
-   * @brief TODO
-   *
-   * @param v TODO
-   * @param fn TODO
-   * @return TODO
-   */
   // An identity expected's error side is uninhabited - delegate to the vacuous member, which
   // accepts any callback and never instantiates it
   template <some_expected V, typename Fn>

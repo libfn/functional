@@ -23,25 +23,28 @@ namespace fn {
 inline namespace LIBFN_VERSION {
 
 /**
- * @brief TODO
+ * @brief Checks if a type is a `copack` (with any alternatives, including none)
  *
- * @tparam T TODO
+ * @tparam T Type to check, possibly cv-ref qualified
  */
 template <typename T>
 concept some_copack = detail::_some_copack<T>;
 
 /**
- * @brief TODO
+ * @brief Checks if a type is the empty `copack<>` - the uninhabited zero
  *
- * @tparam T TODO
+ * A carrier side of this type is statically known never to hold a value, which is what renders
+ * the operations over that side vacuous.
+ *
+ * @tparam T Type to check, possibly cv-ref qualified
  */
 template <typename T>
 concept empty_copack = some_copack<T> && (::std::remove_cvref_t<T>::size == 0);
 
 /**
- * @brief TODO
+ * @brief Checks if a type is a `std::in_place_type_t` tag
  *
- * @tparam T TODO
+ * @tparam T Type to check, possibly cv-ref qualified
  */
 template <typename T>
 concept some_in_place_type = detail::_some_in_place_type<T>;
@@ -224,14 +227,26 @@ struct _copack_invoke_type_result<_collapsing_copack_tag, Fn, Self, Args...> fin
 } // namespace detail
 
 /**
- * @brief TODO
+ * @brief The canonical coproduct payload: exactly one alternative is present
  *
- * @tparam Ts TODO
+ * A discriminated union indexed by type, not by position. The alternatives are required to be
+ * flat, unique and sorted in the library's total order over types, and an instantiation that
+ * diverges - out of order, duplicated, or nested - is ill-formed; spell `copack_for`, which
+ * normalizes any list into the canonical form, rather than name that order by hand. Every
+ * evaluation of a copack is an exhaustive dispatch: a callback set missing any alternative is
+ * rejected at compile time. A structural type when its alternatives are.
+ *
+ * @tparam Ts The alternatives - flat, unique and sorted in the canonical order
  */
 template <typename... Ts> struct copack;
 
 /**
- * @brief A unit of copack<> monoid, cannot be created but offers useful static functions and can be put in an union
+ * @brief The empty copack: the algebra's zero, uninhabited by construction
+ *
+ * The deleted default constructor is the whole point: no value of this type can ever exist, so a
+ * carrier side declared `copack<>` is statically known never to be engaged. As the identity of
+ * the union it vanishes inside `copack_for`; the remaining special members are kept so that the
+ * type can sit inside a union storage.
  */
 template <> struct copack<> final {
   constexpr copack() noexcept = delete; // NOTE, `= delete` here is the whole point
@@ -246,9 +261,13 @@ template <> struct copack<> final {
 };
 
 /**
- * @brief TODO
+ * @brief The storage and operations of a non-empty copack
  *
- * @tparam Ts TODO
+ * Holds one alternative in a variadic union together with its index. The special members are
+ * exactly as trivial, available and nothrow as the alternatives permit; mutation follows the
+ * standard's reinit discipline, with the strong exception guarantee and no valueless state.
+ *
+ * @tparam Ts The alternatives - flat, unique and sorted in the canonical order
  */
 template <typename... Ts>
   requires(sizeof...(Ts) > 0)
@@ -304,16 +323,16 @@ struct copack<Ts...> {
              && ::std::is_trivially_destructible_v<Ts>));
 
   /**
-   * @brief TODO
+   * @brief The `I`-th alternative in the canonical order
    *
-   * @tparam Ts I
+   * @tparam I Index of the alternative
    */
   template <::std::size_t I> using select_nth = detail::select_nth_t<I, Ts...>;
 
   /**
-   * @brief TODO
+   * @brief Checks if `T` is one of the alternatives
    *
-   * @tparam T TODO
+   * @tparam T Type to look for
    */
   template <typename T> static constexpr bool has_type = data_t::template has_type<T>;
 
@@ -356,10 +375,12 @@ struct copack<Ts...> {
   }
 
   /**
-   * @brief TODO
+   * @brief Constructs the alternative matching the value's decayed type
    *
-   * @tparam T TODO
-   * @param v TODO
+   * Takes a value of exactly one alternative: a merely convertible non-alternative is rejected,
+   * so interconvertible alternatives never make a resolution puzzle.
+   *
+   * @param v Value of one alternative
    */
   template <typename T>
   constexpr copack(T &&v) // NOSONAR cpp:S1709,S6458 implicit arm of the explicit pair; has_type excludes self
@@ -372,10 +393,10 @@ struct copack<Ts...> {
   }
 
   /**
-   * @brief TODO
+   * @brief Constructs the alternative matching the value's decayed type, where that conversion is
+   *        explicit
    *
-   * @tparam T TODO
-   * @param v TODO
+   * @param v Value of one alternative
    */
   template <typename T>
   constexpr explicit copack(T &&v) // NOSONAR cpp:S6458 has_type excludes self
@@ -388,10 +409,10 @@ struct copack<Ts...> {
   }
 
   /**
-   * @brief TODO
+   * @brief Constructs the alternative `T` in place from the arguments
    *
-   * @tparam T TODO
-   * @param args TODO
+   * @tparam T The alternative to construct
+   * @param args Arguments to construct the alternative from
    */
   template <typename T>
   constexpr explicit copack(::std::in_place_type_t<T>,
@@ -402,10 +423,12 @@ struct copack<Ts...> {
   }
 
   /**
-   * @brief TODO
+   * @brief Widening constructor from a copack over a subset of the alternatives
    *
-   * @tparam Tx TODO
-   * @param arg TODO
+   * The active alternative relocates into this copack; implicit, as the subset-to-superset
+   * direction can never lose information.
+   *
+   * @param arg The narrower copack
    */
   template <typename... Tx>
   constexpr copack(copack<Tx...> const &arg) // NOSONAR cpp:S1709 implicit widening by design
@@ -421,12 +444,6 @@ struct copack<Ts...> {
   {
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Tx TODO
-   * @param arg TODO
-   */
   template <typename... Tx>
   constexpr copack(copack<Tx...> &&arg) // NOSONAR cpp:S1709 implicit widening by design
       noexcept((... && detail::_nothrow_makeable<data_t, Tx, Tx>))
@@ -442,10 +459,9 @@ struct copack<Ts...> {
   }
 
   /**
-   * @brief TODO
+   * @brief Widening constructor from a copack whose type is spelled as a tag
    *
-   * @tparam Tx TODO
-   * @param arg TODO
+   * @param arg The narrower copack
    */
   template <typename... Tx>
   constexpr copack(::std::in_place_type_t<copack<Tx...>>, some_copack auto &&arg) //
@@ -462,9 +478,9 @@ struct copack<Ts...> {
   }
 
   /**
-   * @brief TODO
+   * @brief Copy constructor; trivial where every alternative's is
    *
-   * @param other TODO
+   * @param other The copack to copy from
    */
   constexpr copack(copack const &other)
     requires _trivially_copy_constructible
@@ -481,9 +497,9 @@ struct copack<Ts...> {
   }
 
   /**
-   * @brief TODO
+   * @brief Move constructor; trivial where every alternative's is
    *
-   * @param other TODO
+   * @param other The copack to move from
    */
   constexpr copack(copack &&other)
     requires _trivially_move_constructible
@@ -579,8 +595,8 @@ struct copack<Ts...> {
   /**
    * @brief Copy assignment, with the strong exception guarantee
    *
-   * @param other TODO
-   * @return TODO
+   * @param other The copack to copy from
+   * @return Reference to `*this`
    */
   // Assignment requires of every alternative its own `operator=`, and uses it when the incoming
   // alternative is the one already held; a different alternative is replaced by construction, as
@@ -610,8 +626,8 @@ struct copack<Ts...> {
   /**
    * @brief Move assignment, with the strong exception guarantee
    *
-   * @param other TODO
-   * @return TODO
+   * @param other The copack to move from
+   * @return Reference to `*this`
    */
   // The nothrow move construction is still demanded - `_reinit`'s replacement arm and `_reassign`'s
   // snapshot both rest on it - but the operator itself is only as nothrow as the alternatives' own
@@ -640,8 +656,8 @@ struct copack<Ts...> {
   /**
    * @brief Widening copy assignment from a copack over a subset of the alternatives
    *
-   * @param arg TODO
-   * @return TODO
+   * @param arg The narrower copack
+   * @return Reference to `*this`
    */
   // Constrained on the alternatives the source can actually deliver, like the widening
   // constructors: routing through construction and same-type assignment would let an uninvolved
@@ -670,8 +686,8 @@ struct copack<Ts...> {
   /**
    * @brief Widening move assignment from a copack over a subset of the alternatives
    *
-   * @param arg TODO
-   * @return TODO
+   * @param arg The narrower copack
+   * @return Reference to `*this`
    */
   template <typename... Tx>
   constexpr copack &operator=(copack<Tx...> &&arg) //
@@ -692,8 +708,8 @@ struct copack<Ts...> {
   /**
    * @brief Assignment from a value of one alternative, with the strong exception guarantee
    *
-   * @param v TODO
-   * @return TODO
+   * @param v Value of one alternative
+   * @return Reference to `*this`
    */
   // Takes a value of exactly one alternative, as the converting constructors do - never
   // std::variant's converting-assignment resolution, so a convertible non-alternative stays
@@ -719,8 +735,8 @@ struct copack<Ts...> {
    * @brief Destroys the alternative held and constructs a `T` from the arguments, with the strong
    *        exception guarantee
    *
-   * @tparam T TODO
-   * @param args TODO
+   * @tparam T The alternative to construct
+   * @param args Arguments to construct the new alternative from
    * @return Reference to the new alternative
    */
   // The mutation path for alternatives that do not support assignment: destroy-and-reconstruct,
@@ -741,10 +757,10 @@ struct copack<Ts...> {
   }
 
   /**
-   * @brief TODO
+   * @brief Checks if `T` is the active alternative
    *
-   * @tparam T TODO
-   * @return TODO
+   * @tparam T The alternative to ask about
+   * @return Whether `T` is the alternative held
    */
   template <typename T>
     requires has_type<T>
@@ -756,10 +772,13 @@ struct copack<Ts...> {
   }
 
   /**
-   * @brief TODO
+   * @brief Pointer to the alternative `T`, or `nullptr` where it is not the one held
    *
-   * @tparam T TODO
-   * @return TODO
+   * The escape hatch for direct access: unlike `apply`, no dispatch and no exhaustiveness - the
+   * caller names one alternative and tests the result.
+   *
+   * @tparam T The alternative to access
+   * @return Pointer to the alternative, or `nullptr`
    */
   template <typename T>
     requires has_type<T>
@@ -768,12 +787,6 @@ struct copack<Ts...> {
     return has_value(::std::in_place_type<T>) ? detail::ptr_variadic_union<T, data_t>(data) : nullptr;
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam T TODO
-   * @return TODO
-   */
   template <typename T>
     requires has_type<T>
   [[nodiscard]] constexpr T const *get_ptr(::std::in_place_type_t<T> = ::std::in_place_type<T>) const noexcept
@@ -782,13 +795,16 @@ struct copack<Ts...> {
   }
 
   /**
-   * @brief TODO
+   * @brief Eliminates the copack: the active alternative routes into the callable
    *
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
+   * The dispatch is exhaustive - every alternative must have a viable arm, selected by ordinary
+   * overload resolution - and the result type is deduced, so all alternatives must yield the same
+   * one; `apply_r` serves where they differ. A tuple-like alternative is unpacked one level into
+   * its elements, and trailing arguments follow the content.
+   *
+   * @param fn Callable applied on the active alternative; `fn::overload` fuses arms into one
+   * @param args Additional arguments, appended after the alternative's content
+   * @return The callable's result
    */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply(Fn &&fn, Args &&...args) & noexcept(
@@ -802,15 +818,6 @@ struct copack<Ts...> {
     return detail::apply_variadic_union<type, data_t>(this->data, index, FWD(fn), FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply(Fn &&fn, Args &&...args) const & noexcept(
       detail::_is_nothrow_rts_applicable<
@@ -823,15 +830,6 @@ struct copack<Ts...> {
     return detail::apply_variadic_union<type, data_t>(this->data, index, FWD(fn), FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply(Fn &&fn, Args &&...args) && noexcept(
       detail::_is_nothrow_rts_applicable<
@@ -844,15 +842,6 @@ struct copack<Ts...> {
     return detail::apply_variadic_union<type, data_t>(::std::move(*this).data, index, FWD(fn), FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply(Fn &&fn, Args &&...args) const && noexcept(
       detail::_is_nothrow_rts_applicable<typename detail::_copack_apply_result<detail::_apply_autodetect_tag, Fn &&,
@@ -866,14 +855,16 @@ struct copack<Ts...> {
   }
 
   /**
-   * @brief TODO
+   * @brief Eliminates the copack, converting each branch's result to `Ret`
    *
-   * @tparam Ret TODO
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
+   * The escape from result-type convergence: every alternative converts implicitly into its
+   * parent copack, so `apply_r` targeting a `copack_for` of the branch results accepts branches
+   * that disagree.
+   *
+   * @tparam Ret Type the results convert to
+   * @param fn Callable applied on the active alternative; `fn::overload` fuses arms into one
+   * @param args Additional arguments, appended after the alternative's content
+   * @return The callable's result, converted to `Ret`
    */
   template <typename Ret, typename Fn, typename... Args>
   [[nodiscard]] constexpr auto
@@ -885,16 +876,6 @@ struct copack<Ts...> {
     return detail::apply_variadic_union<type, data_t>(this->data, index, FWD(fn), FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Ret TODO
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename Ret, typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply_r(Fn &&fn, Args &&...args) const & noexcept(
       detail::_is_nothrow_rts_applicable<Ret, Fn &&, copack const &, Args &&...>) -> Ret
@@ -904,16 +885,6 @@ struct copack<Ts...> {
     return detail::apply_variadic_union<type, data_t>(this->data, index, FWD(fn), FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Ret TODO
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename Ret, typename Fn, typename... Args>
   [[nodiscard]] constexpr auto
   apply_r(Fn &&fn, Args &&...args) && noexcept(detail::_is_nothrow_rts_applicable<Ret, Fn &&, copack &&, Args &&...>)
@@ -924,16 +895,6 @@ struct copack<Ts...> {
     return detail::apply_variadic_union<type, data_t>(::std::move(*this).data, index, FWD(fn), FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Ret TODO
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename Ret, typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply_r(Fn &&fn, Args &&...args) const && noexcept(
       detail::_is_nothrow_rts_applicable<Ret, Fn &&, copack const &&, Args &&...>) -> Ret
@@ -944,13 +905,16 @@ struct copack<Ts...> {
   }
 
   /**
-   * @brief TODO
+   * @brief Eliminates the copack, keyed by the alternative's type
    *
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
+   * The active arm receives `std::in_place_type<T>` for the alternative held, followed by its
+   * content - a tuple-like alternative's elements form is the row's one signature - so the handler
+   * knows which injection placed the value, even where C++'s implicit conversions would conflate
+   * the payloads.
+   *
+   * @param fn Callable applied on the tag and the alternative's content
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result
    */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply_type(Fn &&fn, Args &&...args) & noexcept(
@@ -968,15 +932,6 @@ struct copack<Ts...> {
                                                             FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply_type(Fn &&fn, Args &&...args) const & noexcept(
       detail::_is_nothrow_rtst_invocable<
@@ -993,15 +948,6 @@ struct copack<Ts...> {
                                                             FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply_type(Fn &&fn, Args &&...args) && noexcept(
       detail::_is_nothrow_rtst_invocable<
@@ -1018,15 +964,6 @@ struct copack<Ts...> {
                                                             detail::_apply_type_fn<Fn>{FWD(fn)}, FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply_type(Fn &&fn, Args &&...args) const && noexcept(
       detail::_is_nothrow_rtst_invocable<
@@ -1044,14 +981,12 @@ struct copack<Ts...> {
   }
 
   /**
-   * @brief TODO
+   * @brief Eliminates the copack, keyed by the alternative's type, converting the result to `Ret`
    *
-   * @tparam Ret TODO
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
+   * @tparam Ret Type the results convert to
+   * @param fn Callable applied on the tag and the alternative's content
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result, converted to `Ret`
    */
   template <typename Ret, typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply_type_r(Fn &&fn, Args &&...args) & noexcept(
@@ -1063,16 +998,6 @@ struct copack<Ts...> {
                                                             FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Ret TODO
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename Ret, typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply_type_r(Fn &&fn, Args &&...args) const & noexcept(
       detail::_is_nothrow_rtst_invocable<Ret, detail::_apply_type_fn<Fn>, copack const &, Args &&...>) -> Ret
@@ -1083,16 +1008,6 @@ struct copack<Ts...> {
                                                             FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Ret TODO
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename Ret, typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply_type_r(Fn &&fn, Args &&...args) && noexcept(
       detail::_is_nothrow_rtst_invocable<Ret, detail::_apply_type_fn<Fn>, copack &&, Args &&...>) -> Ret
@@ -1103,16 +1018,6 @@ struct copack<Ts...> {
                                                             detail::_apply_type_fn<Fn>{FWD(fn)}, FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Ret TODO
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename Ret, typename Fn, typename... Args>
   [[nodiscard]] constexpr auto apply_type_r(Fn &&fn, Args &&...args) const && noexcept(
       detail::_is_nothrow_rtst_invocable<Ret, detail::_apply_type_fn<Fn>, copack const &&, Args &&...>) -> Ret
@@ -1124,13 +1029,15 @@ struct copack<Ts...> {
   }
 
   /**
-   * @brief TODO
+   * @brief Maps the alternatives, the branch results forming a new normalized copack
    *
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
+   * The self-flattening map: the callable is dispatched exhaustively, and the branch results -
+   * heterogeneous types allowed, a copack result dissolving into the set - flatten, deduplicate
+   * and sort into the `copack_for` of them all.
+   *
+   * @param fn Callable applied on the active alternative; `fn::overload` fuses arms into one
+   * @param args Additional arguments, appended after the alternative's content
+   * @return A copack of the normalized branch-result set, holding the active branch's result
    */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto transform(Fn &&fn, Args &&...args) & noexcept(
@@ -1144,15 +1051,6 @@ struct copack<Ts...> {
     return detail::apply_variadic_union<type, data_t>(this->data, index, FWD(fn), FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto transform(Fn &&fn, Args &&...args) const & noexcept(
       detail::_is_nothrow_rts_applicable<typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&,
@@ -1165,15 +1063,6 @@ struct copack<Ts...> {
     return detail::apply_variadic_union<type, data_t>(this->data, index, FWD(fn), FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto transform(Fn &&fn, Args &&...args) && noexcept(
       detail::_is_nothrow_rts_applicable<
@@ -1186,15 +1075,6 @@ struct copack<Ts...> {
     return detail::apply_variadic_union<type, data_t>(::std::move(*this).data, index, FWD(fn), FWD(args)...);
   }
 
-  /**
-   * @brief TODO
-   *
-   * @tparam Fn TODO
-   * @tparam Args TODO
-   * @param fn TODO
-   * @param args TODO
-   * @return TODO
-   */
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto transform(Fn &&fn, Args &&...args) const && noexcept(
       detail::_is_nothrow_rts_applicable<typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&,
@@ -1226,10 +1106,12 @@ constexpr inline bool _nothrow_copack_lift<Src>
 
 // Lifts
 /**
- * @brief TODO
+ * @brief Lifts a value into a singular copack, decaying
  *
- * @param src TODO
- * @return TODO
+ * Unlike `as_pack`, always by value: a copack alternative can never be a reference.
+ *
+ * @param src Value to lift
+ * @return A `copack` over the decayed type of `src`, holding it
  */
 [[nodiscard]] constexpr auto as_copack(auto &&src) //
     noexcept(detail::_nothrow_copack_lift<decltype(src)>) -> decltype(auto)
@@ -1239,10 +1121,11 @@ constexpr inline bool _nothrow_copack_lift<Src>
 }
 
 /**
- * @brief TODO
+ * @brief Lifts arguments into a singular copack of `T`, constructed in place
  *
- * @param src TODO
- * @return TODO
+ * @tparam T The sole alternative
+ * @param args Arguments to construct the alternative from
+ * @return `copack<T>` holding the alternative
  */
 template <typename T>
 [[nodiscard]] constexpr auto as_copack(::std::in_place_type_t<T>, auto &&...args) //
@@ -1254,13 +1137,14 @@ template <typename T>
 }
 
 /**
- * @brief TODO
+ * @brief Compares two copacks: equal when they hold the same alternative type with equal values
  *
- * @tparam Ts TODO
- * @tparam Tx TODO
- * @param lh TODO
- * @param rh TODO
- * @return TODO
+ * The copacks need not have the same alternative sets: an alternative the other side cannot hold
+ * compares unequal without being compared - and need not even be equality-comparable.
+ *
+ * @param lh Left copack
+ * @param rh Right copack
+ * @return Whether the active alternatives are the same type with equal values
  */
 template <typename... Ts, typename... Tx>
 [[nodiscard]] constexpr bool operator==(copack<Ts...> const &lh, copack<Tx...> const &rh) //
@@ -1281,9 +1165,14 @@ template <typename... Ts, typename... Tx>
 // operator=='s constraints and the two cannot drift apart.
 
 /**
- * @brief TODO
+ * @brief Builds the canonical `copack` for any list of types
  *
- * @tparam Ts TODO
+ * The user-facing construction alias: flattens nested copacks, deduplicates, and sorts into the
+ * library's canonical order, resolving to the one valid `copack` - in an API signature the two
+ * are the same type. Spell `copack_for` rather than `copack`, so that no spelling in your project
+ * is tied to one compiler's alternative order.
+ *
+ * @tparam Ts Types to combine - alternatives and copacks of them, in any order, duplicates allowed
  */
 template <typename... Ts>
 using copack_for

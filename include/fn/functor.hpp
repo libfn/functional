@@ -20,10 +20,15 @@
 namespace fn {
 inline namespace LIBFN_VERSION {
 /**
- * @brief TODO
+ * @brief A pipeline step waiting for a carrier: the verb and its arguments as one value
  *
- * @tparam Functor TODO
- * @tparam Args TODO
+ * What a verb call such as `fn::and_then(f)` returns - a description of the operation, executed
+ * only when a carrier is piped into it with `operator|`. The arguments are stored as `as_value_t`
+ * prescribes: rvalues by value, non-empty lvalues - an immovable callable among them - by
+ * reference.
+ *
+ * @tparam Functor The verb, such as `fn::and_then_t`
+ * @tparam Args The verb's arguments as deduced, typically the callback
  */
 template <typename Functor, typename... Args> struct functor final {
   using functor_type = Functor;
@@ -36,11 +41,11 @@ template <typename Functor, typename... Args> struct functor final {
                 && ::std::is_default_constructible_v<functor_type> && ::std::is_default_constructible_v<functor_apply>);
 
   /**
-   * @brief TODO
+   * @brief Feeds a carrier into the pipeline step
    *
-   * @param v TODO
-   * @param self TODO
-   * @return TODO
+   * @param v The carrier, in any value category
+   * @param self The step - this `functor`
+   * @return Whatever the verb's `apply` returns for this carrier and the stored arguments
    */
   // The pipeline propagates what the operation itself promises: the verb's `apply` knows, and
   // `_swap_invoke` carries that answer up. Promising `noexcept` here regardless would turn an
