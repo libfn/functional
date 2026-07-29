@@ -69,22 +69,69 @@ constexpr decltype(auto) _apply_impl(Fn &&fn, Tuple &&t, ::std::index_sequence<I
 
 } // namespace detail
 
-// [meta.rel] and [meta.trans.other], as adopted for C++26 by P1317R2
+/**
+ * @brief Checks if `Fn` is invocable with the elements of the tuple-like `Tuple`
+ *
+ * `std::is_applicable` as adopted for C++26 by P1317R2 ([meta.rel]), for C++20 compilers.
+ * `Tuple` must be one of the enumerated tuple-like specializations ([tuple.like]); where the
+ * underlying standard library does not provide `std::complex`'s C++26 tuple protocol (P2819),
+ * a `std::complex` operand answers `false` rather than failing to compile.
+ *
+ * @tparam Fn Callable to probe
+ * @tparam Tuple Tuple-like operand type, possibly cv-ref qualified
+ */
 template <typename Fn, typename Tuple>
 struct is_applicable : ::std::bool_constant<detail::_apply_traits<Fn, Tuple>::_applicable> {};
+/**
+ * @brief Variable form of `pfn::is_applicable`
+ */
 template <typename Fn, typename Tuple> constexpr inline bool is_applicable_v = is_applicable<Fn, Tuple>::value;
 
+/**
+ * @brief Checks if the `pfn::is_applicable` invocation is additionally known not to throw
+ *
+ * `std::is_nothrow_applicable` as adopted for C++26 by P1317R2 ([meta.rel]), for C++20 compilers.
+ *
+ * @tparam Fn Callable to probe
+ * @tparam Tuple Tuple-like operand type, possibly cv-ref qualified
+ */
 template <typename Fn, typename Tuple>
 struct is_nothrow_applicable : ::std::bool_constant<detail::_apply_traits<Fn, Tuple>::_nothrow> {};
+/**
+ * @brief Variable form of `pfn::is_nothrow_applicable`
+ */
 template <typename Fn, typename Tuple>
 constexpr inline bool is_nothrow_applicable_v = is_nothrow_applicable<Fn, Tuple>::value;
 
+/**
+ * @brief The result type of applying `Fn` to the elements of the tuple-like `Tuple`
+ *
+ * `std::apply_result` as adopted for C++26 by P1317R2 ([meta.trans.other]), for C++20 compilers.
+ * SFINAE-friendly: no member `type` where `pfn::is_applicable` answers `false`.
+ *
+ * @tparam Fn Callable to probe
+ * @tparam Tuple Tuple-like operand type, possibly cv-ref qualified
+ */
 template <typename Fn, typename Tuple> struct apply_result : detail::_apply_traits<Fn, Tuple>::_apply_result {};
+/**
+ * @brief Alias form of `pfn::apply_result`
+ */
 template <typename Fn, typename Tuple> using apply_result_t = typename apply_result<Fn, Tuple>::type;
 
-// [tuple.apply] in its C++26 shape: the declared return type makes the overload SFINAE-friendly
-// where C++20's deduced return is a hard error outside the immediate context, and the exception
-// specification is the trait's answer.
+/**
+ * @brief Invokes a callable with a tuple-like operand's elements as its arguments:
+ *        `std::apply` in its C++26 shape ([tuple.apply]), for C++20 compilers
+ *
+ * The C++26 revision (P1317R2) declares the return type as `apply_result_t` - making the
+ * overload SFINAE-friendly where a deduced return is a hard error outside the immediate
+ * context - and derives the exception specification from `is_nothrow_applicable`; both are
+ * provided here. Accepts the enumerated tuple-like types ([tuple.like]), not the general
+ * tuple protocol.
+ *
+ * @param fn Callable to invoke
+ * @param t Tuple-like operand supplying the arguments
+ * @return The callable's result
+ */
 template <typename Fn, detail::_tuple_like Tuple>
 constexpr apply_result_t<Fn, Tuple> apply(Fn &&fn, Tuple &&t) noexcept(is_nothrow_applicable_v<Fn, Tuple>)
 {

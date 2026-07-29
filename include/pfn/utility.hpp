@@ -11,6 +11,13 @@
 namespace pfn {
 inline namespace LIBFN_VERSION_BASE {
 
+/**
+ * @brief Marks a point of provably unreachable control flow: `std::unreachable` as specified
+ *        for C++23 ([utility.undefined]), for C++20 compilers
+ *
+ * Reaching a call is undefined behaviour; the implementation is the compiler's own
+ * unreachability intrinsic, so the optimizer may assume every path to the call site is dead.
+ */
 // LCOV_EXCL_START unreachable by design
 [[noreturn]] inline void unreachable()
 {

@@ -52,7 +52,12 @@ inline namespace LIBFN_VERSION_BASE {
 // [expected.bad], class template bad_expected_access
 template <class E> class bad_expected_access;
 
-// [expected.bad.void], specialization for void
+/**
+ * @brief The base exception type of every failed `expected` value access ([expected.bad.void])
+ *
+ * Thrown only as a `bad_expected_access<E>`; this specialization for `void` is the common base,
+ * for handlers that do not care about the error type.
+ */
 template <> class bad_expected_access<void> : public ::std::exception {
 protected:
   bad_expected_access() noexcept = default;
@@ -70,7 +75,14 @@ public:
   }
 };
 
-// [expected.bad], primary template
+/**
+ * @brief The exception thrown when `expected::value()` is called on an object holding an error
+ *        ([expected.bad])
+ *
+ * Carries a copy of that error, exposed through `error()`.
+ *
+ * @tparam E Type of the carried error value
+ */
 template <class E> class bad_expected_access : public bad_expected_access<void> {
 public:
   explicit bad_expected_access(E e) : e_(::std::move(e)) {}
@@ -84,7 +96,10 @@ private:
   E e_; // NOSONAR cpp:S6226 MSVC ignores the attribute
 };
 
-// [expected.syn], unexpect_t disambiguation tag
+/**
+ * @brief Disambiguation tag selecting an `expected`'s error side in construction and emplacement
+ *        ([expected.syn]); passed as the `pfn::unexpect` value
+ */
 constexpr inline struct unexpect_t {
   explicit unexpect_t() = default;
 } unexpect{};
@@ -122,7 +137,16 @@ constexpr inline struct _expected_from_invoke_t {
 } _expected_from_invoke{};
 } // namespace detail
 
-// [expected.unexpected], class template unexpected
+/**
+ * @brief The wrapper marking a value as an error: `std::unexpected` as specified for C++26
+ *        ([expected.unexpected])
+ *
+ * Wraps `E` so that constructing or assigning an `expected` from it selects the error side.
+ * Deviation: `operator==` carries a `noexcept` specification derived from `E` where the standard
+ * leaves one unstated, marked `// extension` inline.
+ *
+ * @tparam E Type of the wrapped error value
+ */
 template <class E> class unexpected {
   static_assert(detail::_is_valid_unexpected<E>);
 
@@ -1122,6 +1146,22 @@ struct expected_policy {
 
 } // namespace detail
 
+/**
+ * @brief `std::expected` in its C++26 shape: a computation yielding a success `T` or an error `E`
+ *
+ * A polyfill for C++20 compilers, tracking the C++ working draft: members are as
+ * [expected.object] specifies them, including changes accepted beyond C++26 (`has_error`,
+ * P3798). Deliberate deviations:
+ * - a `noexcept` specification is derived from `T`, `E` and the callable arguments wherever the
+ *   standard leaves one unstated; each such clause is marked `// extension` inline;
+ * - the draft's hardened preconditions are checked by an assertion, customizable by defining
+ *   `LIBFN_ASSERT` before inclusion;
+ * - the comparison against a value is declared at namespace scope, not as the specified hidden
+ *   friend, keeping its constraint deducible.
+ *
+ * @tparam T Type of the success value; `void` selects the specialization
+ * @tparam E Type of the error value
+ */
 template <class T, class E> class expected : private detail::_expected_base<T, E, detail::expected_policy> {
   static_assert(detail::_is_valid_expected<T, E>);
   using _base = detail::_expected_base<T, E, detail::expected_policy>;
@@ -1478,6 +1518,15 @@ private:
   }
 };
 
+/**
+ * @brief The `std::expected` partial specialization for `void` success: a computation yielding
+ *        either nothing (success) or an error `E`
+ *
+ * Members are as [expected.void] specifies them; the `noexcept` and assertion deviations listed
+ * on the primary template apply here equally.
+ *
+ * @tparam E Type of the error value
+ */
 template <class E> class expected<void, E> : private detail::_expected_base<void, E, detail::expected_policy> {
   static_assert(detail::_is_valid_unexpected<E>);
   using _base = detail::_expected_base<void, E, detail::expected_policy>;
@@ -1769,6 +1818,13 @@ private:
   }
 };
 
+/**
+ * @brief Compares an `expected` against a value ([expected.object.eq]): true when `x` holds a
+ *        value equal to `v`
+ *
+ * Deviation: declared at namespace scope, where the standard specifies a hidden friend - the
+ * spelling that keeps its constraint on the other operand deducible and non-self-referential.
+ */
 // [expected.object.eq], the comparison against a value. Alone among the equality operators this one
 // constrains itself on the OTHER operand, which is safe only where its own operand is deduced - so
 // it cannot be a hidden friend of `_expected_base`, whose only spelling for that operand is
