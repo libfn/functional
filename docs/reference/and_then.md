@@ -23,6 +23,7 @@ constexpr auto operator()(auto &&fn) const -> functor<and_then_t, decltype(fn)>;
 ---
 
 ## Return value {style: "api"}
+
 A monadic type of the same kind.
 
 ---

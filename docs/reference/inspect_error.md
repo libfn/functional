@@ -23,4 +23,5 @@ constexpr auto operator()(auto &&fn) const -> functor<inspect_error_t, decltype(
 ---
 
 ## Return value {style: "api"}
+
 A monadic type of the same kind.

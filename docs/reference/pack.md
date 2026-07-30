@@ -17,6 +17,14 @@ using append_type = _impl::template append_type<T>;  // (1)
 
 :include-doxygen-doc: fn::pack::append_type { args: "" }
 
+## operator== {style: "api"}
+
+```cpp {title: "fn::pack::operator=="}
+constexpr auto operator==(pack const &other) const -> bool;  // (1)
+```
+
+:include-doxygen-doc: fn::pack::operator== { args: "pack const &" }
+
 ## operator<=> {style: "api"}
 
 ```cpp {title: "fn::pack::operator<=>"}
@@ -26,6 +34,7 @@ constexpr auto operator<=>(pack const &other) const;  // (1)
 :include-doxygen-doc: fn::pack::operator<=> { args: "pack const &" }
 
 ## Append {style: "api"}
+
 Grows the product without nesting: appending a value adds one field, and appending a pack
 splices its fields in.
 
@@ -54,6 +63,7 @@ constexpr auto append(Arg &&arg) const && -> append_type<Arg>;  // (8)
 :include-doxygen-doc-params: fn::pack::append { args: "Arg &&", title: "parameters" }
 
 ## Apply {style: "api"}
+
 Elimination: the elements spread into a callable as separate arguments.
 
 ```cpp {title: "fn::pack::apply"}
@@ -83,11 +93,3 @@ constexpr auto apply_r(Fn &&fn, auto &&...args) const && -> Ret;  // (4)
 :include-doxygen-doc-params: fn::pack::apply_r { args: "Fn &&, auto &&...", type: "template", title: "template parameters" }
 
 :include-doxygen-doc-params: fn::pack::apply_r { args: "Fn &&, auto &&...", title: "parameters" }
-
-## operator== {style: "api"}
-
-```cpp {title: "fn::pack::operator=="}
-constexpr auto operator==(pack const &other) const -> bool;  // (1)
-```
-
-:include-doxygen-doc: fn::pack::operator== { args: "pack const &" }

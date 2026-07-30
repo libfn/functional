@@ -85,12 +85,6 @@ constexpr explicit optional(::pfn::detail::_optional_from_invoke_t tag, Fn &&fn,
 
 :include-doxygen-doc: fn::optional::optional { args: "optional &&" }
 
-```cpp {title: "fn::optional::~optional"}
-constexpr ~optional() = default;  // (1)
-```
-
-:include-doxygen-doc: fn::optional::~optional { args: "" }
-
 ```cpp {title: "fn::optional< T & >::optional"}
 constexpr optional() noexcept = default;                     // (1)
 constexpr optional(std::nullopt_t);                          // (2)
@@ -127,6 +121,14 @@ constexpr explicit optional(::pfn::detail::_optional_from_invoke_t tag, Fn &&fn,
 :include-doxygen-doc: fn::optional< T & >::optional { args: "optional < U > &&" }
 
 :include-doxygen-doc: fn::optional< T & >::optional { args: "optional < U > const &&" }
+
+## Destructor {style: "api"}
+
+```cpp {title: "fn::optional::~optional"}
+constexpr ~optional() = default;  // (1)
+```
+
+:include-doxygen-doc: fn::optional::~optional { args: "" }
 
 ```cpp {title: "fn::optional< T & >::~optional"}
 constexpr ~optional() = default;  // (1)
@@ -186,6 +188,7 @@ constexpr auto swap(optional &rhs) -> void;  // (1)
 :include-doxygen-doc: fn::optional< T & >::swap { args: "optional &" }
 
 ## copack_value {style: "api"}
+
 The explicit lift into the graded world.
 
 ```cpp {title: "fn::optional::copack_value"}

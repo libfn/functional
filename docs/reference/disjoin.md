@@ -15,6 +15,7 @@ carrier into that operation instead.
 ---
 
 ## disjoin {style: "api"}
+
 :include-doxygen-doc: fn::disjoin_t
 
 ---

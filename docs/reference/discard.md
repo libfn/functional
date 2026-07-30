@@ -23,6 +23,7 @@ constexpr auto operator()() const -> functor<discard_t>;  // (1)
 ---
 
 ## Return value {style: "api"}
+
 void
 
 ---

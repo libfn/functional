@@ -23,4 +23,5 @@ constexpr auto operator()(auto &&fn) const -> functor<or_else_t, decltype(fn)>; 
 ---
 
 ## Return value {style: "api"}
+
 A monadic type of the same kind.

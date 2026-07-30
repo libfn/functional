@@ -14,6 +14,7 @@ over it.
 ---
 
 ## conjoin {style: "api"}
+
 :include-doxygen-doc: fn::conjoin_t
 
 ---

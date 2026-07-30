@@ -28,6 +28,7 @@ constexpr auto operator()(auto &&pred) const                -> functor<filter_t,
 ---
 
 ## Return value {style: "api"}
+
 A monadic type of the same kind.
 
 ---

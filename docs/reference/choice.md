@@ -38,59 +38,8 @@ static constexpr auto has_type -> bool;  // (1)
 
 ## Construction {style: "api"}
 
-```cpp {title: "fn::choice< Ts... >::~choice"}
-constexpr ~choice() = default;  // (1)
-```
-
-:include-doxygen-doc: fn::choice< Ts... >::~choice { args: "" }
-
-## Assignment {style: "api"}
-
-```cpp {title: "fn::choice< Ts... >::operator="}
-constexpr auto operator=(choice const &other) = default -> choice &;  // (1)
-constexpr auto operator=(choice &&other) = default      -> choice &;  // (2)
-
-template <typename... Tx>
-constexpr auto operator=(copack<Tx...> const &arg) -> choice &;  // (3)
-constexpr auto operator=(copack<Tx...> &&arg)      -> choice &;  // (4)
-
-template <typename U>
-constexpr auto operator=(U &&v) -> choice &;  // (5)
-```
-
-:include-doxygen-doc: fn::choice< Ts... >::operator= { args: "choice const &" }
-
-:include-doxygen-doc: fn::choice< Ts... >::operator= { args: "choice &&" }
-
-:include-doxygen-doc: fn::choice< Ts... >::operator= { args: "copack < Tx... > const &" }
-
-:include-doxygen-doc: fn::choice< Ts... >::operator= { args: "copack < Tx... > &&" }
-
-:include-doxygen-doc: fn::choice< Ts... >::operator= { args: "U &&" }
-
-## choice_for {style: "api"}
-The construction alias: accepts alternatives in any order, with duplicates and nested copacks,
-and resolves to the canonical `fn::choice`. Prefer it over spelling `choice` directly, so that no
-spelling in your project is tied to one compiler's alternative order.
-
-```cpp {title: "fn::choice_for"}
-template <typename... Ts>
-using choice_for = detail::_collapsing_copack::normalized<::fn::choice, detail::_collapsing_copack::flattened<Ts...>>::type;  // (1)
-```
-
-:include-doxygen-doc: fn::choice_for { args: "" }
-
-:include-doxygen-doc-params: fn::choice_for { args: "", type: "template", title: "template parameters" }
-
-## choice {style: "api"}
-Construction: from a value of one alternative, in place from arguments, or widening from a
-`copack` over a subset of the alternatives.
-
-```cpp {title: "fn::choice"}
-template <typename T>
-choice(std::in_place_type_t<T>, auto &&...) -> choice<T>;  // (1)
-choice(T) -> choice<T>;                                    // (2)
-```
+From a value of one alternative, in place from arguments, or widening from a `copack` over a
+subset of the alternatives.
 
 ```cpp {title: "fn::choice< Ts... >::choice"}
 template <typename T>
@@ -131,7 +80,63 @@ constexpr choice(choice &&other) = default;       // (8)
 
 :include-doxygen-doc: fn::choice< Ts... >::choice { args: "choice &&" }
 
+## Destructor {style: "api"}
+
+```cpp {title: "fn::choice< Ts... >::~choice"}
+constexpr ~choice() = default;  // (1)
+```
+
+:include-doxygen-doc: fn::choice< Ts... >::~choice { args: "" }
+
+## Assignment {style: "api"}
+
+```cpp {title: "fn::choice< Ts... >::operator="}
+constexpr auto operator=(choice const &other) = default -> choice &;  // (1)
+constexpr auto operator=(choice &&other) = default      -> choice &;  // (2)
+
+template <typename... Tx>
+constexpr auto operator=(copack<Tx...> const &arg) -> choice &;  // (3)
+constexpr auto operator=(copack<Tx...> &&arg)      -> choice &;  // (4)
+
+template <typename U>
+constexpr auto operator=(U &&v) -> choice &;  // (5)
+```
+
+:include-doxygen-doc: fn::choice< Ts... >::operator= { args: "choice const &" }
+
+:include-doxygen-doc: fn::choice< Ts... >::operator= { args: "choice &&" }
+
+:include-doxygen-doc: fn::choice< Ts... >::operator= { args: "copack < Tx... > const &" }
+
+:include-doxygen-doc: fn::choice< Ts... >::operator= { args: "copack < Tx... > &&" }
+
+:include-doxygen-doc: fn::choice< Ts... >::operator= { args: "U &&" }
+
+## choice_for {style: "api"}
+
+The construction alias: accepts alternatives in any order, with duplicates and nested copacks,
+and resolves to the canonical `fn::choice`. Prefer it over spelling `choice` directly, so that no
+spelling in your project is tied to one compiler's alternative order.
+
+```cpp {title: "fn::choice_for"}
+template <typename... Ts>
+using choice_for = detail::_collapsing_copack::normalized<::fn::choice, detail::_collapsing_copack::flattened<Ts...>>::type;  // (1)
+```
+
+:include-doxygen-doc: fn::choice_for { args: "" }
+
+:include-doxygen-doc-params: fn::choice_for { args: "", type: "template", title: "template parameters" }
+
+## Deduction guides {style: "api"}
+
+```cpp {title: "fn::choice"}
+template <typename T>
+choice(std::in_place_type_t<T>, auto &&...) -> choice<T>;  // (1)
+choice(T) -> choice<T>;                                    // (2)
+```
+
 ## value {style: "api"}
+
 The alternatives as the underlying `copack`, always present.
 
 ```cpp {title: "fn::choice< Ts... >::value"}

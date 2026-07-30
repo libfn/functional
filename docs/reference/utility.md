@@ -13,6 +13,7 @@ callables into one overload set, and how to lift a value into a type that prefer
 ---
 
 ## overload {style: "api"}
+
 Fuses per-alternative lambdas into a single overload set, which `fn::apply` and the verbs then
 dispatch over by ordinary overload resolution.
 

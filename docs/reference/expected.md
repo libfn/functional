@@ -118,12 +118,6 @@ constexpr explicit expected(::pfn::detail::_expected_from_invoke_t tag, Tag whic
 
 :include-doxygen-doc: fn::expected::expected { args: "expected &&" }
 
-```cpp {title: "fn::expected::~expected"}
-constexpr ~expected() = default;  // (1)
-```
-
-:include-doxygen-doc: fn::expected::~expected { args: "" }
-
 ```cpp {title: "fn::expected< void, Err >::expected"}
 constexpr expected();  // (1)
 
@@ -168,6 +162,14 @@ constexpr explicit expected(::pfn::detail::_expected_from_invoke_t tag, Tag whic
 :include-doxygen-doc: fn::expected< void, Err >::expected { args: "expected const &" }
 
 :include-doxygen-doc: fn::expected< void, Err >::expected { args: "expected &&" }
+
+## Destructor {style: "api"}
+
+```cpp {title: "fn::expected::~expected"}
+constexpr ~expected() = default;  // (1)
+```
+
+:include-doxygen-doc: fn::expected::~expected { args: "" }
 
 ```cpp {title: "fn::expected< void, Err >::~expected"}
 constexpr ~expected() = default;  // (1)
@@ -237,6 +239,7 @@ constexpr auto swap(expected &rhs) -> void;  // (1)
 :include-doxygen-doc: fn::expected< void, Err >::swap { args: "expected &" }
 
 ## expected_unit {style: "api"}
+
 The graded gateway: initiating a pipeline with this unit trigger opts all subsequent `and_then`
 steps into graded error-set unioning, with no fake starting errors.
 
@@ -247,6 +250,7 @@ using expected_unit = expected<void, copack<>>;  // (1)
 :include-doxygen-doc: fn::expected_unit { args: "" }
 
 ## copack_error {style: "api"}
+
 The explicit lift into the graded world, on the error side.
 
 ```cpp {title: "fn::expected::copack_error"}
@@ -276,6 +280,7 @@ constexpr auto copack_error() const && -> decltype(auto);                       
 :include-doxygen-doc-params: fn::expected< void, Err >::copack_error { args: "", title: "parameters" }
 
 ## copack_value {style: "api"}
+
 The same lift, on the value side.
 
 ```cpp {title: "fn::expected::copack_value"}

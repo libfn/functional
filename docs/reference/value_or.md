@@ -11,4 +11,5 @@ title: "functor fn::value_or"
 ---
 
 ## Return value {style: "api"}
+
 The value of the monadic type if present; otherwise the user-provided fallback value.

@@ -30,12 +30,6 @@ using value_type = void;  // (1)
 
 ## Construction {style: "api"}
 
-```cpp {title: "fn::just::~just"}
-constexpr ~just() = default;  // (1)
-```
-
-:include-doxygen-doc: fn::just::~just { args: "" }
-
 ```cpp {title: "fn::just< void >::just"}
 constexpr just() = default;                           // (1)
 constexpr explicit just(std::in_place_type_t<void>);  // (2)
@@ -48,6 +42,74 @@ constexpr explicit just(std::in_place_t);             // (3)
 
 :include-doxygen-doc: fn::just< void >::just { args: "::std::in_place_t" }
 
+```cpp {title: "fn::just::just"}
+template <typename>
+just;  // (1)
+
+constexpr just() = default;              // (2)
+constexpr just(just const &) = default;  // (3)
+constexpr just(just &&) = default;       // (4)
+
+template <typename U>
+constexpr just(U &&v);           // (5)
+constexpr explicit just(U &&v);  // (6)
+
+constexpr explicit just(std::in_place_type_t<T>, auto &&...args);  // (7)
+
+template <typename Fn>
+constexpr explicit just(detail::_just_from_invoke_t, Fn &&make);  // (8)
+```
+
+:include-doxygen-doc: fn::just::just { args: "" }
+
+:include-doxygen-doc: fn::just::just { args: "just const &" }
+
+:include-doxygen-doc: fn::just::just { args: "just &&" }
+
+:include-doxygen-doc: fn::just::just { args: "U &&" }
+
+:include-doxygen-doc-params: fn::just::just { args: "U &&", title: "parameters" }
+
+:include-doxygen-doc: fn::just::just { args: "::std::in_place_type_t< T >, auto &&..." }
+
+:include-doxygen-doc-params: fn::just::just { args: "::std::in_place_type_t< T >, auto &&...", title: "parameters" }
+
+## Destructor {style: "api"}
+
+```cpp {title: "fn::just::~just"}
+constexpr ~just() = default;  // (1)
+```
+
+:include-doxygen-doc: fn::just::~just { args: "" }
+
+## emplace {style: "api"}
+
+```cpp {title: "fn::just::emplace"}
+constexpr auto emplace(auto &&...args) -> T &;  // (1)
+```
+
+:include-doxygen-doc: fn::just::emplace { args: "auto &&..." }
+
+:include-doxygen-doc-params: fn::just::emplace { args: "auto &&...", title: "parameters" }
+
+## Assignment {style: "api"}
+
+```cpp {title: "fn::just::operator="}
+constexpr auto operator=(just const &) = default -> just &;  // (1)
+constexpr auto operator=(just &&) = default      -> just &;  // (2)
+
+template <typename U>
+constexpr auto operator=(U &&v) -> just &;  // (3)
+```
+
+:include-doxygen-doc: fn::just::operator= { args: "just const &" }
+
+:include-doxygen-doc: fn::just::operator= { args: "just &&" }
+
+:include-doxygen-doc: fn::just::operator= { args: "U &&" }
+
+:include-doxygen-doc-params: fn::just::operator= { args: "U &&", title: "parameters" }
+
 ## operator== {style: "api"}
 
 ```cpp {title: "fn::just< void >::operator=="}
@@ -57,6 +119,7 @@ constexpr auto operator==(just const &) const noexcept = default -> bool;  // (1
 :include-doxygen-doc: fn::just< void >::operator== { args: "just const &" }
 
 ## value {style: "api"}
+
 The payload, always present: the access is total, never throwing.
 
 ```cpp {title: "fn::just::value"}
@@ -221,65 +284,3 @@ constexpr auto apply_type_r(Fn &&fn, Args &&...args) const -> Ret;  // (1)
 :include-doxygen-doc-params: fn::just< void >::apply_type_r { args: "Fn &&, Args &&...", type: "template", title: "template parameters" }
 
 :include-doxygen-doc-params: fn::just< void >::apply_type_r { args: "Fn &&, Args &&...", title: "parameters" }
-
-## emplace {style: "api"}
-
-```cpp {title: "fn::just::emplace"}
-constexpr auto emplace(auto &&...args) -> T &;  // (1)
-```
-
-:include-doxygen-doc: fn::just::emplace { args: "auto &&..." }
-
-:include-doxygen-doc-params: fn::just::emplace { args: "auto &&...", title: "parameters" }
-
-## just {style: "api"}
-
-```cpp {title: "fn::just::just"}
-template <typename>
-just;  // (1)
-
-constexpr just() = default;              // (2)
-constexpr just(just const &) = default;  // (3)
-constexpr just(just &&) = default;       // (4)
-
-template <typename U>
-constexpr just(U &&v);           // (5)
-constexpr explicit just(U &&v);  // (6)
-
-constexpr explicit just(std::in_place_type_t<T>, auto &&...args);  // (7)
-
-template <typename Fn>
-constexpr explicit just(detail::_just_from_invoke_t, Fn &&make);  // (8)
-```
-
-:include-doxygen-doc: fn::just::just { args: "" }
-
-:include-doxygen-doc: fn::just::just { args: "just const &" }
-
-:include-doxygen-doc: fn::just::just { args: "just &&" }
-
-:include-doxygen-doc: fn::just::just { args: "U &&" }
-
-:include-doxygen-doc-params: fn::just::just { args: "U &&", title: "parameters" }
-
-:include-doxygen-doc: fn::just::just { args: "::std::in_place_type_t< T >, auto &&..." }
-
-:include-doxygen-doc-params: fn::just::just { args: "::std::in_place_type_t< T >, auto &&...", title: "parameters" }
-
-## operator= {style: "api"}
-
-```cpp {title: "fn::just::operator="}
-constexpr auto operator=(just const &) = default -> just &;  // (1)
-constexpr auto operator=(just &&) = default      -> just &;  // (2)
-
-template <typename U>
-constexpr auto operator=(U &&v) -> just &;  // (3)
-```
-
-:include-doxygen-doc: fn::just::operator= { args: "just const &" }
-
-:include-doxygen-doc: fn::just::operator= { args: "just &&" }
-
-:include-doxygen-doc: fn::just::operator= { args: "U &&" }
-
-:include-doxygen-doc-params: fn::just::operator= { args: "U &&", title: "parameters" }
