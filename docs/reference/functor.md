@@ -18,4 +18,11 @@ and whose nested `apply` does the work; `fn::discard_t` is the smallest example 
 ---
 
 ## Feeding a carrier into a step {style: "api"}
-:include-doxygen-member: fn::functor::operator| { signatureOnly: false, includeAllMatches: true }
+
+```cpp {title: "fn::functor::operator|"}
+friend constexpr auto operator|(some_monadic_type auto &&v, auto &&self);  // (1)
+```
+
+:include-doxygen-doc: fn::functor::operator| { args: "some_monadic_type auto &&, auto &&" }
+
+:include-doxygen-doc-params: fn::functor::operator| { args: "some_monadic_type auto &&, auto &&", title: "parameters" }

@@ -57,7 +57,10 @@ template <typename... Ts> struct overload final : Ts... {
 template <typename... Ts> overload(Ts const &...) -> overload<Ts...>;
 
 /**
- * @brief Preferred make lift function using {}
+ * @brief Lifts arguments into a `T`, preferring braced construction
+ *
+ * Constructs `T{args...}` where that is available and `T(args...)` where it is not, so a type
+ * whose braced form differs from its parenthesised one is reached the way its author meant.
  *
  * @tparam T Type to construct
  * @param args Arguments to construct the `T` from
@@ -70,13 +73,6 @@ template <typename T, typename... Args>
   return T{FWD(args)...};
 }
 
-/**
- * @brief Fallback to () construction if {} is not available
- *
- * @tparam T Type to construct
- * @param args Arguments to construct the `T` from
- * @return The constructed value
- */
 template <typename T, typename... Args>
 [[nodiscard]] constexpr auto make(Args &&...args) -> T
   requires requires(Args &&...args) { T(FWD(args)...); } && (not requires(Args &&...args) { T{FWD(args)...}; })

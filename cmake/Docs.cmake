@@ -5,6 +5,13 @@ find_package(Python3 COMPONENTS Interpreter REQUIRED)
 set(DOXYGEN_GENERATE_HTML NO)
 set(DOXYGEN_GENERATE_XML YES)
 
+# doxygen records a trailing return type verbatim, so DEDUCED_RETURN would reach the API
+# reference as itself. Expanding only what is named here substitutes the form every compiler
+# but MSVC sees, and leaves every other macro to be read as written.
+set(DOXYGEN_MACRO_EXPANSION YES)
+set(DOXYGEN_EXPAND_ONLY_PREDEF YES)
+set(DOXYGEN_PREDEFINED "DEDUCED_RETURN(x)=decltype(auto)")
+
 # Doxygen reads a staged copy of include/ with the ABI inline namespace stripped, so the XML
 # carries the API exactly as readers spell it (fn::X, pfn::X), independent of doxygen's and
 # znai's inline-namespace handling.
@@ -49,6 +56,19 @@ add_custom_target(docs_stage_source
     VERBATIM
 )
 
+# A reference page presents an overload set the way cppreference does, as one listing of
+# signatures - which znai cannot draw, its doxygen node carrying no ref-qualifier. The
+# listings are therefore written out in the pages, and this holds them to the headers.
+add_custom_target(docs_check_signatures
+    COMMAND ${Python3_EXECUTABLE}
+        "${CMAKE_CURRENT_SOURCE_DIR}/scripts/doxygen_signatures.py" check
+        --xml "${CMAKE_BINARY_DIR}/xml"
+        --docs "${CMAKE_CURRENT_SOURCE_DIR}/docs/reference"
+    COMMENT "Check the reference signature listings against the headers"
+    VERBATIM
+)
+add_dependencies(docs_check_signatures docs_xml)
+
 znai_export_docs(
     export_docs
     ${docs_staged_source}
@@ -56,4 +76,4 @@ znai_export_docs(
     COMMENT "Export final documentation"
 )
 
-add_dependencies(export_docs docs_xml docs_stage_source)
+add_dependencies(export_docs docs_xml docs_stage_source docs_check_signatures)

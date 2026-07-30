@@ -19,4 +19,19 @@ over it.
 ---
 
 ## Call signatures {style: "api"}
-:include-doxygen-member: fn::conjoin_t::operator() { signatureOnly: false, includeAllMatches: true }
+
+```cpp {title: "fn::conjoin_t::operator()"}
+template <typename Arg>
+constexpr auto operator()(Arg &&arg) const -> decltype(arg);  // (1)
+
+template <typename Arg, typename... Args>
+constexpr auto operator()(Arg &&arg, Args &&...args) const;  // (2)
+```
+
+:include-doxygen-doc: fn::conjoin_t::operator() { args: "Arg &&" }
+
+:include-doxygen-doc-params: fn::conjoin_t::operator() { args: "Arg &&", title: "parameters" }
+
+:include-doxygen-doc: fn::conjoin_t::operator() { args: "Arg &&, Args &&..." }
+
+:include-doxygen-doc-params: fn::conjoin_t::operator() { args: "Arg &&, Args &&...", title: "parameters" }

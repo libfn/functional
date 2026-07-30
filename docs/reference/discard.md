@@ -11,7 +11,14 @@ title: "functor fn::discard"
 ---
 
 ## Call signatures {style: "api"}
-:include-doxygen-member: fn::discard_t::operator() { signatureOnly: false, includeAllMatches: true }
+
+```cpp {title: "fn::discard_t::operator()"}
+constexpr auto operator()() const -> functor<discard_t>;  // (1)
+```
+
+:include-doxygen-doc: fn::discard_t::operator() { args: "" }
+
+:include-doxygen-doc-params: fn::discard_t::operator() { args: "", title: "parameters" }
 
 ---
 

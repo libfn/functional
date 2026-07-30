@@ -12,10 +12,28 @@ lambdas into one overload set. Dispatch is exhaustive: an alternative without a 
 the whole call not applicable.
 
 ## apply {style: "api"}
-:include-doxygen-member: fn::apply { signatureOnly: false, includeAllMatches: true }
+
+```cpp {title: "fn::apply"}
+template <typename Fn, typename... Args>
+constexpr auto apply(Fn &&fn, Args &&...args) -> apply_result_t<Fn, Args...>;  // (1)
+```
+
+:include-doxygen-doc: fn::apply { args: "Fn &&, Args &&..." }
+
+:include-doxygen-doc-params: fn::apply { args: "Fn &&, Args &&...", title: "parameters" }
 
 ## apply_r {style: "api"}
-:include-doxygen-member: fn::apply_r { signatureOnly: false, includeAllMatches: true }
+
+```cpp {title: "fn::apply_r"}
+template <typename Ret, typename Fn, typename... Args>
+constexpr auto apply_r(Fn &&fn, Args &&...args) -> Ret;  // (1)
+```
+
+:include-doxygen-doc: fn::apply_r { args: "Fn &&, Args &&..." }
+
+:include-doxygen-doc-params: fn::apply_r { args: "Fn &&, Args &&...", type: "template", title: "template parameters" }
+
+:include-doxygen-doc-params: fn::apply_r { args: "Fn &&, Args &&...", title: "parameters" }
 
 ## overload {style: "api"}
 

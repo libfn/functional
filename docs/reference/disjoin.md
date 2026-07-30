@@ -20,4 +20,11 @@ carrier into that operation instead.
 ---
 
 ## Call signatures {style: "api"}
-:include-doxygen-member: fn::disjoin_t::operator() { signatureOnly: false, includeAllMatches: true }
+
+```cpp {title: "fn::disjoin_t::operator()"}
+template <some_monadic_type Arg>
+constexpr auto operator()(Arg &&arg) const -> decltype(arg);  // (1)
+
+template <typename Arg, typename... Args>
+constexpr auto operator()(Arg &&arg, Args &&...args) const;  // (2)
+```

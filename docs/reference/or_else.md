@@ -11,7 +11,14 @@ title: "functor fn::or_else"
 ---
 
 ## Call signatures {style: "api"}
-:include-doxygen-member: fn::or_else_t::operator() { signatureOnly: false, includeAllMatches: true }
+
+```cpp {title: "fn::or_else_t::operator()"}
+constexpr auto operator()(auto &&fn) const -> functor<or_else_t, decltype(fn)>;  // (1)
+```
+
+:include-doxygen-doc: fn::or_else_t::operator() { args: "auto &&" }
+
+:include-doxygen-doc-params: fn::or_else_t::operator() { args: "auto &&", title: "parameters" }
 
 ---
 

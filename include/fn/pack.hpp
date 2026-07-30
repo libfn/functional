@@ -461,10 +461,15 @@ constexpr inline struct conjoin_t {
   template <typename Arg> [[nodiscard]] constexpr auto operator()(Arg &&arg) const -> decltype(arg) { return FWD(arg); }
 
   /**
-   * @brief Folds data into a product, lifting the leading scalar into a `pack` first
-   * @param arg The leading scalar
-   * @param args Data to conjoin - scalars, packs or copacks, never carriers
-   * @return The folded product
+   * @brief Folds data into a product, or carriers into their conjunction
+   *
+   * With no carrier among the arguments the fold is the data-level product: a leading scalar is
+   * lifted into a `pack` first, and a leading `pack` or `copack` dispatches `operator &` itself.
+   * With every argument a carrier the same fold is their monadic conjunction.
+   *
+   * @param arg The leading argument
+   * @param args Further arguments - all data, or all carriers, never the two mixed
+   * @return The folded product, or the folded conjunction
    */
   template <typename Arg, typename... Args>
     requires(not some_copack<Arg>) && (not some_pack<Arg>) && detail::_no_carrier<Arg, Args...>
@@ -473,12 +478,6 @@ constexpr inline struct conjoin_t {
     return (::fn::pack{FWD(arg)} & ... & FWD(args));
   }
 
-  /**
-   * @brief Folds data into a product, the leading `pack` or `copack` dispatching `operator &`
-   * @param arg The leading pack or copack
-   * @param args Data to conjoin - scalars, packs or copacks, never carriers
-   * @return The folded product
-   */
   template <typename Arg, typename... Args>
     requires(some_copack<Arg> || some_pack<Arg>) && detail::_no_carrier<Args...>
   [[nodiscard]] constexpr auto operator()(Arg &&arg, Args &&...args) const
@@ -486,13 +485,6 @@ constexpr inline struct conjoin_t {
     return (FWD(arg) & ... & FWD(args));
   }
 
-  /**
-   * @brief The same fold over carriers, where `operator &` is the conjunction of the carriers
-   *
-   * @param arg The leading carrier
-   * @param args Carriers to conjoin
-   * @return The folded conjunction
-   */
   template <typename Arg, typename... Args>
     requires(sizeof...(Args) > 0)
             && detail::_all_carriers<Arg, Args...> && requires(Arg &&a, Args &&...as) { (FWD(a) & ... & FWD(as)); }

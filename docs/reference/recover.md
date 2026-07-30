@@ -11,7 +11,14 @@ title: "functor fn::recover"
 ---
 
 ## Call signatures {style: "api"}
-:include-doxygen-member: fn::recover_t::operator() { signatureOnly: false, includeAllMatches: true }
+
+```cpp {title: "fn::recover_t::operator()"}
+constexpr auto operator()(auto &&fn) const -> functor<recover_t, decltype(fn)>;  // (1)
+```
+
+:include-doxygen-doc: fn::recover_t::operator() { args: "auto &&" }
+
+:include-doxygen-doc-params: fn::recover_t::operator() { args: "auto &&", title: "parameters" }
 
 ---
 

@@ -69,7 +69,14 @@ The partial specialization serving computations which succeed with no value.
 
 ##### Defined in {style: "api", badge: "#include <pfn/tuple.hpp>"}
 
-:include-doxygen-member: pfn::apply { signatureOnly: false, includeAllMatches: true }
+```cpp {title: "pfn::apply"}
+template <typename Fn, detail::_tuple_like Tuple>
+constexpr auto apply(Fn &&fn, Tuple &&t) -> apply_result_t<Fn, Tuple>;  // (1)
+```
+
+:include-doxygen-doc: pfn::apply { args: "Fn &&, Tuple &&" }
+
+:include-doxygen-doc-params: pfn::apply { args: "Fn &&, Tuple &&", title: "parameters" }
 
 ### Applicability traits {style: "api"}
 The C++26 traits `apply` is specified through; each also comes in its `_v` (for the two
@@ -87,7 +94,16 @@ predicates) or `_t` (for the result) form.
 
 ##### Defined in {style: "api", badge: "#include <pfn/functional.hpp>"}
 
-:include-doxygen-member: pfn::invoke_r { signatureOnly: false, includeAllMatches: true }
+```cpp {title: "pfn::invoke_r"}
+template <class R, class F, class... Args>
+constexpr auto invoke_r(F &&f, Args &&...args);  // (1)
+```
+
+:include-doxygen-doc: pfn::invoke_r { args: "F &&, Args &&..." }
+
+:include-doxygen-doc-params: pfn::invoke_r { args: "F &&, Args &&...", type: "template", title: "template parameters" }
+
+:include-doxygen-doc-params: pfn::invoke_r { args: "F &&, Args &&...", title: "parameters" }
 
 ---
 
@@ -95,4 +111,8 @@ predicates) or `_t` (for the result) form.
 
 ##### Defined in {style: "api", badge: "#include <pfn/utility.hpp>"}
 
-:include-doxygen-member: pfn::unreachable { signatureOnly: false, includeAllMatches: true }
+```cpp {title: "pfn::unreachable"}
+auto unreachable() -> void;  // (1)
+```
+
+:include-doxygen-doc: pfn::unreachable { args: "" }

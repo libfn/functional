@@ -11,7 +11,14 @@ title: "functor fn::and_then"
 ---
 
 ## Call signatures {style: "api"}
-:include-doxygen-member: fn::and_then_t::operator() { signatureOnly: false, includeAllMatches: true }
+
+```cpp {title: "fn::and_then_t::operator()"}
+constexpr auto operator()(auto &&fn) const -> functor<and_then_t, decltype(fn)>;  // (1)
+```
+
+:include-doxygen-doc: fn::and_then_t::operator() { args: "auto &&" }
+
+:include-doxygen-doc-params: fn::and_then_t::operator() { args: "auto &&", title: "parameters" }
 
 ---
 

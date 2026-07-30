@@ -11,7 +11,14 @@ title: "functor fn::inspect_error"
 ---
 
 ## Call signatures {style: "api"}
-:include-doxygen-member: fn::inspect_error_t::operator() { signatureOnly: false, includeAllMatches: true }
+
+```cpp {title: "fn::inspect_error_t::operator()"}
+constexpr auto operator()(auto &&fn) const -> functor<inspect_error_t, decltype(fn)>;  // (1)
+```
+
+:include-doxygen-doc: fn::inspect_error_t::operator() { args: "auto &&" }
+
+:include-doxygen-doc-params: fn::inspect_error_t::operator() { args: "auto &&", title: "parameters" }
 
 ---
 

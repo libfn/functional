@@ -11,7 +11,19 @@ title: "functor fn::filter"
 ---
 
 ## Call signatures {style: "api"}
-:include-doxygen-member: fn::filter_t::operator() { signatureOnly: false, includeAllMatches: true }
+
+```cpp {title: "fn::filter_t::operator()"}
+constexpr auto operator()(auto &&pred, auto &&on_err) const -> functor<filter_t, decltype(pred), decltype(on_err)>;  // (1)
+constexpr auto operator()(auto &&pred) const                -> functor<filter_t, decltype(pred)>;                    // (2)
+```
+
+:include-doxygen-doc: fn::filter_t::operator() { args: "auto &&, auto &&" }
+
+:include-doxygen-doc-params: fn::filter_t::operator() { args: "auto &&, auto &&", title: "parameters" }
+
+:include-doxygen-doc: fn::filter_t::operator() { args: "auto &&" }
+
+:include-doxygen-doc-params: fn::filter_t::operator() { args: "auto &&", title: "parameters" }
 
 ---
 
