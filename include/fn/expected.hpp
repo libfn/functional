@@ -2322,21 +2322,15 @@ template <typename E> struct _expected_efn final {
 };
 } // namespace detail
 
-/**
- * @brief The conjunction of fallible carriers: values multiply into a `pack`, errors sum into a
- *        `copack`
- *
- * `a & b` succeeds only if both operands succeed, the values folding into one `pack` - a `void`
- * side elides, and a copack value distributes into a copack of packs - while at runtime the error
- * side holds the leftmost failing operand's error. Two identical error types stay as they are;
- * any other pair sums into their normalized `copack_for`, grading not required of the operands.
- * Both operands are fully constructed before the operator runs: an error-selection rule, not
- * short-circuiting. An identity-cluster operand contributes its value and no error term.
- *
- * @param lh Left operand
- * @param rh Right operand
- * @return An `expected` of the folded value product and the summed error side
- */
+// The conjunction of fallible carriers: values multiply into a `pack`, errors sum into a
+//        `copack`
+//
+// `a & b` succeeds only if both operands succeed, the values folding into one `pack` - a `void`
+// side elides, and a copack value distributes into a copack of packs - while at runtime the error
+// side holds the leftmost failing operand's error. Two identical error types stay as they are;
+// any other pair sums into their normalized `copack_for`, grading not required of the operands.
+// Both operands are fully constructed before the operator runs: an error-selection rule, not
+// short-circuiting. An identity-cluster operand contributes its value and no error term.
 // When any of the sides is expected<void, ...>, we do not produce expected<pack<...>, ...>
 // Instead just elide void and carry non-void (or elide both voids if that's what we get)
 template <typename Lh, typename Rh>
@@ -2655,21 +2649,15 @@ constexpr inline bool _nothrow_disj_error
 
 } // namespace detail
 
-/**
- * @brief The disjunction of fallible carriers: values sum into a `copack`, errors multiply into a
- *        `pack`
- *
- * `a | b` fails only if both operands fail: the leftmost engaged operand's value wins, injected
- * into the sum of the value types - a same-type pair stays bare, and a `void` side enters a
- * genuine sum as `pack<>` - while the error side is the product of both errors, present only when
- * every operand failed, all evidence kept positionally. Both operands are fully constructed
- * before the operator runs: a value-selection rule, not a lazy fallback. An identity-cluster
- * operand makes the disjunction total, collapsing the result into `just` or `choice`.
- *
- * @param lh Left operand
- * @param rh Right operand
- * @return An `expected` of the summed value side and the error product
- */
+// The disjunction of fallible carriers: values sum into a `copack`, errors multiply into a
+//        `pack`
+//
+// `a | b` fails only if both operands fail: the leftmost engaged operand's value wins, injected
+// into the sum of the value types - a same-type pair stays bare, and a `void` side enters a
+// genuine sum as `pack<>` - while the error side is the product of both errors, present only when
+// every operand failed, all evidence kept positionally. Both operands are fully constructed
+// before the operator runs: a value-selection rule, not a lazy fallback. An identity-cluster
+// operand makes the disjunction total, collapsing the result into `just` or `choice`.
 // The disjunction: the value channel is the sum of the value types - a same-type pair stays bare,
 // as the conjunction's same-error sum does - and the error channel is the product of both errors,
 // present only when every operand failed, all evidence kept positionally. The leftmost engaged

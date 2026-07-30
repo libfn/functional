@@ -27,6 +27,68 @@ conjoin_t conjoin;  // (1)
 
 ---
 
+## The operator {style: "api"}
+
+The binary conjunction each carrier declares; `conjoin` is its n-ary fold.
+
+```cpp {title: "fn::operator&"}
+template <typename Lh, typename Rh>
+constexpr auto operator&(Lh &&lh, Rh &&rh);                             // (1)
+constexpr auto operator&(Lh &&, Rh &&rh)   -> std::remove_cvref_t<Rh>;  // (2)
+constexpr auto operator&(Lh &&lh, Rh &&)   -> std::remove_cvref_t<Lh>;  // (3)
+constexpr auto operator&(Lh &&lh, Rh &&rh);                             // (4)
+
+template <typename Lh, some_expected Rh>
+constexpr auto operator&(Lh &&lh, Rh &&rh);  // (5)
+
+template <some_expected Lh, typename Rh>
+constexpr auto operator&(Lh &&lh, Rh &&rh);  // (6)
+
+template <typename Lh, some_expected_void Rh>
+constexpr auto operator&(Lh &&lh, Rh &&rh) -> expected<typename std::remove_cvref_t<Lh>::value_type, typename std::remove_cvref_t<Rh>::error_type>;  // (7)
+
+template <some_expected_void Lh, typename Rh>
+constexpr auto operator&(Lh &&lh, Rh &&rh) -> expected<typename std::remove_cvref_t<Rh>::value_type, typename std::remove_cvref_t<Lh>::error_type>;  // (8)
+
+template <typename Lh, some_expected Rh>
+constexpr auto operator&(Lh &&, Rh &&rh);  // (9)
+
+template <some_expected Lh, typename Rh>
+constexpr auto operator&(Lh &&lh, Rh &&);  // (10)
+
+template <typename Lh, typename Rh>
+constexpr auto operator&(Lh &&lh, Rh &&rh);                             // (11)
+constexpr auto operator&(Lh &&, Rh &&rh)   -> std::remove_cvref_t<Rh>;  // (12)
+constexpr auto operator&(Lh &&lh, Rh &&)   -> std::remove_cvref_t<Lh>;  // (13)
+
+template <some_optional Lh, some_optional Rh>
+constexpr auto operator&(Lh &&lh, Rh &&rh);  // (14)
+
+template <typename Lh, some_optional Rh>
+constexpr auto operator&(Lh &&lh, Rh &&rh);  // (15)
+
+template <some_optional Lh, typename Rh>
+constexpr auto operator&(Lh &&lh, Rh &&rh);  // (16)
+
+template <typename Lh, some_optional Rh>
+constexpr auto operator&(Lh &&, Rh &&rh);  // (17)
+
+template <some_optional Lh, typename Rh>
+constexpr auto operator&(Lh &&lh, Rh &&);  // (18)
+
+constexpr auto operator&(auto &&lh, auto &&rh);  // (19)
+```
+
+:include-doxygen-doc: fn::operator& { args: "Lh &&, Rh &&" }
+
+:include-doxygen-doc-params: fn::operator& { args: "Lh &&, Rh &&", title: "parameters" }
+
+:include-doxygen-doc: fn::operator& { args: "auto &&, auto &&" }
+
+:include-doxygen-doc-params: fn::operator& { args: "auto &&, auto &&", title: "parameters" }
+
+---
+
 ## Call signatures {style: "api"}
 
 ```cpp {title: "fn::conjoin_t::operator()"}

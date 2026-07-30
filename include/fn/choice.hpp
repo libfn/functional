@@ -639,6 +639,26 @@ constexpr inline bool _nothrow_choice_fold
 // The conjunction inside the cluster, choice on either side: the copack distributes through the
 // value product, so the fold answers a copack of packs and the result stays a choice. just<void>
 // is the product's unit and elides.
+// The description below covers every `&` over carriers, not just this arm: the reference renders
+// one description per parameter-type signature, and all of them share `(Lh &&, Rh &&)`, of which
+// this is the first doxygen reports. The arms in expected.hpp and optional.hpp carry theirs as
+// ordinary comments for the same reason.
+/**
+ * @brief The conjunction of carriers: values multiply into a `pack`, errors sum into a `copack`
+ *
+ * `a & b` succeeds only where both operands do, the values folding into one `pack` - a `void`
+ * side elides, and a copack value distributes into a copack of packs. What the failure side
+ * carries depends on the carrier: an `expected` holds the leftmost failing operand's error, an
+ * identical pair of error types staying as it is and any other pair summing into its normalized
+ * `copack_for`, grading not required of the operands; an `optional` is simply empty, its unit
+ * error needing no summing; a `choice` or `just` cannot fail, so the fold is total. Both operands
+ * are fully constructed before the operator runs: an error-selection rule, not short-circuiting.
+ * An identity-cluster operand contributes its value and no error term.
+ *
+ * @param lh Left operand
+ * @param rh Right operand
+ * @return The carrier of the folded value product, over the summed failure side
+ */
 template <typename Lh, typename Rh>
   requires(detail::_some_choice<Lh> || detail::_some_choice<Rh>) && (detail::_some_just<Lh> || detail::_some_choice<Lh>)
           && (detail::_some_just<Rh> || detail::_some_choice<Rh>)
@@ -711,6 +731,23 @@ template <typename Type, typename Side>
 // uninhabited factor into the error product, so the result never fails and collapses into the
 // cluster: just when the value sum stays one bare type, choice when the union is genuine. The
 // leftmost engaged operand wins; a cluster operand is always engaged.
+// As with `&` above, this arm carries the description for every `|` over carriers.
+/**
+ * @brief The disjunction of carriers: values sum into a `copack`, errors multiply into a `pack`
+ *
+ * `a | b` yields the leftmost operand that worked, its value injected into the sum of the value
+ * types - a same-type pair stays bare, and a `void` side enters a genuine sum as `pack<>`. What
+ * remains when none worked depends on the carrier: an `expected` holds the product of every
+ * error, all evidence kept positionally; an `optional` is simply empty, its unit errors vanishing
+ * in that product; a `choice` or `just` always works, so the disjunction is total. Both operands
+ * are fully constructed before the operator runs: a value-selection rule, not a lazy fallback. An
+ * identity-cluster operand makes the whole disjunction total, collapsing the result into `just`
+ * or `choice`.
+ *
+ * @param lh Left operand
+ * @param rh Right operand
+ * @return The carrier of the summed value side, over the error product
+ */
 template <typename Lh, typename Rh>
   requires(detail::_cluster_operand<Lh> || detail::_cluster_operand<Rh>) //
           && detail::_some_carrier<Lh> && detail::_some_carrier<Rh>

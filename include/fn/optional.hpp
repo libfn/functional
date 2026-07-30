@@ -1664,18 +1664,12 @@ struct _optional_efn final {
 };
 } // namespace detail
 
-/**
- * @brief The conjunction of optionals: values multiply into a `pack`, empty is the one failure
- *
- * `a & b` is engaged only if both operands are, the values folding into one `pack` - a copack
- * value distributing into a copack of packs - and empty otherwise: `optional`'s unit error needs
- * no summing. Both operands are fully constructed before the operator runs. An identity-cluster
- * operand contributes its value and can never be the empty side.
- *
- * @param lh Left operand
- * @param rh Right operand
- * @return An `optional` of the folded value product
- */
+// The conjunction of optionals: values multiply into a `pack`, empty is the one failure
+//
+// `a & b` is engaged only if both operands are, the values folding into one `pack` - a copack
+// value distributing into a copack of packs - and empty otherwise: `optional`'s unit error needs
+// no summing. Both operands are fully constructed before the operator runs. An identity-cluster
+// operand contributes its value and can never be the empty side.
 template <some_optional Lh, some_optional Rh>
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
     noexcept(noexcept(::fn::detail::_join<fn::optional>(FWD(lh), FWD(rh), detail::_optional_efn{})))
@@ -1795,18 +1789,12 @@ template <some_optional Lh, typename Rh>
   return ::std::remove_cvref_t<Lh>{FWD(lh)};
 }
 
-/**
- * @brief The disjunction of optionals: values sum into a `copack`, empty only when both are
- *
- * `a | b` holds the leftmost engaged operand's value, injected into the sum of the value types -
- * a same-type pair stays bare. The unit errors vanish in the error product, so the result is
- * empty exactly when both operands are. Both operands are fully constructed before the operator
- * runs: a value-selection rule, not a lazy fallback.
- *
- * @param lh Left operand
- * @param rh Right operand
- * @return An `optional` of the summed value side
- */
+// The disjunction of optionals: values sum into a `copack`, empty only when both are
+//
+// `a | b` holds the leftmost engaged operand's value, injected into the sum of the value types -
+// a same-type pair stays bare. The unit errors vanish in the error product, so the result is
+// empty exactly when both operands are. Both operands are fully constructed before the operator
+// runs: a value-selection rule, not a lazy fallback.
 // The disjunction: the value channel is the sum of the value types - a same-type pair stays bare -
 // and the unit errors vanish in the product, so the result is empty exactly when both operands
 // are. The leftmost engaged operand wins and injects by type.
