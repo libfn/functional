@@ -24,6 +24,11 @@ the entity it concerns:
 * `expected`'s comparison against a value is declared at namespace scope rather than as a
   hidden friend, keeping its constraint deducible
 
+Members are not restated here. A `pfn` type is the standard's type, member for member, so each
+one below names its standard counterpart and links to where it is specified; a second copy of
+that specification would only be a second thing to keep true. What this page documents is what
+differs: the deviations above, and the entities `pfn` adds because C++20 has no equivalent.
+
 ---
 
 ## expected {style: "api"}
@@ -32,22 +37,32 @@ the entity it concerns:
 
 :include-doxygen-doc: pfn::expected
 
+Its members are specified as [`std::expected`](https://en.cppreference.com/w/cpp/utility/expected).
+
 ### expected over void {style: "api"}
 The partial specialization serving computations which succeed with no value.
 
 :include-doxygen-doc: pfn::expected< void, E >
 
+Its members are specified as [`std::expected<void, E>`](https://en.cppreference.com/w/cpp/utility/expected).
+
 ### unexpected {style: "api"}
 
 :include-doxygen-doc: pfn::unexpected
+
+Its members are specified as [`std::unexpected`](https://en.cppreference.com/w/cpp/utility/expected).
 
 ### unexpect {style: "api"}
 
 :include-doxygen-doc: pfn::unexpect_t
 
+Its members are specified as [`std::unexpect_t`](https://en.cppreference.com/w/cpp/utility/expected).
+
 ### bad_expected_access {style: "api"}
 
 :include-doxygen-doc: pfn::bad_expected_access
+
+Its members are specified as [`std::bad_expected_access`](https://en.cppreference.com/w/cpp/utility/expected).
 
 :include-doxygen-doc: pfn::bad_expected_access< void >
 
@@ -59,9 +74,13 @@ The partial specialization serving computations which succeed with no value.
 
 :include-doxygen-doc: pfn::optional
 
+Its members are specified as [`std::optional`](https://en.cppreference.com/w/cpp/utility/optional).
+
 ### optional over a reference {style: "api"}
 
 :include-doxygen-doc: pfn::optional< T & >
+
+Its members are specified as [`std::optional<T&>`](https://en.cppreference.com/w/cpp/utility/optional).
 
 ---
 

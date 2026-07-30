@@ -1053,6 +1053,9 @@ template <class Opt, class T> struct _optional_hash_base<Opt, T, false> {
  * - the draft's hardened preconditions are checked by an assertion, customizable by defining
  *   `LIBFN_ASSERT` before inclusion.
  *
+ *
+ * Its members are the standard's, and specified where
+ * the reference page for this entity points.
  * @tparam T Type of the contained value; an lvalue reference selects the specialization
  */
 template <class T> class optional : private detail::_optional_base<T, detail::optional_policy> {
@@ -1322,6 +1325,9 @@ template <class T> optional(T) -> optional<T>;
  * trait with no portable C++20 fallback - those guards are deferred, and such a construction
  * compiles and dangles.
  *
+ *
+ * Its members are the standard's, and specified where
+ * the reference page for this entity points.
  * @tparam T Referenced type
  */
 template <class T> class optional<T &> : private detail::_optional_base<T &, detail::optional_policy> {

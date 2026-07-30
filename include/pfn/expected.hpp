@@ -57,6 +57,9 @@ template <class E> class bad_expected_access;
  *
  * Thrown only as a `bad_expected_access<E>`; this specialization for `void` is the common base,
  * for handlers that do not care about the error type.
+ *
+ * Its members are the standard's, and specified where
+ * the reference page for this entity points.
  */
 template <> class bad_expected_access<void> : public ::std::exception {
 protected:
@@ -81,6 +84,9 @@ public:
  *
  * Carries a copy of that error, exposed through `error()`.
  *
+ *
+ * Its members are the standard's, and specified where
+ * the reference page for this entity points.
  * @tparam E Type of the carried error value
  */
 template <class E> class bad_expected_access : public bad_expected_access<void> {
@@ -99,6 +105,9 @@ private:
 /**
  * @brief Disambiguation tag selecting an `expected`'s error side in construction and emplacement
  *        ([expected.syn]); passed as the `pfn::unexpect` value
+ *
+ * Its members are the standard's, and specified where
+ * the reference page for this entity points.
  */
 constexpr inline struct unexpect_t {
   explicit unexpect_t() = default;
@@ -145,6 +154,9 @@ constexpr inline struct _expected_from_invoke_t {
  * Deviation: `operator==` carries a `noexcept` specification derived from `E` where the standard
  * leaves one unstated, marked `// extension` inline.
  *
+ *
+ * Its members are the standard's, and specified where
+ * the reference page for this entity points.
  * @tparam E Type of the wrapped error value
  */
 template <class E> class unexpected {
@@ -1159,6 +1171,9 @@ struct expected_policy {
  * - the comparison against a value is declared at namespace scope, not as the specified hidden
  *   friend, keeping its constraint deducible.
  *
+ *
+ * Its members are the standard's, and specified where
+ * the reference page for this entity points.
  * @tparam T Type of the success value; `void` selects the specialization
  * @tparam E Type of the error value
  */
@@ -1525,6 +1540,9 @@ private:
  * Members are as [expected.void] specifies them; the `noexcept` and assertion deviations listed
  * on the primary template apply here equally.
  *
+ *
+ * Its members are the standard's, and specified where
+ * the reference page for this entity points.
  * @tparam E Type of the error value
  */
 template <class E> class expected<void, E> : private detail::_expected_base<void, E, detail::expected_policy> {
