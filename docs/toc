@@ -22,6 +22,7 @@ reference {title: "REFERENCE"}
     functor
     concepts
     utility
+    comparison
     pfn
 continuous-integration {title: "CONTINUOUS INTEGRATION"}
     index

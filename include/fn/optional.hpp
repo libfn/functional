@@ -1375,6 +1375,9 @@ concept _is_derived_from_optional = requires(T const &t) { ::fn::detail::_derive
 // do not apply here, since fn::optional does not derive from pfn::optional).
 
 // Relational operators
+/**
+ * @brief Compares two optionals; two empty optionals are equal
+ */
 template <class T, class U>
 constexpr bool operator==(optional<T> const &x, optional<U> const &y) //
     noexcept(::pfn::detail::_eq_bool_noexcept<T, U>)                  // extension
@@ -1386,6 +1389,9 @@ constexpr bool operator==(optional<T> const &x, optional<U> const &y) //
     return true;
   return *x == *y;
 }
+/**
+ * @brief The negation of `==` for two optionals
+ */
 template <class T, class U>
 constexpr bool operator!=(optional<T> const &x, optional<U> const &y) //
     noexcept(::pfn::detail::_ne_bool_noexcept<T, U>)                  // extension
@@ -1397,6 +1403,9 @@ constexpr bool operator!=(optional<T> const &x, optional<U> const &y) //
     return false;
   return *x != *y;
 }
+/**
+ * @brief Orders two optionals, the empty state before every value
+ */
 template <class T, class U>
 constexpr bool operator<(optional<T> const &x, optional<U> const &y) //
     noexcept(::pfn::detail::_lt_bool_noexcept<T, U>)                 // extension
@@ -1408,6 +1417,9 @@ constexpr bool operator<(optional<T> const &x, optional<U> const &y) //
     return true;
   return *x < *y;
 }
+/**
+ * @brief Orders two optionals, the empty state before every value
+ */
 template <class T, class U>
 constexpr bool operator>(optional<T> const &x, optional<U> const &y) //
     noexcept(::pfn::detail::_gt_bool_noexcept<T, U>)                 // extension
@@ -1419,6 +1431,9 @@ constexpr bool operator>(optional<T> const &x, optional<U> const &y) //
     return true;
   return *x > *y;
 }
+/**
+ * @brief Orders two optionals, the empty state before every value
+ */
 template <class T, class U>
 constexpr bool operator<=(optional<T> const &x, optional<U> const &y) //
     noexcept(::pfn::detail::_le_bool_noexcept<T, U>)                  // extension
@@ -1430,6 +1445,9 @@ constexpr bool operator<=(optional<T> const &x, optional<U> const &y) //
     return false;
   return *x <= *y;
 }
+/**
+ * @brief Orders two optionals, the empty state before every value
+ */
 template <class T, class U>
 constexpr bool operator>=(optional<T> const &x, optional<U> const &y) //
     noexcept(::pfn::detail::_ge_bool_noexcept<T, U>)                  // extension
@@ -1441,6 +1459,9 @@ constexpr bool operator>=(optional<T> const &x, optional<U> const &y) //
     return false;
   return *x >= *y;
 }
+/**
+ * @brief Orders two optionals, the empty state before every value
+ */
 template <class T, ::std::three_way_comparable_with<T> U>
 constexpr ::std::compare_three_way_result_t<T, U> operator<=>(optional<T> const &x, optional<U> const &y)
 {
@@ -1448,16 +1469,25 @@ constexpr ::std::compare_three_way_result_t<T, U> operator<=>(optional<T> const 
 }
 
 // Comparison with nullopt
+/**
+ * @brief Whether the optional is empty
+ */
 template <class T> constexpr bool operator==(optional<T> const &x, ::std::nullopt_t) noexcept
 {
   return not x.has_value();
 }
+/**
+ * @brief Orders the optional against the empty state, which precedes every value
+ */
 template <class T> constexpr ::std::strong_ordering operator<=>(optional<T> const &x, ::std::nullopt_t) noexcept
 {
   return x.has_value() <=> false;
 }
 
 // Comparison with a value
+/**
+ * @brief Compares an optional against a value; an empty optional equals nothing
+ */
 template <class T, class U>
 constexpr bool operator==(optional<T> const &x, U const &v) //
     noexcept(::pfn::detail::_eq_bool_noexcept<T, U>)        // extension
@@ -1465,6 +1495,9 @@ constexpr bool operator==(optional<T> const &x, U const &v) //
 {
   return x.has_value() ? *x == v : false;
 }
+/**
+ * @brief Compares a value against an optional; an empty optional equals nothing
+ */
 template <class T, class U>
 constexpr bool operator==(T const &v, optional<U> const &x) //
     noexcept(::pfn::detail::_eq_bool_noexcept<T, U>)        // extension
@@ -1472,6 +1505,9 @@ constexpr bool operator==(T const &v, optional<U> const &x) //
 {
   return x.has_value() ? v == *x : false;
 }
+/**
+ * @brief The negation of `==` against a value
+ */
 template <class T, class U>
 constexpr bool operator!=(optional<T> const &x, U const &v) //
     noexcept(::pfn::detail::_ne_bool_noexcept<T, U>)        // extension
@@ -1479,6 +1515,9 @@ constexpr bool operator!=(optional<T> const &x, U const &v) //
 {
   return x.has_value() ? *x != v : true;
 }
+/**
+ * @brief The negation of `==` against a value
+ */
 template <class T, class U>
 constexpr bool operator!=(T const &v, optional<U> const &x) //
     noexcept(::pfn::detail::_ne_bool_noexcept<T, U>)        // extension
@@ -1486,6 +1525,9 @@ constexpr bool operator!=(T const &v, optional<U> const &x) //
 {
   return x.has_value() ? v != *x : true;
 }
+/**
+ * @brief Orders an optional against a value, an empty optional before it
+ */
 template <class T, class U>
 constexpr bool operator<(optional<T> const &x, U const &v) //
     noexcept(::pfn::detail::_lt_bool_noexcept<T, U>)       // extension
@@ -1493,6 +1535,9 @@ constexpr bool operator<(optional<T> const &x, U const &v) //
 {
   return x.has_value() ? *x < v : true;
 }
+/**
+ * @brief Orders an optional against a value, an empty optional before it
+ */
 template <class T, class U>
 constexpr bool operator<(T const &v, optional<U> const &x) //
     noexcept(::pfn::detail::_lt_bool_noexcept<T, U>)       // extension
@@ -1500,6 +1545,9 @@ constexpr bool operator<(T const &v, optional<U> const &x) //
 {
   return x.has_value() ? v < *x : false;
 }
+/**
+ * @brief Orders an optional against a value, an empty optional before it
+ */
 template <class T, class U>
 constexpr bool operator>(optional<T> const &x, U const &v) //
     noexcept(::pfn::detail::_gt_bool_noexcept<T, U>)       // extension
@@ -1507,6 +1555,9 @@ constexpr bool operator>(optional<T> const &x, U const &v) //
 {
   return x.has_value() ? *x > v : false;
 }
+/**
+ * @brief Orders an optional against a value, an empty optional before it
+ */
 template <class T, class U>
 constexpr bool operator>(T const &v, optional<U> const &x) //
     noexcept(::pfn::detail::_gt_bool_noexcept<T, U>)       // extension
@@ -1514,6 +1565,9 @@ constexpr bool operator>(T const &v, optional<U> const &x) //
 {
   return x.has_value() ? v > *x : true;
 }
+/**
+ * @brief Orders an optional against a value, an empty optional before it
+ */
 template <class T, class U>
 constexpr bool operator<=(optional<T> const &x, U const &v) //
     noexcept(::pfn::detail::_le_bool_noexcept<T, U>)        // extension
@@ -1521,6 +1575,9 @@ constexpr bool operator<=(optional<T> const &x, U const &v) //
 {
   return x.has_value() ? *x <= v : true;
 }
+/**
+ * @brief Orders an optional against a value, an empty optional before it
+ */
 template <class T, class U>
 constexpr bool operator<=(T const &v, optional<U> const &x) //
     noexcept(::pfn::detail::_le_bool_noexcept<T, U>)        // extension
@@ -1528,6 +1585,9 @@ constexpr bool operator<=(T const &v, optional<U> const &x) //
 {
   return x.has_value() ? v <= *x : false;
 }
+/**
+ * @brief Orders an optional against a value, an empty optional before it
+ */
 template <class T, class U>
 constexpr bool operator>=(optional<T> const &x, U const &v) //
     noexcept(::pfn::detail::_ge_bool_noexcept<T, U>)        // extension
@@ -1535,6 +1595,9 @@ constexpr bool operator>=(optional<T> const &x, U const &v) //
 {
   return x.has_value() ? *x >= v : false;
 }
+/**
+ * @brief Orders an optional against a value, an empty optional before it
+ */
 template <class T, class U>
 constexpr bool operator>=(T const &v, optional<U> const &x) //
     noexcept(::pfn::detail::_ge_bool_noexcept<T, U>)        // extension
@@ -1542,6 +1605,9 @@ constexpr bool operator>=(T const &v, optional<U> const &x) //
 {
   return x.has_value() ? v >= *x : true;
 }
+/**
+ * @brief Orders an optional against a value, an empty optional before it
+ */
 template <class T, class U>
   requires(not detail::_is_derived_from_optional<U>) && ::std::three_way_comparable_with<T, U>
 constexpr ::std::compare_three_way_result_t<T, U> operator<=>(optional<T> const &x, U const &v)
@@ -1550,6 +1616,9 @@ constexpr ::std::compare_three_way_result_t<T, U> operator<=>(optional<T> const 
 }
 
 // Specialized algorithms
+/**
+ * @brief Swaps two optionals
+ */
 template <class T>
 constexpr void swap(optional<T> &x, optional<T> &y) noexcept(noexcept(x.swap(y)))
   requires(::std::is_reference_v<T> || (::std::is_move_constructible_v<T> && ::std::is_swappable_v<T>))

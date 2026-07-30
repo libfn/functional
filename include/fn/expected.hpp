@@ -2239,6 +2239,9 @@ using expected_unit = expected<void, copack<>>;
 // The comparison against a value, at namespace scope for the reason given where its siblings are
 // declared in pfn: it is the one equality operator constrained on the OTHER operand, and that is
 // safe only where this operand is deduced.
+/**
+ * @brief Compares an `expected` against a value; a failed `expected` equals nothing
+ */
 template <typename T, typename Err, typename T2>
   requires(not ::std::is_void_v<T> && not detail::_is_some_expected<T2 &>)
 constexpr bool operator==(expected<T, Err> const &x, T2 const &v) //
