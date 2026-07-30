@@ -135,3 +135,43 @@ auto unreachable() -> void;  // (1)
 ```
 
 :include-doxygen-doc: pfn::unreachable { args: "" }
+
+## More applicability traits {style: "api"}
+
+```cpp {title: "pfn::apply_result_t"}
+template <typename Fn, typename Tuple>
+using apply_result_t = typename apply_result<Fn, Tuple>::type;  // (1)
+```
+
+:include-doxygen-doc: pfn::apply_result_t { args: "" }
+
+```cpp {title: "pfn::is_applicable_v"}
+template <typename Fn, typename Tuple>
+constexpr bool is_applicable_v = is_applicable<Fn, Tuple>::value;  // (1)
+```
+
+:include-doxygen-doc: pfn::is_applicable_v { args: "" }
+
+```cpp {title: "pfn::is_nothrow_applicable_v"}
+template <typename Fn, typename Tuple>
+constexpr bool is_nothrow_applicable_v = is_nothrow_applicable<Fn, Tuple>::value;  // (1)
+```
+
+:include-doxygen-doc: pfn::is_nothrow_applicable_v { args: "" }
+
+## Comparison against a value {style: "api"}
+
+```cpp {title: "pfn::operator=="}
+template <class T, class E, class T2>
+constexpr auto operator==(expected<T, E> const &x, T2 const &v) -> bool;  // (1)
+
+template <class T, class U>
+constexpr auto operator==(optional<T> const &, optional<U> const &) -> bool;  // (2)
+
+template <class T>
+constexpr auto operator==(optional<T> const &, std::nullopt_t) -> bool;  // (3)
+
+template <class T, class U>
+constexpr auto operator==(optional<T> const &, U const &) -> bool;  // (4)
+constexpr auto operator==(T const &, optional<U> const &) -> bool;  // (5)
+```

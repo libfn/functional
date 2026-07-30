@@ -69,6 +69,18 @@ add_custom_target(docs_check_signatures
 )
 add_dependencies(docs_check_signatures docs_xml)
 
+# znai renders a description it cannot find as silence, so a page can lose one without the
+# build noticing. This holds what the headers document to what the site actually reaches.
+add_custom_target(docs_check_coverage
+    COMMAND ${Python3_EXECUTABLE}
+        "${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_docs_coverage.py"
+        --xml "${CMAKE_BINARY_DIR}/xml"
+        --docs "${CMAKE_CURRENT_SOURCE_DIR}/docs"
+    COMMENT "Check every documented entity reaches the documentation"
+    VERBATIM
+)
+add_dependencies(docs_check_coverage docs_xml)
+
 znai_export_docs(
     export_docs
     ${docs_staged_source}
@@ -76,4 +88,4 @@ znai_export_docs(
     COMMENT "Export final documentation"
 )
 
-add_dependencies(export_docs docs_xml docs_stage_source docs_check_signatures)
+add_dependencies(export_docs docs_xml docs_stage_source docs_check_signatures docs_check_coverage)

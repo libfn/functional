@@ -1,0 +1,19 @@
+# Entities documented in the headers which no page is expected to name.
+#
+# scripts/check_docs_coverage.py fails on any other documented entity the site does not
+# reach, so this file is where a deliberate omission is recorded - with the reason, so a
+# later reader can judge whether it still holds. An entry that stops being needed is
+# reported too, and should be deleted.
+#
+# Format: <fully qualified name>: <reason>
+
+fn::and_then_t::apply::operator(): the verb's dispatch object, an implementation detail of how the verb reaches a carrier's member; the verb itself is documented
+fn::fail_t::apply::operator(): as above
+fn::filter_t::apply::operator(): as above
+fn::inspect_error_t::apply::operator(): as above
+fn::inspect_t::apply::operator(): as above
+fn::or_else_t::apply::operator(): as above
+fn::recover_t::apply::operator(): as above
+fn::transform_error_t::apply::operator(): as above
+fn::transform_t::apply::operator(): as above
+fn::value_or_t::apply::operator(): as above

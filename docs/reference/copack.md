@@ -304,3 +304,22 @@ constexpr auto has_value(std::in_place_type_t<T>=std::in_place_type<T>) const ->
 :include-doxygen-doc-params: fn::copack< Ts... >::has_value { args: "::std::in_place_type_t< T >", type: "template", title: "template parameters" }
 
 :include-doxygen-doc-params: fn::copack< Ts... >::has_value { args: "::std::in_place_type_t< T >", title: "parameters" }
+
+## as_copack {style: "api"}
+
+```cpp {title: "fn::as_copack"}
+constexpr auto as_copack(auto &&src) -> decltype(auto);  // (1)
+
+template <typename T>
+constexpr auto as_copack(std::in_place_type_t<T>, auto &&...args) -> decltype(auto);  // (2)
+```
+
+:include-doxygen-doc: fn::as_copack { args: "auto &&" }
+
+:include-doxygen-doc-params: fn::as_copack { args: "auto &&", title: "parameters" }
+
+:include-doxygen-doc: fn::as_copack { args: "::std::in_place_type_t< T >, auto &&..." }
+
+:include-doxygen-doc-params: fn::as_copack { args: "::std::in_place_type_t< T >, auto &&...", type: "template", title: "template parameters" }
+
+:include-doxygen-doc-params: fn::as_copack { args: "::std::in_place_type_t< T >, auto &&...", title: "parameters" }

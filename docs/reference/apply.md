@@ -40,3 +40,44 @@ constexpr auto apply_r(Fn &&fn, Args &&...args) -> Ret;  // (1)
 ##### Defined in {style: "api", badge: "#include <fn/utility.hpp>"}
 
 :include-doxygen-doc: fn::overload
+
+## Applicability traits {style: "api"}
+
+```cpp {title: "fn::apply_result_t"}
+template <typename Fn, typename... Args>
+using apply_result_t = typename apply_result<Fn, Args...>::type;  // (1)
+```
+
+:include-doxygen-doc: fn::apply_result_t { args: "" }
+
+```cpp {title: "fn::is_applicable_v"}
+template <typename Fn, typename... Args>
+constexpr bool is_applicable_v = is_applicable<Fn, Args...>::value;  // (1)
+```
+
+:include-doxygen-doc: fn::is_applicable_v { args: "" }
+
+```cpp {title: "fn::is_applicable_r_v"}
+template <typename Ret, typename Fn, typename... Args>
+constexpr bool is_applicable_r_v = is_applicable_r<Ret, Fn, Args...>::value;  // (1)
+```
+
+:include-doxygen-doc: fn::is_applicable_r_v { args: "" }
+
+```cpp {title: "fn::is_nothrow_applicable_v"}
+template <typename Fn, typename... Args>
+constexpr bool is_nothrow_applicable_v = is_nothrow_applicable<Fn, Args...>::value;  // (1)
+```
+
+:include-doxygen-doc: fn::is_nothrow_applicable_v { args: "" }
+
+```cpp {title: "fn::is_nothrow_applicable_r_v"}
+template <typename Ret, typename Fn, typename... Args>
+constexpr bool is_nothrow_applicable_r_v = is_nothrow_applicable_r<Ret, Fn, Args...>::value;  // (1)
+```
+
+:include-doxygen-doc: fn::is_nothrow_applicable_r_v { args: "" }
+
+:include-doxygen-doc: fn::is_applicable_r
+
+:include-doxygen-doc: fn::is_nothrow_applicable_r

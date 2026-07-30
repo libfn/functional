@@ -511,3 +511,22 @@ constexpr auto apply_type_r(F &&f, Args &&...args) const &&;  // (4)
 :include-doxygen-doc-params: fn::expected< void, Err >::apply_type_r { args: "F &&, Args &&...", type: "template", title: "template parameters" }
 
 :include-doxygen-doc-params: fn::expected< void, Err >::apply_type_r { args: "F &&, Args &&...", title: "parameters" }
+
+## Free lifts {style: "api"}
+
+```cpp {title: "fn::copack_error"}
+constexpr auto copack_error(some_expected auto &&src) -> decltype(auto);  // (1)
+```
+
+:include-doxygen-doc: fn::copack_error { args: "some_expected auto &&" }
+
+:include-doxygen-doc-params: fn::copack_error { args: "some_expected auto &&", title: "parameters" }
+
+```cpp {title: "fn::copack_value"}
+constexpr auto copack_value(some_expected_non_void auto &&src) -> decltype(auto);  // (1)
+constexpr auto copack_value(some_optional auto &&src)          -> decltype(auto);  // (2)
+```
+
+:include-doxygen-doc: fn::copack_value { args: "some_expected_non_void auto &&" }
+
+:include-doxygen-doc-params: fn::copack_value { args: "some_expected_non_void auto &&", title: "parameters" }

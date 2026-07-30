@@ -93,3 +93,49 @@ constexpr auto apply_r(Fn &&fn, auto &&...args) const && -> Ret;  // (4)
 :include-doxygen-doc-params: fn::pack::apply_r { args: "Fn &&, auto &&...", type: "template", title: "template parameters" }
 
 :include-doxygen-doc-params: fn::pack::apply_r { args: "Fn &&, auto &&...", title: "parameters" }
+
+## as_pack {style: "api"}
+
+```cpp {title: "fn::as_pack"}
+constexpr auto as_pack() -> pack<>;  // (1)
+
+template <typename... Explicit, typename T, typename... Args>
+constexpr auto as_pack(T &&src, Args &&...args) -> pack<T, Args...>;  // (2)
+
+template <typename T, typename... Args>
+constexpr auto as_pack(std::type_identity_t<T> src, std::type_identity_t<Args>... args) -> pack<T, Args...>;  // (3)
+```
+
+:include-doxygen-doc: fn::as_pack { args: "" }
+
+:include-doxygen-doc-params: fn::as_pack { args: "", title: "parameters" }
+
+:include-doxygen-doc: fn::as_pack { args: "T &&, Args &&..." }
+
+:include-doxygen-doc-params: fn::as_pack { args: "T &&, Args &&...", title: "parameters" }
+
+:include-doxygen-doc: fn::as_pack { args: "::std::type_identity_t< T >, ::std::type_identity_t< Args >..." }
+
+:include-doxygen-doc-params: fn::as_pack { args: "::std::type_identity_t< T >, ::std::type_identity_t< Args >...", type: "template", title: "template parameters" }
+
+:include-doxygen-doc-params: fn::as_pack { args: "::std::type_identity_t< T >, ::std::type_identity_t< Args >...", title: "parameters" }
+
+## get {style: "api"}
+
+```cpp {title: "fn::get"}
+template <typename Cp>
+constexpr auto get(Cp &&c) -> decltype(auto);  // (1)
+
+template <std::size_t I, some_pack P>
+constexpr auto get(P &&p) -> decltype(auto);  // (2)
+```
+
+:include-doxygen-doc: fn::get { args: "Cp &&" }
+
+:include-doxygen-doc-params: fn::get { args: "Cp &&", title: "parameters" }
+
+:include-doxygen-doc: fn::get { args: "P &&" }
+
+:include-doxygen-doc-params: fn::get { args: "P &&", type: "template", title: "template parameters" }
+
+:include-doxygen-doc-params: fn::get { args: "P &&", title: "parameters" }
