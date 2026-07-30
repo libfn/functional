@@ -6,7 +6,7 @@ title: "monad fn::choice"
 
 ---
 
-:include-doxygen-doc: fn::choice
+:include-doxygen-doc: fn::choice< Ts... >
 
 ## Member types {style: "api"}
 
