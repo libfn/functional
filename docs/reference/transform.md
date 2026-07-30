@@ -10,6 +10,14 @@ title: "functor fn::transform"
 
 ---
 
+## The verb object {style: "api"}
+
+```cpp {title: "fn::transform"}
+transform_t transform = {};  // (1)
+```
+
+:include-doxygen-doc: fn::transform { args: "" }
+
 ## Call signatures {style: "api"}
 
 ```cpp {title: "fn::transform_t::operator()"}

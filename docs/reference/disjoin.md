@@ -14,6 +14,14 @@ carrier into that operation instead.
 
 ---
 
+## The verb object {style: "api"}
+
+```cpp {title: "fn::disjoin"}
+disjoin_t disjoin;  // (1)
+```
+
+:include-doxygen-doc: fn::disjoin { args: "" }
+
 ## disjoin {style: "api"}
 
 :include-doxygen-doc: fn::disjoin_t

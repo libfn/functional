@@ -10,6 +10,14 @@ title: "functor fn::or_else"
 
 ---
 
+## The verb object {style: "api"}
+
+```cpp {title: "fn::or_else"}
+or_else_t or_else = {};  // (1)
+```
+
+:include-doxygen-doc: fn::or_else { args: "" }
+
 ## Call signatures {style: "api"}
 
 ```cpp {title: "fn::or_else_t::operator()"}

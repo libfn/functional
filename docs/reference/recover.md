@@ -10,6 +10,14 @@ title: "functor fn::recover"
 
 ---
 
+## The verb object {style: "api"}
+
+```cpp {title: "fn::recover"}
+recover_t recover = {};  // (1)
+```
+
+:include-doxygen-doc: fn::recover { args: "" }
+
 ## Call signatures {style: "api"}
 
 ```cpp {title: "fn::recover_t::operator()"}

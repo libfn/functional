@@ -10,6 +10,14 @@ title: "functor fn::filter"
 
 ---
 
+## The verb object {style: "api"}
+
+```cpp {title: "fn::filter"}
+filter_t filter = {};  // (1)
+```
+
+:include-doxygen-doc: fn::filter { args: "" }
+
 ## Call signatures {style: "api"}
 
 ```cpp {title: "fn::filter_t::operator()"}

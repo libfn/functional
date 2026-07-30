@@ -33,7 +33,7 @@ constexpr inline struct discard_t final {
   struct apply final {
     constexpr auto operator()(some_monadic_type auto &&) const noexcept -> void {} // NOSONAR cpp:S1186 discards
   };
-} discard = {};
+} discard = {}; ///< Drops the carrier's content: `x | discard`
 
 } // namespace LIBFN_VERSION
 } // namespace fn

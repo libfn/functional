@@ -19,39 +19,39 @@ using data_t = detail::variadic_union<Ts...>;  // (1)
 :include-doxygen-doc: fn::copack< Ts... >::data_t { args: "" }
 
 ```cpp {title: "fn::copack< Ts... >::data"}
-auto data -> data_t;  // (1)
+data_t data;  // (1)
 ```
 
 :include-doxygen-doc: fn::copack< Ts... >::data { args: "" }
 
 ```cpp {title: "fn::copack< Ts... >::index"}
-auto index -> std::size_t;  // (1)
+std::size_t index;  // (1)
 ```
 
 :include-doxygen-doc: fn::copack< Ts... >::index { args: "" }
 
 ```cpp {title: "fn::copack< Ts... >::size"}
-static auto size -> std::size_t;  // (1)
+static std::size_t size = sizeof...(Ts);  // (1)
 ```
 
 :include-doxygen-doc: fn::copack< Ts... >::size { args: "" }
 
 ```cpp {title: "fn::copack<>::size"}
-static auto size -> std::size_t;  // (1)
+static std::size_t size = 0;  // (1)
 ```
 
 :include-doxygen-doc: fn::copack<>::size { args: "" }
 
 ```cpp {title: "fn::copack<>::has_type"}
 template <typename T>
-static constexpr auto has_type -> bool;  // (1)
+static constexpr bool has_type = false;  // (1)
 ```
 
 :include-doxygen-doc: fn::copack<>::has_type { args: "" }
 
 ```cpp {title: "fn::copack< Ts... >::has_type"}
 template <typename T>
-static constexpr auto has_type -> bool;  // (1)
+static constexpr bool has_type = data_t::template has_type<T>;  // (1)
 ```
 
 :include-doxygen-doc: fn::copack< Ts... >::has_type { args: "" }

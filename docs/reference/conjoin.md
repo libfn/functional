@@ -13,6 +13,14 @@ over it.
 
 ---
 
+## The verb object {style: "api"}
+
+```cpp {title: "fn::conjoin"}
+conjoin_t conjoin;  // (1)
+```
+
+:include-doxygen-doc: fn::conjoin { args: "" }
+
 ## conjoin {style: "api"}
 
 :include-doxygen-doc: fn::conjoin_t

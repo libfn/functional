@@ -10,6 +10,14 @@ title: "functor fn::inspect"
 
 ---
 
+## The verb object {style: "api"}
+
+```cpp {title: "fn::inspect"}
+inspect_t inspect = {};  // (1)
+```
+
+:include-doxygen-doc: fn::inspect { args: "" }
+
 ## Call signatures {style: "api"}
 
 ```cpp {title: "fn::inspect_t::operator()"}

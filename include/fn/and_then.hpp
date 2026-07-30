@@ -162,7 +162,7 @@ constexpr inline struct and_then_t final {
   }
 
   struct apply;
-} and_then = {};
+} and_then = {}; ///< Binds through a callable returning a carrier: `x | and_then(f)`
 
 struct and_then_t::apply final {
   /**

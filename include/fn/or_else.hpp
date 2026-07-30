@@ -173,7 +173,7 @@ constexpr inline struct or_else_t final {
   }
 
   struct apply;
-} or_else = {};
+} or_else = {}; ///< Binds the dead state, returning a carrier: `x | or_else(f)`
 
 struct or_else_t::apply final {
   /**

@@ -499,7 +499,7 @@ constexpr inline struct conjoin_t {
   {
     return (FWD(arg) & ... & FWD(args));
   }
-} conjoin;
+} conjoin; ///< The n-ary conjunction: `conjoin(a, b, c)`
 
 /**
  * @brief The n-ary fold of the disjunction `operator |` over the monadic carriers; a single
@@ -541,7 +541,7 @@ constexpr inline struct disjoin_t {
   {
     return (FWD(arg) | ... | FWD(args));
   }
-} disjoin;
+} disjoin; ///< The n-ary disjunction: `disjoin(a, b, c)`
 
 } // namespace LIBFN_VERSION
 } // namespace fn

@@ -10,6 +10,14 @@ title: "functor fn::fail"
 
 ---
 
+## The verb object {style: "api"}
+
+```cpp {title: "fn::fail"}
+fail_t fail = {};  // (1)
+```
+
+:include-doxygen-doc: fn::fail { args: "" }
+
 ## Call signatures {style: "api"}
 
 ```cpp {title: "fn::fail_t::operator()"}

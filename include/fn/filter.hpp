@@ -79,7 +79,7 @@ constexpr inline struct filter_t final {
   }
 
   struct apply;
-} filter = {};
+} filter = {}; ///< Rejects a value the predicate refuses: `x | filter(f)`
 
 struct filter_t::apply final {
   /**

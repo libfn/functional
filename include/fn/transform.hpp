@@ -117,7 +117,7 @@ constexpr inline struct transform_t final {
   }
 
   struct apply;
-} transform = {};
+} transform = {}; ///< Maps the value, staying in the carrier: `x | transform(f)`
 
 struct transform_t::apply final {
   /**

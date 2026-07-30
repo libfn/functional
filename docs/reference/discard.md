@@ -10,6 +10,14 @@ title: "functor fn::discard"
 
 ---
 
+## The verb object {style: "api"}
+
+```cpp {title: "fn::discard"}
+discard_t discard = {};  // (1)
+```
+
+:include-doxygen-doc: fn::discard { args: "" }
+
 ## Call signatures {style: "api"}
 
 ```cpp {title: "fn::discard_t::operator()"}

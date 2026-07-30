@@ -10,6 +10,14 @@ title: "functor fn::and_then"
 
 ---
 
+## The verb object {style: "api"}
+
+```cpp {title: "fn::and_then"}
+and_then_t and_then = {};  // (1)
+```
+
+:include-doxygen-doc: fn::and_then { args: "" }
+
 ## Call signatures {style: "api"}
 
 ```cpp {title: "fn::and_then_t::operator()"}

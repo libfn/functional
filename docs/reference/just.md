@@ -17,7 +17,7 @@ using value_type = T;  // (1)
 :include-doxygen-doc: fn::just::value_type { args: "" }
 
 ```cpp {title: "fn::just::v_"}
-auto v_ -> T;  // (1)
+T v_;  // (1)
 ```
 
 :include-doxygen-doc: fn::just::v_ { args: "" }

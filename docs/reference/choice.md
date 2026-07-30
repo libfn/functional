@@ -24,14 +24,14 @@ using select_nth = detail::select_nth_t<I, Ts...>;  // (1)
 :include-doxygen-doc: fn::choice< Ts... >::select_nth { args: "" }
 
 ```cpp {title: "fn::choice< Ts... >::size"}
-static auto size -> std::size_t;  // (1)
+static std::size_t size = sizeof...(Ts);  // (1)
 ```
 
 :include-doxygen-doc: fn::choice< Ts... >::size { args: "" }
 
 ```cpp {title: "fn::choice< Ts... >::has_type"}
 template <typename T>
-static constexpr auto has_type -> bool;  // (1)
+static constexpr bool has_type = _impl::template has_type<T>;  // (1)
 ```
 
 :include-doxygen-doc: fn::choice< Ts... >::has_type { args: "" }

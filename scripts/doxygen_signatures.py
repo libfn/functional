@@ -142,7 +142,7 @@ class Member:
         names what a reader cannot - all three are described in prose instead, which is
         what cppreference does with the same declarations.
         """
-        if self.is_special or self.node.get("kind") == "typedef":
+        if self.is_special or self.node.get("kind") in ("typedef", "variable"):
             return ""
         if self.declared_type == "auto" or INTERNAL_NAME.search(self.declared_type):
             return ""
@@ -166,6 +166,19 @@ class Member:
         """
         if self.node.get("kind") == "typedef":
             return prettify(f"using {self.name} = {self.declared_type}")
+        if self.node.get("kind") == "variable":
+            # a variable is its type and name, not a call: no `auto`, no trailing return, and
+            # the initializer is the point of a constant like `size`
+            keywords = [k for k, v in (("static", self.node.get("static")),
+                                       ("constexpr", self.node.get("constexpr")))
+                        if v == "yes"]
+            init = xml_text(self.node.find("initializer"))
+            # doxygen spells a variable's own type elaborated and fully qualified
+            # (`struct fn::discard_t`); a reader inside the namespace writes neither
+            spelled = re.sub(r"^(struct|class|union)\s+", "", self.declared_type)
+            spelled = re.sub(r"^(::)?p?fn::", "", spelled)
+            decl = " ".join(keywords + [spelled, self.name])
+            return prettify(f"{decl} {init}" if init.startswith("=") else decl)
         if not self.is_special and not xml_text(self.node.find("type")):
             return prettify(f"{self.name}{self.args}")  # a guide keeps its arrow in argsstring
         args = re.sub(r"\s*\bnoexcept\b\s*$", "", re.sub(r"\s*->.*$", "", self.args)).strip()
