@@ -93,6 +93,18 @@ class Member:
     def documented(self):
         return bool(self.brief or self.detail)
 
+    @property
+    def selectable(self):
+        """Whether znai can be asked for this overload at all.
+
+        It normalizes the query with `,\\s+` -> `,` but leaves the member's own spelling alone,
+        so a parameter type carrying a comma inside its template arguments - `expected<U, G>
+        const &` - is unreachable: no query string normalizes to what the member holds.
+        """
+        query = re.sub(r",\s+", ",", self.args_text.strip())
+        query = re.sub(r"\s+", " ", query).replace(" &", "&").replace(" *", "*")
+        return query == self.selector
+
     def describes(self, *kinds):
         """Whether the description feeds znai an api-parameters table of this kind."""
         detail = self.node.find("detaileddescription")
@@ -266,15 +278,26 @@ def check(pages, members):
 
 
 def unreachable(members_by_page):
-    problems = []
+    """Descriptions that cannot reach the site, split by whether anything can be done.
+
+    Two stanzas on one selector is ours to fix - merge them, as the cv/ref sets are merged.
+    A selector znai cannot name is not: it is reported so the loss is on the record and so
+    that a znai release which fixes the normalization is noticed, but it does not fail a
+    build that no edit here could make pass.
+    """
+    ours, znais = [], []
     for page, name, overloads in members_by_page:
         for selector, group in selectors(overloads).items():
             documented = [m for m in group if m.documented]
             if len(documented) > 1:
-                problems.append(
+                ours.append(
                     f"{page}: {name} has {len(documented)} descriptions sharing the "
                     f"selector {selector!r}; znai can render only the first")
-    return problems
+            elif documented and not group[0].selectable:
+                znais.append(
+                    f"{page}: {name} is documented for {selector!r}, which no znai selector "
+                    f"can name - its signature is listed, its description is not")
+    return ours, znais
 
 
 def section(name, overloads):
@@ -282,7 +305,7 @@ def section(name, overloads):
     out = [f'```cpp {{title: "{name}"}}', listing(overloads), "```"]
     for group in selectors(overloads).values():
         first = group[0]
-        if not first.documented:
+        if not first.documented or not first.selectable:
             continue
         out.append("")
         out.append(f':include-doxygen-doc: {name} {{ args: "{first.args_text}" }}')
@@ -321,8 +344,10 @@ def main():
     named = [(page.name, name, lookup(name, members))
              for page in pages
              for name, _ in TITLED_FENCE.findall(page.read_text())]
-    problems = check(pages, members) + unreachable(
-        [(p, n, o) for p, n, o in named if o is not None])
+    ours, znais = unreachable([(p, n, o) for p, n, o in named if o is not None])
+    for note in znais:
+        print(f"note: {note}", file=sys.stderr)
+    problems = check(pages, members) + ours
     for problem in problems:
         print(problem, file=sys.stderr)
     return 1 if problems else 0

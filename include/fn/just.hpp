@@ -91,15 +91,39 @@ template <typename T> struct just {
   static_assert(not detail::_some_in_place_type<T>);
   static_assert(::std::is_same_v<T, ::std::remove_cv_t<T>>);
 
+  /**
+   * @brief The type of the value side
+   */
   using value_type = T;
 
+  /**
+   * @brief The payload
+   */
   T v_{};
 
+  /**
+   * @brief Default constructor
+   */
   constexpr just() = default;
+  /**
+   * @brief Copy constructor
+   */
   constexpr just(just const &) = default;
+  /**
+   * @brief Move constructor
+   */
   constexpr just(just &&) = default;
+  /**
+   * @brief Copy assignment
+   */
   constexpr just &operator=(just const &) = default;
+  /**
+   * @brief Move assignment
+   */
   constexpr just &operator=(just &&) = default;
+  /**
+   * @brief Destructor
+   */
   constexpr ~just() = default;
 
   /**
@@ -512,12 +536,27 @@ private:
  * receives the trailing arguments alone (`apply_type` prepends `std::in_place_type<void>`).
  */
 template <> struct just<void> {
+  /**
+   * @brief The type of the value side
+   */
   using value_type = void;
 
+  /**
+   * @brief Default constructor
+   */
   constexpr just() = default;
+  /**
+   * @brief Constructs the alternative named by the tag, in place from the arguments
+   */
   constexpr explicit just(::std::in_place_type_t<void>) noexcept {}
+  /**
+   * @brief Constructs the value in place from the arguments
+   */
   constexpr explicit just(::std::in_place_t) noexcept {}
 
+  /**
+   * @brief Equality; every `just` compares equal to every other
+   */
   [[nodiscard]] constexpr bool operator==(just const &) const noexcept = default;
 
   /**

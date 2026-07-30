@@ -522,15 +522,33 @@ template <typename T> class optional : private detail::_optional_base<T> { // NO
   template <class> friend struct ::fn::detail::_optional_base;
 
 public:
+  /**
+   * @brief The type of the value side
+   */
   using value_type = T;
   // [optional.iterators]: mirrors pfn::optional, with fn's own iterator type
+  /**
+   * @brief Iterator over the value, if any
+   */
   using iterator = detail::_optional_iterator<T>;
+  /**
+   * @brief Const iterator over the value, if any
+   */
   using const_iterator = detail::_optional_iterator<T const>;
 
   // Constructors. Explicit forwarders to the base mirror pfn::optional.
+  /**
+   * @brief Default constructor
+   */
   constexpr optional() noexcept : _base(::std::nullopt) {}
+  /**
+   * @brief Constructs the empty state
+   */
   constexpr optional(::std::nullopt_t) noexcept : _base(::std::nullopt) {} // NOSONAR cpp:S1709 implicit per spec
 
+  /**
+   * @brief Converting constructor from a compatible carrier
+   */
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U const &, T>) optional(optional<U> const &s) //
       noexcept(::std::is_nothrow_constructible_v<T, U const &>)                                // extension
@@ -538,6 +556,9 @@ public:
       : _base(s)
   {
   }
+  /**
+   * @brief Converting constructor from a compatible carrier
+   */
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U, T>) optional(optional<U> &&s) //
       noexcept(::std::is_nothrow_constructible_v<T, U>)                           // extension
@@ -545,6 +566,9 @@ public:
       : _base(::std::move(s))
   {
   }
+  /**
+   * @brief Constructs the value from a value
+   */
   template <class U = ::std::remove_cv_t<T>>
   constexpr explicit(not ::std::is_convertible_v<U, T>) optional(U &&v) // NOSONAR cpp:S6458 _can_convert excludes self
       noexcept(::std::is_nothrow_constructible_v<T, U>)                 // extension
@@ -553,6 +577,9 @@ public:
   {
   }
 
+  /**
+   * @brief Constructs the value in place from the arguments
+   */
   template <class... Args>
   constexpr explicit optional(::std::in_place_t, Args &&...a) //
       noexcept(::std::is_nothrow_constructible_v<T, Args...>) // extension
@@ -560,6 +587,9 @@ public:
       : _base(::std::in_place, FWD(a)...)
   {
   }
+  /**
+   * @brief Constructs the value in place from the arguments
+   */
   template <class U, class... Args>
   constexpr explicit optional(::std::in_place_t, ::std::initializer_list<U> il, Args &&...a) //
       noexcept(::std::is_nothrow_constructible_v<T, ::std::initializer_list<U> &, Args...>)  // extension
@@ -568,6 +598,9 @@ public:
   {
   }
 
+  /**
+   * @brief Copy constructor; not available on this carrier
+   */
   constexpr optional(optional const &) = delete;
   constexpr optional(optional const &s)                   //
       noexcept(::std::is_nothrow_copy_constructible_v<T>) // extension
@@ -579,6 +612,9 @@ public:
       : _base(s.set_, FWD(s).storage_)
   {
   }
+  /**
+   * @brief Move constructor
+   */
   constexpr optional(optional &&) noexcept
     requires(::std::is_move_constructible_v<T> && ::std::is_trivially_move_constructible_v<T>)
   = default;
@@ -589,14 +625,23 @@ public:
   {
   }
 
+  /**
+   * @brief Destructor
+   */
   constexpr ~optional() = default;
 
   // Assignment. Explicit forwarders to the base mirror pfn::optional.
+  /**
+   * @brief Assigns the empty state
+   */
   constexpr optional &operator=(::std::nullopt_t) noexcept
   {
     this->reset();
     return *this;
   }
+  /**
+   * @brief Copy assignment; not available on this carrier
+   */
   constexpr optional &operator=(optional const &) = delete;
   constexpr optional &operator=(optional const &)                                                   //
       noexcept(::std::is_nothrow_copy_assignable_v<T> && ::std::is_nothrow_copy_constructible_v<T>) // extension
@@ -613,6 +658,9 @@ public:
     this->_assign(static_cast<_base const &>(s));
     return *this;
   }
+  /**
+   * @brief Move assignment
+   */
   constexpr optional &operator=(optional &&) //
       noexcept(::std::is_nothrow_move_assignable_v<T> && ::std::is_nothrow_move_constructible_v<T>)
     requires(::std::is_move_constructible_v<T> && ::std::is_move_assignable_v<T>
@@ -629,6 +677,9 @@ public:
     return *this;
   }
 
+  /**
+   * @brief Assignment from a value
+   */
   template <class U = ::std::remove_cv_t<T>>
   constexpr optional &operator=(U &&v)                                                            //
       noexcept(::std::is_nothrow_assignable_v<T &, U> && ::std::is_nothrow_constructible_v<T, U>) // extension
@@ -637,6 +688,9 @@ public:
     this->_assign_value(FWD(v));
     return *this;
   }
+  /**
+   * @brief Assignment from a compatible carrier
+   */
   template <class U>
   constexpr optional &operator=(optional<U> const &s) //
       noexcept(::std::is_nothrow_assignable_v<T &, U const &>
@@ -646,6 +700,9 @@ public:
     this->_assign_from(s);
     return *this;
   }
+  /**
+   * @brief Assignment from a compatible carrier
+   */
   template <class U>
   constexpr optional &operator=(optional<U> &&s)                                                  //
       noexcept(::std::is_nothrow_assignable_v<T &, U> && ::std::is_nothrow_constructible_v<T, U>) // extension
@@ -660,6 +717,9 @@ public:
   using _base::reset;
 
   // Swap; body delegates to _optional_base helper
+  /**
+   * @brief Swaps the contents with another `optional`
+   */
   constexpr void swap(optional &rhs) //
       noexcept(::std::is_nothrow_move_constructible_v<T> && ::std::is_nothrow_swappable_v<T>)
   {
@@ -1034,15 +1094,33 @@ template <class T> class optional<T &> : private detail::_optional_base<T &> {
   template <class> friend struct ::fn::detail::_optional_base;
 
 public:
+  /**
+   * @brief The type of the value side
+   */
   using value_type = T;
   // [optional.ref.iterators]: mirrors pfn::optional, with fn's own iterator type
+  /**
+   * @brief Iterator over the value, if any
+   */
   using iterator = detail::_optional_iterator<T>;
 
   // Constructors. Explicit forwarders to the base mirror pfn::optional.
+  /**
+   * @brief Default constructor
+   */
   constexpr optional() noexcept = default;
+  /**
+   * @brief Constructs the empty state
+   */
   constexpr optional(::std::nullopt_t) noexcept : optional() {} // NOSONAR cpp:S1709 implicit per spec
+  /**
+   * @brief Copy constructor
+   */
   constexpr optional(optional const &rhs) noexcept = default;
 
+  /**
+   * @brief Constructs the value in place from the arguments
+   */
   template <class Arg>
   constexpr explicit optional(::std::in_place_t, Arg &&arg) //
       noexcept(::std::is_nothrow_constructible_v<T &, Arg>) // extension
@@ -1053,12 +1131,18 @@ public:
 
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U, T &>)
+      /**
+       * @brief Constructs the value from a value
+       */
       optional(U &&u) // NOSONAR cpp:S6458 _can_convert excludes self
       noexcept(::std::is_nothrow_constructible_v<T &, U>)
     requires(_base::template _can_convert<U>::value)
       : _base(::std::in_place, FWD(u))
   {
   }
+  /**
+   * @brief Converting constructor from a compatible carrier
+   */
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U &, T &>) optional(optional<U> &rhs) //
       noexcept(::std::is_nothrow_constructible_v<T &, U &>)
@@ -1066,6 +1150,9 @@ public:
       : _base(rhs)
   {
   }
+  /**
+   * @brief Converting constructor from a compatible carrier
+   */
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U const &, T &>) optional(optional<U> const &rhs) //
       noexcept(::std::is_nothrow_constructible_v<T &, U const &>)
@@ -1073,6 +1160,9 @@ public:
       : _base(rhs)
   {
   }
+  /**
+   * @brief Converting constructor from a compatible carrier
+   */
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U, T &>) optional(optional<U> &&rhs) //
       noexcept(::std::is_nothrow_constructible_v<T &, U>)
@@ -1080,6 +1170,9 @@ public:
       : _base(::std::move(rhs))
   {
   }
+  /**
+   * @brief Converting constructor from a compatible carrier
+   */
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U const, T &>) optional(optional<U> const &&rhs) //
       noexcept(::std::is_nothrow_constructible_v<T &, U const>)
@@ -1088,14 +1181,23 @@ public:
   {
   }
 
+  /**
+   * @brief Destructor
+   */
   constexpr ~optional() = default;
 
   // Assignment
+  /**
+   * @brief Assigns the empty state
+   */
   constexpr optional &operator=(::std::nullopt_t) noexcept
   {
     this->reset();
     return *this;
   }
+  /**
+   * @brief Copy assignment
+   */
   constexpr optional &operator=(optional const &rhs) noexcept = default;
 
   // Emplace and reset inherited from _optional_base
@@ -1103,6 +1205,9 @@ public:
   using _base::reset;
 
   // Swap; body delegates to _optional_base helper
+  /**
+   * @brief Swaps the contents with another `optional`
+   */
   constexpr void swap(optional &rhs) noexcept { this->_swap_with(rhs); }
 
   // Iterator support inherited from _optional_base, mirrors pfn::optional

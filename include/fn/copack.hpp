@@ -249,14 +249,38 @@ template <typename... Ts> struct copack;
  * type can sit inside a union storage.
  */
 template <> struct copack<> final {
+  /**
+   * @brief Default constructor; not available on this carrier
+   */
   constexpr copack() noexcept = delete; // NOTE, `= delete` here is the whole point
+  /**
+   * @brief Destructor
+   */
   constexpr ~copack() noexcept = default;
+  /**
+   * @brief Copy constructor
+   */
   constexpr copack(copack const &) noexcept = default;
+  /**
+   * @brief Move constructor
+   */
   constexpr copack(copack &&) noexcept = default;
+  /**
+   * @brief Copy assignment
+   */
   constexpr copack &operator=(copack const &) noexcept = default;
+  /**
+   * @brief Move assignment
+   */
   constexpr copack &operator=(copack &&) noexcept = default;
 
+  /**
+   * @brief The number of alternatives
+   */
   static constexpr ::std::size_t size = 0;
+  /**
+   * @brief Whether `T` is one of the alternatives
+   */
   template <typename T> static constexpr bool has_type = false;
 };
 
@@ -275,10 +299,22 @@ struct copack<Ts...> {
   static_assert((... && detail::_is_valid_copack_subtype<Ts>));
   static_assert(::std::same_as<typename detail::normalized<Ts...>::template apply<::fn::copack>, copack>);
 
+  /**
+   * @brief The union holding the alternatives
+   */
   using data_t = detail::variadic_union<Ts...>;
+  /**
+   * @brief The union holding the active alternative
+   */
   data_t data;
+  /**
+   * @brief The index of the active alternative
+   */
   ::std::size_t index;
 
+  /**
+   * @brief The number of alternatives
+   */
   static constexpr ::std::size_t size = sizeof...(Ts);
 
   // What copying and moving a copack cost, asked of the storage that performs them - see the concepts
@@ -439,6 +475,9 @@ struct copack<Ts...> {
   {
   }
 
+  /**
+   * @brief Widening constructor from a copack over a subset of the alternatives
+   */
   template <typename... Tx>
   constexpr copack(copack<Tx...> &&arg) // NOSONAR cpp:S1709 implicit widening by design
       noexcept((... && detail::_nothrow_makeable<data_t, Tx, Tx>))
@@ -510,6 +549,9 @@ struct copack<Ts...> {
   {
   }
 
+  /**
+   * @brief Destructor
+   */
   constexpr ~copack()
     requires _trivially_destructible
   = default;

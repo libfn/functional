@@ -60,10 +60,22 @@ struct choice<Ts...> : copack<Ts...> {
   static_assert((... && detail::_is_valid_choice_subtype<Ts>));
   static_assert(::std::same_as<typename detail::normalized<Ts...>::template apply<::fn::choice>, choice>);
   using _impl = copack<Ts...>;
+  /**
+   * @brief The copack of alternatives this choice carries
+   */
   using value_type = _impl;
 
+  /**
+   * @brief The number of alternatives
+   */
   static constexpr ::std::size_t size = sizeof...(Ts);
+  /**
+   * @brief The I-th alternative in the canonical order
+   */
   template <::std::size_t I> using select_nth = detail::select_nth_t<I, Ts...>;
+  /**
+   * @brief Whether `T` is one of the alternatives
+   */
   template <typename T> static constexpr bool has_type = _impl::template has_type<T>;
 
   template <typename Ret>
@@ -140,6 +152,9 @@ struct choice<Ts...> : copack<Ts...> {
   {
   }
 
+  /**
+   * @brief Widening constructor from a copack over a subset of the alternatives
+   */
   template <typename... Tx>
   constexpr choice(copack<Tx...> &&v) // NOSONAR cpp:S1709 implicit widening by design
       noexcept(::std::is_nothrow_constructible_v<_impl, ::std::in_place_type_t<copack<Tx...>>, copack<Tx...>>)
@@ -163,21 +178,39 @@ struct choice<Ts...> : copack<Ts...> {
   {
   }
 
+  /**
+   * @brief Copy constructor
+   */
   constexpr choice(choice const &other) = default;
+  /**
+   * @brief Move constructor
+   */
   constexpr choice(choice &&other) = default;
+  /**
+   * @brief Destructor
+   */
   constexpr ~choice() = default;
 
   // Declared because the move constructor above would otherwise delete the implicit copy assignment
   // and suppress the implicit move assignment. Defaulted, so both inherit the base copack's - its
   // constraints, its strong guarantee, and its computed noexcept (which an explicit one here would
   // contradict, and thereby delete).
+  /**
+   * @brief Copy assignment
+   */
   constexpr choice &operator=(choice const &other) = default;
+  /**
+   * @brief Move assignment
+   */
   constexpr choice &operator=(choice &&other) = default;
 
   // choice declares its copy and move assignment, and a declared operator= hides every base
   // overload - copack's widening assignment must be restated here to exist at all. Delegating keeps
   // the answer copack's, and admits a copack over the same alternatives, which would otherwise pay for
   // the temporary the widening constructor builds.
+  /**
+   * @brief Widening assignment from a copack over a subset of the alternatives
+   */
   template <typename... Tx>
   constexpr choice &operator=(copack<Tx...> const &arg) //
       noexcept(::std::is_nothrow_assignable_v<copack<Ts...> &, copack<Tx...> const &>)
@@ -186,6 +219,9 @@ struct choice<Ts...> : copack<Ts...> {
     static_cast<copack<Ts...> &>(*this) = arg;
     return *this;
   }
+  /**
+   * @brief Widening assignment from a copack over a subset of the alternatives
+   */
   template <typename... Tx>
   constexpr choice &operator=(copack<Tx...> &&arg) //
       noexcept(::std::is_nothrow_assignable_v<copack<Ts...> &, copack<Tx...>>)
@@ -198,6 +234,9 @@ struct choice<Ts...> : copack<Ts...> {
   // The delegating value assignment restates copack's for the same name-hiding reason. Copack- and
   // choice-typed sources are excluded to leave them to the assignments above: for a non-const
   // lvalue source a forwarding reference would otherwise outrank their `const &` bindings.
+  /**
+   * @brief Assignment from a value
+   */
   template <typename U>
   constexpr choice &operator=(U &&v) //
       noexcept(::std::is_nothrow_assignable_v<copack<Ts...> &, decltype(v)>)

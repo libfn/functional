@@ -8,6 +8,23 @@ title: "type fn::pack"
 
 :include-doxygen-doc: fn::pack
 
+## Member types {style: "api"}
+
+```cpp {title: "fn::pack::append_type"}
+template <typename T>
+using append_type = _impl::template append_type<T>;  // (1)
+```
+
+:include-doxygen-doc: fn::pack::append_type { args: "" }
+
+## operator<=> {style: "api"}
+
+```cpp {title: "fn::pack::operator<=>"}
+constexpr auto operator<=>(pack const &other) const;  // (1)
+```
+
+:include-doxygen-doc: fn::pack::operator<=> { args: "pack const &" }
+
 ## Append {style: "api"}
 Grows the product without nesting: appending a value adds one field, and appending a pack
 splices its fields in.

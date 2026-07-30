@@ -8,6 +8,54 @@ title: "monad fn::just"
 
 :include-doxygen-doc: fn::just
 
+## Member types {style: "api"}
+
+```cpp {title: "fn::just::value_type"}
+using value_type = T;  // (1)
+```
+
+:include-doxygen-doc: fn::just::value_type { args: "" }
+
+```cpp {title: "fn::just::v_"}
+auto v_ -> T;  // (1)
+```
+
+:include-doxygen-doc: fn::just::v_ { args: "" }
+
+```cpp {title: "fn::just< void >::value_type"}
+using value_type = void;  // (1)
+```
+
+:include-doxygen-doc: fn::just< void >::value_type { args: "" }
+
+## Construction {style: "api"}
+
+```cpp {title: "fn::just::~just"}
+constexpr ~just() = default;  // (1)
+```
+
+:include-doxygen-doc: fn::just::~just { args: "" }
+
+```cpp {title: "fn::just< void >::just"}
+constexpr just() = default;                           // (1)
+constexpr explicit just(std::in_place_type_t<void>);  // (2)
+constexpr explicit just(std::in_place_t);             // (3)
+```
+
+:include-doxygen-doc: fn::just< void >::just { args: "" }
+
+:include-doxygen-doc: fn::just< void >::just { args: "::std::in_place_type_t< void >" }
+
+:include-doxygen-doc: fn::just< void >::just { args: "::std::in_place_t" }
+
+## operator== {style: "api"}
+
+```cpp {title: "fn::just< void >::operator=="}
+constexpr auto operator==(just const &) const noexcept = default -> bool;  // (1)
+```
+
+:include-doxygen-doc: fn::just< void >::operator== { args: "just const &" }
+
 ## value {style: "api"}
 The payload, always present: the access is total, never throwing.
 
@@ -204,6 +252,12 @@ template <typename Fn>
 constexpr explicit just(detail::_just_from_invoke_t, Fn &&make);  // (8)
 ```
 
+:include-doxygen-doc: fn::just::just { args: "" }
+
+:include-doxygen-doc: fn::just::just { args: "just const &" }
+
+:include-doxygen-doc: fn::just::just { args: "just &&" }
+
 :include-doxygen-doc: fn::just::just { args: "U &&" }
 
 :include-doxygen-doc-params: fn::just::just { args: "U &&", title: "parameters" }
@@ -221,6 +275,10 @@ constexpr auto operator=(just &&) = default      -> just &;  // (2)
 template <typename U>
 constexpr auto operator=(U &&v) -> just &;  // (3)
 ```
+
+:include-doxygen-doc: fn::just::operator= { args: "just const &" }
+
+:include-doxygen-doc: fn::just::operator= { args: "just &&" }
 
 :include-doxygen-doc: fn::just::operator= { args: "U &&" }
 

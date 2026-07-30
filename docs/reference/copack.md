@@ -10,6 +10,83 @@ title: "type fn::copack"
 
 :include-doxygen-doc: fn::copack_for
 
+## Member types {style: "api"}
+
+```cpp {title: "fn::copack< Ts... >::data_t"}
+using data_t = detail::variadic_union<Ts...>;  // (1)
+```
+
+:include-doxygen-doc: fn::copack< Ts... >::data_t { args: "" }
+
+```cpp {title: "fn::copack< Ts... >::data"}
+auto data -> data_t;  // (1)
+```
+
+:include-doxygen-doc: fn::copack< Ts... >::data { args: "" }
+
+```cpp {title: "fn::copack< Ts... >::index"}
+auto index -> std::size_t;  // (1)
+```
+
+:include-doxygen-doc: fn::copack< Ts... >::index { args: "" }
+
+```cpp {title: "fn::copack< Ts... >::size"}
+static auto size -> std::size_t;  // (1)
+```
+
+:include-doxygen-doc: fn::copack< Ts... >::size { args: "" }
+
+```cpp {title: "fn::copack<>::size"}
+static auto size -> std::size_t;  // (1)
+```
+
+:include-doxygen-doc: fn::copack<>::size { args: "" }
+
+```cpp {title: "fn::copack<>::has_type"}
+template <typename T>
+static constexpr auto has_type -> bool;  // (1)
+```
+
+:include-doxygen-doc: fn::copack<>::has_type { args: "" }
+
+## Construction {style: "api"}
+
+```cpp {title: "fn::copack< Ts... >::~copack"}
+constexpr ~copack() = default;  // (1)
+constexpr ~copack();            // (2)
+```
+
+:include-doxygen-doc: fn::copack< Ts... >::~copack { args: "" }
+
+```cpp {title: "fn::copack<>::copack"}
+constexpr copack() noexcept = delete;                 // (1)
+constexpr copack(copack const &) noexcept = default;  // (2)
+constexpr copack(copack &&) noexcept = default;       // (3)
+```
+
+:include-doxygen-doc: fn::copack<>::copack { args: "" }
+
+:include-doxygen-doc: fn::copack<>::copack { args: "copack const &" }
+
+:include-doxygen-doc: fn::copack<>::copack { args: "copack &&" }
+
+```cpp {title: "fn::copack<>::~copack"}
+constexpr ~copack() noexcept = default;  // (1)
+```
+
+:include-doxygen-doc: fn::copack<>::~copack { args: "" }
+
+## Assignment {style: "api"}
+
+```cpp {title: "fn::copack<>::operator="}
+constexpr auto operator=(copack const &) noexcept = default -> copack &;  // (1)
+constexpr auto operator=(copack &&) noexcept = default      -> copack &;  // (2)
+```
+
+:include-doxygen-doc: fn::copack<>::operator= { args: "copack const &" }
+
+:include-doxygen-doc: fn::copack<>::operator= { args: "copack &&" }
+
 ## Apply {style: "api"}
 Elimination: the active alternative routes into the callable, exhaustively - every alternative
 must have a viable arm.
@@ -119,6 +196,8 @@ constexpr copack(copack &&other);                 // (10)
 :include-doxygen-doc: fn::copack< Ts... >::copack { args: "copack < Tx... > const &" }
 
 :include-doxygen-doc-params: fn::copack< Ts... >::copack { args: "copack < Tx... > const &", title: "parameters" }
+
+:include-doxygen-doc: fn::copack< Ts... >::copack { args: "copack < Tx... > &&" }
 
 :include-doxygen-doc: fn::copack< Ts... >::copack { args: "::std::in_place_type_t< copack < Tx... > >, some_copack auto &&" }
 

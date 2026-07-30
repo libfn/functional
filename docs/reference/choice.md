@@ -8,6 +8,66 @@ title: "monad fn::choice"
 
 :include-doxygen-doc: fn::choice
 
+## Member types {style: "api"}
+
+```cpp {title: "fn::choice< Ts... >::value_type"}
+using value_type = _impl;  // (1)
+```
+
+:include-doxygen-doc: fn::choice< Ts... >::value_type { args: "" }
+
+```cpp {title: "fn::choice< Ts... >::select_nth"}
+template <std::size_t I>
+using select_nth = detail::select_nth_t<I, Ts...>;  // (1)
+```
+
+:include-doxygen-doc: fn::choice< Ts... >::select_nth { args: "" }
+
+```cpp {title: "fn::choice< Ts... >::size"}
+static auto size -> std::size_t;  // (1)
+```
+
+:include-doxygen-doc: fn::choice< Ts... >::size { args: "" }
+
+```cpp {title: "fn::choice< Ts... >::has_type"}
+template <typename T>
+static constexpr auto has_type -> bool;  // (1)
+```
+
+:include-doxygen-doc: fn::choice< Ts... >::has_type { args: "" }
+
+## Construction {style: "api"}
+
+```cpp {title: "fn::choice< Ts... >::~choice"}
+constexpr ~choice() = default;  // (1)
+```
+
+:include-doxygen-doc: fn::choice< Ts... >::~choice { args: "" }
+
+## Assignment {style: "api"}
+
+```cpp {title: "fn::choice< Ts... >::operator="}
+constexpr auto operator=(choice const &other) = default -> choice &;  // (1)
+constexpr auto operator=(choice &&other) = default      -> choice &;  // (2)
+
+template <typename... Tx>
+constexpr auto operator=(copack<Tx...> const &arg) -> choice &;  // (3)
+constexpr auto operator=(copack<Tx...> &&arg)      -> choice &;  // (4)
+
+template <typename U>
+constexpr auto operator=(U &&v) -> choice &;  // (5)
+```
+
+:include-doxygen-doc: fn::choice< Ts... >::operator= { args: "choice const &" }
+
+:include-doxygen-doc: fn::choice< Ts... >::operator= { args: "choice &&" }
+
+:include-doxygen-doc: fn::choice< Ts... >::operator= { args: "copack < Tx... > const &" }
+
+:include-doxygen-doc: fn::choice< Ts... >::operator= { args: "copack < Tx... > &&" }
+
+:include-doxygen-doc: fn::choice< Ts... >::operator= { args: "U &&" }
+
 ## choice_for {style: "api"}
 The construction alias: accepts alternatives in any order, with duplicates and nested copacks,
 and resolves to the canonical `fn::choice`. Prefer it over spelling `choice` directly, so that no
@@ -61,9 +121,15 @@ constexpr choice(choice &&other) = default;       // (8)
 
 :include-doxygen-doc-params: fn::choice< Ts... >::choice { args: "copack < Tx... > const &", title: "parameters" }
 
+:include-doxygen-doc: fn::choice< Ts... >::choice { args: "copack < Tx... > &&" }
+
 :include-doxygen-doc: fn::choice< Ts... >::choice { args: "::std::in_place_type_t< copack < Tx... > >, some_copack auto &&" }
 
 :include-doxygen-doc-params: fn::choice< Ts... >::choice { args: "::std::in_place_type_t< copack < Tx... > >, some_copack auto &&", title: "parameters" }
+
+:include-doxygen-doc: fn::choice< Ts... >::choice { args: "choice const &" }
+
+:include-doxygen-doc: fn::choice< Ts... >::choice { args: "choice &&" }
 
 ## value {style: "api"}
 The alternatives as the underlying `copack`, always present.

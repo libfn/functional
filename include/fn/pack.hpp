@@ -45,6 +45,9 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
   using _impl = detail::pack_impl<::std::index_sequence_for<Ts...>, Ts...>;
   static_assert((... && detail::_is_valid_pack_element<Ts>));
 
+  /**
+   * @brief The pack type that appending a `T` yields
+   */
   template <typename T> using append_type = _impl::template append_type<T>;
 
   /**
@@ -62,6 +65,9 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
     return _impl::_equal(*this, other);
   }
 
+  /**
+   * @brief Orders two packs lexicographically, element by element
+   */
   [[nodiscard]] constexpr auto operator<=>(pack const &other) const //
       noexcept(noexcept(_impl::_compare(*this, other)))
     requires requires(pack const &a, pack const &b) { _impl::_compare(a, b); }

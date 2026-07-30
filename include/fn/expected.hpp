@@ -904,13 +904,28 @@ template <typename T, typename Err> class expected : private detail::_expected_b
   template <class, class> friend struct ::fn::detail::_expected_base;
 
 public:
+  /**
+   * @brief The type of the value side
+   */
   using value_type = T;
+  /**
+   * @brief The type of the error side
+   */
   using error_type = Err;
+  /**
+   * @brief The `unexpected` specialization over the error type
+   */
   using unexpected_type = ::fn::unexpected<Err>;
 
+  /**
+   * @brief This carrier over another value type
+   */
   template <class U> using rebind = expected<U, error_type>;
 
   // Constructors. Explicit forwarders to the base mirror pfn::expected.
+  /**
+   * @brief Default constructor
+   */
   constexpr expected() noexcept(::std::is_nothrow_default_constructible_v<T>)
     requires ::std::is_default_constructible_v<T>
       : _base(::std::in_place)
@@ -919,6 +934,9 @@ public:
 
   template <class U, class G>
   constexpr explicit(not ::std::is_convertible_v<U const &, T> || not ::std::is_convertible_v<G const &, Err>)
+      /**
+       * @brief Converting constructor from a compatible carrier
+       */
       expected(expected<U, G> const &s) //
       noexcept(::std::is_nothrow_constructible_v<T, U const &> && ::std::is_nothrow_constructible_v<Err, G const &>)
     requires(_base::template _can_copy_convert<U, G>::value)
@@ -927,12 +945,18 @@ public:
   }
   template <class U, class G>
   constexpr explicit(not ::std::is_convertible_v<U, T> || not ::std::is_convertible_v<G, Err>)
+      /**
+       * @brief Converting constructor from a compatible carrier
+       */
       expected(expected<U, G> &&s) //
       noexcept(::std::is_nothrow_constructible_v<T, U> && ::std::is_nothrow_constructible_v<Err, G>)
     requires(_base::template _can_move_convert<U, G>::value)
       : _base(::std::move(s))
   {
   }
+  /**
+   * @brief Constructs the value from a value
+   */
   template <class U = ::std::remove_cv_t<T>>
   constexpr explicit(not ::std::is_convertible_v<U, T>) expected(U &&v) //
       noexcept(::std::is_nothrow_constructible_v<T, U>)
@@ -941,6 +965,9 @@ public:
   {
   }
 
+  /**
+   * @brief Constructs the error from an `unexpected`
+   */
   template <class G>
   constexpr explicit(not ::std::is_convertible_v<G const &, Err>) expected(::fn::unexpected<G> const &g) //
       noexcept(::std::is_nothrow_constructible_v<Err, G const &>)
@@ -948,6 +975,9 @@ public:
       : _base(::fn::unexpect, ::std::forward<G const &>(g.error()))
   {
   }
+  /**
+   * @brief Constructs the error from an `unexpected`
+   */
   template <class G>
   constexpr explicit(not ::std::is_convertible_v<G, Err>) expected(::fn::unexpected<G> &&g) //
       noexcept(::std::is_nothrow_constructible_v<Err, G>)
@@ -956,6 +986,9 @@ public:
   {
   }
 
+  /**
+   * @brief Constructs the value in place from the arguments
+   */
   template <class... Args>
   constexpr explicit expected(::std::in_place_t, Args &&...a) //
       noexcept(::std::is_nothrow_constructible_v<T, Args...>)
@@ -963,6 +996,9 @@ public:
       : _base(::std::in_place, FWD(a)...)
   {
   }
+  /**
+   * @brief Constructs the value in place from the arguments
+   */
   template <class U, class... Args>
   constexpr explicit expected(::std::in_place_t, ::std::initializer_list<U> il, Args &&...a) //
       noexcept(::std::is_nothrow_constructible_v<T, ::std::initializer_list<U> &, Args...>)
@@ -970,6 +1006,9 @@ public:
       : _base(::std::in_place, il, FWD(a)...)
   {
   }
+  /**
+   * @brief Constructs the error in place from the arguments
+   */
   template <class... Args>
   constexpr explicit expected(::fn::unexpect_t, Args &&...a)    //
       noexcept(::std::is_nothrow_constructible_v<Err, Args...>) //
@@ -977,6 +1016,9 @@ public:
       : _base(::fn::unexpect, FWD(a)...)
   {
   }
+  /**
+   * @brief Constructs the error in place from the arguments
+   */
   template <class U, class... Args>
   constexpr explicit expected(::fn::unexpect_t, ::std::initializer_list<U> il, Args &&...a) //
       noexcept(::std::is_nothrow_constructible_v<Err, ::std::initializer_list<U> &, Args...>)
@@ -985,6 +1027,9 @@ public:
   {
   }
 
+  /**
+   * @brief Copy constructor; not available on this carrier
+   */
   constexpr expected(expected const &) = delete;
   constexpr expected(expected const &s) //
       noexcept(::std::is_nothrow_copy_constructible_v<T> && ::std::is_nothrow_copy_constructible_v<Err>)
@@ -998,6 +1043,9 @@ public:
       : _base(s.set_, FWD(s).storage_)
   {
   }
+  /**
+   * @brief Move constructor
+   */
   constexpr expected(expected &&s) noexcept
     requires(::std::is_move_constructible_v<T> && ::std::is_move_constructible_v<Err>
              && ::std::is_trivially_move_constructible_v<T> && ::std::is_trivially_move_constructible_v<Err>)
@@ -1010,9 +1058,15 @@ public:
   {
   }
 
+  /**
+   * @brief Destructor
+   */
   constexpr ~expected() = default;
 
   // Assignment. Explicit forwarders mirror pfn::expected to avoid an MSVC bug.
+  /**
+   * @brief Assignment from a value
+   */
   template <class U = T>
   constexpr expected &operator=(U &&s) //
       noexcept(::std::is_nothrow_assignable_v<T &, U> && ::std::is_nothrow_constructible_v<T, U>)
@@ -1021,6 +1075,9 @@ public:
     this->_assign_value(FWD(s));
     return *this;
   }
+  /**
+   * @brief Assignment from an `unexpected`
+   */
   template <class G>
   constexpr expected &operator=(::fn::unexpected<G> const &s) //
       noexcept(::std::is_nothrow_assignable_v<Err &, G const &> && ::std::is_nothrow_constructible_v<Err, G const &>)
@@ -1031,6 +1088,9 @@ public:
     this->_assign_unexpected(s);
     return *this;
   }
+  /**
+   * @brief Assignment from an `unexpected`
+   */
   template <class G>
   constexpr expected &operator=(::fn::unexpected<G> &&s) //
       noexcept(::std::is_nothrow_assignable_v<Err &, G> && ::std::is_nothrow_constructible_v<Err, G>)
@@ -1041,6 +1101,9 @@ public:
     this->_assign_unexpected(::std::move(s));
     return *this;
   }
+  /**
+   * @brief Copy assignment; not available on this carrier
+   */
   constexpr expected &operator=(expected const &) = delete;
   constexpr expected &operator=(expected const &) //
       noexcept(::std::is_nothrow_copy_assignable_v<T> && ::std::is_nothrow_copy_constructible_v<T>
@@ -1065,6 +1128,9 @@ public:
     this->_assign(static_cast<_base const &>(s));
     return *this;
   }
+  /**
+   * @brief Move assignment
+   */
   constexpr expected &operator=(expected &&) //
       noexcept(::std::is_nothrow_move_assignable_v<T> && ::std::is_nothrow_move_constructible_v<T>
                && ::std::is_nothrow_move_assignable_v<Err> && ::std::is_nothrow_move_constructible_v<Err>)
@@ -1105,6 +1171,9 @@ public:
 
   // Swap; body delegates to _expected_base helper
   constexpr void
+  /**
+   * @brief Swaps the contents with another `expected`
+   */
   swap(expected &rhs) noexcept(::std::is_nothrow_move_constructible_v<T> && ::std::is_nothrow_swappable_v<T>
                                && ::std::is_nothrow_move_constructible_v<Err> && ::std::is_nothrow_swappable_v<Err>)
     requires(::std::is_swappable_v<T> && ::std::is_swappable_v<Err> && ::std::is_move_constructible_v<T>
@@ -1576,14 +1645,32 @@ template <typename Err> class expected<void, Err> : private detail::_expected_ba
   template <class, class> friend struct ::fn::detail::_expected_base;
 
 public:
+  /**
+   * @brief The type of the value side
+   */
   using value_type = void;
+  /**
+   * @brief The type of the error side
+   */
   using error_type = Err;
+  /**
+   * @brief The `unexpected` specialization over the error type
+   */
   using unexpected_type = ::fn::unexpected<Err>;
 
+  /**
+   * @brief This carrier over another value type
+   */
   template <class U> using rebind = expected<U, error_type>;
 
+  /**
+   * @brief Default constructor
+   */
   constexpr expected() noexcept : _base(::std::in_place) {}
 
+  /**
+   * @brief Converting constructor from a compatible carrier
+   */
   template <class U, class G>
   constexpr explicit(not ::std::is_convertible_v<G const &, Err>) expected(expected<U, G> const &s) //
       noexcept(::std::is_nothrow_constructible_v<Err, G const &>)
@@ -1591,6 +1678,9 @@ public:
       : _base(s)
   {
   }
+  /**
+   * @brief Converting constructor from a compatible carrier
+   */
   template <class U, class G>
   constexpr explicit(not ::std::is_convertible_v<G, Err>) expected(expected<U, G> &&s) //
       noexcept(::std::is_nothrow_constructible_v<Err, G>)
@@ -1598,6 +1688,9 @@ public:
       : _base(::std::move(s))
   {
   }
+  /**
+   * @brief Constructs the error from an `unexpected`
+   */
   template <class G>
   constexpr explicit(not ::std::is_convertible_v<G const &, Err>) expected(::fn::unexpected<G> const &g) //
       noexcept(::std::is_nothrow_constructible_v<Err, G const &>)
@@ -1605,6 +1698,9 @@ public:
       : _base(::fn::unexpect, ::std::forward<G const &>(g.error()))
   {
   }
+  /**
+   * @brief Constructs the error from an `unexpected`
+   */
   template <class G>
   constexpr explicit(not ::std::is_convertible_v<G, Err>) expected(::fn::unexpected<G> &&g) //
       noexcept(::std::is_nothrow_constructible_v<Err, G>)
@@ -1613,8 +1709,14 @@ public:
   {
   }
 
+  /**
+   * @brief Constructs the value in place from the arguments
+   */
   constexpr explicit expected(::std::in_place_t) noexcept : _base(::std::in_place) {}
 
+  /**
+   * @brief Constructs the error in place from the arguments
+   */
   template <class... Args>
   constexpr explicit expected(::fn::unexpect_t, Args &&...a)    //
       noexcept(::std::is_nothrow_constructible_v<Err, Args...>) //
@@ -1622,6 +1724,9 @@ public:
       : _base(::fn::unexpect, FWD(a)...)
   {
   }
+  /**
+   * @brief Constructs the error in place from the arguments
+   */
   template <class U, class... Args>
   constexpr explicit expected(::fn::unexpect_t, ::std::initializer_list<U> il, Args &&...a) //
       noexcept(::std::is_nothrow_constructible_v<Err, ::std::initializer_list<U> &, Args...>)
@@ -1630,6 +1735,9 @@ public:
   {
   }
 
+  /**
+   * @brief Copy constructor; not available on this carrier
+   */
   constexpr expected(expected const &) = delete;
   constexpr expected(expected const &)
     requires(::std::is_copy_constructible_v<Err> && ::std::is_trivially_copy_constructible_v<Err>)
@@ -1640,6 +1748,9 @@ public:
       : _base(s.set_, FWD(s).storage_)
   {
   }
+  /**
+   * @brief Move constructor
+   */
   constexpr expected(expected &&s) noexcept
     requires(::std::is_move_constructible_v<Err> && ::std::is_trivially_move_constructible_v<Err>)
   = default;
@@ -1650,8 +1761,14 @@ public:
   {
   }
 
+  /**
+   * @brief Destructor
+   */
   constexpr ~expected() = default;
 
+  /**
+   * @brief Assignment from an `unexpected`
+   */
   template <class G>
   constexpr expected &operator=(::fn::unexpected<G> const &s) //
       noexcept(::std::is_nothrow_assignable_v<Err &, G const &> && ::std::is_nothrow_constructible_v<Err, G const &>)
@@ -1660,6 +1777,9 @@ public:
     this->_assign_unexpected(s);
     return *this;
   }
+  /**
+   * @brief Assignment from an `unexpected`
+   */
   template <class G>
   constexpr expected &operator=(::fn::unexpected<G> &&s) //
       noexcept(::std::is_nothrow_assignable_v<Err &, G> && ::std::is_nothrow_constructible_v<Err, G>)
@@ -1668,6 +1788,9 @@ public:
     this->_assign_unexpected(::std::move(s));
     return *this;
   }
+  /**
+   * @brief Copy assignment; not available on this carrier
+   */
   constexpr expected &operator=(expected const &) = delete;
   constexpr expected &operator=(expected const &) //
       noexcept(::std::is_nothrow_copy_assignable_v<Err> && ::std::is_nothrow_copy_constructible_v<Err>)
@@ -1684,6 +1807,9 @@ public:
     this->_assign(static_cast<_base const &>(s));
     return *this;
   }
+  /**
+   * @brief Move assignment
+   */
   constexpr expected &operator=(expected &&) //
       noexcept(::std::is_nothrow_move_assignable_v<Err> && ::std::is_nothrow_move_constructible_v<Err>)
     requires(::std::is_move_constructible_v<Err> && ::std::is_move_assignable_v<Err>
@@ -1702,6 +1828,9 @@ public:
 
   using _base::emplace;
 
+  /**
+   * @brief Swaps the contents with another `expected`
+   */
   constexpr void swap(expected &rhs) //
       noexcept(::std::is_nothrow_move_constructible_v<Err> && ::std::is_nothrow_swappable_v<Err>)
     requires(::std::is_swappable_v<Err> && ::std::is_move_constructible_v<Err>)

@@ -10,7 +10,7 @@ set(DOXYGEN_GENERATE_XML YES)
 # but MSVC sees, and leaves every other macro to be read as written.
 set(DOXYGEN_MACRO_EXPANSION YES)
 set(DOXYGEN_EXPAND_ONLY_PREDEF YES)
-set(DOXYGEN_PREDEFINED "DEDUCED_RETURN(x)=decltype(auto)")
+set(DOXYGEN_PREDEFINED "DEDUCED_RETURN(x)=decltype(auto)" "explicit(x)=explicit")
 
 # Doxygen reads a staged copy of include/ with the ABI inline namespace stripped, so the XML
 # carries the API exactly as readers spell it (fn::X, pfn::X), independent of doxygen's and
