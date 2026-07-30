@@ -505,11 +505,28 @@ constexpr inline struct conjoin_t {
 constexpr inline struct disjoin_t {
   // Carriers only, in every arity: `|` over anything else is the built-in operator, and folding
   // integers into 3 is not what this asks for
+
+  /**
+   * @brief Forwards a single carrier unchanged
+   * @param arg The carrier
+   * @return The carrier, forwarded
+   */
   template <some_monadic_type Arg> [[nodiscard]] constexpr auto operator()(Arg &&arg) const -> decltype(arg)
   {
     return FWD(arg);
   }
 
+  /**
+   * @brief Folds the carriers into their disjunction
+   *
+   * The n-ary form of `operator |`: the result holds the first operand that worked, its values
+   * summing into a `copack`, and the errors multiply into a `pack` reached only where every
+   * operand failed. An identity-cluster operand makes the whole disjunction total.
+   *
+   * @param arg The leading carrier
+   * @param args Further carriers to disjoin
+   * @return The folded disjunction
+   */
   template <typename Arg, typename... Args>
     requires(sizeof...(Args) > 0)
             && detail::_all_carriers<Arg, Args...> && requires(Arg &&a, Args &&...as) { (FWD(a) | ... | FWD(as)); }

@@ -1117,8 +1117,20 @@ public:
   using _base::value;
   using _base::value_or;
 
-  // Elimination over both states; a reference optional always hands the referent over as T&.
   // Bodies delegate to _optional_base static helpers.
+
+  /**
+   * @brief Eliminates over both states: the engaged arm receives the referent, the empty arm
+   *        nothing
+   *
+   * The engaged arm receives a plain `T&` - a reference optional hands the referent over as
+   * itself, never by elements - and the empty arm the trailing arguments alone; the arms must
+   * yield one result type.
+   *
+   * @param f Callable with arms for both states; `fn::overload` fuses them
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result
+   */
   template <class F, class... Args>
   [[nodiscard]] constexpr auto apply(F &&f, Args &&...args) const    //
       noexcept(noexcept(_base::_apply(*this, FWD(f), FWD(args)...))) // extension
@@ -1126,6 +1138,15 @@ public:
   {
     return _base::_apply(*this, FWD(f), FWD(args)...);
   }
+
+  /**
+   * @brief Eliminates over both states, converting the result to `Ret`
+   *
+   * @tparam Ret Type the results convert to
+   * @param f Callable with arms for both states; `fn::overload` fuses them
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result, converted to `Ret`
+   */
   template <class Ret, class F, class... Args>
   [[nodiscard]] constexpr auto apply_r(F &&f, Args &&...args) const                  //
       noexcept(noexcept(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
@@ -1133,6 +1154,17 @@ public:
   {
     return _base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...);
   }
+
+  /**
+   * @brief Eliminates over both states, keyed by the tag naming the state
+   *
+   * The engaged arm receives `std::in_place` followed by the referent, and the empty arm
+   * `std::nullopt`.
+   *
+   * @param f Callable with arms for both tagged states
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result
+   */
   template <class F, class... Args>
   [[nodiscard]] constexpr auto apply_type(F &&f, Args &&...args) const    //
       noexcept(noexcept(_base::_apply_type(*this, FWD(f), FWD(args)...))) // extension
@@ -1140,6 +1172,15 @@ public:
   {
     return _base::_apply_type(*this, FWD(f), FWD(args)...);
   }
+
+  /**
+   * @brief Eliminates over both states, keyed by the tag, converting the result to `Ret`
+   *
+   * @tparam Ret Type the results convert to
+   * @param f Callable with arms for both tagged states
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result, converted to `Ret`
+   */
   template <class Ret, class F, class... Args>
   [[nodiscard]] constexpr auto apply_type_r(F &&f, Args &&...args) const                  //
       noexcept(noexcept(_base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
@@ -1148,7 +1189,17 @@ public:
     return _base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...);
   }
 
-  // Monadic operations. Bodies delegate to _optional_base static helpers.
+  // Bodies delegate to _optional_base static helpers.
+
+  /**
+   * @brief Binds the referent through the callable, which returns an `optional`
+   *
+   * The callable receives a plain `T&` and names the result outright, so a bind may leave the
+   * reference behind for an owning `optional`. An empty operand passes through.
+   *
+   * @param f Callable applied on the referent, returning an `optional`
+   * @return The callback's `optional`
+   */
   template <class F>
   constexpr auto and_then(F &&f) const                    //
       noexcept(noexcept(_base::_and_then(*this, FWD(f)))) // extension
@@ -1156,6 +1207,17 @@ public:
   {
     return _base::_and_then(*this, FWD(f));
   }
+
+  /**
+   * @brief Maps the referent through the callable, staying inside the carrier
+   *
+   * The callable receives a plain `T&`, and its result type becomes the new value side - a
+   * callable returning a reference keeps the result a view, one returning a value makes it own.
+   * An empty operand passes through uninvoked.
+   *
+   * @param f Callable applied on the referent
+   * @return An `optional` holding the callable's result
+   */
   template <class F>
   constexpr auto transform(F &&f) const                    //
       noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
@@ -1163,6 +1225,18 @@ public:
   {
     return _base::_transform(*this, FWD(f));
   }
+
+  /**
+   * @brief Binds the empty state through the callable, which returns this same `optional`
+   *
+   * The recovery bind: an engaged operand passes through, and the callback - invoked with no
+   * arguments, the empty state carrying no value - supplies the result. A reference optional has
+   * no value side to grade, so the callback must return this very type, as the standard member
+   * requires.
+   *
+   * @param f Callable invoked with no arguments, returning an `optional<T &>`
+   * @return The recovery's `optional`, or the operand where it is engaged
+   */
   template <class F>
   constexpr auto or_else(F &&f) const                        //
       noexcept(noexcept(_base::_or_else_ref(*this, FWD(f)))) // extension

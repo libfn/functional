@@ -27,6 +27,7 @@ constexpr auto value() const -> void;  // (1)
 ```
 
 :include-doxygen-doc: fn::just< void >::value { args: "" }
+
 ## transform {style: "api"}
 
 ```cpp {title: "fn::just::transform"}
@@ -49,6 +50,7 @@ constexpr auto transform(Fn &&fn) const;  // (1)
 :include-doxygen-doc: fn::just< void >::transform { args: "Fn &&" }
 
 :include-doxygen-doc-params: fn::just< void >::transform { args: "Fn &&", title: "parameters" }
+
 ## and_then {style: "api"}
 
 ```cpp {title: "fn::just::and_then"}

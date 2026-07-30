@@ -64,6 +64,7 @@ constexpr choice(choice &&other) = default;       // (8)
 :include-doxygen-doc: fn::choice< Ts... >::choice { args: "::std::in_place_type_t< copack < Tx... > >, some_copack auto &&" }
 
 :include-doxygen-doc-params: fn::choice< Ts... >::choice { args: "::std::in_place_type_t< copack < Tx... > >, some_copack auto &&", title: "parameters" }
+
 ## value {style: "api"}
 The alternatives as the underlying `copack`, always present.
 

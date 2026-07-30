@@ -1717,10 +1717,18 @@ public:
   using _base::has_value;
   using _base::value;
 
-  // Elimination over both states, mirroring copack's apply family: the value arm takes no value
-  // (apply) or the ::std::in_place tag alone (apply_type), the error arm the error unpacked as
-  // fn::apply would hand it over, after ::fn::unexpect in the tagged form. Bodies delegate to
-  // _expected_base static helpers.
+  /**
+   * @brief Eliminates over both states: the active side routes into the callable
+   *
+   * The value arm receives nothing - success carries no value - so it is invoked with the
+   * trailing arguments alone, and the error arm receives the error as `fn::apply` hands it
+   * over; the arms must yield one result type. Over an uninhabited error side the value arm
+   * alone is exhaustive.
+   *
+   * @param f Callable with arms for both states; `fn::overload` fuses them
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result
+   */
   template <class F, class... Args>
   [[nodiscard]] constexpr auto apply(F &&f, Args &&...args) &        //
       noexcept(noexcept(_base::_apply(*this, FWD(f), FWD(args)...))) // extension
@@ -1750,6 +1758,14 @@ public:
     return _base::_apply(::std::move(*this), FWD(f), FWD(args)...);
   }
 
+  /**
+   * @brief Eliminates over both states, converting the result to `Ret`
+   *
+   * @tparam Ret Type the results convert to
+   * @param f Callable with arms for both states; `fn::overload` fuses them
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result, converted to `Ret`
+   */
   template <class Ret, class F, class... Args>
   [[nodiscard]] constexpr auto apply_r(F &&f, Args &&...args) &                      //
       noexcept(noexcept(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
@@ -1779,6 +1795,16 @@ public:
     return _base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...);
   }
 
+  /**
+   * @brief Eliminates over both states, keyed by the constructor tag naming the state
+   *
+   * The value arm receives `std::in_place` alone, there being no content to follow it, and the
+   * error arm receives `fn::unexpect` followed by the error.
+   *
+   * @param f Callable with arms for both tagged states
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result
+   */
   template <class F, class... Args>
   [[nodiscard]] constexpr auto apply_type(F &&f, Args &&...args) &        //
       noexcept(noexcept(_base::_apply_type(*this, FWD(f), FWD(args)...))) // extension
@@ -1808,6 +1834,15 @@ public:
     return _base::_apply_type(::std::move(*this), FWD(f), FWD(args)...);
   }
 
+  /**
+   * @brief Eliminates over both states, keyed by the constructor tag, converting the result to
+   *        `Ret`
+   *
+   * @tparam Ret Type the results convert to
+   * @param f Callable with arms for both tagged states
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result, converted to `Ret`
+   */
   template <class Ret, class F, class... Args>
   [[nodiscard]] constexpr auto apply_type_r(F &&f, Args &&...args) &                      //
       noexcept(noexcept(_base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
@@ -1837,7 +1872,20 @@ public:
     return _base::template _apply_type_r<Ret>(::std::move(*this), FWD(f), FWD(args)...);
   }
 
-  // Monadic operations. Bodies delegate to _expected_base static helpers, which perform copack-widening.
+  // Bodies delegate to _expected_base static helpers, which perform copack-widening.
+
+  /**
+   * @brief Binds through the callable, invoked with no arguments, which returns an `expected`
+   *
+   * As the standard member, extended by grading: a plain error side admits a callback returning
+   * the identical error type, or its singular lift `copack<E>` - the opt-in to the graded world -
+   * while a graded (copack) error side unions the callback's error set into its own. Over the
+   * uninhabited `copack<>` error side the operand passes through and the callback is neither
+   * invoked nor instantiated.
+   *
+   * @param f Callable taking no arguments, returning an `expected`
+   * @return The callback's `expected`, its error side widened by the operand's grade
+   */
   template <class F>
   constexpr auto and_then(F &&f) &                        //
       noexcept(noexcept(_base::_and_then(*this, FWD(f)))) // extension
@@ -1867,6 +1915,18 @@ public:
     return _base::_and_then(::std::move(*this), FWD(f));
   }
 
+  /**
+   * @brief Binds the error through the callable, which returns an `expected`
+   *
+   * The recovery bind: a successful operand passes through, and the callback maps the error - per
+   * alternative when graded, exhaustively - into a new `expected`. A callback returning a value
+   * side leaves this carrier for that one; on a plain error side the callback's error type
+   * replaces the operand's. Over the uninhabited `copack<>` error side the operation is vacuous:
+   * nothing is asked of the handler, not even that it be callable.
+   *
+   * @param f Callable applied on the error, returning an `expected`
+   * @return The callback's `expected`, or the operand unchanged where it holds success
+   */
   template <class F>
   constexpr auto or_else(F &&f) &                        //
       noexcept(noexcept(_base::_or_else(*this, FWD(f)))) // extension
@@ -1896,6 +1956,16 @@ public:
     return _base::_or_else(::std::move(*this), FWD(f));
   }
 
+  /**
+   * @brief Maps through the callable, invoked with no arguments, staying inside the carrier
+   *
+   * The callable's result becomes the new value side, so a callback returning `void` leaves the
+   * carrier's value side `void` and any other return type gives it one. The error side is
+   * untouched, and an operand holding an error passes through uninvoked.
+   *
+   * @param f Callable taking no arguments
+   * @return An `expected` over the callable's result type, with the same error side
+   */
   template <class F>
   constexpr auto transform(F &&f) &                        //
       noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
@@ -1925,6 +1995,17 @@ public:
     return _base::_transform(::std::move(*this), FWD(f));
   }
 
+  /**
+   * @brief Maps the error through the callable, staying inside the carrier
+   *
+   * As the standard member, extended by grading: over a graded (copack) error side the matching
+   * is exhaustive, and the branches may collapse diverse alternatives into one type - the grade
+   * narrows to its singular copack - or into a narrower copack. Over the uninhabited `copack<>`
+   * error side the mapping is the identity, and the callback is neither invoked nor instantiated.
+   *
+   * @param f Callable applied on the error
+   * @return An `expected` over `void` with the mapped error side
+   */
   template <class F>
   constexpr auto transform_error(F &&f) &                        //
       noexcept(noexcept(_base::_transform_error(*this, FWD(f)))) // extension
@@ -1954,7 +2035,15 @@ public:
     return _base::_transform_error(::std::move(*this), FWD(f));
   }
 
-  // Convert to graded monad. There is no value to relocate here, so only the error's lift weighs.
+  /**
+   * @brief Lifts the error side into its singular copack: `expected<void, E>` becomes
+   *        `expected<void, copack<E>>`
+   *
+   * The explicit opt-in to the graded world. There is no value to relocate here, so only the
+   * error's lift weighs; an already-graded error side returns `*this` unchanged.
+   *
+   * @return The same carrier with its error side graded
+   */
   constexpr auto
   copack_error() const & noexcept(::std::is_nothrow_constructible_v<copack<error_type>, error_type const &>
                                   && ::std::is_nothrow_move_constructible_v<copack<error_type>>) // extension

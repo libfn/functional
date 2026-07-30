@@ -28,3 +28,11 @@ constexpr auto operator()(Arg &&arg) const -> decltype(arg);  // (1)
 template <typename Arg, typename... Args>
 constexpr auto operator()(Arg &&arg, Args &&...args) const;  // (2)
 ```
+
+:include-doxygen-doc: fn::disjoin_t::operator() { args: "Arg &&" }
+
+:include-doxygen-doc-params: fn::disjoin_t::operator() { args: "Arg &&", title: "parameters" }
+
+:include-doxygen-doc: fn::disjoin_t::operator() { args: "Arg &&, Args &&..." }
+
+:include-doxygen-doc-params: fn::disjoin_t::operator() { args: "Arg &&, Args &&...", title: "parameters" }
