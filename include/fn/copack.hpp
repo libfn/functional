@@ -378,7 +378,8 @@ struct copack<Ts...> {
    * @brief Constructs the alternative matching the value's decayed type
    *
    * Takes a value of exactly one alternative: a merely convertible non-alternative is rejected,
-   * so interconvertible alternatives never make a resolution puzzle.
+   * so interconvertible alternatives never make a resolution puzzle. Explicit exactly where the
+   * conversion to that alternative is.
    *
    * @param v Value of one alternative
    */
@@ -392,12 +393,6 @@ struct copack<Ts...> {
   {
   }
 
-  /**
-   * @brief Constructs the alternative matching the value's decayed type, where that conversion is
-   *        explicit
-   *
-   * @param v Value of one alternative
-   */
   template <typename T>
   constexpr explicit copack(T &&v) // NOSONAR cpp:S6458 has_type excludes self
       noexcept(detail::_nothrow_makeable<data_t, ::std::remove_cvref_t<T>, decltype(v)>)

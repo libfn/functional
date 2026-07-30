@@ -84,6 +84,8 @@ struct choice<Ts...> : copack<Ts...> {
   /**
    * @brief Constructs the alternative matching the value's decayed type
    *
+   * Explicit exactly where the conversion to that alternative is.
+   *
    * @param v Value of one alternative
    */
   template <typename T>
@@ -96,12 +98,6 @@ struct choice<Ts...> : copack<Ts...> {
   {
   }
 
-  /**
-   * @brief Constructs the alternative matching the value's decayed type, where that conversion is
-   *        explicit
-   *
-   * @param v Value of one alternative
-   */
   template <typename T>
   constexpr explicit choice(T &&v) // NOSONAR cpp:S6458 has_type excludes self
       noexcept(::std::is_nothrow_constructible_v<_impl, ::std::in_place_type_t<::std::remove_cvref_t<T>>, decltype(v)>)

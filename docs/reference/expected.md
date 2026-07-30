@@ -49,3 +49,119 @@ constexpr auto copack_value() const && -> decltype(auto);                       
 :include-doxygen-doc: fn::expected::copack_value { args: "" }
 
 :include-doxygen-doc-params: fn::expected::copack_value { args: "", title: "parameters" }
+
+## and_then {style: "api"}
+
+```cpp {title: "fn::expected::and_then"}
+template <class F>
+constexpr auto and_then(F &&f) &;         // (1)
+constexpr auto and_then(F &&f) &&;        // (2)
+constexpr auto and_then(F &&f) const &;   // (3)
+constexpr auto and_then(F &&f) const &&;  // (4)
+```
+
+:include-doxygen-doc: fn::expected::and_then { args: "F &&" }
+
+:include-doxygen-doc-params: fn::expected::and_then { args: "F &&", title: "parameters" }
+
+## or_else {style: "api"}
+
+```cpp {title: "fn::expected::or_else"}
+template <class F>
+constexpr auto or_else(F &&f) &;         // (1)
+constexpr auto or_else(F &&f) &&;        // (2)
+constexpr auto or_else(F &&f) const &;   // (3)
+constexpr auto or_else(F &&f) const &&;  // (4)
+```
+
+:include-doxygen-doc: fn::expected::or_else { args: "F &&" }
+
+:include-doxygen-doc-params: fn::expected::or_else { args: "F &&", title: "parameters" }
+
+## transform {style: "api"}
+
+```cpp {title: "fn::expected::transform"}
+template <class F>
+constexpr auto transform(F &&f) &;         // (1)
+constexpr auto transform(F &&f) &&;        // (2)
+constexpr auto transform(F &&f) const &;   // (3)
+constexpr auto transform(F &&f) const &&;  // (4)
+```
+
+:include-doxygen-doc: fn::expected::transform { args: "F &&" }
+
+:include-doxygen-doc-params: fn::expected::transform { args: "F &&", title: "parameters" }
+
+## transform_error {style: "api"}
+
+```cpp {title: "fn::expected::transform_error"}
+template <class F>
+constexpr auto transform_error(F &&f) &;         // (1)
+constexpr auto transform_error(F &&f) &&;        // (2)
+constexpr auto transform_error(F &&f) const &;   // (3)
+constexpr auto transform_error(F &&f) const &&;  // (4)
+```
+
+:include-doxygen-doc: fn::expected::transform_error { args: "F &&" }
+
+:include-doxygen-doc-params: fn::expected::transform_error { args: "F &&", title: "parameters" }
+
+## apply {style: "api"}
+
+```cpp {title: "fn::expected::apply"}
+template <class F, class... Args>
+constexpr auto apply(F &&f, Args &&...args) &;         // (1)
+constexpr auto apply(F &&f, Args &&...args) &&;        // (2)
+constexpr auto apply(F &&f, Args &&...args) const &;   // (3)
+constexpr auto apply(F &&f, Args &&...args) const &&;  // (4)
+```
+
+:include-doxygen-doc: fn::expected::apply { args: "F &&, Args &&..." }
+
+:include-doxygen-doc-params: fn::expected::apply { args: "F &&, Args &&...", title: "parameters" }
+
+## apply_r {style: "api"}
+
+```cpp {title: "fn::expected::apply_r"}
+template <class Ret, class F, class... Args>
+constexpr auto apply_r(F &&f, Args &&...args) &;         // (1)
+constexpr auto apply_r(F &&f, Args &&...args) &&;        // (2)
+constexpr auto apply_r(F &&f, Args &&...args) const &;   // (3)
+constexpr auto apply_r(F &&f, Args &&...args) const &&;  // (4)
+```
+
+:include-doxygen-doc: fn::expected::apply_r { args: "F &&, Args &&..." }
+
+:include-doxygen-doc-params: fn::expected::apply_r { args: "F &&, Args &&...", type: "template", title: "template parameters" }
+
+:include-doxygen-doc-params: fn::expected::apply_r { args: "F &&, Args &&...", title: "parameters" }
+
+## apply_type {style: "api"}
+
+```cpp {title: "fn::expected::apply_type"}
+template <class F, class... Args>
+constexpr auto apply_type(F &&f, Args &&...args) &;         // (1)
+constexpr auto apply_type(F &&f, Args &&...args) &&;        // (2)
+constexpr auto apply_type(F &&f, Args &&...args) const &;   // (3)
+constexpr auto apply_type(F &&f, Args &&...args) const &&;  // (4)
+```
+
+:include-doxygen-doc: fn::expected::apply_type { args: "F &&, Args &&..." }
+
+:include-doxygen-doc-params: fn::expected::apply_type { args: "F &&, Args &&...", title: "parameters" }
+
+## apply_type_r {style: "api"}
+
+```cpp {title: "fn::expected::apply_type_r"}
+template <class Ret, class F, class... Args>
+constexpr auto apply_type_r(F &&f, Args &&...args) &;         // (1)
+constexpr auto apply_type_r(F &&f, Args &&...args) &&;        // (2)
+constexpr auto apply_type_r(F &&f, Args &&...args) const &;   // (3)
+constexpr auto apply_type_r(F &&f, Args &&...args) const &&;  // (4)
+```
+
+:include-doxygen-doc: fn::expected::apply_type_r { args: "F &&, Args &&..." }
+
+:include-doxygen-doc-params: fn::expected::apply_type_r { args: "F &&, Args &&...", type: "template", title: "template parameters" }
+
+:include-doxygen-doc-params: fn::expected::apply_type_r { args: "F &&, Args &&...", title: "parameters" }

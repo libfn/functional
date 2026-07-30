@@ -29,6 +29,8 @@ TITLED_FENCE = re.compile(
 ANY_FENCE = re.compile(r"^```cpp\b", re.M)
 NUMBER_COMMENT = re.compile(r"//\s*\(\d+\)\s*$")
 TRAILING_CONSTRAINT = re.compile(r"\brequires\b.*$", re.S)
+# the library marks what is not its interface with a leading underscore
+INTERNAL_NAME = re.compile(r"(^|[^A-Za-z0-9_])_[A-Za-z]")
 
 
 def prettify(text):
@@ -54,6 +56,22 @@ def xml_text(node):
     return " ".join("".join(node.itertext()).split()) if node is not None else ""
 
 
+def linked_text(node):
+    """A type as znai reads it, so a selector written here is one znai can match.
+
+    znai turns a doxygen `<type>` into parts - one per `<ref>` link, one per run of plain
+    text - then trims each and joins them with a space. A linked type name therefore gains
+    a space before whatever follows it: `copack < Tx... > const &`, not `copack<...>`.
+    """
+    if node is None:
+        return ""
+    parts = [node.text or ""]
+    for child in node:
+        parts.append("".join(child.itertext()))
+        parts.append(child.tail or "")
+    return " ".join(p.strip() for p in parts if p.strip())
+
+
 class Member:
     """One doxygen memberdef: an overload, and whether it carries documentation."""
 
@@ -64,7 +82,7 @@ class Member:
         self.args = (node.findtext("argsstring") or "").strip()
         self.brief = xml_text(node.find("briefdescription"))
         self.detail = xml_text(node.find("detaileddescription"))
-        types = ["".join(p.find("type").itertext())
+        types = [linked_text(p.find("type"))
                  for p in node.findall("param") if p.find("type") is not None]
         # znai compares parameter types with their spaces collapsed but the ones doxygen
         # puts inside angle brackets kept, so a selector must be spelled its way.
@@ -97,13 +115,24 @@ class Member:
         return prettify(TRAILING_CONSTRAINT.sub("", declared))
 
     @property
+    def is_special(self):
+        """A constructor or destructor, which has no return type to draw."""
+        owner = self.qualified.rsplit("::", 1)[0] if "::" in self.qualified else ""
+        owner = re.sub(r"<[^<>]*>", "", owner).rsplit("::", 1)[-1].strip()
+        return bool(owner) and self.name.lstrip("~") == owner
+
+    @property
     def returns(self):
         """The trailing return type to draw, if any.
 
-        A deduced `auto` says nothing a reader can use, and an alias carries its type in
-        the declaration itself, so neither draws an arrow.
+        A deduced `auto` says nothing a reader can use, an alias carries its type in the
+        declaration itself, and a SFINAE-friendly `decltype` over the library's internals
+        names what a reader cannot - all three are described in prose instead, which is
+        what cppreference does with the same declarations.
         """
-        if self.declared_type == "auto" or self.node.get("kind") == "typedef":
+        if self.is_special or self.node.get("kind") == "typedef":
+            return ""
+        if self.declared_type == "auto" or INTERNAL_NAME.search(self.declared_type):
             return ""
         return self.declared_type
 
@@ -125,15 +154,18 @@ class Member:
         """
         if self.node.get("kind") == "typedef":
             return prettify(f"using {self.name} = {self.declared_type}")
-        if not xml_text(self.node.find("type")):  # a guide keeps its arrow in argsstring
-            return prettify(f"{self.name}{self.args}")
+        if not self.is_special and not xml_text(self.node.find("type")):
+            return prettify(f"{self.name}{self.args}")  # a guide keeps its arrow in argsstring
         args = re.sub(r"\s*\bnoexcept\b\s*$", "", re.sub(r"\s*->.*$", "", self.args)).strip()
+        args = re.sub(r"\s*=\s*(default|delete)\b", r" = \1", args)
         keywords = [k for k, v in (("static", self.node.get("static")),
-                                   ("explicit", self.node.get("explicit")),
-                                   ("constexpr", self.node.get("constexpr")))
+                                   ("constexpr", self.node.get("constexpr")),
+                                   ("explicit", self.node.get("explicit")))
                     if v == "yes"]
         if xml_text(self.node.find("type")).startswith("friend "):
             keywords.insert(0, "friend")
+        if self.is_special:
+            return prettify(f"{' '.join(keywords)} {self.name}{args}")
         return prettify(f"{' '.join(keywords + ['auto'])} {self.name}{args}")
 
 

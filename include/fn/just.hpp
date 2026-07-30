@@ -105,6 +105,8 @@ template <typename T> struct just {
   /**
    * @brief Constructs the payload from a value
    *
+   * Explicit exactly where the conversion to `T` is.
+   *
    * @param v Value to initialize the payload from
    */
   template <typename U>
@@ -116,11 +118,6 @@ template <typename T> struct just {
   {
   }
 
-  /**
-   * @brief Constructs the payload from a value which does not implicitly convert to `T`
-   *
-   * @param v Value to initialize the payload from
-   */
   template <typename U>
   constexpr explicit just(U &&v) // NOSONAR cpp:S6458 the some_just constraint excludes same-kind sources
       noexcept(::std::is_nothrow_constructible_v<T, decltype(v)>)

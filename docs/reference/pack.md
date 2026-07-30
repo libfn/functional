@@ -50,3 +50,27 @@ constexpr auto apply(Fn &&fn, auto &&...args) const && -> decltype(auto);  // (4
 :include-doxygen-doc: fn::pack::apply { args: "Fn &&, auto &&..." }
 
 :include-doxygen-doc-params: fn::pack::apply { args: "Fn &&, auto &&...", title: "parameters" }
+
+## apply_r {style: "api"}
+
+```cpp {title: "fn::pack::apply_r"}
+template <typename Ret, typename Fn>
+constexpr auto apply_r(Fn &&fn, auto &&...args) &        -> Ret;  // (1)
+constexpr auto apply_r(Fn &&fn, auto &&...args) const &  -> Ret;  // (2)
+constexpr auto apply_r(Fn &&fn, auto &&...args) &&       -> Ret;  // (3)
+constexpr auto apply_r(Fn &&fn, auto &&...args) const && -> Ret;  // (4)
+```
+
+:include-doxygen-doc: fn::pack::apply_r { args: "Fn &&, auto &&..." }
+
+:include-doxygen-doc-params: fn::pack::apply_r { args: "Fn &&, auto &&...", type: "template", title: "template parameters" }
+
+:include-doxygen-doc-params: fn::pack::apply_r { args: "Fn &&, auto &&...", title: "parameters" }
+
+## operator== {style: "api"}
+
+```cpp {title: "fn::pack::operator=="}
+constexpr auto operator==(pack const &other) const -> bool;  // (1)
+```
+
+:include-doxygen-doc: fn::pack::operator== { args: "pack const &" }
