@@ -37,8 +37,8 @@ SECTIONS = (
 DOCUMENTS = tuple(section for section in SECTIONS if section is not HAND_WRITTEN)
 
 # A line that is nothing but a linked image: a badge, which belongs on the repository page and
-# not on the documentation site.
-BADGE = re.compile(r"^\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)$|^!\[[^\]]*\]\([^)]*\)$")
+# not on the documentation site. A bare image is content and stays.
+BADGE = re.compile(r"^\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)$")
 
 SUBTITLE = re.compile(r"^\*\*([^*]+)\*\*$")
 NUMBERED = re.compile(r"^\d+\.\s+")

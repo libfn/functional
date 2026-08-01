@@ -3,7 +3,8 @@
 
 A fence is quoted from a named region of an example: the example brackets the region with a pair of
 `// sync-example-<name>` comments, the document places `<!-- sync-example-<name> -->` immediately
-above the ```cpp fence receiving it. A fence inside a blockquote keeps its `> ` prefix.
+above the ```cpp fence receiving it. A fence inside a blockquote keeps its `> ` prefix. Every
+region must be quoted, so a broken anchor fails rather than letting the fence drift.
 """
 from __future__ import annotations
 
@@ -65,6 +66,8 @@ def extract(example: pathlib.Path, repo: pathlib.Path) -> dict[str, list[str]]:
 
     if open_name is not None:
         fail(f"{where}: region {open_name!r} is never closed")
+    if not regions:
+        fail(f"{where} offers no regions to quote")
     return regions
 
 
@@ -85,7 +88,8 @@ def sync(document: pathlib.Path, example: pathlib.Path, repo: pathlib.Path) -> b
     updated = FENCE.sub(quote, text)
 
     for name in sorted(set(regions) - quoted):
-        sys.stderr.write(f"Warning: region {name!r} of {example.relative_to(repo)} is never quoted\n")
+        fail(f"region {name!r} of {example.relative_to(repo)} is never quoted by "
+             f"{document.relative_to(repo)}")
 
     if text == updated:
         return False
