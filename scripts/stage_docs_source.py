@@ -158,7 +158,14 @@ def unquote_alerts(body: str) -> str:
     """
     lines: list[str] = []
     alert = ALERT.match("")
-    for line in body.splitlines():
+    for _, line, fenced in outside_fences(body):
+        if fenced:
+            # A fence may quote alert syntax as an example of it; that is code, not an alert.
+            if alert is not None:
+                lines.append(ATTENTION_CLOSE)
+                alert = None
+            lines.append(line)
+            continue
         if alert is None and (alert := ALERT.match(line)):
             kind = alert.group(1)
             if kind not in ATTENTION:
