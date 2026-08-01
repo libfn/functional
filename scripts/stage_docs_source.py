@@ -63,7 +63,8 @@ MARKED = re.compile(r"^<!--attention:([a-z]+)-->$(.*?)^<!--/attention-->$",
 # Unquoted openings that end a blockquote rather than continue its paragraph: a heading, a list
 # item, a fence and a thematic break.
 ENDS_QUOTE = re.compile(r"^(#{1,6}\s|[-*+]\s|\d+[.)]\s|```|~~~|(-{3,}|\*{3,}|_{3,})\s*$)")
-FENCE = re.compile(r"^\s*(`{3,})", re.MULTILINE)
+FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
+BACKTICKS = re.compile(r"^\s*(`{3,})", re.MULTILINE)
 
 
 def fail(message: str) -> None:
@@ -78,13 +79,17 @@ def slug(text: str) -> str:
 
 def outside_fences(text: str):
     """Yield (index, line, inside_fence) so no rule fires on fenced content."""
-    fence = False
+    opening = None
     for index, line in enumerate(text.splitlines()):
-        if line.lstrip().startswith("```"):
-            fence = not fence
+        run = FENCE.match(line)
+        # A fence closes on its own character and on a run no shorter than the one that opened it,
+        # so a fence may quote a shorter one of either kind without ending itself.
+        if run and (opening is None
+                    or (run.group(1)[0] == opening[0] and len(run.group(1)) >= len(opening))):
+            opening = None if opening else run.group(1)
             yield index, line, True
             continue
-        yield index, line, fence
+        yield index, line, opening is not None
 
 
 def split(text: str, where: str) -> tuple[str, str, list[tuple[str, str]]]:
@@ -198,7 +203,7 @@ def fence_alerts(body: str) -> str:
     """Turn each marked alert into an attention block, fenced longer than anything inside it."""
     def block(match: re.Match[str]) -> str:
         inner = match.group(2).strip("\n")
-        ticks = "`" * max(3, *(len(m.group(1)) + 1 for m in FENCE.finditer(inner)), 3)
+        ticks = "`" * max(3, *(len(m.group(1)) + 1 for m in BACKTICKS.finditer(inner)), 3)
         return f"{ticks}attention-{match.group(1)}\n{inner}\n{ticks}"
 
     return MARKED.sub(block, body)
