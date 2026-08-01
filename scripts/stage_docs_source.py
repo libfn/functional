@@ -60,6 +60,9 @@ ATTENTION_OPEN = "<!--attention:{}-->"
 ATTENTION_CLOSE = "<!--/attention-->"
 MARKED = re.compile(r"^<!--attention:([a-z]+)-->$(.*?)^<!--/attention-->$",
                     re.MULTILINE | re.DOTALL)
+# Unquoted openings that end a blockquote rather than continue its paragraph: a heading, a list
+# item, a fence and a thematic break.
+ENDS_QUOTE = re.compile(r"^(#{1,6}\s|[-*+]\s|\d+[.)]\s|```|~~~|(-{3,}|\*{3,}|_{3,})\s*$)")
 FENCE = re.compile(r"^\s*(`{3,})", re.MULTILINE)
 
 
@@ -177,6 +180,12 @@ def unquote_alerts(body: str) -> str:
             if line.startswith(">"):
                 lines.append(line[2:] if line.startswith("> ") else line[1:])
                 continue
+            # A blockquote also swallows an unquoted line that merely continues its paragraph, and
+            # only a block of its own ends it. Guessing which this is would silently split the
+            # alert, so anything but a new block is refused and the author quotes it.
+            if line.strip() and not ENDS_QUOTE.match(line):
+                fail(f"alert body continues into an unquoted line: {line.strip()[:60]!r}; "
+                     "prefix it with `>` or separate it with a blank line")
             lines.append(ATTENTION_CLOSE)
             alert = None
         lines.append(line)
