@@ -48,6 +48,20 @@ REFERENCE_LINK = re.compile(r"^(\[[^\]]+\]:\s*)(\S+)", re.MULTILINE)
 HEADING = re.compile(r"^(#{3,})(?=\s)")
 CODE_SPAN = re.compile(r"`+[^`]*`+")
 
+# GitHub spells an admonition as a blockquote opening with an alert kind; znai spells it as a
+# fenced attention block. znai builds a block only for the types below — `attention-tip` is not
+# among them, and an unknown type falls through to a code snippet that prints the markdown
+# verbatim, so an unmapped kind fails the staging instead of reaching the site looking like that.
+ALERT = re.compile(r"^>\s*\[!([A-Z]+)\]\s*$")
+ATTENTION = {"NOTE": "note", "TIP": "note", "WARNING": "warning"}
+# Markers stand in for the block between the two rewrites, so that the alert's own body is
+# rewritten as ordinary prose and only then fenced.
+ATTENTION_OPEN = "<!--attention:{}-->"
+ATTENTION_CLOSE = "<!--/attention-->"
+MARKED = re.compile(r"^<!--attention:([a-z]+)-->$(.*?)^<!--/attention-->$",
+                    re.MULTILINE | re.DOTALL)
+FENCE = re.compile(r"^\s*(`{3,})", re.MULTILINE)
+
 
 def fail(message: str) -> None:
     sys.stderr.write(f"Error: {message}\n")
@@ -135,6 +149,45 @@ def outside_code(line: str, rewrite) -> str:
     return "".join(parts) + rewrite(line[last:])
 
 
+def unquote_alerts(body: str) -> str:
+    """Mark GitHub's alert blockquotes and strip the quoting from their bodies.
+
+    The body is freed of its `>` here, ahead of the rewrites below, so that a heading or a link
+    inside an alert is treated exactly like one outside it; the marker becomes a fence only once
+    those rewrites have run, since a fenced body is left alone.
+    """
+    lines: list[str] = []
+    alert = ALERT.match("")
+    for line in body.splitlines():
+        if alert is None and (alert := ALERT.match(line)):
+            kind = alert.group(1)
+            if kind not in ATTENTION:
+                fail(f"alert [!{kind}] has no znai attention block; "
+                     f"known kinds are {', '.join(sorted(ATTENTION))}")
+            lines.append(ATTENTION_OPEN.format(ATTENTION[kind]))
+            continue
+        if alert is not None:
+            if line.startswith(">"):
+                lines.append(line[2:] if line.startswith("> ") else line[1:])
+                continue
+            lines.append(ATTENTION_CLOSE)
+            alert = None
+        lines.append(line)
+    if alert is not None:
+        lines.append(ATTENTION_CLOSE)
+    return "\n".join(lines)
+
+
+def fence_alerts(body: str) -> str:
+    """Turn each marked alert into an attention block, fenced longer than anything inside it."""
+    def block(match: re.Match[str]) -> str:
+        inner = match.group(2).strip("\n")
+        ticks = "`" * max(3, *(len(m.group(1)) + 1 for m in FENCE.finditer(inner)), 3)
+        return f"{ticks}attention-{match.group(1)}\n{inner}\n{ticks}"
+
+    return MARKED.sub(block, body)
+
+
 def render(body: str, page: dict[str, str] | None, number: dict[str, tuple[str, str]],
            chapter: str | None, repo: pathlib.Path) -> str:
     """Rewrite a body for the site: heading depth, links, cross-references."""
@@ -149,7 +202,7 @@ def render(body: str, page: dict[str, str] | None, number: dict[str, tuple[str, 
             else fail(f"reference to Section {m.group(1)}, which {chapter} does not have"), text)
 
     lines = []
-    for _, line, fenced in outside_fences(body):
+    for _, line, fenced in outside_fences(unquote_alerts(body)):
         if not fenced:
             if BADGE.match(line.strip()):
                 continue
@@ -159,7 +212,7 @@ def render(body: str, page: dict[str, str] | None, number: dict[str, tuple[str, 
                 line = HEADING.sub(lambda m: m.group(1)[1:], line)
             line = outside_code(line, prose)
         lines.append(line)
-    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines))
+    return fence_alerts(re.sub(r"\n{3,}", "\n\n", "\n".join(lines)))
 
 
 def write(path: pathlib.Path, title: str, body: str) -> None:
