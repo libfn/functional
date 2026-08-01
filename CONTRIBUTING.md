@@ -14,15 +14,101 @@ The headers rely on C++20 only, in every default-mode build. The C++23 validatio
 
 ## Building locally
 
-Both `fn` (`include/fn`) and `pfn` (`include/pfn`) target C++20. The unit tests and examples build in C++20 by default. If you have a recent enough compiler, use the CMake option `VALIDATE_CXX23=ON` to additionally build them in C++23 (requires `LIBFN_TESTS=ON`). This also enables `tests/pfn/expected_validation.cpp` and `tests/pfn/optional_validation.cpp`, which run the `pfn` test suites against the standard library's own `std::expected` and `std::optional` — validating the polyfills, and the tests themselves, against the real thing.
+Both `fn` (`include/fn`) and `pfn` (`include/pfn`) target C++20. By default, with no options configured, the build compiles the library, the unit tests, and the examples in C++20:
 
-The C++26 mode is separate from the standard level: defining `LIBFN_CXX26` switches the library's internal type ordering to `std::type_order` (see the feature-reliance note above) and moves `fn` into its own ABI namespace, since the two orderings may disagree on `copack`/`choice` alternative order and the layouts must never link as one. The CMake option `LIBFN_CXX26=ON` enables the mode for this build tree, and `VALIDATE_CXX26=ON` (requires `LIBFN_TESTS=ON` and `LIBFN_CXX26=ON`) additionally builds the tests and examples in C++26 with the mode enabled.
+```bash
+mkdir .build && cd .build
+cmake ..
+cmake --build .
+ctest --output-on-failure
+```
+
+The sections below describe other build configurations. They vary that `cmake` line and assume the same build directory. `CMAKE_BUILD_TYPE` behaves as usual in `cmake`, so it is omitted from the examples unless an option constrains it.
 
 For a quick check of a single example without the full CMake/Catch2 setup:
 
 ```bash
 g++ -std=c++20 -Iinclude examples/polygon/main.cpp -o /tmp/polygon
 ```
+
+### C++23 and C++26
+
+The unit tests and examples build in C++20 by default. If your compiler is modern enough (GCC 15; Clang 21), use the CMake option `VALIDATE_CXX23=ON` to also build them in C++23 (requires `LIBFN_TESTS=ON`). This enables `tests/pfn/expected_validation.cpp` and `tests/pfn/optional_validation.cpp`. These run the `pfn` test suites against the standard library's `std::expected` and `std::optional` to validate that the polyfills (and the tests themselves) behave exactly like the standard library implementations.
+
+```bash
+cmake -DVALIDATE_CXX23=ON ..
+```
+
+Setting the CMake option `LIBFN_CXX26=ON` enables C++26 compilation mode, which switches the library's internal type ordering to use C++26's `std::type_order` (see the feature-reliance note above). Because this can change the layout of `copack` and `choice` alternatives, the library uses a distinct ABI namespace to prevent binary compatibility issues. `LIBFN_CXX26=ON` does not select a language version in the compilation options; it needs to be set separately, e.g. with `CMAKE_CXX_STANDARD`, `CXXFLAGS` or in a consumer project.
+
+Setting `VALIDATE_CXX26=ON` (requires `LIBFN_TESTS=ON` and `LIBFN_CXX26=ON`) additionally builds the tests and examples in C++26 mode, selecting the C++26 language version. Since `std::type_order` is only implemented by GCC 16, this requires GCC 16. If GCC 16 is not your default compiler, select it via `CMAKE_CXX_COMPILER` and `CMAKE_C_COMPILER`, or with both `CC` and `CXX` environment variables:
+
+```bash
+cmake -DLIBFN_CXX26=ON -DVALIDATE_CXX26=ON ..
+```
+
+### Sanitizers
+
+Sanitizers require `CMAKE_BUILD_TYPE=Debug`. They are enabled by default for a top-level build when the build type is `Debug` or left unset (including the default build steps above). To build `Debug` without sanitizers:
+
+```bash
+cmake -DLIBFN_SANITIZERS=OFF -DCMAKE_BUILD_TYPE=Debug ..
+```
+
+The availability of sanitizers varies by platform and compiler:
+
+* **Linux (GCC & Clang):** Enables Address (ASan), Leak (LSan), and Undefined Behavior (UBSan) sanitizers.
+* **macOS (Apple Clang):** Enables ASan and UBSan. LSan is not supported on macOS.
+* **Unsupported configurations:** The option is rejected (causes a CMake error) on:
+  * MSVC
+  * macOS with Homebrew GCC (due to `libasan` library path issues)
+  * macOS with Homebrew Clang (due to library mismatches that hang the process)
+
+### Coverage
+
+Setting `LIBFN_COVERAGE=ON` adds a `coverage` target that writes a `coverage.xml` report based on previously run tests. This requires `LIBFN_TESTS=ON`, a top-level build, and GCC or Clang:
+
+```bash
+cmake -DLIBFN_COVERAGE=ON ..
+cmake --build .
+ctest -L 'tests_.*'
+cmake --build . --target coverage
+```
+
+**Requirements:**
+
+* **gcovr 8.4+:** The coverage build uses the `--merge-lines` option, which was added in `gcovr` 8.4. Since package managers often distribute older versions, using a Python virtual environment (`venv`) is recommended as the easiest way to install a newer version.
+* **Coverage tool:** The coverage tool must match your compiler:
+  * GCC uses `gcov`.
+  * Clang uses `llvm-cov gcov`.
+  * Apple Clang uses `llvm-cov` resolved via `xcrun -f`.
+  These are detected and configured automatically.
+
+### Documentation
+
+Setting `LIBFN_DOCS=ON` adds an `export_docs` target that generates the API reference in the `docs/` folder of your build directory. This requires `LIBFN_TESTS=ON` and a top-level build:
+
+```bash
+cmake -DLIBFN_DOCS=ON ..
+cmake --build . --target export_docs
+```
+
+**Requirements:**
+The following tools must be installed and available in your `PATH`:
+
+* **Doxygen** 1.12.0
+* **znai** 1.91 (requires Java/OpenJDK 21 or newer)
+* **Graphviz** (provides the `dot` tool used by Doxygen)
+
+For a reference environment with these exact tool versions, see [`ci/docs/Dockerfile`](ci/docs/Dockerfile).
+
+**Validation:**
+The documentation build does more than just generate HTML. It also verifies that:
+
+* Every documented entity is present on the generated site.
+* The API signatures in the documentation exactly match the C++ headers.
+
+The target will fail if the documentation is out-of-date or has broken references.
 
 ## Unit tests
 
