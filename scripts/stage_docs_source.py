@@ -52,7 +52,8 @@ CODE_SPAN = re.compile(r"`+[^`]*`+")
 # fenced attention block. znai builds a block only for the types below — `attention-tip` is not
 # among them, and an unknown type falls through to a code snippet that prints the markdown
 # verbatim, so an unmapped kind fails the staging instead of reaching the site looking like that.
-ALERT = re.compile(r"^>\s*\[!([A-Z]+)\]\s*$")
+ALERT = re.compile(r"^ {0,3}>\s*\[!([A-Z]+)\]\s*$")
+QUOTED = re.compile(r"^ {0,3}> ?")
 ATTENTION = {"NOTE": "note", "TIP": "note", "WARNING": "warning"}
 # Markers stand in for the block between the two rewrites, so that the alert's own body is
 # rewritten as ordinary prose and only then fenced.
@@ -61,8 +62,9 @@ ATTENTION_CLOSE = "<!--/attention-->"
 MARKED = re.compile(r"^<!--attention:([a-z]+)-->$(.*?)^<!--/attention-->$",
                     re.MULTILINE | re.DOTALL)
 # Unquoted openings that end a blockquote rather than continue its paragraph: a heading, a list
-# item, a fence and a thematic break.
-ENDS_QUOTE = re.compile(r"^(#{1,6}\s|[-*+]\s|\d+[.)]\s|```|~~~|(-{3,}|\*{3,}|_{3,})\s*$)")
+# item, a fence and a thematic break. Markdown allows a block three spaces of indent, here as
+# above, and a fourth would make the line code rather than any of these.
+ENDS_QUOTE = re.compile(r"^ {0,3}(#{1,6}\s|[-*+]\s|\d+[.)]\s|```|~~~|(-{3,}|\*{3,}|_{3,})\s*$)")
 FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
 BACKTICKS = re.compile(r"^\s*(`{3,})", re.MULTILINE)
 
@@ -182,8 +184,8 @@ def unquote_alerts(body: str) -> str:
             lines.append(ATTENTION_OPEN.format(ATTENTION[kind]))
             continue
         if alert is not None:
-            if line.startswith(">"):
-                lines.append(line[2:] if line.startswith("> ") else line[1:])
+            if quoted := QUOTED.match(line):
+                lines.append(line[quoted.end():])
                 continue
             # A blockquote also swallows an unquoted line that merely continues its paragraph, and
             # only a block of its own ends it. Guessing which this is would silently split the
