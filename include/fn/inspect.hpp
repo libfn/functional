@@ -66,7 +66,7 @@ constexpr inline struct inspect_t final {
   }
 
   struct apply;
-} inspect = {};
+} inspect = {}; ///< Observes the value in passing: `x | inspect(f)`
 
 struct inspect_t::apply final {
   /**

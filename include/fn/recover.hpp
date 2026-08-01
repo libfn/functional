@@ -71,7 +71,7 @@ constexpr inline struct recover_t final {
   }
 
   struct apply;
-} recover = {};
+} recover = {}; ///< Supplies a value for the dead state: `x | recover(f)`
 
 struct recover_t::apply final {
   /**

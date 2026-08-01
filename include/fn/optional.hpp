@@ -522,15 +522,33 @@ template <typename T> class optional : private detail::_optional_base<T> { // NO
   template <class> friend struct ::fn::detail::_optional_base;
 
 public:
+  /**
+   * @brief The type of the value side
+   */
   using value_type = T;
   // [optional.iterators]: mirrors pfn::optional, with fn's own iterator type
+  /**
+   * @brief Iterator over the value, if any
+   */
   using iterator = detail::_optional_iterator<T>;
+  /**
+   * @brief Const iterator over the value, if any
+   */
   using const_iterator = detail::_optional_iterator<T const>;
 
   // Constructors. Explicit forwarders to the base mirror pfn::optional.
+  /**
+   * @brief Default constructor
+   */
   constexpr optional() noexcept : _base(::std::nullopt) {}
+  /**
+   * @brief Constructs the empty state
+   */
   constexpr optional(::std::nullopt_t) noexcept : _base(::std::nullopt) {} // NOSONAR cpp:S1709 implicit per spec
 
+  /**
+   * @brief Converting constructor from a compatible carrier
+   */
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U const &, T>) optional(optional<U> const &s) //
       noexcept(::std::is_nothrow_constructible_v<T, U const &>)                                // extension
@@ -538,6 +556,9 @@ public:
       : _base(s)
   {
   }
+  /**
+   * @brief Converting constructor from a compatible carrier
+   */
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U, T>) optional(optional<U> &&s) //
       noexcept(::std::is_nothrow_constructible_v<T, U>)                           // extension
@@ -545,6 +566,9 @@ public:
       : _base(::std::move(s))
   {
   }
+  /**
+   * @brief Constructs the value from a value
+   */
   template <class U = ::std::remove_cv_t<T>>
   constexpr explicit(not ::std::is_convertible_v<U, T>) optional(U &&v) // NOSONAR cpp:S6458 _can_convert excludes self
       noexcept(::std::is_nothrow_constructible_v<T, U>)                 // extension
@@ -553,6 +577,9 @@ public:
   {
   }
 
+  /**
+   * @brief Constructs the value in place from the arguments
+   */
   template <class... Args>
   constexpr explicit optional(::std::in_place_t, Args &&...a) //
       noexcept(::std::is_nothrow_constructible_v<T, Args...>) // extension
@@ -560,6 +587,9 @@ public:
       : _base(::std::in_place, FWD(a)...)
   {
   }
+  /**
+   * @brief Constructs the value in place from the arguments
+   */
   template <class U, class... Args>
   constexpr explicit optional(::std::in_place_t, ::std::initializer_list<U> il, Args &&...a) //
       noexcept(::std::is_nothrow_constructible_v<T, ::std::initializer_list<U> &, Args...>)  // extension
@@ -568,6 +598,9 @@ public:
   {
   }
 
+  /**
+   * @brief Copy constructor; not available on this carrier
+   */
   constexpr optional(optional const &) = delete;
   constexpr optional(optional const &s)                   //
       noexcept(::std::is_nothrow_copy_constructible_v<T>) // extension
@@ -579,6 +612,9 @@ public:
       : _base(s.set_, FWD(s).storage_)
   {
   }
+  /**
+   * @brief Move constructor
+   */
   constexpr optional(optional &&) noexcept
     requires(::std::is_move_constructible_v<T> && ::std::is_trivially_move_constructible_v<T>)
   = default;
@@ -589,14 +625,23 @@ public:
   {
   }
 
+  /**
+   * @brief Destructor
+   */
   constexpr ~optional() = default;
 
   // Assignment. Explicit forwarders to the base mirror pfn::optional.
+  /**
+   * @brief Assigns the empty state
+   */
   constexpr optional &operator=(::std::nullopt_t) noexcept
   {
     this->reset();
     return *this;
   }
+  /**
+   * @brief Copy assignment; not available on this carrier
+   */
   constexpr optional &operator=(optional const &) = delete;
   constexpr optional &operator=(optional const &)                                                   //
       noexcept(::std::is_nothrow_copy_assignable_v<T> && ::std::is_nothrow_copy_constructible_v<T>) // extension
@@ -613,6 +658,9 @@ public:
     this->_assign(static_cast<_base const &>(s));
     return *this;
   }
+  /**
+   * @brief Move assignment
+   */
   constexpr optional &operator=(optional &&) //
       noexcept(::std::is_nothrow_move_assignable_v<T> && ::std::is_nothrow_move_constructible_v<T>)
     requires(::std::is_move_constructible_v<T> && ::std::is_move_assignable_v<T>
@@ -629,6 +677,9 @@ public:
     return *this;
   }
 
+  /**
+   * @brief Assignment from a value
+   */
   template <class U = ::std::remove_cv_t<T>>
   constexpr optional &operator=(U &&v)                                                            //
       noexcept(::std::is_nothrow_assignable_v<T &, U> && ::std::is_nothrow_constructible_v<T, U>) // extension
@@ -637,6 +688,9 @@ public:
     this->_assign_value(FWD(v));
     return *this;
   }
+  /**
+   * @brief Assignment from a compatible carrier
+   */
   template <class U>
   constexpr optional &operator=(optional<U> const &s) //
       noexcept(::std::is_nothrow_assignable_v<T &, U const &>
@@ -646,6 +700,9 @@ public:
     this->_assign_from(s);
     return *this;
   }
+  /**
+   * @brief Assignment from a compatible carrier
+   */
   template <class U>
   constexpr optional &operator=(optional<U> &&s)                                                  //
       noexcept(::std::is_nothrow_assignable_v<T &, U> && ::std::is_nothrow_constructible_v<T, U>) // extension
@@ -660,6 +717,9 @@ public:
   using _base::reset;
 
   // Swap; body delegates to _optional_base helper
+  /**
+   * @brief Swaps the contents with another `optional`
+   */
   constexpr void swap(optional &rhs) //
       noexcept(::std::is_nothrow_move_constructible_v<T> && ::std::is_nothrow_swappable_v<T>)
   {
@@ -1034,15 +1094,33 @@ template <class T> class optional<T &> : private detail::_optional_base<T &> {
   template <class> friend struct ::fn::detail::_optional_base;
 
 public:
+  /**
+   * @brief The type of the value side
+   */
   using value_type = T;
   // [optional.ref.iterators]: mirrors pfn::optional, with fn's own iterator type
+  /**
+   * @brief Iterator over the value, if any
+   */
   using iterator = detail::_optional_iterator<T>;
 
   // Constructors. Explicit forwarders to the base mirror pfn::optional.
+  /**
+   * @brief Default constructor
+   */
   constexpr optional() noexcept = default;
+  /**
+   * @brief Constructs the empty state
+   */
   constexpr optional(::std::nullopt_t) noexcept : optional() {} // NOSONAR cpp:S1709 implicit per spec
+  /**
+   * @brief Copy constructor
+   */
   constexpr optional(optional const &rhs) noexcept = default;
 
+  /**
+   * @brief Constructs the value in place from the arguments
+   */
   template <class Arg>
   constexpr explicit optional(::std::in_place_t, Arg &&arg) //
       noexcept(::std::is_nothrow_constructible_v<T &, Arg>) // extension
@@ -1053,12 +1131,18 @@ public:
 
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U, T &>)
+      /**
+       * @brief Constructs the value from a value
+       */
       optional(U &&u) // NOSONAR cpp:S6458 _can_convert excludes self
       noexcept(::std::is_nothrow_constructible_v<T &, U>)
     requires(_base::template _can_convert<U>::value)
       : _base(::std::in_place, FWD(u))
   {
   }
+  /**
+   * @brief Converting constructor from a compatible carrier
+   */
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U &, T &>) optional(optional<U> &rhs) //
       noexcept(::std::is_nothrow_constructible_v<T &, U &>)
@@ -1066,6 +1150,9 @@ public:
       : _base(rhs)
   {
   }
+  /**
+   * @brief Converting constructor from a compatible carrier
+   */
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U const &, T &>) optional(optional<U> const &rhs) //
       noexcept(::std::is_nothrow_constructible_v<T &, U const &>)
@@ -1073,6 +1160,9 @@ public:
       : _base(rhs)
   {
   }
+  /**
+   * @brief Converting constructor from a compatible carrier
+   */
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U, T &>) optional(optional<U> &&rhs) //
       noexcept(::std::is_nothrow_constructible_v<T &, U>)
@@ -1080,6 +1170,9 @@ public:
       : _base(::std::move(rhs))
   {
   }
+  /**
+   * @brief Converting constructor from a compatible carrier
+   */
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U const, T &>) optional(optional<U> const &&rhs) //
       noexcept(::std::is_nothrow_constructible_v<T &, U const>)
@@ -1088,14 +1181,23 @@ public:
   {
   }
 
+  /**
+   * @brief Destructor
+   */
   constexpr ~optional() = default;
 
   // Assignment
+  /**
+   * @brief Assigns the empty state
+   */
   constexpr optional &operator=(::std::nullopt_t) noexcept
   {
     this->reset();
     return *this;
   }
+  /**
+   * @brief Copy assignment
+   */
   constexpr optional &operator=(optional const &rhs) noexcept = default;
 
   // Emplace and reset inherited from _optional_base
@@ -1103,6 +1205,9 @@ public:
   using _base::reset;
 
   // Swap; body delegates to _optional_base helper
+  /**
+   * @brief Swaps the contents with another `optional`
+   */
   constexpr void swap(optional &rhs) noexcept { this->_swap_with(rhs); }
 
   // Iterator support inherited from _optional_base, mirrors pfn::optional
@@ -1117,8 +1222,20 @@ public:
   using _base::value;
   using _base::value_or;
 
-  // Elimination over both states; a reference optional always hands the referent over as T&.
   // Bodies delegate to _optional_base static helpers.
+
+  /**
+   * @brief Eliminates over both states: the engaged arm receives the referent, the empty arm
+   *        nothing
+   *
+   * The engaged arm receives a plain `T&` - a reference optional hands the referent over as
+   * itself, never by elements - and the empty arm the trailing arguments alone; the arms must
+   * yield one result type.
+   *
+   * @param f Callable with arms for both states; `fn::overload` fuses them
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result
+   */
   template <class F, class... Args>
   [[nodiscard]] constexpr auto apply(F &&f, Args &&...args) const    //
       noexcept(noexcept(_base::_apply(*this, FWD(f), FWD(args)...))) // extension
@@ -1126,6 +1243,15 @@ public:
   {
     return _base::_apply(*this, FWD(f), FWD(args)...);
   }
+
+  /**
+   * @brief Eliminates over both states, converting the result to `Ret`
+   *
+   * @tparam Ret Type the results convert to
+   * @param f Callable with arms for both states; `fn::overload` fuses them
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result, converted to `Ret`
+   */
   template <class Ret, class F, class... Args>
   [[nodiscard]] constexpr auto apply_r(F &&f, Args &&...args) const                  //
       noexcept(noexcept(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
@@ -1133,6 +1259,17 @@ public:
   {
     return _base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...);
   }
+
+  /**
+   * @brief Eliminates over both states, keyed by the tag naming the state
+   *
+   * The engaged arm receives `std::in_place` followed by the referent, and the empty arm
+   * `std::nullopt`.
+   *
+   * @param f Callable with arms for both tagged states
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result
+   */
   template <class F, class... Args>
   [[nodiscard]] constexpr auto apply_type(F &&f, Args &&...args) const    //
       noexcept(noexcept(_base::_apply_type(*this, FWD(f), FWD(args)...))) // extension
@@ -1140,6 +1277,15 @@ public:
   {
     return _base::_apply_type(*this, FWD(f), FWD(args)...);
   }
+
+  /**
+   * @brief Eliminates over both states, keyed by the tag, converting the result to `Ret`
+   *
+   * @tparam Ret Type the results convert to
+   * @param f Callable with arms for both tagged states
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result, converted to `Ret`
+   */
   template <class Ret, class F, class... Args>
   [[nodiscard]] constexpr auto apply_type_r(F &&f, Args &&...args) const                  //
       noexcept(noexcept(_base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
@@ -1148,7 +1294,17 @@ public:
     return _base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...);
   }
 
-  // Monadic operations. Bodies delegate to _optional_base static helpers.
+  // Bodies delegate to _optional_base static helpers.
+
+  /**
+   * @brief Binds the referent through the callable, which returns an `optional`
+   *
+   * The callable receives a plain `T&` and names the result outright, so a bind may leave the
+   * reference behind for an owning `optional`. An empty operand passes through.
+   *
+   * @param f Callable applied on the referent, returning an `optional`
+   * @return The callback's `optional`
+   */
   template <class F>
   constexpr auto and_then(F &&f) const                    //
       noexcept(noexcept(_base::_and_then(*this, FWD(f)))) // extension
@@ -1156,6 +1312,17 @@ public:
   {
     return _base::_and_then(*this, FWD(f));
   }
+
+  /**
+   * @brief Maps the referent through the callable, staying inside the carrier
+   *
+   * The callable receives a plain `T&`, and its result type becomes the new value side - a
+   * callable returning a reference keeps the result a view, one returning a value makes it own.
+   * An empty operand passes through uninvoked.
+   *
+   * @param f Callable applied on the referent
+   * @return An `optional` holding the callable's result
+   */
   template <class F>
   constexpr auto transform(F &&f) const                    //
       noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
@@ -1163,6 +1330,18 @@ public:
   {
     return _base::_transform(*this, FWD(f));
   }
+
+  /**
+   * @brief Binds the empty state through the callable, which returns this same `optional`
+   *
+   * The recovery bind: an engaged operand passes through, and the callback - invoked with no
+   * arguments, the empty state carrying no value - supplies the result. A reference optional has
+   * no value side to grade, so the callback must return this very type, as the standard member
+   * requires.
+   *
+   * @param f Callable invoked with no arguments, returning an `optional<T &>`
+   * @return The recovery's `optional`, or the operand where it is engaged
+   */
   template <class F>
   constexpr auto or_else(F &&f) const                        //
       noexcept(noexcept(_base::_or_else_ref(*this, FWD(f)))) // extension
@@ -1196,6 +1375,9 @@ concept _is_derived_from_optional = requires(T const &t) { ::fn::detail::_derive
 // do not apply here, since fn::optional does not derive from pfn::optional).
 
 // Relational operators
+/**
+ * @brief Compares two optionals; two empty optionals are equal
+ */
 template <class T, class U>
 constexpr bool operator==(optional<T> const &x, optional<U> const &y) //
     noexcept(::pfn::detail::_eq_bool_noexcept<T, U>)                  // extension
@@ -1207,6 +1389,9 @@ constexpr bool operator==(optional<T> const &x, optional<U> const &y) //
     return true;
   return *x == *y;
 }
+/**
+ * @brief The negation of `==` for two optionals
+ */
 template <class T, class U>
 constexpr bool operator!=(optional<T> const &x, optional<U> const &y) //
     noexcept(::pfn::detail::_ne_bool_noexcept<T, U>)                  // extension
@@ -1218,6 +1403,9 @@ constexpr bool operator!=(optional<T> const &x, optional<U> const &y) //
     return false;
   return *x != *y;
 }
+/**
+ * @brief Orders two optionals, the empty state before every value
+ */
 template <class T, class U>
 constexpr bool operator<(optional<T> const &x, optional<U> const &y) //
     noexcept(::pfn::detail::_lt_bool_noexcept<T, U>)                 // extension
@@ -1229,6 +1417,9 @@ constexpr bool operator<(optional<T> const &x, optional<U> const &y) //
     return true;
   return *x < *y;
 }
+/**
+ * @brief Orders two optionals, the empty state before every value
+ */
 template <class T, class U>
 constexpr bool operator>(optional<T> const &x, optional<U> const &y) //
     noexcept(::pfn::detail::_gt_bool_noexcept<T, U>)                 // extension
@@ -1240,6 +1431,9 @@ constexpr bool operator>(optional<T> const &x, optional<U> const &y) //
     return true;
   return *x > *y;
 }
+/**
+ * @brief Orders two optionals, the empty state before every value
+ */
 template <class T, class U>
 constexpr bool operator<=(optional<T> const &x, optional<U> const &y) //
     noexcept(::pfn::detail::_le_bool_noexcept<T, U>)                  // extension
@@ -1251,6 +1445,9 @@ constexpr bool operator<=(optional<T> const &x, optional<U> const &y) //
     return false;
   return *x <= *y;
 }
+/**
+ * @brief Orders two optionals, the empty state before every value
+ */
 template <class T, class U>
 constexpr bool operator>=(optional<T> const &x, optional<U> const &y) //
     noexcept(::pfn::detail::_ge_bool_noexcept<T, U>)                  // extension
@@ -1262,6 +1459,9 @@ constexpr bool operator>=(optional<T> const &x, optional<U> const &y) //
     return false;
   return *x >= *y;
 }
+/**
+ * @brief Orders two optionals, the empty state before every value
+ */
 template <class T, ::std::three_way_comparable_with<T> U>
 constexpr ::std::compare_three_way_result_t<T, U> operator<=>(optional<T> const &x, optional<U> const &y)
 {
@@ -1269,16 +1469,25 @@ constexpr ::std::compare_three_way_result_t<T, U> operator<=>(optional<T> const 
 }
 
 // Comparison with nullopt
+/**
+ * @brief Whether the optional is empty
+ */
 template <class T> constexpr bool operator==(optional<T> const &x, ::std::nullopt_t) noexcept
 {
   return not x.has_value();
 }
+/**
+ * @brief Orders the optional against the empty state, which precedes every value
+ */
 template <class T> constexpr ::std::strong_ordering operator<=>(optional<T> const &x, ::std::nullopt_t) noexcept
 {
   return x.has_value() <=> false;
 }
 
 // Comparison with a value
+/**
+ * @brief Compares an optional against a value; an empty optional equals nothing
+ */
 template <class T, class U>
 constexpr bool operator==(optional<T> const &x, U const &v) //
     noexcept(::pfn::detail::_eq_bool_noexcept<T, U>)        // extension
@@ -1286,6 +1495,9 @@ constexpr bool operator==(optional<T> const &x, U const &v) //
 {
   return x.has_value() ? *x == v : false;
 }
+/**
+ * @brief Compares a value against an optional; an empty optional equals nothing
+ */
 template <class T, class U>
 constexpr bool operator==(T const &v, optional<U> const &x) //
     noexcept(::pfn::detail::_eq_bool_noexcept<T, U>)        // extension
@@ -1293,6 +1505,9 @@ constexpr bool operator==(T const &v, optional<U> const &x) //
 {
   return x.has_value() ? v == *x : false;
 }
+/**
+ * @brief The negation of `==` against a value
+ */
 template <class T, class U>
 constexpr bool operator!=(optional<T> const &x, U const &v) //
     noexcept(::pfn::detail::_ne_bool_noexcept<T, U>)        // extension
@@ -1300,6 +1515,9 @@ constexpr bool operator!=(optional<T> const &x, U const &v) //
 {
   return x.has_value() ? *x != v : true;
 }
+/**
+ * @brief The negation of `==` against a value
+ */
 template <class T, class U>
 constexpr bool operator!=(T const &v, optional<U> const &x) //
     noexcept(::pfn::detail::_ne_bool_noexcept<T, U>)        // extension
@@ -1307,6 +1525,9 @@ constexpr bool operator!=(T const &v, optional<U> const &x) //
 {
   return x.has_value() ? v != *x : true;
 }
+/**
+ * @brief Orders an optional against a value, an empty optional before it
+ */
 template <class T, class U>
 constexpr bool operator<(optional<T> const &x, U const &v) //
     noexcept(::pfn::detail::_lt_bool_noexcept<T, U>)       // extension
@@ -1314,6 +1535,9 @@ constexpr bool operator<(optional<T> const &x, U const &v) //
 {
   return x.has_value() ? *x < v : true;
 }
+/**
+ * @brief Orders an optional against a value, an empty optional before it
+ */
 template <class T, class U>
 constexpr bool operator<(T const &v, optional<U> const &x) //
     noexcept(::pfn::detail::_lt_bool_noexcept<T, U>)       // extension
@@ -1321,6 +1545,9 @@ constexpr bool operator<(T const &v, optional<U> const &x) //
 {
   return x.has_value() ? v < *x : false;
 }
+/**
+ * @brief Orders an optional against a value, an empty optional before it
+ */
 template <class T, class U>
 constexpr bool operator>(optional<T> const &x, U const &v) //
     noexcept(::pfn::detail::_gt_bool_noexcept<T, U>)       // extension
@@ -1328,6 +1555,9 @@ constexpr bool operator>(optional<T> const &x, U const &v) //
 {
   return x.has_value() ? *x > v : false;
 }
+/**
+ * @brief Orders an optional against a value, an empty optional before it
+ */
 template <class T, class U>
 constexpr bool operator>(T const &v, optional<U> const &x) //
     noexcept(::pfn::detail::_gt_bool_noexcept<T, U>)       // extension
@@ -1335,6 +1565,9 @@ constexpr bool operator>(T const &v, optional<U> const &x) //
 {
   return x.has_value() ? v > *x : true;
 }
+/**
+ * @brief Orders an optional against a value, an empty optional before it
+ */
 template <class T, class U>
 constexpr bool operator<=(optional<T> const &x, U const &v) //
     noexcept(::pfn::detail::_le_bool_noexcept<T, U>)        // extension
@@ -1342,6 +1575,9 @@ constexpr bool operator<=(optional<T> const &x, U const &v) //
 {
   return x.has_value() ? *x <= v : true;
 }
+/**
+ * @brief Orders an optional against a value, an empty optional before it
+ */
 template <class T, class U>
 constexpr bool operator<=(T const &v, optional<U> const &x) //
     noexcept(::pfn::detail::_le_bool_noexcept<T, U>)        // extension
@@ -1349,6 +1585,9 @@ constexpr bool operator<=(T const &v, optional<U> const &x) //
 {
   return x.has_value() ? v <= *x : false;
 }
+/**
+ * @brief Orders an optional against a value, an empty optional before it
+ */
 template <class T, class U>
 constexpr bool operator>=(optional<T> const &x, U const &v) //
     noexcept(::pfn::detail::_ge_bool_noexcept<T, U>)        // extension
@@ -1356,6 +1595,9 @@ constexpr bool operator>=(optional<T> const &x, U const &v) //
 {
   return x.has_value() ? *x >= v : false;
 }
+/**
+ * @brief Orders an optional against a value, an empty optional before it
+ */
 template <class T, class U>
 constexpr bool operator>=(T const &v, optional<U> const &x) //
     noexcept(::pfn::detail::_ge_bool_noexcept<T, U>)        // extension
@@ -1363,6 +1605,9 @@ constexpr bool operator>=(T const &v, optional<U> const &x) //
 {
   return x.has_value() ? v >= *x : true;
 }
+/**
+ * @brief Orders an optional against a value, an empty optional before it
+ */
 template <class T, class U>
   requires(not detail::_is_derived_from_optional<U>) && ::std::three_way_comparable_with<T, U>
 constexpr ::std::compare_three_way_result_t<T, U> operator<=>(optional<T> const &x, U const &v)
@@ -1371,6 +1616,9 @@ constexpr ::std::compare_three_way_result_t<T, U> operator<=>(optional<T> const 
 }
 
 // Specialized algorithms
+/**
+ * @brief Swaps two optionals
+ */
 template <class T>
 constexpr void swap(optional<T> &x, optional<T> &y) noexcept(noexcept(x.swap(y)))
   requires(::std::is_reference_v<T> || (::std::is_move_constructible_v<T> && ::std::is_swappable_v<T>))
@@ -1416,18 +1664,12 @@ struct _optional_efn final {
 };
 } // namespace detail
 
-/**
- * @brief The conjunction of optionals: values multiply into a `pack`, empty is the one failure
- *
- * `a & b` is engaged only if both operands are, the values folding into one `pack` - a copack
- * value distributing into a copack of packs - and empty otherwise: `optional`'s unit error needs
- * no summing. Both operands are fully constructed before the operator runs. An identity-cluster
- * operand contributes its value and can never be the empty side.
- *
- * @param lh Left operand
- * @param rh Right operand
- * @return An `optional` of the folded value product
- */
+// The conjunction of optionals: values multiply into a `pack`, empty is the one failure
+//
+// `a & b` is engaged only if both operands are, the values folding into one `pack` - a copack
+// value distributing into a copack of packs - and empty otherwise: `optional`'s unit error needs
+// no summing. Both operands are fully constructed before the operator runs. An identity-cluster
+// operand contributes its value and can never be the empty side.
 template <some_optional Lh, some_optional Rh>
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
     noexcept(noexcept(::fn::detail::_join<fn::optional>(FWD(lh), FWD(rh), detail::_optional_efn{})))
@@ -1547,18 +1789,12 @@ template <some_optional Lh, typename Rh>
   return ::std::remove_cvref_t<Lh>{FWD(lh)};
 }
 
-/**
- * @brief The disjunction of optionals: values sum into a `copack`, empty only when both are
- *
- * `a | b` holds the leftmost engaged operand's value, injected into the sum of the value types -
- * a same-type pair stays bare. The unit errors vanish in the error product, so the result is
- * empty exactly when both operands are. Both operands are fully constructed before the operator
- * runs: a value-selection rule, not a lazy fallback.
- *
- * @param lh Left operand
- * @param rh Right operand
- * @return An `optional` of the summed value side
- */
+// The disjunction of optionals: values sum into a `copack`, empty only when both are
+//
+// `a | b` holds the leftmost engaged operand's value, injected into the sum of the value types -
+// a same-type pair stays bare. The unit errors vanish in the error product, so the result is
+// empty exactly when both operands are. Both operands are fully constructed before the operator
+// runs: a value-selection rule, not a lazy fallback.
 // The disjunction: the value channel is the sum of the value types - a same-type pair stays bare -
 // and the unit errors vanish in the product, so the result is empty exactly when both operands
 // are. The leftmost engaged operand wins and injects by type.

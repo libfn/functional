@@ -45,6 +45,9 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
   using _impl = detail::pack_impl<::std::index_sequence_for<Ts...>, Ts...>;
   static_assert((... && detail::_is_valid_pack_element<Ts>));
 
+  /**
+   * @brief The pack type that appending a `T` yields
+   */
   template <typename T> using append_type = _impl::template append_type<T>;
 
   /**
@@ -62,6 +65,9 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
     return _impl::_equal(*this, other);
   }
 
+  /**
+   * @brief Orders two packs lexicographically, element by element
+   */
   [[nodiscard]] constexpr auto operator<=>(pack const &other) const //
       noexcept(noexcept(_impl::_compare(*this, other)))
     requires requires(pack const &a, pack const &b) { _impl::_compare(a, b); }
@@ -461,10 +467,15 @@ constexpr inline struct conjoin_t {
   template <typename Arg> [[nodiscard]] constexpr auto operator()(Arg &&arg) const -> decltype(arg) { return FWD(arg); }
 
   /**
-   * @brief Folds data into a product, lifting the leading scalar into a `pack` first
-   * @param arg The leading scalar
-   * @param args Data to conjoin - scalars, packs or copacks, never carriers
-   * @return The folded product
+   * @brief Folds data into a product, or carriers into their conjunction
+   *
+   * With no carrier among the arguments the fold is the data-level product: a leading scalar is
+   * lifted into a `pack` first, and a leading `pack` or `copack` dispatches `operator &` itself.
+   * With every argument a carrier the same fold is their monadic conjunction.
+   *
+   * @param arg The leading argument
+   * @param args Further arguments - all data, or all carriers, never the two mixed
+   * @return The folded product, or the folded conjunction
    */
   template <typename Arg, typename... Args>
     requires(not some_copack<Arg>) && (not some_pack<Arg>) && detail::_no_carrier<Arg, Args...>
@@ -473,12 +484,6 @@ constexpr inline struct conjoin_t {
     return (::fn::pack{FWD(arg)} & ... & FWD(args));
   }
 
-  /**
-   * @brief Folds data into a product, the leading `pack` or `copack` dispatching `operator &`
-   * @param arg The leading pack or copack
-   * @param args Data to conjoin - scalars, packs or copacks, never carriers
-   * @return The folded product
-   */
   template <typename Arg, typename... Args>
     requires(some_copack<Arg> || some_pack<Arg>) && detail::_no_carrier<Args...>
   [[nodiscard]] constexpr auto operator()(Arg &&arg, Args &&...args) const
@@ -486,13 +491,6 @@ constexpr inline struct conjoin_t {
     return (FWD(arg) & ... & FWD(args));
   }
 
-  /**
-   * @brief The same fold over carriers, where `operator &` is the conjunction of the carriers
-   *
-   * @param arg The leading carrier
-   * @param args Carriers to conjoin
-   * @return The folded conjunction
-   */
   template <typename Arg, typename... Args>
     requires(sizeof...(Args) > 0)
             && detail::_all_carriers<Arg, Args...> && requires(Arg &&a, Args &&...as) { (FWD(a) & ... & FWD(as)); }
@@ -501,7 +499,7 @@ constexpr inline struct conjoin_t {
   {
     return (FWD(arg) & ... & FWD(args));
   }
-} conjoin;
+} conjoin; ///< The n-ary conjunction: `conjoin(a, b, c)`
 
 /**
  * @brief The n-ary fold of the disjunction `operator |` over the monadic carriers; a single
@@ -513,11 +511,28 @@ constexpr inline struct conjoin_t {
 constexpr inline struct disjoin_t {
   // Carriers only, in every arity: `|` over anything else is the built-in operator, and folding
   // integers into 3 is not what this asks for
+
+  /**
+   * @brief Forwards a single carrier unchanged
+   * @param arg The carrier
+   * @return The carrier, forwarded
+   */
   template <some_monadic_type Arg> [[nodiscard]] constexpr auto operator()(Arg &&arg) const -> decltype(arg)
   {
     return FWD(arg);
   }
 
+  /**
+   * @brief Folds the carriers into their disjunction
+   *
+   * The n-ary form of `operator |`: the result holds the first operand that worked, its values
+   * summing into a `copack`, and the errors multiply into a `pack` reached only where every
+   * operand failed. An identity-cluster operand makes the whole disjunction total.
+   *
+   * @param arg The leading carrier
+   * @param args Further carriers to disjoin
+   * @return The folded disjunction
+   */
   template <typename Arg, typename... Args>
     requires(sizeof...(Args) > 0)
             && detail::_all_carriers<Arg, Args...> && requires(Arg &&a, Args &&...as) { (FWD(a) | ... | FWD(as)); }
@@ -526,7 +541,7 @@ constexpr inline struct disjoin_t {
   {
     return (FWD(arg) | ... | FWD(args));
   }
-} disjoin;
+} disjoin; ///< The n-ary disjunction: `disjoin(a, b, c)`
 
 } // namespace LIBFN_VERSION
 } // namespace fn

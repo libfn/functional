@@ -64,7 +64,7 @@ constexpr inline struct fail_t final {
   }
 
   struct apply;
-} fail = {};
+} fail = {}; ///< Fails a value the predicate selects: `x | fail(f)`
 
 struct fail_t::apply final {
   /**

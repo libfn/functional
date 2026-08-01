@@ -60,10 +60,22 @@ struct choice<Ts...> : copack<Ts...> {
   static_assert((... && detail::_is_valid_choice_subtype<Ts>));
   static_assert(::std::same_as<typename detail::normalized<Ts...>::template apply<::fn::choice>, choice>);
   using _impl = copack<Ts...>;
+  /**
+   * @brief The copack of alternatives this choice carries
+   */
   using value_type = _impl;
 
+  /**
+   * @brief The number of alternatives
+   */
   static constexpr ::std::size_t size = sizeof...(Ts);
+  /**
+   * @brief The I-th alternative in the canonical order
+   */
   template <::std::size_t I> using select_nth = detail::select_nth_t<I, Ts...>;
+  /**
+   * @brief Whether `T` is one of the alternatives
+   */
   template <typename T> static constexpr bool has_type = _impl::template has_type<T>;
 
   template <typename Ret>
@@ -84,6 +96,8 @@ struct choice<Ts...> : copack<Ts...> {
   /**
    * @brief Constructs the alternative matching the value's decayed type
    *
+   * Explicit exactly where the conversion to that alternative is.
+   *
    * @param v Value of one alternative
    */
   template <typename T>
@@ -96,12 +110,6 @@ struct choice<Ts...> : copack<Ts...> {
   {
   }
 
-  /**
-   * @brief Constructs the alternative matching the value's decayed type, where that conversion is
-   *        explicit
-   *
-   * @param v Value of one alternative
-   */
   template <typename T>
   constexpr explicit choice(T &&v) // NOSONAR cpp:S6458 has_type excludes self
       noexcept(::std::is_nothrow_constructible_v<_impl, ::std::in_place_type_t<::std::remove_cvref_t<T>>, decltype(v)>)
@@ -144,6 +152,9 @@ struct choice<Ts...> : copack<Ts...> {
   {
   }
 
+  /**
+   * @brief Widening constructor from a copack over a subset of the alternatives
+   */
   template <typename... Tx>
   constexpr choice(copack<Tx...> &&v) // NOSONAR cpp:S1709 implicit widening by design
       noexcept(::std::is_nothrow_constructible_v<_impl, ::std::in_place_type_t<copack<Tx...>>, copack<Tx...>>)
@@ -167,21 +178,39 @@ struct choice<Ts...> : copack<Ts...> {
   {
   }
 
+  /**
+   * @brief Copy constructor
+   */
   constexpr choice(choice const &other) = default;
+  /**
+   * @brief Move constructor
+   */
   constexpr choice(choice &&other) = default;
+  /**
+   * @brief Destructor
+   */
   constexpr ~choice() = default;
 
   // Declared because the move constructor above would otherwise delete the implicit copy assignment
   // and suppress the implicit move assignment. Defaulted, so both inherit the base copack's - its
   // constraints, its strong guarantee, and its computed noexcept (which an explicit one here would
   // contradict, and thereby delete).
+  /**
+   * @brief Copy assignment
+   */
   constexpr choice &operator=(choice const &other) = default;
+  /**
+   * @brief Move assignment
+   */
   constexpr choice &operator=(choice &&other) = default;
 
   // choice declares its copy and move assignment, and a declared operator= hides every base
   // overload - copack's widening assignment must be restated here to exist at all. Delegating keeps
   // the answer copack's, and admits a copack over the same alternatives, which would otherwise pay for
   // the temporary the widening constructor builds.
+  /**
+   * @brief Widening assignment from a copack over a subset of the alternatives
+   */
   template <typename... Tx>
   constexpr choice &operator=(copack<Tx...> const &arg) //
       noexcept(::std::is_nothrow_assignable_v<copack<Ts...> &, copack<Tx...> const &>)
@@ -190,6 +219,9 @@ struct choice<Ts...> : copack<Ts...> {
     static_cast<copack<Ts...> &>(*this) = arg;
     return *this;
   }
+  /**
+   * @brief Widening assignment from a copack over a subset of the alternatives
+   */
   template <typename... Tx>
   constexpr choice &operator=(copack<Tx...> &&arg) //
       noexcept(::std::is_nothrow_assignable_v<copack<Ts...> &, copack<Tx...>>)
@@ -202,6 +234,9 @@ struct choice<Ts...> : copack<Ts...> {
   // The delegating value assignment restates copack's for the same name-hiding reason. Copack- and
   // choice-typed sources are excluded to leave them to the assignments above: for a non-const
   // lvalue source a forwarding reference would otherwise outrank their `const &` bindings.
+  /**
+   * @brief Assignment from a value
+   */
   template <typename U>
   constexpr choice &operator=(U &&v) //
       noexcept(::std::is_nothrow_assignable_v<copack<Ts...> &, decltype(v)>)
@@ -604,6 +639,26 @@ constexpr inline bool _nothrow_choice_fold
 // The conjunction inside the cluster, choice on either side: the copack distributes through the
 // value product, so the fold answers a copack of packs and the result stays a choice. just<void>
 // is the product's unit and elides.
+// The description below covers every `&` over carriers, not just this arm: the reference renders
+// one description per parameter-type signature, and all of them share `(Lh &&, Rh &&)`, of which
+// this is the first doxygen reports. The arms in expected.hpp and optional.hpp carry theirs as
+// ordinary comments for the same reason.
+/**
+ * @brief The conjunction of carriers: values multiply into a `pack`, errors sum into a `copack`
+ *
+ * `a & b` succeeds only where both operands do, the values folding into one `pack` - a `void`
+ * side elides, and a copack value distributes into a copack of packs. What the failure side
+ * carries depends on the carrier: an `expected` holds the leftmost failing operand's error, an
+ * identical pair of error types staying as it is and any other pair summing into its normalized
+ * `copack_for`, grading not required of the operands; an `optional` is simply empty, its unit
+ * error needing no summing; a `choice` or `just` cannot fail, so the fold is total. Both operands
+ * are fully constructed before the operator runs: an error-selection rule, not short-circuiting.
+ * An identity-cluster operand contributes its value and no error term.
+ *
+ * @param lh Left operand
+ * @param rh Right operand
+ * @return The carrier of the folded value product, over the summed failure side
+ */
 template <typename Lh, typename Rh>
   requires(detail::_some_choice<Lh> || detail::_some_choice<Rh>) && (detail::_some_just<Lh> || detail::_some_choice<Lh>)
           && (detail::_some_just<Rh> || detail::_some_choice<Rh>)
@@ -676,6 +731,23 @@ template <typename Type, typename Side>
 // uninhabited factor into the error product, so the result never fails and collapses into the
 // cluster: just when the value sum stays one bare type, choice when the union is genuine. The
 // leftmost engaged operand wins; a cluster operand is always engaged.
+// As with `&` above, this arm carries the description for every `|` over carriers.
+/**
+ * @brief The disjunction of carriers: values sum into a `copack`, errors multiply into a `pack`
+ *
+ * `a | b` yields the leftmost operand that worked, its value injected into the sum of the value
+ * types - a same-type pair stays bare, and a `void` side enters a genuine sum as `pack<>`. What
+ * remains when none worked depends on the carrier: an `expected` holds the product of every
+ * error, all evidence kept positionally; an `optional` is simply empty, its unit errors vanishing
+ * in that product; a `choice` or `just` always works, so the disjunction is total. Both operands
+ * are fully constructed before the operator runs: a value-selection rule, not a lazy fallback. An
+ * identity-cluster operand makes the whole disjunction total, collapsing the result into `just`
+ * or `choice`.
+ *
+ * @param lh Left operand
+ * @param rh Right operand
+ * @return The carrier of the summed value side, over the error product
+ */
 template <typename Lh, typename Rh>
   requires(detail::_cluster_operand<Lh> || detail::_cluster_operand<Rh>) //
           && detail::_some_carrier<Lh> && detail::_some_carrier<Rh>

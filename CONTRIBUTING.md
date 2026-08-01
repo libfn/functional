@@ -56,6 +56,29 @@ Match the assertion to the kind of fact being tested.
 
 Choose fixtures with care when probing exception specifications. `helper_t` has a separate constructor for each value category, and its non-const-lvalue copy constructor is always `noexcept`. A `helper_t` configured to throw is therefore not throwing for every value category, and a specification that remains `noexcept` for that constructor may be correct. Use a plain local type when the test needs every relevant construction to be potentially throwing.
 
+## Client code
+
+Code written against the library — examples, documentation snippets, reproducers, anything a user of libfn might imitate:
+
+* Let the library derive graded error types. Never spell a multi-alternative `copack<...>` by hand — the canonical alternative order is internal and platform-dependent (MSVC orders class types after fundamentals); use `copack_for<...>`, and pin a deduced type with `static_assert` where the type is the point.
+* Give behaviour a constant-evaluation twin: a `static_assert` replaying the same operations. UB is ill-formed in a constant expression, so the compiler diagnoses what a runtime run may silently get wrong — users rely on the library in constexpr for exactly this.
+* Prefer monadic composition to unchecked access. `value()` is the library's only throw; reaching for it where `and_then`/`transform` would carry the value teaches the wrong idiom.
+* Don't trust a bare `requires`-probe of a libfn call: several refusals (`apply` on mismatched branches, `and_then` on grade mismatches) are `static_assert`s inside the callee, so the probe answers true and instantiation hard-errors. Compile the call to know; negative viability probes must be dependent (see `### Compile-time probes` above).
+* Outside `LIBFN_CXX26`, the internal type ordering is not expected to work with unnamed types or types without linkage — no lambdas or local types as `copack` alternatives in portable code.
+* One libfn version per binary: header-only makes mixing versions an ODR violation, including two `z` releases of the same `y` line; default and `LIBFN_CXX26` builds never link as one, by design — see README `## Versioning and ABI`.
+* A standalone reproducer (compiler or library bug) proves nothing until it is UB-free: gate it on UBSan and ASan with empty stderr as the criterion, not the exit code.
+
+## Header layering
+
+Four header trees under `include/`, each depending only on those below it:
+
+* `fn` — may use `fn/detail` and `pfn`
+* `fn/detail` — may use `pfn`, never `fn`
+* `pfn` — the C++23/26 polyfill; standalone except for the version header
+* `libfn_version.hpp` — the sole root header, no dependencies
+
+To make an `fn`-level facility available to `fn/detail`, hoist it: the implementation moves into `fn/detail/X.hpp` as `fn::detail::_name` (detail headers are not user-facing and carry no Doxygen); `fn/X.hpp` remains a thin public wrapper re-exporting it as `fn::name` (pattern: `fn/functional.hpp`).
+
 ## Versioning
 
 `VERSION` (in the repository root) is the single source of truth for the project version. A pre-commit hook (`scripts/sync_versions.py`) mirrors it into `ports/libfn/vcpkg.json` (`version-semver`), `MODULE.bazel`, and `include/libfn_version.hpp` — the header defining the `LIBFN_VERSION` macro that names the ABI-versioning inline namespace wrapping `fn`, and its mode-less sibling `LIBFN_VERSION_BASE` wrapping `pfn` (the layer rule below). Do **not** hand-edit those version literals — edit `VERSION` and let the hook sync them.
@@ -75,7 +98,7 @@ This repository uses [pre-commit](https://pre-commit.com/) to enforce formatting
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r ci/pre-commit/requirements.txt
-# Now install the pre-commit hooks locally
+# Install the pre-commit hooks locally
 pre-commit install
 ```
 

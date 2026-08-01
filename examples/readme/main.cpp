@@ -91,7 +91,7 @@ constexpr auto parse(std::string_view s) noexcept
   return fn::pack<int, int>{n, d};
 }
 
-// readme-example
+// sync-example-readme
 // Various error types.
 enum class NotANumber {};
 enum class DivByZero {};
@@ -112,9 +112,9 @@ class Rational {
   constexpr Rational(int n, int d) noexcept : n_(n), d_(d) {}
 
 public:
-  constexpr bool operator==(Rational const &) const noexcept = default;
-  constexpr int num() const noexcept { return n_; }
-  constexpr int den() const noexcept { return d_; }
+  constexpr auto operator==(Rational const &) const noexcept -> bool = default;
+  constexpr auto num() const noexcept -> int { return n_; }
+  constexpr auto den() const noexcept -> int { return d_; }
 
   // The invariants live in the type: `make` is the only way to build a `Rational`, and every one is
   // reduced, sign-normalized and representable. Callers receive a value they never need re-check.
@@ -137,28 +137,28 @@ public:
       return Rational(static_cast<int>(n), static_cast<int>(d));
     }
 
-    constexpr auto operator()(std::string_view s) const noexcept
+    constexpr auto operator()(std::string_view s) const noexcept -> decltype(auto)
     {
       return parse(s) | fn::and_then(*this);
     }
   } make{};
 
-  constexpr auto neg() const noexcept { return make(-1LL * n_, d_); }
-  constexpr auto inv() const noexcept { return make(d_, n_); }
-  constexpr auto add(Rational const &other) const noexcept
+  constexpr auto neg() const noexcept -> decltype(auto) { return make(-1LL * n_, d_); }
+  constexpr auto inv() const noexcept -> decltype(auto) { return make(d_, n_); }
+  constexpr auto add(Rational const &other) const noexcept -> decltype(auto)
   {
     return make(1LL * n_ * other.d_ + 1LL * other.n_ * d_, //
                 1LL * d_ * other.d_);
   }
-  constexpr auto sub(Rational const &other) const noexcept
+  constexpr auto sub(Rational const &other) const noexcept -> decltype(auto)
   {
     return other.neg() | fn::and_then([*this](Rational y) { return add(y); });
   }
-  constexpr auto mul(Rational const &other) const noexcept
+  constexpr auto mul(Rational const &other) const noexcept -> decltype(auto)
   {
     return make(1LL * n_ * other.n_, 1LL * d_ * other.d_);
   }
-  constexpr auto div(Rational const &other) const noexcept
+  constexpr auto div(Rational const &other) const noexcept -> decltype(auto)
   {
     return other.inv() | fn::and_then([*this](Rational y) { return mul(y); });
   }
@@ -167,7 +167,7 @@ public:
 // `evaluate` parses each operand, applies the operator, and lets `make` re-check the result.
 // Each stage fails its own way, and the library folds error types into one co-product.
 constexpr auto evaluate(std::string_view a, fn::copack_for<Add, Sub, Mul, Div> op,
-                        std::string_view b) noexcept
+                        std::string_view b) noexcept -> decltype(auto)
 {
   using Op = fn::expected<decltype(op), fn::copack<>>;
   return (Rational::make(a) & Op{op} & Rational::make(b)) //
@@ -187,7 +187,7 @@ static_assert(
 // Constant evaluated calculations used to verify both values and errors during compilation:
 static_assert(evaluate("1/2", Add{}, "1/3").value() == Rational::make(5, 6));
 static_assert(evaluate("2/3", Div{}, "0/1").error().has_value<DivByZero>());
-// readme-example
+// sync-example-readme
 
 int main()
 {

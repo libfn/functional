@@ -54,7 +54,7 @@ constexpr inline struct inspect_error_t final {
   }
 
   struct apply;
-} inspect_error = {};
+} inspect_error = {}; ///< Observes the error in passing: `x | inspect_error(f)`
 
 struct inspect_error_t::apply final {
   /**

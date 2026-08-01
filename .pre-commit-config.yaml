@@ -61,9 +61,16 @@ repos:
     language: python
     files: ^include/.*\.hpp$
     pass_filenames: false
+  # NOTE each document and its example must match a DOCUMENTS entry in scripts/sync_md_examples.py
   - id: sync-readme-example
-    name: sync README example with examples/readme
-    entry: python scripts/sync_readme_example.py
+    name: sync README code fences with examples/readme
+    entry: python scripts/sync_md_examples.py README.md
     language: python
     files: ^(README\.md|examples/readme/main\.cpp)$
+    pass_filenames: false
+  - id: sync-type-algebra-examples
+    name: sync TYPE_ALGEBRA code fences with examples/type_algebra
+    entry: python scripts/sync_md_examples.py TYPE_ALGEBRA.md
+    language: python
+    files: ^(TYPE_ALGEBRA\.md|examples/type_algebra/main\.cpp)$
     pass_filenames: false

@@ -904,13 +904,28 @@ template <typename T, typename Err> class expected : private detail::_expected_b
   template <class, class> friend struct ::fn::detail::_expected_base;
 
 public:
+  /**
+   * @brief The type of the value side
+   */
   using value_type = T;
+  /**
+   * @brief The type of the error side
+   */
   using error_type = Err;
+  /**
+   * @brief The `unexpected` specialization over the error type
+   */
   using unexpected_type = ::fn::unexpected<Err>;
 
+  /**
+   * @brief This carrier over another value type
+   */
   template <class U> using rebind = expected<U, error_type>;
 
   // Constructors. Explicit forwarders to the base mirror pfn::expected.
+  /**
+   * @brief Default constructor
+   */
   constexpr expected() noexcept(::std::is_nothrow_default_constructible_v<T>)
     requires ::std::is_default_constructible_v<T>
       : _base(::std::in_place)
@@ -919,6 +934,9 @@ public:
 
   template <class U, class G>
   constexpr explicit(not ::std::is_convertible_v<U const &, T> || not ::std::is_convertible_v<G const &, Err>)
+      /**
+       * @brief Converting constructor from a compatible carrier
+       */
       expected(expected<U, G> const &s) //
       noexcept(::std::is_nothrow_constructible_v<T, U const &> && ::std::is_nothrow_constructible_v<Err, G const &>)
     requires(_base::template _can_copy_convert<U, G>::value)
@@ -927,12 +945,18 @@ public:
   }
   template <class U, class G>
   constexpr explicit(not ::std::is_convertible_v<U, T> || not ::std::is_convertible_v<G, Err>)
+      /**
+       * @brief Converting constructor from a compatible carrier
+       */
       expected(expected<U, G> &&s) //
       noexcept(::std::is_nothrow_constructible_v<T, U> && ::std::is_nothrow_constructible_v<Err, G>)
     requires(_base::template _can_move_convert<U, G>::value)
       : _base(::std::move(s))
   {
   }
+  /**
+   * @brief Constructs the value from a value
+   */
   template <class U = ::std::remove_cv_t<T>>
   constexpr explicit(not ::std::is_convertible_v<U, T>) expected(U &&v) //
       noexcept(::std::is_nothrow_constructible_v<T, U>)
@@ -941,6 +965,9 @@ public:
   {
   }
 
+  /**
+   * @brief Constructs the error from an `unexpected`
+   */
   template <class G>
   constexpr explicit(not ::std::is_convertible_v<G const &, Err>) expected(::fn::unexpected<G> const &g) //
       noexcept(::std::is_nothrow_constructible_v<Err, G const &>)
@@ -948,6 +975,9 @@ public:
       : _base(::fn::unexpect, ::std::forward<G const &>(g.error()))
   {
   }
+  /**
+   * @brief Constructs the error from an `unexpected`
+   */
   template <class G>
   constexpr explicit(not ::std::is_convertible_v<G, Err>) expected(::fn::unexpected<G> &&g) //
       noexcept(::std::is_nothrow_constructible_v<Err, G>)
@@ -956,6 +986,9 @@ public:
   {
   }
 
+  /**
+   * @brief Constructs the value in place from the arguments
+   */
   template <class... Args>
   constexpr explicit expected(::std::in_place_t, Args &&...a) //
       noexcept(::std::is_nothrow_constructible_v<T, Args...>)
@@ -963,6 +996,9 @@ public:
       : _base(::std::in_place, FWD(a)...)
   {
   }
+  /**
+   * @brief Constructs the value in place from the arguments
+   */
   template <class U, class... Args>
   constexpr explicit expected(::std::in_place_t, ::std::initializer_list<U> il, Args &&...a) //
       noexcept(::std::is_nothrow_constructible_v<T, ::std::initializer_list<U> &, Args...>)
@@ -970,6 +1006,9 @@ public:
       : _base(::std::in_place, il, FWD(a)...)
   {
   }
+  /**
+   * @brief Constructs the error in place from the arguments
+   */
   template <class... Args>
   constexpr explicit expected(::fn::unexpect_t, Args &&...a)    //
       noexcept(::std::is_nothrow_constructible_v<Err, Args...>) //
@@ -977,6 +1016,9 @@ public:
       : _base(::fn::unexpect, FWD(a)...)
   {
   }
+  /**
+   * @brief Constructs the error in place from the arguments
+   */
   template <class U, class... Args>
   constexpr explicit expected(::fn::unexpect_t, ::std::initializer_list<U> il, Args &&...a) //
       noexcept(::std::is_nothrow_constructible_v<Err, ::std::initializer_list<U> &, Args...>)
@@ -985,6 +1027,9 @@ public:
   {
   }
 
+  /**
+   * @brief Copy constructor; not available on this carrier
+   */
   constexpr expected(expected const &) = delete;
   constexpr expected(expected const &s) //
       noexcept(::std::is_nothrow_copy_constructible_v<T> && ::std::is_nothrow_copy_constructible_v<Err>)
@@ -998,6 +1043,9 @@ public:
       : _base(s.set_, FWD(s).storage_)
   {
   }
+  /**
+   * @brief Move constructor
+   */
   constexpr expected(expected &&s) noexcept
     requires(::std::is_move_constructible_v<T> && ::std::is_move_constructible_v<Err>
              && ::std::is_trivially_move_constructible_v<T> && ::std::is_trivially_move_constructible_v<Err>)
@@ -1010,9 +1058,15 @@ public:
   {
   }
 
+  /**
+   * @brief Destructor
+   */
   constexpr ~expected() = default;
 
   // Assignment. Explicit forwarders mirror pfn::expected to avoid an MSVC bug.
+  /**
+   * @brief Assignment from a value
+   */
   template <class U = T>
   constexpr expected &operator=(U &&s) //
       noexcept(::std::is_nothrow_assignable_v<T &, U> && ::std::is_nothrow_constructible_v<T, U>)
@@ -1021,6 +1075,9 @@ public:
     this->_assign_value(FWD(s));
     return *this;
   }
+  /**
+   * @brief Assignment from an `unexpected`
+   */
   template <class G>
   constexpr expected &operator=(::fn::unexpected<G> const &s) //
       noexcept(::std::is_nothrow_assignable_v<Err &, G const &> && ::std::is_nothrow_constructible_v<Err, G const &>)
@@ -1031,6 +1088,9 @@ public:
     this->_assign_unexpected(s);
     return *this;
   }
+  /**
+   * @brief Assignment from an `unexpected`
+   */
   template <class G>
   constexpr expected &operator=(::fn::unexpected<G> &&s) //
       noexcept(::std::is_nothrow_assignable_v<Err &, G> && ::std::is_nothrow_constructible_v<Err, G>)
@@ -1041,6 +1101,9 @@ public:
     this->_assign_unexpected(::std::move(s));
     return *this;
   }
+  /**
+   * @brief Copy assignment; not available on this carrier
+   */
   constexpr expected &operator=(expected const &) = delete;
   constexpr expected &operator=(expected const &) //
       noexcept(::std::is_nothrow_copy_assignable_v<T> && ::std::is_nothrow_copy_constructible_v<T>
@@ -1065,6 +1128,9 @@ public:
     this->_assign(static_cast<_base const &>(s));
     return *this;
   }
+  /**
+   * @brief Move assignment
+   */
   constexpr expected &operator=(expected &&) //
       noexcept(::std::is_nothrow_move_assignable_v<T> && ::std::is_nothrow_move_constructible_v<T>
                && ::std::is_nothrow_move_assignable_v<Err> && ::std::is_nothrow_move_constructible_v<Err>)
@@ -1105,6 +1171,9 @@ public:
 
   // Swap; body delegates to _expected_base helper
   constexpr void
+  /**
+   * @brief Swaps the contents with another `expected`
+   */
   swap(expected &rhs) noexcept(::std::is_nothrow_move_constructible_v<T> && ::std::is_nothrow_swappable_v<T>
                                && ::std::is_nothrow_move_constructible_v<Err> && ::std::is_nothrow_swappable_v<Err>)
     requires(::std::is_swappable_v<T> && ::std::is_swappable_v<Err> && ::std::is_move_constructible_v<T>
@@ -1576,14 +1645,32 @@ template <typename Err> class expected<void, Err> : private detail::_expected_ba
   template <class, class> friend struct ::fn::detail::_expected_base;
 
 public:
+  /**
+   * @brief The type of the value side
+   */
   using value_type = void;
+  /**
+   * @brief The type of the error side
+   */
   using error_type = Err;
+  /**
+   * @brief The `unexpected` specialization over the error type
+   */
   using unexpected_type = ::fn::unexpected<Err>;
 
+  /**
+   * @brief This carrier over another value type
+   */
   template <class U> using rebind = expected<U, error_type>;
 
+  /**
+   * @brief Default constructor
+   */
   constexpr expected() noexcept : _base(::std::in_place) {}
 
+  /**
+   * @brief Converting constructor from a compatible carrier
+   */
   template <class U, class G>
   constexpr explicit(not ::std::is_convertible_v<G const &, Err>) expected(expected<U, G> const &s) //
       noexcept(::std::is_nothrow_constructible_v<Err, G const &>)
@@ -1591,6 +1678,9 @@ public:
       : _base(s)
   {
   }
+  /**
+   * @brief Converting constructor from a compatible carrier
+   */
   template <class U, class G>
   constexpr explicit(not ::std::is_convertible_v<G, Err>) expected(expected<U, G> &&s) //
       noexcept(::std::is_nothrow_constructible_v<Err, G>)
@@ -1598,6 +1688,9 @@ public:
       : _base(::std::move(s))
   {
   }
+  /**
+   * @brief Constructs the error from an `unexpected`
+   */
   template <class G>
   constexpr explicit(not ::std::is_convertible_v<G const &, Err>) expected(::fn::unexpected<G> const &g) //
       noexcept(::std::is_nothrow_constructible_v<Err, G const &>)
@@ -1605,6 +1698,9 @@ public:
       : _base(::fn::unexpect, ::std::forward<G const &>(g.error()))
   {
   }
+  /**
+   * @brief Constructs the error from an `unexpected`
+   */
   template <class G>
   constexpr explicit(not ::std::is_convertible_v<G, Err>) expected(::fn::unexpected<G> &&g) //
       noexcept(::std::is_nothrow_constructible_v<Err, G>)
@@ -1613,8 +1709,14 @@ public:
   {
   }
 
+  /**
+   * @brief Constructs the value in place from the arguments
+   */
   constexpr explicit expected(::std::in_place_t) noexcept : _base(::std::in_place) {}
 
+  /**
+   * @brief Constructs the error in place from the arguments
+   */
   template <class... Args>
   constexpr explicit expected(::fn::unexpect_t, Args &&...a)    //
       noexcept(::std::is_nothrow_constructible_v<Err, Args...>) //
@@ -1622,6 +1724,9 @@ public:
       : _base(::fn::unexpect, FWD(a)...)
   {
   }
+  /**
+   * @brief Constructs the error in place from the arguments
+   */
   template <class U, class... Args>
   constexpr explicit expected(::fn::unexpect_t, ::std::initializer_list<U> il, Args &&...a) //
       noexcept(::std::is_nothrow_constructible_v<Err, ::std::initializer_list<U> &, Args...>)
@@ -1630,6 +1735,9 @@ public:
   {
   }
 
+  /**
+   * @brief Copy constructor; not available on this carrier
+   */
   constexpr expected(expected const &) = delete;
   constexpr expected(expected const &)
     requires(::std::is_copy_constructible_v<Err> && ::std::is_trivially_copy_constructible_v<Err>)
@@ -1640,6 +1748,9 @@ public:
       : _base(s.set_, FWD(s).storage_)
   {
   }
+  /**
+   * @brief Move constructor
+   */
   constexpr expected(expected &&s) noexcept
     requires(::std::is_move_constructible_v<Err> && ::std::is_trivially_move_constructible_v<Err>)
   = default;
@@ -1650,8 +1761,14 @@ public:
   {
   }
 
+  /**
+   * @brief Destructor
+   */
   constexpr ~expected() = default;
 
+  /**
+   * @brief Assignment from an `unexpected`
+   */
   template <class G>
   constexpr expected &operator=(::fn::unexpected<G> const &s) //
       noexcept(::std::is_nothrow_assignable_v<Err &, G const &> && ::std::is_nothrow_constructible_v<Err, G const &>)
@@ -1660,6 +1777,9 @@ public:
     this->_assign_unexpected(s);
     return *this;
   }
+  /**
+   * @brief Assignment from an `unexpected`
+   */
   template <class G>
   constexpr expected &operator=(::fn::unexpected<G> &&s) //
       noexcept(::std::is_nothrow_assignable_v<Err &, G> && ::std::is_nothrow_constructible_v<Err, G>)
@@ -1668,6 +1788,9 @@ public:
     this->_assign_unexpected(::std::move(s));
     return *this;
   }
+  /**
+   * @brief Copy assignment; not available on this carrier
+   */
   constexpr expected &operator=(expected const &) = delete;
   constexpr expected &operator=(expected const &) //
       noexcept(::std::is_nothrow_copy_assignable_v<Err> && ::std::is_nothrow_copy_constructible_v<Err>)
@@ -1684,6 +1807,9 @@ public:
     this->_assign(static_cast<_base const &>(s));
     return *this;
   }
+  /**
+   * @brief Move assignment
+   */
   constexpr expected &operator=(expected &&) //
       noexcept(::std::is_nothrow_move_assignable_v<Err> && ::std::is_nothrow_move_constructible_v<Err>)
     requires(::std::is_move_constructible_v<Err> && ::std::is_move_assignable_v<Err>
@@ -1702,6 +1828,9 @@ public:
 
   using _base::emplace;
 
+  /**
+   * @brief Swaps the contents with another `expected`
+   */
   constexpr void swap(expected &rhs) //
       noexcept(::std::is_nothrow_move_constructible_v<Err> && ::std::is_nothrow_swappable_v<Err>)
     requires(::std::is_swappable_v<Err> && ::std::is_move_constructible_v<Err>)
@@ -1717,10 +1846,18 @@ public:
   using _base::has_value;
   using _base::value;
 
-  // Elimination over both states, mirroring copack's apply family: the value arm takes no value
-  // (apply) or the ::std::in_place tag alone (apply_type), the error arm the error unpacked as
-  // fn::apply would hand it over, after ::fn::unexpect in the tagged form. Bodies delegate to
-  // _expected_base static helpers.
+  /**
+   * @brief Eliminates over both states: the active side routes into the callable
+   *
+   * The value arm receives nothing - success carries no value - so it is invoked with the
+   * trailing arguments alone, and the error arm receives the error as `fn::apply` hands it
+   * over; the arms must yield one result type. Over an uninhabited error side the value arm
+   * alone is exhaustive.
+   *
+   * @param f Callable with arms for both states; `fn::overload` fuses them
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result
+   */
   template <class F, class... Args>
   [[nodiscard]] constexpr auto apply(F &&f, Args &&...args) &        //
       noexcept(noexcept(_base::_apply(*this, FWD(f), FWD(args)...))) // extension
@@ -1750,6 +1887,14 @@ public:
     return _base::_apply(::std::move(*this), FWD(f), FWD(args)...);
   }
 
+  /**
+   * @brief Eliminates over both states, converting the result to `Ret`
+   *
+   * @tparam Ret Type the results convert to
+   * @param f Callable with arms for both states; `fn::overload` fuses them
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result, converted to `Ret`
+   */
   template <class Ret, class F, class... Args>
   [[nodiscard]] constexpr auto apply_r(F &&f, Args &&...args) &                      //
       noexcept(noexcept(_base::template _apply_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
@@ -1779,6 +1924,16 @@ public:
     return _base::template _apply_r<Ret>(::std::move(*this), FWD(f), FWD(args)...);
   }
 
+  /**
+   * @brief Eliminates over both states, keyed by the constructor tag naming the state
+   *
+   * The value arm receives `std::in_place` alone, there being no content to follow it, and the
+   * error arm receives `fn::unexpect` followed by the error.
+   *
+   * @param f Callable with arms for both tagged states
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result
+   */
   template <class F, class... Args>
   [[nodiscard]] constexpr auto apply_type(F &&f, Args &&...args) &        //
       noexcept(noexcept(_base::_apply_type(*this, FWD(f), FWD(args)...))) // extension
@@ -1808,6 +1963,15 @@ public:
     return _base::_apply_type(::std::move(*this), FWD(f), FWD(args)...);
   }
 
+  /**
+   * @brief Eliminates over both states, keyed by the constructor tag, converting the result to
+   *        `Ret`
+   *
+   * @tparam Ret Type the results convert to
+   * @param f Callable with arms for both tagged states
+   * @param args Additional arguments, appended after the content
+   * @return The callable's result, converted to `Ret`
+   */
   template <class Ret, class F, class... Args>
   [[nodiscard]] constexpr auto apply_type_r(F &&f, Args &&...args) &                      //
       noexcept(noexcept(_base::template _apply_type_r<Ret>(*this, FWD(f), FWD(args)...))) // extension
@@ -1837,7 +2001,20 @@ public:
     return _base::template _apply_type_r<Ret>(::std::move(*this), FWD(f), FWD(args)...);
   }
 
-  // Monadic operations. Bodies delegate to _expected_base static helpers, which perform copack-widening.
+  // Bodies delegate to _expected_base static helpers, which perform copack-widening.
+
+  /**
+   * @brief Binds through the callable, invoked with no arguments, which returns an `expected`
+   *
+   * As the standard member, extended by grading: a plain error side admits a callback returning
+   * the identical error type, or its singular lift `copack<E>` - the opt-in to the graded world -
+   * while a graded (copack) error side unions the callback's error set into its own. Over the
+   * uninhabited `copack<>` error side the operand passes through and the callback is neither
+   * invoked nor instantiated.
+   *
+   * @param f Callable taking no arguments, returning an `expected`
+   * @return The callback's `expected`, its error side widened by the operand's grade
+   */
   template <class F>
   constexpr auto and_then(F &&f) &                        //
       noexcept(noexcept(_base::_and_then(*this, FWD(f)))) // extension
@@ -1867,6 +2044,18 @@ public:
     return _base::_and_then(::std::move(*this), FWD(f));
   }
 
+  /**
+   * @brief Binds the error through the callable, which returns an `expected`
+   *
+   * The recovery bind: a successful operand passes through, and the callback maps the error - per
+   * alternative when graded, exhaustively - into a new `expected`. A callback returning a value
+   * side leaves this carrier for that one; on a plain error side the callback's error type
+   * replaces the operand's. Over the uninhabited `copack<>` error side the operation is vacuous:
+   * nothing is asked of the handler, not even that it be callable.
+   *
+   * @param f Callable applied on the error, returning an `expected`
+   * @return The callback's `expected`, or the operand unchanged where it holds success
+   */
   template <class F>
   constexpr auto or_else(F &&f) &                        //
       noexcept(noexcept(_base::_or_else(*this, FWD(f)))) // extension
@@ -1896,6 +2085,16 @@ public:
     return _base::_or_else(::std::move(*this), FWD(f));
   }
 
+  /**
+   * @brief Maps through the callable, invoked with no arguments, staying inside the carrier
+   *
+   * The callable's result becomes the new value side, so a callback returning `void` leaves the
+   * carrier's value side `void` and any other return type gives it one. The error side is
+   * untouched, and an operand holding an error passes through uninvoked.
+   *
+   * @param f Callable taking no arguments
+   * @return An `expected` over the callable's result type, with the same error side
+   */
   template <class F>
   constexpr auto transform(F &&f) &                        //
       noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
@@ -1925,6 +2124,17 @@ public:
     return _base::_transform(::std::move(*this), FWD(f));
   }
 
+  /**
+   * @brief Maps the error through the callable, staying inside the carrier
+   *
+   * As the standard member, extended by grading: over a graded (copack) error side the matching
+   * is exhaustive, and the branches may collapse diverse alternatives into one type - the grade
+   * narrows to its singular copack - or into a narrower copack. Over the uninhabited `copack<>`
+   * error side the mapping is the identity, and the callback is neither invoked nor instantiated.
+   *
+   * @param f Callable applied on the error
+   * @return An `expected` over `void` with the mapped error side
+   */
   template <class F>
   constexpr auto transform_error(F &&f) &                        //
       noexcept(noexcept(_base::_transform_error(*this, FWD(f)))) // extension
@@ -1954,7 +2164,15 @@ public:
     return _base::_transform_error(::std::move(*this), FWD(f));
   }
 
-  // Convert to graded monad. There is no value to relocate here, so only the error's lift weighs.
+  /**
+   * @brief Lifts the error side into its singular copack: `expected<void, E>` becomes
+   *        `expected<void, copack<E>>`
+   *
+   * The explicit opt-in to the graded world. There is no value to relocate here, so only the
+   * error's lift weighs; an already-graded error side returns `*this` unchanged.
+   *
+   * @return The same carrier with its error side graded
+   */
   constexpr auto
   copack_error() const & noexcept(::std::is_nothrow_constructible_v<copack<error_type>, error_type const &>
                                   && ::std::is_nothrow_move_constructible_v<copack<error_type>>) // extension
@@ -2021,6 +2239,9 @@ using expected_unit = expected<void, copack<>>;
 // The comparison against a value, at namespace scope for the reason given where its siblings are
 // declared in pfn: it is the one equality operator constrained on the OTHER operand, and that is
 // safe only where this operand is deduced.
+/**
+ * @brief Compares an `expected` against a value; a failed `expected` equals nothing
+ */
 template <typename T, typename Err, typename T2>
   requires(not ::std::is_void_v<T> && not detail::_is_some_expected<T2 &>)
 constexpr bool operator==(expected<T, Err> const &x, T2 const &v) //
@@ -2101,21 +2322,15 @@ template <typename E> struct _expected_efn final {
 };
 } // namespace detail
 
-/**
- * @brief The conjunction of fallible carriers: values multiply into a `pack`, errors sum into a
- *        `copack`
- *
- * `a & b` succeeds only if both operands succeed, the values folding into one `pack` - a `void`
- * side elides, and a copack value distributes into a copack of packs - while at runtime the error
- * side holds the leftmost failing operand's error. Two identical error types stay as they are;
- * any other pair sums into their normalized `copack_for`, grading not required of the operands.
- * Both operands are fully constructed before the operator runs: an error-selection rule, not
- * short-circuiting. An identity-cluster operand contributes its value and no error term.
- *
- * @param lh Left operand
- * @param rh Right operand
- * @return An `expected` of the folded value product and the summed error side
- */
+// The conjunction of fallible carriers: values multiply into a `pack`, errors sum into a
+//        `copack`
+//
+// `a & b` succeeds only if both operands succeed, the values folding into one `pack` - a `void`
+// side elides, and a copack value distributes into a copack of packs - while at runtime the error
+// side holds the leftmost failing operand's error. Two identical error types stay as they are;
+// any other pair sums into their normalized `copack_for`, grading not required of the operands.
+// Both operands are fully constructed before the operator runs: an error-selection rule, not
+// short-circuiting. An identity-cluster operand contributes its value and no error term.
 // When any of the sides is expected<void, ...>, we do not produce expected<pack<...>, ...>
 // Instead just elide void and carry non-void (or elide both voids if that's what we get)
 template <typename Lh, typename Rh>
@@ -2434,21 +2649,15 @@ constexpr inline bool _nothrow_disj_error
 
 } // namespace detail
 
-/**
- * @brief The disjunction of fallible carriers: values sum into a `copack`, errors multiply into a
- *        `pack`
- *
- * `a | b` fails only if both operands fail: the leftmost engaged operand's value wins, injected
- * into the sum of the value types - a same-type pair stays bare, and a `void` side enters a
- * genuine sum as `pack<>` - while the error side is the product of both errors, present only when
- * every operand failed, all evidence kept positionally. Both operands are fully constructed
- * before the operator runs: a value-selection rule, not a lazy fallback. An identity-cluster
- * operand makes the disjunction total, collapsing the result into `just` or `choice`.
- *
- * @param lh Left operand
- * @param rh Right operand
- * @return An `expected` of the summed value side and the error product
- */
+// The disjunction of fallible carriers: values sum into a `copack`, errors multiply into a
+//        `pack`
+//
+// `a | b` fails only if both operands fail: the leftmost engaged operand's value wins, injected
+// into the sum of the value types - a same-type pair stays bare, and a `void` side enters a
+// genuine sum as `pack<>` - while the error side is the product of both errors, present only when
+// every operand failed, all evidence kept positionally. Both operands are fully constructed
+// before the operator runs: a value-selection rule, not a lazy fallback. An identity-cluster
+// operand makes the disjunction total, collapsing the result into `just` or `choice`.
 // The disjunction: the value channel is the sum of the value types - a same-type pair stays bare,
 // as the conjunction's same-error sum does - and the error channel is the product of both errors,
 // present only when every operand failed, all evidence kept positionally. The leftmost engaged

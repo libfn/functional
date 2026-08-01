@@ -56,7 +56,7 @@ constexpr inline struct transform_error_t final {
   }
 
   struct apply;
-} transform_error = {};
+} transform_error = {}; ///< Maps the error, staying in the carrier: `x | transform_error(f)`
 
 struct transform_error_t::apply final {
   /**

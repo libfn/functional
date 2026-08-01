@@ -61,7 +61,7 @@ constexpr inline struct value_or_t final {
   }
 
   struct apply;
-} value_or = {};
+} value_or = {}; ///< Substitutes a fallback for the dead state: `x | value_or(v)`
 
 struct value_or_t::apply final {
   /**
