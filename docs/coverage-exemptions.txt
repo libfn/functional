@@ -17,10 +17,3 @@ fn::recover_t::apply::operator(): as above
 fn::transform_error_t::apply::operator(): as above
 fn::transform_t::apply::operator(): as above
 fn::value_or_t::apply::operator(): as above
-
-fn::expected< void, Err >::copack_value: void specialization artifact, cannot have a copack of void
-fn::just< void >::emplace: void specialization artifact, cannot emplace void
-fn::just< void >::v_: void specialization artifact, has no payload
-fn::just< void >::~just: void specialization artifact, handled by primary template
-fn::optional< T & >::const_iterator: reference specialization artifact, only has iterator
-fn::optional< T & >::copack_value: reference specialization artifact, cannot copack a reference
