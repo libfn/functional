@@ -8,6 +8,9 @@ splits at its `##` boundaries. Section numbering stays in the source and never r
 a page carries the name alone, and the prose's `Section N` cross-references become links to the
 pages they name. Repo-relative links, which znai would otherwise resolve as page references and
 reject, become links to the sibling section or to the file on GitHub.
+
+The rewrites recognize the markdown these documents use, conservatively: an ambiguous or
+unrecognized construct fails the staging rather than guessing its way onto the site.
 """
 from __future__ import annotations
 
@@ -84,10 +87,12 @@ def outside_fences(text: str):
     opening = None
     for index, line in enumerate(text.splitlines()):
         run = FENCE.match(line)
-        # A fence closes on its own character and on a run no shorter than the one that opened it,
-        # so a fence may quote a shorter one of either kind without ending itself.
+        # A fence closes on its own character, a run no shorter than the one that opened it, and
+        # nothing after the run — a closer carries no info string — so a fence may quote a shorter
+        # fence of either kind, or an opening fence of any length, without ending itself.
         if run and (opening is None
-                    or (run.group(1)[0] == opening[0] and len(run.group(1)) >= len(opening))):
+                    or (run.group(1)[0] == opening[0] and len(run.group(1)) >= len(opening)
+                        and not line[run.end():].strip())):
             opening = None if opening else run.group(1)
             yield index, line, True
             continue
