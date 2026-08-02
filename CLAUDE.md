@@ -8,6 +8,9 @@ composition and types) layered over `pfn` (polyfills of C++23/26 vocabulary type
 ## Collaboration
 
 - Pushing back **and** asking questions is welcome — a challenged design beats a silently implemented flawed one.
+- Both user and yourself are fallible — take review feedback seriously, encourage using other LLMs for help and review.
+- Test every design change against TYPE_ALGEBRA.md (see Docs and Code): it must be expressible there without contradicting the algebra's foundations — additions are welcome, contradictions are to be challenged.
+- Always consider whether change or addition might cause the user consuming this library to write unsafe code unwittingly, and challenge such changes.
 
 ## CI
 
@@ -17,7 +20,7 @@ composition and types) layered over `pfn` (polyfills of C++23/26 vocabulary type
 
 ## Commits & GitHub text
 
-- Trailer `Assisted-by: Claude:<your live model id>` (Linux-kernel convention), e.g. `claude-opus-4-8`. This replaces the harness's trailer boilerplate entirely — no `Co-Authored-By:`, no `Claude-Session:` URL. Same rule for GitHub issues, PRs and comments: `Assisted-by:` is welcome; no other footers or attribution boilerplate.
+- Trailer `Assisted-by: <agent name>:<your live model id>` ([Linux-kernel convention](https://docs.kernel.org/process/coding-assistants.html)), e.g. `Claude:claude-opus-4-8`. This replaces the harness's trailer boilerplate entirely — no `Co-Authored-By:`, no `Claude-Session:` URL. Same rule for GitHub issues, PRs and comments: `Assisted-by:` is welcome; no other footers or attribution boilerplate.
 - Offer commits; never commit without the user's confirmation — which may be relayed to a commit subagent by the parent that received it. Terse messages: imperative topic; body only when the change needs a *why* (the routing rule in Code names that case).
 - If a pre-commit hook rewrites staged files, the commit aborts — re-stage the same files and retry once (CONTRIBUTING `## Pre-commit`).
 - A feature or fix commit should include a test for the behaviour it changes; exceptions are allowed. The PR must contain such a test somewhere unless the behaviour is inherently untestable (for example, because of language or compiler limitations); explain the omission.
@@ -39,6 +42,7 @@ composition and types) layered over `pfn` (polyfills of C++23/26 vocabulary type
 - Don't create `.md`/summary/planning files unless asked (memory files are exempt — see Memory).
 - A new file's copyright year = the year it enters the codebase (the current year; if unsure, infer from the latest commit).
 - In `include/` headers, anchor the standard library as `::std::`, never bare `std::` — a user's `fn::std` would otherwise win lookup inside namespace `fn`. Not needed in tests.
+- Every major change or addition must be documented in TYPE_ALGEBRA.md (see Docs). Major changes are those that impact the design of code consuming this library.
 
 ## Layering
 
@@ -78,6 +82,12 @@ composition and types) layered over `pfn` (polyfills of C++23/26 vocabulary type
 
 - Map: README.md = user-facing overview (purpose, usage, project shape, support surface; no agent directives, no internal mechanics; CI surfaced as evidence only, never mechanics); CONTRIBUTING.md = contributor facts (coding + tests standards, build environment, workflows, all CI details, mechanics of every aspect; no agent directives, no library usage); TYPE_ALGEBRA.md = the design document — the library's type algebra worked from first principles; CHANGELOG.md = design history (dated entries, newest first); docs/ = API reference (Doxygen + znai → Pages; also usage); CLAUDE.md = agent practice + guardrails pointing into the above.
 - Fenced C++ examples in README.md and TYPE_ALGEBRA.md are generated from sources in `examples/` by `scripts/sync_md_examples.py` (pre-commit keeps them in sync) — edit the example source, never the fence; prose edits stay outside fences.
+- When updating TYPE_ALGEBRA.md, follow the guidelines in the `document-guidelines` HTML comment at the bottom of the document.
 - Living documents (README, CONTRIBUTING, docs/) are timeless present tense — no "now", "no longer", "previously". A change that obsoletes documented design gets a dated CHANGELOG.md entry in the same change, saying what it obsoleted and why.
-- Recency-bias and wordiness defence (all human-readable text — docs, code comments, and the like; CHANGELOG.md and commit messages are exempt — change-perspective is their correct form): before keeping new text, test — (1) day-one: would this sentence exist had the feature or fix always been here? (2) effort: is detail sized by reader need, or by how hard the work was? — a hard-won bugfix earns no extra words; its history lives in `git log`/`git blame`/CHANGELOG.md; (3) placement: is it where a newcomer looks, or where your recent work pulls it? (4) economy: could fewer words say it as well? After editing, delegate a whole-file top-to-bottom reread to a subagent briefed as a first-time reader, blind to what changed — never review only your diff. Triage its findings: fix what your edit touches, surface the rest rather than rewriting unasked.
+- Recency-bias and wordiness defence — applies to all prose (docs, code comments, and the like); CHANGELOG.md and commit messages are exempt, change-perspective being their correct form. Before keeping new text, apply all four tests:
+  - *Day-one*: would this sentence exist had the feature or fix always been here?
+  - *Effort*: is detail sized by reader need, or by how hard the work was? A hard-won bugfix earns no extra words; its history lives in `git log`/`git blame`/CHANGELOG.md.
+  - *Placement*: is it where a newcomer looks, or where your recent work pulls it?
+  - *Economy*: could fewer words say it as well?
+- After editing prose, delegate a whole-file top-to-bottom reread to a subagent briefed as a first-time reader, blind to what changed — never review only your diff. Triage its findings: fix what your edit touches, surface the rest rather than rewriting unasked.
 - On memory or practice changes, check the root `.md` files for drift from reality and **offer** fixes (CLAUDE.md = practice, README/CONTRIBUTING = facts).

@@ -13,7 +13,7 @@ The library operates on two payload types and four computation carriers:
 
 Composition operations include `transform` (mapping), `transform_error` (error mapping), `and_then` (sequential monadic binding), `or_else` (recovery), `operator&` (conjunction / simultaneous product composition), `operator|` (disjunction / simultaneous sum composition), and the n-ary folds `fn::conjoin` and `fn::disjoin`. Elimination is `apply` (multidispatch).
 
-### Member vs. Pipeline Syntax
+### Member vs. pipeline syntax
 
 Some operations are exposed in two forms:
 
@@ -26,17 +26,23 @@ The `operator|` carries two meanings, told apart by its right operand: a pipelin
 
 Freestanding `fn::apply(f, args...)` is the general multidispatch entry point: it accepts any mix of scalars, tuple-like structures, `pack`s and `copack`s, unpacking products and dispatching over alternatives in a single call. Do not confuse with `pfn::apply`, which is a polyfill for the C++26 `std::apply`, meant for C++20 compilers. The `fn::apply` is an extension on top of `pfn::apply`.
 
-In prose, we omit prefixes (writing `apply`, `transform`, `and_then`, `expected`, `pack`) when referring to both forms or core vocabulary types generally.
+In prose, this document omits prefixes (using `apply`, `transform`, `and_then`, `expected`, `pack`) when referring to both forms or core vocabulary types generally.
 
-### Storage Shape vs. Call Shape
+### Storage shape vs. call shape
 
 Although different types can behave identically during application, they remain strictly distinct in memory. For example, `pack<A, B>`, `std::tuple<A, B>`, and `std::pair<A, B>` all unpack into the same call shape `f(a, b)` during `apply`, but they are separate C++ types with distinct layouts. Application does not silently convert or unify types on the storage side.
 
 To illustrate these concepts, the examples in this document use a reusable set of value and error types:
-<!-- note: keep the following self-explanatory types out of the code quotation block below:
-     Error, OtherError, A, B, C, D -->
 <!-- sync-example-types-def -->
 ```cpp
+struct Error {};
+struct OtherError {};
+
+struct A {};
+struct B {};
+struct C {};
+struct D {};
+
 struct UserId {};
 struct User {};
 struct FilePath {};
@@ -78,7 +84,7 @@ auto graded_pipeline(std::string_view sv) -> void
 
 The resulting `expected` statically records that the pipeline yields a `User` on success, or fails with exactly one of `NotANumber`, `OutOfRange`, `Missing`, or `IoError`. This exact union accumulates automatically via `and_then` composition.
 
-### What Does "Graded" Mean?
+### What does "graded" mean?
 
 Standard monads are rigid: an `expected<T, E>` requires every step in a pipeline to return the identical error type `E`. This forces you to define a monolithic global error union upfront.
 
@@ -110,7 +116,7 @@ You may also use `copack` on a value side of most carriers (except for `just<cop
 
 The same type precision extends to computations combined side by side rather than in sequence. Conjunction (`operator&`) evaluates independent computations and bundles them into a single carrier holding a `pack` of the successful values over a `copack` of the exact possible errors; disjunction (`operator|`) is its dual. Sections 6 and 7 cover both.
 
-### The Two Cooperating Mechanisms
+### The two cooperating mechanisms
 
 Behind these precise compiled types are two independent mechanisms that cooperate to derive and eliminate these shapes:
 
@@ -183,7 +189,7 @@ auto test_copack_set_semantics() -> void
 >
 > To enforce set semantics at compile time, `libfn` defines one canonical representation and rejects any instantiation that diverges from it:
 >
-> - **`copack`** is the core storage type. It requires its template parameters to already be flat, unique, and sorted in a strict total order over types. The order is derived from the compiler's own spelling of each type; a build targeting C++26 with `LIBFN_CXX26` set will use `std::type_order` to derive the order of types, while the default build uses a type sorting mechanism based on compiler-specific type names (since these two orders may differ, each defines a distinct ABI namespace). If you attempt to instantiate `copack` manually with out-of-order parameters (such as `copack<B, A>` when `A` precedes `B` in that order) or with nested copacks (such as `copack<A, copack<C, D>>`), the compiler will reject the instantiation as outright ill-formed.
+> - **`copack`** is the core storage type. It requires its template parameters to already be flat, unique, and sorted in a strict total order over types. The order is derived from the compiler's own spelling of each type; a build targeting C++26 with `LIBFN_CXX26` set will use `std::type_order` to derive the order of types, while the default build uses a type sorting mechanism based on compiler-specific type names (these two orders may differ; Section 15 explains why they cannot mix). If you attempt to instantiate `copack` manually with out-of-order parameters (such as `copack<B, A>` when `A` precedes `B` in that order) or with nested copacks (such as `copack<A, copack<C, D>>`), the compiler will reject the instantiation as outright ill-formed.
 >
 > - **`copack_for`** is the user-facing type alias. It accepts any list of types (out-of-order, duplicates, nested copacks), performs the flattening, deduplication, and canonical sorting, and resolves to the validated `copack`.
 >
@@ -234,7 +240,7 @@ To model computation and manage control flow (success, failure, alternatives, an
 - **`just<T>`**: Always contains a single successful value of type `T`.
 - **`choice<Ts...>`**: Always contains one of several selected alternatives, representing the complete state space of the computation.
 
-Because `choice` implies that an alternative is always present, `choice<>` is incomplete: an always-present selected alternative requires at least one alternative to exist.
+Because `choice` always holds a selected alternative, `choice<>` is incomplete: it offers nothing to select.
 
 Additionally, the infallible state **`expected<T, copack<>>`** (representing $T + 0 \cong T$) can never fail because `copack<>` represents the initial zero object **0** (the uninhabited type). Lacking any possible error alternatives, it acts as an infallible, graded unit context. Since it is a specialized state of `expected` rather than a unique template, it is classified under the same computation carrier.
 
@@ -254,7 +260,7 @@ Raw algebraic constructs—such as `std::tuple` (product), `std::variant` (sum),
 
 Composing computations requires wrapping these values in computation carriers. Product composition (conjunction) and sum composition (disjunction) operate on carriers, not raw data. The carrier manages success propagation and short-circuits failures.
 
-### Carrier Bridging: Interoperable Pipelines
+### Carrier bridging: interoperable pipelines
 
 Because these carriers represent different computational contexts, pipelines often need to transition between them. `libfn` licenses explicit **cross-carrier bridging** via pipeline-scoped operations using `operator|`.
 
@@ -430,6 +436,8 @@ The runtime semantics are exact:
 
 Unlike disjunction (Section 7), `operator&` applies to payload types. When an operand is `copack`, it performs a Cartesian distribution, yielding a `copack` of `pack`s. A `pack` on the opposite side widens each of those `pack`s.
 
+This distribution underpins the rule in Section 4 that a `pack` cannot contain a `copack`. The disallowed nested shape—a product over a sum, (A × B) × (C + D)—is algebraically equivalent to (A × B × C) + (A × B × D), a flat `copack` of `pack`s. This is the sum-of-products normal form that the algebra preserves. No expressive power is lost by refusing the nested shape: conjoining a `pack` with a `copack` yields the equivalent flat representation directly, as the second case below shows.
+
 <!-- sync-example-cartesian-distribution -->
 ```cpp
 auto test_cartesian_distribution(fn::copack_for<A, B> ab, fn::copack_for<C, D> cd) -> void
@@ -457,7 +465,7 @@ The n-ary fold `fn::conjoin(...)` operates in two modes:
 
 Mixing carriers and data in a single call is ill-formed.
 
-### Conjunction with the Identity Cluster
+### Conjunction with the identity cluster
 
 An operand from the identity cluster (Section 10) contributes a value but never a failure:
 
@@ -522,7 +530,7 @@ The runtime semantics are exact:
 
 Unlike conjunction, disjunction has no data-level form. Neither `operator|` nor the n-ary fold `fn::disjoin(...)` accepts a `pack`, a `copack`, or a scalar. Therefore, built-in operations (such as bitwise `OR` on integers) are never confused with disjunction.
 
-### Disjunction with the Identity Cluster
+### Disjunction with the identity cluster
 
 When an operand belongs to the identity cluster (Section 10), the disjunction cannot fail:
 
@@ -731,7 +739,7 @@ auto test_identity_cross() -> void
 
 The *bind* operation adopts the carrier family of the provided callback — a crossing only the pipeline-scoped functors are licensed to make (Section 3).
 
-### Success-Path Bridging
+### Success-path bridging
 
 Fallible carriers (excluding `expected<T, copack<>>`) and `optional` cannot transition to infallible carriers, because doing so would risk silently discarding an active error or empty state.
 
@@ -801,7 +809,7 @@ Monadic operations on the identity cluster:
 
 `choice` represents a computation that always succeeds by selecting one of several alternatives. Structurally, it serves as the single-layer carrier for coproduct states, avoiding the invalid nested `just<copack<Ts...>>` representation (Section 3).
 
-### Promotion via Pipeline Functors
+### Promotion via pipeline functors
 
 Pipeline `fn::transform` on a `just` that returns a `copack` promotes automatically to `choice`:
 
@@ -966,7 +974,7 @@ A reference of `libfn` operations, organized by channel and effect:
 - `fn::conjoin`: An n-ary fold of `operator&`, over monadic carriers or over packs, copacks and scalars — not a mix of the two.
 - `fn::disjoin`: An n-ary fold of `operator|` over monadic carriers, supporting total disjunction with the identity cluster.
 
-### Key Architectural Rules of the Map
+### Key architectural rules of the map
 
 - **`fail` and `recover` are duals**: `fail` transitions success to failure ($Success \implies Failure$), and `recover` transitions failure to success ($Failure \implies Success$). Neither operation widens a graded error set.
 - **Graded `and_then`**: Widens the error grade by introducing new error types into the pipeline.
@@ -1008,9 +1016,13 @@ Other properties hold structurally:
 
 To ensure reliability, `libfn` uses compiler mechanisms to reject malformed usage and preserve performance.
 
-### Constraints and Exhaustiveness
+### Constraints and exhaustiveness
 
 Public concepts and `requires` clauses enforce correctness before instantiation. Operations are protected by public applicability concepts (such as `fn::applicable_transform` and `fn::applicable_and_then`) that evaluate to `false` for invalid calls rather than triggering deep compiler errors. This underpins the compile-time exhaustiveness guarantees of `apply` and monadic operations established in Sections 4 and 12.
+
+### One normalization order per program
+
+The `copack` normal form rests on a strict total order over types, and the default and `LIBFN_CXX26` modes may derive different orders (Section 2). Each mode therefore places `fn` in its own ABI namespace: the mode becomes part of every `fn` symbol, so the two modes never link as one, and `copack`s whose layouts disagree cannot merge unnoticed. (`pfn` carries no such split — it has no normal form to protect.)
 
 ### C++ value properties
 
@@ -1077,3 +1089,50 @@ For formal validation of the algebraic structures modeled in `libfn`, refer to:
 1. Orchard and Petricek, [“Embedding effect systems in Haskell”](https://www.doc.ic.ac.uk/~dorchard/publ/haskell14-effects.pdf) (for effect sets, union, and subeffecting).
 2. Orchard, Wadler, and Eades, [“Unifying graded and parameterised monads”](https://arxiv.org/pdf/2001.10274) specifically Definition 21 (for the graded-monad interpretation).
 3. McDermott and Uustalu, [“Flexibly Graded Monads and Graded Algebras”](https://dylanm.org/flexibly-graded-monads.pdf) _Note: `libfn` does not claim to fully implement their flexibly graded construction, but the work contextualizes graded structures._
+
+<!-- document-guidelines
+
+Guidelines:
+
+* All important concepts must appear early in a short introduction, and expanded further in the following sections.
+* Less important concepts are introduced in the sections where they are most useful.
+* No concept is used before it is introduced.
+* The index below - which demonstrates the adherence to the above rules - must be maintained with every structural change in the document.
+* The primary audience of this document is C++ software engineers. It must be easy for them to read and digest.
+* The mathematical asides anchor the prose in category theory for those versed in it: each states precisely what the surrounding prose approximates, and skipping them costs no practical understanding.
+* Mathematical asides must be maintained to demonstrate the sanity and coherence of the library design.
+* The numbered sections form the pedagogical arc the rules above govern. The unnumbered closing sections are reference appendices: Functional terminology restates the document's terms and may introduce nothing new; Further reading lists the formal sources.
+
+Index:
+
+**1. The Opening Map (Preamble & Section 3)**
+   * **Payload Types (`pack`/`copack`)** and **Computation Carriers (`optional`/`expected`/`just`/`choice`)** are first introduced as a sparse, high-level list in the main preamble.
+   * The term **identity cluster** is introduced in Section 3 under the infallible carriers as a simple grouping definition: "_Together, `just`, `choice` and `expected<T, copack<>>` form the identity cluster_." It does not expand on its operations or mathematical properties here, keeping the introduction minimal.
+
+**2. Core Algebraic Foundations (Sections 2, 3, & 4)**
+   * **Section 2** establishes the core algebraic identities of types (**0**, **1**, **A + B**, **A × B**), separates Zero (`copack<>`) from Unit (`pack<>`), and defines `copack` set semantics (deduplication, flattening, sorting) and why the algebra is strictly opt-in.
+   * **Section 3** establishes the carriers, the fact that raw data lacks control flow while carriers have it, and the basics of cross-carrier recovery-path bridging.
+   * **Section 4** expands on the concrete C++ payload behaviors of `pack` and `copack` (ADL `get`, structured bindings, `.append()`, singular copacks).
+
+**3. Progressive Functional Composition (Sections 5–9)**
+   * Once the data layers (payloads) and computational contexts (carriers) are defined, the document advances into composition:
+     * **Section 5 (Mapping)**: Covers functorial mapping (`transform`/`transform_error`).
+     * **Section 6 (Conjunction - `operator&`)**: Multiplies values into `pack`s and unions errors into `copack`s.
+     * **Section 7 (Disjunction - `operator|`)**: Unions values into `copack`s and multiplies errors into `pack`s.
+     * **Section 8 (Monadic Binding - `and_then`)**: Introduces Kleisli arrows and monadic sequencing of success paths.
+     * **Section 9 (Graded Expected)**: Explains how the type system derives exact error union grades during sequential binding.
+
+**4. Advanced Algebraic Crossings (Sections 10 & 11)**
+   * Only after all core compositions have been mastered does the document expand the advanced infallible states:
+     * **Section 10 (Identity Cluster)**: Curates the actual success-path licensing, cross-carrier transitions, and specialized monadic rules for the cluster members.
+     * **Section 11 (`choice` Monad)**: Explains the specific newtype monadic properties of `choice`, how it behaves atomically compared to flat copack data, and its categorical laws.
+
+**5. Elimination & Reference (Sections 12–15)**
+   * **Section 12 (Multidispatch)**: Introduces the exit point from the algebra back to ordinary C++ values via `apply` and `apply_type`.
+   * **Sections 13–15 (Map, Laws, Mechanics)**: Synthesizes everything into a unified operational map, compiler-checked monad/functor equations, and the underlying C++ standard rules preserving the model.
+
+**6. Appendices (unnumbered)**
+   * **Functional terminology**: The working vocabulary in one table, each term restating a concept the body already introduced.
+   * **Further reading**: The formal sources for the algebraic structures, with what each validates.
+
+ -->

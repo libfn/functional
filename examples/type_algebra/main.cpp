@@ -19,6 +19,7 @@
 #include <fn/value_or.hpp>
 #include <string_view>
 
+// sync-example-types-def
 struct Error {};
 struct OtherError {};
 
@@ -27,7 +28,6 @@ struct B {};
 struct C {};
 struct D {};
 
-// sync-example-types-def
 struct UserId {};
 struct User {};
 struct FilePath {};

@@ -8,6 +8,9 @@ splits at its `##` boundaries. Section numbering stays in the source and never r
 a page carries the name alone, and the prose's `Section N` cross-references become links to the
 pages they name. Repo-relative links, which znai would otherwise resolve as page references and
 reject, become links to the sibling section or to the file on GitHub.
+
+The rewrites recognize the markdown these documents use, conservatively: an ambiguous or
+unrecognized construct fails the staging rather than guessing its way onto the site.
 """
 from __future__ import annotations
 
@@ -48,6 +51,26 @@ REFERENCE_LINK = re.compile(r"^(\[[^\]]+\]:\s*)(\S+)", re.MULTILINE)
 HEADING = re.compile(r"^(#{3,})(?=\s)")
 CODE_SPAN = re.compile(r"`+[^`]*`+")
 
+# GitHub spells an admonition as a blockquote opening with an alert kind; znai spells it as a
+# fenced attention block. znai builds a block only for the types below — `attention-tip` is not
+# among them, and an unknown type falls through to a code snippet that prints the markdown
+# verbatim, so an unmapped kind fails the staging instead of reaching the site looking like that.
+ALERT = re.compile(r"^ {0,3}>\s*\[!([A-Z]+)\]\s*$")
+QUOTED = re.compile(r"^ {0,3}> ?")
+ATTENTION = {"NOTE": "note", "TIP": "note", "WARNING": "warning"}
+# Markers stand in for the block between the two rewrites, so that the alert's own body is
+# rewritten as ordinary prose and only then fenced.
+ATTENTION_OPEN = "<!--attention:{}-->"
+ATTENTION_CLOSE = "<!--/attention-->"
+MARKED = re.compile(r"^<!--attention:([a-z]+)-->$(.*?)^<!--/attention-->$",
+                    re.MULTILINE | re.DOTALL)
+# Unquoted openings that end a blockquote rather than continue its paragraph: a heading, a list
+# item, a fence and a thematic break. Markdown allows a block three spaces of indent, here as
+# above, and a fourth would make the line code rather than any of these.
+ENDS_QUOTE = re.compile(r"^ {0,3}(#{1,6}\s|[-*+]\s|\d+[.)]\s|```|~~~|(-{3,}|\*{3,}|_{3,})\s*$)")
+FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
+BACKTICKS = re.compile(r"^\s*(`{3,})", re.MULTILINE)
+
 
 def fail(message: str) -> None:
     sys.stderr.write(f"Error: {message}\n")
@@ -61,13 +84,19 @@ def slug(text: str) -> str:
 
 def outside_fences(text: str):
     """Yield (index, line, inside_fence) so no rule fires on fenced content."""
-    fence = False
+    opening = None
     for index, line in enumerate(text.splitlines()):
-        if line.lstrip().startswith("```"):
-            fence = not fence
+        run = FENCE.match(line)
+        # A fence closes on its own character, a run no shorter than the one that opened it, and
+        # nothing after the run — a closer carries no info string — so a fence may quote a shorter
+        # fence of either kind, or an opening fence of any length, without ending itself.
+        if run and (opening is None
+                    or (run.group(1)[0] == opening[0] and len(run.group(1)) >= len(opening)
+                        and not line[run.end():].strip())):
+            opening = None if opening else run.group(1)
             yield index, line, True
             continue
-        yield index, line, fence
+        yield index, line, opening is not None
 
 
 def split(text: str, where: str) -> tuple[str, str, list[tuple[str, str]]]:
@@ -135,6 +164,58 @@ def outside_code(line: str, rewrite) -> str:
     return "".join(parts) + rewrite(line[last:])
 
 
+def unquote_alerts(body: str) -> str:
+    """Mark GitHub's alert blockquotes and strip the quoting from their bodies.
+
+    The body is freed of its `>` here, ahead of the rewrites below, so that a heading or a link
+    inside an alert is treated exactly like one outside it; the marker becomes a fence only once
+    those rewrites have run, since a fenced body is left alone.
+    """
+    lines: list[str] = []
+    alert = ALERT.match("")
+    for _, line, fenced in outside_fences(body):
+        if fenced:
+            # A fence may quote alert syntax as an example of it; that is code, not an alert.
+            if alert is not None:
+                lines.append(ATTENTION_CLOSE)
+                alert = None
+            lines.append(line)
+            continue
+        if alert is None and (alert := ALERT.match(line)):
+            kind = alert.group(1)
+            if kind not in ATTENTION:
+                fail(f"alert [!{kind}] has no znai attention block; "
+                     f"known kinds are {', '.join(sorted(ATTENTION))}")
+            lines.append(ATTENTION_OPEN.format(ATTENTION[kind]))
+            continue
+        if alert is not None:
+            if quoted := QUOTED.match(line):
+                lines.append(line[quoted.end():])
+                continue
+            # A blockquote also swallows an unquoted line that merely continues its paragraph, and
+            # only a block of its own ends it. Guessing which this is would silently split the
+            # alert, so anything but a new block is refused and the author quotes it.
+            if line.strip() and not ENDS_QUOTE.match(line):
+                fail(f"alert body continues into an unquoted line: {line.strip()[:60]!r}; "
+                     "prefix it with `>` or separate it with a blank line")
+            lines.append(ATTENTION_CLOSE)
+            alert = None
+        lines.append(line)
+    if alert is not None:
+        lines.append(ATTENTION_CLOSE)
+    return "\n".join(lines)
+
+
+def fence_alerts(body: str) -> str:
+    """Turn each marked alert into an attention block, fenced longer than anything inside it."""
+    def block(match: re.Match[str]) -> str:
+        inner = match.group(2).strip("\n")
+        ticks = "`" * max(3, *(len(m.group(1)) + 1 for m in BACKTICKS.finditer(inner)), 3)
+        return f"{ticks}attention-{match.group(1)}\n{inner}\n{ticks}"
+
+    return MARKED.sub(block, body)
+
+
 def render(body: str, page: dict[str, str] | None, number: dict[str, tuple[str, str]],
            chapter: str | None, repo: pathlib.Path) -> str:
     """Rewrite a body for the site: heading depth, links, cross-references."""
@@ -149,7 +230,7 @@ def render(body: str, page: dict[str, str] | None, number: dict[str, tuple[str, 
             else fail(f"reference to Section {m.group(1)}, which {chapter} does not have"), text)
 
     lines = []
-    for _, line, fenced in outside_fences(body):
+    for _, line, fenced in outside_fences(unquote_alerts(body)):
         if not fenced:
             if BADGE.match(line.strip()):
                 continue
@@ -159,7 +240,7 @@ def render(body: str, page: dict[str, str] | None, number: dict[str, tuple[str, 
                 line = HEADING.sub(lambda m: m.group(1)[1:], line)
             line = outside_code(line, prose)
         lines.append(line)
-    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines))
+    return fence_alerts(re.sub(r"\n{3,}", "\n\n", "\n".join(lines)))
 
 
 def write(path: pathlib.Path, title: str, body: str) -> None:
