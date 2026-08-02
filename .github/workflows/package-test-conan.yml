@@ -46,7 +46,7 @@ jobs:
 
     # The C++26 mode: extra_variables turns on the test_package's second executable,
     # and the test_package conanfile reads the same conf to quine-check it. cppstd
-    # stays 20: C++26 must arrive from linking libfn::fn_cxx26 alone.
+    # stays 20: C++26 build option must arrive from the libfn::fn_cxx26 dependency.
     - name: Test packaging (C++26 mode)
       if: matrix.mode == 'cxx26'
       run: |
