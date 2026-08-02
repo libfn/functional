@@ -33,10 +33,16 @@ In prose, we omit prefixes (writing `apply`, `transform`, `and_then`, `expected`
 Although different types can behave identically during application, they remain strictly distinct in memory. For example, `pack<A, B>`, `std::tuple<A, B>`, and `std::pair<A, B>` all unpack into the same call shape `f(a, b)` during `apply`, but they are separate C++ types with distinct layouts. Application does not silently convert or unify types on the storage side.
 
 To illustrate these concepts, the examples in this document use a reusable set of value and error types:
-<!-- note: keep the following self-explanatory types out of the code quotation block below:
-     Error, OtherError, A, B, C, D -->
 <!-- sync-example-types-def -->
 ```cpp
+struct Error {};
+struct OtherError {};
+
+struct A {};
+struct B {};
+struct C {};
+struct D {};
+
 struct UserId {};
 struct User {};
 struct FilePath {};
@@ -429,6 +435,8 @@ The runtime semantics are exact:
 ### Conjunction over data
 
 Unlike disjunction (Section 7), `operator&` applies to payload types. When an operand is `copack`, it performs a Cartesian distribution, yielding a `copack` of `pack`s. A `pack` on the opposite side widens each of those `pack`s.
+
+This distribution underpins the rule in Section 4 that a `pack` cannot contain a `copack`. The disallowed nested shape—a product over a sum, (A × B) × (C + D)—is algebraically equivalent to (A × B × C) + (A × B × D), a flat `copack` of `pack`s. This is the sum-of-products normal form that the algebra preserves. No expressive power is lost by refusing the nested shape: conjoining a `pack` with a `copack` yields the equivalent flat representation directly, as the second case below shows.
 
 <!-- sync-example-cartesian-distribution -->
 ```cpp
