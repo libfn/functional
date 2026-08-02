@@ -1101,7 +1101,7 @@ Guidelines:
 * The primary audience of this document is C++ software engineers. It must be easy for them to read and digest.
 * The mathematical asides anchor the prose in category theory for those versed in it: each states precisely what the surrounding prose approximates, and skipping them costs no practical understanding.
 * Mathematical asides must be maintained to demonstrate the sanity and coherence of the library design.
-* The numbered sections form the pedagogical arc the rules above govern. The unnumbered closing sections are reference appendices: Functional terminology restates the document's terms and may introduce nothing new; Further reading lists the formal sources.
+* The numbered sections form the pedagogical arc the rules above govern; the unnumbered closing sections are reference appendices and may introduce nothing new.
 
 Index:
 
