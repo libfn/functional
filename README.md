@@ -45,6 +45,7 @@ public:
         -> fn::expected<Rational, fn::copack_for<DivByZero, Overflow>>
     {
       if (d == 0) return fn::unexpected{fn::copack{DivByZero{}}};
+      // Note, std::gcd precondition is that `|n|` and `|d|` must both be representable.
       if (n == std::numeric_limits<long long>::min() || d == std::numeric_limits<long long>::min())
         return fn::unexpected{fn::copack{Overflow{}}};
 
