@@ -40,10 +40,11 @@ jobs:
         conan create . --build=missing -s "compiler.cppstd=20"
 
     # The C++26 mode: extra_variables turns on the test_package's second executable,
-    # and the test_package conanfile reads the same conf to quine-check it.
+    # and the test_package conanfile reads the same conf to quine-check it. cppstd
+    # stays 20: C++26 must arrive from linking libfn::fn_cxx26 alone.
     - name: Test packaging (C++26 mode)
       run: |
-        conan create . --build=missing -s "compiler.cppstd=26" \
+        conan create . --build=missing -s "compiler.cppstd=20" \
           -c "tools.cmake.cmaketoolchain:extra_variables={'LIBFN_TEST_CXX26': 'ON'}"
 
   test_conan_windows:

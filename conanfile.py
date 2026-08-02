@@ -1,7 +1,7 @@
 import os
 
 from conan import ConanFile
-from conan.tools.files import copy, load
+from conan.tools.files import copy, load, save
 from conan.tools.layout import basic_layout
 
 
@@ -48,12 +48,22 @@ class LibfnConan(ConanFile):
             src=self.source_folder,
             dst=os.path.join(self.package_folder, "licenses"),
         )
+        # CMakeDeps synthesizes its own targets and drops the compile features the CMake
+        # export carries; this build module restores fn_cxx26's language requirement.
+        save(
+            self,
+            os.path.join(self.package_folder, "cmake", "libfn-cxx26.cmake"),
+            "if(TARGET libfn::fn_cxx26)\n"
+            "  target_compile_features(libfn::fn_cxx26 INTERFACE cxx_std_26)\n"
+            "endif()\n",
+        )
 
     def package_info(self):
         # find_package(libfn) -> libfn::libfn aggregate target,
         # plus libfn::fn, libfn::fn_cxx26 and libfn::pfn component targets.
         self.cpp_info.set_property("cmake_file_name", "libfn")
         self.cpp_info.set_property("cmake_target_name", "libfn::libfn")
+        self.cpp_info.set_property("cmake_build_modules", [os.path.join("cmake", "libfn-cxx26.cmake")])
 
         # fn: the main component (headers under include/fn/); built on the pfn polyfills.
         fn = self.cpp_info.components["fn"]
