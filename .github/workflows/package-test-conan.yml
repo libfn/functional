@@ -25,6 +25,10 @@ jobs:
   test_conan_linux:
     # arm64: the amd64 warp fleet pulls images at 1-2 MB/s; the arm64 fleet serves them in seconds
     runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-2x' || 'ubuntu-latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [cxx20, cxx26]
     container: libfn.azurecr.io/ci-build-gcc:16-sha-95f599d
 
     steps:
@@ -36,14 +40,17 @@ jobs:
         echo "tools.cmake.cmaketoolchain:generator=Ninja" >> ~/.conan2/global.conf
 
     - name: Test packaging
+      if: matrix.mode == 'cxx20'
       run: |
         conan create . --build=missing -s "compiler.cppstd=20"
 
     # The C++26 mode: extra_variables turns on the test_package's second executable,
-    # and the test_package conanfile reads the same conf to quine-check it.
+    # and the test_package conanfile reads the same conf to quine-check it. cppstd
+    # stays 20: C++26 build option must arrive from the libfn::fn_cxx26 dependency.
     - name: Test packaging (C++26 mode)
+      if: matrix.mode == 'cxx26'
       run: |
-        conan create . --build=missing -s "compiler.cppstd=26" \
+        conan create . --build=missing -s "compiler.cppstd=20" \
           -c "tools.cmake.cmaketoolchain:extra_variables={'LIBFN_TEST_CXX26': 'ON'}"
 
   test_conan_windows:
