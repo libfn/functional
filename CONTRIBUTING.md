@@ -77,7 +77,7 @@ cmake --build . --target coverage
 
 **Requirements:**
 
-* **gcovr 8.4+:** The coverage build uses the `--merge-lines` option, which was added in `gcovr` 8.4. Since package managers often distribute older versions, using a Python virtual environment (`venv`) is recommended as the easiest way to install a newer version.
+* **gcovr 8.4+:** The coverage build uses the `--merge-lines` option, which was added in `gcovr` 8.4. Since package managers often distribute older versions, using a Python virtual environment (`venv`, `uv` etc.) is recommended as the easiest way to install a newer version.
 * **Coverage tool:** The coverage tool must match your compiler:
   * GCC uses `gcov`.
   * Clang uses `llvm-cov gcov`.
