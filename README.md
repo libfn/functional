@@ -183,6 +183,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the development environment, building
 
 * Gašper Ažman, for providing the inspiration in ["(Fun)ctional C++ and the M-word"][gasper-functional-presentation]
 * Bartosz Milewski, for taking the time to explain [parametrised and graded monads][parametrised-and-graded-monads] and [effect systems][effect-systems]
+* [Mykola Golubyev][mykola-golubyev], for implementing fixes in [znai][znai] needed by this project
 * [Ripple][ripple], for allowing the main author the time to work on this library
 
 ## License
@@ -200,3 +201,5 @@ Distributed under the ISC License; see [LICENSE.md](LICENSE.md) for the terms.
 [parametrised-and-graded-monads]: https://arxiv.org/pdf/2001.10274.pdf
 [effect-systems]: https://www.doc.ic.ac.uk/~dorchard/publ/haskell14-effects.pdf
 [ripple]: https://ripple.com/
+[mykola-golubyev]: https://github.com/MykolaGolubyev
+[znai]: https://github.com/testingisdocumenting/znai
