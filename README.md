@@ -127,6 +127,8 @@ The example also demonstrates how well libfn works with general programming idio
 
 Beyond the example: `choice` (a monad over `copack`); the same operations over `optional` as over `expected`; simultaneous disjunction (using `operator|` to fallback-combine monadic computations) and its `fn::disjoin` fold; `fn::conjoin` for simultaneous product folds; tuple protocol in `pack` (`get<I>(p)` or structured bindings); `pack` and `copack` are both structural types (a `constexpr` value which may be used as a template parameter); support for immovable values and callables; an extensible pipeline, where a verb defined outside the library pipes exactly like the built-in ones; and more — see [examples/](examples/) and the [API reference][docs].
 
+None of this is ad hoc: [TYPE_ALGEBRA.md](TYPE_ALGEBRA.md) derives the entire design from first principles — the algebra of products and sums behind `pack` and `copack`, the logic of monadic composition, and the compiler-checked laws that the library obeys.
+
 ## How
 
 The library comes as two parts in one repository:
@@ -153,7 +155,7 @@ target_link_libraries(main PRIVATE libfn::fn)   # or libfn::pfn for the polyfill
 
 A third target, `libfn::fn_cxx26`, is the same headers entered with the [`LIBFN_CXX26` mode](#implementation-note) selected; it carries both the mode and its C++26 language requirement, so a target opts in with one link line. Link exactly one of `libfn::fn` or `libfn::fn_cxx26` per target. `pfn` is mode-independent and has no such variant.
 
-With `libfn::fn_cxx26`, a compiler that does not implement `std::type_order` stops at the first libfn header, with an `#error` naming the feature. Mixing the two entry points in one binary stops at the linker, on an undefined reference whose type names differ from the definition's by the `_cxx26` ABI namespace. Both are loud by design: the namespaces are separate so that two layouts cannot merge unnoticed.
+With `libfn::fn_cxx26`, a compiler that does not implement `std::type_order` stops at the first libfn header, with an `#error` naming the feature. Mixing the two entry points in one binary stops at the linker, on an undefined reference whose type names differ from the definition's by the `_cxx26` ABI namespace. Both are loud by design: the namespaces are separate so that two layouts cannot merge unnoticed — the invariant [TYPE_ALGEBRA.md](TYPE_ALGEBRA.md) calls one normalization order per program.
 
 Packaging is provided — and exercised by CI — for [conan](conanfile.py), [vcpkg](ports/libfn) (an in-repo port), [Nix](flake.nix) and [Bazel](MODULE.bazel); plain CMake `FetchContent` or `add_subdirectory` works as well. Until the first tagged release, consume a pinned git revision — and read [Backwards compatibility](#backwards-compatibility).
 
