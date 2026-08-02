@@ -157,20 +157,20 @@ A third target, `libfn::fn_cxx26`, is the same headers entered with the [`LIBFN_
 
 With `libfn::fn_cxx26`, a compiler that does not implement `std::type_order` stops at the first libfn header, with an `#error` naming the feature. Mixing the two entry points in one binary stops at the linker, on an undefined reference whose type names differ from the definition's by the `_cxx26` ABI namespace. Both are loud by design: the namespaces are separate so that two layouts cannot merge unnoticed — the invariant [TYPE_ALGEBRA.md](TYPE_ALGEBRA.md) calls one normalization order per program.
 
-Packaging is provided — and exercised by CI — for [conan](conanfile.py), [vcpkg](ports/libfn) (an in-repo port), [Nix](flake.nix) and [Bazel](MODULE.bazel); plain CMake `FetchContent` or `add_subdirectory` works as well. Until the first tagged release, consume a pinned git revision — and read [Backwards compatibility](#backwards-compatibility).
+Packaging is provided — and exercised by CI — for [conan](conanfile.py), [vcpkg](ports/libfn) (an in-repo port), [Nix](flake.nix) and [Bazel](MODULE.bazel); plain CMake `FetchContent` or `add_subdirectory` works as well. Consume a tagged release — and read [Backwards compatibility](#backwards-compatibility).
 
 Every packaging route above except Bazel also delivers the compile options the headers require. Under Bazel — and a plain copy of `include/` — these options don't arrive automatically; provide them yourself: C++20 or newer (`--cxxopt=-std=c++20` in Bazel), `-Wno-missing-braces` on clang (`fn::pack` initialization elides braces by design), and with MSVC `/permissive-` plus `_HAS_CXX23`. The authoritative set is the `INTERFACE` options in [cmake/CompilationOptions.cmake](cmake/CompilationOptions.cmake).
 
 ## Backwards compatibility
 
-The maintainers aim for compatibility with the proposed changes to the C++ standard library, **rather than with the existing uses** of the code in this repo. In practice, this means that all code in this repo should be considered "under intensive development and unstable" until the standardization of the proposed facilities.
+The maintainers aim for compatibility with the proposed changes to the C++ standard library, **rather than with the existing uses** of the code in this repo. A facility proposed in `include/fn` therefore tracks its paper: names and semantics may change when the paper does. Such a change bumps **`y`**, and so arrives only with a deliberate upgrade.
 
 ## Versioning and ABI
 
 Releases are numbered `0.y.z` and will stay below `1.0.0` for the foreseeable future. [SemVer](https://semver.org/) treats any `0.y.z` version as unstable — anything may change — so libfn narrows that into a usable contract:
 
 - a bump in **`y`** is a **breaking** change (API and/or ABI);
-- a bump in **`z`** is a bug fix or a purely additive extension: the API and ABI stay compatible, but inline function definitions may change — see below.
+- a bump in **`z`** is a bug fix or a purely additive extension: upgrading never breaks a consumer.
 
 Because the library is header-only, **use a single libfn version per binary**. Mixing versions in one program is an ODR violation — and that includes two `z` releases of the *same* `y` line, whose inline definitions may differ even though the ABI matches.
 
