@@ -1105,8 +1105,9 @@ Guidelines:
 
 Index:
 
-**1. The Opening Map (Preamble & Section 3)**
+**1. The Opening Map (Preamble & Sections 1, 3)**
    * **Payload Types (`pack`/`copack`)** and **Computation Carriers (`optional`/`expected`/`just`/`choice`)** are first introduced as a sparse, high-level list in the main preamble.
+   * **Section 1** motivates the algebra with the problem it solves, with a pipeline example of graded monad.
    * The term **identity cluster** is introduced in Section 3 under the infallible carriers as a simple grouping definition: "_Together, `just`, `choice` and `expected<T, copack<>>` form the identity cluster_." It does not expand on its operations or mathematical properties here, keeping the introduction minimal.
 
 **2. Core Algebraic Foundations (Sections 2, 3, & 4)**
