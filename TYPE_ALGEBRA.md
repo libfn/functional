@@ -1077,3 +1077,50 @@ For formal validation of the algebraic structures modeled in `libfn`, refer to:
 1. Orchard and Petricek, [“Embedding effect systems in Haskell”](https://www.doc.ic.ac.uk/~dorchard/publ/haskell14-effects.pdf) (for effect sets, union, and subeffecting).
 2. Orchard, Wadler, and Eades, [“Unifying graded and parameterised monads”](https://arxiv.org/pdf/2001.10274) specifically Definition 21 (for the graded-monad interpretation).
 3. McDermott and Uustalu, [“Flexibly Graded Monads and Graded Algebras”](https://dylanm.org/flexibly-graded-monads.pdf) _Note: `libfn` does not claim to fully implement their flexibly graded construction, but the work contextualizes graded structures._
+
+<!-- document-guidelines
+
+Guidelines:
+
+* All important concepts must appear early in a short introduction, and expanded further in the following sections.
+* Less important concepts are introduced in the sections where they are most useful.
+* No concept is used before it is introduced.
+* The index below - which demonstrates the adherence to the above rules - must be maintained with every structural change in the document.
+* The primary audience of this document is C++ software engineers. It must be easy for them to read and digest.
+* The mathematical asides anchor the prose in category theory for those versed in it: each states precisely what the surrounding prose approximates, and skipping them costs no practical understanding.
+* Mathematical asides must be maintained to demonstrate the sanity and coherence of the library design.
+* The numbered sections form the pedagogical arc the rules above govern. The unnumbered closing sections are reference appendices: Functional terminology restates the document's terms and may introduce nothing new; Further reading lists the formal sources.
+
+Index:
+
+**1. The Opening Map (Preamble & Section 3)**
+   * **Payload Types (`pack`/`copack`)** and **Computation Carriers (`optional`/`expected`/`just`/`choice`)** are first introduced as a sparse, high-level list in the main preamble.
+   * The term **identity cluster** is introduced in Section 3 under the infallible carriers as a simple grouping definition: "_Together, `just`, `choice` and `expected<T, copack<>>` form the identity cluster_." It does not expand on its operations or mathematical properties here, keeping the introduction minimal.
+
+**2. Core Algebraic Foundations (Sections 2, 3, & 4)**
+   * **Section 2** establishes the core algebraic identities of types (**0**, **1**, **A + B**, **A × B**), separates Zero (`copack<>`) from Unit (`pack<>`), and defines `copack` set semantics (deduplication, flattening, sorting) and why the algebra is strictly opt-in.
+   * **Section 3** establishes the carriers, the fact that raw data lacks control flow while carriers have it, and the basics of cross-carrier recovery-path bridging.
+   * **Section 4** expands on the concrete C++ payload behaviors of `pack` and `copack` (ADL `get`, structured bindings, `.append()`, singular copacks).
+
+**3. Progressive Functional Composition (Sections 5–9)**
+   * Once the data layers (payloads) and computational contexts (carriers) are defined, the document advances into composition:
+     * **Section 5 (Mapping)**: Covers functorial mapping (`transform`/`transform_error`).
+     * **Section 6 (Conjunction - `operator&`)**: Multiplies values into `pack`s and unions errors into `copack`s.
+     * **Section 7 (Disjunction - `operator|`)**: Unions values into `copack`s and multiplies errors into `pack`s.
+     * **Section 8 (Monadic Binding - `and_then`)**: Introduces Kleisli arrows and monadic sequencing of success paths.
+     * **Section 9 (Graded Expected)**: Explains how the type system derives exact error union grades during sequential binding.
+
+**4. Advanced Algebraic Crossings (Sections 10 & 11)**
+   * Only after all core compositions have been mastered does the document expand the advanced infallible states:
+     * **Section 10 (Identity Cluster)**: Curates the actual success-path licensing, cross-carrier transitions, and specialized monadic rules for the cluster members.
+     * **Section 11 (`choice` Monad)**: Explains the specific newtype monadic properties of `choice`, how it behaves atomically compared to flat copack data, and its categorical laws.
+
+**5. Elimination & Reference (Sections 12–15)**
+   * **Section 12 (Multidispatch)**: Introduces the exit point from the algebra back to ordinary C++ values via `apply` and `apply_type`.
+   * **Sections 13–15 (Map, Laws, Mechanics)**: Synthesizes everything into a unified operational map, compiler-checked monad/functor equations, and the underlying C++ standard rules preserving the model.
+
+**6. Appendices (unnumbered)**
+   * **Functional terminology**: The working vocabulary in one table, each term restating a concept the body already introduced.
+   * **Further reading**: The formal sources for the algebraic structures, with what each validates.
+
+ -->
