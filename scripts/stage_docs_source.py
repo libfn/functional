@@ -11,6 +11,9 @@ reject, become links to the sibling section or to the file on GitHub.
 
 The rewrites recognize the markdown these documents use, conservatively: an ambiguous or
 unrecognized construct fails the staging rather than guessing its way onto the site.
+
+The staged footer additionally names the version the site was generated from, read literally
+from VERSION.
 """
 from __future__ import annotations
 
@@ -295,6 +298,17 @@ def toc(out: pathlib.Path, generated: dict[str, list[str]]) -> None:
     (out / "toc").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def footer(out: pathlib.Path, repo: pathlib.Path) -> None:
+    """Append the version the site was generated from to the staged footer's right column."""
+    path = out / "footer.md"
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if "right:" not in lines or not lines or lines[-1] != "```":
+        fail("docs/footer.md: expected a columns block with a right: column, closed by a bare fence")
+    version = (repo / "VERSION").read_text(encoding="utf-8").strip()
+    lines[-1:] = ["", f"libfn version {version}.", "```"]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("repo", type=pathlib.Path, help="repository root")
@@ -305,6 +319,7 @@ def main() -> None:
     if out.exists():
         shutil.rmtree(out)
     shutil.copytree(repo / "docs", out)
+    footer(out, repo)
 
     # docs/lookup-paths reaches the sources it quotes relatively, which the staged copy is no
     # longer placed to do.

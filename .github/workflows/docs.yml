@@ -1,15 +1,20 @@
 name: docs
 
+# The site deploys from the release branch only, so everything it publishes — the
+# single-header artifact included — is released, verified content. Pull requests
+# into main and release still build-check the site without deploying.
+
 on:
   push:
     branches:
-      - main
+      - release
     paths:
       - '.github/workflows/docs.yml'
       - 'docs/**'
       - 'include/**'
       - 'tests/**'
       - 'examples/**'
+      - 'scripts/**'
       - 'CMakeLists.txt'
       - 'cmake/**'
       - '*.md'
@@ -17,12 +22,14 @@ on:
   pull_request:
     branches:
       - main
+      - release
     paths:
       - '.github/workflows/docs.yml'
       - 'docs/**'
       - 'include/**'
       - 'tests/**'
       - 'examples/**'
+      - 'scripts/**'
       - 'CMakeLists.txt'
       - 'cmake/**'
       - '*.md'
@@ -56,7 +63,7 @@ jobs:
           cmake --build . --target export_docs
 
       - name: Upload artifact
-        if: ${{ github.repository == 'libfn/functional' && github.ref_type == 'branch' && github.ref_name == 'main' }}
+        if: ${{ github.repository == 'libfn/functional' && github.ref_type == 'branch' && github.ref_name == 'release' }}
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: ./.build/docs
@@ -66,7 +73,7 @@ jobs:
   # Separate job: permissions are per-job, so PR runs must not hold the deploy scopes
   deploy_docs:
     needs: generate_docs
-    if: ${{ github.repository == 'libfn/functional' && github.ref_type == 'branch' && github.ref_name == 'main' }}
+    if: ${{ github.repository == 'libfn/functional' && github.ref_type == 'branch' && github.ref_name == 'release' }}
     runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-2x' || 'ubuntu-latest' }}
     permissions:
       pages: write

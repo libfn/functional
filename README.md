@@ -162,6 +162,8 @@ Packaging is provided — and exercised by CI — for [conan](conanfile.py), [vc
 
 Every packaging route above except Bazel also delivers the compile options the headers require. Under Bazel — and a plain copy of `include/` — these options don't arrive automatically; provide them yourself: C++20 or newer (`--cxxopt=-std=c++20` in Bazel), `-Wno-missing-braces` on clang (`fn::pack` initialization elides braces by design), and with MSVC `/permissive-` plus `_HAS_CXX23`. The authoritative set is the `INTERFACE` options in [cmake/CompilationOptions.cmake](cmake/CompilationOptions.cmake).
 
+A single header — the whole library in one file — serves online compilers and standalone reproducers, where an include path is not an option. The documentation site publishes it at [`https://libfn.org/libfn.hpp`](https://libfn.org/libfn.hpp), which Compiler Explorer can include directly by URL; each tagged release attaches the same file as `libfn-<tag>.hpp`. Prefer the real headers otherwise: they give real paths in diagnostics. The compile options above apply; define `LIBFN_CXX26` and compile as C++26 to select the C++26 mode.
+
 ## Backwards compatibility
 
 The maintainers aim for compatibility with the proposed changes to the C++ standard library, **rather than with the existing uses** of the code in this repo. A facility proposed in `include/fn` therefore tracks its paper: names and semantics may change when the paper does. Such a change bumps **`y`**, and so arrives only with a deliberate upgrade.
