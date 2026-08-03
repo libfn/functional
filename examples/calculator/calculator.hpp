@@ -6,11 +6,11 @@
 #ifndef EXAMPLES_CALCULATOR_CALCULATOR
 #define EXAMPLES_CALCULATOR_CALCULATOR
 
-#include "fn/and_then.hpp"
-#include "fn/expected.hpp"
-#include "fn/pack.hpp"
-#include "fn/transform.hpp"
-#include "fn/utility.hpp"
+#include <fn/and_then.hpp>
+#include <fn/expected.hpp>
+#include <fn/pack.hpp>
+#include <fn/transform.hpp>
+#include <fn/utility.hpp>
 
 #include <cerrno>
 #include <cmath>
