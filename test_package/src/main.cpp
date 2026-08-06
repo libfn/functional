@@ -1,54 +1,37 @@
-#include <fn/and_then.hpp>
-#include <fn/choice.hpp>
 #include <fn/pack.hpp>
-#include <fn/utility.hpp>
+#include <iostream>
 
-#include <cstdio>
-#include <numeric>
+static constexpr auto src = fn::pack{
+    R"(#include <fn/pack.hpp>
+#include <iostream>
 
-static constexpr char const *src[] = {")", R"(#include <fn/and_then.hpp>
-#include <fn/choice.hpp>
-#include <fn/pack.hpp>
-#include <fn/utility.hpp>
-
-#include <cstdio>
-#include <numeric>
-
-static constexpr char const *src[] = {"%c", R"(%s%c",
-                                      ""};
-
-int main()
-{
-  using quine_t = fn::choice_for<fn::pack<>, fn::pack<char>, fn::pack<char, char const *>>;
-  return std::accumulate(
-             std::begin(src), std::end(src), quine_t{fn::as_pack()}, //
-             [](quine_t &&acc, char const *s) -> quine_t {
-               return acc
-                      | fn::and_then(fn::overload{[s]() -> quine_t { return fn::pack<char>{*s}; },
-                                                  [s](char c) -> quine_t { return fn::pack<char, char const *>{c, s}; },
-                                                  [](char c, char const *fmt) -> quine_t {
-                                                    std::printf(fmt, c, fmt, c);
-                                                    return fn::as_pack();
-                                                  }});
-             })
-      .apply([]([[maybe_unused]] auto &&...args) -> int { return sizeof...(args); });
-}
+static constexpr auto src = fn::pack{
 )",
-                                      ""};
+    R"(};
+
+)",
+    R"(int main()
+{
+)",
+    R"(  auto const quote = [](char const *s) { return std::string("    R\"(") + s + ")\",\n"; };
+)",
+    R"(  return src.apply([&](char const *head, auto const *...tail) -> int {
+)",
+    R"(    std::cout << head << (quote(head) + ... + quote(tail)) << (std::string() + ... + tail);
+)",
+    R"(    return sizeof...(tail) == 0;
+)",
+    R"(  });
+)",
+    R"(}
+)",
+};
 
 int main()
 {
-  using quine_t = fn::choice_for<fn::pack<>, fn::pack<char>, fn::pack<char, char const *>>;
-  return std::accumulate(
-             std::begin(src), std::end(src), quine_t{fn::as_pack()}, //
-             [](quine_t &&acc, char const *s) -> quine_t {
-               return acc
-                      | fn::and_then(fn::overload{[s]() -> quine_t { return fn::pack<char>{*s}; },
-                                                  [s](char c) -> quine_t { return fn::pack<char, char const *>{c, s}; },
-                                                  [](char c, char const *fmt) -> quine_t {
-                                                    std::printf(fmt, c, fmt, c);
-                                                    return fn::as_pack();
-                                                  }});
-             })
-      .apply([]([[maybe_unused]] auto &&...args) -> int { return sizeof...(args); });
+  auto const quote = [](char const *s) { return std::string("    R\"(") + s + ")\",\n"; };
+  return src.apply([&](char const *head, auto const *...tail) -> int {
+    std::cout << head << (quote(head) + ... + quote(tail)) << (std::string() + ... + tail);
+    return sizeof...(tail) == 0;
+  });
 }
