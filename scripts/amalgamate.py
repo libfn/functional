@@ -138,7 +138,9 @@ def revision() -> str:
             check=True,
         )
         return described.stdout.strip()
-    except (OSError, subprocess.CalledProcessError):
+    except (OSError, subprocess.CalledProcessError) as error:
+        detail = (getattr(error, "stderr", "") or str(error)).strip()
+        sys.stderr.write(f"git describe failed, Revision falls back to unknown: {detail}\n")
         return "unknown"
 
 

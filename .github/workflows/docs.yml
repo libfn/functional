@@ -45,6 +45,9 @@ jobs:
     container: libfn.azurecr.io/ci-docs:sha-95f599d
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The single-header banner's Revision comes from git describe, which needs the tags
+          fetch-tags: true
 
       # Guardrail to ensure that we do not update docs after a bad merge
       - name: Build and run tests
