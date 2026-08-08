@@ -116,7 +116,7 @@ static_assert(evaluate("2/3", Div{}, "0/1").error().has_value<DivByZero>());
 
 The library features demonstrated by the code example above:
 
-* **Monadic sequences** — `operator|` pipes a `expected` (or `optional`) through operations: `and_then` and `transform` act on the value, `or_else`, `recover` and `transform_error` on the error, with `filter`, `inspect`, `fail` and more besides.
+* **Monadic sequences** — `operator|` pipes an `expected` (or `optional`) through operations: `and_then` and `transform` act on the value, `or_else`, `recover` and `transform_error` on the error, with `filter`, `inspect`, `fail` and more besides.
 * **Graded errors** — each stage fails its own way — a malformed string, a zero denominator, an out-of-range result — and the library folds these into one `copack` whose type it derives for you: here `copack<DivByZero, NotANumber, Overflow>`, never spelled by hand.
 * **Composing values** — `operator&` gathers successful operands left to right: two values become a `pack`, a third appends to it. A `pack` is a heterogeneous product — the operands as one value, spread into the next call; for example in `make`'s `string_view` overload, where a `pack<int, int>` returned from `parse` is passed to an overload taking two numbers.
 * **Composing alternatives** — when a side is a `copack` (a co-product — one of several types, indexed by type, not by position like `std::variant`), `&` distributes over it, pairing every alternative with the other operand. Two copacks yield the full cartesian product. The result type is flattened, deduplicated and sorted for you.
@@ -126,7 +126,17 @@ The library features demonstrated by the code example above:
 
 The example also demonstrates how well libfn works with general programming idioms. `make` is a *smart constructor* — the only way to build a `Rational` — enforcing the type's invariants and returning `expected`: callers never need to re-check what the type guarantees. Treating *callables as values* lets operations such as `and_then` accept `make` whole, carrying its overload set.
 
-Beyond the example: `choice` (a monad over `copack`); the same operations over `optional` as over `expected`; simultaneous disjunction (using `operator|` to fallback-combine monadic computations) and its `fn::disjoin` fold; `fn::conjoin` for simultaneous product folds; tuple protocol in `pack` (`get<I>(p)` or structured bindings); `pack` and `copack` are both structural types (a `constexpr` value which may be used as a template parameter); support for immovable values and callables; an extensible pipeline, where a verb defined outside the library pipes exactly like the built-in ones; and more — see [examples/](examples/) and the [API reference][docs].
+Beyond what the code example demonstrates, the library also offers:
+
+* `choice`, a monad over `copack`.
+* The same operations that work on `expected` also work on `optional`.
+* Simultaneous disjunction, which uses `operator|` to fall back from one monadic computation to another, along with its `fn::disjoin` fold.
+* `fn::conjoin`, for simultaneous product folds.
+* The tuple protocol in `pack`, so you can write `get<I>(p)` or use structured bindings.
+* `pack` and `copack` are both structural types — a `constexpr` value that can be used as a template parameter.
+* Support for immovable values and callables.
+* An extensible pipeline: a verb defined outside the library pipes exactly like the built-in ones.
+* And more — see [examples/](examples/) and the [API reference][docs].
 
 None of this is ad hoc: [TYPE_ALGEBRA.md](TYPE_ALGEBRA.md) derives the entire design from first principles — the algebra of products and sums behind `pack` and `copack`, the logic of monadic composition, and the compiler-checked laws that the library obeys.
 
@@ -154,7 +164,7 @@ find_package(libfn CONFIG REQUIRED)
 target_link_libraries(main PRIVATE libfn::fn)   # or libfn::pfn for the polyfills alone
 ```
 
-A third target, `libfn::fn_cxx26`, is the same headers entered with the [`LIBFN_CXX26` mode](#implementation-note) selected; it carries both the mode and its C++26 language requirement, so a target opts in with one link line. Link exactly one of `libfn::fn` or `libfn::fn_cxx26` per target. `pfn` is mode-independent and has no such variant.
+A third target, `libfn::fn_cxx26`, enters the same headers as `libfn::fn`, but with the [`LIBFN_CXX26` mode](#implementation-note) selected, carrying both the mode and its C++26 language requirement, so a target opts in with a single dependency. Add exactly one of `libfn::fn` **or** `libfn::fn_cxx26` to your project, depending on the available compiler. `libfn::pfn` is mode-independent and has no such variant.
 
 With `libfn::fn_cxx26`, a compiler that does not implement `std::type_order` stops at the first libfn header, with an `#error` naming the feature. Mixing the two entry points in one binary stops at the linker, on an undefined reference whose type names differ from the definition's by the `_cxx26` ABI namespace. Both are loud by design: the namespaces are separate so that two layouts cannot merge unnoticed — the invariant [TYPE_ALGEBRA.md](TYPE_ALGEBRA.md) calls one normalization order per program.
 
