@@ -33,6 +33,10 @@ macro(znai_export_docs TARGET SOURCE_DIR DEPLOY_DIR)
         COMMAND ${Znai} --source ${SOURCE_DIR} --deploy ${DEPLOY_DIR} --doc-id '""' --lookup-paths ${CMAKE_BINARY_DIR}
         COMMAND ${Python3_EXECUTABLE}
             "${CMAKE_CURRENT_SOURCE_DIR}/scripts/fix_site_urls.py" "${DEPLOY_DIR}"
+        # The site carries the single-header artifact: Pages serves it with the permissive
+        # CORS that Compiler Explorer's URL include needs and GitHub release assets lack.
+        COMMAND ${Python3_EXECUTABLE}
+            "${CMAKE_CURRENT_SOURCE_DIR}/scripts/amalgamate.py" -o "${DEPLOY_DIR}/libfn.hpp"
         COMMENT "Exporting documentation to ${DEPLOY_DIR}"
     )
 endmacro()

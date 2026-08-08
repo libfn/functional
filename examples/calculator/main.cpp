@@ -5,7 +5,7 @@
 
 #include "calculator.hpp"
 
-#include "fn/utility.hpp"
+#include <fn/utility.hpp>
 
 #include <exception>
 #include <iostream>

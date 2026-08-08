@@ -7,12 +7,12 @@
 #define INCLUDE_LIBFN_VERSION
 
 // Mode-less version for pfn, which never uses C++26 features.
-#define LIBFN_VERSION_BASE v0_0_9
+#define LIBFN_VERSION_BASE v0_1_rc1
 
 #ifdef LIBFN_CXX26
-#define LIBFN_VERSION v0_0_9_cxx26
+#define LIBFN_VERSION v0_1_rc1_cxx26
 #else
-#define LIBFN_VERSION v0_0_9
+#define LIBFN_VERSION v0_1_rc1
 #endif
 
 #endif // INCLUDE_LIBFN_VERSION
