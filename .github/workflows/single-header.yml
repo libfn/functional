@@ -53,6 +53,10 @@ jobs:
           # git describe needs the tags for the provenance banner
           fetch-depth: 0
 
+      # Extend safe.directory to the worktree, so `git` operations in later steps can succeed
+      - name: Trust the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Generate
         run: |
           mkdir -p .single
