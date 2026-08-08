@@ -49,6 +49,10 @@ jobs:
           # The single-header banner's Revision comes from git describe, which needs the tags
           fetch-tags: true
 
+      # Extend safe.directory to the worktree, so `git` operations in later steps can succeed
+      - name: Trust the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       # Guardrail to ensure that we do not update docs after a bad merge
       - name: Build and run tests
         continue-on-error: false
