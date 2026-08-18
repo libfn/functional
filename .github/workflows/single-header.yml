@@ -1,0 +1,133 @@
+name: single-header
+
+# The artifact is generated and verified on every PR touching the headers, so a
+# header that breaks amalgamation fails at review time rather than at release
+# time. The release branch — from which the docs site embeds the artifact — gets
+# the same verification. Publishing is then a re-run of a check already known
+# green, bound to the tag by `release: published`.
+
+on:
+  push:
+    branches:
+      - main
+      - release
+    paths:
+      - '.github/workflows/single-header.yml'
+      - 'include/**'
+      - 'examples/polygon/**'
+      - 'scripts/amalgamate.py'
+      - 'VERSION'
+  pull_request:
+    branches:
+      - main
+      - release
+    paths:
+      - '.github/workflows/single-header.yml'
+      - 'include/**'
+      - 'examples/polygon/**'
+      - 'scripts/amalgamate.py'
+      - 'VERSION'
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    timeout-minutes: 15
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-2x' || 'ubuntu-latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Test a small selection of compilers only - build.yml carries the full compiler breadth.
+        include:
+          - { mode: cxx20, compiler: "gcc:13" }
+          - { mode: cxx20, compiler: "clang:22" }
+          - { mode: cxx26, compiler: "gcc:16" }
+    container: libfn.azurecr.io/ci-build-${{ matrix.compiler }}-sha-95f599d
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # git describe needs the tags for the provenance banner
+          fetch-depth: 0
+
+      # Extend safe.directory to the worktree, so `git` operations in later steps can succeed
+      - name: Trust the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Generate
+        run: |
+          mkdir -p .single
+          python3 scripts/amalgamate.py -o .single/libfn.hpp
+          head -n 20 .single/libfn.hpp
+
+      # A shim include tree resolves <fn/...> to the amalgamation, so the example compiles
+      # unmodified against it. Intentionally skip pfn and fn/detail headers here.
+      - name: Build shim include tree
+        run: |
+          for header in $(cd include && find fn -maxdepth 1 -name '*.hpp'); do
+            mkdir -p ".single/shim/$(dirname "${header}")"
+            echo '#include <libfn.hpp>' > ".single/shim/${header}"
+          done
+
+      # The check that catches a dedupe regression in the guardless pair directly:
+      # if macro_end were emitted once, FWD would still be defined here.
+      - name: Sentinel
+        run: |
+          cat > .single/sentinel.cpp <<'EOF'
+          #include <libfn.hpp>
+          #include <libfn.hpp>
+          #ifdef FWD
+          #error FWD leaked from the amalgamation
+          #endif
+          #ifdef DEDUCED_RETURN
+          #error DEDUCED_RETURN leaked from the amalgamation
+          #endif
+          #ifdef ASSERT
+          #error ASSERT leaked from the amalgamation
+          #endif
+          int main() {}
+          EOF
+          ${CXX:-c++} -std=${{ matrix.mode == 'cxx26' && 'c++26' || 'c++20' }} \
+            ${{ matrix.mode == 'cxx26' && '-DLIBFN_CXX26' || '' }} \
+            -Wall -Wextra -Werror -Wno-missing-braces \
+            -I.single -c .single/sentinel.cpp -o /dev/null
+
+      # Real client code, checked end to end: the example must not only compile against
+      # the artifact but find the all-letters word at runtime. If this fails because of
+      # missing pfn or fn/detail headers, fix the example, not this workflow.
+      - name: Build and run the polygon example against the single header
+        shell: bash
+        run: |
+          ${CXX:-c++} -std=${{ matrix.mode == 'cxx26' && 'c++26' || 'c++20' }} \
+            ${{ matrix.mode == 'cxx26' && '-DLIBFN_CXX26' || '' }} \
+            -Wall -Wextra -Werror -Wno-missing-braces \
+            -I.single/shim -I.single examples/polygon/main.cpp -o .single/polygon
+          .single/polygon uoilefdr examples/polygon/data/long.txt | grep -E '^\* fluoride$'
+
+  publish:
+    if: github.event_name == 'release'
+    needs: verify
+    timeout-minutes: 15
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-2x' || 'ubuntu-latest' }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+
+      - name: Generate
+        run: |
+          python3 scripts/amalgamate.py --revision "${TAG}" -o "libfn-${TAG}.hpp"
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+
+      - name: Attach to the release
+        run: gh release upload "${TAG}" "libfn-${TAG}.hpp" --clobber
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          GH_TOKEN: ${{ github.token }}

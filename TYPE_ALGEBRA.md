@@ -73,11 +73,11 @@ auto load(UserId) -> fn::expected<User, fn::copack_for<IoError, Missing>>;
 
 auto graded_pipeline(std::string_view sv) -> void
 {
-  auto pipeline = parse_id(sv) | fn::and_then(validate) | fn::and_then(load);
+  auto result = parse_id(sv) | fn::and_then(validate) | fn::and_then(load);
 
-  // The exact derived error union is recorded in the type:
+  // The exact derived error union of the pipeline is recorded in the type:
   static_assert(
-      std::same_as<decltype(pipeline),
+      std::same_as<decltype(result),
                    fn::expected<User, fn::copack_for<IoError, Missing, NotANumber, OutOfRange>>>);
 }
 ```
@@ -101,7 +101,7 @@ You may also use `copack` on a value side of most carriers (except for `just<cop
 >
 > In `libfn` that pomonoid is carried by the finite sets of C++ types:
 >
-> - **Grades ($\mathcal{E}$)**: Finite sets of alternative types (errors).
+> - **Grades ($\mathcal{E}$)**: Finite sets of alternative types (usually errors).
 > - **Monoidal multiplication ($\bullet$)**: Set union ($\cup$), representing effect accumulation.
 > - **Identity ($I$)**: The empty set ($\emptyset$), representing the zero-error/never-failing state.
 > - **Partial order ($\le$)**: Subset relation ($\subseteq$), which licenses effect approximation (subeffecting / widening).
@@ -1101,12 +1101,13 @@ Guidelines:
 * The primary audience of this document is C++ software engineers. It must be easy for them to read and digest.
 * The mathematical asides anchor the prose in category theory for those versed in it: each states precisely what the surrounding prose approximates, and skipping them costs no practical understanding.
 * Mathematical asides must be maintained to demonstrate the sanity and coherence of the library design.
-* The numbered sections form the pedagogical arc the rules above govern. The unnumbered closing sections are reference appendices: Functional terminology restates the document's terms and may introduce nothing new; Further reading lists the formal sources.
+* The numbered sections form the pedagogical arc the rules above govern; the unnumbered closing sections are reference appendices and may introduce nothing new.
 
 Index:
 
-**1. The Opening Map (Preamble & Section 3)**
+**1. The Opening Map (Preamble & Sections 1, 3)**
    * **Payload Types (`pack`/`copack`)** and **Computation Carriers (`optional`/`expected`/`just`/`choice`)** are first introduced as a sparse, high-level list in the main preamble.
+   * **Section 1** motivates the algebra with the problem it solves, with a pipeline example of graded monad.
    * The term **identity cluster** is introduced in Section 3 under the infallible carriers as a simple grouping definition: "_Together, `just`, `choice` and `expected<T, copack<>>` form the identity cluster_." It does not expand on its operations or mathematical properties here, keeping the introduction minimal.
 
 **2. Core Algebraic Foundations (Sections 2, 3, & 4)**

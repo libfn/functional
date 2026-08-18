@@ -7,7 +7,11 @@ znai builds every internal URL as `/<doc-id>/<chapter>/<page>`. The site is depl
 of its domain, so the doc id is empty and the URL arrives doubled, as `//chapter/page` - which a
 browser reads as a host name rather than a path, sending the reader off the site entirely. The
 navigation escapes this because it is rendered by script that never follows the href; a link
-written in a page does not. Collapsing the pair to one slash restores the path znai meant.
+written in a page, the target of a chapter redirect stub, and a search index entry do not.
+Collapsing the pair to one slash restores the path znai meant. A stub target also gains a
+trailing slash: the stub sits at `<chapter>/index.html` and GitHub Pages serves that file for
+the extension-less `/<chapter>/index` ahead of the real page at `<chapter>/index/index.html`,
+so the collapsed target alone would redirect the stub to itself.
 
 `View on GitHub` is built by the browser as the site's base link followed by the page's own
 `viewOnRelativePath`, or by its chapter and file name when that is absent - and absent is all it
@@ -23,11 +27,18 @@ import sys
 
 import stage_docs_source as staging
 
-MARKUP = (".html", ".json", ".js")
+MARKUP = (".html", ".json", ".js", ".xml")
 
 # Only where znai spells an internal target: an external one carries its scheme, so `https://`
 # is never matched.
 DOUBLED = re.compile(r'((?:"url" ?: ?|href=)")//')
+
+# A chapter redirect stub's meta-refresh target; the trailing slash keeps the repaired stub
+# from shadowing its own destination (see the module docstring).
+STUB = re.compile(r'(content="0; url=)//([^"]+?)/?"')
+
+# A search index entry, as search-entries.xml spells it.
+ENTRY = re.compile(r"(<url>)//")
 
 # A serialized toc item, wherever it appears: in the page, in the navigation, in the page index.
 TOC_ITEM = re.compile(
@@ -57,7 +68,7 @@ def main() -> None:
         source = source_of(match.group(2), match.group(3))
         return match.group(1) + (json.dumps(source) if source else "null")
 
-    links = pages = 0
+    links = stubs = entries = pages = 0
     for path in site.rglob("*"):
         if path.suffix not in MARKUP or not path.is_file():
             continue
@@ -65,6 +76,10 @@ def main() -> None:
 
         text, count = DOUBLED.subn(r"\1/", original)
         links += count
+        text, count = STUB.subn(r'\1/\2/"', text)
+        stubs += count
+        text, count = ENTRY.subn(r"\1/", text)
+        entries += count
         text, count = TOC_ITEM.subn(point_at_source, text)
         pages += count
 
@@ -74,10 +89,17 @@ def main() -> None:
     if not links:
         sys.stderr.write("Error: no doubled internal links found; has znai stopped doubling them?\n")
         sys.exit(2)
+    if not stubs:
+        sys.stderr.write("Error: no redirect stub was repaired; has znai stopped doubling its targets?\n")
+        sys.exit(2)
+    if not entries:
+        sys.stderr.write("Error: no search entry was repaired; has znai stopped doubling them?\n")
+        sys.exit(2)
     if not pages:
         sys.stderr.write("Error: no page was pointed at its source; has znai started doing it?\n")
         sys.exit(2)
-    print(f"repaired {links} internal links, pointed {pages} pages at their source")
+    print(f"repaired {links} internal links, {stubs} redirect stubs and {entries} search entries, "
+          f"pointed {pages} pages at their source")
 
 
 if __name__ == "__main__":

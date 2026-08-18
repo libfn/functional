@@ -80,11 +80,11 @@ auto load(UserId) -> fn::expected<User, fn::copack_for<IoError, Missing>>;
 
 auto graded_pipeline(std::string_view sv) -> void
 {
-  auto pipeline = parse_id(sv) | fn::and_then(validate) | fn::and_then(load);
+  auto result = parse_id(sv) | fn::and_then(validate) | fn::and_then(load);
 
-  // The exact derived error union is recorded in the type:
+  // The exact derived error union of the pipeline is recorded in the type:
   static_assert(
-      std::same_as<decltype(pipeline),
+      std::same_as<decltype(result),
                    fn::expected<User, fn::copack_for<IoError, Missing, NotANumber, OutOfRange>>>);
 }
 // sync-example-graded-pipeline

@@ -7,5 +7,6 @@ CompileFlags:
   CompilationDatabase: None
 Diagnostics:
   ClangTidy:
-    Add: [bugprone*, readability*, performance*]
-    Remove: [readability-static-accessed-through-instance, readability-magic-numbers, readability-identifier-length]
+    # This is play code. Remove what the root .clangd's Adds inherited here.
+    Add: [bugprone*, readability*]
+    Remove: [modernize*, performance*, readability-static-accessed-through-instance, readability-magic-numbers, readability-identifier-length]

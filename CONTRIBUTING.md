@@ -77,7 +77,7 @@ cmake --build . --target coverage
 
 **Requirements:**
 
-* **gcovr 8.4+:** The coverage build uses the `--merge-lines` option, which was added in `gcovr` 8.4. Since package managers often distribute older versions, using a Python virtual environment (`venv`) is recommended as the easiest way to install a newer version.
+* **gcovr 8.4+:** The coverage build uses the `--merge-lines` option, which was added in `gcovr` 8.4. Since package managers often distribute older versions, using a Python virtual environment (`venv`, `uv` etc.) is recommended as the easiest way to install a newer version.
 * **Coverage tool:** The coverage tool must match your compiler:
   * GCC uses `gcov`.
   * Clang uses `llvm-cov gcov`.
@@ -170,6 +170,8 @@ To make an `fn`-level facility available to `fn/detail`, hoist it: the implement
 `VERSION` (in the repository root) is the single source of truth for the project version. A pre-commit hook (`scripts/sync_versions.py`) mirrors it into `ports/libfn/vcpkg.json` (`version-semver`), `MODULE.bazel`, and `include/libfn_version.hpp` — the header defining the `LIBFN_VERSION` macro that names the ABI-versioning inline namespace wrapping `fn`, and its mode-less sibling `LIBFN_VERSION_BASE` wrapping `pfn` (the layer rule below). Do **not** hand-edit those version literals — edit `VERSION` and let the hook sync them.
 
 The namespace spelling is derived, not copied: 0.y lines with y ≥ 1 share `v0_<y>` (z bumps are ABI-compatible), the 0.0.z line versions per patch, a SemVer prerelease is appended (`-dev` → `_dev`), and the `_cxx26` twin (selected by defining `LIBFN_CXX26`) keeps `_cxx26` last. `pfn` is mode-less: its layouts never depend on the C++26 type ordering or other language features, so it wraps in `LIBFN_VERSION_BASE` — the plain spelling regardless of mode — and its types stay link-compatible across modes. A second hook (`scripts/check_namespace_wrap.py`) verifies the layer rule: every `namespace fn` opening in `include/` carries `inline namespace LIBFN_VERSION`, every `namespace pfn` opening `inline namespace LIBFN_VERSION_BASE`.
+
+CHANGELOG.md is summarized immediately before a release: the accumulated dated entries collapse into a smaller list describing changes in a compact manner, without dates. The summary also names the commit carrying the last complete detailed list — the one right before the first release candidate — where the full history stays readable.
 
 ## Pre-commit
 
