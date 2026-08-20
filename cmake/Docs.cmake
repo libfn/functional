@@ -28,15 +28,27 @@ add_custom_target(docs_stage_include
 set(DOXYGEN_STRIP_FROM_PATH ${docs_staged_include})
 
 macro(znai_export_docs TARGET SOURCE_DIR DEPLOY_DIR)
+    set(docs_versioned "${DEPLOY_DIR}/v${LIBFN_PROJECT_VERSION}")
     add_custom_target(
         ${TARGET}
+        # Start from an empty deploy dir: znai does not reliably clean it, and a stale root
+        # entry would ship through the site assembly unguarded. The root pass writes the
+        # deploy root itself, so it runs before the versioned pass writes beneath it.
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${DEPLOY_DIR}"
         COMMAND ${Znai} --source ${SOURCE_DIR} --deploy ${DEPLOY_DIR} --doc-id '""' --lookup-paths ${CMAKE_BINARY_DIR}
         COMMAND ${Python3_EXECUTABLE}
             "${CMAKE_CURRENT_SOURCE_DIR}/scripts/fix_site_urls.py" "${DEPLOY_DIR}"
+        # Each release keeps its own copy of the site, served under /v<version>/. znai deploys
+        # to <deploy>/<doc-id> and prefixes every internal URL with the doc id, so naming the
+        # version directory in the doc id makes the copy self-consistent there.
+        COMMAND ${Znai} --source ${SOURCE_DIR} --deploy ${DEPLOY_DIR} --doc-id "v${LIBFN_PROJECT_VERSION}" --lookup-paths ${CMAKE_BINARY_DIR}
+        COMMAND ${Python3_EXECUTABLE}
+            "${CMAKE_CURRENT_SOURCE_DIR}/scripts/fix_site_urls.py" "${docs_versioned}" --doc-id "v${LIBFN_PROJECT_VERSION}"
         # The site carries the single-header artifact: Pages serves it with the permissive
         # CORS that Compiler Explorer's URL include needs and GitHub release assets lack.
         COMMAND ${Python3_EXECUTABLE}
             "${CMAKE_CURRENT_SOURCE_DIR}/scripts/amalgamate.py" -o "${DEPLOY_DIR}/libfn.hpp"
+        COMMAND ${CMAKE_COMMAND} -E copy "${DEPLOY_DIR}/libfn.hpp" "${docs_versioned}/libfn.hpp"
         COMMENT "Exporting documentation to ${DEPLOY_DIR}"
     )
 endmacro()

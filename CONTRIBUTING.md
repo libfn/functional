@@ -93,6 +93,12 @@ cmake -DLIBFN_DOCS=ON ..
 cmake --build . --target export_docs
 ```
 
+The exported tree is the site root plus a copy under `v<version>/` (the version read from
+`VERSION`), each generated with internal links matching where it is served. The published site
+joins this build with every previously released version, kept in
+[libfn/website](https://github.com/libfn/website); the `docs` workflow assembles the two and,
+when deploying a release, pushes the result back to the archive.
+
 **Requirements:**
 The following tools must be installed and available in your `PATH`:
 

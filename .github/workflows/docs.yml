@@ -2,7 +2,9 @@ name: docs
 
 # The site deploys from the release branch only, so everything it publishes — the
 # single-header artifact included — is released, verified content. Pull requests
-# into main and release still build-check the site without deploying.
+# into main and release still build-check the site without deploying. The deployed
+# tree joins the fresh build with every previously released version, kept in
+# libfn/website; each release deploy is pushed back there before going live.
 
 on:
   push:
@@ -39,10 +41,17 @@ on:
 permissions:
   contents: read
 
+# Serialize runs per ref: an overlapping release deploy would assemble from a stale archive
+# clone and silently drop the other run's version directory from the site and the archive
+concurrency:
+  group: docs-${{ github.ref }}
+
 jobs:
   generate_docs:
     runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-2x' || 'ubuntu-latest' }}
     container: libfn.azurecr.io/ci-docs:sha-95f599d
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -52,6 +61,10 @@ jobs:
       # Extend safe.directory to the worktree, so `git` operations in later steps can succeed
       - name: Trust the checkout
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Read the version
+        id: version
+        run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
 
       # Guardrail to ensure that we do not update docs after a bad merge
       - name: Build and run tests
@@ -69,17 +82,79 @@ jobs:
           cd .build
           cmake --build . --target export_docs
 
+      # The artifact is the complete site: the fresh root and version directory joined with
+      # every previously released version from the archive, which is public - no token needed.
+      - name: Assemble the site
+        run: |
+          git clone --depth 1 https://github.com/libfn/website.git .build/website
+          python3 scripts/assemble_site.py .build/website/site .build/docs
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
-          path: ./.build/docs
+          path: ./.build/website/site
           # Attempt-scoped (#255); re-run all jobs, not deploy_docs alone, or the name will not match
           name: docs-develop-${{ github.run_attempt }}
           retention-days: 7
 
-  # Separate job: permissions are per-job, so PR runs must not hold the deploy scopes
-  deploy_docs:
+  # Separate job, twice over: permissions are per-job, so PR runs must not hold the deploy
+  # scopes, and the Pages deploy steps must not hold the archive push secret
+  push_archive:
     needs: generate_docs
+    if: ${{ github.repository == 'libfn/functional' && github.ref_type == 'branch' && github.ref_name == 'release' }}
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-2x' || 'ubuntu-latest' }}
+    steps:
+      # Same-run artifact download: the runtime token suffices, no github-token needed
+      - name: Download the site
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: docs-develop-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/site-artifact
+
+      - name: Checkout the archive
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: libfn/website
+          token: ${{ secrets.WEBSITE_PUSH_TOKEN }}
+          path: website
+
+      # The archive commit precedes the Pages deploy, so the archive can never lag the live
+      # site; a failed deploy is then recoverable by re-running from the archive. Dropped
+      # files under an archived version mean the assembly saw a stale archive - refuse. A
+      # version already tagged in the archive is immutable: changed content under the same
+      # version refuses too - bump the version, or change this workflow.
+      - name: Push the site to the archive
+        env:
+          VERSION: ${{ needs.generate_docs.outputs.version }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          rm -rf website/site
+          mkdir website/site
+          tar -xf "$RUNNER_TEMP/site-artifact/artifact.tar" -C website/site
+          cd website
+          git add -A site
+          if git diff --cached --name-only --diff-filter=D | grep '^site/v[0-9]' | grep -qv "^site/v$VERSION/"; then
+            echo "refusing to push: the assembled tree drops files of an archived version" >&2
+            exit 1
+          fi
+          if git diff --cached --quiet; then
+            echo "the archive already carries this site"
+          elif git ls-remote --exit-code --tags origin "v$VERSION" > /dev/null; then
+            echo "refusing to push: v$VERSION is already tagged but the site content changed" >&2
+            exit 1
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "Publish the site for v$VERSION" -m "$RUN_URL"
+            git push origin HEAD:main
+          fi
+          if ! git ls-remote --exit-code --tags origin "v$VERSION" > /dev/null; then
+            git tag "v$VERSION"
+            git push origin "refs/tags/v$VERSION"
+          fi
+
+  deploy_docs:
+    needs: push_archive
     if: ${{ github.repository == 'libfn/functional' && github.ref_type == 'branch' && github.ref_name == 'release' }}
     runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-2x' || 'ubuntu-latest' }}
     permissions:
