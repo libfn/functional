@@ -16,8 +16,11 @@ import re
 import shutil
 import sys
 
+# scripts/sync_versions.py's canonical SemVer grammar, minus build metadata (it cannot name a
+# version directory), plus the v prefix.
 VERSION_DIR = re.compile(
-    r"^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z.-]+))?$")
+    r"^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
+    r"(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?$")
 
 PAGE = """<!DOCTYPE html>
 <html lang="en">
