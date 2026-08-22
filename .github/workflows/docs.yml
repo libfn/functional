@@ -8,19 +8,10 @@ name: docs
 
 on:
   push:
+    # No paths filter: a release merge must always redeploy. Push filters see only the
+    # before..after diff, so a delta missing the list would silently skip the deploy.
     branches:
       - release
-    paths:
-      - '.github/workflows/docs.yml'
-      - 'docs/**'
-      - 'include/**'
-      - 'tests/**'
-      - 'examples/**'
-      - 'scripts/**'
-      - 'CMakeLists.txt'
-      - 'cmake/**'
-      - '*.md'
-      - 'VERSION'
   pull_request:
     branches:
       - main
@@ -55,8 +46,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The single-header banner's Revision comes from git describe, which needs the tags
-          fetch-tags: true
+          # The single-header banner's Revision comes from git describe: it needs the tags, and
+          # full history so it still resolves once release moves past the tagged commit
+          fetch-depth: 0
 
       # Extend safe.directory to the worktree, so `git` operations in later steps can succeed
       - name: Trust the checkout
@@ -157,6 +149,16 @@ jobs:
     needs: push_archive
     if: ${{ github.repository == 'libfn/functional' && github.ref_type == 'branch' && github.ref_name == 'release' }}
     runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-2x' || 'ubuntu-latest' }}
+    # One Pages deploy at a time, never cancelled mid-flight. Job-level, not workflow-level:
+    # a workflow-wide 'pages' group would serialize unrelated pull request builds too.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    # A deployment-branch-policy rejection then fails this job legibly before any step runs,
+    # and the run surfaces the live URL.
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     permissions:
       pages: write
       id-token: write
