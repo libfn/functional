@@ -18,6 +18,12 @@ on:
       - 'scripts/amalgamate.py'
       - 'VERSION'
   pull_request:
+    # Default types plus ready_for_review, so leaving draft runs what the draft gate skipped.
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
     branches:
       - main
       - release
@@ -36,6 +42,7 @@ permissions:
 
 jobs:
   verify:
+    if: github.event.pull_request.draft != true
     timeout-minutes: 15
     runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-2x' || 'ubuntu-latest' }}
     strategy:

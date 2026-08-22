@@ -15,6 +15,12 @@ on:
       - 'flake.nix'
       - 'flake.lock'
   pull_request:
+    # Default types plus ready_for_review, so leaving draft runs what the draft gate skipped.
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
     branches:
       - main
     paths:
@@ -30,6 +36,7 @@ on:
 
 jobs:
   linux:
+    if: github.event.pull_request.draft != true
     timeout-minutes: 30
     runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-2x' || 'ubuntu-latest' }}
     strategy:
@@ -103,6 +110,7 @@ jobs:
         ctest --output-on-failure
 
   macos:
+    if: github.event.pull_request.draft != true
     timeout-minutes: 30
     runs-on: ${{ github.repository == 'libfn/functional' && format('warp-macos-{0}-arm64-6x', matrix.compiler.osver) || format('macos-{0}', matrix.compiler.osver) }}
     env:
@@ -203,6 +211,7 @@ jobs:
         ctest --output-on-failure
 
   windows:
+    if: github.event.pull_request.draft != true
     timeout-minutes: 30
     runs-on: ${{ matrix.vs.runner }}
     strategy:
@@ -243,6 +252,7 @@ jobs:
         ctest -C ${{ matrix.configuration }} --output-on-failure
 
   nixos:
+    if: github.event.pull_request.draft != true
     timeout-minutes: 30
     runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
     strategy:

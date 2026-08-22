@@ -4,11 +4,15 @@ on:
   push:
     branches: [main]
   pull_request:
+    # Default types plus ready_for_review, so leaving draft runs what the draft gate skipped.
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
   workflow_dispatch:
 
 jobs:
   sonarcloud:
+    # An all-jobs-skipped run concludes 'skipped', so sonarcloud-pr-scan's success gate stays closed.
+    if: github.event.pull_request.draft != true
     # arm64: the amd64 warp fleet pulls images at 1-2 MB/s; the arm64 fleet serves them in seconds.
     # Runner and container must match sonarcloud-pr-scan's: it analyses the compile_commands.json
     # written here, and the compiler paths recorded in it must resolve to the same toolchain there.

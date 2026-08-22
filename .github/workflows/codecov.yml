@@ -5,6 +5,12 @@ on:
     branches:
       - main
   pull_request:
+    # Default types plus ready_for_review, so leaving draft runs what the draft gate skipped.
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
     branches:
       - main
     paths:
@@ -28,6 +34,8 @@ jobs:
   # minutes to obtain what is already there. Building on stock also keeps us honest about the platform
   # a contributor actually has, rather than only the one we curate.
   codecov:
+    # An all-jobs-skipped run concludes 'skipped', so codecov-pr-scan's success gate stays closed.
+    if: github.event.pull_request.draft != true
     runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

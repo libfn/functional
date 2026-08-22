@@ -231,6 +231,8 @@ A few conventions for files under `.github/workflows/`:
 
 * **Insecure shell inside `run:` blocks.** `actionlint` runs `shellcheck` via pre-commit on every `run:` block if `shellcheck` is on `$PATH`; without it the check is silently skipped. Install `shellcheck` to avoid surprises when CI runs against your PR.
 
+* **Draft pull requests skip the expensive jobs.** A workflow that builds on paid runners gates each job with `if: github.event.pull_request.draft != true` and lists the `pull_request` `types` explicitly to add `ready_for_review`; the pair belongs together — the gate skips draft work, the extra type runs it when the draft flips to ready. Cheap validation (pre-commit, the licence diff, the docs build) still runs on drafts. An all-jobs-skipped run concludes `skipped`, not `success`, which keeps the `workflow_run` consumers (`codecov-pr-scan.yml`, `sonarcloud-pr-scan.yml`) idle for drafts.
+
 <!-- link references -->
 [clang-standard-support]: https://clang.llvm.org/cxx_status.html
 [gcc-standard-support]: https://gcc.gnu.org/projects/cxx-status.html
