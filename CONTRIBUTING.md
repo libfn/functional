@@ -45,7 +45,7 @@ cmake -DVALIDATE_CXX23=ON ..
 
 Enabling `LIBFN_CXX26=ON` activates C++26 type-ordering via `std::type_order`. This option does **not** inject a compiler language standard flag. You need to select C++26 separately, for example with:
 
-* Explicit choice via `target_compile_features(<your target> INTERFACE cxx_std_26)`
+* Explicit choice via `target_compile_features(<your target> PRIVATE cxx_std_26)`
 * Dependency on exported target `libfn::fn_cxx26` (which propagates `cxx_std_26`)
 * Dependency on CMake native target `include_fn_cxx26` (which propagates `cxx_std_26`)
 * The `CMAKE_CXX_STANDARD=26` CMake variable
