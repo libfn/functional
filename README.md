@@ -174,7 +174,15 @@ Packaging is provided — and exercised by CI — for [conan](conanfile.py), [vc
 
 Every packaging route above except Bazel also delivers the compile options the headers require. Under Bazel — and a plain copy of `include/` — these options don't arrive automatically; provide them yourself: C++20 or newer (`--cxxopt=-std=c++20` in Bazel), `-Wno-missing-braces` on clang (`fn::pack` initialization elides braces by design), and with MSVC `/permissive-` plus `_HAS_CXX23`. The authoritative set is the `INTERFACE` options in [cmake/CompilationOptions.cmake](cmake/CompilationOptions.cmake).
 
-A single header — the whole library in one file — serves online compilers and standalone reproducers, where an include path is not an option. Every release keeps its own copy at `https://libfn.org/v<x.y.z>/libfn.hpp` ([all versions](https://libfn.org/versions.html)), which Compiler Explorer can include directly by URL; each tagged release also attaches the same file as `libfn-<tag>.hpp`, and [`https://libfn.org/libfn.hpp`](https://libfn.org/libfn.hpp) serves the latest release's copy, moving with each release. Prefer the real headers otherwise: they give real paths in diagnostics. The compile options above apply; define `LIBFN_CXX26` and compile as C++26 to select the C++26 mode.
+A single-header distribution contains the entire library in one file, serving online compilers and standalone reproducers where include paths are not supported. It is distributed through three channels, whose contracts differ:
+
+* `https://libfn.org/v<x.y.z>/libfn.hpp` ([all versions](https://libfn.org/versions.html)) — one copy per release, immutable once published; [Compiler Explorer][godbolt] can include it directly by URL. This is the URL to pin.
+* `libfn-v<x.y.z>.hpp`, attached to each [GitHub release](https://github.com/libfn/functional/releases) — the same file for download, immutable, with signed build provenance: `gh attestation verify libfn-v<x.y.z>.hpp --repo libfn/functional` confirms a downloaded copy is the authentic artifact built by this repository.
+* [`https://libfn.org/libfn.hpp`](https://libfn.org/libfn.hpp) — the latest release's copy, moving with each release: convenient in a [throwaway experiment][godbolt_experiment], unusable as a dependency.
+
+In the examples above, use the actual released version instead of `<x.y.z>` (e.g., `0.1.0`).
+
+Rather than using the single header, prefer the real headers as a project dependency, since they give useful paths in diagnostics. The compile options above apply; to select the C++26 mode, define `LIBFN_CXX26` and compile as C++26 (see also [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 ## Backwards compatibility
 
@@ -217,3 +225,5 @@ Distributed under the ISC License; see [LICENSE.md](LICENSE.md) for the terms.
 [ripple]: https://ripple.com/
 [mykola-golubyev]: https://github.com/MykolaGolubyev
 [znai]: https://github.com/testingisdocumenting/znai
+[godbolt]: https://godbolt.org/
+[godbolt_experiment]: https://godbolt.org/z/MrbYTGKv4
