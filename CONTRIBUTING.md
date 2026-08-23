@@ -186,7 +186,9 @@ The `VERSION` file in the repository root is the sole source of truth for the li
 Inline namespaces are derived dynamically:
 
 * **Minor Releases (0.y with y ≥ 1)**: Share the `v0_<y>` namespace (patch releases are **intended** to be ABI-compatible).
-* **Prereleases**: SemVer prerelease tags append directly (e.g., `-dev` becomes `_dev`) — unless tagged on `release` branch, these will be **incompatible within single version**.
+* **Prereleases**: SemVer prerelease tags append directly (e.g., `-dev` becomes `_dev` and `-rc1` becomes `_rc1`).
+  * **Tagged on `release` (`-rcN`)**: Each candidate has a unique namespace, ensuring **safe link-incompatibility** (hard linker errors if mixed).
+  * **Un-tagged on `main` (`-dev`)**: Different commits share the same namespace, creating a **silent ABI-breaking hazard** if mixed.
 * **C++26 Twin**: Selected via `LIBFN_CXX26`, keeping the `_cxx26` suffix last.
 
 The `pfn` namespace is mode-less; its data layouts do not depend on the C++26 type ordering or language features. It remains wrapped in `LIBFN_VERSION_BASE` (the base version without the `_cxx26` suffix) to ensure link compatibility across compilation modes. The `scripts/check_namespace_wrap.py` pre-commit hook enforces this layering by verifying that every `namespace fn` block uses `inline namespace LIBFN_VERSION` and every `namespace pfn` block uses `inline namespace LIBFN_VERSION_BASE`.
