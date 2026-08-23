@@ -185,7 +185,7 @@ The `VERSION` file in the repository root is the sole source of truth for the li
 
 Inline namespaces are derived dynamically:
 
-* **Minor Releases (0.y with y ≥ 1)**: Share the `v0_<y>` namespace (patch releases are **intended** to be ABI-compatible).
+* **Minor Releases (0.y with y ≥ 1)**: Share the `v0_<y>` namespace (patch releases, i.e., `z` bumps, are **intended but not guaranteed** to be ABI-compatible).
 * **Prereleases**: SemVer prerelease tags append directly (e.g., `-dev` becomes `_dev` and `-rc1` becomes `_rc1`).
   * **Tagged on `release` (`-rcN`)**: Each candidate has a unique namespace, ensuring **safe link-incompatibility** (hard linker errors if mixed).
   * **Un-tagged on `main` (`-dev`)**: Different commits share the same namespace, creating a **silent ABI-breaking hazard** if mixed.
