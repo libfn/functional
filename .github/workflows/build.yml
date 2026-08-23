@@ -49,13 +49,10 @@ jobs:
           - Release
         compiler:
           - "gcc:12"
-          - "clang:16"
-          - "clang:17"
           - "gcc:13"
           - "gcc:14"
           - "gcc:15"
           - "gcc:16"
-          - "clang:18"
           - "clang:19"
           - "clang:20"
           - "clang:21"
@@ -130,21 +127,10 @@ jobs:
           - Release
         compiler:
           - name: appleclang
-            osver: 15
-          - name: appleclang
             osver: 26
           - name: clang
-            osver: 15
-            release: 18
-          - name: clang
             osver: 26
-            release: 20
-          - name: gcc
-            osver: 26
-            release: 13
-          - name: gcc
-            osver: 26
-            release: 14
+            release: 21
           - name: gcc
             osver: 26
             release: 15
@@ -223,9 +209,7 @@ jobs:
           - Debug
           - Release
         vs:
-          # Pin explicit images: windows-2022 carries VS 2022, windows-2025-vs2026 carries VS 2026.
-          - generator: "Visual Studio 17 2022"
-            runner: "windows-2022"
+          # Pin the explicit image: windows-2025-vs2026 carries VS 2026.
           - generator: "Visual Studio 18 2026"
             runner: "windows-2025-vs2026"
 

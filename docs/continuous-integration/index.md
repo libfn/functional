@@ -11,7 +11,7 @@ containers the rest run in.
 
 ## Proving the library works {style: "api"}
 
-* `build` — compiles and runs the tests across the compiler matrix: gcc 12 to 16 and clang 16 to
+* `build` — compiles and runs the tests across the compiler matrix: gcc 12 to 16 and clang 19 to
   22, in Debug and Release, with clang additionally against libstdc++. A C++23 lane builds C++20
   as well, so the compilers it covers skip their standalone C++20 job rather than build it twice.
 * `pre-commit` — runs the hooks of `.pre-commit-config.yaml`, `clang-format` among them, over the

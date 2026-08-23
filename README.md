@@ -151,7 +151,7 @@ The library comes as two parts in one repository:
 
 Every `fn` type with a `pfn` counterpart is a strict superset of it: switching a valid program using `pfn` types to use `fn` instead changes neither compilation nor program behaviour.
 
-`fn` builds on `pfn`, and all of libfn requires only a C++20-compatible compiler. The minimum supported compilers are [gcc 12][gcc-standard-support] and [clang 16][clang-standard-support]; Apple Clang 16.0 and Microsoft Visual Studio 2022 (or newer) are supported as well. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set up a recent enough toolchain when your OS does not ship one.
+`fn` builds on `pfn`, and all of libfn requires only a C++20-compatible compiler. The minimum supported compilers are [gcc 12][gcc-standard-support] and [clang 19][clang-standard-support]; Apple Clang from 21.0 and Microsoft Visual Studio from 2026 are supported as well. For older toolchains, use the [0.1.0 release](https://github.com/libfn/functional/releases/tag/v0.1.0). See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set up a recent enough toolchain when your OS does not ship one.
 
 ### Implementation note
 

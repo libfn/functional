@@ -60,7 +60,7 @@ jobs:
 
   test_vcpkg_windows:
     if: github.event.pull_request.draft != true
-    runs-on: windows-2022
+    runs-on: windows-2025-vs2026
 
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -80,7 +80,7 @@ jobs:
     - name: Configure and build
       shell: pwsh
       run: |
-        cmake -B .build test_package -G "Visual Studio 17 2022" -A x64 `
+        cmake -B .build test_package -G "Visual Studio 18 2026" -A x64 `
           "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
           -DVCPKG_TARGET_TRIPLET=x64-windows
         cmake --build .build --config Release

@@ -2,6 +2,16 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## Compiler support narrows — 23 August 2026
+
+A supported compiler is one whose upstream still takes fixes: LLVM maintains only its latest major release, and Apple cannot be expected to backport fixes for this library's template-metaprogramming demands into older Xcode toolchains. The floors therefore move to what CI actually proves, obsoleting the `0.1.0` documentation:
+
+- **clang 19 is the minimum supported clang** (was 16); the Linux lanes for clang 16 to 18 retire.
+- **Apple Clang 21.0 replaces 16.0**; the macOS 15 CI lanes retire, leaving macOS 26 with Apple Clang, brew clang 21 and gcc 15.
+- **Visual Studio 2026 replaces 2022** as the MSVC floor.
+
+Users on a dropped toolchain can stay on the `0.1.0` release.
+
 ## libfn 0.1.0 — 23 August 2026
 
 The first tagged release, described in full by the `0.1.0-rc1` entry below. Changes from `0.1.0-rc1`:
