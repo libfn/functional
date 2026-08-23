@@ -165,7 +165,7 @@ Code written against the library (such as examples, documentation snippets, and 
 * **Requires Probes**: Do not rely on bare `requires`-probes of `libfn` calls. Several compile-time rejections (such as mismatched branch types in `apply` or grade mismatches in `and_then`) are enforced via internal `static_assert`s, which causes the probe to evaluate to `true` while the instantiation fails with a hard compiler error. Verify the call by compiling it, and use dependent viability probes.
 * **Type Ordering**: Outside of `LIBFN_CXX26`, the internal type ordering does **not** support unnamed types or types without linkage, and is **not** portable between GCC and Clang. In portable code, do not use lambdas or local types as `copack` alternatives and do not mix GCC with Clang (both using `libfn`) in a single binary.
 * **ABI & Versions**: Link exactly one `libfn` version per binary. Because the library is header-only, mixing different versions (including distinct patch releases) may cause ODR violation in your program. The authors will strive to ensure that each potentially incompatible version uses a unique namespace to prevent ODR violations, but **validating dependency consistency remains the user's responsibility**. Builds with and without `LIBFN_CXX26` use different namespaces and are link-incompatible by design.
-* **Reproducers**: Standalone bug reproducers must be entirely free of undefined behavior. Validate reproducers against UBSan and ASan, requiring an empty standard error output rather than merely relying on a zero exit code. The library currently contains workarounds for a known [Clang miscompile error][llvmbug].
+* **Reproducers**: Standalone bug reproducers must be entirely free of undefined behavior. Validate reproducers against UBSan and ASan, requiring an empty standard error output rather than merely relying on a zero exit code.
 
 ## Header layering
 
@@ -181,7 +181,7 @@ To share an `fn`-level facility with `fn/detail`, hoist it: move the implementat
 
 ## Versioning
 
-The `VERSION` file in the repository root is the sole source of truth for the library version. The `scripts/sync_versions.py` pre-commit hook automatically propagates this version to `ports/libfn/vcpkg.json`, `MODULE.bazel`, and `include/libfn_version.hpp`. The version header defines the `LIBFN_VERSION` macro (the inline namespace wrapping `fn`) and its mode-less sibling `LIBFN_VERSION_BASE` (wrapping `pfn`). Do not modify these version literals manually — edit `VERSION` and let the hook synchronize them.
+The `VERSION` file in the repository root is the sole source of truth for the library version. The `scripts/sync_versions.py` pre-commit hook automatically propagates this version to `ports/libfn/vcpkg.json`, `MODULE.bazel`, and `include/libfn_version.hpp`. The version header defines the `LIBFN_VERSION` macro (the inline namespace wrapping `fn`) and its mode-less sibling `LIBFN_VERSION_BASE` (wrapping `pfn`). Do not modify these version literals manually — edit `VERSION` and let the hook synchronize them. Once `v<VERSION>` is tagged, the hook refuses every commit until `VERSION` is bumped (see the version cadence below).
 
 Inline namespaces are derived dynamically:
 
@@ -202,11 +202,15 @@ Summarize `CHANGELOG.md` immediately before a release or release candidate: coll
 ### The procedure
 
 ```sh
-# 1. Verify that the candidate commit is green across the build matrix.
-gh api repos/libfn/functional/commits/<main-sha>/check-runs \
-  --jq '.check_runs[] | select(.conclusion != "success") | .name + " " + .conclusion'
+# 1. Verify that the candidate commit is green across the build matrix. Expect an
+#    empty result apart from runs that never fire on a branch push, such as
+#    "publish" (it awaits the GitHub Release) and "licence-unchanged".
+gh api repos/libfn/functional/commits/<main-sha>/check-runs --paginate \
+  --jq '.check_runs[] | select(.conclusion != "success") | .name + " " + (.conclusion // "in progress")'
 
-# 2. Fast-forward the release branch onto the candidate and tag it.
+# 2. Fast-forward the release branch onto the candidate and tag it. Run one command
+#    at a time: if the checkout fails (say, another worktree holds release), the
+#    commands after it would run on the wrong branch.
 git checkout release
 git merge --ff-only <main-sha>
 git tag -s v<version> -m 'libfn <version>' <main-sha>
@@ -214,11 +218,20 @@ git tag -s v<version> -m 'libfn <version>' <main-sha>
 # 3. Push the branch and the tag atomically.
 git push --atomic origin release:release refs/tags/v<version>
 
-# 4. Once the documentation deploy is green, create the GitHub Release.
-gh release create v<version> --verify-tag --generate-notes --draft
+# If any of the git operations above misfires, inspect what actually landed before
+# retrying — and never force-push a tag, even to the same target: it mints a new
+# tag object.
+git ls-remote origin refs/heads/release refs/tags/v<version>
 
-# 5. Review release notes, press "Publish release"
-# 6. Bump VERSION on main branch to open the next cycle, via a PR
+# 4. Once the `docs` workflow run triggered by the release push is green, create
+#    the GitHub Release.
+gh release create v<version> -R libfn/functional --verify-tag --generate-notes --draft
+
+# 5. Review the release notes, then publish.
+gh release edit v<version> -R libfn/functional --draft=false
+
+# 6. Bump VERSION on main branch to open the next cycle, via a PR (edit VERSION,
+#    let the sync hook propagate it -- see Versioning above)
 ```
 
 ### Version cadence
@@ -306,5 +319,4 @@ Follow these conventions for files under `.github/workflows/`:
 [nixmd]: nix/README.md
 [website]: https://github.com/libfn/website
 [znai]: https://github.com/testingisdocumenting/znai
-[llvmbug]: https://github.com/llvm/llvm-project/issues/196520
 [libfn]: https://libfn.org/license/index
