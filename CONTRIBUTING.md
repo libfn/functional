@@ -201,38 +201,43 @@ Summarize `CHANGELOG.md` immediately before a release or release candidate: coll
 
 ### The procedure
 
-```sh
-# 1. Verify that the candidate commit is green across the build matrix. Expect an
-#    empty result apart from runs that never fire on a branch push, such as
-#    "publish" (it awaits the GitHub Release) and "licence-unchanged".
-gh api repos/libfn/functional/commits/<main-sha>/check-runs --paginate \
-  --jq '.check_runs[] | select(.conclusion != "success") | .name + " " + (.conclusion // "in progress")'
+1. Verify that the candidate merge commit on `main` is green across the build matrix. Expect an empty result apart from runs that never fire on a branch push, such as `publish` (it awaits the GitHub Release) and `licence-unchanged`.
 
-# 2. Fast-forward the release branch onto the candidate and tag it. Run one command
-#    at a time: if the checkout fails (say, another worktree holds release), the
-#    commands after it would run on the wrong branch.
-git checkout release
-git merge --ff-only <main-sha>
-git tag -s v<version> -m 'libfn <version>' <main-sha>
+    ```sh
+    gh api repos/libfn/functional/commits/<main-sha>/check-runs --paginate \
+      --jq '.check_runs[] | select(.conclusion != "success") | .name + " " + (.conclusion // "in progress")'
+    ```
 
-# 3. Push the branch and the tag atomically.
-git push --atomic origin release:release refs/tags/v<version>
+2. Fast-forward the release branch onto the candidate and tag it. Run **one command at a time**.
 
-# If any of the git operations above misfires, inspect what actually landed before
-# retrying — and never force-push a tag, even to the same target: it mints a new
-# tag object.
-git ls-remote origin refs/heads/release refs/tags/v<version>
+    ```sh
+    git checkout release
+    git merge --ff-only <main-sha>
+    git tag -s v<version> -m 'libfn <version>' <main-sha>
+    ```
 
-# 4. Once the `docs` workflow run triggered by the release push is green, create
-#    the GitHub Release.
-gh release create v<version> -R libfn/functional --verify-tag --generate-notes --draft
+3. Push the branch and the tag atomically.
 
-# 5. Review the release notes, then publish.
-gh release edit v<version> -R libfn/functional --draft=false
+    ```sh
+    git push --atomic origin release:release refs/tags/v<version>
+    ```
 
-# 6. Bump VERSION on main branch to open the next cycle, via a PR (edit VERSION,
-#    let the sync hook propagate it -- see Versioning above)
-```
+4. If any of the git operations above misfires, inspect what actually landed before retrying. Do **not** force-push a tag, even to the same target: it mints a new tag object.
+
+    ```sh
+    git ls-remote origin refs/heads/release refs/tags/v<version>
+    ```
+
+5. Once the `docs` workflow run triggered by the release push is green, create the GitHub Release; the command prints the draft's URL.
+
+    ```sh
+    gh release create v<version> -R libfn/functional --verify-tag --generate-notes --draft
+    ```
+
+6. Open the draft URL, review the notes, then Edit (the pencil icon) and press "Publish release".
+
+7. Bump `VERSION` on main branch to open the next cycle, via a PR (edit `VERSION`, let the sync hook propagate it — see Versioning above).
+
 
 ### Version cadence
 
