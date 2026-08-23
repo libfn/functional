@@ -46,7 +46,8 @@ cmake -DVALIDATE_CXX23=ON ..
 Enabling `LIBFN_CXX26=ON` activates C++26 type-ordering via `std::type_order`. This option does **not** inject a compiler language standard flag. You need to select C++26 separately, for example with:
 
 * Explicit choice via `target_compile_features(<your target> INTERFACE cxx_std_26)`
-* Dependency on the `include_fn_cxx26` (which propagates `cxx_std_26`)
+* Dependency on exported target `libfn::fn_cxx26` (which propagates `cxx_std_26`)
+* Dependency on CMake native target `include_fn_cxx26` (which propagates `cxx_std_26`)
 * The `CMAKE_CXX_STANDARD=26` CMake variable
 * The `CXXFLAGS=-std=c++26` environment variable
 
@@ -75,9 +76,9 @@ Supported platforms:
 
 **Unsupported Environments**:
 
-  * MSVC
-  * macOS with Homebrew GCC (due to `libasan` path resolution issues)
-  * macOS with Homebrew Clang (due to runtime process hangs from library mismatches)
+* MSVC
+* macOS with Homebrew GCC (due to `libasan` path resolution issues)
+* macOS with Homebrew Clang (due to runtime process hangs from library mismatches)
 
 On the above platforms, the build rejects sanitizer flags (causing a CMake configuration error).
 
