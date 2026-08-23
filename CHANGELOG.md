@@ -2,16 +2,18 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
-## libfn 0.1.0: xx August 2026
+## libfn 0.1.0 — 23 August 2026
 
-Changes from 0.1.0-rc1:
+The first tagged release, described in full by the `0.1.0-rc1` entry below. Changes from `0.1.0-rc1`:
 
-- ...
-- ...
+- **The documentation site is versioned**: every release keeps an immutable copy of its docs and single header under `/v<x.y.z>/` ([all versions](https://libfn.org/versions.html)).
+- **The single-header release asset carries signed build provenance**, and the README states each distribution channel's contract.
+- **The release procedure and version cadence are documented** in CONTRIBUTING; immediately after each tag, `main` opens the next `-dev` cycle under a renamed ABI namespace.
+- **Draft pull requests run only the cheap correctness gates**; the full CI matrix returns on ready-for-review.
 
-## libfn 0.1.0-rc1: 18 August 2026
+## libfn 0.1.0-rc1 — 18 August 2026
 
-libfn is a header-only C++20 functional-programming library: `fn`'s monadic composition and types, layered over `pfn`'s C++23/26 vocabulary-type polyfills. The `0.1.0` tag is the first release, opening the versioning contract SemVer's bare `0.y.z` otherwise leaves informal: a `y` bump is a breaking change (API and/or ABI), a `z` bump stays compatible — and, being header-only, a binary links against exactly one libfn version.
+libfn is a header-only C++20 functional-programming library: `fn`'s monadic composition and types, layered over `pfn`'s C++23/26 vocabulary-type polyfills. The `0.1.0` tag is the first release, opening the versioning contract that SemVer's bare `0.y.z` otherwise leaves informal: a `y` bump is a breaking change (API and/or ABI), a `z` bump stays compatible — and, being header-only, a binary links against exactly one libfn version.
 
 A first release has no prior version to diff against, so this entry presents what the library offers at `0.1.0`.
 
@@ -97,6 +99,6 @@ A first release has no prior version to diff against, so this entry presents wha
 
 - **Project inception**: a handful of direct commits set up the repository, before the pull-request history begins.
 
-### Previous Changelog
+### Previous changelog
 
-- Available at [324f335](https://github.com/libfn/functional/blob/324f3358165be1187fda978e83ba17d3263f25ae/CHANGELOG.md)
+- The dated entries this summary replaces remain readable at [324f335](https://github.com/libfn/functional/blob/324f3358165be1187fda978e83ba17d3263f25ae/CHANGELOG.md).
