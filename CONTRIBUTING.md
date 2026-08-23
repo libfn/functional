@@ -63,7 +63,7 @@ cmake -DLIBFN_CXX26=ON -DVALIDATE_CXX26=ON ..
 
 ### Sanitizers
 
-Sanitizers require `CMAKE_BUILD_TYPE=Debug` and are enabled by default, on supported platforms. To disable sanitizers in a debug build:
+Sanitizers are enabled by default on supported platforms when `CMAKE_BUILD_TYPE` is `Debug` or left unset. Other build types reject them. To disable sanitizers in a debug build:
 
 ```bash
 cmake -DLIBFN_SANITIZERS=OFF -DCMAKE_BUILD_TYPE=Debug ..
@@ -232,7 +232,7 @@ The immediate bump to `-dev` renames the inline ABI namespace (e.g., `v0_1` to `
 ### Key step rationales
 
 * **Fast-Forward & Tag Location**: The `release` branch requires linear history. Fast-forwarding onto the candidate commit ensures that the tag sits on a commit reachable from both `main` and `release`. This ensures `git describe` resolves properly across all pull requests and branches.
-* **Tag Before Push**: The documentation build derives the single-header banner from `git describe`. The tag must exist on the commit before pushing, otherwise the generated artifact will use an incorrect name or fallback description.
+* **Tag Before Push**: The documentation build derives the single-header banner from `git describe`. The tag must exist on the commit before pushing, otherwise the generated artifact will use an incorrect name or fallback description. The `docs` workflow refuses a release deploy from an untagged commit.
 * **Atomic Push**: Using `git push --atomic` updates both the branch reference and the tag in a single transaction. This prevents GitHub Actions workflows from triggering on a branch update before the corresponding tag is visible.
 * **GitHub Release**: Creating the Release object triggers the `single-header` workflow's `publish` job, which generates and attaches `libfn-v<version>.hpp` to the release. The `--generate-notes` flag automatically populates the PR log.
 * **Provenance**: The `publish` job attests the single-header asset before upload, binding its cryptographic digest to this repository, the tagged commit, and the workflow run (enforcing SLSA build provenance signed via Sigstore). Running `gh attestation verify libfn-v<version>.hpp --repo libfn/functional` confirms that a downloaded copy is the authentic artifact built by this repository.

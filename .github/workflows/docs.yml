@@ -58,6 +58,18 @@ jobs:
         id: version
         run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
 
+      # A release deploy archives and tags v<version> immutably in libfn/website; running from
+      # an untagged commit would burn that name on wrong content and then block the real release.
+      - name: Require the release tag on this commit
+        if: ${{ github.ref_type == 'branch' && github.ref_name == 'release' }}
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if ! git describe --tags --exact-match --match "v$VERSION" > /dev/null; then
+            echo "refusing to deploy: HEAD is not tagged v$VERSION" >&2
+            exit 1
+          fi
+
       # Guardrail to ensure that we do not update docs after a bad merge
       - name: Build and run tests
         continue-on-error: false
