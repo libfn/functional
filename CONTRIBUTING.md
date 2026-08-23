@@ -96,7 +96,7 @@ cmake --build . --target export_docs
 The exported tree is the site root plus a copy under `v<version>/` (the version read from
 `VERSION`), each generated with internal links matching where it is served. The published site
 joins this build with every previously released version, kept in
-[libfn/website](https://github.com/libfn/website); the `docs` workflow assembles the two and,
+[libfn/website][website]; the `docs` workflow assembles the two and,
 when deploying a release, pushes the result back to the archive.
 
 **Requirements:**
@@ -179,6 +179,58 @@ The namespace spelling is derived, not copied: 0.y lines with y ≥ 1 share `v0_
 
 CHANGELOG.md is summarized immediately before a release: the accumulated dated entries collapse into a smaller list describing changes in a compact manner, without dates. The summary also names the commit carrying the last complete detailed list — the one right before the first release candidate — where the full history stays readable.
 
+## Releasing
+
+A release is defined by a GPG-signed tag on a `main` commit fast-forwarded onto the `release` branch. This branch is the source for documentation deploys and single-header publishing.
+
+### Version cadence
+
+`VERSION` increments sequentially based on the active phase:
+
+* **Release Candidate**: `x.y.z-rcN` transitions to `x.y.z` (the release) or `x.y.z-rc(N+1)` (a subsequent candidate).
+* **Development**: Immediately after tagging `x.y.z`, the version on `main` bumps to `x.y.(z+1)-dev`.
+* **Breaking Cycles**: If a `-dev` cycle introduces breaking changes, the version bumps to `x.(y+1).0-dev`.
+
+The immediate bump to `-dev` renames the inline ABI namespace (e.g., `v0_1` to `v0_1_dev`), preventing builds of unreleased `main` code from linking with the official release.
+
+### The procedure
+
+```sh
+# 1. Verify that the candidate commit is green across the build matrix.
+gh api repos/libfn/functional/commits/<main-sha>/check-runs \
+  --jq '.check_runs[] | select(.conclusion != "success") | .name + " " + .conclusion'
+
+# 2. Fast-forward the release branch onto the candidate and tag it.
+git checkout release
+git merge --ff-only <main-sha>
+git tag -s v<version> -m 'libfn <version>' <main-sha>
+
+# 3. Push the branch and the tag atomically.
+git push --atomic origin release:release refs/tags/v<version>
+
+# 4. Once the documentation deploy is green, create the GitHub Release.
+gh release create v<version> --verify-tag --generate-notes
+
+# 5. Immediately bump VERSION on main to open the next cycle.
+```
+
+### Key step rationales
+
+* **Fast-Forward & Tag Location**: The `release` branch requires linear history. Fast-forwarding onto the candidate commit ensures that the tag sits on a commit reachable from both `main` and `release`. This ensures `git describe` resolves properly across all pull requests and branches.
+* **Tag Before Push**: The documentation build derives the single-header banner from `git describe`. The tag must exist on the commit before pushing, otherwise the generated artifact will use an incorrect name or fallback description.
+* **Atomic Push**: Using `git push --atomic` updates both the branch reference and the tag in a single transaction. This prevents GitHub Actions workflows from triggering on a branch update before the corresponding tag is visible.
+* **GitHub Release**: Creating the Release object triggers the `single-header` workflow's `publish` job, which generates and attaches `libfn-v<version>.hpp` to the release. The `--generate-notes` flag automatically populates the PR log.
+
+The release push triggers the `docs` workflow, which rebuilds the site, archives the tree in [libfn/website][website], and deploys. A release is complete when the live banner reads `Revision: v<version>`, `versions.html` lists `/v<version>/`, the GitHub Release attaches `libfn-v<version>.hpp`, and the `VERSION` bump is on `main`.
+
+### Repository prerequisites
+
+The release workflow depends on three external repository configurations:
+
+* **GitHub Pages**: The `github-pages` environment must permit deployments from the `release` branch.
+* **Branch Protection**: The `release` branch must enforce linear history, but must *not* require a pull request or require deployments to succeed (which would create a deadlock blocking the push).
+* **Credentials**: The `WEBSITE_PUSH_TOKEN` repository secret (used to archive documentation in [libfn/website][website]) must be a valid, unexpired personal access token.
+
 ## Pre-commit
 
 This repository uses [pre-commit](https://pre-commit.com/) to enforce formatting of the C++ source code and perform other checks. The details can be seen in `.pre-commit-config.yaml`. To install git commit hooks, which will run checks on the repository as you commit changes:
@@ -239,3 +291,4 @@ A few conventions for files under `.github/workflows/`:
 [devcontainer]: https://github.com/libfn/devcontainer
 [nix]: https://nixos.org
 [nixmd]: nix/README.md
+[website]: https://github.com/libfn/website
