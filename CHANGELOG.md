@@ -9,6 +9,7 @@ A supported compiler is one whose upstream still takes fixes: LLVM maintains onl
 - **clang 19 is the minimum supported clang** (was 16); the Linux lanes for clang 16 to 18 retire.
 - **Apple Clang 21.0 replaces 16.0**; the macOS 15 CI lanes retire, leaving macOS 26 with Apple Clang, brew clang 21 and gcc 15.
 - **Visual Studio 2026 replaces 2022** as the MSVC floor.
+- **The clang 15–18 storage-poison workaround is removed** from `fn::optional` and `fn::expected`: the affected paths return their result prvalue directly again, no longer forcing a move around the miscompiled copy-elision.
 
 Users on a dropped toolchain can stay on the `0.1.0` release.
 

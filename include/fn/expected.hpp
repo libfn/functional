@@ -378,19 +378,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
             return type(::std::in_place, _pfn_base::_value(FWD(self)));
           else {
             static_assert(::std::is_void_v<typename type::value_type>);
-#if defined(__clang__) && __clang_major__ <= 18
-            // clang 15-18 miscompile the prvalue return below for three of the four Self ref-qualifier
-            // instantiations (&, const &, const &&) at -O1/-O2: the value-state result is observed with
-            // set_ == false (storage-poison). The workaround dodges the buggy mandatory copy-elision,
-            // at the cost of a move -- an immovable error type must keep the prvalue (the workaround
-            // would not compile; the miscompile is not observed in that shape).
-            if constexpr (::std::is_move_constructible_v<type>)
-              return ::std::move(type{::std::in_place});
-            else
-              return type{::std::in_place};
-#else
             return type{::std::in_place};
-#endif
           }
         else
           return ::fn::detail::_apply(FWD(fn), _pfn_base::_error(FWD(self)));
