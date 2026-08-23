@@ -121,6 +121,9 @@ jobs:
     runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-2x' || 'ubuntu-latest' }}
     permissions:
       contents: write
+      # Provenance attestation: sign with the workflow's OIDC identity, store the attestation.
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -132,6 +135,13 @@ jobs:
           python3 scripts/amalgamate.py --revision "${TAG}" -o "libfn-${TAG}.hpp"
         env:
           TAG: ${{ github.event.release.tag_name }}
+
+      # Attest before uploading, so an asset visible on the release always has provenance.
+      # Verify a download with: gh attestation verify libfn-<tag>.hpp --repo libfn/functional
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: libfn-${{ github.event.release.tag_name }}.hpp
 
       - name: Attach to the release
         run: gh release upload "${TAG}" "libfn-${TAG}.hpp" --clobber

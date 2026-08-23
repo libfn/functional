@@ -234,6 +234,7 @@ The immediate bump to `-dev` renames the inline ABI namespace (e.g., `v0_1` to `
 * **Tag Before Push**: The documentation build derives the single-header banner from `git describe`. The tag must exist on the commit before pushing, otherwise the generated artifact will use an incorrect name or fallback description.
 * **Atomic Push**: Using `git push --atomic` updates both the branch reference and the tag in a single transaction. This prevents GitHub Actions workflows from triggering on a branch update before the corresponding tag is visible.
 * **GitHub Release**: Creating the Release object triggers the `single-header` workflow's `publish` job, which generates and attaches `libfn-v<version>.hpp` to the release. The `--generate-notes` flag automatically populates the PR log.
+* **Provenance**: The `publish` job attests the single-header asset before upload, binding its cryptographic digest to this repository, the tagged commit, and the workflow run (enforcing SLSA build provenance signed via Sigstore). Running `gh attestation verify libfn-v<version>.hpp --repo libfn/functional` confirms that a downloaded copy is the authentic artifact built by this repository.
 
 The release push triggers the `docs` workflow, which rebuilds the site, archives the tree in [libfn/website][website], and deploys.
 
