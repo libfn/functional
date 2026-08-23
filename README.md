@@ -2,13 +2,15 @@
 
 **Functional programming in C++**
 
+[![Latest Release](https://img.shields.io/github/v/release/libfn/functional?logo=github&color=blue)](https://github.com/libfn/functional/releases/latest)
+[![Website](https://img.shields.io/badge/website-libfn.org-darkgreen)](https://libfn.org/)
 [![codecov](https://codecov.io/gh/libfn/functional/graph/badge.svg?token=3RHT38SEU0)](https://codecov.io/gh/libfn/functional)
-[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Flibfn%2Ffunctional.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Flibfn%2Ffunctional?ref=badge_shield)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=libfn_functional&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=libfn_functional)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Flibfn%2Ffunctional.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Flibfn%2Ffunctional?ref=badge_shield)
 
 ## Why
 
-The purpose of this library is to exercise an approach to functional programming in C++ on top of the existing standard vocabulary types (such as `std::expected` and `std::optional`), with the aim of eventually extending future revisions of the C++ standard library with the functionality found to work well.
+This library implements a functional programming layer over standard C++ vocabulary types (such as `std::expected` and `std::optional`), with the goal of proposing successful patterns for future C++ standardization.
 
 ## Example
 
@@ -153,9 +155,11 @@ Every `fn` type with a `pfn` counterpart is a strict superset of it: switching a
 
 ### Implementation note
 
-This library requires a total ordering of types, which the standard provides from C++26 ([`std::type_order`][standardized-type-ordering]). By default the library relies on an internal, naive implementation of such a feature which is _not expected to work_ with unnamed types, types without linkage etc. On a compiler implementing C++26 [`std::type_order`][standardized-type-ordering] (gcc 16 or newer), the opt-in `LIBFN_CXX26` mode uses the standard feature instead. The two modes may order types differently, so `fn` types live in a distinct ABI namespace per mode and the two modes never link as one (`pfn` is mode-independent) — see [CONTRIBUTING.md](CONTRIBUTING.md) for the mode's requirements.
+This library requires a total ordering of types, which C++26 provides via [`std::type_order`][standardized-type-ordering]. By default, the library uses an internal, naive implementation of type ordering. This internal fallback does not support unnamed types or types without linkage (such as local types or lambdas), and is not portable between GCC and Clang. On compilers implementing C++26 [`std::type_order`][standardized-type-ordering] (such as GCC 16), the opt-in `LIBFN_CXX26` mode uses the standard feature instead. The two modes may order types differently, so `fn` types live in a distinct ABI namespace per mode and the two modes never link as one (`pfn` is mode-independent) — see [CONTRIBUTING.md](CONTRIBUTING.md) for the mode's requirements.
 
 ## Using the library
+
+### As a dependency
 
 The library is header-only. The CMake package exports `libfn::fn` and `libfn::pfn`:
 
@@ -172,7 +176,17 @@ Packaging is provided — and exercised by CI — for [conan](conanfile.py), [vc
 
 Every packaging route above except Bazel also delivers the compile options the headers require. Under Bazel — and a plain copy of `include/` — these options don't arrive automatically; provide them yourself: C++20 or newer (`--cxxopt=-std=c++20` in Bazel), `-Wno-missing-braces` on clang (`fn::pack` initialization elides braces by design), and with MSVC `/permissive-` plus `_HAS_CXX23`. The authoritative set is the `INTERFACE` options in [cmake/CompilationOptions.cmake](cmake/CompilationOptions.cmake).
 
-A single header — the whole library in one file — serves online compilers and standalone reproducers, where an include path is not an option. The documentation site publishes it at [`https://libfn.org/libfn.hpp`](https://libfn.org/libfn.hpp), which Compiler Explorer can include directly by URL; each tagged release attaches the same file as `libfn-<tag>.hpp`. Prefer the real headers otherwise: they give real paths in diagnostics. The compile options above apply; define `LIBFN_CXX26` and compile as C++26 to select the C++26 mode.
+### Single header
+
+Rather than using the single header, prefer the real headers as a project dependency, since they give useful paths in diagnostics. However, a single-header distribution is provided, and it contains the entire library in one file. It is meant to serve online compilers and standalone reproducers, where include paths are not supported.
+
+The single header is distributed through three channels, whose contracts differ:
+
+* `https://libfn.org/v<x.y.z>/libfn.hpp` ([all versions](https://libfn.org/versions.html)) — one copy per release, immutable once published; [Compiler Explorer][godbolt] can include it directly by URL. This is the URL to pin.
+* `libfn-v<x.y.z>.hpp`, attached to each [GitHub release](https://github.com/libfn/functional/releases) — the same file for download, immutable, with signed build provenance: `gh attestation verify libfn-v<x.y.z>.hpp --repo libfn/functional` confirms a downloaded copy is the authentic artifact built by this repository.
+* [`https://libfn.org/libfn.hpp`](https://libfn.org/libfn.hpp) — the latest release's copy, moving with each release: convenient in a [throwaway experiment][godbolt_experiment], unusable as a dependency.
+
+In the examples above, use the actual released version instead of `<x.y.z>` (e.g., `0.1.0`). The compile options above apply; to select the C++26 mode, define `LIBFN_CXX26` and compile as C++26 (see also [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 ## Backwards compatibility
 
@@ -215,3 +229,5 @@ Distributed under the ISC License; see [LICENSE.md](LICENSE.md) for the terms.
 [ripple]: https://ripple.com/
 [mykola-golubyev]: https://github.com/MykolaGolubyev
 [znai]: https://github.com/testingisdocumenting/znai
+[godbolt]: https://godbolt.org/
+[godbolt_experiment]: https://godbolt.org/z/MrbYTGKv4

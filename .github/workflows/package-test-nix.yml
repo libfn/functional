@@ -15,6 +15,12 @@ on:
       - 'flake.lock'
       - 'VERSION'
   pull_request:
+    # Default types plus ready_for_review, so leaving draft runs what the draft gate skipped.
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
     branches:
       - main
     paths:
@@ -31,6 +37,7 @@ on:
 
 jobs:
   test_nix:
+    if: github.event.pull_request.draft != true
     runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
 
     steps:

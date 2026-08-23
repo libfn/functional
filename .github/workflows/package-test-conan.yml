@@ -11,6 +11,12 @@ on:
       - 'include/**'
       - 'VERSION'
   pull_request:
+    # Default types plus ready_for_review, so leaving draft runs what the draft gate skipped.
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
     branches:
       - main
     paths:
@@ -23,6 +29,7 @@ on:
 
 jobs:
   test_conan_linux:
+    if: github.event.pull_request.draft != true
     # arm64: the amd64 warp fleet pulls images at 1-2 MB/s; the arm64 fleet serves them in seconds
     runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-arm64-2x' || 'ubuntu-latest' }}
     strategy:
@@ -54,6 +61,7 @@ jobs:
           -c "tools.cmake.cmaketoolchain:extra_variables={'LIBFN_TEST_CXX26': 'ON'}"
 
   test_conan_windows:
+    if: github.event.pull_request.draft != true
     runs-on: windows-2022
 
     steps:

@@ -8,8 +8,9 @@ endif()
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" libfn_version)
 string(STRIP "${libfn_version}" libfn_version)
 # SemVer 2.0.0. CMake's regex flavor (no non-capturing groups, max 9 capture groups) can't byte-match
-# the canonical semver.org regex used by scripts/sync_versions.py; this is the closest feasible form.
-if(NOT libfn_version MATCHES "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$")
+# the canonical semver.org regex used by scripts/sync_versions.py, but this spells the same grammar
+# in exactly nine groups — leading-zero numeric prerelease identifiers are rejected here too.
+if(NOT libfn_version MATCHES "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$")
     message(FATAL_ERROR
         "VERSION must be SemVer 2.0.0 (MAJOR.MINOR.PATCH[-prerelease][+build]); got '${libfn_version}'")
 endif()

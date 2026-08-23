@@ -13,6 +13,12 @@ on:
       - 'cmake/**'
       - 'VERSION'
   pull_request:
+    # Default types plus ready_for_review, so leaving draft runs what the draft gate skipped.
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
     branches:
       - main
     paths:
@@ -27,6 +33,7 @@ on:
 
 jobs:
   test_vcpkg_linux:
+    if: github.event.pull_request.draft != true
     runs-on: ${{ github.repository == 'libfn/functional' && 'warp-ubuntu-latest-x64-4x' || 'ubuntu-latest' }}
 
     steps:
@@ -52,6 +59,7 @@ jobs:
       run: .build/main | diff - test_package/src/main.cpp
 
   test_vcpkg_windows:
+    if: github.event.pull_request.draft != true
     runs-on: windows-2022
 
     steps:

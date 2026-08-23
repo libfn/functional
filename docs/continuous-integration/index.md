@@ -2,8 +2,10 @@
 title: Continuous Integration
 ---
 
-Every push and pull request runs the checks below. They fall into three groups: what proves the
-library works, what proves it can be consumed, and what builds the containers the rest run in.
+Every push and pull request runs the checks below — except a draft pull request, which runs only
+`pre-commit`, `licence` and `docs` until it is marked ready for review. They fall into three
+groups: what proves the library works, what proves it can be consumed, and what builds the
+containers the rest run in.
 
 ---
 
@@ -19,7 +21,7 @@ library works, what proves it can be consumed, and what builds the containers th
 * `sonarcloud` — builds with the compilation database and reports analysis to
   [SonarCloud](https://sonarcloud.io/summary/new_code?id=libfn_functional).
 * `licence` — scans dependencies with [FOSSA](https://app.fossa.com/projects/git%2Bgithub.com%2Flibfn%2Ffunctional).
-* `docs` — builds this site, and publishes it only from `main`; a pull request builds it as a
+* `docs` — builds this site, and publishes it only from `release`; a pull request builds it as a
   check, so a broken reference fails review rather than the deployment.
 
 ## Proving the library can be consumed {style: "api"}
