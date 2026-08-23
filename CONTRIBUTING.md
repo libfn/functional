@@ -165,7 +165,7 @@ Code written against the library (such as examples, documentation snippets, and 
 * **Requires Probes**: Do not rely on bare `requires`-probes of `libfn` calls. Several compile-time rejections (such as mismatched branch types in `apply` or grade mismatches in `and_then`) are enforced via internal `static_assert`s, which causes the probe to evaluate to `true` while the instantiation fails with a hard compiler error. Verify the call by compiling it, and use dependent viability probes.
 * **Type Ordering**: Outside of `LIBFN_CXX26`, the internal type ordering does **not** support unnamed types or types without linkage, and is **not** portable between GCC and Clang. In portable code, do not use lambdas or local types as `copack` alternatives and do not mix GCC with Clang (both using `libfn`) in a single binary.
 * **ABI & Versions**: Link exactly one `libfn` version per binary. Because the library is header-only, mixing different versions (including distinct patch releases) may cause ODR violation in your program. The authors will strive to ensure that each potentially incompatible version uses a unique namespace to prevent ODR violations, but **validating dependency consistency remains the user's responsibility**. Builds with and without `LIBFN_CXX26` use different namespaces and are link-incompatible by design.
-* **Reproducers**: Standalone bug reproducers must be entirely free of undefined behavior. Validate reproducers against UBSan and ASan, requiring an empty standard error output rather than merely relying on a zero exit code.
+* **Reproducers**: Standalone bug reproducers must be entirely free of undefined behavior. Validate reproducers against UBSan and ASan, requiring an empty standard error output rather than merely relying on a zero exit code. The library contains workarounds for a known [Clang miscompile error][llvmbug].
 
 ## Header layering
 
@@ -317,6 +317,7 @@ Follow these conventions for files under `.github/workflows/`:
 [devcontainer]: https://github.com/libfn/devcontainer
 [nix]: https://nixos.org
 [nixmd]: nix/README.md
+[llvmbug]: https://github.com/llvm/llvm-project/issues/196520
 [website]: https://github.com/libfn/website
 [znai]: https://github.com/testingisdocumenting/znai
 [libfn]: https://libfn.org/license/index
