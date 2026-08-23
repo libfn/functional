@@ -2,13 +2,15 @@
 
 **Functional programming in C++**
 
+[![Latest Release](https://img.shields.io/github/v/release/libfn/functional?logo=github&color=blue)](https://github.com/libfn/functional/releases/latest)
+[![Website](https://img.shields.io/badge/website-libfn.org-darkgreen)](https://libfn.org/)
 [![codecov](https://codecov.io/gh/libfn/functional/graph/badge.svg?token=3RHT38SEU0)](https://codecov.io/gh/libfn/functional)
-[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Flibfn%2Ffunctional.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Flibfn%2Ffunctional?ref=badge_shield)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=libfn_functional&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=libfn_functional)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Flibfn%2Ffunctional.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Flibfn%2Ffunctional?ref=badge_shield)
 
 ## Why
 
-The purpose of this library is to exercise an approach to functional programming in C++ on top of the existing standard vocabulary types (such as `std::expected` and `std::optional`), with the aim of eventually extending future revisions of the C++ standard library with the functionality found to work well.
+This library implements a functional programming layer over standard C++ vocabulary types (such as `std::expected` and `std::optional`), with the goal of proposing successful patterns for future C++ standardization.
 
 ## Example
 
@@ -153,7 +155,7 @@ Every `fn` type with a `pfn` counterpart is a strict superset of it: switching a
 
 ### Implementation note
 
-This library requires a total ordering of types, which the standard provides from C++26 ([`std::type_order`][standardized-type-ordering]). By default the library relies on an internal, naive implementation of such a feature which is _not expected to work_ with unnamed types, types without linkage etc. On a compiler implementing C++26 [`std::type_order`][standardized-type-ordering] (gcc 16 or newer), the opt-in `LIBFN_CXX26` mode uses the standard feature instead. The two modes may order types differently, so `fn` types live in a distinct ABI namespace per mode and the two modes never link as one (`pfn` is mode-independent) — see [CONTRIBUTING.md](CONTRIBUTING.md) for the mode's requirements.
+This library requires a total ordering of types, which C++26 provides via [`std::type_order`][standardized-type-ordering]. By default, the library uses an internal, naive implementation of type ordering. This internal fallback does not support unnamed types or types without linkage (such as local types or lambdas), and is not portable between GCC and Clang. On compilers implementing C++26 [`std::type_order`][standardized-type-ordering] (such as GCC 16), the opt-in `LIBFN_CXX26` mode uses the standard feature instead. The two modes may order types differently, so `fn` types live in a distinct ABI namespace per mode and the two modes never link as one (`pfn` is mode-independent) — see [CONTRIBUTING.md](CONTRIBUTING.md) for the mode's requirements.
 
 ## Using the library
 
