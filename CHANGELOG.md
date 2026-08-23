@@ -2,7 +2,14 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
-## libfn 0.1.0: the first tagged release — 2 August 2026
+## libfn 0.1.0: xx August 2026
+
+Changes from 0.1.0-rc1:
+
+- ...
+- ...
+
+## libfn 0.1.0-rc1: 18 August 2026
 
 libfn is a header-only C++20 functional-programming library: `fn`'s monadic composition and types, layered over `pfn`'s C++23/26 vocabulary-type polyfills. The `0.1.0` tag is the first release, opening the versioning contract SemVer's bare `0.y.z` otherwise leaves informal: a `y` bump is a breaking change (API and/or ABI), a `z` bump stays compatible — and, being header-only, a binary links against exactly one libfn version.
 
@@ -89,3 +96,7 @@ A first release has no prior version to diff against, so this entry presents wha
 ### Project history
 
 - **Project inception**: a handful of direct commits set up the repository, before the pull-request history begins.
+
+### Previous Changelog
+
+- Available at [324f335](https://github.com/libfn/functional/blob/324f3358165be1187fda978e83ba17d3263f25ae/CHANGELOG.md)
