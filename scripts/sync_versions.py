@@ -14,11 +14,14 @@ versions per patch, a prerelease is appended (-dev -> _dev), and the _cxx26 twin
 keeps _cxx26 last. LIBFN_VERSION_BASE is the mode-less spelling (pfn wraps in it,
 regardless of LIBFN_CXX26). Run as a pre-commit hook: it rewrites the literals and
 exits non-zero if it changed anything, so the commit is blocked until the change is
-re-staged.
+re-staged. Once v<VERSION> is tagged, the hook refuses every commit until VERSION
+is bumped: a commit spelling a tagged version would drift the inline namespace's
+content behind the tag, a silent ODR hazard.
 """
 import json
 import pathlib
 import re
+import subprocess
 import sys
 
 SEMVER_RE = re.compile(
@@ -42,6 +45,19 @@ if not SEMVER_RE.match(version):
     sys.stderr.write(
         f"{version_path.relative_to(repo)} must be SemVer 2.0.0 "
         f"(MAJOR.MINOR.PATCH[-prerelease][+build]); got {version!r}\n"
+    )
+    sys.exit(1)
+
+try:
+    tagged = subprocess.run(
+        ["git", "tag", "-l", f"v{version}"], capture_output=True, text=True, cwd=repo
+    ).stdout.strip()
+except OSError:
+    tagged = ""
+if tagged:
+    sys.stderr.write(
+        f"{version_path.relative_to(repo)} is {version}, but tag v{version} already "
+        "exists; bump VERSION before committing\n"
     )
     sys.exit(1)
 

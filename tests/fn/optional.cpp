@@ -932,8 +932,7 @@ TEST_CASE("optional and_then copack", "[optional][copack][and_then]")
 
     SECTION("immovable result type")
     {
-      // the disengaged path must compile even though the result cannot be moved (the
-      // clang<=18 miscompile workaround must not force a move)
+      // the disengaged result is returned as a prvalue, so an immovable result type must compile
       struct immovable_t {
         int v;
         constexpr explicit immovable_t(int i) noexcept : v(i) {}

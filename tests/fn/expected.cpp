@@ -656,8 +656,7 @@ TEST_CASE("graded monad", "[expected][copack][graded][and_then][or_else][copack_
 
     SECTION("engaged void source, immovable error type in the result")
     {
-      // the value-state path must compile even though the result cannot be moved (the
-      // clang<=18 miscompile workaround must not force a move)
+      // the value-state result is returned as a prvalue, so an immovable error type must compile
       struct immovable_t {
         int v;
         constexpr explicit immovable_t(int i) noexcept : v(i) {}
