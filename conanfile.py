@@ -10,7 +10,7 @@ class LibfnConan(ConanFile):
     license = "ISC"
     author = "Bronek Kozicki, Alex Kremer, Gašper Ažman"
     url = "https://github.com/libfn/functional"
-    homepage = "https://github.com/libfn/functional"
+    homepage = "https://libfn.org"
     description = (
         "Functional programming in C++"
     )
