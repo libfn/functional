@@ -6,7 +6,7 @@ This is for working *on* libfn; to *use* the library, see the [README](README.md
 
 Building and testing `libfn` requires a C++20 toolchain. The `pfn` namespace polyfills C++23/26 standard library utilities (`expected`, `optional`, `invoke_r`, `unreachable`), which the `fn` layer builds upon.
 
-The minimum supported compilers are [gcc 12][gcc-standard-support] and [clang 19][clang-standard-support]. If your host OS lacks these, use the [devcontainer] or [Nix][nix] environment (see [nix/README.md][nixmd]). Apple Clang from 21.0 and MSVC from 2026 are also supported.
+The minimum supported compilers are [gcc 12][gcc-standard-support] and [clang 19][clang-standard-support]. If your host OS lacks these, use the [devcontainer] or [Nix][nix] environment (see [nix/README.md][nixmd]). Apple Clang 21.0 or later and MSVC supplied with Visual Studio 2022 or later are also supported.
 
 Exceptions to the C++20 baseline:
 * **C++23 Validation Lane** (CMake option `VALIDATE_CXX23`): Requires a compiler with solid C++23 support (such as GCC 15 or Clang 21) and is unsupported on MSVC.

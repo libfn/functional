@@ -2,6 +2,12 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## Visual Studio 2022 returns as the MSVC floor — 13 September 2026
+
+Bazel's [minimal version selection](https://bazel.build/external/module#version-selection) can select a later `libfn` release when another dependency requests it, even if the consumer still requests `0.1.0`. Keeping Visual Studio 2022 support avoids requiring those consumers to upgrade their compiler for this reason. Microsoft still [supports Visual Studio 2022](https://learn.microsoft.com/en-us/lifecycle/products/visual-studio-2022).
+
+The build workflow restores C++20 Debug and Release builds and tests on `windows-2022`, alongside the Visual Studio 2026 jobs. **Visual Studio 2022 is again the minimum supported Visual Studio version**, superseding the MSVC change in the entry below. The GCC, Clang and Apple Clang requirements are unchanged.
+
 ## Compiler support narrows — 23 August 2026
 
 A supported compiler is one whose upstream still takes fixes: LLVM maintains only its latest major release, and Apple cannot be expected to backport fixes for this library's template-metaprogramming demands into older Xcode toolchains. The floors therefore move to what CI actually proves, obsoleting the `0.1.0` documentation:
