@@ -319,6 +319,8 @@ def main() -> None:
     if out.exists():
         shutil.rmtree(out)
     shutil.copytree(repo / "docs", out)
+    # znai takes the site icon from favicon.png at the source root.
+    shutil.copy2(out / "assets" / "favicon.png", out / "favicon.png")
     footer(out, repo)
 
     # docs/lookup-paths reaches the sources it quotes relatively, which the staged copy is no
