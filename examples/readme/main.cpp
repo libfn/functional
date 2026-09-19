@@ -92,18 +92,16 @@ constexpr auto parse(std::string_view s) noexcept
 }
 
 // sync-example-readme
-// Various error types.
 enum class NotANumber {};
 enum class DivByZero {};
 enum class Overflow {};
 
-// Operations on rational numbers.
 enum class Add {};
 enum class Sub {};
 enum class Mul {};
 enum class Div {};
 
-// `parse` turns a '/' delimited string into a pair of numbers (a numerator and denominator)
+// Parse a numerator and optional denominator; without '/', the denominator is 1.
 constexpr auto parse(std::string_view s) noexcept
     -> fn::expected<fn::pack<int, int>, fn::copack<NotANumber>>;
 
@@ -116,14 +114,13 @@ public:
   constexpr auto num() const noexcept -> int { return n_; }
   constexpr auto den() const noexcept -> int { return d_; }
 
-  // The invariants live in the type: `make` is the only way to build a `Rational`, and every one is
-  // reduced, sign-normalized and representable. Callers receive a value they never need re-check.
+  // Construct a reduced fraction with a positive denominator and both terms representable as int.
   static constexpr struct make_t {
     constexpr auto operator()(long long n, long long d) const noexcept
         -> fn::expected<Rational, fn::copack_for<DivByZero, Overflow>>
     {
       if (d == 0) return fn::unexpected{fn::copack{DivByZero{}}};
-      // Note, std::gcd precondition is that `|n|` and `|d|` must both be representable.
+      // std::gcd requires both |n| and |d| to be representable as long long.
       if (n == std::numeric_limits<long long>::min() || d == std::numeric_limits<long long>::min())
         return fn::unexpected{fn::copack{Overflow{}}};
 
@@ -165,27 +162,26 @@ public:
   }
 };
 
-// `evaluate` parses each operand, applies the operator, and lets `make` re-check the result.
-// Each stage fails its own way, and the library folds error types into one co-product.
+// Combine parsing and arithmetic errors in the deduced result type.
 constexpr auto evaluate(std::string_view a, fn::copack_for<Add, Sub, Mul, Div> op,
                         std::string_view b) noexcept -> decltype(auto)
 {
-  using Op = fn::expected<decltype(op), fn::copack<>>;
-  return (Rational::make(a) & Op{op} & Rational::make(b)) //
+  auto const operation = fn::expected_unit{}.transform([op] { return op; });
+  return (Rational::make(a) & operation & Rational::make(b)) //
          | fn::and_then(fn::overload{[](Rational x, Add, Rational y) { return x.add(y); },
                                      [](Rational x, Sub, Rational y) { return x.sub(y); },
                                      [](Rational x, Mul, Rational y) { return x.mul(y); },
                                      [](Rational x, Div, Rational y) { return x.div(y); }});
 }
 
-// The error type of a sequence is the derived copack of all failure modes, never spelled by hand:
+// Both results include every error type from their stages.
 static_assert(
     std::is_same_v<decltype(Rational::make("1/1")),
                    fn::expected<Rational, fn::copack_for<DivByZero, NotANumber, Overflow>>>);
 static_assert(
     std::is_same_v<decltype(evaluate("1/2", Add{}, "3/4")),
                    fn::expected<Rational, fn::copack_for<DivByZero, NotANumber, Overflow>>>);
-// Constant evaluated calculations used to verify both values and errors during compilation:
+// Check a successful calculation and division by zero at compile time.
 static_assert(evaluate("1/2", Add{}, "1/3").value() == Rational::make(5, 6));
 static_assert(evaluate("2/3", Div{}, "0/1").error().has_value<DivByZero>());
 // sync-example-readme

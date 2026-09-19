@@ -10,24 +10,24 @@
 
 ## Why
 
-This library implements a functional programming layer over standard C++ vocabulary types (such as `std::expected` and `std::optional`), with the goal of proposing successful patterns for future C++ standardization.
+`libfn` extends C++ vocabulary types such as `expected` and `optional` and adds monadic carrier types `choice` and `just`. It provides monadic combinators such as `and_then`, `transform` and `or_else`, along with other functional facilities. Its purpose is to develop and test functional programming patterns for future C++ standardization.
 
 ## Example
 
+This example parses rational numbers and applies arithmetic operations. Each operation returns an `expected` whose error type describes its possible failures. The [complete example](examples/readme/main.cpp) includes the parser and required headers.
+
 <!-- sync-example-readme -->
 ```cpp
-// Various error types.
 enum class NotANumber {};
 enum class DivByZero {};
 enum class Overflow {};
 
-// Operations on rational numbers.
 enum class Add {};
 enum class Sub {};
 enum class Mul {};
 enum class Div {};
 
-// `parse` turns a '/' delimited string into a pair of numbers (a numerator and denominator)
+// Parse a numerator and optional denominator; without '/', the denominator is 1.
 constexpr auto parse(std::string_view s) noexcept
     -> fn::expected<fn::pack<int, int>, fn::copack<NotANumber>>;
 
@@ -40,14 +40,13 @@ public:
   constexpr auto num() const noexcept -> int { return n_; }
   constexpr auto den() const noexcept -> int { return d_; }
 
-  // The invariants live in the type: `make` is the only way to build a `Rational`, and every one is
-  // reduced, sign-normalized and representable. Callers receive a value they never need re-check.
+  // Construct a reduced fraction with a positive denominator and both terms representable as int.
   static constexpr struct make_t {
     constexpr auto operator()(long long n, long long d) const noexcept
         -> fn::expected<Rational, fn::copack_for<DivByZero, Overflow>>
     {
       if (d == 0) return fn::unexpected{fn::copack{DivByZero{}}};
-      // Note, std::gcd precondition is that `|n|` and `|d|` must both be representable.
+      // std::gcd requires both |n| and |d| to be representable as long long.
       if (n == std::numeric_limits<long long>::min() || d == std::numeric_limits<long long>::min())
         return fn::unexpected{fn::copack{Overflow{}}};
 
@@ -89,73 +88,75 @@ public:
   }
 };
 
-// `evaluate` parses each operand, applies the operator, and lets `make` re-check the result.
-// Each stage fails its own way, and the library folds error types into one co-product.
+// Combine parsing and arithmetic errors in the deduced result type.
 constexpr auto evaluate(std::string_view a, fn::copack_for<Add, Sub, Mul, Div> op,
                         std::string_view b) noexcept -> decltype(auto)
 {
-  using Op = fn::expected<decltype(op), fn::copack<>>;
-  return (Rational::make(a) & Op{op} & Rational::make(b)) //
+  auto const operation = fn::expected_unit{}.transform([op] { return op; });
+  return (Rational::make(a) & operation & Rational::make(b)) //
          | fn::and_then(fn::overload{[](Rational x, Add, Rational y) { return x.add(y); },
                                      [](Rational x, Sub, Rational y) { return x.sub(y); },
                                      [](Rational x, Mul, Rational y) { return x.mul(y); },
                                      [](Rational x, Div, Rational y) { return x.div(y); }});
 }
 
-// The error type of a sequence is the derived copack of all failure modes, never spelled by hand:
+// Both results include every error type from their stages.
 static_assert(
     std::is_same_v<decltype(Rational::make("1/1")),
                    fn::expected<Rational, fn::copack_for<DivByZero, NotANumber, Overflow>>>);
 static_assert(
     std::is_same_v<decltype(evaluate("1/2", Add{}, "3/4")),
                    fn::expected<Rational, fn::copack_for<DivByZero, NotANumber, Overflow>>>);
-// Constant evaluated calculations used to verify both values and errors during compilation:
+// Check a successful calculation and division by zero at compile time.
 static_assert(evaluate("1/2", Add{}, "1/3").value() == Rational::make(5, 6));
 static_assert(evaluate("2/3", Div{}, "0/1").error().has_value<DivByZero>());
 ```
 
 ### What
 
-The library features demonstrated by the code example above:
+The example combines several library features:
 
-* **Monadic sequences** — `operator|` pipes an `expected` (or `optional`) through operations: `and_then` and `transform` act on the value, `or_else`, `recover` and `transform_error` on the error, with `filter`, `inspect`, `fail` and more besides.
-* **Graded errors** — each stage fails its own way — a malformed string, a zero denominator, an out-of-range result — and the library folds these into one `copack` whose type it derives for you: here `copack<DivByZero, NotANumber, Overflow>`, never spelled by hand.
-* **Composing values** — `operator&` gathers successful operands left to right: two values become a `pack`, a third appends to it. A `pack` is a heterogeneous product — the operands as one value, spread into the next call; for example in `make`'s `string_view` overload, where a `pack<int, int>` returned from `parse` is passed to an overload taking two numbers.
-* **Composing alternatives** — when a side is a `copack` (a co-product — one of several types, indexed by type, not by position like `std::variant`), `&` distributes over it, pairing every alternative with the other operand. Two copacks yield the full cartesian product. The result type is flattened, deduplicated and sorted for you.
-* **Multidispatch** — the pack (or copack of packs) flows into the next stage as separate arguments. An `fn::overload` — or any function — dispatches on the runtime alternative by ordinary overload resolution. Dispatch is exhaustive: a missing handler is a compile error.
-* **Identity monad** — `expected<T, copack<>>` cannot hold an error (enforced at compile time), a spelling of the identity monad; the example lifts `op` into it as `Op`.
-* **No surprises** — libfn throws no exceptions of its own (only `value()`, as the standard mandates), and composes safely with callables that do; it allocates no memory of its own and performs no I/O. Being fully `constexpr`, it can drive a program evaluated entirely at compile time, where the compiler diagnoses any undefined behaviour.
+* **Monadic sequences** — `operator|` connects a result to a combinator such as `fn::and_then(f)`, which calls `f` on success and propagates errors otherwise.
+* **Graded errors** — parsing and arithmetic can fail in different ways. The library combines their error types into a `copack`; here, the result uses `copack_for<DivByZero, NotANumber, Overflow>`. Callers do not need to combine the error types by hand.
+* **Composing values** — `operator&` combines successful operands into a `pack`, preserving their order. A `pack` holds values of different types and passes them as separate arguments to the next call. For example, `parse` returns a `pack<int, int>` that `and_then` passes to the two-argument overload of `make`.
+* **Composing alternatives** — a `copack` holds one of several types, identified by type rather than by position (as in `std::variant`). When a value side is a `copack`, `&` pairs each alternative with the other operand. Two copacks produce all combinations of alternatives; the library flattens, deduplicates and sorts the resulting alternative types.
+* **Multidispatch** — `fn::overload` selects an arithmetic operation for the active alternative of `op`. Each handler receives the operands as separate arguments. Every possible alternative needs a matching handler, or compilation fails.
+* **Identity carrier** — `expected<T, copack<>>` cannot hold a failure state. The example starts with `fn::expected_unit`, an alias for `expected<void, copack<>>`, and uses its `.transform` member to supply `op` as the value without adding a failure mode.
 
-The example also demonstrates how well libfn works with general programming idioms. `make` is a *smart constructor* — the only way to build a `Rational` — enforcing the type's invariants and returning `expected`: callers never need to re-check what the type guarantees. Treating *callables as values* lets operations such as `and_then` accept `make` whole, carrying its overload set.
+`make` is a *smart constructor*: it returns either a valid `Rational` or an error. A successful result is reduced, has a positive denominator, and fits in two `int` values. Because `make` is a callable object, `and_then` can accept it with both overloads intact.
 
-Beyond what the code example demonstrates, the library also offers:
+The library also provides:
 
-* `choice`, a monad over `copack`.
-* The same operations that work on `expected` also work on `optional`.
-* Simultaneous disjunction, which uses `operator|` to fall back from one monadic computation to another, along with its `fn::disjoin` fold.
-* `fn::conjoin`, for simultaneous product folds.
-* The tuple protocol in `pack`, so you can write `get<I>(p)` or use structured bindings.
-* `pack` and `copack` are both structural types — a `constexpr` value that can be used as a template parameter.
-* Support for immovable values and callables.
-* An extensible pipeline: a verb defined outside the library pipes exactly like the built-in ones.
-* And more — see [examples/](examples/) and the [API reference][docs].
+* Combinators for transforming, inspecting and recovering results, including `transform`, `inspect`, `or_else` and `recover`.
+* Pipelines over `optional`.
+* The `choice` identity carrier for applying monadic operations to a `copack`.
+* The `just` identity carrier.
+* Simultaneous disjunction: `operator|` selects a successful operand or combines the errors.
+* `fn::disjoin` and `fn::conjoin` fold disjunction and conjunction over multiple operands.
+* Tuple access for `pack`, including `get<I>(p)` and structured bindings.
+* Structural `pack` and `copack` types: when their element types meet the requirements, their values can be template arguments.
+* Support for immovable values and callables, and for user-defined combinators.
 
-None of this is ad hoc: [TYPE_ALGEBRA.md](TYPE_ALGEBRA.md) derives the entire design from first principles — the algebra of products and sums behind `pack` and `copack`, the logic of monadic composition, and the compiler-checked laws that the library obeys.
+`libfn` performs no I/O and makes no dynamic allocations of its own. Its only explicit exception path is `value()` on a result without a value (as required by the C++ standard). Contained types and callables may allocate or throw. `libfn` does not leak resources it manages when user code throws. Selected operations, including copack assignment, provide the strong exception guarantee: if the operation throws, the destination retains its previous value. Operations support constant evaluation when their inputs and callables allow it, as the example's `static_assert`s demonstrate.
+
+See [examples/](examples/) and the [API reference][docs] for more. [TYPE_ALGEBRA.md](TYPE_ALGEBRA.md) explains the products and sums behind `pack` and `copack`, how the monadic combinators compose, and the laws exercised by the tests.
 
 ## How
 
-The library comes as two parts in one repository:
+The library has two layers:
 
-* **`pfn`** (`include/pfn`, namespace `pfn`) — a faithful polyfill of standard-library vocabulary types as specified for C++26: `std::expected`, `std::optional` (including the monadic functions, `optional<T&>` and range support), plus smaller utilities such as `std::invoke_r` and `std::unreachable`. It adds nothing of its own on top of what's mandated by the [C++ standard](https://eel.is/c++draft/) or accepted for a future revision — such as `has_error()`.
-* **`fn`** (`include/fn`, namespace `fn`) — the functional-programming library. It extends the vocabulary types with the facilities useful in writing functional style programs — monadic operations composable with `operator|`, such as `and_then`, `transform`, `or_else`, `inspect`, `recover`, `filter` — and adds new vocabulary types: `copack`, `choice`, `pack`.
+* **`pfn`** (`include/pfn`, namespace `pfn`) provides C++20 polyfills for standard-library facilities through C++26: `expected`, `optional` (including monadic operations, `optional<T&>` and range support), `invoke_r` and `unreachable`. These follow the C++ standard and accepted proposals, including `has_error()`.
+* **`fn`** (`include/fn`, namespace `fn`) builds on those polyfills. It adds combinators such as `and_then`, `transform` and `recover`, along with the vocabulary types `pack`, `copack` and `choice`.
 
-Every `fn` type with a `pfn` counterpart is a strict superset of it: switching a valid program using `pfn` types to use `fn` instead changes neither compilation nor program behaviour.
+The `fn` types extend their `pfn` counterparts: switching a valid program from `pfn` types to `fn` changes neither compilation nor program behaviour, while making the types and operations defined in `fn` available.
 
-`fn` builds on `pfn`, and all of libfn requires only a C++20-compatible compiler. The minimum supported compilers are [gcc 12][gcc-standard-support] and [clang 19][clang-standard-support]; Apple Clang 21.0 or later and MSVC supplied with Visual Studio 2022 or later are supported as well. For older toolchains, use the [0.1.0 release](https://github.com/libfn/functional/releases/tag/v0.1.0). See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set up a recent enough toolchain when your OS does not ship one.
+The default mode requires C++20. Supported compilers are [GCC 12][gcc-standard-support] or later, [Clang 19][clang-standard-support] or later, Apple Clang 21.0 or later, and MSVC from Visual Studio 2022 or later. For older toolchains, use the [0.1.0 release](https://github.com/libfn/functional/releases/tag/v0.1.0). [CONTRIBUTING.md](CONTRIBUTING.md) explains how to set up a supported toolchain.
 
 ### Implementation note
 
-This library requires a total ordering of types, which C++26 provides via [`std::type_order`][standardized-type-ordering]. By default, the library uses an internal, naive implementation of type ordering. This internal fallback does not support unnamed types or types without linkage (such as local types or lambdas), and is not portable between GCC and Clang. On compilers implementing C++26 [`std::type_order`][standardized-type-ordering] (such as GCC 16), the opt-in `LIBFN_CXX26` mode uses the standard feature instead. The two modes may order types differently, so `fn` types live in a distinct ABI namespace per mode and the two modes never link as one (`pfn` is mode-independent) — see [CONTRIBUTING.md](CONTRIBUTING.md) for the mode's requirements.
+The library needs a total ordering of types to normalize `copack` alternatives. Its default implementation does not support unnamed types or types without linkage, such as local types and lambdas. The ordering can also differ between GCC and Clang.
+
+The opt-in `LIBFN_CXX26` mode uses C++26's [`std::type_order`][standardized-type-ordering] and requires a compiler that implements it, such as GCC 16. Because the modes can order alternatives differently, each gives `fn` types a distinct ABI namespace. `pfn` is independent of this setting. See [CONTRIBUTING.md](CONTRIBUTING.md) for the mode's requirements.
 
 ## Using the library
 
@@ -173,7 +174,7 @@ The authoritative set is the `INTERFACE` options in [cmake/CompilationOptions.cm
 
 #### MSVC compatibility note
 
-In MSVC's C++20 mode, `<exception>` includes `<eh.h>`, which declares a global function named `unexpected`. This conflicts with a using-declaration that brings `pfn::unexpected` into the global namespace, so the following code fails to compile:
+In MSVC's C++20 mode, `<exception>` includes `<eh.h>`, which declares a global function named `unexpected`. With `using namespace pfn`, an unqualified use of `unexpected` is ambiguous, so the following code fails to compile:
 
 ```cpp
 #include <pfn/expected.hpp>
@@ -199,9 +200,9 @@ cmake -B .build -DLIBFN_TESTS=OFF
 cmake --install .build
 ```
 
-`-DLIBFN_TESTS=OFF` avoids fetching test dependencies. The header-only package needs no build step. On Linux and macOS, the default install prefix is `/usr/local`, so installation may need `sudo`.
+`-DLIBFN_TESTS=OFF` avoids fetching test dependencies. The header-only package needs no build step. On Linux and macOS, the *default install prefix* is `/usr/local`, so installation may need `sudo`.
 
-To install under your home directory, choose the prefix at install time:
+To install under your home directory, choose the *custom prefix* at install time:
 
 ```sh
 cmake --install .build --prefix "$HOME/.local"
@@ -214,7 +215,7 @@ cmake -B .build -DLIBFN_TESTS=OFF -DCMAKE_INSTALL_PREFIX="$HOME/.local"
 cmake --install .build
 ```
 
-The installed package supports `find_package(libfn CONFIG REQUIRED)`. For a custom prefix, pass `-DCMAKE_PREFIX_PATH="$HOME/.local"` (or your chosen prefix) when configuring the consuming project.
+The installed package supports `find_package(libfn CONFIG REQUIRED)`. For a *custom prefix*, pass `-DCMAKE_PREFIX_PATH="$HOME/.local"` (or your chosen prefix) when configuring the consuming project.
 
 ### Exported targets
 
@@ -225,47 +226,47 @@ find_package(libfn CONFIG REQUIRED)
 target_link_libraries(main PRIVATE libfn::fn)   # or libfn::pfn for the polyfills alone
 ```
 
-A third target, `libfn::fn_cxx26`, enters the same headers as `libfn::fn`, but with the [`LIBFN_CXX26` mode](#implementation-note) selected, carrying both the mode and its C++26 language requirement, so a target opts in with a single dependency. Add exactly one of `libfn::fn` **or** `libfn::fn_cxx26` to your project, depending on the available compiler. `libfn::pfn` is mode-independent and has no such variant.
+For [`LIBFN_CXX26` mode](#implementation-note), use `libfn::fn_cxx26` in place of `libfn::fn`. It supplies the same headers, defines `LIBFN_CXX26`, and selects C++26. A consumer should link exactly one of these two targets. `libfn::pfn` has no separate C++26 target.
 
-With `libfn::fn_cxx26`, a compiler that does not implement `std::type_order` stops at the first libfn header, with an `#error` naming the feature. Mixing the two entry points in one binary stops at the linker, on an undefined reference whose type names differ from the definition's by the `_cxx26` ABI namespace. Both are loud by design: the namespaces are separate so that two layouts cannot merge unnoticed — the invariant [TYPE_ALGEBRA.md](TYPE_ALGEBRA.md) calls one normalization order per program.
+If the compiler lacks `std::type_order`, a header diagnostic names the missing feature. Keep the same mode across code that exchanges `fn` types: their ABI namespaces differ. For example, a function declared with an `fn` parameter in one mode will not link to a definition using the other mode.
 
 ### Single header
 
 A single-header distribution contains the entire library in one file for online compilers and standalone reproducers where include paths cannot be configured.
 
-For regular projects, prefer the separate headers: they give more useful file paths in diagnostics.
+*For regular projects, prefer the separate headers: they give more useful file paths in diagnostics.*
 
-The single header is distributed through three channels, whose contracts differ:
+Choose a download according to whether you need a fixed version:
 
-* `https://libfn.org/v<x.y.z>/libfn.hpp` ([all versions](https://libfn.org/versions.html)) — one copy per release, immutable once published; [Compiler Explorer][godbolt] can include it directly by URL. This is the URL to pin.
-* `libfn-v<x.y.z>.hpp`, attached to each [GitHub release](https://github.com/libfn/functional/releases) — the same file for download, immutable, with signed build provenance: `gh attestation verify libfn-v<x.y.z>.hpp --repo libfn/functional` confirms a downloaded copy is the authentic artifact built by this repository.
-* [`https://libfn.org/libfn.hpp`](https://libfn.org/libfn.hpp) — the latest release's copy, moving with each release: convenient in a [throwaway experiment][godbolt_experiment], unusable as a dependency.
+* **Versioned URL:** `https://libfn.org/v<x.y.z>/libfn.hpp` ([all versions](https://libfn.org/versions.html)). Each release keeps its own copy. [Compiler Explorer][godbolt] can include it directly by URL.
+* **Release attachment:** `libfn-v<x.y.z>.hpp` on each [GitHub release](https://github.com/libfn/functional/releases). Verify its build provenance with `gh attestation verify libfn-v<x.y.z>.hpp --repo libfn/functional`.
+* **Latest release:** [`https://libfn.org/libfn.hpp`](https://libfn.org/libfn.hpp). This URL changes with each release; use it for [experiments][godbolt_experiment], and pin a version when you need reproducible builds.
 
-In the examples above, use the actual released version instead of `<x.y.z>` (e.g., `0.1.0`). The compile options above apply; to select the C++26 mode, define `LIBFN_CXX26` and compile as C++26 (see also [CONTRIBUTING.md](CONTRIBUTING.md)).
+Replace `<x.y.z>` with a released version, such as `0.1.0`. The [compile options](#packaging) also apply to the single header. To select C++26 mode, define `LIBFN_CXX26` and compile as C++26.
 
 ## Backwards compatibility
 
-The maintainers aim for compatibility with the proposed changes to the C++ standard library, **rather than with the existing uses** of the code in this repo. A facility proposed in `include/fn` therefore tracks its paper: names and semantics may change when the paper does. Such a change bumps **`y`**, and so arrives only with a deliberate upgrade.
+Facilities in `include/fn` that track a C++ proposal may change names or semantics as the proposal evolves. Breaking changes increase the minor version (`y` in `0.y.z`), so pin that version when adopting the library.
 
 ## Versioning and ABI
 
-Releases are numbered `0.y.z` and will stay below `1.0.0` for the foreseeable future. [SemVer](https://semver.org/) treats any `0.y.z` version as unstable — anything may change — so libfn narrows that into a usable contract:
+Releases numbered `0.y.z` (including 0.1.0) are *mature releases*, not alpha versions or prereleases. Releases are expected to remain below 1.0.0 for the foreseeable future because C++ standardization may continue to reshape the API. Within [SemVer](https://semver.org/)’s `0.y.z` series, `libfn` uses the following compatibility policy:
 
-* a bump in **`y`** is a **breaking** change (API and/or ABI);
-* a bump in **`z`** is a bug fix or a purely additive extension: upgrading is **expected** to never break a consumer.
+* A change to **`y`** marks an API or ABI break.
+* A change to **`z`** contains fixes or additions and is **expected** to preserve compatibility.
 
-Because the library is header-only, **use a single libfn version per binary**. Mixing versions in one program is an ODR violation — and that includes two `z` releases of the *same* `y` line, whose inline definitions may differ even though the ABI matches.
+Use a single `libfn` version per binary to minimize compatibility risks, including One Definition Rule (ODR) violations. Patch releases are **intended, but not guaranteed**, to **preserve API and ABI compatibility**. We cannot test every valid use of the library, so users remain responsible for ensuring that their dependencies use a consistent version.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the development environment, building, testing, the version-bump mechanics, and the pre-commit workflow. The design history — decisions and the ideas they obsoleted — is recorded in [CHANGELOG.md](CHANGELOG.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, builds, tests, version updates and pre-commit checks. [CHANGELOG.md](CHANGELOG.md) records the design decisions and release history.
 
 ## Acknowledgments
 
-* Gašper Ažman, for providing the inspiration in ["(Fun)ctional C++ and the M-word"][gasper-functional-presentation]
-* Bartosz Milewski, for taking the time to explain [parametrised and graded monads][parametrised-and-graded-monads] and [effect systems][effect-systems]
-* [Mykola Golubyev][mykola-golubyev], for implementing fixes in [znai][znai] needed by this project
-* [Ripple][ripple], for allowing the main author the time to work on this library
+* Gašper Ažman, whose ["(Fun)ctional C++ and the M-word"][gasper-functional-presentation] inspired this library.
+* Bartosz Milewski, for explaining [parametrised and graded monads][parametrised-and-graded-monads] and [effect systems][effect-systems].
+* [Mykola Golubyev][mykola-golubyev], for fixes to [znai][znai] that this project needed.
+* [Ripple][ripple], for giving the main author time to work on the library.
 
 ## License
 
@@ -285,4 +286,4 @@ Distributed under the ISC License; see [LICENSE.md](LICENSE.md) for the terms.
 [mykola-golubyev]: https://github.com/MykolaGolubyev
 [znai]: https://github.com/testingisdocumenting/znai
 [godbolt]: https://godbolt.org/
-[godbolt_experiment]: https://godbolt.org/z/MrbYTGKv4
+[godbolt_experiment]: https://godbolt.org/z/bbEcbdoG5
