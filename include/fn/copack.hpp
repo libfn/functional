@@ -262,11 +262,11 @@ template <> struct copack<> final {
   /**
    * @brief Copy constructor
    */
-  copack(copack const &) noexcept { ::pfn::unreachable(); } // LCOV_EXCL_LINE
+  [[noreturn]] copack(copack const &) noexcept { ::pfn::unreachable(); } // LCOV_EXCL_LINE
   /**
    * @brief Move constructor
    */
-  copack(copack &&) noexcept { ::pfn::unreachable(); } // LCOV_EXCL_LINE
+  [[noreturn]] copack(copack &&) noexcept { ::pfn::unreachable(); } // LCOV_EXCL_LINE
   /**
    * @brief Copy assignment
    */
