@@ -82,12 +82,17 @@ static constexpr ::std::size_t _normalized_name_TU_name_bound = 30;
 template <auto TU_name, auto Input> struct _normalized_name final {
   template <::std::size_t N> static constexpr auto apply() noexcept
   {
-    ::std::string_view const sv{Input.data(), Input.size()};
+    // Local copies: with any UBSan null check enabled, gcc cannot constant-evaluate a pointer
+    // comparison on a template parameter object (gcc PR 71962), and libstdc++'s string_view and
+    // string perform such checks internally.
+    auto const input = Input;
+    auto const tu = TU_name;
+    ::std::string_view const sv{input.data(), input.size()};
     ::std::size_t s = sv.find(_normalized_name_prefix);
-    ::std::string_view file{TU_name.size() <= _normalized_name_TU_name_bound
-                                ? TU_name.data()
-                                : TU_name.data() + (TU_name.size() - _normalized_name_TU_name_bound - 1),
-                            ::std::min(TU_name.size() - 1, _normalized_name_TU_name_bound)};
+    ::std::string_view file{tu.size() <= _normalized_name_TU_name_bound
+                                ? tu.data()
+                                : tu.data() + (tu.size() - _normalized_name_TU_name_bound - 1),
+                            ::std::min(tu.size() - 1, _normalized_name_TU_name_bound)};
 
     ::std::string result;
     s += _normalized_name_prefix.size();
