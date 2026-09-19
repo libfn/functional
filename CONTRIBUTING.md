@@ -29,6 +29,8 @@ ctest --output-on-failure
 
 Subsequent build configuration examples vary this basic `cmake` command and reuse the same build directory.
 
+`ccache` can speed up rebuilds by reusing cached compilation results. If installed, enable it with `cmake -DCMAKE_CXX_COMPILER_LAUNCHER=ccache ..`.
+
 To compile and run a single example directly without CMake:
 
 ```bash

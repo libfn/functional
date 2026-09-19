@@ -15,7 +15,6 @@ Software immediately available in the build environment:
 - clang-tidy
 - clangd
 - cmake
-- ccache
 - ninja
 
 The default compiler is gcc.

@@ -42,7 +42,6 @@ if(CMAKE_EXPORT_COMPILE_COMMANDS AND PROJECT_IS_TOP_LEVEL AND NOT PROJECT_SOURCE
 endif()
 
 option(DISABLE_FETCH_CONTENT "Do not use FetchContent for dependencies." OFF)
-option(DISABLE_CCACHE_DETECTION "Do not use ccache as CMAKE_CXX_COMPILER_LAUNCHER." OFF)
 
 # Docs and coverage options are only relevant for top level builds.
 if(PROJECT_IS_TOP_LEVEL)
@@ -132,8 +131,6 @@ if(PROJECT_IS_TOP_LEVEL)
     if(LIBFN_DOCS)
         include(Docs)
     endif()
-
-    include(Ccache)
 
     set(CMAKE_CXX_EXTENSIONS OFF)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
