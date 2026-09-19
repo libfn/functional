@@ -23,9 +23,9 @@ function(append_compilation_options)
             $<$<CXX_COMPILER_ID:MSVC>:/permissive->
             $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wno-missing-braces>)
 
-        # MSVC's <eh.h> declares a global `unexpected` that shadows the std::expected/std::unexpected
-        # vocabulary used by libfn; _HAS_CXX23 (MSVC STL's C++23-mode switch) drops the legacy declaration.
-        # Must be INTERFACE because <eh.h> may be included before any libfn header.
+        # MSVC's <eh.h> declares a global `unexpected` that conflicts with a global using-declaration
+        # for pfn::unexpected. _HAS_CXX23 suppresses the legacy declaration.
+        # Propagate the definition to consumers: <eh.h> may be included before any libfn header.
         target_compile_definitions(${Options_NAME} INTERFACE
             $<$<CXX_COMPILER_ID:MSVC>:_HAS_CXX23>)
     endif()
