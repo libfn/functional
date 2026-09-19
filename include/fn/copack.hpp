@@ -12,6 +12,7 @@
 #include <fn/detail/variadic_union.hpp>
 #include <fn/functional.hpp>
 #include <libfn_version.hpp>
+#include <pfn/utility.hpp>
 
 #include <memory>
 #include <type_traits>
@@ -252,19 +253,20 @@ template <> struct copack<> final {
   /**
    * @brief Default constructor; not available on this carrier
    */
-  constexpr copack() noexcept = delete; // NOTE, `= delete` here is the whole point
+  constexpr copack() noexcept = delete;
   /**
    * @brief Destructor
    */
   constexpr ~copack() noexcept = default;
+  // Keep copy/move available to carriers, but nontrivial to block bit_cast and implicit lifetime creation.
   /**
    * @brief Copy constructor
    */
-  constexpr copack(copack const &) noexcept = default;
+  copack(copack const &) noexcept { ::pfn::unreachable(); } // LCOV_EXCL_LINE
   /**
    * @brief Move constructor
    */
-  constexpr copack(copack &&) noexcept = default;
+  copack(copack &&) noexcept { ::pfn::unreachable(); } // LCOV_EXCL_LINE
   /**
    * @brief Copy assignment
    */

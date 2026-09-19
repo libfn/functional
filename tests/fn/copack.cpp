@@ -10,7 +10,9 @@
 #include <catch2/catch_all.hpp>
 
 #include <array>
+#include <bit>
 #include <concepts>
+#include <cstddef>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -93,6 +95,9 @@ template <typename L, typename R>
 concept can_eq = requires { std::declval<L const &>() == std::declval<R const &>(); };
 template <typename L, typename R>
 concept can_ne = requires { std::declval<L const &>() != std::declval<R const &>(); };
+
+template <typename T>
+concept can_bit_cast = requires(std::array<std::byte, sizeof(T)> bytes) { std::bit_cast<T>(bytes); };
 
 template <typename S, typename T, typename... Args>
 concept can_in_place = requires(Args... args) { S{std::in_place_type<T>, args...}; };
@@ -224,12 +229,22 @@ TEST_CASE("copack basic functionality tests", "[copack]")
 
   using fn::copack;
 
-  SECTION("copack<> unit")
+  SECTION("copack<> zero")
   {
     static_assert(copack<>::size == 0);
     static_assert(copack<>::has_type<bool> == false);
     static_assert(std::same_as<fn::copack_for<copack<>, copack<>>, copack<>>);
-    static_assert(not std::is_default_constructible_v<copack<>>); // the deleted default ctor is the point
+    static_assert(not std::is_default_constructible_v<copack<>>);
+    static_assert(not can_bit_cast<copack<>>);
+    static_assert(can_bit_cast<copack<int>>);
+    static_assert(not std::is_aggregate_v<copack<>>);
+    static_assert(not std::is_trivially_copy_constructible_v<copack<>>);
+    static_assert(not std::is_trivially_move_constructible_v<copack<>>);
+    static_assert(std::is_trivially_destructible_v<copack<>>);
+#ifdef __cpp_lib_is_implicit_lifetime
+    static_assert(not std::is_implicit_lifetime_v<copack<>>);
+    static_assert(std::is_implicit_lifetime_v<copack<int>>);
+#endif
     static_assert(std::is_nothrow_copy_constructible_v<copack<>>);
     static_assert(std::is_nothrow_move_constructible_v<copack<>>);
     static_assert(std::is_nothrow_copy_assignable_v<copack<>>);
