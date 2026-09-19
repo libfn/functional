@@ -159,9 +159,66 @@ This library requires a total ordering of types, which C++26 provides via [`std:
 
 ## Using the library
 
-### As a dependency
+### Packaging
 
-The library is header-only. The CMake package exports `libfn::fn` and `libfn::pfn`:
+`libfn` is available in the [Bazel Central Registry](https://github.com/bazelbuild/bazel-central-registry/) and [vcpkg registry](https://github.com/microsoft/vcpkg/). This repository also provides packaging for [Conan](conanfile.py), [vcpkg](ports/libfn), [Nix](flake.nix) and [Bazel](MODULE.bazel), all exercised by CI. You can also use CMake's `FetchContent` or `add_subdirectory`.
+
+Every packaging route above except Bazel propagates the library's compile options. With Bazel or a plain copy of `include/`, set them explicitly:
+
+* Select C++20 or newer: `-std=c++20` with GCC or Clang, or `/std:c++20` with MSVC. In Bazel, pass compiler options through `--cxxopt`, for example `--cxxopt=-std=c++20`.
+* With Clang and Apple Clang, use `-Wno-missing-braces` to suppress warnings about the intentional brace elision in `fn::pack` initialization.
+* With MSVC, use `/permissive-` and `/D_HAS_CXX23=1` (see the [compatibility note](#msvc-compatibility-note) below).
+
+The authoritative set is the `INTERFACE` options in [cmake/CompilationOptions.cmake](cmake/CompilationOptions.cmake).
+
+#### MSVC compatibility note
+
+In MSVC's C++20 mode, `<exception>` includes `<eh.h>`, which declares a global function named `unexpected`. This conflicts with a using-declaration that brings `pfn::unexpected` into the global namespace, so the following code fails to compile:
+
+```cpp
+#include <pfn/expected.hpp>
+
+using namespace pfn;
+
+int main() {
+  return unexpected(20) == unexpected(19);
+}
+```
+
+To suppress the legacy declaration, use one of these options:
+
+* Select `/std:c++latest` or, where supported, [`/std:c++23preview`](https://learn.microsoft.com/en-us/cpp/build/reference/std-specify-language-standard-version). With CMake, use `-DCMAKE_CXX_STANDARD=23` to select C++23 mode.
+* To keep C++20 mode, define `_HAS_CXX23=1` for the project. The exported CMake targets provide this definition automatically.
+
+### Local install
+
+To install from a source checkout or an unpacked release tarball, run from the project directory:
+
+```sh
+cmake -B .build -DLIBFN_TESTS=OFF
+cmake --install .build
+```
+
+`-DLIBFN_TESTS=OFF` avoids fetching test dependencies. The header-only package needs no build step. On Linux and macOS, the default install prefix is `/usr/local`, so installation may need `sudo`.
+
+To install under your home directory, choose the prefix at install time:
+
+```sh
+cmake --install .build --prefix "$HOME/.local"
+```
+
+Or set `CMAKE_INSTALL_PREFIX` when configuring:
+
+```sh
+cmake -B .build -DLIBFN_TESTS=OFF -DCMAKE_INSTALL_PREFIX="$HOME/.local"
+cmake --install .build
+```
+
+The installed package supports `find_package(libfn CONFIG REQUIRED)`. For a custom prefix, pass `-DCMAKE_PREFIX_PATH="$HOME/.local"` (or your chosen prefix) when configuring the consuming project.
+
+### Exported targets
+
+The CMake package exports `libfn::fn` and `libfn::pfn`:
 
 ```cmake
 find_package(libfn CONFIG REQUIRED)
@@ -172,13 +229,11 @@ A third target, `libfn::fn_cxx26`, enters the same headers as `libfn::fn`, but w
 
 With `libfn::fn_cxx26`, a compiler that does not implement `std::type_order` stops at the first libfn header, with an `#error` naming the feature. Mixing the two entry points in one binary stops at the linker, on an undefined reference whose type names differ from the definition's by the `_cxx26` ABI namespace. Both are loud by design: the namespaces are separate so that two layouts cannot merge unnoticed — the invariant [TYPE_ALGEBRA.md](TYPE_ALGEBRA.md) calls one normalization order per program.
 
-Packaging is provided — and exercised by CI — for [conan](conanfile.py), [vcpkg](ports/libfn) (an in-repo port), [Nix](flake.nix) and [Bazel](MODULE.bazel); plain CMake `FetchContent` or `add_subdirectory` works as well. Consume a tagged release — and read [Backwards compatibility](#backwards-compatibility).
-
-Every packaging route above except Bazel also delivers the compile options the headers require. Under Bazel — and a plain copy of `include/` — these options don't arrive automatically; provide them yourself: C++20 or newer (`--cxxopt=-std=c++20` in Bazel), `-Wno-missing-braces` on clang (`fn::pack` initialization elides braces by design), and with MSVC `/permissive-` plus `_HAS_CXX23`. The authoritative set is the `INTERFACE` options in [cmake/CompilationOptions.cmake](cmake/CompilationOptions.cmake).
-
 ### Single header
 
-Rather than using the single header, prefer the real headers as a project dependency, since they give useful paths in diagnostics. However, a single-header distribution is provided, and it contains the entire library in one file. It is meant to serve online compilers and standalone reproducers, where include paths are not supported.
+A single-header distribution contains the entire library in one file for online compilers and standalone reproducers where include paths cannot be configured.
+
+For regular projects, prefer the separate headers: they give more useful file paths in diagnostics.
 
 The single header is distributed through three channels, whose contracts differ:
 
@@ -196,8 +251,8 @@ The maintainers aim for compatibility with the proposed changes to the C++ stand
 
 Releases are numbered `0.y.z` and will stay below `1.0.0` for the foreseeable future. [SemVer](https://semver.org/) treats any `0.y.z` version as unstable — anything may change — so libfn narrows that into a usable contract:
 
-- a bump in **`y`** is a **breaking** change (API and/or ABI);
-- a bump in **`z`** is a bug fix or a purely additive extension: upgrading never breaks a consumer.
+* a bump in **`y`** is a **breaking** change (API and/or ABI);
+* a bump in **`z`** is a bug fix or a purely additive extension: upgrading is **expected** to never break a consumer.
 
 Because the library is header-only, **use a single libfn version per binary**. Mixing versions in one program is an ODR violation — and that includes two `z` releases of the *same* `y` line, whose inline definitions may differ even though the ABI matches.
 
