@@ -1,6 +1,6 @@
 # Type algebra and functional composition in libfn
 
-A C++20 functional programming library, `libfn` lets the compiler derive the static shape of a computation alongside its values. Rather than collapsing failure into one wide error type, `libfn` tracks the precise algebraic combinations of success, alternative, and error states as operations are chained into expressions.
+A C++20 functional programming library, `libfn` expresses mathematical structures and their composition through C++ types, extending the vocabulary available in the standard library.
 
 The library operates on two payload types and four computation carriers:
 
@@ -86,33 +86,11 @@ The resulting `expected` statically records that the pipeline yields a `User` on
 
 ### What does "graded" mean?
 
-Standard monads are rigid: an `expected<T, E>` requires every step in a pipeline to return the identical error type `E`. This forces you to define a monolithic global error union upfront.
+With a fixed error type, an `expected<T, E>` requires inputs and outputs in `and_then` computations to share a common error type `E`. This can require defining a common error union upfront — an otherwise unnecessary coupling of types.
 
-A **graded monad** relaxes this restriction. Each operation is indexed by a "grade"—a set representing all its specific possible errors (its "effects") by means of `copack`, which is a disjoint set of types. As you chain operations, the compiler automatically adds these grades to the set.
-The resulting error type is **graded**: it expands (or narrows during recovery) to match the *exact* subset of errors possible in the compiled path, providing strict static effect tracking (subeffecting) with zero boilerplate.
+`libfn` supports **graded monads**, which you opt into by using `copack` in a monadic carrier, such as `expected`. A *grade* is a set of alternative types, and *graded composition* combines these sets by union. For `expected`, error alternatives form the grade when chaining computations with `and_then`; value alternatives form the grade when composing recovery operations with `or_else`.
 
-You may also use `copack` on a value side of most carriers (except for `just<copack<Ts...>>`, which must be spelled `choice<Ts...>`). Grading is opt-in for chaining: a `copack` on the error side enrols an `expected` in this union arithmetic, while a plain `expected<T, E>` holds every step to the identical error type `E`. A `copack` on the value side enrols an `expected` or `optional` into the same arithmetic on values.
-
-> [!TIP]
->
-> ### Mathematical note — graded monads
->
-> Formally, a graded monad (also known as an effect monad) indexes a family of monadic carriers over a partially ordered monoid (pomonoid) of effects $(\mathcal{E}, \bullet, I, \le)$.
->
-> In `libfn` that pomonoid is carried by the finite sets of C++ types:
->
-> - **Grades ($\mathcal{E}$)**: Finite sets of alternative types (usually errors).
-> - **Monoidal multiplication ($\bullet$)**: Set union ($\cup$), representing effect accumulation.
-> - **Identity ($I$)**: The empty set ($\emptyset$), representing the zero-error/never-failing state.
-> - **Partial order ($\le$)**: Subset relation ($\subseteq$), which licenses effect approximation (subeffecting / widening).
->
-> Taking union as the multiplication makes this monoid commutative and idempotent — a join-semilattice — whose order is the one it induces, $E \le F \iff E \cup F = F$. Those are exactly the `copack` laws of Section 2, and they are why widening is coherent: grades accumulated in any order, through any intermediate supersets, land on the same normalized set.
->
-> For a standard monad $M$, the binding operation maps $M\langle A\rangle \to (A \to M\langle B\rangle) \to M\langle B\rangle$. In `libfn`'s graded monad, *bind* accumulates effects across the pomonoid:
->
-> $$bind : M_E\langle A\rangle \to (A \to M_F\langle B\rangle) \to M_{E \cup F}\langle B\rangle$$
->
-> Section 9 identifies the lax monoidal functor this determines.
+The resulting type is **graded**: it expands (or narrows during recovery) to match the *exact* subset possible in the compiled path, providing strict static effect tracking (subeffecting) with zero boilerplate. When used on the error side of `expected` (e.g. `expected<T, copack<Errs...>>`), grading enables `libfn` to derive the combined error alternatives from the participating computations, without explicitly spelling out their union. The resulting types record the algebraic combinations of success and error alternatives declared by those computations. Section 9 explains grading on both sides, including recovery and widening.
 
 The same type precision extends to computations combined side by side rather than in sequence. Conjunction (`operator&`) evaluates independent computations and bundles them into a single carrier holding a `pack` of the successful values over a `copack` of the exact possible errors; disjunction (`operator|`) is its dual. Sections 6 and 7 cover both.
 
@@ -165,7 +143,7 @@ Consider the difference in these carrier states:
 
 ### Copacks use set semantics
 
-A major feature of `libfn` is that `copack` forms canonical sets of types, in contrast to the positional indexing of `std::variant`. When you combine types into a coproduct, `fn::copack_for` guarantees deduplication, flattening, and a canonical ordering.
+A major feature of `libfn` is `copack`, which forms canonical sets of types. For `copack`s, C++ type identity represents equality of sets, while alternatives are selected directly by type — in contrast to the positional indexing of `std::variant`. Combining copacks takes the union of these sets, so shared alternatives appear only once. Use the `fn::copack_for` type alias to flatten, deduplicate, and order the types; spelling `copack` directly requires them to already be in this form.
 
 <!-- sync-example-copack-set-semantics -->
 ```cpp
@@ -185,13 +163,13 @@ auto test_copack_set_semantics() -> void
 >
 > ### Note — copack vs. copack_for
 >
-> In C++, there is no native language feature to represent a "set of types." Template parameter lists are always positional, variadic sequences. Syntactically, this means `copack<A, B>` and `copack<B, A>` would be completely distinct types—a property that directly violates the mathematical commutative law of set union.
+> In C++, there is no native language feature to represent a "set of types". Template parameter lists are ordered sequences. This means that for two distinct types `A` and `B`, a `copack<A, B>` and `copack<B, A>` would be two distinct types — which would make `copack` specializations unusable as a set of types.
 >
-> To enforce set semantics at compile time, `libfn` defines one canonical representation and rejects any instantiation that diverges from it:
+> To enforce set semantics at compile time, `libfn` defines one ordered representation of types and rejects any instantiation that diverges from it:
 >
-> - **`copack`** is the core storage type. It requires its template parameters to already be flat, unique, and sorted in a strict total order over types. The order is derived from the compiler's own spelling of each type; a build targeting C++26 with `LIBFN_CXX26` set will use `std::type_order` to derive the order of types, while the default build uses a type sorting mechanism based on compiler-specific type names (these two orders may differ; Section 15 explains why they cannot mix). If you attempt to instantiate `copack` manually with out-of-order parameters (such as `copack<B, A>` when `A` precedes `B` in that order) or with nested copacks (such as `copack<A, copack<C, D>>`), the compiler will reject the instantiation as outright ill-formed.
+> - **`copack`** is the core storage type. It requires its template parameters to already be flat, unique, and sorted in a strict total order over types. By default, the order is derived from compiler-specific type names; a build targeting C++26 with `LIBFN_CXX26` set will use `std::type_order` instead. These orders may — and likely will — differ; Section 15 explains why they cannot mix in a single program. If you attempt to instantiate `copack` manually with out-of-order parameters (such as `copack<B, A>` when `A` precedes `B` in that order) or with nested copacks (such as `copack<A, copack<C, D>>`), the compiler will reject the instantiation as ill-formed.
 >
-> - **`copack_for`** is the user-facing type alias. It accepts any list of types (out-of-order, duplicates, nested copacks), performs the flattening, deduplication, and canonical sorting, and resolves to the validated `copack`.
+> - **`copack_for`** is the user-facing type alias. It accepts alternative types in any order, including duplicates and nested copacks, performs the flattening, deduplication, and canonical sorting, and resolves to the validated `copack`.
 >
 > In an API signature the two are the same type, since the alias resolves to `copack`; in prose and code, `copack` names the normalized *state shape* and `copack_for` the *construction utility*. `choice` and `choice_for` stand in the same relation, over the alternatives of the underlying `copack`.
 >
@@ -202,7 +180,7 @@ The laws governing `copack` are:
 - **Commutative**: Order of types does not change the resulting set.
 - **Associative**: Nesting copacks is equivalent to flattening them.
 - **Idempotent**: Duplicate types are collapsed into one.
-- **Identity**: `copack<>` acts as the union unit (adding `copack<>` changes nothing).
+- **Identity**: `copack<>` represents the empty set, i.e. the union unit (adding `copack<>` changes nothing).
 
 Idempotence means a set cannot carry positional meaning: `copack_for<bool, bool>` is one alternative, `copack<bool>`, not two. Types combined into a `copack` should therefore be strongly typed tag structs or distinct domain objects, never generic primitives whose meaning depends on where they sit. Two *distinct* types that the ordering mechanism cannot distinguish are a different matter: the library rejects them outright via a compile-time assertion rather than silently merging them, guaranteeing that no type is ever silently lost.
 
@@ -602,9 +580,9 @@ static_assert(fn::same_kind<fn::expected<int, IoError>, fn::expected<User, IoErr
 static_assert(!fn::same_kind<fn::expected<int, IoError>, fn::expected<User, Missing>>);
 ```
 
-## 9. Graded expected: exact error sets
+## 9. Graded composition
 
-Grading an `expected` provides exactly bounded error sets. When an outer computation holds a coproduct of successful values, and each value requires a different operation to proceed, `libfn` derives a single, normalized `expected` shape.
+Error-graded composition derives the exact union of the error alternatives declared by the participating computations. When an outer computation holds a coproduct of successful values, and each value requires a different operation to proceed, `libfn` derives a single, normalized `expected` shape.
 
 Consider a configuration reader that parses a loosely typed file into specific valid structural alternatives: `MaximumSize`, `FilePath`, or `BlockSize`.
 
@@ -643,14 +621,16 @@ static_assert(
     fn::same_kind<fn::expected<int, fn::copack<IoError>>, fn::expected<User, fn::copack<Missing>>>);
 ```
 
-Value joining and error grading are independent: branch values can join while the error side stays plain, as in `expected<copack_for<A, B>, E>`.
+`expected` supports `copack` on both its error and value sides; `optional` supports it on its value side. For an infallible carrier of alternatives, use `choice<Ts...>` rather than `just<copack<Ts...>>`. Value joining and error grading are independent: branch values can join while the error side stays plain, as in `expected<copack_for<A, B>, E>`.
+
+Recovery via `or_else` behaves symmetrically. It handles input error alternatives and joins any new errors produced by the recovery branches, while preserving the successful value path. Heterogeneous recovery values require a suitable copack-valued input. Any original error handled by a branch is removed from the resulting error type unless a branch explicitly re-returns it. When there are no error alternatives to handle—such as in `expected<T, copack<>>`—there is nothing to recover from: the callback is neither invoked nor instantiated.
 
 During sequential composition, `libfn` derives the promoted type from the `copack` you supply:
 
 - In `and_then` (success binding), a plain error type `E` is promoted to `copack<E>` if the returning **error type** of the callback is `copack<E>`.
 - In `or_else` (recovery/error binding), a plain success type `T` is promoted to `copack<T>` if the returning **success type** of the callback is `copack<T>`.
 
-An un-graded computation thus enters a graded pipeline without manual lifting.
+An ungraded computation thus enters a graded composition without manual lifting.
 
 If you need to perform this promotion explicitly on the carrier itself before entering a composition, `libfn` provides direct member helpers:
 
@@ -658,7 +638,7 @@ If you need to perform this promotion explicitly on the carrier itself before en
 - `.copack_value()` on `expected` explicitly lifts the success value, transforming `expected<T, E>` to `expected<copack<T>, E>`.
 - `.copack_value()` on `optional` symmetrically lifts the value, transforming `optional<T>` to `optional<copack<T>>`.
 
-These helper methods provide a compact, explicit alternative to the pipeline promotions:
+These helper methods provide a compact, explicit alternative to the automatic promotions.
 
 <!-- sync-example-test-explicit-lifting -->
 ```cpp
@@ -678,12 +658,9 @@ auto test_explicit_lifting(fn::expected<User, IoError> result, fn::optional<User
 }
 ```
 
-Recovery via `or_else` behaves symmetrically. It handles input error alternatives and joins any new errors produced by the recovery branches, while preserving the successful value path. Heterogeneous recovery values require a suitable copack-valued input. Any original error handled by a branch is removed from the resulting grade unless a branch explicitly re-returns it. When there are no error alternatives to handle—such as in `expected<T, copack<>>`—there is nothing to recover from: the callback is neither invoked nor instantiated.
-
 ### Widening is subeffecting
 
-In accordance with the subeffecting principles of graded monads (Section 1), a narrow error set can be widened during composition, but narrowing requires explicit mitigation. Implicit narrowing (without handling the removed errors) is unsafe and rejected by the compiler.
-However, you can safely narrow or collapse an error grade by explicitly handling and mapping the errors using `transform_error`. Because `transform_error` on a graded `expected` forces exhaustive matching, you can map diverse error types into one common error type (collapsing the grade to a singular `copack`) or into a narrower `copack`, safely reducing the static error grade.
+A narrow error set can be widened during composition, but narrowing requires explicit handling. *Implicit* narrowing (without handling the removed errors) is unsafe and rejected by the compiler; `transform_error` explicitly remaps error alternatives and requires the callback to handle every input alternative (exhaustive matching of types). However, several alternatives may map to one common error type - a property which can be used for *explicit* narrowing.
 
 The bottom error grade is `copack<>`:
 
@@ -694,20 +671,35 @@ using cannot_fail_t = fn::expected<T, fn::copack<>>;
 
 This computation cannot fail, but it is algebraically prepared to widen if later composition introduces possible errors.
 
-A concrete example of this is `expected<void, copack<>>` (aliased as `fn::expected_unit` in the library). Because `void` represents the unit `1` and `copack<>` represents the zero `0`, this type maps algebraically to $1 + 0 \cong 1$. Having a cardinality of exactly one, it has no possible errors, can never fail, and can only succeed with a single empty trigger (`void`). This makes it structurally isomorphic to the **unit type**.
+A concrete example of this is `expected<void, copack<>>` (aliased as `fn::expected_unit` in the library). It has one payload-free success state and no error states. It therefore represents the unit type.
 
 In practice, `expected<void, copack<>>` acts as the entry point for graded pipelines. Initiating a chain with this unit trigger opts subsequent `and_then` bindings into graded error-set unioning without requiring mock starting errors or manual wrapping. Because its starting error set is empty (`copack<>`), unioning it with subsequent steps' errors (such as `IoError`) yields exactly those errors. An alternative unit type without an error channel is `just<void>` (Section 10).
 
 > [!TIP]
 >
-> ### Mathematical note — the graded functor and its two units
+> ### Mathematical note — graded monads
 >
-> Having established the error pomonoid $(\mathcal{E}, \cup, \emptyset, \subseteq)$ in Section 1, `libfn`'s graded `expected` is the **lax monoidal functor** $G : \mathcal{E} \to [\mathcal{C}, \mathcal{C}]$ from the pomonoid category $\mathcal{E}$ to the endofunctor category on C++ types, with $G_E(A) \cong \text{expected}\langle A, E\rangle$ (following Orchard, Wadler, and Eades, *Unifying graded and parameterised monads*). Its unit is
+> In the pomonoid-graded formulation used here, a graded monad is a family of endofunctors indexed by a partially ordered monoid, equipped with unit and binding operations satisfying graded identity and associativity laws.
 >
-> $$\eta_A : A \to G_I(A), \qquad I = \emptyset$$
+> In `libfn` that pomonoid is carried by the finite sets of C++ types:
 >
-> Two different units meet in the gateway type `expected<void, copack<>>`: the neutral grade $I = \emptyset$ of the error pomonoid, and the unit object $1$ of the value category, spelled `void`. It is precisely $G_I(1)$.
+> - **Grades ($\mathcal{E}$)**: Finite sets of alternative types.
+> - **Monoidal multiplication ($\bullet$)**: Set union ($\cup$), representing effect accumulation.
+> - **Identity ($I$)**: The empty set ($\emptyset$), representing no alternatives on the graded side.
+> - **Partial order ($\le$)**: Subset relation ($\subseteq$), which licenses effect approximation (subeffecting / widening).
 >
+> Taking union as the multiplication makes this monoid commutative and idempotent — a join-semilattice — whose order is the one it induces, $E \le F \iff E \cup F = F$. Those are exactly the `copack` laws of Section 2: widening directly to a given superset agrees with widening through intermediate subsets of that same target.
+>
+> For a standard monad $M$, the binding operation maps $M\langle A\rangle \to (A \to M\langle B\rangle) \to M\langle B\rangle$. Write $G_E\langle A\rangle$ for an `expected` with value type $A$ and error alternatives $E$. For graded success binding with `and_then`, error grades combine by union:
+>
+> $$bind : G_E\langle A\rangle \to (A \to G_F\langle B\rangle) \to G_{E \cup F}\langle B\rangle$$
+>
+> Conversely, *recovery* with `or_else` binds errors and accumulates successful value alternatives by union. Write $H_V\langle X\rangle$ for an `expected` with value alternatives $V$ and error type $X$. Recovery then has the form:
+>
+> $$recovery : H_V\langle X\rangle \to (X \to H_W\langle Y\rangle) \to H_{V \cup W}\langle Y\rangle$$
+>
+> For success binding, the unit injects a value into an `expected` with no error alternatives. For recovery binding, the unit injects an error into an `expected` with no successful value alternatives. In both cases, the unit uses the empty grade, which contributes no alternatives during composition.
+
 ## 10. The identity cluster
 
 Certain operations behave like an identity functor across carriers. Because some states correspond structurally, `libfn` licenses specific cross-carrier behavior to avoid boilerplate.
@@ -1121,7 +1113,7 @@ Index:
      * **Section 6 (Conjunction - `operator&`)**: Multiplies values into `pack`s and unions errors into `copack`s.
      * **Section 7 (Disjunction - `operator|`)**: Unions values into `copack`s and multiplies errors into `pack`s.
      * **Section 8 (Monadic Binding - `and_then`)**: Introduces Kleisli arrows and monadic sequencing of success paths.
-     * **Section 9 (Graded Expected)**: Explains how the type system derives exact error union grades during sequential binding.
+     * **Section 9 (Graded Expected)**: Explains how the type system derives exact error and value union grades during sequential binding.
 
 **4. Advanced Algebraic Crossings (Sections 10 & 11)**
    * Only after all core compositions have been mastered does the document expand the advanced infallible states:
