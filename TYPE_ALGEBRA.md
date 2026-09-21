@@ -827,6 +827,8 @@ auto test_identity_transformation(fn::just<UserId> j) -> void
 
 Similarly, member `and_then` on a `just` can return a `choice` directly. Pipeline `fn::and_then` also permits a transition to `expected<T, copack<>>`.
 
+A callback passed to member `and_then` must return a `just`, including `just<void>` or a `choice`. Choice branches may return different `just` types. If those types agree after cv/ref removal, the result keeps that type; otherwise their payloads form a normalized choice. An ordinary `just<T>` contributes `T`, a returned choice contributes its alternatives, and `just<void>` contributes `pack<>`, as a `void` side does in a disjunction.
+
 Inside its domain, `choice` behaves differently from bare `copack`:
 
 - `copack` is self-flattening data; a `copack` returned from a branch dissolves into the result.

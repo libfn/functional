@@ -1063,6 +1063,21 @@ TEST_CASE("and_then across the identity cluster", "[and_then][just][choice][expe
     // (the workaround's full story is in tests/fn/just_choice.cpp)
     constexpr fn::choice_for<A, B> ca{A{}};
     static_assert((ca | fn::and_then(fnJust)).value() == 1);
+
+    // justs of different payloads join into the choice over them, on the member as well: a bare
+    // payload enters as itself, a choice splices in, and just<void> enters as the unit pack<>
+    constexpr auto fnMixed = fn::overload{[](A) { return fn::just<int>{1}; }, //
+                                          [](B) { return fn::choice_for<U, V>{V{}}; }};
+    static_assert(std::is_same_v<decltype(ca | fn::and_then(fnMixed)), fn::choice_for<int, U, V>>);
+    static_assert((ca | fn::and_then(fnMixed)) == fn::as_choice(1));
+    CHECK((fn::choice_for<A, B>{B{}} | fn::and_then(fnMixed)) == fn::as_choice(V{}));
+    static_assert(fn::applicable_and_then<decltype(fnMixed) &, fn::choice_for<A, B> const &>);
+    static_assert(not fn::applicable_and_then_across<decltype(fnMixed) &, fn::choice_for<A, B> const &>);
+    constexpr auto fnUnit = fn::overload{[](A) { return fn::just<void>{}; }, //
+                                         [](B) { return fn::just<int>{2}; }};
+    static_assert(std::is_same_v<decltype(ca | fn::and_then(fnUnit)), fn::choice_for<fn::pack<>, int>>);
+    static_assert((ca | fn::and_then(fnUnit)).has_value(std::in_place_type<fn::pack<>>));
+    CHECK((fn::choice_for<A, B>{B{}} | fn::and_then(fnUnit)) == fn::as_choice(2));
   }
 
   SECTION("just binds to a choice, and crosses to the identity expected")

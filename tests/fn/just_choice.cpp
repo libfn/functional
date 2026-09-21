@@ -370,6 +370,31 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     }
   }
 
+  SECTION("constructor from a just")
+  {
+    // a just over one of the alternatives enters as that alternative, as its value would; just<void>
+    // enters as the unit pack<>; an alternative match wins over widening, boxing the just whole
+    using type = fn::choice_for<bool, int, fn::pack<>>;
+    static_assert(std::is_convertible_v<fn::just<int>, type>);
+    static_assert(std::is_convertible_v<fn::just<int> const &, type>);
+    static_assert(std::is_convertible_v<fn::just<void>, type>);
+    static_assert(not std::is_constructible_v<type, fn::just<double>>);
+    static_assert(not std::is_constructible_v<fn::choice<bool, int>, fn::just<void>>);
+    static_assert(not std::is_constructible_v<type, fn::just<fn::copack<double>>>); // no such alternative
+    static_assert(type{fn::just<int>{5}} == fn::as_choice(5));
+    static_assert(type{fn::just<void>{}} == fn::as_choice(fn::pack<>{}));
+    constexpr fn::just<bool> b{true};
+    static_assert(type{b} == fn::as_choice(true));
+    CHECK(type{fn::just<int>{5}}.has_value(std::in_place_type<int>));
+    CHECK(type{fn::just<void>{}}.has_value(std::in_place_type<fn::pack<>>));
+    static_assert(noexcept(type{fn::just<int>{5}}));
+    static_assert(not noexcept(fn::choice<Throwing>{std::declval<fn::just<Throwing> const &>()}));
+
+    using boxed = fn::choice_for<fn::just<int>, int>;
+    static_assert(boxed{fn::just<int>{5}}.has_value(std::in_place_type<fn::just<int>>));
+    CHECK(boxed{fn::just<int>{5}}.has_value(std::in_place_type<fn::just<int>>));
+  }
+
   SECTION("constructor from copack")
   {
     using T = fn::choice_for<bool, helper>;
@@ -1154,7 +1179,7 @@ TEST_CASE("choice and_then", "[choice][and_then]")
     static_assert(cb2.and_then(fnBoomSafe).has_value(std::in_place_type<Boom>));
   }
 
-  SECTION("convergent just")
+  SECTION("just of any payload")
   {
     // branches all returning one just answer it - a choice is a just, so this is the member's own
     // bind and no crossing
@@ -1167,6 +1192,32 @@ TEST_CASE("choice and_then", "[choice][and_then]")
     constexpr auto fnVoid = [](auto) { return fn::just<void>{}; };
     static_assert(std::is_same_v<decltype(a.and_then(fnVoid)), fn::just<void>>);
     CHECK(s.and_then(fnVoid) == fn::just<void>{});
+
+    // branches returning justs of different payloads join into the choice over them: a bare
+    // payload enters as itself, a choice splices its alternatives in, and just<void> enters as the
+    // unit pack<> - the carrier is just, whatever it carries
+    constexpr auto fnMixed = fn::overload{[](bool b) { return fn::just<long>{b ? 1L : 0L}; }, //
+                                          [](int i) { return fn::just<int>{i + 1}; }};
+    static_assert(std::is_same_v<decltype(a.and_then(fnMixed)), fn::choice_for<int, long>>);
+    static_assert(a.and_then(fnMixed) == fn::as_choice(43));
+    CHECK(s.and_then(fnMixed) == fn::as_choice(13));
+    CHECK(type{true}.and_then(fnMixed) == fn::as_choice(1L));
+    constexpr auto fnSplice = fn::overload{[](bool) { return fn::just<long>{1L}; }, //
+                                           [](int) { return fn::choice_for<int, double>{2.5}; }};
+    static_assert(std::is_same_v<decltype(a.and_then(fnSplice)), fn::choice_for<double, int, long>>);
+    static_assert(a.and_then(fnSplice) == fn::as_choice(2.5));
+    CHECK(s.and_then(fnSplice) == fn::as_choice(2.5));
+    constexpr auto fnUnit = fn::overload{[](bool) { return fn::just<void>{}; }, //
+                                         [](int i) { return fn::just<int>{i}; }};
+    static_assert(std::is_same_v<decltype(a.and_then(fnUnit)), fn::choice_for<fn::pack<>, int>>);
+    static_assert(a.and_then(fnUnit) == fn::as_choice(42));
+    static_assert(type{true}.and_then(fnUnit).has_value(std::in_place_type<fn::pack<>>));
+    CHECK(type{true}.and_then(fnUnit) == fn::as_choice(fn::pack<>{}));
+
+    // These callbacks and their conversions into the joined choice are nonthrowing.
+    static_assert(noexcept(a.and_then(fn::overload{[](bool) noexcept { return fn::just<long>{1L}; },
+                                                   [](int) noexcept { return fn::just<int>{2}; }})));
+    static_assert(not noexcept(a.and_then(fnMixed)));
   }
 }
 

@@ -47,7 +47,8 @@ using select_nth = detail::select_nth_t<I, Ts...>;  // (1)
 ## Construction {style: "api"}
 
 From a value of one alternative, in place from arguments, widening from a `copack` over a
-subset of the alternatives, or widening from a narrower `choice`.
+subset of the alternatives, from a narrower `choice`, or from a `just` over one of the
+alternatives - `just<void>` entering as the unit `pack<>`.
 
 ```cpp {title: "fn::just< copack< Ts... > >::just"}
 template <typename T>
@@ -66,8 +67,13 @@ template <typename... Tx>
 constexpr just(just<copack<Tx...>> const &other);  // (7)
 constexpr just(just<copack<Tx...>> &&other);       // (8)
 
-constexpr just(just const &) = default;  // (9)
-constexpr just(just &&) = default;       // (10)
+template <typename T>
+constexpr just(just<T> const &other);  // (9)
+constexpr just(just<T> &&other);       // (10)
+
+constexpr just(just<void>);              // (11)
+constexpr just(just const &) = default;  // (12)
+constexpr just(just &&) = default;       // (13)
 ```
 
 :include-doxygen-doc: fn::just< copack< Ts... > >::just { args: "T &&" }
@@ -95,6 +101,14 @@ constexpr just(just &&) = default;       // (10)
 :include-doxygen-doc-params: fn::just< copack< Ts... > >::just { args: "just < copack < Tx... > > const &", title: "parameters" }
 
 :include-doxygen-doc: fn::just< copack< Ts... > >::just { args: "just < copack < Tx... > > &&" }
+
+:include-doxygen-doc: fn::just< copack< Ts... > >::just { args: "just < T > const &" }
+
+:include-doxygen-doc-params: fn::just< copack< Ts... > >::just { args: "just < T > const &", title: "parameters" }
+
+:include-doxygen-doc: fn::just< copack< Ts... > >::just { args: "just < T > &&" }
+
+:include-doxygen-doc: fn::just< copack< Ts... > >::just { args: "just < void >" }
 
 :include-doxygen-doc: fn::just< copack< Ts... > >::just { args: "just const &" }
 

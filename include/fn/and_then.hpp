@@ -33,11 +33,10 @@ constexpr inline bool _cluster_join_forms
     = requires { typename _copack_apply_result<_joining_cluster_tag, Fn, Cp>::type; };
 
 // The engine's result over a bound payload, computed assert-free: a copack payload goes through
-// the cluster trait - all-choice branch results answer the superset choice, convergent ones the
-// select trait's answer - and a branch set the cluster join does not own may still join as
-// optionals (the #376 bridge); every other set answers none at all, so asking about any divergent
-// callback answers instead of tripping select's convergence assert; a single value goes through
-// _apply_result as always.
+// the cluster trait - an all-just branch set answers the join a choice's own and_then performs -
+// and a set the cluster join does not own may still join as optionals (the #376 bridge); every
+// other set answers none at all, so asking about any divergent callback answers instead of
+// tripping select's convergence assert; a single value goes through _apply_result as always.
 template <typename Fn, typename... V> struct _and_then_result : _apply_result<Fn, V...> {};
 template <typename Fn, typename V>
   requires _some_copack<::std::remove_cvref_t<V>>
@@ -91,7 +90,7 @@ concept applicable_and_then //
       }) || (some_just<V> && (not ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type>) && requires(V &&v) {
         // asked of the assert-free trait, never the member: over a copack payload a divergent
         // branch set must answer false here, where naming the member would trip select's
-        // convergence assert
+        // convergence assert. Any just is the same kind.
         typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type;
         requires same_kind<V, typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type>;
       }) || (some_just<V> && ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type> && requires {
@@ -104,9 +103,9 @@ concept applicable_and_then //
  *        carrier kinds
  *
  * The callback may return any identity carrier and the bind follows the function; results of the
- * input's own kind are left to `applicable_and_then` and the carrier's member. Over a copack
- * payload the branches either all return choices - joined into the superset - or converge on one
- * carrier type.
+ * input's own kind - every `just`, for a `just` - are left to `applicable_and_then` and the
+ * carrier's member. Over a copack payload the branches converge on one carrier type, or all
+ * return optionals, which join.
  *
  * @tparam Fn The function to execute on the value
  * @tparam V The identity carrier
@@ -202,6 +201,8 @@ struct and_then_t::apply final {
   // function. Engine-direct - the members are each carrier's own endo-bind, so the cluster cannot
   // ride delegation, and the verb layer is the licensed cross-carrier place. Dropping the input's
   // channels forgets nothing: they are uninhabited, which is what admits the input here at all.
+  // An identity expected with a copack payload uses this join for just results. A just input
+  // with all-just results uses its member bind instead.
   template <some_monadic_type V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const                                     //
       noexcept(detail::_nothrow_and_then_join<Fn &&, decltype(::std::declval<V>().value())>::value) //

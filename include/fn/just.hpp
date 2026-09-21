@@ -34,7 +34,7 @@ template <typename T>
 concept some_just = detail::_some_just<T>;
 
 /**
- * @brief Checks if a type is a `choice` - a `just` over a copack with at least one alternative
+ * @brief Checks if a type is a `choice` - a `just` over a copack
  *
  * @tparam T Type to check, possibly cv-ref qualified
  */
@@ -324,7 +324,7 @@ template <typename T> struct just {
   }
 
   /**
-   * @brief Binds the payload through the callable, which must return a `just`
+   * @brief Binds the payload through the callable, which returns a `just` of any payload
    *
    * @param fn Callable applied on the payload
    * @return The callable's own `just`
@@ -336,7 +336,7 @@ template <typename T> struct just {
     requires detail::_is_applicable<Fn, T &>::value
   {
     // the member is the carrier's own bind; the cross-carrier bind lives in the and_then functor
-    static_assert(some_just<::std::remove_cvref_t<typename detail::_apply_result<Fn, T &>::type>>);
+    static_assert(some_just<typename detail::_apply_result<Fn, T &>::type>);
     return detail::_apply(FWD(fn), v_);
   }
 
@@ -346,7 +346,7 @@ template <typename T> struct just {
           -> ::std::remove_cvref_t<typename detail::_apply_result<Fn, T const &>::type>
     requires detail::_is_applicable<Fn, T const &>::value
   {
-    static_assert(some_just<::std::remove_cvref_t<typename detail::_apply_result<Fn, T const &>::type>>);
+    static_assert(some_just<typename detail::_apply_result<Fn, T const &>::type>);
     return detail::_apply(FWD(fn), v_);
   }
 
@@ -356,7 +356,7 @@ template <typename T> struct just {
           -> ::std::remove_cvref_t<typename detail::_apply_result<Fn, T &&>::type>
     requires detail::_is_applicable<Fn, T &&>::value
   {
-    static_assert(some_just<::std::remove_cvref_t<typename detail::_apply_result<Fn, T &&>::type>>);
+    static_assert(some_just<typename detail::_apply_result<Fn, T &&>::type>);
     return detail::_apply(FWD(fn), ::std::move(v_));
   }
 
@@ -366,7 +366,7 @@ template <typename T> struct just {
           -> ::std::remove_cvref_t<typename detail::_apply_result<Fn, T const &&>::type>
     requires detail::_is_applicable<Fn, T const &&>::value
   {
-    static_assert(some_just<::std::remove_cvref_t<typename detail::_apply_result<Fn, T const &&>::type>>);
+    static_assert(some_just<typename detail::_apply_result<Fn, T const &&>::type>);
     return detail::_apply(FWD(fn), ::std::move(v_));
   }
 
@@ -610,7 +610,7 @@ template <> struct just<void> {
   }
 
   /**
-   * @brief Binds through the callable, invoked with no arguments; it must return a `just`
+   * @brief Binds through the callable, invoked with no arguments; it returns a `just` of any payload
    *
    * @param fn Callable to invoke
    * @return The callable's own `just`
@@ -622,7 +622,7 @@ template <> struct just<void> {
     requires detail::_is_applicable<Fn>::value
   {
     // the member is the carrier's own bind; the cross-carrier bind lives in the and_then functor
-    static_assert(some_just<::std::remove_cvref_t<typename detail::_apply_result<Fn>::type>>);
+    static_assert(some_just<typename detail::_apply_result<Fn>::type>);
     return detail::_apply(FWD(fn));
   }
 
@@ -697,8 +697,8 @@ template <> struct just<void> {
  * payload is the `copack` of the alternatives, and the copack's alternative-wise surface -
  * construction, assignment, `emplace`, the queries and the `apply` family - is forwarded to it.
  * Where a bare `copack` is self-flattening data, a choice is an atom: mapping keeps a returned
- * choice whole, and only `and_then` joins the branches' choices away into the normalized
- * superset. The alternatives obey the same canonical form as `copack`'s - flat, unique, sorted -
+ * choice whole, and only `and_then` joins the branches' justs into one. The alternatives obey the
+ * same canonical form as `copack`'s - flat, unique, sorted -
  * so spell `choice_for`. A structural type when the alternatives are.
  *
  * @tparam Ts The alternatives - flat, unique and sorted in the canonical order
@@ -837,6 +837,44 @@ template <typename... Ts> struct just<copack<Ts...>> {
     requires(not ::std::is_same_v<value_type, copack<Tx...>>) && (not has_type<just<copack<Tx...>>>)
             && detail::is_superset_of<value_type, copack<Tx...>> && ::std::is_constructible_v<value_type, copack<Tx...>>
       : v_(::std::move(other.v_))
+  {
+  }
+
+  /**
+   * @brief Widening constructor from a `just` whose payload is one of the alternatives
+   *
+   * The identity carrier over one type enters the choice as that alternative, as its value would.
+   *
+   * @param other The `just` to widen
+   */
+  template <typename T>
+  constexpr just(just<T> const &other) // NOSONAR cpp:S1709 implicit widening by design
+      noexcept(::std::is_nothrow_constructible_v<value_type, ::std::in_place_type_t<T>, T const &>)
+    requires(not some_copack<T>) && (not ::std::is_void_v<T>) && has_type<T> && (not has_type<just<T>>)
+            && ::std::is_constructible_v<value_type, ::std::in_place_type_t<T>, T const &>
+      : v_(::std::in_place_type<T>, other.v_)
+  {
+  }
+
+  /**
+   * @brief Widening constructor from a `just` whose payload is one of the alternatives
+   */
+  template <typename T>
+  constexpr just(just<T> &&other) // NOSONAR cpp:S1709 implicit widening by design
+      noexcept(::std::is_nothrow_constructible_v<value_type, ::std::in_place_type_t<T>, T &&>)
+    requires(not some_copack<T>) && (not ::std::is_void_v<T>) && has_type<T> && (not has_type<just<T>>)
+            && ::std::is_constructible_v<value_type, ::std::in_place_type_t<T>, T &&>
+      : v_(::std::in_place_type<T>, ::std::move(other.v_))
+  {
+  }
+
+  /**
+   * @brief Widening constructor from `just<void>`, which enters as the unit `pack<>`
+   */
+  constexpr just(just<void>) // NOSONAR cpp:S1709 implicit widening by design
+      noexcept(::std::is_nothrow_constructible_v<value_type, ::std::in_place_type_t<pack<>>>)
+    requires has_type<pack<>> && (not has_type<just<void>>)
+      : v_(::std::in_place_type<pack<>>)
   {
   }
 
@@ -1212,11 +1250,13 @@ template <typename... Ts> struct just<copack<Ts...>> {
   }
 
   /**
-   * @brief Binds the alternatives: every branch returns a `just`, choices joined into the superset
+   * @brief Binds the alternatives: every branch returns a `just`, joined into one
    *
-   * If every branch returns a choice, their alternatives form one normalized superset choice.
-   * Otherwise, every branch must return the same `just` type. Use `transform` for bare results
-   * and pipeline `fn::and_then` for supported transitions to another carrier family.
+   * If branch results have the same type after cv/ref removal, the result keeps that `just` type.
+   * Otherwise their payloads form a normalized choice: a returned choice contributes its
+   * alternatives, an ordinary `just<T>` contributes `T`, and `just<void>` contributes `pack<>`.
+   * Use `transform` for bare results and pipeline `fn::and_then` for supported transitions to
+   * another carrier family.
    *
    * @param fn Callable applied on the active alternative; `fn::overload` fuses arms into one
    * @return The joined `just` of the branches' results

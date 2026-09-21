@@ -139,15 +139,17 @@ struct _copack_apply_result<_collapsing_copack_tag, Fn, Self, Args...> final
 
 struct _joining_superset_tag final {};
 
-// and_then's join - a sibling of the collapse above with the OPPOSITE convention for a choice
-// result: the collapse keeps it whole (fmap nests the nominal atom), the join splices its
-// alternatives into the accumulated list (bind flattens). Only a choice - `just<copack<Us...>>` -
-// splices: the choice's own and_then passes its copack payload, and the and_then functor's
-// cluster arm passes a bare copack payload.
+// Bind joins the payloads of just results. A choice contributes its alternatives, an ordinary
+// just<T> contributes T, and just<void> contributes pack<>. Equal result types after cv/ref
+// removal retain their type. Unlike bind, transform keeps a returned choice as a nested value.
 namespace _joining_superset {
 template <typename... Ts> struct typelist;
 template <typename... Ts> extern typelist<Ts...> const &typelist_v;
 
+template <typename... Ts, typename T>
+auto operator^(typelist<Ts...> const &, typelist<::fn::just<T>> const &) -> typelist<Ts..., T> const &;
+template <typename... Ts>
+auto operator^(typelist<Ts...> const &, typelist<::fn::just<void>> const &) -> typelist<Ts..., ::fn::pack<>> const &;
 template <typename... Ts, typename... Us>
 auto operator^(typelist<Ts...> const &, typelist<::fn::just<::fn::copack<Us...>>> const &)
     -> typelist<Ts..., Us...> const &;
@@ -165,19 +167,23 @@ template <typename... Ts> struct superset<typelist<Ts...>> {
 };
 } // namespace _joining_superset
 
+// Rs are the branch results, cv/ref stripped
 template <typename... Rs> struct _joining_superset_type {
   using type = _joining_superset::superset<_joining_superset::flattened<Rs...>>::type;
 };
+template <typename R0, typename... Rs>
+  requires(... && ::std::is_same_v<R0, Rs>)
+struct _joining_superset_type<R0, Rs...> {
+  using type = R0;
+};
 
-// Choice results join into the normalized superset. Other results must agree in exact type;
-// the member then checks that this type is a just. Divergent results trigger select's assertion.
+// An all-just result set uses the join above. Other results must agree in exact type;
+// the member then rejects non-just results. Divergent results trigger select's assertion.
 template <typename Fn, typename Self, typename T, typename... Args> struct _typelist_joining_superset;
 template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts, typename... Args>
 struct _typelist_joining_superset<Fn, Self, Tpl<Ts...>, Args...>
     : ::std::conditional_t<
-          (...
-           && _some_choice<::std::remove_cvref_t<
-               typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>>),
+          (... && _some_just<typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>),
           _joining_superset_type<::std::remove_cvref_t<
               typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...>,
           _typelist_select_apply_result<Fn, Self, Tpl<Ts...>, Args...>> {};
@@ -1464,29 +1470,22 @@ template <template <typename...> typename Tpl, typename T, typename Fn, typename
 struct _copack_apply_result<_joining_optional_recovery_tag<Tpl, T>, Fn, Self, Args...>
     : _typelist_joining_optional_recovery<Tpl, T, Fn, Self, ::std::remove_cvref_t<Self>, Args...> {};
 
-// The cluster bind's join - the verb layer's licensed cross-carrier dispatch over a bare copack
-// payload. The same superset join as the choice members', under the asking rule of the joining
-// traits here: an all-choice set joins into the normalized superset, a set convergent in the exact
-// result type keeps the select trait's answer verbatim, every other set leaves no `type` - the
-// members' fall-back to select would assert where a probing concept must get an answer. The
-// convergence tier must be exact, not stripped: select compares exact result types, so a set
-// convergent only after removing cv/ref would reach its assert.
+// The cluster bind's join - the verb layer's assert-free twin of the superset join above, over a
+// bare copack payload: an all-just set answers the same join, every other set leaves no `type` -
+// the members' fall-back to select would assert where a probing concept must get an answer.
 struct _joining_cluster_tag final {};
 
 template <typename Fn, typename Self, typename T, typename... Args> struct _typelist_joining_cluster;
 template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts, typename... Args>
 struct _typelist_joining_cluster<Fn, Self, Tpl<Ts...>, Args...>
     : ::std::conditional_t<
-          (sizeof...(Ts) == 0), _no_join,
-          ::std::conditional_t<
-              (...
-               && _some_choice<::std::remove_cvref_t<
-                   typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>>),
-              _joining_superset_type<::std::remove_cvref_t<
-                  typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...>,
-              ::std::conditional_t<_joining_expected::all_same<typename ::fn::detail::_apply_result<
-                                       Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type...>,
-                                   _typelist_select_apply_result<Fn, Self, Tpl<Ts...>, Args...>, _no_join>>> {};
+          (sizeof...(Ts) > 0)
+              && (...
+                  && _some_just<
+                      typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>),
+          _joining_superset_type<::std::remove_cvref_t<
+              typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...>,
+          _no_join> {};
 
 template <typename Fn, typename Self, typename... Args>
 struct _copack_apply_result<_joining_cluster_tag, Fn, Self, Args...>
