@@ -12,7 +12,7 @@ The consequences are breaking:
 
 - `some_just` admits a choice, `some_identity` is `some_just` or the identity `expected`, and `same_kind` holds between any two `just`s. Generic code that read `some_just` as a single-branch payload must test the payload.
 - `choice::value()` returns the `copack` payload, no longer `*this` as its base, and a choice does not convert to a copack. The copack's alternative-wise surface — construction, assignment, `emplace`, `has_value`, `get_ptr` and the `apply` family — is forwarded instead, and a narrower choice widens into a wider one by construction and assignment.
-- The current deduction guides do not support `choice{x}` for a bare value. Use `choice<T>{x}` or deduce the type from a copack with `just{copack{x}}`.
+- The current deduction guides do not support `choice{x}` for a bare value. Use `choice<T>{x}`, lift the value with `as_choice(x)`, or deduce the type from a copack with `just{copack{x}}`. `as_choice` also wraps a copack as a choice over its alternatives.
 - The choice comparisons are `just`'s, over the payloads; their `noexcept` follows the alternatives' comparisons instead of being promised unconditionally.
 - `choice::and_then` also accepts branches returning the same `just` type.
 - Diagnostics spell `just<copack<...>>`.

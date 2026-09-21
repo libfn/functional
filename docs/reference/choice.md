@@ -304,3 +304,34 @@ using choice_for = just<copack_for<Ts...>>;  // (1)
 :include-doxygen-doc: fn::choice_for { args: "" }
 
 :include-doxygen-doc-params: fn::choice_for { args: "", type: "template", title: "template parameters" }
+
+## as_choice {style: "api"}
+
+`as_choice(x)` constructs a choice without explicit template arguments. A value becomes a
+single alternative after removing cv/ref qualifiers; a copack becomes the payload of a choice
+over its alternatives. Use this function for bare values, which the current `choice` deduction
+guides do not support.
+
+```cpp {title: "fn::as_choice"}
+constexpr auto as_choice(auto &&src) -> decltype(auto);  // (1)
+
+template <typename Src>
+constexpr auto as_choice(Src &&src) -> decltype(auto);  // (2)
+
+template <typename T>
+constexpr auto as_choice(std::in_place_type_t<T>, auto &&...args) -> decltype(auto);  // (3)
+```
+
+:include-doxygen-doc: fn::as_choice { args: "auto &&" }
+
+:include-doxygen-doc-params: fn::as_choice { args: "auto &&", title: "parameters" }
+
+:include-doxygen-doc: fn::as_choice { args: "Src &&" }
+
+:include-doxygen-doc-params: fn::as_choice { args: "Src &&", title: "parameters" }
+
+:include-doxygen-doc: fn::as_choice { args: "::std::in_place_type_t< T >, auto &&..." }
+
+:include-doxygen-doc-params: fn::as_choice { args: "::std::in_place_type_t< T >, auto &&...", type: "template", title: "template parameters" }
+
+:include-doxygen-doc-params: fn::as_choice { args: "::std::in_place_type_t< T >, auto &&...", title: "parameters" }

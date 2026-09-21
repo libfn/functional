@@ -1457,6 +1457,67 @@ explicit just(::std::in_place_t) -> just<void>;
  */
 template <typename... Ts> using choice_for = just<copack_for<Ts...>>;
 
+namespace detail {
+// The value lift names `choice<remove_cvref_t<Src>>`, whose payload refuses an in_place tag or a
+// copack as an alternative; as `_nothrow_copack_lift`, the specifier must not name it unless the
+// guard holds.
+template <typename Src> constexpr inline bool _nothrow_choice_lift = false;
+template <typename Src>
+  requires(not some_in_place_type<Src>) && (not some_copack<::std::remove_cvref_t<Src>>)
+constexpr inline bool _nothrow_choice_lift<Src>
+    = ::std::is_nothrow_constructible_v<choice<::std::remove_cvref_t<Src>>, Src>;
+} // namespace detail
+
+// Lifts
+/**
+ * @brief Constructs a single-alternative choice from a value
+ *
+ * Use `as_choice(x)` to deduce the alternative type from a bare value. The current guides do
+ * not support `choice{x}` for these arguments. The result owns its alternative; cv/ref qualifiers
+ * are removed from the source type.
+ *
+ * @param src Value to lift
+ * @return A `choice` over the cv/ref-unqualified type of `src`, holding its value
+ */
+[[nodiscard]] constexpr auto as_choice(auto &&src) //
+    noexcept(detail::_nothrow_choice_lift<decltype(src)>) -> decltype(auto)
+  requires(not some_in_place_type<decltype(src)>) && (not some_copack<::std::remove_cvref_t<decltype(src)>>)
+{
+  return choice<::std::remove_cvref_t<decltype(src)>>(FWD(src));
+}
+
+/**
+ * @brief Lifts a copack into the choice over its alternatives
+ *
+ * The copack is the payload itself, so the choice is the one `just{copack}` deduces.
+ *
+ * @param src Copack to lift
+ * @return The `choice` over the alternatives of `src`, holding its value
+ */
+template <typename Src>
+  requires some_copack<::std::remove_cvref_t<Src>>
+[[nodiscard]] constexpr auto as_choice(Src &&src) //
+    noexcept(::std::is_nothrow_constructible_v<just<::std::remove_cvref_t<Src>>, Src>) -> decltype(auto)
+{
+  return just<::std::remove_cvref_t<Src>>(FWD(src));
+}
+
+/**
+ * @brief Lifts arguments into a singular choice of `T`, constructed in place
+ *
+ * @tparam T The sole alternative
+ * @param args Arguments to construct the alternative from
+ * @return `choice<T>` holding the alternative
+ */
+template <typename T>
+[[nodiscard]] constexpr auto as_choice(::std::in_place_type_t<T>, auto &&...args) //
+    noexcept(::std::is_nothrow_constructible_v<choice<T>, ::std::in_place_type_t<T>, decltype(args)...>)
+        -> decltype(auto)
+  requires ::std::is_constructible_v<choice<T>, ::std::in_place_type_t<T>, decltype(args)...>
+{
+  return choice<T>(::std::in_place_type<T>, FWD(args)...);
+}
+
 } // namespace LIBFN_VERSION
 } // namespace fn
 

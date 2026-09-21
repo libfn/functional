@@ -67,6 +67,12 @@ concept can_apply_type = requires(S s, Fn fn, Args... args) { FWD(s).apply_type(
 template <typename S, typename Fn, typename... Args>
 concept can_apply = requires(S s, Fn fn, Args... args) { FWD(s).apply(FWD(fn), FWD(args)...); };
 
+template <typename T, typename... Args>
+concept can_as_choice = requires(Args... args) { fn::as_choice(std::in_place_type<T>, args...); };
+
+template <typename T>
+concept can_as_choice_value = requires(T v) { fn::as_choice(FWD(v)); };
+
 // Every special member of choice is defaulted and the copack payload is its only member - so each
 // must behave exactly as copack's, down to its noexcept and its constraints.
 template <typename... Ts> consteval bool special_members_follow_copack()
@@ -650,6 +656,50 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
     static_assert(noexcept(C{2} & C{true}));
     SUCCEED();
+  }
+
+  SECTION("as_choice")
+  {
+    constexpr auto a = fn::as_choice(12);
+    static_assert(std::same_as<decltype(a), choice<int> const>);
+    static_assert(a == choice<int>{12});
+    CHECK(fn::as_choice(12) == choice<int>{12});
+
+    constexpr auto b = fn::as_choice(std::in_place_type<long>, 12);
+    static_assert(std::same_as<decltype(b), choice<long> const>);
+    static_assert(b == choice<long>{12l});
+    CHECK(fn::as_choice(std::in_place_type<long>, 12) == choice<long>{12l});
+
+    // a copack is the payload itself: the choice over its alternatives, the one just{copack} deduces
+    constexpr auto c = fn::as_choice(fn::copack_for<bool, int>{true});
+    static_assert(std::same_as<decltype(c), fn::choice_for<bool, int> const>);
+    static_assert(c == fn::choice_for<bool, int>{true});
+    static_assert(std::same_as<decltype(fn::as_choice(fn::copack{42})), decltype(fn::just{fn::copack{42}})>);
+    CHECK(fn::as_choice(fn::copack{42}) == fn::just{fn::copack{42}});
+
+    // A choice argument becomes a nested alternative.
+    static_assert(std::same_as<decltype(fn::as_choice(choice<int>{1})), choice<choice<int>>>);
+
+    // noexcept follows construction of the alternative or copack payload
+    static_assert(noexcept(fn::as_choice(12)));
+    static_assert(noexcept(fn::as_choice(std::in_place_type<long>, 12)));
+    static_assert(noexcept(fn::as_choice(fn::copack{42})));
+    static_assert(not noexcept(fn::as_choice(std::declval<Throwing const &>())));
+    static_assert(not noexcept(fn::as_choice(std::declval<fn::copack<Throwing> const &>())));
+
+    SECTION("constraints")
+    {
+      static_assert(can_as_choice<long, int>);
+      static_assert(can_as_choice<NonCopyable, int>);
+      static_assert(not can_as_choice<NonCopyable>);               // no default constructor
+      static_assert(not can_as_choice<NonCopyable, char const *>); // not constructible from it
+
+      // the tag selects the alternative, it is never itself one: with nothing to construct there is
+      // no viable lift at all, rather than a choice whose alternative is the tag
+      static_assert(not can_as_choice_value<std::in_place_type_t<NonCopyable> const &>);
+      static_assert(can_as_choice_value<long>);
+      SUCCEED();
+    }
   }
 }
 

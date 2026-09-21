@@ -807,7 +807,7 @@ Monadic operations on the identity cluster:
 >
 ## 11. choice: identity over a coproduct
 
-`choice<Ts...>` represents a computation that always succeeds by selecting one of several alternatives. It is `just<copack<Ts...>>` (Section 3): the identity carrier over the coproduct payload, dispatching branch-wise where `just<T>` maps the one value.
+`choice<Ts...>` represents a computation that always succeeds by selecting one of several alternatives. It is `just<copack<Ts...>>` (Section 3): the identity carrier over the coproduct payload, dispatching branch-wise where `just<T>` maps the one value. `fn::as_choice(x)` lifts a value into the single-alternative choice over its cv/ref-unqualified type, and wraps a copack in the choice over its alternatives.
 
 ### Mapping into a choice
 
@@ -838,8 +838,8 @@ Consider a scenario where different branches of a switch return different `choic
 ```cpp
 auto test_choice_mapping(fn::choice<User, UserId> ch) -> void
 {
-  constexpr auto mapper = fn::overload{[](UserId) { return fn::choice<Missing>{Missing{}}; },
-                                       [](User) { return fn::choice<FilePath>{FilePath{}}; }};
+  constexpr auto mapper = fn::overload{[](UserId) { return fn::as_choice(Missing{}); },
+                                       [](User) { return fn::as_choice(FilePath{}); }};
 
   // transform nests the returned choice as a mapped value
   auto mapped = ch | fn::transform(mapper);
@@ -1076,7 +1076,7 @@ For readers with a background in functional languages (like Haskell or OCaml), t
 | `fmap` / `map` | `transform` / `transform_error` |
 | `bind` / `>>=` | `and_then` |
 | `pure` / `return` | `just<T>{v}` / `expected<T, copack<>>{v}` — a carrier constructor |
-| Lift / inject | `fn::as_pack` / `fn::as_copack` |
+| Lift / inject | `fn::as_pack` / `fn::as_copack` / `fn::as_choice` |
 | Kleisli arrow | The callable passed to `and_then` |
 | Product type | `pack` / `std::tuple` |
 | Coproduct / Sum | `copack` (the sum itself) / `choice` (the never-failing carrier over a sum) |
