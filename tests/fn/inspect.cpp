@@ -437,7 +437,7 @@ TEST_CASE("inspect choice", "[inspect][choice]")
   operand_t a{12};
   using T = decltype(a | inspect(fnValue));
   static_assert(std::is_same_v<T, operand_t &>);
-  REQUIRE((a | inspect(fnValue)).value() == fn::choice{12});
+  REQUIRE((a | inspect(fnValue)) == fn::choice<int>{12});
   CHECK(value == 12);
 }
 

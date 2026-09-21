@@ -43,21 +43,18 @@ constexpr explicit just(std::in_place_t);             // (3)
 :include-doxygen-doc: fn::just< void >::just { args: "::std::in_place_t" }
 
 ```cpp {title: "fn::just::just"}
-template <typename>
-just;  // (1)
-
-constexpr just() = default;              // (2)
-constexpr just(just const &) = default;  // (3)
-constexpr just(just &&) = default;       // (4)
+constexpr just() = default;              // (1)
+constexpr just(just const &) = default;  // (2)
+constexpr just(just &&) = default;       // (3)
 
 template <typename U>
-constexpr just(U &&v);           // (5)
-constexpr explicit just(U &&v);  // (6)
+constexpr just(U &&v);           // (4)
+constexpr explicit just(U &&v);  // (5)
 
-constexpr explicit just(std::in_place_type_t<T>, auto &&...args);  // (7)
+constexpr explicit just(std::in_place_type_t<T>, auto &&...args);  // (6)
 
 template <typename Fn>
-constexpr explicit just(detail::_just_from_invoke_t, Fn &&make);  // (8)
+constexpr explicit just(detail::_just_from_invoke_t, Fn &&make);  // (7)
 ```
 
 :include-doxygen-doc: fn::just::just { args: "" }

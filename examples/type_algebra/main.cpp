@@ -1,6 +1,5 @@
 #include <concepts>
 #include <fn/and_then.hpp>
-#include <fn/choice.hpp>
 #include <fn/concepts.hpp>
 #include <fn/copack.hpp>
 #include <fn/discard.hpp>

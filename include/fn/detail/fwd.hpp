@@ -44,16 +44,6 @@ template <typename T>
 concept _some_optional = _is_some_optional<T &>;
 } // namespace detail
 
-// choice monad (Copack a | ...)
-template <typename... Ts> struct choice;
-namespace detail {
-template <typename... Ts> constexpr bool _is_some_choice = false;
-template <typename... Ts> constexpr bool _is_some_choice<::fn::choice<Ts...> &> = true;
-template <typename... Ts> constexpr bool _is_some_choice<::fn::choice<Ts...> const &> = true;
-template <typename T>
-concept _some_choice = _is_some_choice<T &>;
-} // namespace detail
-
 // identity carrier (Just a)
 template <typename T> struct just;
 namespace detail {
@@ -82,6 +72,15 @@ template <typename... Ts> constexpr bool _is_copack<::fn::copack<Ts...> &> = tru
 template <typename... Ts> constexpr bool _is_copack<::fn::copack<Ts...> const &> = true;
 template <typename T>
 concept _some_copack = detail::_is_copack<T &>;
+} // namespace detail
+
+// choice monad (Copack a | ...): the identity carrier over a copack, `just<copack<Ts...>>`
+namespace detail {
+template <typename T> constexpr bool _is_some_choice = false;
+template <typename... Ts> constexpr bool _is_some_choice<::fn::just<::fn::copack<Ts...>> &> = true;
+template <typename... Ts> constexpr bool _is_some_choice<::fn::just<::fn::copack<Ts...>> const &> = true;
+template <typename T>
+concept _some_choice = _is_some_choice<T &>;
 } // namespace detail
 } // namespace LIBFN_VERSION
 } // namespace fn

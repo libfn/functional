@@ -2,6 +2,21 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `choice` becomes `just` over a copack — 21 September 2026
+
+`choice<Ts...>` is now an alias of `just<copack<Ts...>>`. The specialization forwards operations on alternatives to its `copack` payload. The `<fn/choice.hpp>` header is gone; `<fn/just.hpp>` declares `choice`, `choice_for` and `some_choice`.
+
+Version `0.1.0` rejected copack payloads in `just` to avoid duplicating `choice`. The alias now gives both spellings the same type. A `transform` callback returning a nonempty copack produces a choice through the member operation as well as the pipeline operation. The separate pipeline promotion overloads and their `applicable_transform_promote` concept are removed.
+
+The consequences are breaking:
+
+- `some_just` admits a choice, `some_identity` is `some_just` or the identity `expected`, and `same_kind` holds between any two `just`s. Generic code that read `some_just` as a single-branch payload must test the payload.
+- `choice::value()` returns the `copack` payload, no longer `*this` as its base, and a choice does not convert to a copack. The copack's alternative-wise surface — construction, assignment, `emplace`, `has_value`, `get_ptr` and the `apply` family — is forwarded instead, and a narrower choice widens into a wider one by construction and assignment.
+- The current deduction guides do not support `choice{x}` for a bare value. Use `choice<T>{x}` or deduce the type from a copack with `just{copack{x}}`.
+- The choice comparisons are `just`'s, over the payloads; their `noexcept` follows the alternatives' comparisons instead of being promised unconditionally.
+- `choice::and_then` also accepts branches returning the same `just` type.
+- Diagnostics spell `just<copack<...>>`.
+
 ## Visual Studio 2022 returns as the MSVC floor — 13 September 2026
 
 Bazel's [minimal version selection](https://bazel.build/external/module#version-selection) can select a later `libfn` release when another dependency requests it, even if the consumer still requests `0.1.0`. Keeping Visual Studio 2022 support avoids requiring those consumers to upgrade their compiler for this reason. Microsoft still [supports Visual Studio 2022](https://learn.microsoft.com/en-us/lifecycle/products/visual-studio-2022).

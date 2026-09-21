@@ -420,6 +420,6 @@ static_assert(not_empty_value<fn::copack<>> && not_empty_error<fn::copack<>>);
 static_assert(not not_empty_value<fn::optional<fn::copack<>>>); // the converse: negation is not vacuous
 static_assert(not not_empty_error<fn::expected_unit>);
 static_assert(fn::same_kind<fn::just<int>, fn::just<bool>>);
-static_assert(not fn::same_kind<fn::just<int>, fn::choice<int>>);
+static_assert(fn::same_kind<fn::just<int>, fn::choice<int>>); // a choice is a just
 
 TEST_CASE("concepts", "[concepts]") { SUCCEED(); }

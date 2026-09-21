@@ -2310,17 +2310,26 @@ template <typename E> struct _expected_efn final {
 };
 } // namespace detail
 
-// The conjunction of fallible carriers: values multiply into a `pack`, errors sum into a
-//        `copack`
-//
-// `a & b` succeeds only if both operands succeed, the values folding into one `pack` - a `void`
-// side elides, and a copack value distributes into a copack of packs - while at runtime the error
-// side holds the leftmost failing operand's error. Two identical error types stay as they are;
-// any other pair sums into their normalized `copack_for`, grading not required of the operands.
-// Both operands are fully constructed before the operator runs: an error-selection rule, not
-// short-circuiting. An identity-cluster operand contributes its value and no error term.
-// When any of the sides is expected<void, ...>, we do not produce expected<pack<...>, ...>
-// Instead just elide void and carry non-void (or elide both voids if that's what we get)
+// The description below covers every `&` over carriers, not just this arm: the reference renders
+// one description per parameter-type signature, and all of them share `(Lh &&, Rh &&)`, of which
+// this is the first doxygen reports. The other arms carry theirs as ordinary comments for the
+// same reason.
+/**
+ * @brief The conjunction of carriers: values multiply into a `pack`, errors sum into a `copack`
+ *
+ * `a & b` succeeds only where both operands do, the values folding into one `pack` - a `void`
+ * side elides, and a copack value distributes into a copack of packs. What the failure side
+ * carries depends on the carrier: an `expected` holds the leftmost failing operand's error, an
+ * identical pair of error types staying as it is and any other pair summing into its normalized
+ * `copack_for`, grading not required of the operands; an `optional` is simply empty, its unit
+ * error needing no summing; a `just` cannot fail, so the fold is total. Both operands are fully
+ * constructed before the operator runs: an error-selection rule, not short-circuiting. An
+ * identity-cluster operand contributes its value and no error term.
+ *
+ * @param lh Left operand
+ * @param rh Right operand
+ * @return The carrier of the folded value product, over the summed failure side
+ */
 template <typename Lh, typename Rh>
   requires some_expected_void<Lh> && (not some_expected_void<Rh>)
            && ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type,
@@ -2525,8 +2534,8 @@ template <typename Type, typename Lh, typename Rh, typename Err> struct _nothrow
 // unchanged, plain or graded, and its state alone decides. just<void> is the product's unit and
 // elides.
 template <typename Lh, some_expected Rh>
-  requires(::fn::detail::_some_just<Lh> || ::fn::detail::_some_choice<Lh>)
-          && (not ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>) && (not some_expected_void<Rh>)
+  requires(::fn::detail::_some_just<Lh>) && (not ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>)
+          && (not some_expected_void<Rh>)
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
     noexcept(detail::_nothrow_amp_cluster<
              ::fn::detail::_uninhabited_join<Lh, Rh>,
@@ -2546,8 +2555,8 @@ template <typename Lh, some_expected Rh>
 }
 
 template <some_expected Lh, typename Rh>
-  requires(::fn::detail::_some_just<Rh> || ::fn::detail::_some_choice<Rh>)
-          && (not ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>) && (not some_expected_void<Lh>)
+  requires(::fn::detail::_some_just<Rh>) && (not ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>)
+          && (not some_expected_void<Lh>)
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
     noexcept(detail::_nothrow_amp_cluster<
              ::fn::detail::_uninhabited_join<Lh, Rh>,
@@ -2567,8 +2576,7 @@ template <some_expected Lh, typename Rh>
 }
 
 template <typename Lh, some_expected_void Rh>
-  requires(::fn::detail::_some_just<Lh> || ::fn::detail::_some_choice<Lh>)
-          && (not ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>)
+  requires(::fn::detail::_some_just<Lh>) && (not ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>)
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
     noexcept(
         ::fn::detail::_nothrow_initializable<
@@ -2586,8 +2594,7 @@ template <typename Lh, some_expected_void Rh>
 }
 
 template <some_expected_void Lh, typename Rh>
-  requires(::fn::detail::_some_just<Rh> || ::fn::detail::_some_choice<Rh>)
-          && (not ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>)
+  requires(::fn::detail::_some_just<Rh>) && (not ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>)
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
     noexcept(
         ::fn::detail::_nothrow_initializable<
@@ -2637,19 +2644,27 @@ constexpr inline bool _nothrow_disj_error
 
 } // namespace detail
 
-// The disjunction of fallible carriers: values sum into a `copack`, errors multiply into a
-//        `pack`
-//
-// `a | b` fails only if both operands fail: the leftmost engaged operand's value wins, injected
-// into the sum of the value types - a same-type pair stays bare, and a `void` side enters a
-// genuine sum as `pack<>` - while the error side is the product of both errors, present only when
-// every operand failed, all evidence kept positionally. Both operands are fully constructed
-// before the operator runs: a value-selection rule, not a lazy fallback. An identity-cluster
-// operand makes the disjunction total, collapsing the result into `just` or `choice`.
 // The disjunction: the value channel is the sum of the value types - a same-type pair stays bare,
 // as the conjunction's same-error sum does - and the error channel is the product of both errors,
 // present only when every operand failed, all evidence kept positionally. The leftmost engaged
 // operand wins and injects by type; void enters a genuine sum as pack<>.
+// As with `&` above, this arm carries the description for every `|` over carriers.
+/**
+ * @brief The disjunction of carriers: values sum into a `copack`, errors multiply into a `pack`
+ *
+ * `a | b` yields the leftmost operand that worked, its value injected into the sum of the value
+ * types - a same-type pair stays bare, and a `void` side enters a genuine sum as `pack<>`. What
+ * remains when none worked depends on the carrier: an `expected` holds the product of every
+ * error, all evidence kept positionally; an `optional` is simply empty, its unit errors vanishing
+ * in that product; a `just` always works, so the disjunction is total. Both operands are fully
+ * constructed before the operator runs: a value-selection rule, not a lazy fallback. An
+ * identity-cluster operand makes the whole disjunction total, collapsing the result into `just` -
+ * a `choice` where the union is genuine.
+ *
+ * @param lh Left operand
+ * @param rh Right operand
+ * @return The carrier of the summed value side, over the error product
+ */
 template <typename Lh, typename Rh>
   requires some_expected<Lh> && some_expected<Rh> && (not some_expected_void<Lh>) && (not some_expected_void<Rh>)
            && (not empty_copack<typename ::std::remove_cvref_t<Lh>::error_type>)

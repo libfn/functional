@@ -220,7 +220,7 @@ TEST_CASE("design: braces, not parentheses", "[copack][design]")
 
 TEST_CASE("copack basic functionality tests", "[copack]")
 {
-  // NOTE This test looks very similar to test in choice.cpp - for good reason.
+  // just_choice.cpp checks the corresponding operations through the carrier wrapper.
 
   using fn::copack;
 

@@ -3,7 +3,6 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#include <fn/choice.hpp>
 #include <fn/expected.hpp>
 #include <fn/just.hpp>
 #include <fn/optional.hpp>
@@ -68,8 +67,8 @@ concept can_apply_type = requires(S s, Fn fn, Args... args) { FWD(s).apply_type(
 template <typename S, typename Fn, typename... Args>
 concept can_apply = requires(S s, Fn fn, Args... args) { FWD(s).apply(FWD(fn), FWD(args)...); };
 
-// Every special member of choice is defaulted, and choice adds no state to copack - so each must behave
-// exactly as copack's, down to its noexcept and its constraints.
+// Every special member of choice is defaulted and the copack payload is its only member - so each
+// must behave exactly as copack's, down to its noexcept and its constraints.
 template <typename... Ts> consteval bool special_members_follow_copack()
 {
   using C = fn::choice<Ts...>;
@@ -198,22 +197,24 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
   SECTION("single parameter constructor")
   {
     constexpr choice<int> a = 12;
-    static_assert(a == choice{12});
+    static_assert(a == choice<int>{12});
 
     constexpr choice<bool> b{false};
-    static_assert(b == choice{false});
+    static_assert(b == choice<bool>{false});
 
     SECTION("CTAD")
     {
-      choice a{42};
+      // The current guides deduce a choice from a copack through just; bare-value choice CTAD
+      // is not supported.
+      fn::just a{fn::copack{42}};
       static_assert(std::is_same_v<decltype(a), choice<int>>);
       CHECK(a == choice<int>{42});
 
-      constexpr choice b{false};
+      constexpr fn::just b{fn::copack{false}};
       static_assert(std::is_same_v<decltype(b), choice<bool> const>);
       static_assert(b == choice<bool>{false});
 
-      constexpr auto c = choice{std::array<int, 3>{3, 14, 15}};
+      constexpr auto c = fn::just{fn::copack{std::array<int, 3>{3, 14, 15}}};
       static_assert(std::is_same_v<decltype(c), choice<std::array<int, 3>> const>);
       static_assert(c.apply([](auto &&a) -> bool { return a.size() == 3 && a[0] == 3 && a[1] == 14 && a[2] == 15; }));
     }
@@ -382,21 +383,21 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
   SECTION("assignment from copack")
   {
-    // choice declares its operator=, hiding copack's widening overloads, so it carries its own pair
-    // and delegates - which also admits a copack over the same alternatives, with nothing to widen
+    // the widening assignments delegate to the payload's, which also admits a copack over the same
+    // alternatives, with nothing to widen
     constexpr auto battery = [] {
       choice<bool, int> a{12};
       a = fn::copack<int>{42}; // the alternative in hand
-      bool ok = a == choice{42};
+      bool ok = a == choice<int>{42};
       a = fn::copack<bool>{true}; // a different alternative
-      ok = ok && a == choice{true};
+      ok = ok && a == choice<bool>{true};
       fn::copack<int> const n{7};
       a = n; // by copy
-      ok = ok && a == choice{7};
-      a = choice<int>{3}; // a narrower choice, deduced through its copack base
-      ok = ok && a == choice{3};
+      ok = ok && a == choice<int>{7};
+      a = choice<int>{3}; // a narrower choice
+      ok = ok && a == choice<int>{3};
       a = fn::copack<bool, int>{5}; // the same alternatives, delegated to same-type assignment
-      return ok && a == choice{5};
+      return ok && a == choice<int>{5};
     };
     CHECK(battery());
     static_assert(battery());
@@ -405,7 +406,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     {
       static_assert(std::is_assignable_v<choice<bool, int> &, fn::copack<int> const &>);
       static_assert(std::is_assignable_v<choice<bool, int> &, fn::copack<bool, int> &&>); // same alternatives
-      static_assert(std::is_assignable_v<choice<bool, int> &, choice<int> const &>);      // through the base
+      static_assert(std::is_assignable_v<choice<bool, int> &, choice<int> const &>);      // a narrower choice
       static_assert(not std::is_assignable_v<choice<int> &, fn::copack<bool> const &>);   // not a superset
       static_assert(noexcept(std::declval<choice<bool, int> &>() = std::declval<fn::copack<int> const &>()));
       SUCCEED();
@@ -414,17 +415,17 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
   SECTION("assignment from a value")
   {
-    // the delegating value assignment, restated for the same name-hiding reason as the widening
-    // pair above; the answer - routing, constraints, noexcept - is copack's
+    // the value assignment delegates to the payload's: the answer - routing, constraints, noexcept -
+    // is copack's
     constexpr auto battery = [] {
       choice<bool, int> a{12};
       a = 42; // the alternative in hand
-      bool ok = a == choice{42};
+      bool ok = a == choice<int>{42};
       a = true; // a different alternative
-      ok = ok && a == choice{true};
+      ok = ok && a == choice<bool>{true};
       int const i = 7;
       a = i; // by copy
-      return ok && a == choice{7};
+      return ok && a == choice<int>{7};
     };
     CHECK(battery());
     static_assert(battery());
@@ -460,15 +461,6 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
   {
     choice<NonCopyable> a{std::in_place_type<NonCopyable>, 42};
     CHECK(a.apply([](auto &i) -> bool { return i.i == 42; }));
-
-    SECTION("CTAD")
-    {
-      constexpr auto a = choice{std::in_place_type<NonCopyable>, 42};
-      static_assert(std::is_same_v<decltype(a), choice<NonCopyable> const>);
-
-      auto b = choice{std::in_place_type<NonCopyable>, 42};
-      static_assert(std::is_same_v<decltype(b), choice<NonCopyable>>);
-    }
 
     SECTION("constraints")
     {
@@ -508,26 +500,16 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
                && i[2] == 3;
       }));
     }
-
-    SECTION("CTAD")
-    {
-      constexpr auto a = choice{std::in_place_type<std::array<int, 3>>, 1, 2, 3};
-      static_assert(std::is_same_v<decltype(a), choice<std::array<int, 3>> const>);
-
-      auto b = choice{std::in_place_type<std::array<int, 3>>, 1, 2, 3};
-      static_assert(std::is_same_v<decltype(b), choice<std::array<int, 3>>>);
-    }
   }
 
   SECTION("equality comparison")
   {
-    // The comparison operators are copack's - free functions taking copack<Ts...> const & - and copack.cpp
-    // owns their grid. What is choice's own is that a choice reaches them at all, through its public
-    // base; that, and the result type, is what is asserted here.
+    // copack.cpp tests payload comparison. Here we check that just forwards comparison across
+    // different alternative lists and returns bool.
     using type = choice<bool, int>;
     constexpr type a{std::in_place_type<int>, 42};
 
-    static_assert(std::is_same_v<bool, decltype(a == choice{42})>);
+    static_assert(std::is_same_v<bool, decltype(a == choice<int>{42})>);
     static_assert(a == type{42});
     static_assert(a != type{41});
     static_assert(a != type{true});
@@ -938,7 +920,7 @@ TEST_CASE("choice and_then", "[choice][and_then]")
                          [](int const &) -> fn::choice<bool> { throw 0; },   //
                          [](int &&) -> fn::choice<bool> { throw 0; },        //
                          [](int const &&) -> fn::choice<bool> { throw 0; }}) //
-        == fn::choice{true});
+        == fn::choice<bool>{true});
   CHECK(std::as_const(s).and_then(                                   //
             fn::overload{[](bool) -> fn::choice<bool> { throw 1; },  //
                          [](int &) -> fn::choice<bool> { throw 0; }, //
@@ -947,7 +929,7 @@ TEST_CASE("choice and_then", "[choice][and_then]")
                          },
                          [](int &&) -> fn::choice<bool> { throw 0; },        //
                          [](int const &&) -> fn::choice<bool> { throw 0; }}) //
-        == fn::choice{true});
+        == fn::choice<bool>{true});
   CHECK(type{init, 12}.and_then(                                           //
             fn::overload{[](bool) -> fn::choice<bool> { throw 1; },        //
                          [](int &) -> fn::choice<bool> { throw 0; },       //
@@ -956,7 +938,7 @@ TEST_CASE("choice and_then", "[choice][and_then]")
                            return {i == 12};
                          },
                          [](int const &&) -> fn::choice<bool> { throw 0; }})
-        == fn::choice{true});
+        == fn::choice<bool>{true});
   CHECK(std::move(std::as_const(s))
             .and_then(                                                         //
                 fn::overload{[](bool) -> fn::choice<bool> { throw 1; },        //
@@ -964,7 +946,7 @@ TEST_CASE("choice and_then", "[choice][and_then]")
                              [](int const &) -> fn::choice<bool> { throw 0; }, //
                              [](int &&) -> fn::choice<bool> { throw 0; },      //
                              [](int const &&i) -> fn::choice<bool> { return {i == 12}; }})
-        == fn::choice{true});
+        == fn::choice<bool>{true});
 
   constexpr type a{std::in_place_type<int>, 42};
   constexpr auto fn = fn::overload{[](bool) -> fn::choice<bool> { throw 1; },  //
@@ -975,14 +957,14 @@ TEST_CASE("choice and_then", "[choice][and_then]")
                                    [](int &&) -> fn::choice<bool> { throw 0; }, //
                                    [](int const &&) -> fn::choice<bool> { throw 0; }};
   static_assert(std::is_same_v<fn::choice<bool>, decltype(a.and_then(fn))>);
-  static_assert(a.and_then(fn) == fn::choice{true});
+  static_assert(a.and_then(fn) == fn::choice<bool>{true});
   static_assert(std::move(a).and_then(                                             //
                     fn::overload{[](bool) -> fn::choice<bool> { throw 1; },        //
                                  [](int &) -> fn::choice<bool> { throw 0; },       //
                                  [](int const &) -> fn::choice<bool> { throw 0; }, //
                                  [](int &&) -> fn::choice<bool> { throw 0; },      //
                                  [](int const &&i) -> fn::choice<bool> { return {i == 42}; }})
-                == fn::choice{true});
+                == fn::choice<bool>{true});
 
   SECTION("superset join")
   {
@@ -1083,6 +1065,21 @@ TEST_CASE("choice and_then", "[choice][and_then]")
     constexpr J cb2{A{}};
     static_assert(cb2.and_then(fnBoomSafe).has_value(std::in_place_type<Boom>));
   }
+
+  SECTION("convergent just")
+  {
+    // branches all returning one just answer it - a choice is a just, so this is the member's own
+    // bind and no crossing
+    constexpr auto fnJust = fn::overload{[](bool) { return fn::just<int>{1}; }, //
+                                         [](int) { return fn::just<int>{2}; }};
+    static_assert(std::is_same_v<decltype(a.and_then(fnJust)), fn::just<int>>);
+    static_assert(a.and_then(fnJust).value() == 2);
+    CHECK(s.and_then(fnJust).value() == 2);
+    CHECK(type{true}.and_then(fnJust).value() == 1);
+    constexpr auto fnVoid = [](auto) { return fn::just<void>{}; };
+    static_assert(std::is_same_v<decltype(a.and_then(fnVoid)), fn::just<void>>);
+    CHECK(s.and_then(fnVoid) == fn::just<void>{});
+  }
 }
 
 TEST_CASE("choice transform", "[choice][transform]")
@@ -1159,10 +1156,10 @@ TEST_CASE("choice transform", "[choice][transform]")
     SECTION("element v0 set")
     {
       type a{std::in_place_type<double>, 0.5};
-      CHECK(a.data.v0 == 0.5);
+      CHECK(a.value().data.v0 == 0.5);
       SECTION("value only")
       {
-        static_assert(type{0.5}.transform(fn1) == choice{std::size_t{8}});
+        static_assert(type{0.5}.transform(fn1) == choice<std::size_t>{std::size_t{8}});
         CHECK(a.transform(     //
                   fn::overload{//
                                [](auto) -> int { throw 1; }, [](double &i) -> bool { return i == 0.5; },
@@ -1194,36 +1191,36 @@ TEST_CASE("choice transform", "[choice][transform]")
     SECTION("element v1 set")
     {
       type a{std::in_place_type<int>, 42};
-      CHECK(a.data.v1 == 42);
+      CHECK(a.value().data.v1 == 42);
 
       SECTION("value only")
       {
-        static_assert(type{42}.transform(fn1) == choice{std::size_t{4}});
+        static_assert(type{42}.transform(fn1) == choice<std::size_t>{std::size_t{4}});
         CHECK(a.transform(     //
                   fn::overload{//
                                [](auto) -> bool { throw 1; }, [](int &i) -> bool { return i == 42; },
                                [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
                                [](int const &&) -> bool { throw 0; }})
-              == choice{true});
+              == choice<bool>{true});
         CHECK(std::as_const(a).transform( //
                   fn::overload{           //
                                [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
                                [](int const &i) -> bool { return i == 42; }, [](int &&) -> bool { throw 0; },
                                [](int const &&) -> bool { throw 0; }})
-              == choice{true});
+              == choice<bool>{true});
         CHECK(choice<int>{std::in_place_type<int>, 42}.transform( //
                   fn::overload{                                   //
                                [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
                                [](int const &) -> bool { throw 0; }, [](int &&i) -> bool { return i == 42; },
                                [](int const &&) -> bool { throw 0; }})
-              == choice{true});
+              == choice<bool>{true});
         CHECK(std::move(std::as_const(a))
                   .transform(      //
                       fn::overload{//
                                    [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
                                    [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
                                    [](int const &&i) -> bool { return i == 42; }})
-              == choice{true});
+              == choice<bool>{true});
       }
     }
   }
@@ -1245,9 +1242,7 @@ TEST_CASE("choice assignment", "[choice][assignment]")
 {
   using fn::choice;
 
-  // choice adds no state of its own, so its assignment is the base copack's: same strong guarantee,
-  // same constraints, same noexcept - it only has to be declared, since choice's move constructor
-  // would otherwise delete the implicit copy assignment and suppress the implicit move assignment
+  // Defaulted assignment delegates to the copack member, including its constraints and noexcept.
   static_assert(std::is_copy_assignable_v<choice<bool, int>>);
   static_assert(std::is_move_assignable_v<choice<bool, int>>);
   static_assert(std::is_nothrow_copy_assignable_v<choice<bool, int>>);
@@ -1259,11 +1254,11 @@ TEST_CASE("choice assignment", "[choice][assignment]")
     choice<bool, int> a{42};
     choice<bool, int> const b{true};
     a = b;
-    CHECK(a == choice{true});
+    CHECK(a == choice<bool>{true});
     CHECK(a.has_value(std::in_place_type<bool>));
 
     a = choice<bool, int>{12};
-    CHECK(a == choice{12});
+    CHECK(a == choice<int>{12});
   }
 
   SECTION("constexpr")
@@ -1271,7 +1266,7 @@ TEST_CASE("choice assignment", "[choice][assignment]")
     static_assert([] {
       choice<bool, int> a{42};
       a = choice<bool, int>{true};
-      return a == choice{true};
+      return a == choice<bool>{true};
     }());
     SUCCEED();
   }
@@ -1281,8 +1276,7 @@ TEST_CASE("choice emplace", "[choice][emplace]")
 {
   using fn::choice;
 
-  // copack::emplace is inherited - a named member, so the name hiding that forces choice to restate
-  // every operator= does not apply
+  // emplace forwards to the payload's: the same constraints, the same noexcept, the same reference
   struct Sender final { // not assignable, nothrow-move-constructible
     int target;
     constexpr explicit Sender(int t) noexcept : target(t) {}
@@ -1314,10 +1308,8 @@ TEST_CASE("choice special members", "[choice]")
 {
   using fn::choice;
 
-  // choice declares all five, and defaults all five: the copy constructor because a user-declared
-  // move constructor would otherwise delete it, and the two assignments because they would otherwise
-  // be deleted and suppressed in turn. Removing a `= default`, adding a `noexcept` the base does not
-  // promise, or narrowing a requires-clause would all break the equalities below.
+  // choice defaults all five over its one copack member: adding a `noexcept` the payload does not
+  // promise, or narrowing a requires-clause, would break the equalities below.
   static_assert(special_members_follow_copack<int>());
   static_assert(special_members_follow_copack<bool, int>());
   static_assert(special_members_follow_copack<std::string>());

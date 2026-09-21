@@ -31,7 +31,7 @@ concept below names the header that declares it. `<fn/concepts.hpp>` carries the
 ### fn::some_just {style: "api", badge: "#include <fn/just.hpp>"}
 :include-doxygen-doc: fn::some_just
 
-### fn::some_choice {style: "api", badge: "#include <fn/choice.hpp>"}
+### fn::some_choice {style: "api", badge: "#include <fn/just.hpp>"}
 :include-doxygen-doc: fn::some_choice
 
 ### fn::some_pack {style: "api", badge: "#include <fn/pack.hpp>"}
@@ -108,9 +108,6 @@ constraints it dispatches to, and the ones a verb of your own would join.
 
 ### fn::applicable_transform_error {style: "api", badge: "#include <fn/transform_error.hpp>"}
 :include-doxygen-doc: fn::applicable_transform_error
-
-### fn::applicable_transform_promote {style: "api", badge: "#include <fn/transform.hpp>"}
-:include-doxygen-doc: fn::applicable_transform_promote
 
 ### fn::applicable_or_else {style: "api", badge: "#include <fn/or_else.hpp>"}
 :include-doxygen-doc: fn::applicable_or_else

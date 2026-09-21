@@ -438,16 +438,16 @@ TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform
   // example-choice-checks
   static_assert(std::is_same_v<decltype(parse("")),
                                fn::choice_for<bool, double, long, std::string_view, std::nullopt_t, std::nullptr_t>>);
-  CHECK(parse("'abc'") == fn::choice{std::string_view{"abc"}});
-  CHECK(parse(R"("def")") == fn::choice{std::string_view{"def"}});
-  CHECK(parse("null") == fn::choice(nullptr));
-  CHECK(parse("") == fn::choice(nullptr));
-  CHECK(parse("true") == fn::choice(true));
-  CHECK(parse("false") == fn::choice(false));
-  CHECK(parse("1025") == fn::choice(1025l));
-  CHECK(parse("10.25") == fn::choice(10.25));
-  CHECK(parse("2e9") == fn::choice(2e9));
-  CHECK(parse("5e9") == fn::choice(5e9));
+  CHECK(parse("'abc'") == fn::choice<std::string_view>{std::string_view{"abc"}});
+  CHECK(parse(R"("def")") == fn::choice<std::string_view>{std::string_view{"def"}});
+  CHECK(parse("null") == fn::choice<std::nullptr_t>{nullptr});
+  CHECK(parse("") == fn::choice<std::nullptr_t>{nullptr});
+  CHECK(parse("true") == fn::choice<bool>{true});
+  CHECK(parse("false") == fn::choice<bool>{false});
+  CHECK(parse("1025") == fn::choice<long>{1025l});
+  CHECK(parse("10.25") == fn::choice<double>{10.25});
+  CHECK(parse("2e9") == fn::choice<double>{2e9});
+  CHECK(parse("5e9") == fn::choice<double>{5e9});
   CHECK(parse("foo").has_value(std::in_place_type<std::nullopt_t>));
   // example-choice-checks
 
@@ -476,12 +476,12 @@ TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform
 
   auto const a = fn("true");
   static_assert(std::is_same_v<decltype(a), fn::choice_for<bool, double, int, std::string_view, std::nullptr_t> const>);
-  CHECK(a == fn::choice{true});
-  CHECK(fn("123") == fn::choice(123));
-  CHECK(fn("2e9") == fn::choice(2000000000));
-  CHECK(fn("5e9") == fn::choice(5e9));
-  CHECK(fn("") == fn::choice(nullptr));
-  CHECK(fn("foo") == fn::choice(nullptr));
+  CHECK(a == fn::choice<bool>{true});
+  CHECK(fn("123") == fn::choice<int>{123});
+  CHECK(fn("2e9") == fn::choice<int>{2000000000});
+  CHECK(fn("5e9") == fn::choice<double>{5e9});
+  CHECK(fn("") == fn::choice<std::nullptr_t>{nullptr});
+  CHECK(fn("foo") == fn::choice<std::nullptr_t>{nullptr});
   CHECK(ss.str() == "1,123,2000000000,5e+09,nullptr,nullptr,");
 
   struct ConfigProd {

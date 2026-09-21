@@ -1050,8 +1050,9 @@ TEST_CASE("and_then across the identity cluster", "[and_then][just][choice][expe
     CHECK(r3.value());
   }
 
-  SECTION("choice crosses to a convergent carrier")
+  SECTION("choice converges on one just")
   {
+    // a choice is a just, so convergent just branches are the member's own bind, no crossing
     constexpr auto fnJust = fn::overload{[](A) { return fn::just<int>{1}; }, //
                                          [](B) { return fn::just<int>{2}; }};
     auto r = fn::choice_for<A, B>{A{}} | fn::and_then(fnJust);
@@ -1059,12 +1060,12 @@ TEST_CASE("and_then across the identity cluster", "[and_then][just][choice][expe
     CHECK(r.value() == 1);
     CHECK((fn::choice_for<A, B>{B{}} | fn::and_then(fnJust)).value() == 2);
     // named source: VS 2022 misreads a mid-expression prvalue's empty-class union member
-    // (the workaround's full story is in tests/fn/choice.cpp)
+    // (the workaround's full story is in tests/fn/just_choice.cpp)
     constexpr fn::choice_for<A, B> ca{A{}};
     static_assert((ca | fn::and_then(fnJust)).value() == 1);
   }
 
-  SECTION("just crosses kinds")
+  SECTION("just binds to a choice, and crosses to the identity expected")
   {
     auto r1 = fn::just{3} | fn::and_then([](int) { return fn::choice<U>{U{}}; });
     static_assert(std::is_same_v<decltype(r1), fn::choice<U>>);
@@ -1103,10 +1104,13 @@ TEST_CASE("and_then across the identity cluster", "[and_then][just][choice][expe
 
   SECTION("noexcept and constraints")
   {
-    constexpr auto nothrowCross = [](int) noexcept { return fn::choice<U>{U{}}; };
+    constexpr auto nothrowChoice = [](int) noexcept { return fn::choice<U>{U{}}; };
+    constexpr auto nothrowCross = [](int) noexcept { return fn::expected<int, E0>{1}; };
     fn::just<int> j{3};
+    static_assert(noexcept(j | fn::and_then(nothrowChoice)));
     static_assert(noexcept(j | fn::and_then(nothrowCross)));
     static_assert(not noexcept(j | fn::and_then([](int) { return fn::choice<U>{U{}}; })));
+    static_assert(not noexcept(j | fn::and_then([](int) { return fn::expected<int, E0>{1}; })));
 
     // only an identity input crosses kinds - to an identity result, or over the #376 bridge to
     // optional and expected (their sections below)
@@ -1116,8 +1120,9 @@ TEST_CASE("and_then across the identity cluster", "[and_then][just][choice][expe
     static_assert(not fn::applicable_and_then_across<decltype(fnJust), fn::optional<int> &>);
     constexpr auto fnValue = [](int i) { return i; };
     static_assert(not fn::applicable_and_then_across<decltype(fnValue), fn::just<int> &>);
-    // an endo callback is the member's business, not the cluster's
+    // A just result, including a choice, uses the member bind rather than cross-carrier dispatch.
     static_assert(not fn::applicable_and_then_across<decltype(fnJust), fn::just<int> &>);
+    static_assert(not fn::applicable_and_then_across<decltype(nothrowChoice), fn::just<int> &>);
     // an uninhabited copack payload has no branches to join - the probe answers, not asserts
     static_assert(not fn::applicable_and_then_across<decltype(fnJust), fn::expected<fn::copack<>, E0> &>);
 

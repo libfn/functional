@@ -656,11 +656,11 @@ TEST_CASE("transform choice", "[transform][choice]")
         return i;
       };
       constexpr auto r1 = T{0} | fn::transform(fn);
-      static_assert(r1.transform([](int i) -> int { return i; }) == fn::choice{1});
+      static_assert(r1.transform([](int i) -> int { return i; }) == fn::choice<int>{1});
       constexpr auto r2 = T{0.5} | fn::transform(fn);
-      static_assert(r2.transform([](int i) -> int { return i; }) == fn::choice{1});
+      static_assert(r2.transform([](int i) -> int { return i; }) == fn::choice<int>{1});
       constexpr auto r3 = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
-      static_assert(r3.transform([](int i) -> int { return i; }) == fn::choice{1});
+      static_assert(r3.transform([](int i) -> int { return i; }) == fn::choice<int>{1});
 
       SUCCEED();
     }
@@ -670,11 +670,11 @@ TEST_CASE("transform choice", "[transform][choice]")
       constexpr auto fn1 = [](int i) constexpr noexcept -> bool { return (i == 1); };
       constexpr auto r1 = T{1} | fn::transform(fn1);
       static_assert(std::is_same_v<decltype(r1), fn::choice<bool> const>);
-      static_assert(r1.transform([](bool i) -> bool { return i; }) == fn::choice{true});
+      static_assert(r1.transform([](bool i) -> bool { return i; }) == fn::choice<bool>{true});
       constexpr auto r2 = T{0} | fn::transform(fn1);
-      static_assert(r2.transform([](bool i) -> bool { return i; }) == fn::choice{false});
+      static_assert(r2.transform([](bool i) -> bool { return i; }) == fn::choice<bool>{false});
       constexpr auto r3 = T{2} | fn::transform(fn1);
-      static_assert(r3.transform([](bool i) -> bool { return i; }) == fn::choice{false});
+      static_assert(r3.transform([](bool i) -> bool { return i; }) == fn::choice<bool>{false});
 
       SUCCEED();
     }
@@ -716,13 +716,13 @@ TEST_CASE("transform just", "[transform][just][choice][identity]")
     auto r3 = fn::just{} | fn::transform([] { return 5; });
     static_assert(std::is_same_v<decltype(r3), fn::just<int>>);
     CHECK(r3.value() == 5);
-    // a choice result nests as a payload atom - fmap semantics, never promoted
+    // a choice result nests as a payload atom - fmap semantics
     auto r4 = fn::just{3} | fn::transform([](int) { return fn::choice<U>{U{}}; });
     static_assert(std::is_same_v<decltype(r4), fn::just<fn::choice<U>>>);
     static_assert((fn::just{3} | fn::transform([](int i) { return i + 1; })).value() == 4);
   }
 
-  SECTION("a copack result promotes to the choice over the same alternatives")
+  SECTION("a copack result produces a choice over the same alternatives")
   {
     constexpr auto fnCopack = [](int i) { return i > 0 ? fn::copack_for<U, V>{U{}} : fn::copack_for<U, V>{V{}}; };
     auto r1 = fn::just{3} | fn::transform(fnCopack);
