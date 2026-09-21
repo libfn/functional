@@ -641,7 +641,26 @@ TEST_CASE("copack basic functionality tests", "[copack]")
       using Y = fn::copack<bool, int>;
       static_assert(noexcept(Y{std::declval<copack<int> const &>()}));
       static_assert(noexcept(Y{std::declval<copack<int> &&>()}));
-      SUCCEED();
+
+      // Tagged construction uses the throwing const copy for lvalues and const rvalues,
+      // even though this type's mutable copy and const-rvalue constructor are nonthrowing.
+      struct ConstCopyThrows final {
+        ConstCopyThrows() = default;
+        ConstCopyThrows(ConstCopyThrows &) noexcept {}
+        ConstCopyThrows(ConstCopyThrows const &) noexcept(false) { throw 42; }
+        ConstCopyThrows(ConstCopyThrows &&) noexcept = default;
+        ConstCopyThrows(ConstCopyThrows const &&) noexcept {}
+      };
+      using Z = fn::copack_for<ConstCopyThrows, int>;
+      using tag = std::in_place_type_t<copack<ConstCopyThrows>>;
+      static_assert(not std::is_nothrow_constructible_v<Z, tag, copack<ConstCopyThrows> &>);
+      static_assert(not std::is_nothrow_constructible_v<Z, tag, copack<ConstCopyThrows> const &>);
+      static_assert(not std::is_nothrow_constructible_v<Z, tag, copack<ConstCopyThrows> const &&>);
+      static_assert(std::is_nothrow_constructible_v<Z, tag, copack<ConstCopyThrows> &&>);
+      copack<ConstCopyThrows> src{std::in_place_type<ConstCopyThrows>};
+      CHECK_THROWS_AS(Z(tag{}, src), int);
+      CHECK_THROWS_AS(Z(tag{}, std::move(std::as_const(src))), int);
+      CHECK_NOTHROW(Z(tag{}, std::move(src)));
     }
   }
 

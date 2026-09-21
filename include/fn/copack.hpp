@@ -229,6 +229,12 @@ template <typename Fn, typename Self, typename... Args>
 struct _copack_invoke_type_result<_collapsing_copack_tag, Fn, Self, Args...> final
     : _typelist_type_collapsing_copack<Fn, Self, ::std::remove_cvref_t<Self>, Args...> {};
 
+// _invoke exposes T&& for a non-const rvalue copack and T const& for every other source.
+// Model those overloads when checking tagged construction and its exception specification.
+template <typename Cp, typename T>
+using _invoked_element_t
+    = ::std::conditional_t<::std::is_rvalue_reference_v<Cp> && (not ::std::is_const_v<::std::remove_reference_t<Cp>>),
+                           T &&, T const &>;
 } // namespace detail
 
 /**
@@ -504,9 +510,10 @@ struct copack<Ts...> {
    */
   template <typename... Tx>
   constexpr copack(::std::in_place_type_t<copack<Tx...>>, some_copack auto &&arg) //
-      noexcept((... && detail::_nothrow_makeable<data_t, Tx, apply_const_lvalue_t<decltype(arg), Tx &&>>))
+      noexcept((... && detail::_nothrow_makeable<data_t, Tx, detail::_invoked_element_t<decltype(arg), Tx>>))
     requires ::std::is_same_v<::std::remove_cvref_t<decltype(arg)>, copack<Tx...>>
                  && detail::is_superset_of<copack, copack<Tx...>> && (sizeof...(Tx) > 0)
+                 && (... && detail::_makeable<data_t, Tx, detail::_invoked_element_t<decltype(arg), Tx>>)
       : data(FWD(arg).template _invoke<data_t>([]<typename T>(::std::in_place_type_t<T>, auto &&v) -> data_t {
           return detail::make_variadic_union<T, data_t>(FWD(v));
         })),

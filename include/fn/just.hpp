@@ -693,16 +693,18 @@ template <> struct just<void> {
 
 namespace detail {
 // Inject each branch's payload into the joined choice: a choice contributes its copack,
-// an ordinary just contributes its value, and just<void> contributes pack<>. A branch already
-// returning the joined type passes through. Constructing from the whole carrier could instead
-// select an alternative matching that carrier and preserve an extra just layer.
+// an ordinary just contributes its value, and just<void> contributes pack<>. Constructing from
+// the whole carrier could instead select that carrier as an alternative and keep an extra layer.
+// Return the callback result directly when it already has the joined type or the destination
+// is not a choice. The latter also preserves invalid convergent results for the member's
+// static_assert, without assuming they have a payload while probing noexcept.
 template <typename To, typename Fn, typename... Args> struct _nothrow_just_inject : ::std::false_type {};
 template <typename To, typename Fn, typename... Args>
   requires ::std::is_invocable_v<Fn, Args...>
 struct _nothrow_just_inject<To, Fn, Args...> {
   static constexpr bool value = [] {
     using from = ::std::remove_cvref_t<::std::invoke_result_t<Fn, Args...>>;
-    if constexpr (::std::is_same_v<from, To>)
+    if constexpr (::std::is_same_v<from, To> || not _some_choice<To>)
       return ::std::is_nothrow_invocable_r_v<To, Fn, Args...>;
     else if constexpr (::std::is_void_v<typename from::value_type>)
       return ::std::is_nothrow_invocable_v<Fn, Args...>
@@ -722,7 +724,7 @@ template <typename To, typename Fn> struct _just_injector final {
     requires ::std::is_invocable_v<Fn, Args...>
   {
     using from = ::std::remove_cvref_t<::std::invoke_result_t<Fn, Args...>>;
-    if constexpr (::std::is_same_v<from, To>)
+    if constexpr (::std::is_same_v<from, To> || not _some_choice<To>)
       return ::std::invoke(FWD(fn), FWD(args)...);
     else if constexpr (::std::is_void_v<typename from::value_type>) {
       static_cast<void>(::std::invoke(FWD(fn), FWD(args)...));

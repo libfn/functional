@@ -98,6 +98,8 @@ template <typename... Ts> consteval bool special_members_follow_copack()
          && std::is_trivially_move_assignable_v<C> == std::is_trivially_move_assignable_v<S>;
 }
 
+constexpr int fnReferenceTarget = 42;
+
 } // anonymous namespace
 
 TEST_CASE("choice non-monadic functionality", "[choice]")
@@ -1114,6 +1116,22 @@ TEST_CASE("choice and_then", "[choice][and_then]")
                        [](B) noexcept { return fn::choice<U>{U{}}; }};
     static_assert(not noexcept(j.and_then(fnThrowingArm)));
 
+    // Widening a choice returned by lvalue reference copies its alternative through const&.
+    // That copy can throw even when the callback and mutable copy constructor are noexcept.
+    struct ConstCopyThrows final {
+      ConstCopyThrows() = default;
+      ConstCopyThrows(ConstCopyThrows &) noexcept {}
+      ConstCopyThrows(ConstCopyThrows const &) noexcept(false) { throw 42; }
+      ConstCopyThrows(ConstCopyThrows &&) noexcept = default;
+    };
+    fn::choice<ConstCopyThrows> held{std::in_place_type<ConstCopyThrows>};
+    auto const fnHeldArm = fn::overload{[&](A) noexcept -> fn::choice<ConstCopyThrows> & { return held; },
+                                        [](B) noexcept { return fn::choice<U>{U{}}; }};
+    static_assert(std::is_same_v<decltype(j.and_then(fnHeldArm)), fn::choice_for<ConstCopyThrows, U>>);
+    static_assert(not noexcept(j.and_then(fnHeldArm)));
+    CHECK_THROWS_AS(J{A{}}.and_then(fnHeldArm), int);
+    CHECK(J{B{}}.and_then(fnHeldArm).has_value(std::in_place_type<U>));
+
     // asking answers: an inapplicable callback drops and_then from the overload set; a
     // value-returning one stays viable - its rejection is the deliberately loud static_assert
     // on instantiation, not a constraint
@@ -1122,6 +1140,11 @@ TEST_CASE("choice and_then", "[choice][and_then]")
     static_assert(can_and_then<fn::choice<A> &, decltype(fnPartial)>);
     constexpr auto fnValue = [](auto &&) { return 42; };
     static_assert(can_and_then<J &, decltype(fnValue)>);
+    // Probing a reference result also instantiates noexcept. Leave rejection to the member's
+    // static_assert rather than requiring a payload type during the probe.
+    constexpr auto fnReference = [](auto &&) -> int const & { return fnReferenceTarget; };
+    static_assert(can_and_then<J &, decltype(fnReference)>);
+    static_assert(can_and_then<J const &&, decltype(fnReference)>);
 
     // ... and the throwing relocation at runtime: the exception propagates, self unchanged
     struct Boom final {
