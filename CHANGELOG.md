@@ -16,6 +16,7 @@ The consequences are breaking:
 - The choice comparisons are `just`'s, over the payloads; their `noexcept` follows the alternatives' comparisons instead of being promised unconditionally.
 - `choice::and_then` also accepts branches returning the same `just` type.
 - Diagnostics spell `just<copack<...>>`.
+- Version `0.2.0-dev` opens the breaking release cycle, with inline ABI namespace `v0_2_dev` (`v0_2_dev_cxx26` in C++26 mode).
 
 ## Visual Studio 2022 returns as the MSVC floor — 13 September 2026
 
