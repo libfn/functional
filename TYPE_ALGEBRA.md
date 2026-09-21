@@ -807,7 +807,7 @@ Monadic operations on the identity cluster:
 >
 ## 11. choice: identity over a coproduct
 
-`choice<Ts...>` represents a computation that always succeeds by selecting one of several alternatives. It is `just<copack<Ts...>>` (Section 3): the identity carrier over the coproduct payload, dispatching branch-wise where `just<T>` maps the one value. `fn::as_choice(x)` lifts a value into the single-alternative choice over its cv/ref-unqualified type, and wraps a copack in the choice over its alternatives.
+`choice<Ts...>` represents a computation that always succeeds by selecting one of several alternatives. It is `just<copack<Ts...>>` (Section 3): the identity carrier over the coproduct payload, dispatching branch-wise where `just<T>` maps the one value. `fn::as_choice(x)` lifts a value into the single-alternative choice over its decayed type, and wraps a copack in the choice over its alternatives.
 
 ### Mapping into a choice
 

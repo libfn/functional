@@ -1457,14 +1457,28 @@ explicit just(::std::in_place_t) -> just<void>;
 template <typename... Ts> using choice_for = just<copack_for<Ts...>>;
 
 namespace detail {
-// The value lift names `choice<remove_cvref_t<Src>>`, whose payload refuses an in_place tag or a
-// copack as an alternative; as `_nothrow_copack_lift`, the specifier must not name it unless the
-// guard holds.
+// Validate the alternative before naming choice<T>, which can trigger a payload static_assert.
+// Guard the noexcept helpers separately as well, following _nothrow_copack_lift for MSVC.
+template <typename Src>
+concept _choice_liftable = _is_valid_copack_subtype<::std::decay_t<Src>>;
+
 template <typename Src> constexpr inline bool _nothrow_choice_lift = false;
 template <typename Src>
-  requires(not some_in_place_type<Src>) && (not some_copack<::std::remove_cvref_t<Src>>)
+  requires _choice_liftable<Src>
 constexpr inline bool _nothrow_choice_lift<Src>
-    = ::std::is_nothrow_constructible_v<choice<::std::remove_cvref_t<Src>>, Src>;
+    = ::std::is_nothrow_constructible_v<choice<::std::decay_t<Src>>, ::std::in_place_type_t<::std::decay_t<Src>>, Src>;
+
+template <typename Src> constexpr inline bool _nothrow_copack_choice_lift = false;
+template <typename Src>
+  requires _some_copack<::std::remove_cvref_t<Src>> && (not ::std::is_same_v<::std::remove_cvref_t<Src>, copack<>>)
+constexpr inline bool _nothrow_copack_choice_lift<Src>
+    = ::std::is_nothrow_constructible_v<just<::std::remove_cvref_t<Src>>, Src>;
+
+template <typename T, typename... Args> constexpr inline bool _nothrow_choice_emplace = false;
+template <typename T, typename... Args>
+  requires _is_valid_copack_subtype<T>
+constexpr inline bool _nothrow_choice_emplace<T, Args...>
+    = ::std::is_nothrow_constructible_v<choice<T>, ::std::in_place_type_t<T>, Args...>;
 } // namespace detail
 
 // Lifts
@@ -1472,17 +1486,20 @@ constexpr inline bool _nothrow_choice_lift<Src>
  * @brief Constructs a single-alternative choice from a value
  *
  * Use `as_choice(x)` to deduce the alternative type from a bare value. The current guides do
- * not support `choice{x}` for these arguments. The result owns its alternative; cv/ref qualifiers
- * are removed from the source type.
+ * not support `choice{x}` for these arguments. The alternative uses the decayed source type:
+ * cv/ref qualifiers are removed, and arrays and functions become pointers.
  *
  * @param src Value to lift
- * @return A `choice` over the cv/ref-unqualified type of `src`, holding its value
+ * @return A `choice` over the decayed type of `src`, holding the constructed alternative
  */
 [[nodiscard]] constexpr auto as_choice(auto &&src) //
     noexcept(detail::_nothrow_choice_lift<decltype(src)>) -> decltype(auto)
-  requires(not some_in_place_type<decltype(src)>) && (not some_copack<::std::remove_cvref_t<decltype(src)>>)
+  requires detail::_choice_liftable<decltype(src)>
+           && ::std::is_constructible_v<choice<::std::decay_t<decltype(src)>>,
+                                        ::std::in_place_type_t<::std::decay_t<decltype(src)>>, decltype(src)>
 {
-  return choice<::std::remove_cvref_t<decltype(src)>>(FWD(src));
+  using type = ::std::decay_t<decltype(src)>;
+  return choice<type>(::std::in_place_type<type>, FWD(src));
 }
 
 /**
@@ -1494,9 +1511,10 @@ constexpr inline bool _nothrow_choice_lift<Src>
  * @return The `choice` over the alternatives of `src`, holding its value
  */
 template <typename Src>
-  requires some_copack<::std::remove_cvref_t<Src>>
+  requires some_copack<::std::remove_cvref_t<Src>> && (not ::std::is_same_v<::std::remove_cvref_t<Src>, copack<>>)
+           && ::std::is_constructible_v<just<::std::remove_cvref_t<Src>>, Src>
 [[nodiscard]] constexpr auto as_choice(Src &&src) //
-    noexcept(::std::is_nothrow_constructible_v<just<::std::remove_cvref_t<Src>>, Src>) -> decltype(auto)
+    noexcept(detail::_nothrow_copack_choice_lift<Src>) -> decltype(auto)
 {
   return just<::std::remove_cvref_t<Src>>(FWD(src));
 }
@@ -1510,9 +1528,9 @@ template <typename Src>
  */
 template <typename T>
 [[nodiscard]] constexpr auto as_choice(::std::in_place_type_t<T>, auto &&...args) //
-    noexcept(::std::is_nothrow_constructible_v<choice<T>, ::std::in_place_type_t<T>, decltype(args)...>)
-        -> decltype(auto)
-  requires ::std::is_constructible_v<choice<T>, ::std::in_place_type_t<T>, decltype(args)...>
+    noexcept(detail::_nothrow_choice_emplace<T, decltype(args)...>) -> decltype(auto)
+  requires detail::_is_valid_copack_subtype<T>
+           && ::std::is_constructible_v<choice<T>, ::std::in_place_type_t<T>, decltype(args)...>
 {
   return choice<T>(::std::in_place_type<T>, FWD(args)...);
 }

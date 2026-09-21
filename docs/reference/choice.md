@@ -305,7 +305,7 @@ using choice_for = just<copack_for<Ts...>>;  // (1)
 ## as_choice {style: "api"}
 
 `as_choice(x)` constructs a choice without explicit template arguments. A value becomes a
-single alternative after removing cv/ref qualifiers; a copack becomes the payload of a choice
+single alternative of its decayed type; a copack becomes the payload of a choice
 over its alternatives. Use this function for bare values, which the current `choice` deduction
 guides do not support.
 

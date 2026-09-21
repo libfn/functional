@@ -13,7 +13,9 @@
 
 #include <catch2/catch_all.hpp>
 
+#include <memory>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -680,6 +682,11 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     // A choice argument becomes a nested alternative.
     static_assert(std::same_as<decltype(fn::as_choice(choice<int>{1})), choice<choice<int>>>);
 
+    // A string literal produces a pointer alternative.
+    auto s = fn::as_choice("hi");
+    static_assert(std::same_as<decltype(s), choice<char const *>>);
+    CHECK(std::string_view{*s.get_ptr(std::in_place_type<char const *>)} == "hi");
+
     // noexcept follows construction of the alternative or copack payload
     static_assert(noexcept(fn::as_choice(12)));
     static_assert(noexcept(fn::as_choice(std::in_place_type<long>, 12)));
@@ -698,6 +705,17 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       // no viable lift at all, rather than a choice whose alternative is the tag
       static_assert(not can_as_choice_value<std::in_place_type_t<NonCopyable> const &>);
       static_assert(can_as_choice_value<long>);
+
+      // Invalid payloads and sources that cannot construct the payload must fail the constraint
+      // probe without instantiating an invalid carrier.
+      static_assert(can_as_choice_value<std::unique_ptr<int>>);
+      static_assert(not can_as_choice_value<std::unique_ptr<int> &>);
+      static_assert(can_as_choice_value<fn::copack<std::unique_ptr<int>>>);
+      static_assert(not can_as_choice_value<fn::copack<std::unique_ptr<int>> &>);
+      static_assert(not can_as_choice_value<fn::copack<> &>);
+      static_assert(not can_as_choice<int &>);
+      static_assert(not can_as_choice<int const>);
+      static_assert(can_as_choice<int>);
       SUCCEED();
     }
   }
