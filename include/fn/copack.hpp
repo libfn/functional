@@ -244,27 +244,28 @@ template <typename... Ts> struct copack;
 /**
  * @brief The empty copack: the algebra's zero, uninhabited by construction
  *
- * The deleted default constructor is the whole point: no value of this type can ever exist, so a
- * carrier side declared `copack<>` is statically known never to be engaged. As the identity of
- * the union it vanishes inside `copack_for`; the remaining special members are kept so that the
- * type can sit inside a union storage.
+ * A carrier side of type `copack<>` cannot be engaged. As the identity of the union, it
+ * vanishes inside `copack_for`. The special members allow carriers to use it in union storage.
  */
-template <> struct copack<> final {
+template <> struct copack<> final { // NOSONAR cpp:S3624 no resource to manage
+  // A deleted constexpr non-copy/move constructor keeps the type literal for C++20 constexpr carriers.
+  // Copy and move are user-provided to prevent implicit lifetime creation and std::bit_cast.
+  // Leave the default constructor undeclared: Clang 21's __builtin_is_implicit_lifetime incorrectly
+  // accepts a deleted trivial constructor (llvm/llvm-project#161163).
   /**
-   * @brief Default constructor; not available on this carrier
+   * @brief In-place constructor; deleted because there are no alternatives
    */
-  constexpr copack() noexcept = delete;
+  template <typename T> constexpr explicit copack(::std::in_place_type_t<T>, auto &&...args) = delete;
   /**
    * @brief Destructor
    */
   constexpr ~copack() noexcept = default;
-  // Keep copy/move available to carriers, but nontrivial to block bit_cast and implicit lifetime creation.
   /**
-   * @brief Copy constructor
+   * @brief Copy constructor; unreachable because no source value can exist
    */
   [[noreturn]] copack(copack const &) noexcept { ::pfn::unreachable(); } // LCOV_EXCL_LINE
   /**
-   * @brief Move constructor
+   * @brief Move constructor; unreachable because no source value can exist
    */
   [[noreturn]] copack(copack &&) noexcept { ::pfn::unreachable(); } // LCOV_EXCL_LINE
   /**

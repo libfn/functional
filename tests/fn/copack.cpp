@@ -235,6 +235,8 @@ TEST_CASE("copack basic functionality tests", "[copack]")
     static_assert(copack<>::has_type<bool> == false);
     static_assert(std::same_as<fn::copack_for<copack<>, copack<>>, copack<>>);
     static_assert(not std::is_default_constructible_v<copack<>>);
+    static_assert(not std::is_constructible_v<copack<>, std::in_place_type_t<int>>);
+    static_assert(std::is_constructible_v<copack<int>, std::in_place_type_t<int>, int>);
     static_assert(not can_bit_cast<copack<>>);
     static_assert(can_bit_cast<copack<int>>);
     static_assert(not std::is_aggregate_v<copack<>>);
