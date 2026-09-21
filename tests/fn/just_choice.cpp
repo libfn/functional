@@ -895,6 +895,26 @@ TEST_CASE("choice apply", "[choice][apply]")
       SUCCEED();
     }
   }
+
+  SECTION("reference results")
+  {
+    // Check that the returned reference still refers to the stored alternative.
+    choice<int> a{42};
+    constexpr auto same = [](auto &i) -> auto & { return i; };
+    static_assert(std::same_as<decltype(a.apply(same)), int &>);
+    static_assert(std::same_as<decltype(std::as_const(a).apply(same)), int const &>);
+    CHECK(&a.apply(same) == a.get_ptr(std::in_place_type<int>));
+    CHECK(&a.template apply_r<int const &>(same) == a.get_ptr(std::in_place_type<int>));
+
+    constexpr auto through = []() {
+      choice<int> const c{42};
+      constexpr auto keep = [](int const &i) noexcept -> int const & { return i; };
+      auto value = c.apply(keep); // c remains alive while its referenced value is copied
+      return value == 42;
+    };
+    static_assert(through());
+    CHECK(through());
+  }
 }
 
 TEST_CASE("choice noexcept", "[choice][noexcept]")
