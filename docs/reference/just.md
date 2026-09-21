@@ -52,9 +52,6 @@ constexpr just(U &&v);           // (4)
 constexpr explicit just(U &&v);  // (5)
 
 constexpr explicit just(std::in_place_type_t<T>, auto &&...args);  // (6)
-
-template <typename Fn>
-constexpr explicit just(detail::_just_from_invoke_t, Fn &&make);  // (7)
 ```
 
 :include-doxygen-doc: fn::just::just { args: "" }

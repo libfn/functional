@@ -214,6 +214,8 @@ def load_members(xml_dir):
                 # Skip friend class declarations; retain friend functions, which have an argument list.
                 if node.get("kind") == "friend" and not xml_text(node.find("argsstring")):
                     continue
+                if node.get("prot") == "private":
+                    continue
                 member = Member(node)
                 members[member.qualified or f"{cname}::{member.name}"].append(member)
     return members

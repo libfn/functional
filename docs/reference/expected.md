@@ -93,9 +93,6 @@ constexpr expected(expected const &s) = default;      // (12)
 constexpr expected(expected const &s);                // (13)
 constexpr expected(expected &&s) noexcept = default;  // (14)
 constexpr expected(expected &&s);                     // (15)
-
-template <class Tag, class Fn, class... Args>
-constexpr explicit expected(::pfn::detail::_expected_from_invoke_t tag, Tag which, Fn &&fn, Args &&...args);  // (16)
 ```
 
 :include-doxygen-doc: fn::expected::expected { args: "" }
@@ -142,9 +139,6 @@ constexpr expected(expected const &) = default;       // (10)
 constexpr expected(expected const &s);                // (11)
 constexpr expected(expected &&s) noexcept = default;  // (12)
 constexpr expected(expected &&s);                     // (13)
-
-template <class Tag, class Fn, class... Args>
-constexpr explicit expected(::pfn::detail::_expected_from_invoke_t tag, Tag which, Fn &&fn, Args &&...args);  // (14)
 ```
 
 :include-doxygen-doc: fn::expected< void, Err >::expected { args: "" }

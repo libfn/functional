@@ -68,9 +68,6 @@ constexpr just(just<copack<Tx...>> &&other);       // (8)
 
 constexpr just(just const &) = default;  // (9)
 constexpr just(just &&) = default;       // (10)
-
-template <typename Fn>
-constexpr explicit just(detail::_just_from_invoke_t, Fn &&make);  // (11)
 ```
 
 :include-doxygen-doc: fn::just< copack< Ts... > >::just { args: "T &&" }
