@@ -370,31 +370,6 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     }
   }
 
-  SECTION("constructor from a just")
-  {
-    // a just over one of the alternatives enters as that alternative, as its value would; just<void>
-    // enters as the unit pack<>; an alternative match wins over widening, boxing the just whole
-    using type = fn::choice_for<bool, int, fn::pack<>>;
-    static_assert(std::is_convertible_v<fn::just<int>, type>);
-    static_assert(std::is_convertible_v<fn::just<int> const &, type>);
-    static_assert(std::is_convertible_v<fn::just<void>, type>);
-    static_assert(not std::is_constructible_v<type, fn::just<double>>);
-    static_assert(not std::is_constructible_v<fn::choice<bool, int>, fn::just<void>>);
-    static_assert(not std::is_constructible_v<type, fn::just<fn::copack<double>>>); // no such alternative
-    static_assert(type{fn::just<int>{5}} == fn::as_choice(5));
-    static_assert(type{fn::just<void>{}} == fn::as_choice(fn::pack<>{}));
-    constexpr fn::just<bool> b{true};
-    static_assert(type{b} == fn::as_choice(true));
-    CHECK(type{fn::just<int>{5}}.has_value(std::in_place_type<int>));
-    CHECK(type{fn::just<void>{}}.has_value(std::in_place_type<fn::pack<>>));
-    static_assert(noexcept(type{fn::just<int>{5}}));
-    static_assert(not noexcept(fn::choice<Throwing>{std::declval<fn::just<Throwing> const &>()}));
-
-    using boxed = fn::choice_for<fn::just<int>, int>;
-    static_assert(boxed{fn::just<int>{5}}.has_value(std::in_place_type<fn::just<int>>));
-    CHECK(boxed{fn::just<int>{5}}.has_value(std::in_place_type<fn::just<int>>));
-  }
-
   SECTION("constructor from copack")
   {
     using T = fn::choice_for<bool, helper>;
@@ -1214,10 +1189,29 @@ TEST_CASE("choice and_then", "[choice][and_then]")
     static_assert(type{true}.and_then(fnUnit).has_value(std::in_place_type<fn::pack<>>));
     CHECK(type{true}.and_then(fnUnit) == fn::as_choice(fn::pack<>{}));
 
-    // These callbacks and their conversions into the joined choice are nonthrowing.
+    // Unwrap one carrier layer: just<int> selects int, just<just<int>> selects just<int>,
+    // and just<void> selects pack<> even when just<void> is another result alternative.
+    constexpr auto fnBoxed = fn::overload{[](bool) { return fn::just<int>{1}; }, //
+                                          [](int i) { return fn::just<fn::just<int>>{fn::just<int>{i}}; }};
+    static_assert(std::is_same_v<decltype(a.and_then(fnBoxed)), fn::choice_for<int, fn::just<int>>>);
+    static_assert(a.and_then(fnBoxed).has_value(std::in_place_type<fn::just<int>>));
+    static_assert(a.and_then(fnBoxed) == fn::as_choice(fn::just<int>{42}));
+    static_assert(type{true}.and_then(fnBoxed).has_value(std::in_place_type<int>));
+    static_assert(type{true}.and_then(fnBoxed) == fn::as_choice(1));
+    CHECK(s.and_then(fnBoxed) == fn::as_choice(fn::just<int>{12}));
+    constexpr auto fnBoxedUnit = fn::overload{[](bool) { return fn::just<void>{}; }, //
+                                              [](int) { return fn::just<fn::just<void>>{}; }};
+    static_assert(std::is_same_v<decltype(a.and_then(fnBoxedUnit)), fn::choice_for<fn::pack<>, fn::just<void>>>);
+    static_assert(a.and_then(fnBoxedUnit).has_value(std::in_place_type<fn::just<void>>));
+    static_assert(type{true}.and_then(fnBoxedUnit).has_value(std::in_place_type<fn::pack<>>));
+    CHECK(s.and_then(fnBoxedUnit) == fn::as_choice(fn::just<void>{}));
+
+    // noexcept includes both callback invocation and construction from its payload.
     static_assert(noexcept(a.and_then(fn::overload{[](bool) noexcept { return fn::just<long>{1L}; },
                                                    [](int) noexcept { return fn::just<int>{2}; }})));
     static_assert(not noexcept(a.and_then(fnMixed)));
+    static_assert(not noexcept(a.and_then(fn::overload{[](bool) noexcept { return fn::just<Throwing>{1}; },
+                                                       [](int) noexcept { return fn::just<int>{2}; }})));
   }
 }
 

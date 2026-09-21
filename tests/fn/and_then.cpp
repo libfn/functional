@@ -1102,6 +1102,15 @@ TEST_CASE("and_then across the identity cluster", "[and_then][just][choice][expe
     // named source: the same VS 2022 misread as above
     constexpr fn::expected<fn::copack_for<A, B>, E0> ea{fn::copack_for<A, B>{A{}}};
     static_assert((ea | fn::and_then(fnJoin)) == fn::choice_for<U, V>{U{}});
+
+    // the crossing joins by payload, as the member does: a branch's just<int> lands on int beside
+    // the alternative just<int>, reached by a branch returning just<just<int>>
+    constexpr auto fnBoxed = fn::overload{[](A) { return fn::just<int>{1}; }, //
+                                          [](B) { return fn::just<fn::just<int>>{fn::just<int>{2}}; }};
+    static_assert(std::is_same_v<decltype(ea | fn::and_then(fnBoxed)), fn::choice_for<int, fn::just<int>>>);
+    static_assert((ea | fn::and_then(fnBoxed)) == fn::as_choice(1));
+    CHECK((fn::expected<fn::copack_for<A, B>, E0>{fn::copack_for<A, B>{B{}}} | fn::and_then(fnBoxed))
+          == fn::as_choice(fn::just<int>{2}));
   }
 
   SECTION("identity expected, single and void payloads; the void just")

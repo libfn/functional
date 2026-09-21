@@ -16,6 +16,7 @@
 #include <fn/detail/variadic_union.hpp>
 #include <fn/pack.hpp>
 
+#include <functional>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -690,6 +691,62 @@ template <> struct just<void> {
   }
 };
 
+namespace detail {
+// Inject each branch's payload into the joined choice: a choice contributes its copack,
+// an ordinary just contributes its value, and just<void> contributes pack<>. A branch already
+// returning the joined type passes through. Constructing from the whole carrier could instead
+// select an alternative matching that carrier and preserve an extra just layer.
+template <typename To, typename Fn, typename... Args> struct _nothrow_just_inject : ::std::false_type {};
+template <typename To, typename Fn, typename... Args>
+  requires ::std::is_invocable_v<Fn, Args...>
+struct _nothrow_just_inject<To, Fn, Args...> {
+  static constexpr bool value = [] {
+    using from = ::std::remove_cvref_t<::std::invoke_result_t<Fn, Args...>>;
+    if constexpr (::std::is_same_v<from, To>)
+      return ::std::is_nothrow_invocable_r_v<To, Fn, Args...>;
+    else if constexpr (::std::is_void_v<typename from::value_type>)
+      return ::std::is_nothrow_invocable_v<Fn, Args...>
+             && ::std::is_nothrow_constructible_v<To, ::std::in_place_type_t<pack<>>>;
+    else
+      return ::std::is_nothrow_invocable_v<Fn, Args...>
+             && ::std::is_nothrow_constructible_v<To, ::std::in_place_type_t<typename from::value_type>,
+                                                  decltype((::std::declval<::std::invoke_result_t<Fn, Args...>>().v_))>;
+  }();
+};
+
+template <typename To, typename Fn> struct _just_injector final {
+  Fn fn;
+
+  template <typename... Args>
+  constexpr auto operator()(Args &&...args) const noexcept(_nothrow_just_inject<To, Fn, Args...>::value) -> To
+    requires ::std::is_invocable_v<Fn, Args...>
+  {
+    using from = ::std::remove_cvref_t<::std::invoke_result_t<Fn, Args...>>;
+    if constexpr (::std::is_same_v<from, To>)
+      return ::std::invoke(FWD(fn), FWD(args)...);
+    else if constexpr (::std::is_void_v<typename from::value_type>) {
+      static_cast<void>(::std::invoke(FWD(fn), FWD(args)...));
+      return To{::std::in_place_type<pack<>>};
+    } else
+      return To{::std::in_place_type<typename from::value_type>, ::std::invoke(FWD(fn), FWD(args)...).v_};
+  }
+};
+
+// The join-mode engine entry for the bind over a copack: the tag announces the joined just, and
+// every branch's result enters it through the injection above
+template <typename Tag, typename Cp, typename Fn>
+  requires _some_copack<::std::remove_cvref_t<Cp>>
+[[nodiscard]] constexpr auto _join_just_apply(Cp &&cp, Fn &&fn) //
+    noexcept(_is_nothrow_rts_applicable<typename _copack_apply_result<Tag, Fn &&, Cp &&>::type,
+                                        _just_injector<typename _copack_apply_result<Tag, Fn &&, Cp &&>::type, Fn &&>,
+                                        Cp &&>) -> typename _copack_apply_result<Tag, Fn &&, Cp &&>::type
+{
+  using type = _copack_apply_result<Tag, Fn &&, Cp &&>::type;
+  using data_t = ::std::remove_cvref_t<Cp>::data_t;
+  return apply_variadic_union<type, data_t>(FWD(cp).data, cp.index, _just_injector<type, Fn &&>{FWD(fn)});
+}
+} // namespace detail
+
 /**
  * @brief The identity carrier over a coproduct: always holds one of the alternatives
  *
@@ -837,44 +894,6 @@ template <typename... Ts> struct just<copack<Ts...>> {
     requires(not ::std::is_same_v<value_type, copack<Tx...>>) && (not has_type<just<copack<Tx...>>>)
             && detail::is_superset_of<value_type, copack<Tx...>> && ::std::is_constructible_v<value_type, copack<Tx...>>
       : v_(::std::move(other.v_))
-  {
-  }
-
-  /**
-   * @brief Widening constructor from a `just` whose payload is one of the alternatives
-   *
-   * The identity carrier over one type enters the choice as that alternative, as its value would.
-   *
-   * @param other The `just` to widen
-   */
-  template <typename T>
-  constexpr just(just<T> const &other) // NOSONAR cpp:S1709 implicit widening by design
-      noexcept(::std::is_nothrow_constructible_v<value_type, ::std::in_place_type_t<T>, T const &>)
-    requires(not some_copack<T>) && (not ::std::is_void_v<T>) && has_type<T> && (not has_type<just<T>>)
-            && ::std::is_constructible_v<value_type, ::std::in_place_type_t<T>, T const &>
-      : v_(::std::in_place_type<T>, other.v_)
-  {
-  }
-
-  /**
-   * @brief Widening constructor from a `just` whose payload is one of the alternatives
-   */
-  template <typename T>
-  constexpr just(just<T> &&other) // NOSONAR cpp:S1709 implicit widening by design
-      noexcept(::std::is_nothrow_constructible_v<value_type, ::std::in_place_type_t<T>, T &&>)
-    requires(not some_copack<T>) && (not ::std::is_void_v<T>) && has_type<T> && (not has_type<just<T>>)
-            && ::std::is_constructible_v<value_type, ::std::in_place_type_t<T>, T &&>
-      : v_(::std::in_place_type<T>, ::std::move(other.v_))
-  {
-  }
-
-  /**
-   * @brief Widening constructor from `just<void>`, which enters as the unit `pack<>`
-   */
-  constexpr just(just<void>) // NOSONAR cpp:S1709 implicit widening by design
-      noexcept(::std::is_nothrow_constructible_v<value_type, ::std::in_place_type_t<pack<>>>)
-    requires has_type<pack<>> && (not has_type<just<void>>)
-      : v_(::std::in_place_type<pack<>>)
   {
   }
 
@@ -1263,48 +1282,48 @@ template <typename... Ts> struct just<copack<Ts...>> {
    */
   template <typename Fn>
   [[nodiscard]] constexpr auto and_then(Fn &&fn) & //
-      noexcept(noexcept(detail::_tagged_join_apply<detail::_joining_superset_tag>(v_, FWD(fn)))) ->
+      noexcept(noexcept(detail::_join_just_apply<detail::_joining_superset_tag>(v_, FWD(fn)))) ->
       typename detail::_copack_apply_result<detail::_joining_superset_tag, Fn &&, value_type &>::type
     requires typelist_applicable<Fn, value_type &>
   {
     static_assert(
         some_just<typename detail::_copack_apply_result<detail::_joining_superset_tag, Fn &&, value_type &>::type>);
-    return detail::_tagged_join_apply<detail::_joining_superset_tag>(v_, FWD(fn));
+    return detail::_join_just_apply<detail::_joining_superset_tag>(v_, FWD(fn));
   }
 
   template <typename Fn>
   [[nodiscard]] constexpr auto and_then(Fn &&fn) const & //
-      noexcept(noexcept(detail::_tagged_join_apply<detail::_joining_superset_tag>(v_, FWD(fn)))) ->
+      noexcept(noexcept(detail::_join_just_apply<detail::_joining_superset_tag>(v_, FWD(fn)))) ->
       typename detail::_copack_apply_result<detail::_joining_superset_tag, Fn &&, value_type const &>::type
     requires typelist_applicable<Fn, value_type const &>
   {
     static_assert(
         some_just<
             typename detail::_copack_apply_result<detail::_joining_superset_tag, Fn &&, value_type const &>::type>);
-    return detail::_tagged_join_apply<detail::_joining_superset_tag>(v_, FWD(fn));
+    return detail::_join_just_apply<detail::_joining_superset_tag>(v_, FWD(fn));
   }
 
   template <typename Fn>
   [[nodiscard]] constexpr auto and_then(Fn &&fn) && //
-      noexcept(noexcept(detail::_tagged_join_apply<detail::_joining_superset_tag>(::std::move(v_), FWD(fn)))) ->
+      noexcept(noexcept(detail::_join_just_apply<detail::_joining_superset_tag>(::std::move(v_), FWD(fn)))) ->
       typename detail::_copack_apply_result<detail::_joining_superset_tag, Fn &&, value_type &&>::type
     requires typelist_applicable<Fn, value_type &&>
   {
     static_assert(
         some_just<typename detail::_copack_apply_result<detail::_joining_superset_tag, Fn &&, value_type &&>::type>);
-    return detail::_tagged_join_apply<detail::_joining_superset_tag>(::std::move(v_), FWD(fn));
+    return detail::_join_just_apply<detail::_joining_superset_tag>(::std::move(v_), FWD(fn));
   }
 
   template <typename Fn>
   [[nodiscard]] constexpr auto and_then(Fn &&fn) const && //
-      noexcept(noexcept(detail::_tagged_join_apply<detail::_joining_superset_tag>(::std::move(v_), FWD(fn)))) ->
+      noexcept(noexcept(detail::_join_just_apply<detail::_joining_superset_tag>(::std::move(v_), FWD(fn)))) ->
       typename detail::_copack_apply_result<detail::_joining_superset_tag, Fn &&, value_type const &&>::type
     requires typelist_applicable<Fn, value_type const &&>
   {
     static_assert(
         some_just<
             typename detail::_copack_apply_result<detail::_joining_superset_tag, Fn &&, value_type const &&>::type>);
-    return detail::_tagged_join_apply<detail::_joining_superset_tag>(::std::move(v_), FWD(fn));
+    return detail::_join_just_apply<detail::_joining_superset_tag>(::std::move(v_), FWD(fn));
   }
 
 private:

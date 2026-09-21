@@ -45,9 +45,10 @@ struct _and_then_result<Fn, V>
 // the copack arm's promise, split on the same choice of tag its body makes
 template <typename Fn, typename Cp> struct _nothrow_and_then_join {
   static constexpr bool value = [] {
-    if constexpr (_cluster_join_forms<Fn, Cp>)
-      return _is_nothrow_rts_applicable<typename _copack_apply_result<_joining_cluster_tag, Fn, Cp>::type, Fn, Cp>;
-    else
+    if constexpr (_cluster_join_forms<Fn, Cp>) {
+      using type = _copack_apply_result<_joining_cluster_tag, Fn, Cp>::type;
+      return _is_nothrow_rts_applicable<type, _just_injector<type, Fn>, Cp>;
+    } else
       return _is_nothrow_rts_applicable<
           typename _copack_apply_result<_joining_optional_tag<::fn::optional>, Fn, Cp>::type, Fn, Cp>;
   }();
@@ -210,7 +211,7 @@ struct and_then_t::apply final {
              && some_copack<::std::remove_cvref_t<decltype(::std::declval<V>().value())>>
   {
     if constexpr (detail::_cluster_join_forms<Fn &&, decltype(FWD(v).value())>)
-      return detail::_tagged_join_apply<detail::_joining_cluster_tag>(FWD(v).value(), FWD(fn));
+      return detail::_join_just_apply<detail::_joining_cluster_tag>(FWD(v).value(), FWD(fn));
     else
       return detail::_tagged_join_apply<detail::_joining_optional_tag<::fn::optional>>(FWD(v).value(), FWD(fn));
   }

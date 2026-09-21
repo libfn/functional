@@ -1491,8 +1491,8 @@ template <typename Fn, typename Self, typename... Args>
 struct _copack_apply_result<_joining_cluster_tag, Fn, Self, Args...>
     : _typelist_joining_cluster<Fn, Self, ::std::remove_cvref_t<Self>, Args...> {};
 
-// The tag-generic engine entry for join-mode dispatch over a copack side: each branch converts
-// into the tag's announced result. Serves expected's graded binds and the verb layer's cluster arm
+// Dispatch expected and optional joins by converting each branch result to the tag's result
+// type. The just join in just.hpp instead constructs the result from each branch's payload.
 template <typename Tag, typename Cp, typename Fn>
   requires _some_copack<::std::remove_cvref_t<Cp>>
 [[nodiscard]] constexpr auto _tagged_join_apply(Cp &&cp, Fn &&fn) //
