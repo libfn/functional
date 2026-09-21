@@ -56,11 +56,10 @@ template <typename Fn, typename... V>
 concept _just_admissible_result
     = ::std::is_void_v<typename _apply_result<Fn, V...>::type> || _just_payload<typename _apply_result<Fn, V...>::type>;
 
-// transform's declared result: `just` of an admissible payload; the RAW result type for an
-// inadmissible one - a copack, a reference, an array - always formable, so the member stays
-// viable and the body's static_assert names the requirement on use, the family's own pedagogy
-// (naming just<result> here instead would fire the class mandate inside the verbs' probes and
-// other candidates' noexcept specifications). An inapplicable callback still leaves no `type`.
+// For an admissible result, transform returns just<result>. Otherwise expose the raw result
+// type (including empty copacks, references and arrays) so probing does not instantiate an
+// invalid just. Calling the member still triggers its static_assert. An inapplicable callback
+// leaves no type.
 template <typename Fn, typename... V> struct _just_transform_result {};
 template <typename Fn, typename... V>
   requires(_is_applicable<Fn, V...>::value) && (not _just_admissible_result<Fn, V...>)

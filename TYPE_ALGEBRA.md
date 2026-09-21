@@ -225,7 +225,7 @@ If a side is already a `copack` or `pack`, forwarding it behaves naturally witho
 
 ## 3. The computation carriers
 
-To model computation and manage control flow (success, failure, alternatives, and empty states), `libfn` uses **computation carriers** (often called "monadic types"). The library defines exactly four carrier families, divided by their fallibility and payload capacity:
+To model computation and manage control flow (success, failure, alternatives, and empty states), `libfn` uses **computation carriers** (often called "monadic types"). The library defines three carrier templates - `optional`, `expected` and `just` - spelled as four carriers, divided by their fallibility and payload capacity:
 
 ### The fallible carriers
 
@@ -238,7 +238,7 @@ To model computation and manage control flow (success, failure, alternatives, an
 ### The infallible (identity) carriers
 
 - **`just<T>`**: Always contains a single successful value of type `T`.
-- **`choice<Ts...>`**: Always contains one of several selected alternatives, representing the complete state space of the computation. It names `just<copack<Ts...>>`: the identity carrier whose payload is the coproduct.
+- **`choice<Ts...>`**: Always contains one of several selected alternatives, representing the complete state space of the computation.
 
 Because `choice` always holds a selected alternative, `choice<>` is incomplete: it offers nothing to select.
 

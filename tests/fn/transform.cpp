@@ -746,6 +746,10 @@ TEST_CASE("transform just", "[transform][just][choice][identity]")
     constexpr auto probe = [](auto &&v, auto &&fn) { return requires { FWD(v) | fn::transform(FWD(fn)); }; };
     static_assert(not probe(fn::just<int>{3}, [](int &i) -> int & { return i; }));
     static_assert(probe(fn::just<int>{3}, [](int i) { return i; }));
+    // The pipeline rejects a copack reference result but accepts the corresponding value result.
+    static constexpr fn::copack<U> cu{U{}};
+    static_assert(not probe(fn::just<int>{3}, [](int) -> fn::copack<U> const & { return cu; }));
+    static_assert(probe(fn::just<int>{3}, [](int) { return cu; }));
     SUCCEED();
   }
 }

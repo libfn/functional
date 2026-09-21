@@ -15,6 +15,7 @@ The consequences are breaking:
 - The current deduction guides do not support `choice{x}` for a bare value. Use `choice<T>{x}`, lift the value with `as_choice(x)`, or deduce the type from a copack with `just{copack{x}}`. `as_choice` also wraps a copack as a choice over its alternatives.
 - The choice comparisons are `just`'s, over the payloads; their `noexcept` follows the alternatives' comparisons instead of being promised unconditionally.
 - `choice::and_then` also accepts branches returning the same `just` type.
+- Pipeline `transform` on a `just` rejects callbacks returning a reference to a copack. The removed promotion overloads copied such results into an owning choice.
 - Diagnostics spell `just<copack<...>>`.
 - Version `0.2.0-dev` opens the breaking release cycle, with inline ABI namespace `v0_2_dev` (`v0_2_dev_cxx26` in C++26 mode).
 
