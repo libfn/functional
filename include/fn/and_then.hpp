@@ -32,11 +32,9 @@ template <typename Fn, typename Cp>
 constexpr inline bool _cluster_join_forms
     = requires { typename _copack_apply_result<_joining_cluster_tag, Fn, Cp>::type; };
 
-// The engine's result over a bound payload, computed assert-free: a copack payload goes through
-// the cluster trait - an all-just branch set answers the join a choice's own and_then performs -
-// and a set the cluster join does not own may still join as optionals (the #376 bridge); every
-// other set answers none at all, so asking about any divergent callback answers instead of
-// tripping select's convergence assert; a single value goes through _apply_result as always.
+// Compute the bound result without triggering select's convergence assertion. For copack
+// payloads, try the just join, then the optional join (which also handles exact convergence).
+// If neither applies, expose no type. Single values use _apply_result directly.
 template <typename Fn, typename... V> struct _and_then_result : _apply_result<Fn, V...> {};
 template <typename Fn, typename V>
   requires _some_copack<::std::remove_cvref_t<V>>
