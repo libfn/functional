@@ -97,6 +97,9 @@ concept can_ne = requires { std::declval<L const &>() != std::declval<R const &>
 template <typename S, typename T, typename... Args>
 concept can_in_place = requires(Args... args) { S{std::in_place_type<T>, args...}; };
 
+template <typename T, typename... Args>
+concept can_deduce_in_place = requires(Args... args) { fn::copack{std::in_place_type<T>, args...}; };
+
 template <typename S, typename T, typename... Args>
 concept can_emplace = requires(S &s, Args &&...args) { s.template emplace<T>(static_cast<Args &&>(args)...); };
 
@@ -501,6 +504,14 @@ TEST_CASE("copack basic functionality tests", "[copack]")
 
       auto b = copack{std::in_place_type<NonCopyable>, 42};
       static_assert(std::is_same_v<decltype(b), copack<NonCopyable>>);
+
+      // Invalid alternative types make the deduction probe false without a hard instantiation error.
+      static_assert(can_deduce_in_place<NonCopyable, int>);
+      static_assert(not can_deduce_in_place<int &, int &>);
+      static_assert(not can_deduce_in_place<int const, int>);
+      static_assert(not can_deduce_in_place<void>);
+      static_assert(not can_deduce_in_place<copack<int>, int>);
+      SUCCEED();
     }
 
     SECTION("constraints")

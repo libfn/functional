@@ -1138,8 +1138,12 @@ struct copack<Ts...> {
 };
 
 // CTAD for single-element copack
-template <typename T> explicit copack(::std::in_place_type_t<T>, auto &&...) -> copack<T>;
-template <typename T> explicit copack(T) -> copack<::std::remove_cvref_t<T>>;
+template <typename T>
+  requires detail::_is_valid_copack_subtype<T>
+explicit copack(::std::in_place_type_t<T>, auto &&...) -> copack<T>;
+template <typename T>
+  requires detail::_is_valid_copack_subtype<T>
+explicit copack(T) -> copack<T>;
 
 namespace detail {
 // The value lift builds `copack<remove_cvref_t<Src>>` - a class whose body refuses an in_place tag as
