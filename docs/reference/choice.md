@@ -304,10 +304,9 @@ using choice_for = just<copack_for<Ts...>>;  // (1)
 
 ## as_choice {style: "api"}
 
-`as_choice(x)` constructs a choice without explicit template arguments. A value becomes a
-single alternative of its decayed type; a copack becomes the payload of a choice
-over its alternatives. Use this function for bare values, which the current `choice` deduction
-guides do not support.
+`as_choice(x)` constructs a choice with one alternative of the decayed source type. A copack
+instead becomes the payload of a choice over its alternatives. An existing choice becomes a
+nested alternative; `choice{x}` preserves the existing choice type through copy deduction.
 
 ```cpp {title: "fn::as_choice"}
 constexpr auto as_choice(auto &&src) -> decltype(auto);  // (1)

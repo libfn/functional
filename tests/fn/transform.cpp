@@ -656,11 +656,11 @@ TEST_CASE("transform choice", "[transform][choice]")
         return i;
       };
       constexpr auto r1 = T{0} | fn::transform(fn);
-      static_assert(r1.transform([](int i) -> int { return i; }) == fn::choice<int>{1});
+      static_assert(r1.transform([](int i) -> int { return i; }) == fn::choice{1});
       constexpr auto r2 = T{0.5} | fn::transform(fn);
-      static_assert(r2.transform([](int i) -> int { return i; }) == fn::choice<int>{1});
+      static_assert(r2.transform([](int i) -> int { return i; }) == fn::choice{1});
       constexpr auto r3 = r1 | fn::transform(fn) | fn::transform(fn) | fn::transform(fn);
-      static_assert(r3.transform([](int i) -> int { return i; }) == fn::choice<int>{1});
+      static_assert(r3.transform([](int i) -> int { return i; }) == fn::choice{1});
 
       SUCCEED();
     }
@@ -670,11 +670,11 @@ TEST_CASE("transform choice", "[transform][choice]")
       constexpr auto fn1 = [](int i) constexpr noexcept -> bool { return (i == 1); };
       constexpr auto r1 = T{1} | fn::transform(fn1);
       static_assert(std::is_same_v<decltype(r1), fn::choice<bool> const>);
-      static_assert(r1.transform([](bool i) -> bool { return i; }) == fn::choice<bool>{true});
+      static_assert(r1.transform([](bool i) -> bool { return i; }) == fn::choice{true});
       constexpr auto r2 = T{0} | fn::transform(fn1);
-      static_assert(r2.transform([](bool i) -> bool { return i; }) == fn::choice<bool>{false});
+      static_assert(r2.transform([](bool i) -> bool { return i; }) == fn::choice{false});
       constexpr auto r3 = T{2} | fn::transform(fn1);
-      static_assert(r3.transform([](bool i) -> bool { return i; }) == fn::choice<bool>{false});
+      static_assert(r3.transform([](bool i) -> bool { return i; }) == fn::choice{false});
 
       SUCCEED();
     }

@@ -8,11 +8,12 @@ Design history of libfn, newest first. The living documents — [README.md](READ
 
 Version `0.1.0` rejected copack payloads in `just` to avoid duplicating `choice`. The alias now gives both spellings the same type. A `transform` callback returning a nonempty copack produces a choice through the member operation as well as the pipeline operation. The separate pipeline promotion overloads and their `applicable_transform_promote` concept are removed.
 
+Deduction guides on `just` restore value and in-place deduction for the `choice` alias: `choice{42}` deduces `choice<int>`, as does `choice{std::in_place_type<int>, 42}`. `as_choice` lifts a value into a single alternative or wraps a copack as the choice over its alternatives.
+
 The consequences are breaking:
 
 - `some_just` admits a choice, `some_identity` is `some_just` or the identity `expected`, and `same_kind` holds between any two `just`s. Generic code that read `some_just` as a single-branch payload must test the payload.
 - `choice::value()` returns the `copack` payload, no longer `*this` as its base, and a choice does not convert to a copack. The copack's alternative-wise surface — construction, assignment, `emplace`, `has_value`, `get_ptr` and the `apply` family — is forwarded instead, and a narrower choice widens into a wider one by construction and assignment.
-- The current deduction guides do not support `choice{x}` for a bare value. Use `choice<T>{x}`, lift the value with `as_choice(x)`, or deduce the type from a copack with `just{copack{x}}`. `as_choice` also wraps a copack as a choice over its alternatives.
 - The choice comparisons are `just`'s, over the payloads; their `noexcept` follows the alternatives' comparisons instead of being promised unconditionally.
 - Member `and_then` accepts `just` results, including choices and `just<void>`. Choice branches may return different `just` types: their payloads form a normalized choice, with returned choices contributing their alternatives and `just<void>` contributing `pack<>`. If the result types agree after cv/ref removal, the result keeps that `just` type. Pipeline `fn::and_then` uses the same payload join when an identity `expected` with a copack payload binds to `just` results.
 - For `just<T>` with a non-copack payload, pipeline `transform` rejects callbacks returning a copack reference. The removed promotion overloads copied such results into an owning choice. A choice's per-alternative `transform` still normalizes copack reference results into an owning choice.

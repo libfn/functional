@@ -54,6 +54,9 @@ struct Throwing final {
 template <typename S, typename T, typename... Args>
 concept can_in_place = requires(Args... args) { S{std::in_place_type<T>, args...}; };
 
+template <typename T, typename... Args>
+concept can_deduce_in_place = requires(Args... args) { fn::choice{std::in_place_type<T>, args...}; };
+
 template <typename S, typename T, typename... Args>
 concept can_emplace = requires(S &s, Args &&...args) { s.template emplace<T>(static_cast<Args &&>(args)...); };
 
@@ -74,6 +77,9 @@ concept can_as_choice = requires(Args... args) { fn::as_choice(std::in_place_typ
 
 template <typename T>
 concept can_as_choice_value = requires(T v) { fn::as_choice(FWD(v)); };
+
+template <typename T>
+concept can_deduce_value = requires(T v) { fn::choice{FWD(v)}; };
 
 // Every special member of choice is defaulted and the copack payload is its only member - so each
 // must behave exactly as copack's, down to its noexcept and its constraints.
@@ -207,26 +213,29 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
   SECTION("single parameter constructor")
   {
     constexpr choice<int> a = 12;
-    static_assert(a == choice<int>{12});
+    static_assert(a == choice{12});
 
     constexpr choice<bool> b{false};
-    static_assert(b == choice<bool>{false});
+    static_assert(b == choice{false});
 
     SECTION("CTAD")
     {
-      // The current guides deduce a choice from a copack through just; bare-value choice CTAD
-      // is not supported.
-      fn::just a{fn::copack{42}};
+      choice a{42};
       static_assert(std::is_same_v<decltype(a), choice<int>>);
       CHECK(a == choice<int>{42});
 
-      constexpr fn::just b{fn::copack{false}};
+      constexpr choice b{false};
       static_assert(std::is_same_v<decltype(b), choice<bool> const>);
       static_assert(b == choice<bool>{false});
 
-      constexpr auto c = fn::just{fn::copack{std::array<int, 3>{3, 14, 15}}};
+      constexpr auto c = choice{std::array<int, 3>{3, 14, 15}};
       static_assert(std::is_same_v<decltype(c), choice<std::array<int, 3>> const>);
       static_assert(c.apply([](auto &&a) -> bool { return a.size() == 3 && a[0] == 3 && a[1] == 14 && a[2] == 15; }));
+
+      // Deduction preserves an existing choice type and wraps a copack as the payload.
+      static_assert(std::is_same_v<decltype(choice{choice<int>{1}}), choice<int>>);
+      static_assert(std::is_same_v<decltype(choice{fn::copack_for<bool, int>{true}}), fn::choice_for<bool, int>>);
+      static_assert(std::is_same_v<decltype(fn::just{fn::copack{42}}), choice<int>>);
     }
 
     SECTION("constexpr move from rvalue")
@@ -398,16 +407,16 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     constexpr auto battery = [] {
       choice<bool, int> a{12};
       a = fn::copack<int>{42}; // the alternative in hand
-      bool ok = a == choice<int>{42};
+      bool ok = a == choice{42};
       a = fn::copack<bool>{true}; // a different alternative
-      ok = ok && a == choice<bool>{true};
+      ok = ok && a == choice{true};
       fn::copack<int> const n{7};
       a = n; // by copy
-      ok = ok && a == choice<int>{7};
+      ok = ok && a == choice{7};
       a = choice<int>{3}; // a narrower choice
-      ok = ok && a == choice<int>{3};
+      ok = ok && a == choice{3};
       a = fn::copack<bool, int>{5}; // the same alternatives, delegated to same-type assignment
-      return ok && a == choice<int>{5};
+      return ok && a == choice{5};
     };
     CHECK(battery());
     static_assert(battery());
@@ -430,12 +439,12 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     constexpr auto battery = [] {
       choice<bool, int> a{12};
       a = 42; // the alternative in hand
-      bool ok = a == choice<int>{42};
+      bool ok = a == choice{42};
       a = true; // a different alternative
-      ok = ok && a == choice<bool>{true};
+      ok = ok && a == choice{true};
       int const i = 7;
       a = i; // by copy
-      return ok && a == choice<int>{7};
+      return ok && a == choice{7};
     };
     CHECK(battery());
     static_assert(battery());
@@ -471,6 +480,22 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
   {
     choice<NonCopyable> a{std::in_place_type<NonCopyable>, 42};
     CHECK(a.apply([](auto &i) -> bool { return i.i == 42; }));
+
+    SECTION("CTAD")
+    {
+      constexpr auto a = choice{std::in_place_type<NonCopyable>, 42};
+      static_assert(std::is_same_v<decltype(a), choice<NonCopyable> const>);
+
+      auto b = choice{std::in_place_type<NonCopyable>, 42};
+      static_assert(std::is_same_v<decltype(b), choice<NonCopyable>>);
+
+      // Invalid alternative types make the deduction probe false without a hard instantiation error.
+      static_assert(can_deduce_in_place<NonCopyable, int>);
+      static_assert(not can_deduce_in_place<int &, int &>);
+      static_assert(not can_deduce_in_place<int const, int>);
+      static_assert(not can_deduce_in_place<void>);
+      SUCCEED();
+    }
 
     SECTION("constraints")
     {
@@ -510,6 +535,15 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
                && i[2] == 3;
       }));
     }
+
+    SECTION("CTAD")
+    {
+      constexpr auto a = choice{std::in_place_type<std::array<int, 3>>, 1, 2, 3};
+      static_assert(std::is_same_v<decltype(a), choice<std::array<int, 3>> const>);
+
+      auto b = choice{std::in_place_type<std::array<int, 3>>, 1, 2, 3};
+      static_assert(std::is_same_v<decltype(b), choice<std::array<int, 3>>>);
+    }
   }
 
   SECTION("equality comparison")
@@ -519,7 +553,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     using type = choice<bool, int>;
     constexpr type a{std::in_place_type<int>, 42};
 
-    static_assert(std::is_same_v<bool, decltype(a == choice<int>{42})>);
+    static_assert(std::is_same_v<bool, decltype(a == choice{42})>);
     static_assert(a == type{42});
     static_assert(a != type{41});
     static_assert(a != type{true});
@@ -681,9 +715,6 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     static_assert(std::same_as<decltype(fn::as_choice(fn::copack{42})), decltype(fn::just{fn::copack{42}})>);
     CHECK(fn::as_choice(fn::copack{42}) == fn::just{fn::copack{42}});
 
-    // A choice argument becomes a nested alternative.
-    static_assert(std::same_as<decltype(fn::as_choice(choice<int>{1})), choice<choice<int>>>);
-
     // A string literal produces a pointer alternative.
     auto s = fn::as_choice("hi");
     static_assert(std::same_as<decltype(s), choice<char const *>>);
@@ -695,6 +726,31 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     static_assert(noexcept(fn::as_choice(fn::copack{42})));
     static_assert(not noexcept(fn::as_choice(std::declval<Throwing const &>())));
     static_assert(not noexcept(fn::as_choice(std::declval<fn::copack<Throwing> const &>())));
+
+    SECTION("CTAD")
+    {
+      // Lifting and deduction agree for these value, in-place and copack arguments.
+      using cp = fn::copack_for<bool, int>;
+      static_assert(std::same_as<decltype(fn::as_choice(12)), decltype(choice{12})>);
+      static_assert(std::same_as<decltype(fn::as_choice(std::in_place_type<long>, 12)),
+                                 decltype(choice{std::in_place_type<long>, 12})>);
+      static_assert(std::same_as<decltype(fn::as_choice(cp{true})), decltype(choice{cp{true}})>);
+      static_assert(fn::as_choice(12) == choice{12});
+      static_assert(fn::as_choice(std::in_place_type<long>, 12) == choice{std::in_place_type<long>, 12});
+      static_assert(fn::as_choice(cp{true}) == choice{cp{true}});
+      CHECK(fn::as_choice(12) == choice{12});
+      CHECK(fn::as_choice(std::in_place_type<long>, 12) == choice{std::in_place_type<long>, 12});
+      CHECK(fn::as_choice(cp{true}) == choice{cp{true}});
+
+      // Lifting nests an existing choice; copy deduction preserves its type.
+      static_assert(std::same_as<decltype(fn::as_choice(choice<int>{1})), choice<choice<int>>>);
+      static_assert(std::same_as<decltype(choice{choice<int>{1}}), choice<int>>);
+
+      // Lifting accepts these array and function references through pointer conversions; CTAD does not.
+      static_assert(can_as_choice_value<char const(&)[3]> && not can_deduce_value<char const(&)[3]>);
+      static_assert(can_as_choice_value<int (&)(int)> && not can_deduce_value<int (&)(int)>);
+      static_assert(can_as_choice_value<int> && can_deduce_value<int>);
+    }
 
     SECTION("constraints")
     {
@@ -1010,7 +1066,7 @@ TEST_CASE("choice and_then", "[choice][and_then]")
                          [](int const &) -> fn::choice<bool> { throw 0; },   //
                          [](int &&) -> fn::choice<bool> { throw 0; },        //
                          [](int const &&) -> fn::choice<bool> { throw 0; }}) //
-        == fn::choice<bool>{true});
+        == fn::choice{true});
   CHECK(std::as_const(s).and_then(                                   //
             fn::overload{[](bool) -> fn::choice<bool> { throw 1; },  //
                          [](int &) -> fn::choice<bool> { throw 0; }, //
@@ -1019,7 +1075,7 @@ TEST_CASE("choice and_then", "[choice][and_then]")
                          },
                          [](int &&) -> fn::choice<bool> { throw 0; },        //
                          [](int const &&) -> fn::choice<bool> { throw 0; }}) //
-        == fn::choice<bool>{true});
+        == fn::choice{true});
   CHECK(type{init, 12}.and_then(                                           //
             fn::overload{[](bool) -> fn::choice<bool> { throw 1; },        //
                          [](int &) -> fn::choice<bool> { throw 0; },       //
@@ -1028,7 +1084,7 @@ TEST_CASE("choice and_then", "[choice][and_then]")
                            return {i == 12};
                          },
                          [](int const &&) -> fn::choice<bool> { throw 0; }})
-        == fn::choice<bool>{true});
+        == fn::choice{true});
   CHECK(std::move(std::as_const(s))
             .and_then(                                                         //
                 fn::overload{[](bool) -> fn::choice<bool> { throw 1; },        //
@@ -1036,7 +1092,7 @@ TEST_CASE("choice and_then", "[choice][and_then]")
                              [](int const &) -> fn::choice<bool> { throw 0; }, //
                              [](int &&) -> fn::choice<bool> { throw 0; },      //
                              [](int const &&i) -> fn::choice<bool> { return {i == 12}; }})
-        == fn::choice<bool>{true});
+        == fn::choice{true});
 
   constexpr type a{std::in_place_type<int>, 42};
   constexpr auto fn = fn::overload{[](bool) -> fn::choice<bool> { throw 1; },  //
@@ -1047,14 +1103,14 @@ TEST_CASE("choice and_then", "[choice][and_then]")
                                    [](int &&) -> fn::choice<bool> { throw 0; }, //
                                    [](int const &&) -> fn::choice<bool> { throw 0; }};
   static_assert(std::is_same_v<fn::choice<bool>, decltype(a.and_then(fn))>);
-  static_assert(a.and_then(fn) == fn::choice<bool>{true});
+  static_assert(a.and_then(fn) == fn::choice{true});
   static_assert(std::move(a).and_then(                                             //
                     fn::overload{[](bool) -> fn::choice<bool> { throw 1; },        //
                                  [](int &) -> fn::choice<bool> { throw 0; },       //
                                  [](int const &) -> fn::choice<bool> { throw 0; }, //
                                  [](int &&) -> fn::choice<bool> { throw 0; },      //
                                  [](int const &&i) -> fn::choice<bool> { return {i == 42}; }})
-                == fn::choice<bool>{true});
+                == fn::choice{true});
 
   SECTION("superset join")
   {
@@ -1315,7 +1371,7 @@ TEST_CASE("choice transform", "[choice][transform]")
       CHECK(a.value().data.v0 == 0.5);
       SECTION("value only")
       {
-        static_assert(type{0.5}.transform(fn1) == choice<std::size_t>{std::size_t{8}});
+        static_assert(type{0.5}.transform(fn1) == choice{std::size_t{8}});
         CHECK(a.transform(     //
                   fn::overload{//
                                [](auto) -> int { throw 1; }, [](double &i) -> bool { return i == 0.5; },
@@ -1351,32 +1407,32 @@ TEST_CASE("choice transform", "[choice][transform]")
 
       SECTION("value only")
       {
-        static_assert(type{42}.transform(fn1) == choice<std::size_t>{std::size_t{4}});
+        static_assert(type{42}.transform(fn1) == choice{std::size_t{4}});
         CHECK(a.transform(     //
                   fn::overload{//
                                [](auto) -> bool { throw 1; }, [](int &i) -> bool { return i == 42; },
                                [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
                                [](int const &&) -> bool { throw 0; }})
-              == choice<bool>{true});
+              == choice{true});
         CHECK(std::as_const(a).transform( //
                   fn::overload{           //
                                [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
                                [](int const &i) -> bool { return i == 42; }, [](int &&) -> bool { throw 0; },
                                [](int const &&) -> bool { throw 0; }})
-              == choice<bool>{true});
+              == choice{true});
         CHECK(choice<int>{std::in_place_type<int>, 42}.transform( //
                   fn::overload{                                   //
                                [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
                                [](int const &) -> bool { throw 0; }, [](int &&i) -> bool { return i == 42; },
                                [](int const &&) -> bool { throw 0; }})
-              == choice<bool>{true});
+              == choice{true});
         CHECK(std::move(std::as_const(a))
                   .transform(      //
                       fn::overload{//
                                    [](auto) -> bool { throw 1; }, [](int &) -> bool { throw 0; },
                                    [](int const &) -> bool { throw 0; }, [](int &&) -> bool { throw 0; },
                                    [](int const &&i) -> bool { return i == 42; }})
-              == choice<bool>{true});
+              == choice{true});
       }
     }
   }
@@ -1410,11 +1466,11 @@ TEST_CASE("choice assignment", "[choice][assignment]")
     choice<bool, int> a{42};
     choice<bool, int> const b{true};
     a = b;
-    CHECK(a == choice<bool>{true});
+    CHECK(a == choice{true});
     CHECK(a.has_value(std::in_place_type<bool>));
 
     a = choice<bool, int>{12};
-    CHECK(a == choice<int>{12});
+    CHECK(a == choice{12});
   }
 
   SECTION("constexpr")
@@ -1422,7 +1478,7 @@ TEST_CASE("choice assignment", "[choice][assignment]")
     static_assert([] {
       choice<bool, int> a{42};
       a = choice<bool, int>{true};
-      return a == choice<bool>{true};
+      return a == choice{true};
     }());
     SUCCEED();
   }

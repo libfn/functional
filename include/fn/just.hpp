@@ -154,22 +154,24 @@ template <typename T> struct just {
    *
    * @param v Value to initialize the payload from
    */
+  // Keep these constraints in leading requires-clauses to avoid ambiguous deduction for
+  // `choice{x}` on Clang 22 when it derives deduction guides for the alias.
   template <typename U>
-  constexpr just(U &&v) // NOSONAR cpp:S1709 implicit arm of the explicit pair
-      noexcept(::std::is_nothrow_constructible_v<T, decltype(v)>)
     requires((not some_just<::std::remove_cvref_t<U>>) || ::std::is_same_v<::std::remove_cvref_t<U>, T>)
             && (not detail::_some_in_place_type<::std::remove_cvref_t<U>>)
-            && ::std::is_constructible_v<T, decltype(v)> && ::std::is_convertible_v<decltype(v), T>
+            && ::std::is_constructible_v<T, U &&> && ::std::is_convertible_v<U &&, T>
+  constexpr just(U &&v) // NOSONAR cpp:S1709 implicit arm of the explicit pair
+      noexcept(::std::is_nothrow_constructible_v<T, U &&>)
       : v_(FWD(v))
   {
   }
 
   template <typename U>
-  constexpr explicit just(U &&v) // NOSONAR cpp:S6458 just sources must match the payload type
-      noexcept(::std::is_nothrow_constructible_v<T, decltype(v)>)
     requires((not some_just<::std::remove_cvref_t<U>>) || ::std::is_same_v<::std::remove_cvref_t<U>, T>)
             && (not detail::_some_in_place_type<::std::remove_cvref_t<U>>)
-            && ::std::is_constructible_v<T, decltype(v)> && (not ::std::is_convertible_v<decltype(v), T>)
+            && ::std::is_constructible_v<T, U &&> && (not ::std::is_convertible_v<U &&, T>)
+  constexpr explicit just(U &&v) // NOSONAR cpp:S6458 just sources must match the payload type
+      noexcept(::std::is_nothrow_constructible_v<T, U &&>)
       : v_(FWD(v))
   {
   }
@@ -1360,7 +1362,6 @@ template <typename T, typename U>
   return lh.value() == rh;
 }
 
-// CTAD for just, including the deduced spelling of the void carrier: just{}
 namespace detail {
 template <typename Lh, typename Rh>
 using _just_fold_t = decltype(_fold_detail::fold<typename ::std::remove_cvref_t<Lh>::value_type,
@@ -1501,10 +1502,20 @@ template <typename Lh, typename Rh>
   }
 }
 
+// CTAD for just, including the deduced spelling of the void carrier: just{}
 template <typename T> just(T) -> just<T>;
 template <typename T> explicit just(::std::in_place_type_t<T>, auto &&...) -> just<T>;
 just() -> just<void>;
 explicit just(::std::in_place_t) -> just<void>;
+
+// Value and in-place deduction for the choice alias use guides declared on just. The packs
+// allow the ordinary just guides above to remain more specialized for just deduction.
+template <typename... Ts>
+  requires(sizeof...(Ts) == 1) && (detail::_is_valid_copack_subtype<Ts> && ...)
+explicit just(Ts...) -> just<copack<Ts...>>;
+template <typename... Ts>
+  requires(detail::_is_valid_copack_subtype<Ts> && ...)
+explicit just(::std::in_place_type_t<Ts...>, auto &&...) -> just<copack<Ts...>>;
 
 /**
  * @brief Builds the canonical `choice` for any list of types
@@ -1546,9 +1557,9 @@ constexpr inline bool _nothrow_choice_emplace<T, Args...>
 /**
  * @brief Constructs a single-alternative choice from a value
  *
- * Use `as_choice(x)` to deduce the alternative type from a bare value. The current guides do
- * not support `choice{x}` for these arguments. The alternative uses the decayed source type:
- * cv/ref qualifiers are removed, and arrays and functions become pointers.
+ * The alternative is the decayed source type: cv/ref qualifiers are removed, and arrays and
+ * functions become pointers. Unlike `choice{x}`, this overload constructs from arrays and
+ * functions through their pointer conversions, and wraps an existing choice as an alternative.
  *
  * @param src Value to lift
  * @return A `choice` over the decayed type of `src`, holding the constructed alternative
