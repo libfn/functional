@@ -51,7 +51,8 @@ template <typename U>
 constexpr just(U &&v);           // (4)
 constexpr explicit just(U &&v);  // (5)
 
-constexpr explicit just(std::in_place_type_t<T>, auto &&...args);  // (6)
+template <typename... Args>
+constexpr explicit just(std::in_place_type_t<T>, Args &&...args);  // (6)
 ```
 
 :include-doxygen-doc: fn::just::just { args: "" }
@@ -64,9 +65,9 @@ constexpr explicit just(std::in_place_type_t<T>, auto &&...args);  // (6)
 
 :include-doxygen-doc-params: fn::just::just { args: "U &&", title: "parameters" }
 
-:include-doxygen-doc: fn::just::just { args: "::std::in_place_type_t< T >, auto &&..." }
+:include-doxygen-doc: fn::just::just { args: "::std::in_place_type_t< T >, Args &&..." }
 
-:include-doxygen-doc-params: fn::just::just { args: "::std::in_place_type_t< T >, auto &&...", title: "parameters" }
+:include-doxygen-doc-params: fn::just::just { args: "::std::in_place_type_t< T >, Args &&...", title: "parameters" }
 
 ## Destructor {style: "api"}
 

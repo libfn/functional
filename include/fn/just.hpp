@@ -181,9 +181,10 @@ template <typename T> struct just {
    *
    * @param args Arguments to construct the payload from
    */
-  constexpr explicit just(::std::in_place_type_t<T>, auto &&...args) //
-      noexcept(::std::is_nothrow_constructible_v<T, decltype(args)...>)
-    requires ::std::is_constructible_v<T, decltype(args)...>
+  template <typename... Args>
+    requires ::std::is_constructible_v<T, Args &&...>
+  constexpr explicit just(::std::in_place_type_t<T>, Args &&...args) //
+      noexcept(::std::is_nothrow_constructible_v<T, Args &&...>)
       : v_(FWD(args)...)
   {
   }
