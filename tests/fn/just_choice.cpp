@@ -234,6 +234,8 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
       // Deduction preserves an existing choice type and wraps a copack as the payload.
       static_assert(std::is_same_v<decltype(choice{choice<int>{1}}), choice<int>>);
+      constexpr choice d = b;
+      static_assert(std::is_same_v<decltype(d), choice<bool> const>);
       static_assert(std::is_same_v<decltype(choice{fn::copack_for<bool, int>{true}}), fn::choice_for<bool, int>>);
       static_assert(std::is_same_v<decltype(fn::just{fn::copack{42}}), choice<int>>);
     }

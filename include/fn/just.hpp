@@ -1508,14 +1508,22 @@ template <typename T> explicit just(::std::in_place_type_t<T>, auto &&...) -> ju
 just() -> just<void>;
 explicit just(::std::in_place_t) -> just<void>;
 
+namespace detail {
+template <typename... Ts>
+constexpr inline bool _deducible_choice_alternative = sizeof...(Ts) == 1 && (_is_valid_copack_subtype<Ts> && ...);
+} // namespace detail
+
 // Value and in-place deduction for the choice alias use guides declared on just. The packs
 // allow the ordinary just guides above to remain more specialized for just deduction.
-template <typename... Ts>
-  requires(sizeof...(Ts) == 1) && (detail::_is_valid_copack_subtype<Ts> && ...)
+// enable_if rather than a requires-clause: Clang 19 crashes deriving the alias guides from a
+// constraint on a pack.
+template <typename... Ts, ::std::enable_if_t<detail::_deducible_choice_alternative<Ts...>, int> = 0>
 explicit just(Ts...) -> just<copack<Ts...>>;
-template <typename... Ts>
-  requires(detail::_is_valid_copack_subtype<Ts> && ...)
+template <typename... Ts, ::std::enable_if_t<detail::_deducible_choice_alternative<Ts...>, int> = 0>
 explicit just(::std::in_place_type_t<Ts...>, auto &&...) -> just<copack<Ts...>>;
+// Deduces what copy deduction does. GCC 12 and 13 find copy deduction through the alias
+// ambiguous with the guides derived from the copy and move constructors.
+template <typename... Ts> just(just<copack<Ts...>>) -> just<copack<Ts...>>;
 
 /**
  * @brief Builds the canonical `choice` for any list of types
