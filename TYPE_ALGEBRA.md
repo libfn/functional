@@ -393,7 +393,7 @@ Key principles of mapping:
 >
 ## 6. Product composition with operator& (conjunction)
 
-Conjunction evaluates independent computations. `a & b` succeeds only if both operands succeed: values combine into a `pack`, and errors union into a `copack`. If both operands share the same error type, the error side remains ungraded.
+Conjunction over carriers combines two independent computations into a single carrier. `a & b` succeeds only if both operands succeed, in which case their values combine into a product. If either operand fails, the result retains the leftmost error; for `expected` carriers, the result's error type is a `copack` (a graded error type), unless both operands share the same plain error type.
 
 <!-- sync-example-operator-and-composition -->
 ```cpp
@@ -405,16 +405,16 @@ auto operator_and_composition(fn::expected<int, Error> a, fn::expected<bool, Oth
 }
 ```
 
-The runtime semantics are exact:
+The runtime semantics are:
 
 - The result type records every error either operand can produce; at runtime it holds at most *one* of them — the leftmost failing operand's.
 - Both operands are fully constructed before `operator&` runs, because C++ evaluates operands eagerly. This is an error-selection rule, not short-circuiting: the operator makes nothing lazy or parallel.
 
 ### Conjunction over data
 
-Unlike disjunction (Section 7), `operator&` applies to payload types. When an operand is `copack`, it performs a Cartesian distribution, yielding a `copack` of `pack`s. A `pack` on the opposite side widens each of those `pack`s.
+Unlike disjunction (Section 7), `operator&` applies to payload types - that is plain types, `pack` and `copack`. Conjunction — also known as product composition — combines values from both operands. When either operand is `copack`, it performs a Cartesian distribution, yielding a `copack` of `pack`s. Otherwise it produces a `pack`, concatenating data from both.
 
-This distribution underpins the rule in Section 4 that a `pack` cannot contain a `copack`. The disallowed nested shape—a product over a sum, (A × B) × (C + D)—is algebraically equivalent to (A × B × C) + (A × B × D), a flat `copack` of `pack`s. This is the sum-of-products normal form that the algebra preserves. No expressive power is lost by refusing the nested shape: conjoining a `pack` with a `copack` yields the equivalent flat representation directly, as the second case below shows.
+This distribution underpins the rule in Section 4 that a `pack` cannot contain a `copack`. The disallowed nested shape—a product over a sum, (A × B) × (C + D)—is algebraically equivalent to (A × B × C) + (A × B × D), a flat `copack` of `pack`s. This sum-of-products normal form is enforced by the library — demonstrated in the second case below.
 
 <!-- sync-example-cartesian-distribution -->
 ```cpp
@@ -434,7 +434,7 @@ auto test_cartesian_distribution(fn::copack_for<A, B> ab, fn::copack_for<C, D> c
 }
 ```
 
-A bare `scalar & scalar` is outside the algebra; it fails to compile for class types and resolves to the bitwise `AND` for built-in types like `int`. Conjunction dispatches on the left operand, so lifting one side—such as `fn::as_pack(a) & b`—enables the algebra.
+Conjunction `operator &` dispatches on the left operand. To apply it to plain types, lift the left operand e.g. as `fn::as_pack(a) & b`.
 
 The n-ary fold `fn::conjoin(...)` operates in two modes:
 
@@ -447,10 +447,10 @@ Mixing carriers and data in a single call is ill-formed.
 
 An operand from the identity cluster (Section 10) contributes a value but never a failure:
 
-- **Unchanged Errors**: Because identity cluster operands never fail, they add no alternatives to the error channel. A `just` or `choice` operand preserves the fallible operand's error side (plain or graded). An `expected<T, copack<>>` operand contributes its uninhabited grade to the error union: no active alternative is added, although the resulting error channel is promoted to a graded copack.
-- **Value Bundling**: The identity cluster operand's value conjoins with the fallible operand's value into a `pack`.
+- **Unchanged Errors**: Because identity cluster operands never fail, they add no alternatives to the error channel. A `just` or `choice` operand preserves the fallible operand's error side (plain or graded). An `expected<T, copack<>>` operand contributes its empty grade to the error union: no active alternative is added, although the resulting error channel is promoted to a graded copack.
+- **Value Bundling**: The identity cluster operand's value conjoins with the fallible operand's value into a product.
 - **Unit Elision**: `just<void>` and `expected<void, copack<>>` act as the product's identity unit and are elided from the value product (e.g., `expected<T, E> & just<void>` remains `expected<T, E>`).
-- **Choice Distribution**: Conjoining a `choice` with a fallible carrier distributes the coproduct through the product, yielding a `copack` of `pack`s wrapped in the fallible carrier.
+- **Choice Distribution**: Conjoining a `choice` with a fallible carrier distributes the coproduct through the product, yielding a `copack` of `pack`s wrapped in the fallible carrier — subject to unit elision.
 
 <!-- sync-example-conjunction-with-identity-cluster -->
 ```cpp
@@ -477,11 +477,11 @@ auto test_conjunction_with_identity_cluster(fn::expected<int, Error> ex, fn::jus
 >
 > ### Mathematical note — strict monoidal structure and distribution
 >
-> Conjoining independent computations via `operator&` models a symmetric monoidal category $(\mathcal{C}, \otimes, I)$, with `pack` as the tensor $\otimes$ and `pack<>` as the unit $I$.
+> Conjoining `pack` payloads via `operator&` models a monoidal category $(\mathcal{C}, \otimes, I)$, with `pack` as the tensor $\otimes$ and `pack<>` as the unit $I$.
 >
-> - **Strictness**: because packs are normalized flat, there are no distinct-but-isomorphic spellings for the coherence maps to mediate between. $(A \otimes B) \otimes C$ and $A \otimes (B \otimes C)$ are *the same C++ type*, as are $I \otimes A$, $A \otimes I$ and $A$. The associator and unitors are therefore identities, and the structure is **strict** rather than merely coherent.
-> - **Symmetry**: for the sum it is strict too — canonical ordering makes $A \oplus B$ and $B \oplus A$ literally the same `copack`, so the braiding is an identity. For the product it is not: a `pack` keeps its fields ordered and undeduplicated, so $A \otimes B$ and $B \otimes A$ are distinct types related by a genuine swap.
-> - **Distributivity**: the tensor distributes over the coproduct $\oplus$ (represented by `copack`), yielding $A \otimes (B \oplus C) \cong (A \otimes B) \oplus (A \otimes C)$. This is the Cartesian distribution of `pack` over `copack` implemented statically by `libfn`.
+> - **Strictness**: because `pack`s are normalized flat, there are no distinct-but-isomorphic spellings for the coherence maps to mediate between. $(A \otimes B) \otimes C$ and $A \otimes (B \otimes C)$ are *the same C++ type*, as are $I \otimes A$, $A \otimes I$ and $A$ (when both operands are `pack` types, since a plain type may be automatically lifted). The associator and unitors are therefore identities, and the structure is **strict** rather than merely coherent.
+> - **Symmetry**: for type union, order does not matter — canonical ordering makes $A \oplus B$ and $B \oplus A$ the same `copack` type. For the product, order matters: a `pack` keeps its fields ordered and undeduplicated, so $A \otimes B$ and $B \otimes A$ may yield distinct types related by a genuine swap.
+> - **Distributivity**: the tensor distributes over the type union $\oplus$ (represented by `copack`), yielding $A \otimes (B \oplus C) = (A \otimes B) \oplus (A \otimes C)$. This is the Cartesian distribution of `pack` over `copack` implemented statically by `libfn`.
 >
 ## 7. Sum composition with operator| (disjunction)
 
