@@ -1008,7 +1008,7 @@ template <class T, class E, class Policy> struct _expected_base {
   template <class U> constexpr void _assign_value(U &&s)
   {
     if (set_) {
-      storage_.v_ = FWD(s);
+      _value(*this) = FWD(s);
     } else {
       _storage_t::_reinit(::std::addressof(storage_.v_), ::std::addressof(storage_.e_), FWD(s));
       set_ = true;
@@ -1017,7 +1017,7 @@ template <class T, class E, class Policy> struct _expected_base {
   constexpr void _assign_unexpected(auto &&s)
   {
     if (not set_) {
-      storage_.e_ = FWD(s).error();
+      _error(*this) = FWD(s).error();
     } else {
       _storage_t::_reinit(::std::addressof(storage_.e_), ::std::addressof(storage_.v_), FWD(s).error());
       set_ = false;

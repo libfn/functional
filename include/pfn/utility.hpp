@@ -45,7 +45,12 @@ using _forward_like_t
 // the public value/error type and mark access to that side unreachable. The variadic constructor
 // lets generic storage operations compile; reaching it is undefined behaviour.
 struct _uninhabited_t final {
-  template <class... Args> [[noreturn]] _uninhabited_t(Args &&...) noexcept { ::pfn::unreachable(); } // LCOV_EXCL_LINE
+  // LCOV_EXCL_START
+  template <class... Args> [[noreturn]] explicit _uninhabited_t(Args &&...) noexcept // NOSONAR cpp:S6458
+  {
+    ::pfn::unreachable();
+  }
+  // LCOV_EXCL_STOP
 };
 
 template <class X, class Policy>

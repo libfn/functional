@@ -541,7 +541,7 @@ template <class T, class Policy> struct _optional_base {
   template <class U> constexpr void _assign_value(U &&s)
   {
     if (set_) {
-      storage_.v_ = FWD(s);
+      _value(*this) = FWD(s);
     } else {
       _storage_t::_reinit(::std::addressof(storage_.v_), ::std::addressof(storage_.e_), FWD(s));
       set_ = true;
