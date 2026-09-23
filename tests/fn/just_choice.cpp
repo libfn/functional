@@ -417,7 +417,10 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       a = choice<int>{3}; // a narrower choice
       ok = ok && a == choice{3};
       a = fn::copack<bool, int>{5}; // the same alternatives, delegated to same-type assignment
-      return ok && a == choice{5};
+      ok = ok && a == choice{5};
+      choice<choice<int>> nested{choice<int>{1}};
+      nested = choice<int>{2}; // a choice that is itself an alternative is assigned whole
+      return ok && nested == choice<choice<int>>{choice<int>{2}};
     };
     CHECK(battery());
     static_assert(battery());
@@ -427,6 +430,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       static_assert(std::is_assignable_v<choice<bool, int> &, fn::copack<int> const &>);
       static_assert(std::is_assignable_v<choice<bool, int> &, fn::copack<bool, int> &&>); // same alternatives
       static_assert(std::is_assignable_v<choice<bool, int> &, choice<int> const &>);      // a narrower choice
+      static_assert(std::is_assignable_v<choice<choice<int>> &, choice<int> const &>);    // an alternative
       static_assert(not std::is_assignable_v<choice<int> &, fn::copack<bool> const &>);   // not a superset
       static_assert(noexcept(std::declval<choice<bool, int> &>() = std::declval<fn::copack<int> const &>()));
       SUCCEED();
