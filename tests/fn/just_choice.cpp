@@ -15,7 +15,6 @@
 
 #include <memory>
 #include <string>
-#include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -720,7 +719,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     // A string literal produces a pointer alternative.
     auto s = fn::as_choice("hi");
     static_assert(std::same_as<decltype(s), choice<char const *>>);
-    CHECK(std::string_view{*s.get_ptr(std::in_place_type<char const *>)} == "hi");
+    CHECK(std::string{*s.get_ptr(std::in_place_type<char const *>)} == "hi");
 
     // noexcept follows construction of the alternative or copack payload
     static_assert(noexcept(fn::as_choice(12)));
