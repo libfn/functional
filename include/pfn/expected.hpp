@@ -6,13 +6,15 @@
 #ifndef INCLUDE_PFN_EXPECTED
 #define INCLUDE_PFN_EXPECTED
 
+#include <libfn_version.hpp>
+#include <pfn/utility.hpp>
+
 #include <cassert>
 #include <concepts>
 #include <cstring>
 #include <exception>
 #include <functional>
 #include <initializer_list>
-#include <libfn_version.hpp>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -469,9 +471,9 @@ template <typename T, typename E> constexpr bool _is_expected_union<_expected_un
 // Shared implementation base class for ::pfn::expected, both primary template
 // and void specialization. Members are public since inheritance is private.
 template <class T, class E, class Policy> struct _expected_base {
-  using _storage_t = _expected_union_t<T, E>;
+  using _storage_t = _expected_union_t<_stored_t<T, Policy>, _stored_t<E, Policy>>;
   // `_value_t` is `T` for non-void, and trivial `_dummy_t` for void.
-  using _value_t = _storage_t::_value_t;
+  using _value_t = ::std::conditional_t<::std::is_void_v<T>, typename _storage_t::_value_t, T>;
   _storage_t storage_;
   bool set_;
 
@@ -619,7 +621,8 @@ template <class T, class E, class Policy> struct _expected_base {
       ::std::destroy_at(::std::addressof(storage_.e_));
       set_ = true;
     }
-    return *::std::construct_at(::std::addressof(storage_.v_), ::std::forward<Args>(args)...);
+    ::std::construct_at(::std::addressof(storage_.v_), ::std::forward<Args>(args)...);
+    return _value(*this);
   }
 
   template <class U, class... Args>
@@ -632,7 +635,8 @@ template <class T, class E, class Policy> struct _expected_base {
       ::std::destroy_at(::std::addressof(storage_.e_));
       set_ = true;
     }
-    return *::std::construct_at(::std::addressof(storage_.v_), il, ::std::forward<Args>(args)...);
+    ::std::construct_at(::std::addressof(storage_.v_), il, ::std::forward<Args>(args)...);
+    return _value(*this);
   }
 
   constexpr void emplace() noexcept
@@ -675,23 +679,27 @@ template <class T, class E, class Policy> struct _expected_base {
   }
 
   // [expected.object.obs], observers
-  static constexpr auto &&_value(auto &&s) noexcept
+  template <class S>
+  static constexpr auto _value(S &&s) noexcept -> _forward_like_t<S, _value_t>
     requires(not ::std::is_void_v<T>)
   {
     ASSERT(s.set_); // LCOV_EXCL_LINE
-    return FWD(s).storage_.v_;
+    if constexpr (Policy::template is_uninhabited<T>)
+      ::pfn::unreachable(); // LCOV_EXCL_LINE
+    else
+      return FWD(s).storage_.v_;
   }
   constexpr _value_t const *operator->() const noexcept
     requires(not ::std::is_void_v<T>)
   {
     ASSERT(set_); // LCOV_EXCL_LINE
-    return ::std::addressof(storage_.v_);
+    return ::std::addressof(_value(*this));
   }
   constexpr _value_t *operator->() noexcept
     requires(not ::std::is_void_v<T>)
   {
     ASSERT(set_); // LCOV_EXCL_LINE
-    return ::std::addressof(storage_.v_);
+    return ::std::addressof(_value(*this));
   }
   constexpr _value_t const &operator*() const & noexcept
     requires(not ::std::is_void_v<T>)
@@ -721,16 +729,16 @@ template <class T, class E, class Policy> struct _expected_base {
   {
     static_assert(::std::is_copy_constructible_v<E>);
     if (not set_)
-      throw bad_expected_access<E>(storage_.e_);
-    return storage_.v_;
+      throw bad_expected_access<E>(_error(*this));
+    return _value(*this);
   }
   constexpr _value_t &value() &
     requires(not ::std::is_void_v<T>)
   {
     static_assert(::std::is_copy_constructible_v<E>);
     if (not set_)
-      throw bad_expected_access<E>(::std::as_const(storage_.e_));
-    return storage_.v_;
+      throw bad_expected_access<E>(_error(::std::as_const(*this)));
+    return _value(*this);
   }
   constexpr _value_t const &&value() const &&
     requires(not ::std::is_void_v<T>)
@@ -738,8 +746,8 @@ template <class T, class E, class Policy> struct _expected_base {
     static_assert(::std::is_copy_constructible_v<E>);
     static_assert(::std::is_constructible_v<E, E const &&>);
     if (not set_)
-      throw bad_expected_access<E>(::std::move(storage_.e_));
-    return ::std::move(storage_.v_);
+      throw bad_expected_access<E>(_error(::std::move(*this)));
+    return _value(::std::move(*this));
   }
   constexpr _value_t &&value() &&
     requires(not ::std::is_void_v<T>)
@@ -747,8 +755,8 @@ template <class T, class E, class Policy> struct _expected_base {
     static_assert(::std::is_copy_constructible_v<E>);
     static_assert(::std::is_constructible_v<E, E &&>);
     if (not set_)
-      throw bad_expected_access<E>(::std::move(storage_.e_));
-    return ::std::move(storage_.v_);
+      throw bad_expected_access<E>(_error(::std::move(*this)));
+    return _value(::std::move(*this));
   }
   // [expected.void.obs] for void specialization, operator* is a no-op that asserts the expected has a value
   constexpr void operator*() const & noexcept
@@ -776,7 +784,7 @@ template <class T, class E, class Policy> struct _expected_base {
   {
     static_assert(::std::is_copy_constructible_v<E>);
     if (not set_)
-      throw bad_expected_access<E>(storage_.e_);
+      throw bad_expected_access<E>(_error(*this));
   }
   constexpr void value() &&
     requires(::std::is_void_v<T>)
@@ -784,13 +792,16 @@ template <class T, class E, class Policy> struct _expected_base {
     static_assert(::std::is_copy_constructible_v<E>);
     static_assert(::std::is_move_constructible_v<E>);
     if (not set_)
-      throw bad_expected_access<E>(::std::move(storage_.e_));
+      throw bad_expected_access<E>(_error(::std::move(*this)));
   }
 
-  static constexpr auto &&_error(auto &&s) noexcept
+  template <class S> static constexpr auto _error(S &&s) noexcept -> _forward_like_t<S, E>
   {
     ASSERT(not s.set_); // LCOV_EXCL_LINE
-    return FWD(s).storage_.e_;
+    if constexpr (Policy::template is_uninhabited<E>)
+      ::pfn::unreachable(); // LCOV_EXCL_LINE
+    else
+      return FWD(s).storage_.e_;
   }
   constexpr E const &error() const & noexcept { return _error(*this); }
   constexpr E &error() & noexcept { return _error(*this); }
@@ -804,7 +815,7 @@ template <class T, class E, class Policy> struct _expected_base {
   {
     static_assert(::std::is_copy_constructible_v<T>);
     static_assert(::std::is_convertible_v<U, T>);
-    return set_ ? storage_.v_ : static_cast<T>(FWD(v));
+    return set_ ? _value(*this) : static_cast<T>(FWD(v));
   }
   template <class U = ::std::remove_cv_t<T>>
   constexpr T value_or(U &&v) &&                                                                   //
@@ -813,7 +824,7 @@ template <class T, class E, class Policy> struct _expected_base {
   {
     static_assert(::std::is_move_constructible_v<T>);
     static_assert(::std::is_convertible_v<U, T>);
-    return set_ ? ::std::move(storage_.v_) : static_cast<T>(FWD(v));
+    return set_ ? _value(::std::move(*this)) : static_cast<T>(FWD(v));
   }
 
   template <class G = E>
@@ -825,7 +836,7 @@ template <class T, class E, class Policy> struct _expected_base {
     if (set_) {
       return FWD(e);
     }
-    return storage_.e_;
+    return _error(*this);
   }
   template <class G = E>
   constexpr E error_or(G &&e) &&                                                                   //
@@ -836,7 +847,7 @@ template <class T, class E, class Policy> struct _expected_base {
     if (set_) {
       return FWD(e);
     }
-    return ::std::move(storage_.e_);
+    return _error(::std::move(*this));
   }
 
   template <typename Self, typename Fn>
@@ -1018,7 +1029,7 @@ template <class T, class E, class Policy> struct _expected_base {
       noexcept(::std::is_nothrow_move_constructible_v<T> && ::std::is_nothrow_move_constructible_v<E>)
   {
     if constexpr (::std::is_nothrow_move_constructible_v<E>) {
-      E tmp(::std::move(rhs.storage_.e_));
+      E tmp(_error(::std::move(rhs)));
       ::std::destroy_at(::std::addressof(rhs.storage_.e_));
       try {
         ::std::construct_at(::std::addressof(rhs.storage_.v_), ::std::move(lhs.storage_.v_));
@@ -1154,6 +1165,7 @@ template <typename T, typename E> constexpr bool _is_some_expected<::pfn::expect
 struct expected_policy {
   template <class U, class G> using type = ::pfn::expected<U, G>;
   template <class X> static constexpr bool is_specialization = _is_some_expected<X>;
+  template <class X> static constexpr bool is_uninhabited = false;
 };
 
 } // namespace detail

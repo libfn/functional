@@ -246,6 +246,8 @@ template <typename... Ts> struct copack;
  *
  * A carrier side of type `copack<>` cannot be engaged. As the identity of the union, it
  * vanishes inside `copack_for`. The special members allow carriers to use it in union storage.
+ * `fn::expected` and `fn::optional` instead store a trivially copyable placeholder for such a side,
+ * so the non-trivial copy and move constructors of `copack<>` do not prevent trivial carrier copies.
  */
 template <> struct copack<> final { // NOSONAR cpp:S3624 no resource to manage
   // A deleted constexpr non-copy/move constructor keeps the type literal for C++20 constexpr carriers.

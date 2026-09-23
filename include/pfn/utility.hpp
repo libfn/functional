@@ -8,6 +8,8 @@
 
 #include <libfn_version.hpp>
 
+#include <type_traits>
+
 namespace pfn {
 inline namespace LIBFN_VERSION_BASE {
 
@@ -30,6 +32,25 @@ inline namespace LIBFN_VERSION_BASE {
 #endif
 }
 // LCOV_EXCL_STOP
+
+namespace detail {
+// The type of `std::forward_like<S>(x)` for an `x` of non-reference type X
+template <class S, class X>
+using _forward_like_t
+    = ::std::conditional_t<::std::is_lvalue_reference_v<S>,
+                           ::std::conditional_t<::std::is_const_v<::std::remove_reference_t<S>>, X const, X> &,
+                           ::std::conditional_t<::std::is_const_v<::std::remove_reference_t<S>>, X const, X> &&>;
+
+// Trivially copyable storage for a side that Policy declares uninhabited. Typed accessors preserve
+// the public value/error type and mark access to that side unreachable. The variadic constructor
+// lets generic storage operations compile; reaching it is undefined behaviour.
+struct _uninhabited_t final {
+  template <class... Args> [[noreturn]] _uninhabited_t(Args &&...) noexcept { ::pfn::unreachable(); } // LCOV_EXCL_LINE
+};
+
+template <class X, class Policy>
+using _stored_t = ::std::conditional_t<Policy::template is_uninhabited<X>, _uninhabited_t, X>;
+} // namespace detail
 
 } // namespace LIBFN_VERSION_BASE
 } // namespace pfn

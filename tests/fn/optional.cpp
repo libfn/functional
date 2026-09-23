@@ -1512,6 +1512,31 @@ template <typename S, typename Fn>
 concept can_transform = requires(S s, Fn fn) { FWD(s).transform(FWD(fn)); };
 } // anonymous namespace
 
+namespace {
+// Instantiate the selected member bodies with an uninhabited value to check their use of typed
+// accessors. This probe must not run: optional<copack<>> cannot contain a value.
+template <typename O> void members_over_uninhabited_value(O &a, O &b)
+{
+  O const &c = a;
+  a.swap(b);
+  a = c;
+  a = std::move(b);
+  a = *c;
+  a.emplace(*c);
+  (void)a.operator->();
+  (void)a.value();
+  (void)c.value();
+  (void)std::move(a).value();
+  (void)std::move(c).value();
+  (void)c.value_or(*c);
+  (void)std::move(a).value_or(*c);
+  for (auto &&v : a)
+    (void)v;
+  for (auto &&v : c)
+    (void)v;
+}
+} // namespace
+
 TEST_CASE("optional of empty copack", "[optional][copack]")
 {
   using S0 = fn::copack<>;
@@ -1530,6 +1555,39 @@ TEST_CASE("optional of empty copack", "[optional][copack]")
     // no route to an engaged state: the value can never be constructed
     static_assert(not std::is_constructible_v<O, std::in_place_t>);
     static_assert(not std::is_constructible_v<S0>);
+  }
+
+  SECTION("special members")
+  {
+    // The placeholder keeps copack<>'s non-trivial constructors out of the optional's storage.
+    static_assert(not std::is_trivially_copy_constructible_v<S0>);
+    static_assert(not std::is_trivially_move_constructible_v<S0>);
+    static_assert(std::is_trivially_copy_constructible_v<O>);
+    static_assert(std::is_trivially_move_constructible_v<O>);
+    static_assert(std::is_trivially_copy_assignable_v<O>);
+    static_assert(std::is_trivially_move_assignable_v<O>);
+    static_assert(std::is_trivially_destructible_v<O>);
+    static_assert(std::is_trivially_copyable_v<O>);
+    // pfn::optional stores the value type itself, as the standard specifies
+    static_assert(not std::is_trivially_copy_constructible_v<pfn::optional<S0>>);
+    static_assert(not std::is_trivially_move_constructible_v<pfn::optional<S0>>);
+
+    constexpr O c{};
+    constexpr O d = c;
+    static_assert(not d.has_value());
+    O e{};
+    O f = e;
+    O g = std::move(f);
+    f = g;
+    g = std::move(f);
+    CHECK(not g.has_value());
+  }
+
+  SECTION("members over the uninhabited value")
+  {
+    // odr-used, so instantiated; never called
+    static_cast<void>(&members_over_uninhabited_value<O>);
+    SUCCEED();
   }
 
   SECTION("and_then and transform short-circuit")
