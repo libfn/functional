@@ -1,4 +1,3 @@
-#include <concepts>
 #include <fn/and_then.hpp>
 #include <fn/choice.hpp>
 #include <fn/concepts.hpp>
@@ -17,6 +16,8 @@
 #include <fn/transform_error.hpp>
 #include <fn/utility.hpp>
 #include <fn/value_or.hpp>
+
+#include <concepts>
 #include <string_view>
 
 // sync-example-types-def
