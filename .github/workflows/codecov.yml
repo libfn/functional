@@ -67,7 +67,7 @@ jobs:
     # CODECOV_TOKEN since tokenless uploads work but are throttled; a set token lifts the throttling.
     - name: Upload coverage report
       if: ${{ github.event_name != 'pull_request' }}
-      uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+      uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
       with:
         # Strict only when a token is set; a tokenless fork's throttled upload must not fail its CI.
         fail_ci_if_error: ${{ secrets.CODECOV_TOKEN != '' }}
