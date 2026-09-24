@@ -1,6 +1,6 @@
 {
   "name": "libfn",
-  "version-semver": "0.1.1-dev",
+  "version-semver": "0.2.0-dev",
   "description": "Functional programming in C++",
   "homepage": "https://libfn.org",
   "license": "ISC",

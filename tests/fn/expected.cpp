@@ -4383,3 +4383,143 @@ TEST_CASE("expected with empty copack side", "[expected][copack]")
     }
   }
 }
+
+namespace {
+// Instantiate the selected member bodies with an uninhabited side to check their use of typed
+// accessors. This probe must not run: it accesses both sides, including the uninhabited one.
+template <typename E> void members_over_uninhabited_side(E &a, E &b)
+{
+  E const &c = a;
+  a.swap(b);
+  a = c;
+  a = std::move(b);
+  if constexpr (std::is_void_v<typename E::value_type>) {
+    c.value();
+    std::move(a).value();
+  } else {
+    a = *c;
+    a.emplace(*c);
+    (void)a.operator->();
+    (void)a.value();
+    (void)c.value();
+    (void)std::move(a).value();
+    (void)std::move(c).value();
+    (void)c.value_or(*c);
+    (void)std::move(a).value_or(*c);
+  }
+  a = fn::unexpected(c.error());
+  (void)std::move(a).error();
+  (void)std::move(c).error();
+  (void)c.error_or(c.error());
+  (void)std::move(a).error_or(c.error());
+}
+} // namespace
+
+TEST_CASE("expected of empty copack", "[expected][copack]")
+{
+  using S0 = fn::copack<>;
+
+  SECTION("special members follow the inhabited side")
+  {
+    // The placeholder keeps copack<>'s non-trivial constructors out of the carrier's storage.
+    static_assert(not std::is_trivially_copy_constructible_v<S0>);
+    static_assert(not std::is_trivially_move_constructible_v<S0>);
+
+    SECTION("uninhabited error")
+    {
+      using T = fn::expected<int, S0>;
+      static_assert(std::is_trivially_copy_constructible_v<T>);
+      static_assert(std::is_trivially_move_constructible_v<T>);
+      static_assert(std::is_trivially_copy_assignable_v<T>);
+      static_assert(std::is_trivially_move_assignable_v<T>);
+      static_assert(std::is_trivially_destructible_v<T>);
+      static_assert(std::is_trivially_copyable_v<T>);
+
+      using V = fn::expected<void, S0>;
+      static_assert(std::is_trivially_copy_constructible_v<V>);
+      static_assert(std::is_trivially_move_constructible_v<V>);
+      static_assert(std::is_trivially_copy_assignable_v<V>);
+      static_assert(std::is_trivially_move_assignable_v<V>);
+      static_assert(std::is_trivially_destructible_v<V>);
+      static_assert(std::is_trivially_copyable_v<V>);
+
+      using N = fn::expected<std::string, S0>;
+      static_assert(not std::is_trivially_copy_constructible_v<N> && std::is_copy_constructible_v<N>);
+      static_assert(not std::is_trivially_move_constructible_v<N> && std::is_move_constructible_v<N>);
+      static_assert(not std::is_trivially_copy_assignable_v<N> && std::is_copy_assignable_v<N>);
+      static_assert(not std::is_trivially_move_assignable_v<N> && std::is_move_assignable_v<N>);
+      static_assert(not std::is_trivially_destructible_v<N>);
+      SUCCEED();
+    }
+
+    SECTION("uninhabited value")
+    {
+      using T = fn::expected<S0, int>;
+      static_assert(std::is_trivially_copy_constructible_v<T>);
+      static_assert(std::is_trivially_move_constructible_v<T>);
+      static_assert(std::is_trivially_copy_assignable_v<T>);
+      static_assert(std::is_trivially_move_assignable_v<T>);
+      static_assert(std::is_trivially_destructible_v<T>);
+      static_assert(std::is_trivially_copyable_v<T>);
+
+      using N = fn::expected<S0, std::string>;
+      static_assert(not std::is_trivially_copy_constructible_v<N> && std::is_copy_constructible_v<N>);
+      static_assert(not std::is_trivially_move_constructible_v<N> && std::is_move_constructible_v<N>);
+      static_assert(not std::is_trivially_copy_assignable_v<N> && std::is_copy_assignable_v<N>);
+      static_assert(not std::is_trivially_move_assignable_v<N> && std::is_move_assignable_v<N>);
+      static_assert(not std::is_trivially_destructible_v<N>);
+      SUCCEED();
+    }
+
+    SECTION("polyfill")
+    {
+      // pfn::expected stores the error type itself, as the standard specifies
+      static_assert(not std::is_trivially_copy_constructible_v<pfn::expected<int, S0>>);
+      static_assert(not std::is_trivially_move_constructible_v<pfn::expected<int, S0>>);
+      SUCCEED();
+    }
+  }
+
+  SECTION("members over the uninhabited side")
+  {
+    // odr-used, so instantiated; never called
+    static_cast<void>(&members_over_uninhabited_side<fn::expected<int, S0>>);
+    static_cast<void>(&members_over_uninhabited_side<fn::expected<void, S0>>);
+    static_cast<void>(&members_over_uninhabited_side<fn::expected<S0, int>>);
+    SUCCEED();
+  }
+
+  SECTION("copy and move keep the inhabited side")
+  {
+    using T = fn::expected<int, S0>;
+    constexpr T a{7};
+    constexpr T b = a;
+    static_assert(b.value() == 7);
+    T c{7};
+    T d = c;
+    T e = std::move(d);
+    d = e;
+    e = std::move(d);
+    CHECK(e.value() == 7);
+
+    using V = fn::expected<void, S0>;
+    constexpr V f{};
+    constexpr V g = f;
+    static_assert(g.has_value());
+    V h{};
+    V i = h;
+    i = std::move(h);
+    CHECK(i.has_value());
+
+    using D = fn::expected<S0, int>;
+    constexpr D j{fn::unexpect, 3};
+    constexpr D k = j;
+    static_assert(k.error() == 3);
+    D l{fn::unexpect, 3};
+    D m = l;
+    D n = std::move(m);
+    m = n;
+    n = std::move(m);
+    CHECK(n.error() == 3);
+  }
+}

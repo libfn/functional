@@ -13,12 +13,12 @@
 #endif
 
 // Mode-less version for pfn, which never uses C++26 features.
-#define LIBFN_VERSION_BASE v0_1_dev
+#define LIBFN_VERSION_BASE v0_2_dev
 
 #ifdef LIBFN_CXX26
-#define LIBFN_VERSION v0_1_dev_cxx26
+#define LIBFN_VERSION v0_2_dev_cxx26
 #else
-#define LIBFN_VERSION v0_1_dev
+#define LIBFN_VERSION v0_2_dev
 #endif
 
 #endif // INCLUDE_LIBFN_VERSION

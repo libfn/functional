@@ -6,11 +6,12 @@
 #ifndef INCLUDE_PFN_TUPLE
 #define INCLUDE_PFN_TUPLE
 
+#include <libfn_version.hpp>
+
 #include <array>
 #include <complex>
 #include <cstddef>
 #include <functional>
-#include <libfn_version.hpp>
 #include <ranges>
 #include <tuple>
 #include <type_traits>

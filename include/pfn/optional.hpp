@@ -6,12 +6,14 @@
 #ifndef INCLUDE_PFN_OPTIONAL
 #define INCLUDE_PFN_OPTIONAL
 
+#include <libfn_version.hpp>
+#include <pfn/utility.hpp>
+
 #include <cassert>
 #include <compare>
 #include <concepts>
 #include <cstddef>
 #include <functional>
-#include <libfn_version.hpp>
 #include <memory>
 #include <optional> // For anything that is not std::optional or std::make_optional
 #include <ranges>   // For std::ranges::enable_view
@@ -377,8 +379,8 @@ constexpr bool _is_valid_optional =                                             
 // Shared implementation base class for ::pfn::optional. Members are public since inheritance is
 // private. Not used by ::pfn::optional<T&> which models a pointer and does not need `bool set_`.
 template <class T, class Policy> struct _optional_base {
-  using _storage_t = _optional_union_t<T>;
-  using _value_t = _storage_t::_value_t; // == T
+  using _storage_t = _optional_union_t<_stored_t<T, Policy>>;
+  using _value_t = T;
   _storage_t storage_;
   bool set_;
 
@@ -539,7 +541,7 @@ template <class T, class Policy> struct _optional_base {
   template <class U> constexpr void _assign_value(U &&s)
   {
     if (set_) {
-      storage_.v_ = FWD(s);
+      _value(*this) = FWD(s);
     } else {
       _storage_t::_reinit(::std::addressof(storage_.v_), ::std::addressof(storage_.e_), FWD(s));
       set_ = true;
@@ -594,7 +596,7 @@ template <class T, class Policy> struct _optional_base {
     reset();
     _storage_t::_reinit(::std::addressof(storage_.v_), ::std::addressof(storage_.e_), FWD(args)...);
     set_ = true;
-    return storage_.v_;
+    return _value(*this);
   }
   template <class U, class... Args>
   constexpr T &emplace(::std::initializer_list<U> il, Args &&...args) //
@@ -603,7 +605,7 @@ template <class T, class Policy> struct _optional_base {
     reset();
     _storage_t::_reinit(::std::addressof(storage_.v_), ::std::addressof(storage_.e_), il, FWD(args)...);
     set_ = true;
-    return storage_.v_;
+    return _value(*this);
   }
 
   // [optional.iterators], iterator support. The Policy picks which library's iterator
@@ -611,24 +613,36 @@ template <class T, class Policy> struct _optional_base {
   // optional hands out the empty range (nullptr, nullptr).
   using iterator = typename Policy::template iterator<T>;
   using const_iterator = typename Policy::template iterator<T const>;
-  [[nodiscard]] constexpr iterator begin() noexcept { return iterator(set_ ? ::std::addressof(storage_.v_) : nullptr); }
+  [[nodiscard]] constexpr iterator begin() noexcept
+  {
+    return iterator(set_ ? ::std::addressof(_value(*this)) : nullptr);
+  }
   [[nodiscard]] constexpr const_iterator begin() const noexcept
   {
-    return const_iterator(set_ ? ::std::addressof(storage_.v_) : nullptr);
+    return const_iterator(set_ ? ::std::addressof(_value(*this)) : nullptr);
   }
   [[nodiscard]] constexpr iterator end() noexcept { return begin() + has_value(); }
   [[nodiscard]] constexpr const_iterator end() const noexcept { return begin() + has_value(); }
+
+  template <class S> static constexpr auto _value(S &&s) noexcept -> _forward_like_t<S, T>
+  {
+    ASSERT(s.set_); // LCOV_EXCL_LINE
+    if constexpr (Policy::template is_uninhabited<T>)
+      ::pfn::unreachable(); // LCOV_EXCL_LINE
+    else
+      return FWD(s).storage_.v_;
+  }
 
   // [optional.observe], observers
   constexpr T const *operator->() const noexcept
   {
     ASSERT(set_); // LCOV_EXCL_LINE
-    return ::std::addressof(storage_.v_);
+    return ::std::addressof(_value(*this));
   }
   constexpr T *operator->() noexcept
   {
     ASSERT(set_); // LCOV_EXCL_LINE
-    return ::std::addressof(storage_.v_);
+    return ::std::addressof(_value(*this));
   }
   constexpr T const &operator*() const & noexcept { return *(this->operator->()); }
   constexpr T &operator*() & noexcept { return *(this->operator->()); }
@@ -641,36 +655,36 @@ template <class T, class Policy> struct _optional_base {
   {
     if (not set_)
       throw ::std::bad_optional_access();
-    return storage_.v_;
+    return _value(*this);
   }
   constexpr T &value() &
   {
     if (not set_)
       throw ::std::bad_optional_access();
-    return storage_.v_;
+    return _value(*this);
   }
   constexpr T const &&value() const &&
   {
     if (not set_)
       throw ::std::bad_optional_access();
-    return ::std::move(storage_.v_);
+    return _value(::std::move(*this));
   }
   constexpr T &&value() &&
   {
     if (not set_)
       throw ::std::bad_optional_access();
-    return ::std::move(storage_.v_);
+    return _value(::std::move(*this));
   }
 
   template <class U = ::std::remove_cv_t<T>> constexpr T value_or(U &&v) const &
   {
     static_assert(::std::is_copy_constructible_v<T> && ::std::is_convertible_v<U &&, T>);
-    return set_ ? storage_.v_ : static_cast<T>(::std::forward<U>(v));
+    return set_ ? _value(*this) : static_cast<T>(::std::forward<U>(v));
   }
   template <class U = ::std::remove_cv_t<T>> constexpr T value_or(U &&v) &&
   {
     static_assert(::std::is_move_constructible_v<T> && ::std::is_convertible_v<U &&, T>);
-    return set_ ? ::std::move(storage_.v_) : static_cast<T>(::std::forward<U>(v));
+    return set_ ? _value(::std::move(*this)) : static_cast<T>(::std::forward<U>(v));
   }
 
   // [optional.monadic] bodies, shared by the public optional's ref-qualified overload sets.
@@ -1005,6 +1019,7 @@ struct optional_policy {
   template <class T> using type = ::pfn::optional<T>;
   template <class T> using iterator = _optional_iterator<T>;
   template <class X> static constexpr bool is_specialization = _is_some_optional<X>;
+  template <class X> static constexpr bool is_uninhabited = false;
 };
 
 // [optional.hash]: hash<optional<T>> is enabled iff hash<remove_const_t<T>> is enabled --
