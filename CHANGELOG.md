@@ -2,6 +2,21 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `just` holds lvalue references — 24 September 2026
+
+`just<T&>` now supports lvalue-reference payloads (issue #417), providing an always-engaged counterpart to `optional<T&>`. Referents must be object types other than arrays, in-place type tags, or copacks. Rvalue-reference payloads remain unsupported, as in `optional` and `pack`.
+
+`just<T&>` follows `optional<T&>`: copy assignment and `emplace` rebind, comparisons compare the referents, and `value_type` is `T`. `value()` returns `T&` regardless of the carrier's value category or constness. Callable operations use that same reference, expanding packs and tuple-like referents as `fn::apply` does. `apply_type` tags the payload with `std::in_place_type<T&>`.
+
+There is no default constructor. For an `int x`, `just{x}` still deduces `just<int>`; the explicit type tag in `just(std::in_place_type<int&>, x)` instead deduces `just<int&>`. As with the library's `optional<T&>`, binding to a temporary is not yet rejected and can leave a dangling reference.
+
+Composition follows these rules:
+
+- A `transform` callback returning a supported lvalue reference `U&` produces `just<U&>`, referring to the returned object.
+- Member and pipeline `and_then` accept callbacks returning `just<U&>`. When every branch of a choice returns the same `just<U&>` type, the result retains that type. A join of different result types is rejected if any is a reference `just`, because references cannot be alternatives of the resulting choice. This matches the restriction on reference payloads in optional joins.
+- The products and sums that `&` and `|` build hold a copy of the referent, as they do for `optional<T&>`. Eliding the unit `just<void>` under `&` returns the other operand itself, so `just<void>{} & just<T&>{x}` is still `just<T&>`.
+- Copack references remain unsupported. `just<copack<Ts...>&>` would dispatch on the referent's active alternative, introducing control flow based on state the carrier does not own. Issue #434 discusses the tradeoffs and open questions. `transform` also rejects copack-reference results.
+
 ## `choice` becomes `just` over a copack — 21 September 2026
 
 `choice<Ts...>` is now an alias of `just<copack<Ts...>>`. The specialization forwards operations on alternatives to its `copack` payload. The `<fn/choice.hpp>` header is gone; `<fn/just.hpp>` declares `choice`, `choice_for` and `some_choice`.
