@@ -113,7 +113,6 @@ set(INCLUDE_FN_HEADERS
     fn/detail/traits.hpp
     fn/detail/variadic_union.hpp
     fn/and_then.hpp
-    fn/choice.hpp
     fn/concepts.hpp
     fn/copack.hpp
     fn/discard.hpp

@@ -33,50 +33,47 @@ The binary conjunction each carrier declares; `conjoin` is its n-ary fold.
 
 ```cpp {title: "fn::operator&"}
 template <typename Lh, typename Rh>
-constexpr auto operator&(Lh &&lh, Rh &&rh);                             // (1)
-constexpr auto operator&(Lh &&, Rh &&rh)   -> std::remove_cvref_t<Rh>;  // (2)
-constexpr auto operator&(Lh &&lh, Rh &&)   -> std::remove_cvref_t<Lh>;  // (3)
-constexpr auto operator&(Lh &&lh, Rh &&rh);                             // (4)
+constexpr auto operator&(Lh &&lh, Rh &&rh);  // (1)
 
 template <typename Lh, some_expected Rh>
-constexpr auto operator&(Lh &&lh, Rh &&rh);  // (5)
+constexpr auto operator&(Lh &&lh, Rh &&rh);  // (2)
 
 template <some_expected Lh, typename Rh>
-constexpr auto operator&(Lh &&lh, Rh &&rh);  // (6)
+constexpr auto operator&(Lh &&lh, Rh &&rh);  // (3)
 
 template <typename Lh, some_expected_void Rh>
-constexpr auto operator&(Lh &&lh, Rh &&rh) -> expected<typename std::remove_cvref_t<Lh>::value_type, typename std::remove_cvref_t<Rh>::error_type>;  // (7)
+constexpr auto operator&(Lh &&lh, Rh &&rh) -> expected<typename std::remove_cvref_t<Lh>::value_type, typename std::remove_cvref_t<Rh>::error_type>;  // (4)
 
 template <some_expected_void Lh, typename Rh>
-constexpr auto operator&(Lh &&lh, Rh &&rh) -> expected<typename std::remove_cvref_t<Rh>::value_type, typename std::remove_cvref_t<Lh>::error_type>;  // (8)
+constexpr auto operator&(Lh &&lh, Rh &&rh) -> expected<typename std::remove_cvref_t<Rh>::value_type, typename std::remove_cvref_t<Lh>::error_type>;  // (5)
 
 template <typename Lh, some_expected Rh>
-constexpr auto operator&(Lh &&, Rh &&rh);  // (9)
+constexpr auto operator&(Lh &&, Rh &&rh);  // (6)
 
 template <some_expected Lh, typename Rh>
-constexpr auto operator&(Lh &&lh, Rh &&);  // (10)
+constexpr auto operator&(Lh &&lh, Rh &&);  // (7)
 
 template <typename Lh, typename Rh>
-constexpr auto operator&(Lh &&lh, Rh &&rh);                             // (11)
-constexpr auto operator&(Lh &&, Rh &&rh)   -> std::remove_cvref_t<Rh>;  // (12)
-constexpr auto operator&(Lh &&lh, Rh &&)   -> std::remove_cvref_t<Lh>;  // (13)
+constexpr auto operator&(Lh &&lh, Rh &&rh);                             // (8)
+constexpr auto operator&(Lh &&, Rh &&rh)   -> std::remove_cvref_t<Rh>;  // (9)
+constexpr auto operator&(Lh &&lh, Rh &&)   -> std::remove_cvref_t<Lh>;  // (10)
 
 template <some_optional Lh, some_optional Rh>
-constexpr auto operator&(Lh &&lh, Rh &&rh);  // (14)
+constexpr auto operator&(Lh &&lh, Rh &&rh);  // (11)
 
 template <typename Lh, some_optional Rh>
-constexpr auto operator&(Lh &&lh, Rh &&rh);  // (15)
+constexpr auto operator&(Lh &&lh, Rh &&rh);  // (12)
 
 template <some_optional Lh, typename Rh>
-constexpr auto operator&(Lh &&lh, Rh &&rh);  // (16)
+constexpr auto operator&(Lh &&lh, Rh &&rh);  // (13)
 
 template <typename Lh, some_optional Rh>
-constexpr auto operator&(Lh &&, Rh &&rh);  // (17)
+constexpr auto operator&(Lh &&, Rh &&rh);  // (14)
 
 template <some_optional Lh, typename Rh>
-constexpr auto operator&(Lh &&lh, Rh &&);  // (18)
+constexpr auto operator&(Lh &&lh, Rh &&);  // (15)
 
-constexpr auto operator&(auto &&lh, auto &&rh);  // (19)
+constexpr auto operator&(auto &&lh, auto &&rh);  // (16)
 ```
 
 :include-doxygen-doc: fn::operator& { args: "Lh &&, Rh &&" }

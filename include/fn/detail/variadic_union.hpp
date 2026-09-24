@@ -541,9 +541,11 @@ concept _makeable = requires { make_variadic_union<T, U>(::std::declval<Args>().
 template <typename U, typename T, typename... Args>
 concept _nothrow_makeable = requires { requires noexcept(make_variadic_union<T, U>(::std::declval<Args>()...)); };
 
+// Return R explicitly so reference results remain references. Plain auto would return a copy,
+// leaving a reference-returning caller with a dangling reference.
 template <typename R, typename U, typename Fn, typename... Args>
 [[nodiscard]] constexpr auto apply_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn,
-                                                  Args &&...args)
+                                                  Args &&...args) -> R
   requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U>   //
            && (U::size == 1) && (not ::std::is_same_v<void, R>)      //
            && _typelist_applicable_r<R, Fn, decltype(v), Args &&...> //
@@ -593,7 +595,7 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, ::std::s
 
 template <typename R, typename U, typename Fn, typename... Args>
 [[nodiscard]] constexpr auto apply_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn,
-                                                  Args &&...args)
+                                                  Args &&...args) -> R
   requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U>   //
            && (U::size == 2) && (not ::std::is_same_v<void, R>)      //
            && _typelist_applicable_r<R, Fn, decltype(v), Args &&...> //
@@ -647,7 +649,7 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, ::std::s
 
 template <typename R, typename U, typename Fn, typename... Args>
 [[nodiscard]] constexpr auto apply_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn,
-                                                  Args &&...args)
+                                                  Args &&...args) -> R
   requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U>   //
            && (U::size == 3) && (not ::std::is_same_v<void, R>)      //
            && _typelist_applicable_r<R, Fn, decltype(v), Args &&...> //
@@ -709,7 +711,7 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, ::std::s
 
 template <typename R, typename U, typename Fn, typename... Args>
 [[nodiscard]] constexpr auto apply_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn,
-                                                  Args &&...args)
+                                                  Args &&...args) -> R
   requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U>   //
            && (U::size == 4) && (not ::std::is_same_v<void, R>)      //
            && _typelist_applicable_r<R, Fn, decltype(v), Args &&...> //
@@ -779,7 +781,7 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, ::std::s
 
 template <typename R, typename U, typename Fn, typename... Args>
 [[nodiscard]] constexpr auto apply_variadic_union(some_variadic_union auto &&v, ::std::size_t index, Fn &&fn,
-                                                  Args &&...args)
+                                                  Args &&...args) -> R
   requires ::std::is_same_v<::std::remove_cvref_t<decltype(v)>, U>   //
            && (U::size > 4) && (not ::std::is_same_v<void, R>)       //
            && _typelist_applicable_r<R, Fn, decltype(v), Args &&...> //

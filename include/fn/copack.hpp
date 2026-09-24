@@ -138,55 +138,60 @@ template <typename Fn, typename Self, typename... Args>
 struct _copack_apply_result<_collapsing_copack_tag, Fn, Self, Args...> final
     : _typelist_collapsing_copack<Fn, Self, ::std::remove_cvref_t<Self>, Args...> {};
 
-template <template <typename...> typename Tpl> struct _joining_superset_tag final {};
+struct _joining_superset_tag final {};
 
-// and_then's join - a sibling of the collapse above with the OPPOSITE convention for a result of
-// the target kind: the collapse keeps it whole (fmap nests the nominal atom), the join splices its
-// alternatives into the accumulated list (bind flattens). Only results of the tag's template kind
-// splice - choice::and_then passes its own kind, and the and_then functor's cluster arm passes
-// choice over a bare copack payload.
+// Bind joins the payloads of just results. A choice contributes its alternatives, an ordinary
+// just<T> contributes T, and just<void> contributes pack<>. Equal result types after cv/ref
+// removal retain their type. Unlike bind, transform keeps a returned choice as a nested value.
 namespace _joining_superset {
 template <typename... Ts> struct typelist;
 template <typename... Ts> extern typelist<Ts...> const &typelist_v;
 
-template <typename... Ts, template <typename...> typename Tpl, typename... Us>
-auto operator^(typelist<Ts...> const &, typelist<Tpl<Us...>> const &) -> typelist<Ts..., Us...> const &;
+template <typename... Ts, typename T>
+auto operator^(typelist<Ts...> const &, typelist<::fn::just<T>> const &) -> typelist<Ts..., T> const &;
+template <typename... Ts>
+auto operator^(typelist<Ts...> const &, typelist<::fn::just<void>> const &) -> typelist<Ts..., ::fn::pack<>> const &;
+template <typename... Ts, typename... Us>
+auto operator^(typelist<Ts...> const &, typelist<::fn::just<::fn::copack<Us...>>> const &)
+    -> typelist<Ts..., Us...> const &;
 
 template <typename... Ts> using flattened = ::std::remove_cvref_t<decltype((typelist_v<> ^ ... ^ typelist_v<Ts>))>;
 
+// Whether T is a specialization of the class template Tpl - the kind test the carrier joins below
+// ask of each branch result
 template <template <typename...> typename Tpl, typename T> constexpr inline bool is_kind = false;
 template <template <typename...> typename Tpl, typename... Us> constexpr inline bool is_kind<Tpl, Tpl<Us...>> = true;
 
-template <template <typename...> typename Tpl, typename T> struct superset;
-template <template <typename...> typename Tpl, typename... Ts> struct superset<Tpl, typelist<Ts...>> {
-  using type = ::fn::detail::normalized<Ts...>::template apply<Tpl>;
+template <typename T> struct superset;
+template <typename... Ts> struct superset<typelist<Ts...>> {
+  using type = ::fn::just<typename ::fn::detail::normalized<Ts...>::template apply<::fn::copack>>;
 };
 } // namespace _joining_superset
 
-template <template <typename...> typename Tpl, typename... Rs> struct _joining_superset_type {
-  using type = _joining_superset::superset<Tpl, _joining_superset::flattened<Rs...>>::type;
+// Rs are the branch results, cv/ref stripped
+template <typename... Rs> struct _joining_superset_type {
+  using type = _joining_superset::superset<_joining_superset::flattened<Rs...>>::type;
+};
+template <typename R0, typename... Rs>
+  requires(... && ::std::is_same_v<R0, Rs>)
+struct _joining_superset_type<R0, Rs...> {
+  using type = R0;
 };
 
-// Results all of the target kind join into the normalized superset; anything else falls back to
-// the select trait, so today's diagnostics are preserved verbatim - a convergent result of another
-// kind instantiates the member, whose static_assert names the requirement, and a divergent one
-// trips select's own assert.
-template <template <typename...> typename Tpl, typename Fn, typename Self, typename T, typename... Args>
-struct _typelist_joining_superset;
-template <template <typename...> typename Tpl, typename Fn, typename Self, template <typename...> typename Tpl2,
-          typename... Ts, typename... Args>
-struct _typelist_joining_superset<Tpl, Fn, Self, Tpl2<Ts...>, Args...>
+// An all-just result set uses the join above. Other results must agree in exact type;
+// the member then rejects non-just results. Divergent results trigger select's assertion.
+template <typename Fn, typename Self, typename T, typename... Args> struct _typelist_joining_superset;
+template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts, typename... Args>
+struct _typelist_joining_superset<Fn, Self, Tpl<Ts...>, Args...>
     : ::std::conditional_t<
-          (...
-           && _joining_superset::is_kind<Tpl, ::std::remove_cvref_t<typename ::fn::detail::_apply_result<
-                                                  Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>>),
-          _joining_superset_type<Tpl, ::std::remove_cvref_t<typename ::fn::detail::_apply_result<
-                                          Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...>,
-          _typelist_select_apply_result<Fn, Self, Tpl2<Ts...>, Args...>> {};
+          (... && _some_just<typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>),
+          _joining_superset_type<::std::remove_cvref_t<
+              typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...>,
+          _typelist_select_apply_result<Fn, Self, Tpl<Ts...>, Args...>> {};
 
-template <template <typename...> typename Tpl, typename Fn, typename Self, typename... Args>
-struct _copack_apply_result<_joining_superset_tag<Tpl>, Fn, Self, Args...> final
-    : _typelist_joining_superset<Tpl, Fn, Self, ::std::remove_cvref_t<Self>, Args...> {};
+template <typename Fn, typename Self, typename... Args>
+struct _copack_apply_result<_joining_superset_tag, Fn, Self, Args...> final
+    : _typelist_joining_superset<Fn, Self, ::std::remove_cvref_t<Self>, Args...> {};
 
 template <typename Fn, typename Self, typename T, typename... Args> struct _typelist_type_select_invoke_result;
 template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts, typename... Args>
@@ -225,6 +230,12 @@ template <typename Fn, typename Self, typename... Args>
 struct _copack_invoke_type_result<_collapsing_copack_tag, Fn, Self, Args...> final
     : _typelist_type_collapsing_copack<Fn, Self, ::std::remove_cvref_t<Self>, Args...> {};
 
+// _invoke exposes T&& for a non-const rvalue copack and T const& for every other source.
+// Model those overloads when checking tagged construction and its exception specification.
+template <typename Cp, typename T>
+using _invoked_element_t
+    = ::std::conditional_t<::std::is_rvalue_reference_v<Cp> && (not ::std::is_const_v<::std::remove_reference_t<Cp>>),
+                           T &&, T const &>;
 } // namespace detail
 
 /**
@@ -504,9 +515,10 @@ struct copack<Ts...> {
    */
   template <typename... Tx>
   constexpr copack(::std::in_place_type_t<copack<Tx...>>, some_copack auto &&arg) //
-      noexcept((... && detail::_nothrow_makeable<data_t, Tx, apply_const_lvalue_t<decltype(arg), Tx &&>>))
+      noexcept((... && detail::_nothrow_makeable<data_t, Tx, detail::_invoked_element_t<decltype(arg), Tx>>))
     requires ::std::is_same_v<::std::remove_cvref_t<decltype(arg)>, copack<Tx...>>
                  && detail::is_superset_of<copack, copack<Tx...>> && (sizeof...(Tx) > 0)
+                 && (... && detail::_makeable<data_t, Tx, detail::_invoked_element_t<decltype(arg), Tx>>)
       : data(FWD(arg).template _invoke<data_t>([]<typename T>(::std::in_place_type_t<T>, auto &&v) -> data_t {
           return detail::make_variadic_union<T, data_t>(FWD(v));
         })),
@@ -1131,8 +1143,12 @@ struct copack<Ts...> {
 };
 
 // CTAD for single-element copack
-template <typename T> explicit copack(::std::in_place_type_t<T>, auto &&...) -> copack<T>;
-template <typename T> explicit copack(T) -> copack<::std::remove_cvref_t<T>>;
+template <typename T>
+  requires detail::_is_valid_copack_subtype<T>
+explicit copack(::std::in_place_type_t<T>, auto &&...) -> copack<T>;
+template <typename T>
+  requires detail::_is_valid_copack_subtype<T>
+explicit copack(T) -> copack<T>;
 
 namespace detail {
 // The value lift builds `copack<remove_cvref_t<Src>>` - a class whose body refuses an in_place tag as
@@ -1470,38 +1486,29 @@ template <template <typename...> typename Tpl, typename T, typename Fn, typename
 struct _copack_apply_result<_joining_optional_recovery_tag<Tpl, T>, Fn, Self, Args...>
     : _typelist_joining_optional_recovery<Tpl, T, Fn, Self, ::std::remove_cvref_t<Self>, Args...> {};
 
-// The cluster bind's join - the verb layer's licensed cross-carrier dispatch over a bare copack
-// payload. The same superset join as the choice members', under the asking rule of the joining
-// traits here: an all-Tpl set joins into the normalized superset, a set convergent in the exact
-// result type keeps the select trait's answer verbatim, every other set leaves no `type` - the
-// members' fall-back to select would assert where a probing concept must get an answer. The
-// convergence tier must be exact, not stripped: select compares exact result types, so a set
-// convergent only after removing cv/ref would reach its assert.
-template <template <typename...> typename Tpl> struct _joining_cluster_tag final {};
+// The cluster bind's join - the verb layer's assert-free twin of the superset join above, over a
+// bare copack payload: an all-just set answers the same join, every other set leaves no `type` -
+// the members' fall-back to select would assert where a probing concept must get an answer.
+struct _joining_cluster_tag final {};
 
-template <template <typename...> typename Tpl, typename Fn, typename Self, typename T, typename... Args>
-struct _typelist_joining_cluster;
-template <template <typename...> typename Tpl, typename Fn, typename Self, template <typename...> typename Tpl2,
-          typename... Ts, typename... Args>
-struct _typelist_joining_cluster<Tpl, Fn, Self, Tpl2<Ts...>, Args...>
+template <typename Fn, typename Self, typename T, typename... Args> struct _typelist_joining_cluster;
+template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts, typename... Args>
+struct _typelist_joining_cluster<Fn, Self, Tpl<Ts...>, Args...>
     : ::std::conditional_t<
-          (sizeof...(Ts) == 0), _no_join,
-          ::std::conditional_t<
-              (...
-               && _joining_superset::is_kind<Tpl, ::std::remove_cvref_t<typename ::fn::detail::_apply_result<
-                                                      Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>>),
-              _joining_superset_type<Tpl, ::std::remove_cvref_t<typename ::fn::detail::_apply_result<
-                                              Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...>,
-              ::std::conditional_t<_joining_expected::all_same<typename ::fn::detail::_apply_result<
-                                       Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type...>,
-                                   _typelist_select_apply_result<Fn, Self, Tpl2<Ts...>, Args...>, _no_join>>> {};
+          (sizeof...(Ts) > 0)
+              && (...
+                  && _some_just<
+                      typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>),
+          _joining_superset_type<::std::remove_cvref_t<
+              typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...>,
+          _no_join> {};
 
-template <template <typename...> typename Tpl, typename Fn, typename Self, typename... Args>
-struct _copack_apply_result<_joining_cluster_tag<Tpl>, Fn, Self, Args...>
-    : _typelist_joining_cluster<Tpl, Fn, Self, ::std::remove_cvref_t<Self>, Args...> {};
+template <typename Fn, typename Self, typename... Args>
+struct _copack_apply_result<_joining_cluster_tag, Fn, Self, Args...>
+    : _typelist_joining_cluster<Fn, Self, ::std::remove_cvref_t<Self>, Args...> {};
 
-// The tag-generic engine entry for join-mode dispatch over a copack side: each branch converts
-// into the tag's announced result. Serves expected's graded binds and the verb layer's cluster arm
+// Dispatch expected and optional joins by converting each branch result to the tag's result
+// type. The just join in just.hpp instead constructs the result from each branch's payload.
 template <typename Tag, typename Cp, typename Fn>
   requires _some_copack<::std::remove_cvref_t<Cp>>
 [[nodiscard]] constexpr auto _tagged_join_apply(Cp &&cp, Fn &&fn) //

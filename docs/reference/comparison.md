@@ -14,30 +14,25 @@ viable, not ill-formed.
 
 ```cpp {title: "fn::operator=="}
 template <typename... Ts, typename... Tx>
-constexpr auto operator==(choice<Ts...> const &lh, choice<Tx...> const &rh) -> bool;  // (1)
-constexpr auto operator==(copack<Ts...> const &lh, copack<Tx...> const &rh) -> bool;  // (2)
+constexpr auto operator==(copack<Ts...> const &lh, copack<Tx...> const &rh) -> bool;  // (1)
 
 template <typename T, typename Err, typename T2>
-constexpr auto operator==(expected<T, Err> const &x, T2 const &v) -> bool;  // (3)
+constexpr auto operator==(expected<T, Err> const &x, T2 const &v) -> bool;  // (2)
 
 template <typename T, typename U>
-constexpr auto operator==(just<T> const &lh, just<U> const &rh) -> bool;  // (4)
-constexpr auto operator==(just<T> const &lh, U const &rh)       -> bool;  // (5)
+constexpr auto operator==(just<T> const &lh, just<U> const &rh) -> bool;  // (3)
+constexpr auto operator==(just<T> const &lh, U const &rh)       -> bool;  // (4)
 
 template <class T, class U>
-constexpr auto operator==(optional<T> const &x, optional<U> const &y) -> bool;  // (6)
+constexpr auto operator==(optional<T> const &x, optional<U> const &y) -> bool;  // (5)
 
 template <class T>
-constexpr auto operator==(optional<T> const &x, std::nullopt_t) -> bool;  // (7)
+constexpr auto operator==(optional<T> const &x, std::nullopt_t) -> bool;  // (6)
 
 template <class T, class U>
-constexpr auto operator==(optional<T> const &x, U const &v) -> bool;  // (8)
-constexpr auto operator==(T const &v, optional<U> const &x) -> bool;  // (9)
+constexpr auto operator==(optional<T> const &x, U const &v) -> bool;  // (7)
+constexpr auto operator==(T const &v, optional<U> const &x) -> bool;  // (8)
 ```
-
-:include-doxygen-doc: fn::operator== { args: "choice < Ts... > const &, choice < Tx... > const &" }
-
-:include-doxygen-doc-params: fn::operator== { args: "choice < Ts... > const &, choice < Tx... > const &", title: "parameters" }
 
 :include-doxygen-doc: fn::operator== { args: "copack < Ts... > const &, copack < Tx... > const &" }
 
@@ -58,18 +53,11 @@ constexpr auto operator==(T const &v, optional<U> const &x) -> bool;  // (9)
 ## operator!= {style: "api"}
 
 ```cpp {title: "fn::operator!="}
-template <typename... Ts, typename... Tx>
-constexpr auto operator!=(choice<Ts...> const &lh, choice<Tx...> const &rh) -> bool;  // (1)
-
 template <class T, class U>
-constexpr auto operator!=(optional<T> const &x, optional<U> const &y) -> bool;  // (2)
-constexpr auto operator!=(optional<T> const &x, U const &v)           -> bool;  // (3)
-constexpr auto operator!=(T const &v, optional<U> const &x)           -> bool;  // (4)
+constexpr auto operator!=(optional<T> const &x, optional<U> const &y) -> bool;  // (1)
+constexpr auto operator!=(optional<T> const &x, U const &v)           -> bool;  // (2)
+constexpr auto operator!=(T const &v, optional<U> const &x)           -> bool;  // (3)
 ```
-
-:include-doxygen-doc: fn::operator!= { args: "choice < Ts... > const &, choice < Tx... > const &" }
-
-:include-doxygen-doc-params: fn::operator!= { args: "choice < Ts... > const &, choice < Tx... > const &", title: "parameters" }
 
 :include-doxygen-doc: fn::operator!= { args: "optional < T > const &, optional < U > const &" }
 

@@ -716,13 +716,13 @@ TEST_CASE("transform just", "[transform][just][choice][identity]")
     auto r3 = fn::just{} | fn::transform([] { return 5; });
     static_assert(std::is_same_v<decltype(r3), fn::just<int>>);
     CHECK(r3.value() == 5);
-    // a choice result nests as a payload atom - fmap semantics, never promoted
+    // a choice result nests as a payload atom - fmap semantics
     auto r4 = fn::just{3} | fn::transform([](int) { return fn::choice<U>{U{}}; });
     static_assert(std::is_same_v<decltype(r4), fn::just<fn::choice<U>>>);
     static_assert((fn::just{3} | fn::transform([](int i) { return i + 1; })).value() == 4);
   }
 
-  SECTION("a copack result promotes to the choice over the same alternatives")
+  SECTION("a copack result produces a choice over the same alternatives")
   {
     constexpr auto fnCopack = [](int i) { return i > 0 ? fn::copack_for<U, V>{U{}} : fn::copack_for<U, V>{V{}}; };
     auto r1 = fn::just{3} | fn::transform(fnCopack);
@@ -746,6 +746,10 @@ TEST_CASE("transform just", "[transform][just][choice][identity]")
     constexpr auto probe = [](auto &&v, auto &&fn) { return requires { FWD(v) | fn::transform(FWD(fn)); }; };
     static_assert(not probe(fn::just<int>{3}, [](int &i) -> int & { return i; }));
     static_assert(probe(fn::just<int>{3}, [](int i) { return i; }));
+    // The pipeline rejects a copack reference result but accepts the corresponding value result.
+    static constexpr fn::copack<U> cu{U{}};
+    static_assert(not probe(fn::just<int>{3}, [](int) -> fn::copack<U> const & { return cu; }));
+    static_assert(probe(fn::just<int>{3}, [](int) { return cu; }));
     SUCCEED();
   }
 }

@@ -91,7 +91,7 @@ Standard monads are rigid: an `expected<T, E>` requires every step in a pipeline
 A **graded monad** relaxes this restriction. Each operation is indexed by a "grade"—a set representing all its specific possible errors (its "effects") by means of `copack`, which is a disjoint set of types. As you chain operations, the compiler automatically adds these grades to the set.
 The resulting error type is **graded**: it expands (or narrows during recovery) to match the *exact* subset of errors possible in the compiled path, providing strict static effect tracking (subeffecting) with zero boilerplate.
 
-You may also use `copack` on a value side of most carriers (except for `just<copack<Ts...>>`, which must be spelled `choice<Ts...>`). Grading is opt-in for chaining: a `copack` on the error side enrols an `expected` in this union arithmetic, while a plain `expected<T, E>` holds every step to the identical error type `E`. A `copack` on the value side enrols an `expected` or `optional` into the same arithmetic on values.
+You may also use `copack` on a value side of every carrier; `just<copack<Ts...>>` is what `choice<Ts...>` names. Grading is opt-in for chaining: a `copack` on the error side enrols an `expected` in this union arithmetic, while a plain `expected<T, E>` holds every step to the identical error type `E`. A `copack` on the value side enrols an `expected` or `optional` into the same arithmetic on values.
 
 > [!TIP]
 >
@@ -225,7 +225,7 @@ If a side is already a `copack` or `pack`, forwarding it behaves naturally witho
 
 ## 3. The computation carriers
 
-To model computation and manage control flow (success, failure, alternatives, and empty states), `libfn` uses **computation carriers** (often called "monadic types"). The library defines exactly four carrier families, divided by their fallibility and payload capacity:
+To model computation and manage control flow (success, failure, alternatives, and empty states), `libfn` uses **computation carriers** (often called "monadic types"). The three carrier templates are `optional`, `expected` and `just`. The list below groups them by fallibility and payload; `choice` names the copack specialization of `just`:
 
 ### The fallible carriers
 
@@ -248,9 +248,9 @@ Together, `just`, `choice` and `expected<T, copack<>>` form the **identity clust
 
 > [!NOTE]
 >
-> ### Note — `just<copack<Ts...>>` is spelled `choice<Ts...>`
+> ### Note — `choice<Ts...>` is `just<copack<Ts...>>`
 >
-> To carry several alternatives that cannot fail, use `choice<Ts...>`: a computation that always succeeds, with a result that is one of `Ts...`. Spelling the same shape as `just<copack<Ts...>>` does not compile — `just` rejects a `copack` payload with `"a just over a copack is spelled choice"` — so the shape has one canonical spelling, exactly as `copack` has one canonical form for its alternatives.
+> To carry several alternatives that cannot fail, use `choice<Ts...>`: a computation that always succeeds, with a result that is one of `Ts...`. It is an alias of `just<copack<Ts...>>`, the identity carrier specialized for a coproduct payload, so generic code constrained on `some_just` also accepts a `choice`. Prefer `choice_for` when listing alternatives, since it normalizes their order. `just<copack<>>` is left incomplete, as `choice<>` is; the unit carrier is `just<void>`.
 
 These carriers constrain their payloads. While `optional<T&>` is supported as a standard-conforming exception, other carriers reject raw reference types outright; references must be wrapped inside a `pack` (detailed in Section 4).
 
@@ -769,7 +769,7 @@ All three cluster members (`just`, `choice`, and `expected<T, copack<>>`) can br
 
 Monadic operations on the identity cluster:
 
-- **Success Mapping (`transform`)**: Preserves the carrier family for member calls. Pipeline `fn::transform` adds a licensed crossing: a `copack` returned from a callable mapped over a `just` is promoted to a `choice` over the same alternatives (Section 11).
+- **Success Mapping (`transform`)**: Preserves the carrier family. A `copack` returned from a callable mapped over a `just` produces `just` of that copack, which is the `choice` over its alternatives (Section 11).
 - **Sequential Binding (`and_then`)**: Allows cross-carrier transitions within the identity cluster (such as `just` to `expected<U, copack<>>`) when using pipeline `fn::and_then`.
 - **Recovery & Error Mapping (`transform_error`, `or_else`, `recover`, `inspect_error`)**: Because `just` and `choice` lack an error side, these are ill-formed. On `expected<T, copack<>>`, they are vacuously well-formed but statically unreachable to allow generic compilation.
 - **Short-Circuiting (`fail`, `filter`)**: Ill-formed for identity carriers, as no failure (error or empty state) can be constructed from an infallible context.
@@ -807,11 +807,11 @@ Monadic operations on the identity cluster:
 >
 ## 11. choice: identity over a coproduct
 
-`choice` represents a computation that always succeeds by selecting one of several alternatives. Structurally, it serves as the single-layer carrier for coproduct states, avoiding the invalid nested `just<copack<Ts...>>` representation (Section 3).
+`choice<Ts...>` represents a computation that always succeeds by selecting one of several alternatives. It is `just<copack<Ts...>>` (Section 3): the identity carrier over the coproduct payload, dispatching branch-wise where `just<T>` maps the one value. `fn::as_choice(x)` lifts a value into the single-alternative choice over its decayed type, and wraps a copack in the choice over its alternatives.
 
-### Promotion via pipeline functors
+### Mapping into a choice
 
-Pipeline `fn::transform` on a `just` that returns a `copack` promotes automatically to `choice`:
+`transform` on a `just` whose callable returns a `copack` yields a `choice` — the same identity functor, its payload now a coproduct:
 
 <!-- sync-example-test-identity-transformation -->
 ```cpp
@@ -825,7 +825,9 @@ auto test_identity_transformation(fn::just<UserId> j) -> void
 }
 ```
 
-Similarly, pipeline `fn::and_then` on a `just` can return a `choice` or `expected<T, copack<>>` directly.
+Similarly, member `and_then` on a `just` can return a `choice` directly. Pipeline `fn::and_then` also permits a transition to `expected<T, copack<>>`.
+
+A callback passed to member `and_then` must return a `just`, including `just<void>` or a `choice`. Choice branches may return different `just` types. If those types agree after cv/ref removal, the result keeps that type; otherwise their payloads form a normalized choice. An ordinary `just<T>` contributes `T`, a returned choice contributes its alternatives, and `just<void>` contributes `pack<>`, as a `void` side does in a disjunction.
 
 Inside its domain, `choice` behaves differently from bare `copack`:
 
@@ -838,8 +840,8 @@ Consider a scenario where different branches of a switch return different `choic
 ```cpp
 auto test_choice_mapping(fn::choice<User, UserId> ch) -> void
 {
-  constexpr auto mapper = fn::overload{[](UserId) { return fn::choice<Missing>{Missing{}}; },
-                                       [](User) { return fn::choice<FilePath>{FilePath{}}; }};
+  constexpr auto mapper = fn::overload{[](UserId) { return fn::as_choice(Missing{}); },
+                                       [](User) { return fn::as_choice(FilePath{}); }};
 
   // transform nests the returned choice as a mapped value
   auto mapped = ch | fn::transform(mapper);
@@ -865,7 +867,7 @@ A callback returning a bare value requires `transform` rather than `and_then`; `
 >
 > 2. **`choice` is the monad (the "structural suspend button")**:
 >    To restore monad laws, the monadic carrier `choice<Ts...>` wraps the sum in an "identity layer" to preserve structural depth: `choice<choice<T>>` $\ne$ `choice<T>`. That layer holds eager flattening in check.
->    Thus, `choice` acts as a lawful monad under $M(A) = \text{choice}\langle A\rangle$ over coproduct objects $A = \bigoplus_{j} T_j$ — the *nominal* identity wrapper, which Haskell spells as the `Identity` newtype. Because $M(A) \cong A$ yet is a distinct C++ type, the unit and the multiplication are exactly the wrapping and unwrapping that nominal typing makes observable:
+>    Thus, `choice` acts as a lawful monad under $M(A) = \text{just}\langle A\rangle$ over coproduct objects $A = \bigoplus_{j} T_j$ — the *nominal* identity wrapper, which Haskell spells as the `Identity` newtype and which `choice<Ts...>` names as `just<copack<Ts...>>`. Because $M(A) \cong A$ yet is a distinct C++ type, the unit and the multiplication are exactly the wrapping and unwrapping that nominal typing makes observable:
 >    - **Unit / return** $\eta_A : A \to M(A)$ : wraps the coproduct in the `choice` layer. Building a `choice` from a single alternative composes this with the coproduct's own injection $\iota_i : T_i \to \bigoplus_j T_j$.
 >    - **Join / flatten** $\mu_A : M(M(A)) \to M(A)$ : strips one `choice` layer, letting the underlying sum deduplicate its alternatives (the codiagonal fold $[id, id]$, executed statically via `choice_for`).
 >    - **Bind**: maps, then flattens explicitly via *join*. Making that step explicit is what grants control over *when* flattening occurs.
@@ -1076,7 +1078,7 @@ For readers with a background in functional languages (like Haskell or OCaml), t
 | `fmap` / `map` | `transform` / `transform_error` |
 | `bind` / `>>=` | `and_then` |
 | `pure` / `return` | `just<T>{v}` / `expected<T, copack<>>{v}` — a carrier constructor |
-| Lift / inject | `fn::as_pack` / `fn::as_copack` |
+| Lift / inject | `fn::as_pack` / `fn::as_copack` / `fn::as_choice` |
 | Kleisli arrow | The callable passed to `and_then` |
 | Product type | `pack` / `std::tuple` |
 | Coproduct / Sum | `copack` (the sum itself) / `choice` (the never-failing carrier over a sum) |

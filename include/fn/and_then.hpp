@@ -6,11 +6,11 @@
 #ifndef INCLUDE_FN_AND_THEN
 #define INCLUDE_FN_AND_THEN
 
-#include <fn/choice.hpp>
 #include <fn/concepts.hpp>
 #include <fn/expected.hpp>
 #include <fn/functional.hpp>
 #include <fn/functor.hpp>
+#include <fn/just.hpp>
 #include <fn/optional.hpp>
 #include <libfn_version.hpp>
 
@@ -30,28 +30,25 @@ struct _either_join<A, B> : A {};
 
 template <typename Fn, typename Cp>
 constexpr inline bool _cluster_join_forms
-    = requires { typename _copack_apply_result<_joining_cluster_tag<::fn::choice>, Fn, Cp>::type; };
+    = requires { typename _copack_apply_result<_joining_cluster_tag, Fn, Cp>::type; };
 
-// The engine's result over a bound payload, computed assert-free: a copack payload goes through
-// the cluster trait - all-choice branch results answer the superset choice, convergent ones the
-// select trait's answer - and a branch set the cluster join does not own may still join as
-// optionals (the #376 bridge); every other set answers none at all, so asking about any divergent
-// callback answers instead of tripping select's convergence assert; a single value goes through
-// _apply_result as always.
+// Compute the bound result without triggering select's convergence assertion. For copack
+// payloads, try the just join, then the optional join (which also handles exact convergence).
+// If neither applies, expose no type. Single values use _apply_result directly.
 template <typename Fn, typename... V> struct _and_then_result : _apply_result<Fn, V...> {};
 template <typename Fn, typename V>
   requires _some_copack<::std::remove_cvref_t<V>>
 struct _and_then_result<Fn, V>
-    : _either_join<_typelist_joining_cluster<::fn::choice, Fn, V, ::std::remove_cvref_t<V>>,
+    : _either_join<_typelist_joining_cluster<Fn, V, ::std::remove_cvref_t<V>>,
                    _typelist_joining_optional<::fn::optional, Fn, V, ::std::remove_cvref_t<V>>> {};
 
 // the copack arm's promise, split on the same choice of tag its body makes
 template <typename Fn, typename Cp> struct _nothrow_and_then_join {
   static constexpr bool value = [] {
-    if constexpr (_cluster_join_forms<Fn, Cp>)
-      return _is_nothrow_rts_applicable<typename _copack_apply_result<_joining_cluster_tag<::fn::choice>, Fn, Cp>::type,
-                                        Fn, Cp>;
-    else
+    if constexpr (_cluster_join_forms<Fn, Cp>) {
+      using type = _copack_apply_result<_joining_cluster_tag, Fn, Cp>::type;
+      return _is_nothrow_rts_applicable<type, _just_injector<type, Fn>, Cp>;
+    } else
       return _is_nothrow_rts_applicable<
           typename _copack_apply_result<_joining_optional_tag<::fn::optional>, Fn, Cp>::type, Fn, Cp>;
   }();
@@ -89,15 +86,15 @@ concept applicable_and_then //
       }) || (some_optional<V> && requires(V &&v) {
         typename detail::_optional_and_then_dispatch<Fn, decltype(FWD(v).value())>::type;
         requires same_kind<V, typename detail::_optional_and_then_dispatch<Fn, decltype(FWD(v).value())>::type>;
-      }) || (some_choice<V> && requires(V &&v) {
-        // asked of the assert-free trait, never the member: a divergent branch set must answer
-        // false here, where naming the member would trip select's convergence assert
+      }) || (some_just<V> && (not ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type>) && requires(V &&v) {
+        // asked of the assert-free trait, never the member: over a copack payload a divergent
+        // branch set must answer false here, where naming the member would trip select's
+        // convergence assert. Any just is the same kind.
         typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type;
         requires same_kind<V, typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type>;
-      }) || (some_just<V> && requires(Fn &&fn, V &&v) {
-        {
-          FWD(v).and_then(FWD(fn))
-        } -> same_kind<V>;
+      }) || (some_just<V> && ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type> && requires {
+        typename detail::_and_then_result<Fn>::type;
+        requires same_kind<V, typename detail::_and_then_result<Fn>::type>;
       });
 
 /**
@@ -105,9 +102,9 @@ concept applicable_and_then //
  *        carrier kinds
  *
  * The callback may return any identity carrier and the bind follows the function; results of the
- * input's own kind are left to `applicable_and_then` and the carrier's member. Over a copack
- * payload the branches either all return choices - joined into the superset - or converge on one
- * carrier type.
+ * input's own kind - every `just`, for a `just` - are left to `applicable_and_then` and the
+ * carrier's member. Over a copack payload the branches converge on one carrier type, or all
+ * return optionals, which join.
  *
  * @tparam Fn The function to execute on the value
  * @tparam V The identity carrier
@@ -115,12 +112,7 @@ concept applicable_and_then //
 template <typename Fn, typename V>
 concept applicable_and_then_across //
     = some_identity<V>
-      && ((some_choice<V> && (not applicable_and_then<Fn, V>) && requires(V &&v) {
-            typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type;
-            requires some_identity<typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type>
-                         || some_optional<typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type>
-                         || some_expected<typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type>;
-          }) || (some_just<V> && (not applicable_and_then<Fn, V>) && (not ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type>) && requires(V &&v) {
+      && ((some_just<V> && (not applicable_and_then<Fn, V>) && (not ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type>) && requires(V &&v) {
             typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type;
             requires some_identity<typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type>
                          || some_optional<typename detail::_and_then_result<Fn, decltype(FWD(v).value())>::type>
@@ -208,6 +200,8 @@ struct and_then_t::apply final {
   // function. Engine-direct - the members are each carrier's own endo-bind, so the cluster cannot
   // ride delegation, and the verb layer is the licensed cross-carrier place. Dropping the input's
   // channels forgets nothing: they are uninhabited, which is what admits the input here at all.
+  // An identity expected with a copack payload uses this join for just results. A just input
+  // with all-just results uses its member bind instead.
   template <some_monadic_type V, typename Fn>
   [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const                                     //
       noexcept(detail::_nothrow_and_then_join<Fn &&, decltype(::std::declval<V>().value())>::value) //
@@ -217,7 +211,7 @@ struct and_then_t::apply final {
              && some_copack<::std::remove_cvref_t<decltype(::std::declval<V>().value())>>
   {
     if constexpr (detail::_cluster_join_forms<Fn &&, decltype(FWD(v).value())>)
-      return detail::_tagged_join_apply<detail::_joining_cluster_tag<choice>>(FWD(v).value(), FWD(fn));
+      return detail::_join_just_apply<detail::_joining_cluster_tag>(FWD(v).value(), FWD(fn));
     else
       return detail::_tagged_join_apply<detail::_joining_optional_tag<::fn::optional>>(FWD(v).value(), FWD(fn));
   }

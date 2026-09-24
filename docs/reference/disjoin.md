@@ -34,24 +34,27 @@ The binary disjunction each carrier declares; `disjoin` is its n-ary fold.
 
 ```cpp {title: "fn::operator|"}
 template <typename Lh, typename Rh>
-constexpr auto operator|(Lh &&lh, Rh &&rh);                      // (1)
-constexpr auto operator|(Lh &&, Rh &&)     -> ::fn::just<void>;  // (2)
-constexpr auto operator|(Lh &&lh, Rh &&rh);                      // (3)
+constexpr auto operator|(Lh &&lh, Rh &&rh);  // (1)
 
 template <some_expected_void Lh, some_expected_void Rh>
-constexpr auto operator|(Lh &&lh, Rh &&rh);  // (4)
+constexpr auto operator|(Lh &&lh, Rh &&rh);  // (2)
 
 template <typename Lh, typename Rh>
-constexpr auto operator|(Lh &&lh, Rh &&rh);  // (5)
+constexpr auto operator|(Lh &&lh, Rh &&rh);  // (3)
 
 template <some_expected_void Lh, typename Rh>
-constexpr auto operator|(Lh &&lh, Rh &&rh);  // (6)
+constexpr auto operator|(Lh &&lh, Rh &&rh);  // (4)
 
 template <typename Lh, some_expected_void Rh>
-constexpr auto operator|(Lh &&lh, Rh &&rh);  // (7)
+constexpr auto operator|(Lh &&lh, Rh &&rh);  // (5)
+
+template <typename Lh, typename Rh>
+constexpr auto operator|(Lh &&lh, Rh &&rh);                      // (6)
+constexpr auto operator|(Lh &&, Rh &&)     -> ::fn::just<void>;  // (7)
+constexpr auto operator|(Lh &&lh, Rh &&rh);                      // (8)
 
 template <some_optional Lh, some_optional Rh>
-constexpr auto operator|(Lh &&lh, Rh &&rh);  // (8)
+constexpr auto operator|(Lh &&lh, Rh &&rh);  // (9)
 ```
 
 :include-doxygen-doc: fn::operator| { args: "Lh &&, Rh &&" }

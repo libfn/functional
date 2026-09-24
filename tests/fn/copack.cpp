@@ -102,6 +102,9 @@ concept can_bit_cast = requires(std::array<std::byte, sizeof(T)> bytes) { std::b
 template <typename S, typename T, typename... Args>
 concept can_in_place = requires(Args... args) { S{std::in_place_type<T>, args...}; };
 
+template <typename T, typename... Args>
+concept can_deduce_in_place = requires(Args... args) { fn::copack{std::in_place_type<T>, args...}; };
+
 template <typename S, typename T, typename... Args>
 concept can_emplace = requires(S &s, Args &&...args) { s.template emplace<T>(static_cast<Args &&>(args)...); };
 
@@ -225,7 +228,7 @@ TEST_CASE("design: braces, not parentheses", "[copack][design]")
 
 TEST_CASE("copack basic functionality tests", "[copack]")
 {
-  // NOTE This test looks very similar to test in choice.cpp - for good reason.
+  // just_choice.cpp checks the corresponding operations through the carrier wrapper.
 
   using fn::copack;
 
@@ -257,6 +260,27 @@ TEST_CASE("copack basic functionality tests", "[copack]")
     static_assert(not fn::empty_copack<int>);
     static_assert(std::is_nothrow_destructible_v<copack<>>);
     SUCCEED();
+  }
+
+  SECTION("reference results")
+  {
+    // Check that the returned reference still refers to the stored alternative.
+    copack<int> a{42};
+    constexpr auto same = [](auto &i) -> auto & { return i; };
+    static_assert(std::same_as<decltype(a.apply(same)), int &>);
+    static_assert(std::same_as<decltype(std::as_const(a).apply(same)), int const &>);
+    CHECK(&a.apply(same) == a.get_ptr(std::in_place_type<int>));
+    CHECK(&std::as_const(a).apply(same) == a.get_ptr(std::in_place_type<int>));
+    CHECK(&a.template apply_r<int const &>(same) == a.get_ptr(std::in_place_type<int>));
+
+    constexpr auto through = []() {
+      copack<int> const c{42};
+      constexpr auto keep = [](int const &i) noexcept -> int const & { return i; };
+      auto value = c.apply(keep); // c remains alive while its referenced value is copied
+      return value == 42;
+    };
+    static_assert(through());
+    CHECK(through());
   }
 
   SECTION("as_copack")
@@ -497,6 +521,14 @@ TEST_CASE("copack basic functionality tests", "[copack]")
 
       auto b = copack{std::in_place_type<NonCopyable>, 42};
       static_assert(std::is_same_v<decltype(b), copack<NonCopyable>>);
+
+      // Invalid alternative types make the deduction probe false without a hard instantiation error.
+      static_assert(can_deduce_in_place<NonCopyable, int>);
+      static_assert(not can_deduce_in_place<int &, int &>);
+      static_assert(not can_deduce_in_place<int const, int>);
+      static_assert(not can_deduce_in_place<void>);
+      static_assert(not can_deduce_in_place<copack<int>, int>);
+      SUCCEED();
     }
 
     SECTION("constraints")
@@ -637,7 +669,26 @@ TEST_CASE("copack basic functionality tests", "[copack]")
       using Y = fn::copack<bool, int>;
       static_assert(noexcept(Y{std::declval<copack<int> const &>()}));
       static_assert(noexcept(Y{std::declval<copack<int> &&>()}));
-      SUCCEED();
+
+      // Tagged construction uses the throwing const copy for lvalues and const rvalues,
+      // even though this type's mutable copy and const-rvalue constructor are nonthrowing.
+      struct ConstCopyThrows final {
+        ConstCopyThrows() = default;
+        ConstCopyThrows(ConstCopyThrows &) noexcept {}
+        ConstCopyThrows(ConstCopyThrows const &) noexcept(false) { throw 42; }
+        ConstCopyThrows(ConstCopyThrows &&) noexcept = default;
+        ConstCopyThrows(ConstCopyThrows const &&) noexcept {}
+      };
+      using Z = fn::copack_for<ConstCopyThrows, int>;
+      using tag = std::in_place_type_t<copack<ConstCopyThrows>>;
+      static_assert(not std::is_nothrow_constructible_v<Z, tag, copack<ConstCopyThrows> &>);
+      static_assert(not std::is_nothrow_constructible_v<Z, tag, copack<ConstCopyThrows> const &>);
+      static_assert(not std::is_nothrow_constructible_v<Z, tag, copack<ConstCopyThrows> const &&>);
+      static_assert(std::is_nothrow_constructible_v<Z, tag, copack<ConstCopyThrows> &&>);
+      copack<ConstCopyThrows> src{std::in_place_type<ConstCopyThrows>};
+      CHECK_THROWS_AS(Z(tag{}, src), int);
+      CHECK_THROWS_AS(Z(tag{}, std::move(std::as_const(src))), int);
+      CHECK_NOTHROW(Z(tag{}, std::move(src)));
     }
   }
 

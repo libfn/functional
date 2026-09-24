@@ -1675,8 +1675,7 @@ template <some_optional Lh, some_optional Rh>
 // to the product and adds no term to the error sum, so the optional operand's state decides alone.
 // just<void> is the product's unit and elides.
 template <typename Lh, some_optional Rh>
-  requires(::fn::detail::_some_just<Lh> || ::fn::detail::_some_choice<Lh>)
-          && (not ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>)
+  requires(::fn::detail::_some_just<Lh>) && (not ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>)
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
     noexcept(::fn::detail::_nothrow_join<fn::optional, Lh, Rh, detail::_optional_efn>)
 {
@@ -1693,8 +1692,7 @@ template <typename Lh, some_optional Rh>
 }
 
 template <some_optional Lh, typename Rh>
-  requires(::fn::detail::_some_just<Rh> || ::fn::detail::_some_choice<Rh>)
-          && (not ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>)
+  requires(::fn::detail::_some_just<Rh>) && (not ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>)
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
     noexcept(::fn::detail::_nothrow_join<fn::optional, Lh, Rh, detail::_optional_efn>)
 {
