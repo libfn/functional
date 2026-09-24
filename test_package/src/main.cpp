@@ -1,4 +1,4 @@
-#include <fn/choice.hpp>
+#include <fn/just.hpp>
 #include <fn/pack.hpp>
 #include <fn/transform.hpp>
 
@@ -7,7 +7,7 @@
 #include <string>
 
 static constexpr char const *src[] = {
-    R"(#include <fn/choice.hpp>
+    R"(#include <fn/just.hpp>
 #include <fn/pack.hpp>
 #include <fn/transform.hpp>
 

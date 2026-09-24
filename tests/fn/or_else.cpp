@@ -5,7 +5,6 @@
 
 #include "util/static_check.hpp"
 
-#include <fn/choice.hpp>
 #include <fn/just.hpp>
 #include <fn/or_else.hpp>
 

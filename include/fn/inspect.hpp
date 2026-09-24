@@ -35,8 +35,6 @@ concept applicable_inspect //
         { ::fn::apply(FWD(fn)) } -> ::std::same_as<void>;
       }) || (some_optional<V> && requires(Fn &&fn, V &&v) {
         { ::fn::apply(FWD(fn), ::std::as_const(v).value()) } -> ::std::same_as<void>;
-      }) || (some_choice<V> && requires(Fn &&fn, V &&v) {
-        { ::fn::apply(FWD(fn), ::std::as_const(v).value()) } -> ::std::same_as<void>;
       }) || (some_just<V> && (not ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type>) && requires(Fn &&fn, V &&v) {
         { ::fn::apply(FWD(fn), ::std::as_const(v).value()) } -> ::std::same_as<void>;
       }) || (some_just<V> && ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn) {
@@ -105,15 +103,6 @@ struct inspect_t::apply final {
     if (v.has_value()) {
       ::fn::apply(FWD(fn), ::std::as_const(v).value()); // side-effects only
     }
-    return FWD(v);
-  }
-
-  template <some_choice V, typename Fn>
-  [[nodiscard]] constexpr auto operator()(V &&v, Fn &&fn) const
-      noexcept(::fn::is_nothrow_applicable_v<Fn, decltype(::std::as_const(v).value())>) -> V &&
-    requires applicable_inspect<Fn &&, V &&>
-  {
-    ::fn::apply(FWD(fn), ::std::as_const(v).value()); // side-effects only
     return FWD(v);
   }
 

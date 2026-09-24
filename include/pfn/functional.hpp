@@ -6,8 +6,9 @@
 #ifndef INCLUDE_PFN_FUNCTIONAL
 #define INCLUDE_PFN_FUNCTIONAL
 
-#include <functional>
 #include <libfn_version.hpp>
+
+#include <functional>
 #include <type_traits>
 #include <utility>
 

@@ -57,6 +57,12 @@ repos:
     language: python
     files: ^include/.*(\.hpp|CMakeLists\.txt)$
     pass_filenames: false
+  - id: apply-lcov-exclusions-doctest
+    name: run gcov exclusion doctests
+    entry: python -m doctest .github/scripts/apply_lcov_exclusions.py
+    language: python
+    files: ^\.github/scripts/apply_lcov_exclusions\.py$
+    pass_filenames: false
   - id: check-namespace-wrap
     name: check fn/pfn namespaces carry LIBFN_VERSION
     entry: python scripts/check_namespace_wrap.py

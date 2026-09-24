@@ -575,6 +575,57 @@ constexpr inline bool _is_nothrow_rts_applicable<R, Fn, Tpl<Ts...> const &&, Tx.
 template <typename R, typename Fn, typename T, typename... Tx>
 concept _typelist_nothrow_applicable_r = _is_nothrow_rts_applicable<R, Fn, T &&, Tx...>;
 
+// A choice - just over a copack - is the typelist of its payload's alternatives, in the choice's
+// own cv-ref qualification
+template <typename Fn, typename... Ts, typename... Tx>
+constexpr inline bool _is_ts_applicable<Fn, ::fn::just<::fn::copack<Ts...>> &, Tx...>
+    = _is_ts_applicable<Fn, ::fn::copack<Ts...> &, Tx...>;
+template <typename Fn, typename... Ts, typename... Tx>
+constexpr inline bool _is_ts_applicable<Fn, ::fn::just<::fn::copack<Ts...>> const &, Tx...>
+    = _is_ts_applicable<Fn, ::fn::copack<Ts...> const &, Tx...>;
+template <typename Fn, typename... Ts, typename... Tx>
+constexpr inline bool _is_ts_applicable<Fn, ::fn::just<::fn::copack<Ts...>> &&, Tx...>
+    = _is_ts_applicable<Fn, ::fn::copack<Ts...> &&, Tx...>;
+template <typename Fn, typename... Ts, typename... Tx>
+constexpr inline bool _is_ts_applicable<Fn, ::fn::just<::fn::copack<Ts...>> const &&, Tx...>
+    = _is_ts_applicable<Fn, ::fn::copack<Ts...> const &&, Tx...>;
+template <typename R, typename Fn, typename... Ts, typename... Tx>
+constexpr inline bool _is_rts_applicable<R, Fn, ::fn::just<::fn::copack<Ts...>> &, Tx...>
+    = _is_rts_applicable<R, Fn, ::fn::copack<Ts...> &, Tx...>;
+template <typename R, typename Fn, typename... Ts, typename... Tx>
+constexpr inline bool _is_rts_applicable<R, Fn, ::fn::just<::fn::copack<Ts...>> const &, Tx...>
+    = _is_rts_applicable<R, Fn, ::fn::copack<Ts...> const &, Tx...>;
+template <typename R, typename Fn, typename... Ts, typename... Tx>
+constexpr inline bool _is_rts_applicable<R, Fn, ::fn::just<::fn::copack<Ts...>> &&, Tx...>
+    = _is_rts_applicable<R, Fn, ::fn::copack<Ts...> &&, Tx...>;
+template <typename R, typename Fn, typename... Ts, typename... Tx>
+constexpr inline bool _is_rts_applicable<R, Fn, ::fn::just<::fn::copack<Ts...>> const &&, Tx...>
+    = _is_rts_applicable<R, Fn, ::fn::copack<Ts...> const &&, Tx...>;
+template <typename Fn, typename... Ts, typename... Tx>
+constexpr inline bool _is_nothrow_ts_applicable<Fn, ::fn::just<::fn::copack<Ts...>> &, Tx...>
+    = _is_nothrow_ts_applicable<Fn, ::fn::copack<Ts...> &, Tx...>;
+template <typename Fn, typename... Ts, typename... Tx>
+constexpr inline bool _is_nothrow_ts_applicable<Fn, ::fn::just<::fn::copack<Ts...>> const &, Tx...>
+    = _is_nothrow_ts_applicable<Fn, ::fn::copack<Ts...> const &, Tx...>;
+template <typename Fn, typename... Ts, typename... Tx>
+constexpr inline bool _is_nothrow_ts_applicable<Fn, ::fn::just<::fn::copack<Ts...>> &&, Tx...>
+    = _is_nothrow_ts_applicable<Fn, ::fn::copack<Ts...> &&, Tx...>;
+template <typename Fn, typename... Ts, typename... Tx>
+constexpr inline bool _is_nothrow_ts_applicable<Fn, ::fn::just<::fn::copack<Ts...>> const &&, Tx...>
+    = _is_nothrow_ts_applicable<Fn, ::fn::copack<Ts...> const &&, Tx...>;
+template <typename R, typename Fn, typename... Ts, typename... Tx>
+constexpr inline bool _is_nothrow_rts_applicable<R, Fn, ::fn::just<::fn::copack<Ts...>> &, Tx...>
+    = _is_nothrow_rts_applicable<R, Fn, ::fn::copack<Ts...> &, Tx...>;
+template <typename R, typename Fn, typename... Ts, typename... Tx>
+constexpr inline bool _is_nothrow_rts_applicable<R, Fn, ::fn::just<::fn::copack<Ts...>> const &, Tx...>
+    = _is_nothrow_rts_applicable<R, Fn, ::fn::copack<Ts...> const &, Tx...>;
+template <typename R, typename Fn, typename... Ts, typename... Tx>
+constexpr inline bool _is_nothrow_rts_applicable<R, Fn, ::fn::just<::fn::copack<Ts...>> &&, Tx...>
+    = _is_nothrow_rts_applicable<R, Fn, ::fn::copack<Ts...> &&, Tx...>;
+template <typename R, typename Fn, typename... Ts, typename... Tx>
+constexpr inline bool _is_nothrow_rts_applicable<R, Fn, ::fn::just<::fn::copack<Ts...>> const &&, Tx...>
+    = _is_nothrow_rts_applicable<R, Fn, ::fn::copack<Ts...> const &&, Tx...>;
+
 } // namespace fn::inline LIBFN_VERSION::detail
 
 #include <fn/detail/macro_end.hpp>

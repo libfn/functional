@@ -62,9 +62,6 @@ constexpr optional(optional const &s) = default;     // (9)
 constexpr optional(optional const &s);               // (10)
 constexpr optional(optional &&) noexcept = default;  // (11)
 constexpr optional(optional &&s);                    // (12)
-
-template <class Fn, class... Args>
-constexpr explicit optional(::pfn::detail::_optional_from_invoke_t tag, Fn &&fn, Args &&...args);  // (13)
 ```
 
 :include-doxygen-doc: fn::optional::optional { args: "" }
@@ -99,9 +96,6 @@ constexpr explicit optional(optional<U> &rhs);         // (6)
 constexpr explicit optional(optional<U> const &rhs);   // (7)
 constexpr explicit optional(optional<U> &&rhs);        // (8)
 constexpr explicit optional(optional<U> const &&rhs);  // (9)
-
-template <class Fn, class... Args>
-constexpr explicit optional(::pfn::detail::_optional_from_invoke_t tag, Fn &&fn, Args &&...args);  // (10)
 ```
 
 :include-doxygen-doc: fn::optional< T & >::optional { args: "" }

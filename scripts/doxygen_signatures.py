@@ -130,7 +130,7 @@ class Member:
     def is_special(self):
         """A constructor or destructor, which has no return type to draw."""
         owner = self.qualified.rsplit("::", 1)[0] if "::" in self.qualified else ""
-        owner = re.sub(r"<[^<>]*>", "", owner).rsplit("::", 1)[-1].strip()
+        owner = strip_template_args(owner).rsplit("::", 1)[-1].strip()
         return bool(owner) and self.name.lstrip("~") == owner
 
     @property
@@ -194,6 +194,15 @@ class Member:
         return prettify(f"{' '.join(keywords + ['auto'])} {self.name}{args}")
 
 
+def strip_template_args(text):
+    """Strip template arguments from the inside out: `just< copack< Ts... > >` -> `just`."""
+    while True:
+        stripped = re.sub(r"<[^<>]*>", "", text)
+        if stripped == text:
+            return text
+        text = stripped
+
+
 def load_members(xml_dir):
     members = defaultdict(list)
     for path in sorted(pathlib.Path(xml_dir).glob("*.xml")):
@@ -202,6 +211,11 @@ def load_members(xml_dir):
         for compound in ET.parse(path).getroot().iter("compounddef"):
             cname = compound.findtext("compoundname") or ""
             for node in compound.iter("memberdef"):
+                # Skip friend class declarations; retain friend functions, which have an argument list.
+                if node.get("kind") == "friend" and not xml_text(node.find("argsstring")):
+                    continue
+                if node.get("prot") == "private":
+                    continue
                 member = Member(node)
                 members[member.qualified or f"{cname}::{member.name}"].append(member)
     return members
@@ -211,7 +225,7 @@ def lookup(name, members):
     """Pages name a class template as the headers do; doxygen strips the arguments."""
     if name in members:
         return members[name]
-    stripped = re.sub(r"<[^<>]*>", "", name).replace(" ", "")
+    stripped = strip_template_args(name).replace(" ", "")
     for key, value in members.items():
         if key.replace(" ", "") == stripped:
             return value

@@ -1,6 +1,4 @@
-#include <concepts>
 #include <fn/and_then.hpp>
-#include <fn/choice.hpp>
 #include <fn/concepts.hpp>
 #include <fn/copack.hpp>
 #include <fn/discard.hpp>
@@ -17,6 +15,8 @@
 #include <fn/transform_error.hpp>
 #include <fn/utility.hpp>
 #include <fn/value_or.hpp>
+
+#include <concepts>
 #include <string_view>
 
 // sync-example-types-def
@@ -381,8 +381,8 @@ auto test_identity_transformation(fn::just<UserId> j) -> void
 // sync-example-test-choice-mapping
 auto test_choice_mapping(fn::choice<User, UserId> ch) -> void
 {
-  constexpr auto mapper = fn::overload{[](UserId) { return fn::choice<Missing>{Missing{}}; },
-                                       [](User) { return fn::choice<FilePath>{FilePath{}}; }};
+  constexpr auto mapper = fn::overload{[](UserId) { return fn::as_choice(Missing{}); },
+                                       [](User) { return fn::as_choice(FilePath{}); }};
 
   // transform nests the returned choice as a mapped value
   auto mapped = ch | fn::transform(mapper);

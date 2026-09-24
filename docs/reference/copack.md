@@ -70,12 +70,14 @@ using select_nth = detail::select_nth_t<I, Ts...>;  // (1)
 ## Construction {style: "api"}
 
 ```cpp {title: "fn::copack<>::copack"}
-constexpr copack() noexcept = delete;                 // (1)
-constexpr copack(copack const &) noexcept = default;  // (2)
-constexpr copack(copack &&) noexcept = default;       // (3)
+template <typename T>
+constexpr explicit copack(std::in_place_type_t<T>, auto &&...args) = delete;  // (1)
+
+copack(copack const &);  // (2)
+copack(copack &&);       // (3)
 ```
 
-:include-doxygen-doc: fn::copack<>::copack { args: "" }
+:include-doxygen-doc: fn::copack<>::copack { args: "::std::in_place_type_t< T >, auto &&..." }
 
 :include-doxygen-doc: fn::copack<>::copack { args: "copack const &" }
 

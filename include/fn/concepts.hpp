@@ -6,7 +6,6 @@
 #ifndef INCLUDE_FN_CONCEPTS
 #define INCLUDE_FN_CONCEPTS
 
-#include <fn/choice.hpp>
 #include <fn/copack.hpp>
 #include <fn/expected.hpp>
 #include <fn/just.hpp>
@@ -48,8 +47,8 @@ concept _relocatable // `return FWD(v);` - the whole monad, hence both sides
  * What `and_then` and the other success-path operations hold a callback's result to: the value
  * side may change freely, the family may not. For `expected` the error sides must also agree -
  * identical plain types, any two graded (copack) sides, or a plain side meeting its own singular
- * lift `copack<E>`, either way round. Any two `optional`s, any two `choice`s and any two `just`s
- * are the same kind.
+ * lift `copack<E>`, either way round. Any two `optional`s and any two `just`s - a `choice` being
+ * one - are the same kind.
  *
  * @tparam T Carrier type, possibly cv-ref qualified
  * @tparam U Carrier type, possibly cv-ref qualified
@@ -71,7 +70,6 @@ concept same_kind
           && ::std::is_same_v<typename ::std::remove_cvref_t<T>::error_type,
                               copack<typename ::std::remove_cvref_t<U>::error_type>>)
       || (some_optional<T> && some_optional<U>) //
-      || (some_choice<T> && some_choice<U>)     //
       || (some_just<T> && some_just<U>);
 
 /**
@@ -207,15 +205,15 @@ concept some_empty_value
 /**
  * @brief Checks if a type is an identity carrier - a monad which never short-circuits
  *
- * The equivalence class of the family's unit: `choice` (no error channel at all), `just` (the
- * canonical minimal carrier) and an `expected` whose error is the empty copack (a channel that
- * can never engage). Binding across the cluster is lossless exactly because the channels a
- * carrier switch drops are uninhabited.
+ * The equivalence class of the family's unit: `just` (the canonical minimal carrier, no error
+ * channel at all, `choice` being its copack-payload form) and an `expected` whose error is the
+ * empty copack (a channel that can never engage). Binding across the cluster is lossless exactly
+ * because the channels a carrier switch drops are uninhabited.
  *
  * @tparam T Type to check, possibly cv-ref qualified
  */
 template <typename T>
-concept some_identity = some_choice<T> || some_just<T> || some_empty_error<T>;
+concept some_identity = some_just<T> || some_empty_error<T>;
 
 /**
  * @brief Checks if the type casts to `bool` - what `filter` holds its predicate's result to

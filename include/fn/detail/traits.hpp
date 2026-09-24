@@ -7,6 +7,7 @@
 #define INCLUDE_FN_DETAIL_TRAITS
 
 #include <libfn_version.hpp>
+
 #include <type_traits>
 #include <utility>
 

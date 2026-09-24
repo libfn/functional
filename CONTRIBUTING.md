@@ -103,6 +103,8 @@ Requirements:
   * Clang: Uses `llvm-cov gcov`.
   * Apple Clang: Uses `llvm-cov` via `xcrun -f`.
 
+Use `LCOV_EXCL_LINE` to exclude a line that cannot execute by design, or `LCOV_EXCL_START` and `LCOV_EXCL_STOP` for a range. The range includes the START line and ends before the STOP line. gcovr applies these exclusions to the Cobertura report. In CI, the `collect-pr-workspace` action also runs `.github/scripts/apply_lcov_exclusions.py` to mark excluded lines as non-executable in the gcov text for SonarCloud. The script does not handle branch-only markers (`LCOV_EXCL_BR_*`).
+
 ### Documentation
 
 Enabling `LIBFN_DOCS=ON` (requires `LIBFN_TESTS=ON`) adds the `export_docs` target to generate the API reference in the build directory's `docs/` folder:

@@ -136,6 +136,9 @@ struct optional_policy {
   template <class U> using type = ::fn::optional<U>;
   template <class U> using iterator = _optional_iterator<U>;
   template <class X> static constexpr bool is_specialization = _is_some_optional<X &>;
+  // Use a trivially copyable placeholder so optional<copack<>> remains trivially copyable
+  // despite copack<>'s non-trivial copy and move constructors.
+  template <class X> static constexpr bool is_uninhabited = empty_copack<X>;
 };
 
 // `or_else` has two arms - the callback's own optional is returned, or its value type and T are
@@ -504,6 +507,7 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
 template <typename T> class optional : private detail::_optional_base<T> { // NOSONAR cpp:S3624 base manages storage
   static_assert(::pfn::detail::_is_valid_optional<T>);
   using _base = detail::_optional_base<T>;
+  using _storage_t = typename _base::_storage_t;
 
   // Allow sibling _optional_base instantiations to downcast into the private base.
   template <class, class> friend struct ::pfn::detail::_optional_base;
@@ -592,11 +596,11 @@ public:
   constexpr optional(optional const &) = delete;
   constexpr optional(optional const &s)                   //
       noexcept(::std::is_nothrow_copy_constructible_v<T>) // extension
-    requires(::std::is_copy_constructible_v<T> && ::std::is_trivially_copy_constructible_v<T>)
+    requires(::std::is_copy_constructible_v<T> && ::std::is_trivially_copy_constructible_v<_storage_t>)
   = default;
   constexpr optional(optional const &s)                   //
       noexcept(::std::is_nothrow_copy_constructible_v<T>) // extension
-    requires(::std::is_copy_constructible_v<T> && not ::std::is_trivially_copy_constructible_v<T>)
+    requires(::std::is_copy_constructible_v<T> && not ::std::is_trivially_copy_constructible_v<_storage_t>)
       : _base(s.set_, FWD(s).storage_)
   {
   }
@@ -604,11 +608,11 @@ public:
    * @brief Move constructor
    */
   constexpr optional(optional &&) noexcept
-    requires(::std::is_move_constructible_v<T> && ::std::is_trivially_move_constructible_v<T>)
+    requires(::std::is_move_constructible_v<T> && ::std::is_trivially_move_constructible_v<_storage_t>)
   = default;
   constexpr optional(optional &&s) //
       noexcept(::std::is_nothrow_move_constructible_v<T>)
-    requires(::std::is_move_constructible_v<T> && not ::std::is_trivially_move_constructible_v<T>)
+    requires(::std::is_move_constructible_v<T> && not ::std::is_trivially_move_constructible_v<_storage_t>)
       : _base(s.set_, FWD(s).storage_)
   {
   }
@@ -634,14 +638,15 @@ public:
   constexpr optional &operator=(optional const &)                                                   //
       noexcept(::std::is_nothrow_copy_assignable_v<T> && ::std::is_nothrow_copy_constructible_v<T>) // extension
     requires(::std::is_copy_constructible_v<T> && ::std::is_copy_assignable_v<T>
-             && ::std::is_trivially_copy_constructible_v<T> && ::std::is_trivially_copy_assignable_v<T>
-             && ::std::is_trivially_destructible_v<T>)
+             && ::std::is_trivially_copy_constructible_v<_storage_t>
+             && ::std::is_trivially_copy_assignable_v<_storage_t> && ::std::is_trivially_destructible_v<_storage_t>)
   = default;
   constexpr optional &operator=(optional const &s)                                                  //
       noexcept(::std::is_nothrow_copy_assignable_v<T> && ::std::is_nothrow_copy_constructible_v<T>) // extension
     requires(::std::is_copy_constructible_v<T> && ::std::is_copy_assignable_v<T>
-             && (not ::std::is_trivially_copy_constructible_v<T> || not ::std::is_trivially_copy_assignable_v<T>
-                 || not ::std::is_trivially_destructible_v<T>))
+             && (not ::std::is_trivially_copy_constructible_v<_storage_t>
+                 || not ::std::is_trivially_copy_assignable_v<_storage_t>
+                 || not ::std::is_trivially_destructible_v<_storage_t>))
   {
     this->_assign(static_cast<_base const &>(s));
     return *this;
@@ -652,14 +657,15 @@ public:
   constexpr optional &operator=(optional &&) //
       noexcept(::std::is_nothrow_move_assignable_v<T> && ::std::is_nothrow_move_constructible_v<T>)
     requires(::std::is_move_constructible_v<T> && ::std::is_move_assignable_v<T>
-             && ::std::is_trivially_move_constructible_v<T> && ::std::is_trivially_move_assignable_v<T>
-             && ::std::is_trivially_destructible_v<T>)
+             && ::std::is_trivially_move_constructible_v<_storage_t>
+             && ::std::is_trivially_move_assignable_v<_storage_t> && ::std::is_trivially_destructible_v<_storage_t>)
   = default;
   constexpr optional &operator=(optional &&s) //
       noexcept(::std::is_nothrow_move_assignable_v<T> && ::std::is_nothrow_move_constructible_v<T>)
     requires(::std::is_move_constructible_v<T> && ::std::is_move_assignable_v<T>
-             && (not ::std::is_trivially_move_constructible_v<T> || not ::std::is_trivially_move_assignable_v<T>
-                 || not ::std::is_trivially_destructible_v<T>))
+             && (not ::std::is_trivially_move_constructible_v<_storage_t>
+                 || not ::std::is_trivially_move_assignable_v<_storage_t>
+                 || not ::std::is_trivially_destructible_v<_storage_t>))
   {
     this->_assign(static_cast<_base &&>(s));
     return *this;
@@ -1669,8 +1675,7 @@ template <some_optional Lh, some_optional Rh>
 // to the product and adds no term to the error sum, so the optional operand's state decides alone.
 // just<void> is the product's unit and elides.
 template <typename Lh, some_optional Rh>
-  requires(::fn::detail::_some_just<Lh> || ::fn::detail::_some_choice<Lh>)
-          && (not ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>)
+  requires(::fn::detail::_some_just<Lh>) && (not ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>)
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
     noexcept(::fn::detail::_nothrow_join<fn::optional, Lh, Rh, detail::_optional_efn>)
 {
@@ -1687,8 +1692,7 @@ template <typename Lh, some_optional Rh>
 }
 
 template <some_optional Lh, typename Rh>
-  requires(::fn::detail::_some_just<Rh> || ::fn::detail::_some_choice<Rh>)
-          && (not ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>)
+  requires(::fn::detail::_some_just<Rh>) && (not ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>)
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
     noexcept(::fn::detail::_nothrow_join<fn::optional, Lh, Rh, detail::_optional_efn>)
 {

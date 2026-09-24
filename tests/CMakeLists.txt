@@ -112,7 +112,6 @@ set(TESTS_FN_SOURCES
     fn/detail/traits.cpp
     fn/detail/variadic_union.cpp
     fn/and_then.cpp
-    fn/choice.cpp
     fn/concepts.cpp
     fn/copack.cpp
     fn/discard.cpp
@@ -125,6 +124,7 @@ set(TESTS_FN_SOURCES
     fn/inspect_error.cpp
     fn/inspect.cpp
     fn/just.cpp
+    fn/just_choice.cpp
     fn/libfn_version.cpp
     fn/optional.cpp
     fn/optional_polyfill.cpp

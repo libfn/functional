@@ -6,9 +6,10 @@
 #ifndef INCLUDE_FN_DETAIL_META
 #define INCLUDE_FN_DETAIL_META
 
+#include <libfn_version.hpp>
+
 #include <algorithm>
 #include <array>
-#include <libfn_version.hpp>
 #include <string>
 #include <string_view>
 #include <tuple>

@@ -3,7 +3,6 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#include <fn/choice.hpp>
 #include <fn/copack.hpp>
 #include <fn/just.hpp>
 #include <fn/utility.hpp>
@@ -49,6 +48,8 @@ template <typename S, typename Fn, typename... Args>
 concept can_apply_type = requires(S s, Fn fn, Args... args) { FWD(s).apply_type(fn, FWD(args)...); };
 template <typename T>
 concept implicitly_default_constructible = requires(void (&sink)(T)) { sink({}); };
+template <typename T>
+concept complete = requires { sizeof(T); };
 
 } // namespace
 
@@ -107,13 +108,19 @@ TEST_CASE("just", "[just]")
     SUCCEED();
   }
 
-  SECTION("payload mandate")
+  SECTION("copack payload")
   {
-    // the concept-gated surface answers for the algebra's own coproduct - a just over a copack is
-    // spelled choice - while the class-body assert stays the loud diagnosis on direct use
-    static_assert(not fn::detail::_just_payload<fn::copack<int>>);
+    // a copack payload selects the choice specialization, its alternatives dispatched branch-wise;
+    // the empty copack alone is out, there being nothing to select - just<copack<>> is incomplete
+    static_assert(fn::detail::_just_payload<fn::copack<int>>);
     static_assert(not fn::detail::_just_payload<fn::copack<>>);
     static_assert(fn::detail::_just_payload<int>);
+    static_assert(std::is_same_v<fn::just<fn::copack<int>>, fn::choice<int>>);
+    static_assert(fn::some_choice<fn::just<fn::copack<int>>> && fn::some_just<fn::choice<int>>);
+    static_assert(not fn::some_choice<T> && not fn::some_choice<fn::just<void>>);
+    static_assert(complete<fn::choice<int>>);
+    static_assert(not complete<fn::just<fn::copack<>>>);
+    static_assert(not complete<fn::choice<>>);
     // a choice is an atom, and just may box one
     static_assert(fn::detail::_just_payload<fn::choice<int>>);
     fn::just<fn::choice<int>> j{fn::choice<int>{1}};
@@ -205,10 +212,16 @@ TEST_CASE("just", "[just]")
     static_assert(std::is_same_v<decltype(a.transform([](int) {})), fn::just<void>>);
     CHECK(a.transform([](int i) { return Immovable{i}; }).value().x == 3);
 
-    // a copack result keeps the member viable-but-loud, like the family's members - the body's
-    // static_assert names the requirement on use; the transform VERB promotes it to choice instead
-    constexpr auto fnCopack = [](int) { return fn::copack<int>{1}; };
-    static_assert(can_transform<T &, decltype(fnCopack)>);
+    // a copack result lands on the choice over its alternatives - the same carrier family
+    constexpr auto fnCopack
+        = [](int i) { return i > 0 ? fn::copack_for<bool, int>{true} : fn::copack_for<bool, int>{i}; };
+    static_assert(std::is_same_v<decltype(a.transform(fnCopack)), fn::choice_for<bool, int>>);
+    CHECK(a.transform(fnCopack) == fn::choice<bool>{true});
+    CHECK(T{-1}.transform(fnCopack) == fn::choice<int>{-1});
+    // ... and the empty copack keeps the member viable-but-loud, like the family's other
+    // inadmissible results - the body's static_assert names the requirement on use
+    constexpr auto fnEmpty = [](int) -> fn::copack<> { throw 0; };
+    static_assert(can_transform<T &, decltype(fnEmpty)>);
 
     // noexcept from the callback's applicability
     static_assert(noexcept(a.transform([](int) noexcept { return 1; })));
@@ -218,6 +231,7 @@ TEST_CASE("just", "[just]")
     {
       static_assert(T{3}.transform([](int i) { return i + 1; }) == fn::just<int>{4});
       static_assert(T{3}.transform([](int i) { return Immovable{i}; }).value().x == 3);
+      static_assert(T{3}.transform(fnCopack) == fn::choice<bool>{true});
       SUCCEED();
     }
   }
@@ -241,9 +255,17 @@ TEST_CASE("just", "[just]")
     static_assert(noexcept(a.and_then([](int) noexcept { return fn::just<int>{1}; })));
     static_assert(not noexcept(a.and_then([](int) { return fn::just<int>{1}; })));
 
+    // the callback returns a just of any payload: a choice, or just<void>
+    constexpr auto fnChoice
+        = [](int i) { return i > 0 ? fn::choice_for<bool, int>{i} : fn::choice_for<bool, int>{false}; };
+    static_assert(std::is_same_v<decltype(a.and_then(fnChoice)), fn::choice_for<bool, int>>);
+    CHECK(a.and_then(fnChoice) == fn::as_choice(3));
+    static_assert(std::is_same_v<decltype(a.and_then([](int) { return fn::just<void>{}; })), fn::just<void>>);
+
     SECTION("constexpr")
     {
       static_assert(T{3}.and_then([](int i) { return fn::just<bool>{i != 0}; }).value());
+      static_assert(T{3}.and_then(fnChoice) == fn::as_choice(3));
       SUCCEED();
     }
   }
@@ -347,7 +369,9 @@ TEST_CASE("just of void", "[just]")
   {
     static_assert(v.transform([] { return 5; }) == fn::just<int>{5});
     static_assert(std::is_same_v<decltype(v.transform([] {})), V>);
+    static_assert(v.transform([] { return fn::copack<int>{9}; }) == fn::choice<int>{9});
     static_assert(v.and_then([] { return fn::just<int>{9}; }) == fn::just<int>{9});
+    static_assert(v.and_then([] { return fn::choice<int>{9}; }) == fn::as_choice(9));
     CHECK(v.transform([] { return 5; }).value() == 5);
 
     static_assert(noexcept(v.transform([]() noexcept { return 1; })));

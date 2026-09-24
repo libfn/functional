@@ -5,7 +5,6 @@
 
 #include "util/helper_types.hpp"
 
-#include <fn/choice.hpp>
 #include <fn/copack.hpp>
 #include <fn/expected.hpp>
 #include <fn/functional.hpp>

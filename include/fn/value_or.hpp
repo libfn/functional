@@ -79,7 +79,7 @@ struct value_or_t::apply final {
   [[nodiscard]] constexpr auto operator()(V &&v, Args &&...args) const //
       noexcept(::std::is_nothrow_constructible_v<::std::remove_cvref_t<V>, ::std::in_place_t, Args...>
                && detail::_nothrow_carry_value<::std::remove_cvref_t<V>, V>) -> ::std::remove_cvref_t<V>
-    requires(not some_choice<V>) && (not some_just<V>) && applicable_value_or<V &&, Args...>
+    requires(not some_just<V>) && applicable_value_or<V &&, Args...>
   {
     using type = ::std::remove_cvref_t<V>;
     return FWD(v).or_else([&args...](auto &&...) -> type { return type{::std::in_place, FWD(args)...}; });
