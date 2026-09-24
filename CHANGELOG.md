@@ -2,6 +2,16 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## Singular copacks support the tuple protocol — 24 September 2026
+
+A `copack` with exactly one alternative supports the tuple protocol: `std::tuple_size_v<copack<T>>` is 1, `std::tuple_element_t<0, copack<T>>` is `T`, and `get<0>` returns the same reference as the index-less `get`. This supports structured bindings and generic code that uses tuple traits with ADL `get`. A structured binding over a singular copack, including a singular choice's `value()`, now binds its alternative. Previously, it bound the public `data` and `index` members.
+
+The protocol is limited to singular copacks. A wider copack selects among different alternative types at run time, so there is no single element type to expose. `copack<>` remains outside the protocol: it has no values, whereas the empty product `pack<>` represents the unit.
+
+For `copack<pack<A, B>>`, the tuple element is the entire `pack`. `fn::apply` still dispatches the copack and passes the pack's fields as separate arguments; `pfn::apply` does not accept copacks.
+
+Both `get` overloads exclude volatile copacks through their constraints. Previously, probing the index-less `get` with a volatile copack could produce an error in its body.
+
 ## `choice` becomes `just` over a copack — 21 September 2026
 
 `choice<Ts...>` is now an alias of `just<copack<Ts...>>`. The specialization forwards operations on alternatives to its `copack` payload. The `<fn/choice.hpp>` header is gone; `<fn/just.hpp>` declares `choice`, `choice_for` and `some_choice`.
