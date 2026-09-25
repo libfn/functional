@@ -247,7 +247,7 @@ auto test_disjoin(fn::expected<int, Error> a, fn::expected<bool, OtherError> b) 
   static_assert(std::same_as<decltype(res1),
                              fn::expected<fn::copack_for<int, bool>, fn::pack<Error, OtherError>>>);
 
-  // Because just<double> cannot fail, the entire disjunction with infallible operands becomes total
+  // Because just<double> cannot fail, the disjunction with infallible operands becomes infallible
   auto res2 = fn::disjoin(a, b, fn::just<double>{1.5});
   static_assert(std::same_as<decltype(res2), fn::choice<bool, double, int>>);
 }

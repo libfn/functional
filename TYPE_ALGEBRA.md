@@ -387,7 +387,7 @@ Key principles of mapping:
 >
 ## 6. Product composition with operator& (conjunction)
 
-Conjunction over carriers combines two independent computations into a single carrier. `a & b` succeeds only if both operands succeed, in which case their values combine into a product. If either operand fails, the result retains the leftmost error; for `expected` carriers, the result's error type is a `copack` (a graded error type), unless both operands share the same plain error type.
+Conjunction over carriers combines two independent computations into a single carrier. `a & b` succeeds only if both operands succeed, in which case their *values* combine into a product. If either operand fails, the result retains the leftmost error; for `expected` carriers, the result's error type is a `copack` (a graded error type), unless both operands share the same plain error type.
 
 <!-- sync-example-operator-and-composition -->
 ```cpp
@@ -479,7 +479,7 @@ auto test_conjunction_with_identity_cluster(fn::expected<int, Error> ex, fn::jus
 >
 ## 7. Sum composition with operator| (disjunction)
 
-Disjunction evaluates alternative computations, keeping the first successful result. `a | b` fails only if both operands fail: dual to conjunction, their values union into a `copack`, and their errors combine into a `pack`. If both operands share the same value type, the value side remains ungraded. A `void` operand enters the sum as `pack<>`.
+Disjunction evaluates alternative computations, keeping the first successful result. `a | b` fails only if both operands fail: dual to conjunction, their values union into a `copack`, and their *errors* combine into a product. If both operands share the same value type, the value side is unchanged. A `void` value on either side contributes `pack<>` to the sum (`void` on both sides yields `void`).
 
 If either error side is graded, the product distributes over it: $(E_1 + E_2) \times F \to (E_1 \times F) + (E_2 \times F)$ (the full Cartesian product when both are graded), yielding a canonical `copack` of `pack`s.
 
@@ -493,7 +493,7 @@ auto operator_or_composition(fn::expected<int, Error> a, fn::expected<bool, Othe
 }
 ```
 
-The runtime semantics are exact:
+The runtime semantics are:
 
 - The result type records every combination of failures; at runtime the leftmost operand holding a value wins.
 - Both operands are fully constructed before `operator|` runs, because C++ evaluates operands eagerly. This is a value-selection rule, not a lazy fallback.
@@ -507,7 +507,7 @@ Unlike conjunction, disjunction has no data-level form. Neither `operator|` nor 
 When an operand belongs to the identity cluster (Section 10), the disjunction cannot fail:
 
 - **Error Annihilation**: The error side gains an uninhabited factor (`copack<>`), which annihilates the error product and collapses the channel.
-- **Infallible Folding**: The result folds into a non-failing carrier: `just<T>` if there is a single successful type, or `choice<Ts...>` if the sum is heterogeneous.
+- **Infallible Folding**: The result folds into a non-failing `just` carrier, including when an operand is `expected<T, copack<>>`.
 
 <!-- sync-example-test-disjoin -->
 ```cpp
@@ -518,7 +518,7 @@ auto test_disjoin(fn::expected<int, Error> a, fn::expected<bool, OtherError> b) 
   static_assert(std::same_as<decltype(res1),
                              fn::expected<fn::copack_for<int, bool>, fn::pack<Error, OtherError>>>);
 
-  // Because just<double> cannot fail, the entire disjunction with infallible operands becomes total
+  // Because just<double> cannot fail, the disjunction with infallible operands becomes infallible
   auto res2 = fn::disjoin(a, b, fn::just<double>{1.5});
   static_assert(std::same_as<decltype(res2), fn::choice<bool, double, int>>);
 }
@@ -526,13 +526,13 @@ auto test_disjoin(fn::expected<int, Error> a, fn::expected<bool, OtherError> b) 
 
 > [!TIP]
 >
-> ### Mathematical note — annihilation and totality
+> ### Mathematical note — annihilation and infallibility
 >
-> Disjunction is the categorical dual of conjunction: values add along $\oplus$ where conjunction multiplies along $\otimes$, and errors multiply where conjunction unions. Both structures are strict in the sense Section 6 describes.
+> Disjunction exchanges the roles of union and product used by conjunction: values add along $\oplus$ where conjunction multiplies along $\otimes$, and errors multiply where conjunction unions.
 >
-> What does *not* dualize is the role of the uninhabited `copack<>`, and that is what makes an identity operand behave so differently on the two sides. Under conjunction it is the unit of the error union, $E \cup 0 = E$, so an identity operand leaves the error channel as it found it. Under disjunction it is the **annihilator** of the error product, $E \otimes 0 \cong 0$, so a single identity operand empties the channel outright.
+> What does *not* dualize is the role of the uninhabited `copack<>`, and that is what makes an identity operand behave so differently on the two sides. Under conjunction it is the unit of the error union, $E \cup 0 = E$, so an identity operand preserves the set of possible errors. Under disjunction it is the **annihilator** of the error product, $E \otimes 0 \cong 0$, so a single identity operand empties the channel outright.
 >
-> The resulting error side is uninhabited by construction — not merely empty at runtime, but incapable of holding a value — which is what renders the whole disjunction total and folds it into the identity cluster.
+> The resulting error side is uninhabited by construction — not merely empty at runtime, but incapable of holding a value — which is what renders the whole disjunction infallible and folds it into the identity cluster.
 >
 ## 8. Sequential composition with and_then
 
