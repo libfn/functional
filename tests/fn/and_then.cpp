@@ -1101,7 +1101,9 @@ TEST_CASE("and_then across the identity cluster", "[and_then][just][choice][expe
       int v = 1;
       auto const fnView = fn::overload{[&v](A) { return fn::just<int &>{v}; }, //
                                        [&v](B) { return fn::just<int &>{v}; }};
-      return &fn::choice_for<A, B>{B{}}.and_then(fnView).value() == &v;
+      // named source: the same VS 2022 misread as above
+      constexpr fn::choice_for<A, B> cb{B{}};
+      return &cb.and_then(fnView).value() == &v;
     }());
 
     // Mixing reference and value payloads is rejected: references cannot be choice alternatives.
