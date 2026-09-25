@@ -123,6 +123,15 @@ concept can_apply_type = requires(S s, Fn fn, Args... args) { FWD(s).apply_type(
 template <typename S, typename R, typename Fn, typename... Args>
 concept can_apply_type_r
     = requires(S s, Fn fn, Args... args) { FWD(s).template apply_type_r<R>(FWD(fn), FWD(args)...); };
+
+template <typename S>
+concept can_get = requires(S s) { fn::get(FWD(s)); };
+
+template <typename S, std::size_t I>
+concept can_get_at = requires(S s) { fn::get<I>(FWD(s)); };
+
+template <typename T>
+concept has_tuple_size = requires { std::tuple_size<T>::value; };
 } // anonymous namespace
 
 // A copack brace-initializes the alternative it stores. That is a DESIGN DIRECTION, not an
@@ -2877,46 +2886,164 @@ TEST_CASE("copack emplace", "[copack][emplace]")
   }
 }
 
-TEST_CASE("get on a singular copack", "[copack][get]")
+TEST_CASE("copack get and tuple protocol", "[copack][get][tuple]")
 {
   struct A final {
     int v;
     constexpr bool operator==(A const &) const = default;
   };
-  constexpr auto can_get = [](auto &&c) { return requires { fn::get(FWD(c)); }; };
+  using C = fn::copack<A>;
 
-  // the alternative comes back carrying the copack's cv-qualification and value category, exactly
-  // as apply would pass it
-  fn::copack<A> c{A{7}};
-  static_assert(std::is_same_v<decltype(fn::get(c)), A &>);
-  static_assert(std::is_same_v<decltype(fn::get(std::as_const(c))), A const &>);
-  static_assert(std::is_same_v<decltype(fn::get(std::move(c))), A &&>);
-  static_assert(std::is_same_v<decltype(fn::get(std::move(std::as_const(c)))), A const &&>);
-  static_assert(noexcept(fn::get(c)));
-  CHECK(fn::get(c) == A{7});
-  fn::get(c).v = 9;
-  CHECK(fn::get(std::as_const(c)) == A{9});
-  CHECK(fn::get(std::move(c)) == A{9});
-
-  SECTION("constexpr")
+  SECTION("get")
   {
-    constexpr fn::copack<A> cc{A{5}};
-    static_assert(fn::get(cc) == A{5});
-    static_assert([] {
-      fn::copack<A> m{A{1}};
-      fn::get(m).v = 2;
-      return fn::get(std::move(m)).v;
-    }() == 2);
+    // Access preserves const qualification and all four value categories.
+    C c{A{7}};
+    static_assert(std::is_same_v<decltype(fn::get(c)), A &>);
+    static_assert(std::is_same_v<decltype(fn::get(std::as_const(c))), A const &>);
+    static_assert(std::is_same_v<decltype(fn::get(std::move(c))), A &&>);
+    static_assert(std::is_same_v<decltype(fn::get(std::move(std::as_const(c)))), A const &&>);
+    static_assert(noexcept(fn::get(c)));
+    CHECK(fn::get(c) == A{7});
+    fn::get(c).v = 9;
+    CHECK(fn::get(std::as_const(c)) == A{9});
+    CHECK(fn::get(std::move(c)) == A{9});
+
+    SECTION("constexpr")
+    {
+      constexpr C cc{A{5}};
+      static_assert(fn::get(cc) == A{5});
+      static_assert([] {
+        C m{A{1}};
+        fn::get(m).v = 2;
+        return fn::get(std::move(m)).v;
+      }() == 2);
+
+      SUCCEED();
+    }
+
+    SECTION("constraints")
+    {
+      // Direct access requires exactly one alternative.
+      static_assert(can_get<C>);
+      static_assert(not can_get<fn::copack_for<A, int>>);
+      static_assert(not can_get<A>);
+      // Volatile access is excluded by the constraints.
+      static_assert(can_get<C &>);
+      static_assert(not can_get<C volatile &>);
+
+      SUCCEED();
+    }
+  }
+
+  SECTION("get<0>")
+  {
+    // Indexed access returns the same reference as index-less access.
+    C c{A{7}};
+    static_assert(std::is_same_v<decltype(fn::get<0>(c)), A &>);
+    static_assert(std::is_same_v<decltype(fn::get<0>(std::as_const(c))), A const &>);
+    static_assert(std::is_same_v<decltype(fn::get<0>(std::move(c))), A &&>);
+    static_assert(std::is_same_v<decltype(fn::get<0>(std::move(std::as_const(c)))), A const &&>);
+    static_assert(noexcept(fn::get<0>(c)));
+    CHECK(&fn::get<0>(c) == &fn::get(c));
+    fn::get<0>(c).v = 9;
+    CHECK(fn::get(std::as_const(c)) == A{9});
+    {
+      // unqualified get with std::get also in scope resolves to fn::get by ADL
+      using std::get;
+      CHECK(get<0>(std::move(c)) == A{9});
+    }
+
+    SECTION("constexpr")
+    {
+      static_assert([] {
+        C m{A{1}};
+        fn::get<0>(m).v = 2;
+        return &fn::get<0>(m) == &fn::get(m) && fn::get<0>(std::move(m)).v == 2;
+      }());
+
+      SUCCEED();
+    }
+
+    SECTION("constraints")
+    {
+      static_assert(can_get_at<C &, 0>);
+      static_assert(not can_get_at<C &, 1>);
+      static_assert(not can_get_at<fn::copack_for<A, int> &, 0>);
+      static_assert(not can_get_at<C volatile &, 0>);
+      static_assert(not can_get_at<A &, 0>);
+
+      SUCCEED();
+    }
+  }
+
+  SECTION("tuple_size and tuple_element")
+  {
+    static_assert(std::tuple_size_v<C> == 1);
+    static_assert(std::tuple_size_v<C const> == 1);
+    static_assert(std::is_same_v<std::tuple_element_t<0, C>, A>);
+    static_assert(std::is_same_v<std::tuple_element_t<0, C const>, A const>);
+    // The tuple protocol excludes both empty and multiple-alternative copacks.
+    static_assert(has_tuple_size<fn::pack<>>);
+    static_assert(not has_tuple_size<fn::copack<>>);
+    static_assert(not has_tuple_size<fn::copack_for<A, int>>);
 
     SUCCEED();
   }
 
-  SECTION("constraints")
+  SECTION("structured bindings")
   {
-    // only the singular copack qualifies; a multi-alternative one dispatches, it does not get
-    static_assert(can_get(fn::copack<A>{A{1}}));
-    static_assert(not can_get(fn::copack_for<A, int>{1}));
-    static_assert(not can_get(A{1}));
+    C c{A{7}};
+    auto &[a] = c;
+    static_assert(std::is_same_v<decltype(a), A>);
+    a.v = 8;
+    CHECK(fn::get(c) == A{8});
+    auto const &[ca] = c;
+    static_assert(std::is_same_v<decltype(ca), A const>);
+    CHECK(&ca == &a);
+    auto &&[r] = std::move(c);
+    static_assert(std::is_same_v<decltype(r), A>);
+    CHECK(&r == &a);
+    auto &&[cr] = std::move(std::as_const(c));
+    static_assert(std::is_same_v<decltype(cr), A const>);
+    CHECK(&cr == &a);
+    auto [m] = std::move(c);
+    static_assert(std::is_same_v<decltype(m), A>);
+    CHECK(m == A{8});
+    CHECK(&m != &a);
+
+    static_assert([] {
+      C q{A{5}};
+      auto &[e] = q;
+      e.v = 6;
+      auto const &[ce] = q;
+      auto &&[re] = std::move(q);
+      auto &&[cre] = std::move(std::as_const(q));
+      auto [v] = std::move(q);
+      return fn::get(q).v == 6 && &ce == &e && &re == &e && &cre == &e && v == A{6} && &v != &e;
+    }());
+  }
+
+  SECTION("one-element pack")
+  {
+    // These tuple traits and access types match those of pack<A>.
+    using P = fn::pack<A>;
+    static_assert(std::tuple_size_v<C> == std::tuple_size_v<P>);
+    static_assert(std::is_same_v<std::tuple_element_t<0, C>, std::tuple_element_t<0, P>>);
+    static_assert(std::is_same_v<std::tuple_element_t<0, C const>, std::tuple_element_t<0, P const>>);
+    static_assert(std::is_same_v<decltype(fn::get<0>(std::declval<C &>())), decltype(fn::get<0>(std::declval<P &>()))>);
+    static_assert(std::is_same_v<decltype(fn::get<0>(std::declval<C const &>())),
+                                 decltype(fn::get<0>(std::declval<P const &>()))>);
+    static_assert(
+        std::is_same_v<decltype(fn::get<0>(std::declval<C &&>())), decltype(fn::get<0>(std::declval<P &&>()))>);
+    static_assert(std::is_same_v<decltype(fn::get<0>(std::declval<C const &&>())),
+                                 decltype(fn::get<0>(std::declval<P const &&>()))>);
+
+    // A pack alternative is one tuple element; apply passes its two fields separately.
+    using CP = fn::copack<fn::pack<int, int>>;
+    constexpr auto arity = [](auto &&...args) noexcept { return (0 + ... + (static_cast<void>(args), 1)); };
+    static_assert(std::tuple_size_v<CP> == 1);
+    static_assert(std::is_same_v<std::tuple_element_t<0, CP>, fn::pack<int, int>>);
+    static_assert(CP{fn::pack{1, 2}}.apply(arity) == 2);
 
     SUCCEED();
   }

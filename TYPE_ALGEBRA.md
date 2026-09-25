@@ -342,7 +342,7 @@ As a payload, a `copack` models a discriminated union of types.
 
 Evaluating a `copack` via `.apply()` passes the active alternative to the callback. Because `copack` is self-flattening, nested `copack`s do not occur. A selected alternative that is itself tuple-like—such as `pack`, `std::tuple`, or `std::array`—is unpacked one level, passing its immediate constituents as separate arguments. Since normalized shapes are sums of products, one level of unpacking is sufficient to supply the product's fields as function arguments.
 
-To explicitly lift a single scalar value into a single-alternative coproduct, use `fn::as_copack(value)`. Unlike `as_pack`, it always decays: a `copack` alternative can never be a reference. When a `copack` contains exactly one alternative, it is **singular** and supports direct value extraction via the `get` utility (resolvable via ADL), which propagates references with the same semantics as `apply`.
+To explicitly lift a scalar value into a single-alternative coproduct (i.e. *singular* `copack`), use `fn::as_copack(value)`. Unlike `as_pack`, it always decays: a `copack` alternative can never be a reference. A singular `copack` supports the standard C++ tuple protocol (`get<0>`, `tuple_size` returning 1, `tuple_element<0, copack<...>>`, structured bindings) and additionally provides index-less `get`.
 
 A `pack` can be lifted into a `copack` (including packs holding references), but a `pack` cannot contain a `copack`. There is algebraic equivalence between a hypothetical `pack` containing a `copack` (which is disallowed) and a specific shape of `copack` containing a `pack` — see Section 6 for details.
 

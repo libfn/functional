@@ -1247,13 +1247,13 @@ template <typename T> struct _sole_alternative<::fn::copack<T>> {
  * @brief Accesses the sole alternative of a singular copack
  *
  * Only a `copack` with exactly one alternative qualifies - the access needs no dispatch and cannot
- * miss. Returns the alternative carrying the copack's cv-qualification and value category, exactly
- * as `apply` would pass it.
+ * miss. Returns the entire alternative, preserving const qualification and value category.
+ * Volatile copacks are excluded.
  *
  * @param c The singular copack, in any value category
  * @return Reference to the sole alternative
  */
-template <typename Cp>
+template <some_copack Cp>
   requires requires { typename detail::_sole_alternative<::std::remove_cvref_t<Cp>>::type; }
 [[nodiscard]] constexpr decltype(auto) get(Cp &&c) noexcept
 {
@@ -1262,6 +1262,25 @@ template <typename Cp>
     return (*c.get_ptr(::std::in_place_type<type>));
   else
     return ::std::move(*c.get_ptr(::std::in_place_type<type>));
+}
+
+/**
+ * @brief Tuple-protocol element access to the sole alternative of a singular copack
+ *
+ * `std::tuple_size_v<copack<T>>` is 1 and `std::tuple_element_t<0, copack<T>>` is `T`.
+ * `get<0>` returns the same reference as the index-less `get`, and excludes volatile copacks.
+ * ADL makes it available to structured bindings and generic code using `using std::get; get<0>(c);`.
+ * A `pack` alternative is returned whole; `apply` passes its fields as separate arguments.
+ *
+ * @tparam I Element index; only 0
+ * @param c The singular copack, in any value category
+ * @return Reference to the sole alternative
+ */
+template <::std::size_t I, some_copack C>
+  requires(I == 0) && requires { typename detail::_sole_alternative<::std::remove_cvref_t<C>>::type; }
+[[nodiscard]] constexpr decltype(auto) get(C &&c) noexcept
+{
+  return ::fn::get(FWD(c));
 }
 
 namespace detail {
@@ -1523,6 +1542,16 @@ template <typename Tag, typename Cp, typename Fn>
 
 } // namespace LIBFN_VERSION
 } // namespace fn
+
+// Wider copacks have no single alternative type to expose as a tuple element.
+// copack<> has no values; treating it as an empty tuple would obscure its distinction from pack<>.
+namespace std {
+template <typename T> struct tuple_size<::fn::copack<T>> : ::std::integral_constant<::std::size_t, 1> {};
+
+template <typename T> struct tuple_element<0, ::fn::copack<T>> {
+  using type = T;
+};
+} // namespace std
 
 #include <fn/detail/macro_end.hpp>
 
