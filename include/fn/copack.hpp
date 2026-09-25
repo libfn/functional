@@ -166,6 +166,9 @@ template <typename T> struct superset;
 template <typename... Ts> struct superset<typelist<Ts...>> {
   using type = ::fn::just<typename ::fn::detail::normalized<Ts...>::template apply<::fn::copack>>;
 };
+
+template <typename T> constexpr inline bool is_reference_just = false;
+template <typename T> constexpr inline bool is_reference_just<::fn::just<T &>> = true;
 } // namespace _joining_superset
 
 // Rs are the branch results, cv/ref stripped
@@ -177,6 +180,12 @@ template <typename R0, typename... Rs>
 struct _joining_superset_type<R0, Rs...> {
   using type = R0;
 };
+// References cannot be choice alternatives. If any branch returns a reference just,
+// all branches must return the same carrier type, as in optional joins.
+template <typename R0, typename... Rs>
+  requires(not(... && ::std::is_same_v<R0, Rs>))
+          && (_joining_superset::is_reference_just<R0> || ... || _joining_superset::is_reference_just<Rs>)
+struct _joining_superset_type<R0, Rs...> {};
 
 // An all-just result set uses the join above. Other results must agree in exact type;
 // the member then rejects non-just results. Divergent results trigger select's assertion.

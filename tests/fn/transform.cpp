@@ -744,11 +744,22 @@ TEST_CASE("transform just", "[transform][just][choice][identity]")
 
     // an inadmissible payload answers: the member's gated result leaves no viable overload
     constexpr auto probe = [](auto &&v, auto &&fn) { return requires { FWD(v) | fn::transform(FWD(fn)); }; };
-    static_assert(not probe(fn::just<int>{3}, [](int &i) -> int & { return i; }));
+    static_assert(not probe(fn::just<int>{3}, [](int) -> int && { throw 0; }));
     static_assert(probe(fn::just<int>{3}, [](int i) { return i; }));
+    // An lvalue-reference result produces a non-owning carrier.
+    static constexpr fn::just<int> cj{3};
+    constexpr auto fnView = [](int const &i) -> int const & { return i; };
+    static_assert(probe(cj, fnView));
+    // An rvalue carrier rejects it: the result may refer into the expiring payload. A reference
+    // carrier passes its referent, which outlives the carrier.
+    static_assert(not probe(fn::just<int>{3}, fnView));
+    static_assert(not probe(std::move(cj), fnView));
+    static constexpr int ci = 3;
+    static_assert(probe(fn::just<int const &>{ci}, fnView));
     // The pipeline rejects a copack reference result but accepts the corresponding value result.
     static constexpr fn::copack<U> cu{U{}};
     static_assert(not probe(fn::just<int>{3}, [](int) -> fn::copack<U> const & { return cu; }));
+    static_assert(not probe(fn::just<int>{3}, [](int) -> fn::copack<> const & { throw 0; }));
     static_assert(probe(fn::just<int>{3}, [](int) { return cu; }));
     SUCCEED();
   }

@@ -1035,14 +1035,14 @@ The library respects C++ value mechanics:
 - `noexcept` is conditionally computed.
 - Value categories (lvalue/rvalue) propagate strictly to callbacks, avoiding copies.
 - Immovable and move-only payloads are supported in place.
-- Reference-bearing `pack<T&...>` and `optional<T&>` are supported. Lifetime management of non-owning references remains with the caller.
+- Reference-bearing `pack<T&...>`, `optional<T&>` and `just<T&>` are supported. Lifetime management of non-owning references remains with the caller.
 - `pack` compares element-wise, supporting equality and three-way comparison. For reference-bearing `pack<T&...>`, comparison applies to the referents rather than the references themselves.
 
 > [!NOTE]
 >
 > ### Note — reference payloads
 >
-> Raw reference payloads are disallowed on the carriers `expected`, `just` and `choice`, and as `copack` alternatives. `expected` stores its payload in a union, and C++ forbids a union member of reference type; the algebra's own types refuse them so that every alternative is dispatched the same way, whatever it holds. `optional<T&>` is the deliberate exception — the standard specifies it, and `libfn` polyfills it. If you want to propagate references inside the other carriers, wrap them in a `pack` (e.g. `expected<pack<T&>, E>`).
+> Raw reference payloads are disallowed on the carriers `expected` and `choice`, and as `copack` alternatives. `expected` stores its payload in a union, and C++ forbids a union member of reference type. `copack` excludes reference alternatives so that alternatives follow the same dispatch rules. `optional<T&>` and its always-engaged counterpart, `just<T&>`, support lvalue-reference payloads. Assignment rebinds the reference. Callable operations use `T&` regardless of the carrier's value category or constness, expanding packs and tuple-like referents as `fn::apply` does. `libfn` polyfills the standard's `optional<T&>`. `just` excludes references to copacks: dispatch would depend on an active alternative the carrier does not own. An owning `just` whose `transform` callable returns an lvalue reference produces a reference `just` only if the carrier is an lvalue; an rvalue carrier rejects it, as the reference may refer into the payload that expires with the carrier. `optional<T>` accepts it, as the standard specifies. If you want to propagate references inside the other carriers, wrap them in a `pack` (e.g. `expected<pack<T&>, E>`).
 
 <!-- sync-example-test-references -->
 ```cpp

@@ -38,6 +38,26 @@ struct ThrowingCtor final {
   bool operator==(ThrowingCtor const &) const = default;
 };
 
+// Referent sources whose binding goes through a conversion function: explicit and nothrow, or
+// implicit and potentially throwing
+struct ExplicitRef final {
+  int x;
+  constexpr explicit operator int &() noexcept { return x; }
+};
+struct ImplicitRef final {
+  int x;
+  bool fail = false;
+  constexpr operator int &() // NOLINT(google-explicit-constructor)
+  {
+    if (fail)
+      throw 0;
+    return x;
+  }
+};
+
+constexpr int five = 5;
+template <fn::just<int const &> J> constexpr int nttp_value = J.value();
+
 template <typename S, typename Fn>
 concept can_and_then = requires(S s, Fn fn) { FWD(s).and_then(fn); };
 template <typename S, typename Fn>
@@ -46,6 +66,10 @@ template <typename S, typename Fn, typename... Args>
 concept can_apply = requires(S s, Fn fn, Args... args) { FWD(s).apply(fn, FWD(args)...); };
 template <typename S, typename Fn, typename... Args>
 concept can_apply_type = requires(S s, Fn fn, Args... args) { FWD(s).apply_type(fn, FWD(args)...); };
+template <typename S, typename Ret, typename Fn>
+concept can_apply_r = requires(S s, Fn fn) { FWD(s).template apply_r<Ret>(fn); };
+template <typename S, typename Ret, typename Fn>
+concept can_apply_type_r = requires(S s, Fn fn) { FWD(s).template apply_type_r<Ret>(fn); };
 template <typename T>
 concept implicitly_default_constructible = requires(void (&sink)(T)) { sink({}); };
 template <typename T>
@@ -211,6 +235,17 @@ TEST_CASE("just", "[just]")
     // a void result wraps as the void carrier; an immovable result is constructed in place
     static_assert(std::is_same_v<decltype(a.transform([](int) {})), fn::just<void>>);
     CHECK(a.transform([](int i) { return Immovable{i}; }).value().x == 3);
+    // an lvalue-reference result is a view of what the callback returned, here the payload
+    auto r4 = a.transform([](int &i) -> int & { return i; });
+    static_assert(std::is_same_v<decltype(r4), fn::just<int &>>);
+    CHECK(&r4.value() == &a.value());
+    // ... but not from an rvalue carrier, whose payload expires with it: the member stays
+    // viable-but-loud and yields no just to compose
+    constexpr auto fnView = [](int const &i) -> int const & { return i; };
+    static_assert(can_transform<T &&, decltype(fnView)>);
+    static_assert(not fn::some_just<decltype(std::move(a).transform(fnView))>);
+    static_assert(not fn::some_just<decltype(std::move(std::as_const(a)).transform(fnView))>);
+    static_assert(fn::some_just<decltype(std::as_const(a).transform(fnView))>);
 
     // a copack result lands on the choice over its alternatives - the same carrier family
     constexpr auto fnCopack
@@ -232,6 +267,11 @@ TEST_CASE("just", "[just]")
       static_assert(T{3}.transform([](int i) { return i + 1; }) == fn::just<int>{4});
       static_assert(T{3}.transform([](int i) { return Immovable{i}; }).value().x == 3);
       static_assert(T{3}.transform(fnCopack) == fn::choice<bool>{true});
+      static_assert([] {
+        T t{3};
+        auto v = t.transform([](int &i) -> int & { return i; });
+        return &v.value() == &t.value();
+      }());
       SUCCEED();
     }
   }
@@ -339,6 +379,383 @@ TEST_CASE("just", "[just]")
       throwing_copy(throwing_copy const &) noexcept(false) {}
     };
     static_assert(not noexcept(std::declval<fn::just<throwing_copy> &>() & std::declval<T &>())); // copies
+  }
+}
+
+TEST_CASE("just of reference", "[just]")
+{
+  using R = fn::just<int &>;
+  using C = fn::just<int const &>;
+
+  SECTION("constructors and deduction")
+  {
+    int i = 13;
+    R a{i};
+    CHECK(&a.value() == &i);
+    R b(std::in_place_type<int &>, i);
+    CHECK(&b.value() == &i);
+    C c{i};
+    CHECK(&c.value() == &i);
+    ExplicitRef e{7};
+    CHECK(&R{e}.value() == &e.x);
+
+    // Value deduction owns the payload; an explicit type tag can request a reference.
+    static_assert(std::is_same_v<decltype(fn::just{i}), fn::just<int>>);
+    static_assert(std::is_same_v<decltype(fn::just(std::in_place_type<int &>, i)), R>);
+
+    // a reference is born bound
+    static_assert(not std::is_default_constructible_v<R>);
+    // Implicit construction follows implicit reference conversion.
+    static_assert(std::is_convertible_v<int &, R>);
+    static_assert(std::is_convertible_v<int &, C>);
+    static_assert(std::is_convertible_v<ImplicitRef &, R>);
+    static_assert(std::is_constructible_v<R, ExplicitRef &>);
+    static_assert(not std::is_convertible_v<ExplicitRef &, R>);
+    static_assert(std::is_constructible_v<R, std::in_place_type_t<int &>, int &>);
+    static_assert(not std::is_convertible_v<std::in_place_type_t<int &>, R>);
+    // noexcept follows the binding
+    static_assert(std::is_nothrow_constructible_v<R, int &>);
+    static_assert(std::is_nothrow_constructible_v<R, ExplicitRef &>);
+    static_assert(not std::is_nothrow_constructible_v<R, ImplicitRef &>);
+    // what int& cannot bind is refused, and another just is never unwrapped
+    static_assert(not std::is_constructible_v<R, int>);
+    static_assert(not std::is_constructible_v<R, int const &>);
+    static_assert(not std::is_constructible_v<R, fn::just<int> &>);
+    static_assert(not std::is_constructible_v<R, std::in_place_type_t<int>, int &>);
+
+    SECTION("throwing conversion")
+    {
+      ImplicitRef good{3};
+      CHECK(&R{good}.value() == &good.x);
+      ImplicitRef bad{3, true};
+      CHECK_THROWS_AS(R{bad}, int);
+      CHECK_THROWS_AS(R(std::in_place_type<int &>, bad), int);
+    }
+
+    SECTION("constexpr")
+    {
+      static_assert([] {
+        int x = 1;
+        R r{x};
+        R s(std::in_place_type<int &>, x);
+        ExplicitRef e{7};
+        R t{e};
+        ImplicitRef g{3};
+        R u{g};
+        return &r.value() == &x && &s.value() == &x && &t.value() == &e.x && &u.value() == &g.x;
+      }());
+      SUCCEED();
+    }
+  }
+
+  SECTION("special members")
+  {
+    static_assert(std::is_trivially_copyable_v<R>);
+    static_assert(std::is_trivially_copy_constructible_v<R>);
+    static_assert(std::is_trivially_move_constructible_v<R>);
+    static_assert(std::is_trivially_copy_assignable_v<R>);
+    static_assert(std::is_trivially_move_assignable_v<R>);
+    static_assert(std::is_trivially_destructible_v<R>);
+    static_assert(std::is_same_v<R::value_type, int> && std::is_same_v<C::value_type, int const>);
+    // a structural type: a constant just<T&> is a template argument
+    static_assert(nttp_value<C{five}> == 5);
+    SUCCEED();
+  }
+
+  SECTION("referent")
+  {
+    // Scalar references may be cv-qualified; rvalue, array, function, and tag references are rejected.
+    static_assert(fn::detail::_just_payload<int &>);
+    static_assert(fn::detail::_just_payload<int const &>);
+    static_assert(not fn::detail::_just_payload<int &&>);
+    static_assert(not fn::detail::_just_payload<int (&)[2]>);
+    static_assert(not fn::detail::_just_payload<void (&)()>);
+    static_assert(not fn::detail::_just_payload<std::in_place_type_t<int> &>);
+    // never a copack: dispatch would follow the referent's active alternative (issue #434)
+    static_assert(not fn::detail::_just_payload<fn::copack<int> &>);
+    static_assert(not fn::detail::_just_payload<fn::copack<int> const &>);
+    static_assert(not fn::detail::_just_payload<fn::copack<> &>);
+    // A borrowed choice is passed to the callable as a whole.
+    static_assert(fn::detail::_just_payload<fn::choice<int> &>);
+    fn::choice<int> ch{1};
+    fn::just<fn::choice<int> &> j{ch};
+    CHECK(j.transform([](fn::choice<int> &c) { return c == fn::choice<int>{1}; }).value());
+    static_assert([] {
+      fn::choice<int> c{1};
+      return fn::just<fn::choice<int> &>{c}.transform([](fn::choice<int> &v) { return &v; }).value() == &c;
+    }());
+  }
+
+  SECTION("assignment")
+  {
+    int x = 1;
+    int y = 2;
+    R a{x};
+    // assignment rebinds, never assigning through: the previous referent is untouched
+    a = R{y};
+    CHECK(&a.value() == &y);
+    CHECK(x == 1);
+    a = x;
+    CHECK(&a.value() == &x);
+    CHECK(y == 2);
+    // a throwing conversion leaves the binding as it was
+    ImplicitRef bad{3, true};
+    CHECK_THROWS_AS(a = bad, int);
+    CHECK(&a.value() == &x);
+
+    static_assert(std::is_nothrow_assignable_v<R &, int &>);
+    static_assert(not std::is_nothrow_assignable_v<R &, ImplicitRef &>);
+    static_assert(not std::is_assignable_v<R &, int>);
+    static_assert(not std::is_assignable_v<R &, fn::just<int> &>);
+
+    SECTION("constexpr")
+    {
+      static_assert([] {
+        int x = 1;
+        int y = 2;
+        R r{x};
+        r = R{y};
+        bool const rebound = &r.value() == &y && x == 1;
+        r = x;
+        return rebound && &r.value() == &x && y == 2;
+      }());
+      SUCCEED();
+    }
+  }
+
+  SECTION("emplace")
+  {
+    int x = 1;
+    int y = 2;
+    R a{x};
+    // emplace rebinds too, and returns the new referent
+    int &r = a.emplace(y);
+    CHECK(&r == &y);
+    CHECK(&a.value() == &y);
+    CHECK(x == 1);
+    ImplicitRef t{3};
+    CHECK(&a.emplace(t) == &t.x);
+    // a throwing conversion leaves the binding as it was
+    ImplicitRef bad{4, true};
+    CHECK_THROWS_AS(a.emplace(bad), int);
+    CHECK(&a.value() == &t.x);
+
+    static_assert(std::is_same_v<decltype(a.emplace(y)), int &>);
+    static_assert(noexcept(a.emplace(y)));
+    static_assert(not noexcept(a.emplace(t)));
+
+    SECTION("constexpr")
+    {
+      static_assert([] {
+        int x = 1;
+        int y = 2;
+        R r{x};
+        ImplicitRef g{3};
+        return &r.emplace(y) == &y && &r.value() == &y && x == 1 && &r.emplace(g) == &g.x;
+      }());
+      SUCCEED();
+    }
+  }
+
+  SECTION("value")
+  {
+    int x = 1;
+    R a{x};
+    // Access returns an lvalue reference even through a const or rvalue carrier.
+    static_assert(std::is_same_v<decltype(a.value()), int &>);
+    static_assert(std::is_same_v<decltype(std::as_const(a).value()), int &>);
+    static_assert(std::is_same_v<decltype(std::move(a).value()), int &>);
+    static_assert(std::is_same_v<decltype(std::move(std::as_const(a)).value()), int &>);
+    static_assert(std::is_same_v<decltype(std::declval<C &&>().value()), int const &>);
+    static_assert(noexcept(a.value()));
+    std::as_const(a).value() = 5;
+    CHECK(x == 5);
+    static_assert([] {
+      int y = 1;
+      R const r{y};
+      r.value() = 5;
+      return y == 5;
+    }());
+  }
+
+  SECTION("transform")
+  {
+    int x = 3;
+    R a{x};
+    constexpr auto fnLvalue = [](int &i) { return i + 1; };
+
+    SECTION("value category")
+    {
+      // the callable receives int& for every category of the carrier, never an rvalue
+      CHECK(a.transform(fnLvalue).value() == 4);
+      CHECK(std::as_const(a).transform(fnLvalue).value() == 4);
+      CHECK(std::move(a).transform(fnLvalue).value() == 4);
+      CHECK(std::move(std::as_const(a)).transform(fnLvalue).value() == 4);
+      constexpr auto fnRvalue = [](int &&i) { return i; };
+      static_assert(not can_transform<R &&, decltype(fnRvalue)>);
+      static_assert(can_transform<fn::just<int> &&, decltype(fnRvalue)>);
+    }
+
+    SECTION("result")
+    {
+      // a reference result keeps a view, a value result owns, a void result is the unit
+      auto r1 = a.transform([](int &i) -> int & { return i; });
+      static_assert(std::is_same_v<decltype(r1), R>);
+      CHECK(&r1.value() == &x);
+      auto r2 = a.transform([](int const &i) -> int const & { return i; });
+      static_assert(std::is_same_v<decltype(r2), C>);
+      CHECK(&r2.value() == &x);
+      auto r3 = a.transform([](int i) { return long{i}; });
+      static_assert(std::is_same_v<decltype(r3), fn::just<long>>);
+      CHECK(r3.value() == 3L);
+      static_assert(std::is_same_v<decltype(a.transform([](int) {})), fn::just<void>>);
+      // As with owning just, probing accepts this result, but calling transform triggers a static_assert.
+      constexpr auto fnXvalue = [](int &i) -> int && { return std::move(i); };
+      static_assert(can_transform<R &, decltype(fnXvalue)>);
+    }
+
+    SECTION("noexcept")
+    {
+      static_assert(noexcept(a.transform([](int &) noexcept { return 1; })));
+      static_assert(not noexcept(a.transform([](int &) { return 1; })));
+      SUCCEED();
+    }
+
+    SECTION("constexpr")
+    {
+      static_assert([] {
+        int x = 3;
+        R r{x};
+        return &r.transform([](int &i) -> int & { return i; }).value() == &x
+               && std::move(r).transform([](int &i) { return i + 1; }).value() == 4;
+      }());
+      SUCCEED();
+    }
+  }
+
+  SECTION("and_then")
+  {
+    int x = 3;
+    R a{x};
+    // the callable receives int& for every category of the carrier and returns any just
+    auto r1 = std::move(a).and_then([](int &i) { return R{i}; });
+    static_assert(std::is_same_v<decltype(r1), R>);
+    CHECK(&r1.value() == &x);
+    auto r2 = std::as_const(a).and_then([](int &i) { return fn::just<bool>{i != 0}; });
+    static_assert(std::is_same_v<decltype(r2), fn::just<bool>>);
+    CHECK(r2.value());
+
+    constexpr auto fnRvalue = [](int &&) { return fn::just<int>{1}; };
+    static_assert(not can_and_then<R &&, decltype(fnRvalue)>);
+    static_assert(can_and_then<fn::just<int> &&, decltype(fnRvalue)>);
+    static_assert(noexcept(a.and_then([](int &) noexcept { return fn::just<int>{1}; })));
+    static_assert(not noexcept(a.and_then([](int &) { return fn::just<int>{1}; })));
+
+    SECTION("constexpr")
+    {
+      static_assert([] {
+        int x = 3;
+        return &R{x}.and_then([](int &i) { return R{i}; }).value() == &x;
+      }());
+      SUCCEED();
+    }
+  }
+
+  SECTION("apply family")
+  {
+    int x = 3;
+    R a{x};
+    CHECK(std::move(a).apply([](int &i, int y) { return i + y; }, 4) == 7);
+    CHECK(a.apply_r<long>([](int &i) { return i; }) == 3L);
+    // the tag names the payload type, a reference
+    CHECK(std::move(a).apply_type([](std::in_place_type_t<int &>, int &i) { return -i; }) == -3);
+    CHECK(a.apply_type_r<long>([](std::in_place_type_t<int &>, int &i, int y) { return i + y; }, 1) == 4L);
+    constexpr auto ownedTag = [](std::in_place_type_t<int>, int i) { return i; };
+    static_assert(not can_apply_type<R &, decltype(ownedTag)>);
+    static_assert(can_apply_type<fn::just<int> &, decltype(ownedTag)>);
+
+    // a tuple-like referent goes by elements
+    std::tuple<int, int> t{1, 2};
+    fn::just<std::tuple<int, int> &> p{t};
+    CHECK(p.apply([](int &l, int &r) { return l + r; }) == 3);
+
+    // the result conversion is a constraint
+    constexpr auto fnInt = [](int &i) { return i; };
+    constexpr auto tagInt = [](std::in_place_type_t<int &>, int &i) { return i; };
+    static_assert(can_apply_r<R &, long, decltype(fnInt)>);
+    static_assert(not can_apply_r<R &, std::string, decltype(fnInt)>);
+    static_assert(can_apply_type_r<R &, long, decltype(tagInt)>);
+    static_assert(not can_apply_type_r<R &, std::string, decltype(tagInt)>);
+
+    static_assert(noexcept(a.apply([](int &) noexcept { return 1; })));
+    static_assert(not noexcept(a.apply([](int &) { return 1; })));
+    static_assert(noexcept(a.apply_r<long>([](int &) noexcept { return 1; })));
+    static_assert(not noexcept(a.apply_r<long>([](int &) { return 1; })));
+    static_assert(noexcept(a.apply_type([](std::in_place_type_t<int &>, int &) noexcept { return 1; })));
+    static_assert(not noexcept(a.apply_type([](std::in_place_type_t<int &>, int &) { return 1; })));
+    static_assert(noexcept(a.apply_type_r<long>([](std::in_place_type_t<int &>, int &) noexcept { return 1; })));
+    static_assert(not noexcept(a.apply_type_r<long>([](std::in_place_type_t<int &>, int &) { return 1; })));
+
+    SECTION("constexpr")
+    {
+      static_assert([] {
+        int x = 3;
+        R r{x};
+        return std::move(r).apply([](int &i, int y) { return i + y; }, 4) == 7
+               && r.apply_r<long>([](int &i) { return i; }) == 3L
+               && r.apply_type([](std::in_place_type_t<int &>, int &i) { return -i; }) == -3
+               && r.apply_type_r<long>([](std::in_place_type_t<int &>, int &i, int y) { return i + y; }, 1) == 4L;
+      }());
+      static_assert([] {
+        std::tuple<int, int> t{1, 2};
+        return fn::just<std::tuple<int, int> &>{t}.apply([](int &l, int &r) { return l + r; }) == 3;
+      }());
+      SUCCEED();
+    }
+  }
+
+  SECTION("equality")
+  {
+    // the referents compare, not the addresses
+    int x = 1;
+    int y = 1;
+    int z = 2;
+    CHECK(R{x} == R{y});
+    CHECK(R{x} != R{z});
+    CHECK(R{x} == fn::just<long>{1L});
+    CHECK(R{x} == 1);
+    static_assert([] {
+      int x = 1;
+      int y = 1;
+      return R{x} == R{y} && R{x} == fn::just<long>{1L} && R{x} == 1 && R{x} != 2;
+    }());
+  }
+
+  SECTION("operators")
+  {
+    // the product and the sum the operators build hold a copy of the referent
+    int x = 1;
+    R a{x};
+    auto p = a & fn::just<double>{2.0};
+    static_assert(std::is_same_v<decltype(p), fn::just<fn::pack<int, double>>>);
+    auto d = a | fn::just<int>{7};
+    static_assert(std::is_same_v<decltype(d), fn::just<int>>);
+    // ... while eliding the unit just<void> returns the other operand itself, a reference included
+    static_assert(std::is_same_v<decltype(fn::just<void>{} & a), R>);
+    static_assert(std::is_same_v<decltype(a & fn::just<void>{}), R>);
+    CHECK(&(fn::just<void>{} & a).value() == &x);
+    CHECK(&(a & fn::just<void>{}).value() == &x);
+    x = 5;
+    CHECK(p.value().apply([](int i, double) { return i; }) == 1);
+    CHECK(d.value() == 1);
+    static_assert([] {
+      int x = 1;
+      auto p = R{x} & fn::just<double>{2.0};
+      auto d = R{x} | fn::just<int>{7};
+      x = 5;
+      return p.value().apply([](int i, double) { return i; }) == 1 && d.value() == 1
+             && &(fn::just<void>{} & R{x}).value() == &x && &(R{x} & fn::just<void>{}).value() == &x;
+    }());
   }
 }
 
