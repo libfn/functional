@@ -239,6 +239,13 @@ TEST_CASE("just", "[just]")
     auto r4 = a.transform([](int &i) -> int & { return i; });
     static_assert(std::is_same_v<decltype(r4), fn::just<int &>>);
     CHECK(&r4.value() == &a.value());
+    // ... but not from an rvalue carrier, whose payload expires with it: the member stays
+    // viable-but-loud and yields no just to compose
+    constexpr auto fnView = [](int const &i) -> int const & { return i; };
+    static_assert(can_transform<T &&, decltype(fnView)>);
+    static_assert(not fn::some_just<decltype(std::move(a).transform(fnView))>);
+    static_assert(not fn::some_just<decltype(std::move(std::as_const(a)).transform(fnView))>);
+    static_assert(fn::some_just<decltype(std::as_const(a).transform(fnView))>);
 
     // a copack result lands on the choice over its alternatives - the same carrier family
     constexpr auto fnCopack

@@ -59,10 +59,13 @@ concept _just_payload
           && (not _some_in_place_type<T>) && ::std::is_same_v<T, ::std::remove_cv_t<T>>);
 
 // What the callback's result may become: void and admissible payloads make a just; anything else
-// keeps the member viable-but-loud below
+// keeps the member viable-but-loud below. A reference result from an rvalue payload is out: it may
+// refer into the payload, which expires with the carrier.
 template <typename Fn, typename... V>
-concept _just_admissible_result
-    = ::std::is_void_v<typename _apply_result<Fn, V...>::type> || _just_payload<typename _apply_result<Fn, V...>::type>;
+concept _just_admissible_result = ::std::is_void_v<typename _apply_result<Fn, V...>::type>
+                                  || (_just_payload<typename _apply_result<Fn, V...>::type>
+                                      && not(::std::is_reference_v<typename _apply_result<Fn, V...>::type>
+                                             && (... || ::std::is_rvalue_reference_v<V>)));
 
 // For an admissible result, transform returns just<result>. Otherwise expose the raw result
 // type (including empty copacks, references and arrays) so probing does not instantiate an
@@ -260,6 +263,10 @@ template <typename T> struct just {
 
   /**
    * @brief Maps the payload through the callable, wrapping the result
+   *
+   * A callable returning an lvalue reference makes a `just` of that reference, but only from an
+   * lvalue carrier: an rvalue carrier rejects it, as the reference may refer into its expiring
+   * payload.
    *
    * @param fn Callable applied on the payload
    * @return `just` of the callable's result; `just<void>` for a void result
