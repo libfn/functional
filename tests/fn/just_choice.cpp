@@ -140,6 +140,22 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     CHECK((std::as_const(s).value().apply(fn)) == 44);
     CHECK((std::move(std::as_const(s)).value().apply(fn)) == 46);
     CHECK((std::move(s).value().apply(fn)) == 45);
+
+    SECTION("singular")
+    {
+      // A reference binding to the sole payload alternative can modify the choice.
+      static_assert(std::tuple_size_v<choice<int>::value_type> == std::tuple_size_v<fn::pack<int>>);
+      auto c = fn::as_choice(12);
+      auto &[i] = c.value();
+      i = 42;
+      CHECK(c == choice<int>{42});
+      static_assert([] {
+        auto d = fn::as_choice(12);
+        auto &[j] = d.value();
+        j = 42;
+        return d == choice<int>{42};
+      }());
+    }
   }
 
   SECTION("choice_for")

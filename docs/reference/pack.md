@@ -123,16 +123,25 @@ constexpr auto as_pack(std::type_identity_t<T> src, std::type_identity_t<Args>..
 ## get {style: "api"}
 
 ```cpp {title: "fn::get"}
-template <typename Cp>
+template <some_copack Cp>
 constexpr auto get(Cp &&c) -> decltype(auto);  // (1)
 
+template <std::size_t I, some_copack C>
+constexpr auto get(C &&c) -> decltype(auto);  // (2)
+
 template <std::size_t I, some_pack P>
-constexpr auto get(P &&p) -> decltype(auto);  // (2)
+constexpr auto get(P &&p) -> decltype(auto);  // (3)
 ```
 
 :include-doxygen-doc: fn::get { args: "Cp &&" }
 
 :include-doxygen-doc-params: fn::get { args: "Cp &&", title: "parameters" }
+
+:include-doxygen-doc: fn::get { args: "C &&" }
+
+:include-doxygen-doc-params: fn::get { args: "C &&", type: "template", title: "template parameters" }
+
+:include-doxygen-doc-params: fn::get { args: "C &&", title: "parameters" }
 
 :include-doxygen-doc: fn::get { args: "P &&" }
 
