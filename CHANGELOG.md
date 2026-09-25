@@ -12,7 +12,7 @@ There is no default constructor. For an `int x`, `just{x}` still deduces `just<i
 
 Composition follows these rules:
 
-- A `transform` callback returning a supported lvalue reference `U&` produces `just<U&>`, referring to the returned object.
+- A `transform` callback returning a supported lvalue reference `U&` produces `just<U&>`, referring to the returned object. An rvalue owning `just` rejects such a result: it may refer into the payload, which expires with the carrier. `optional<T>` accepts it, as the standard specifies; `just` deliberately diverges.
 - Member and pipeline `and_then` accept callbacks returning `just<U&>`. When every branch of a choice returns the same `just<U&>` type, the result retains that type. A join of different result types is rejected if any is a reference `just`, because references cannot be alternatives of the resulting choice. This matches the restriction on reference payloads in optional joins.
 - The products and sums that `&` and `|` build hold a copy of the referent, as they do for `optional<T&>`. Eliding the unit `just<void>` under `&` returns the other operand itself, so `just<void>{} & just<T&>{x}` is still `just<T&>`.
 - Copack references remain unsupported. `just<copack<Ts...>&>` would dispatch on the referent's active alternative, introducing control flow based on state the carrier does not own. Issue #434 discusses the tradeoffs and open questions. `transform` also rejects copack-reference results.
