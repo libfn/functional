@@ -11,16 +11,16 @@ The library operates on two payload types and four computation carriers:
 - `choice`: Never-failing computation holding one of several alternatives.
 - `just`: Never-failing computation yielding a single value or a `void`.
 
-Composition operations include `transform` (mapping), `transform_error` (error mapping), `and_then` (sequential monadic binding), `or_else` (recovery), `operator&` (conjunction / simultaneous product composition), `operator|` (disjunction / simultaneous sum composition), and the n-ary folds `fn::conjoin` and `fn::disjoin`. Elimination is `apply` (multidispatch).
+A monadic carrier wraps a value in a computational context, such as possible failure. Carriers can be combined with operations, such as `transform` (mapping), `transform_error` (error mapping), `and_then` (sequential monadic binding), `or_else` (recovery), `discard` (terminate sequence), `operator&` (conjunction / simultaneous product composition), `operator|` (disjunction / simultaneous sum composition), and the n-ary folds `fn::conjoin` and `fn::disjoin`. Elimination is `apply` (multidispatch). Pipeline operations which combine a value or an error wrapped in a carrier with a user-supplied function are called *combinators*. In the list above, these are the functor forms of `transform`, `transform_error`, `and_then`, and `or_else`. Users may also define their own combinators.
 
 ### Member vs. pipeline syntax
 
 Some operations are exposed in two forms:
 
 - **Member functions** (e.g., `.transform()`, `.and_then()`, `.apply()`) called directly on a carrier or payload (e.g., `ex.transform(f)`, `cp.apply(f)`).
-- **Pipeline functors** in namespace `fn` (e.g., `fn::transform`, `fn::and_then`) applied via `operator|` (e.g., `ex | fn::transform(f)`).
+- **Combinators** in namespace `fn` (e.g., `fn::transform`, `fn::and_then`) applied via `operator|` (e.g., `ex | fn::transform(f)`).
 
-There are also pipeline functors (`recover`, `fail`, `filter`, `inspect`, `inspect_error`, `discard`) which have no member spelling, and member functions (`apply`, `apply_r`, `apply_type`) which have no pipeline spelling.
+The combinators `recover`, `fail`, `filter`, `inspect`, `inspect_error`, and the pipeline operation `discard` have no member spelling. The member functions `apply`, `apply_r`, `apply_type` and `apply_type_r` have no pipeline spelling.
 
 The `operator|` carries two meanings, told apart by its right operand: a pipeline functor on the right feeds the carrier into that operation, while another carrier on the right is disjunction (explained in Section 7).
 
@@ -234,9 +234,9 @@ Composing computations requires wrapping these values in computation carriers. P
 
 ### Carrier bridging: interoperable pipelines
 
-Because these carriers represent different computational contexts, pipelines often need to transition between them. `libfn` licenses explicit **cross-carrier bridging** via pipeline-scoped operations using `operator|`.
+Because these carriers represent different computational contexts, pipelines often need to transition between them. `libfn` licenses explicit **cross-carrier bridging** via combinators using `operator|`.
 
-Standard fallible carriers can bridge to each other on their error/empty recovery paths via pipeline functor `fn::or_else` (e.g., `expected` to `optional`, or vice versa). This is safe because on the success path, the successful value is preserved and bypasses the recovery callback. The transition only occurs on the handled failure branch, allowing you to gracefully convert a missing value into a concrete error, or decay a detailed error into an empty state:
+Standard fallible carriers can bridge to each other on their error/empty recovery paths via the `or_else` combinator (e.g., `expected` to `optional`, or vice versa). This is safe because on the success path, the successful value is preserved and bypasses the recovery callback. The transition only occurs on the handled failure branch, allowing you to gracefully convert a missing value into a concrete error, or decay a detailed error into an empty state:
 
 <!-- sync-example-test-failure-bridge -->
 ```cpp
@@ -251,7 +251,7 @@ auto test_failure_bridge(fn::expected<int, IoError> ex, fn::optional<int> opt) -
 }
 ```
 
-Member functions `.or_else` and `.and_then` (see Sections 8 and 10) do not support cross-carrier bridging to avoid coupling between different carriers. Pipeline functors, lying a layer above carriers, can perform these transitions without coupling.
+Member functions `.or_else` and `.and_then` (see Sections 8 and 10) do not support cross-carrier bridging to avoid coupling between different carriers. Combinators, lying a layer above carriers, can perform these transitions without coupling.
 
 Identity carriers bridge in the other direction, on the success path; Section 10 covers that together with the identity cluster.
 
@@ -534,13 +534,13 @@ auto test_disjoin(fn::expected<int, Error> a, fn::expected<bool, OtherError> b) 
 >
 > The resulting error side is uninhabited by construction — not merely empty at runtime, but incapable of holding a value — which is what renders the whole disjunction infallible and folds it into the identity cluster.
 >
-## 8. Sequential composition with and_then
+## 8. Sequential composition
 
-Sequential composition chains dependent operations: the success of one feeds the input of the next. In `libfn`, `and_then` (monadic *bind*) achieves this.
+Sequential composition chains dependent operations: `and_then` (monadic *bind*) supplies successful results to the next operation, while `or_else` continues on failure.
 
-A monadic carrier wraps a value. The callable passed to `and_then` is a *Kleisli arrow*; it accepts a plain value and returns a monadic carrier of the same kind. If the input is infallible, it may return either an infallible carrier or a fallible kind it bridges to (Section 10).
+A monadic carrier wraps a value. The callable passed to `and_then` is a *Kleisli arrow*; it maps successful input to a monadic carrier of the same kind. For an infallible input, the `and_then` combinator also permits the callable to return a different carrier family (carrier bridging, explained in Section 10). In contrast, the `or_else` combinator allows bridging between fallible carriers (Section 3).
 
-A chained sequence of *bind* operations forms the graded pipeline introduced in Section 1. Chaining a single step follows this pattern:
+Chaining *bind* operations forms a *sequence*, as in the pipeline introduced in Section 1. A sequence may also be graded (explained in Section 9), for example:
 
 <!-- sync-example-sequential-bind -->
 ```cpp
@@ -559,13 +559,13 @@ Because member `.and_then` cannot change carrier families (Section 3), its *Klei
 
 - `optional` binds to `optional`.
 - Plain `expected<T, E>` binds to `expected<U, E>` (retaining error `E`) or, via singular lift, to `expected<U, copack<E>>` (transitioning to a graded context, Section 9).
-- Copack-graded `expected` unions heterogeneous error sets.
-- Copack-valued inputs join heterogeneous successful branch types into a normalized `copack`.
+- Error-graded `expected` forms the union of heterogeneous error sets with a `copack`.
+- Copack-valued inputs join heterogeneous successful branch types into a `copack`.
 - Branch convergence preserves the exact type without duplicate union states.
-- All-`void` branches join to `void`; mixed void and non-void branches are ill-formed.
+- For `expected`, all-`void` branches join to `void`; mixed void and non-void branches are ill-formed.
 - Callback results returning bare values require `transform` rather than `and_then`.
 
-The library formalizes this "same-kind" contract via the `fn::same_kind` concept, which lets generic templates probe whether two carrier types belong to the same monadic family:
+The library formalizes this "same-kind" contract via the `fn::same_kind` concept, which lets generic templates probe whether two carrier types belong to the same monadic family with compatible error sides:
 
 <!-- sync-example-test-same-kind -->
 ```cpp
@@ -573,6 +573,8 @@ static_assert(fn::same_kind<fn::optional<int>, fn::optional<User>>);
 static_assert(fn::same_kind<fn::expected<int, IoError>, fn::expected<User, IoError>>);
 static_assert(!fn::same_kind<fn::expected<int, IoError>, fn::expected<User, Missing>>);
 ```
+
+Recovery with `or_else` invokes the callback on failure and preserves successful results. For `expected`, the callback receives the error; for `optional`, it takes no arguments. In graded recovery, successful value alternatives accumulate by union (Section 9).
 
 ## 9. Graded composition
 
@@ -1108,7 +1110,7 @@ Index:
      * **Section 5 (Mapping)**: Covers functorial mapping (`transform`/`transform_error`).
      * **Section 6 (Conjunction - `operator&`)**: Multiplies values into `pack`s and unions errors into `copack`s.
      * **Section 7 (Disjunction - `operator|`)**: Unions values into `copack`s and multiplies errors into `pack`s.
-     * **Section 8 (Monadic Binding - `and_then`)**: Introduces Kleisli arrows and monadic sequencing of success paths.
+     * **Section 8 (Sequential Composition)**: Introduces Kleisli arrows, success binding with `and_then`, and recovery with `or_else`.
      * **Section 9 (Graded Expected)**: Explains how the type system derives exact error and value union grades during sequential binding.
 
 **4. Advanced Algebraic Crossings (Sections 10 & 11)**
