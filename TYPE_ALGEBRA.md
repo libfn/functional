@@ -130,8 +130,6 @@ In `libfn`'s algebra, zero and unit are strictly separated:
 
 Because `pack<>` exists, applying a callable to it invokes a nullary function. Because `copack<>` is uninhabited, providing a callback over `copack<>` is statically proven to be unreachable code (dead code).
 
-In C++, `void` is often conflated with empty state, but algebraically, `void` is a unit type `1`, similar to `pack<>`.
-
 Consider the difference in these carrier states:
 
 | Computation | Meaning |
@@ -200,6 +198,12 @@ To invoke the algebra, you use the opt-in mechanisms provided by the library:
 - Member helpers for explicit type lifting (detailed in Section 9).
 
 If a side is already a `copack` or `pack`, forwarding it behaves naturally without nesting. A `copack` on the error side of `expected` enables error-set unioning. Because monadic operations introduce no grade themselves, `and_then` widens a graded error side but rejects a differing ungraded one. Section 9 gives the exact promotion rules.
+
+### The role of `void`
+
+In `libfn`, `void` is not a member of the payload type algebra - it cannot be stored in a `pack` or a `copack`. Instead it contributes *behaviour*, which can be described as "no value and no type". Hence, `just<void>` and `expected<void, E>` use it to express success without a payload.
+
+In conjunction, a payload-free success contributes no field to the product, as `pack<>` would. In disjunction, that success must remain a possible outcome - if both operands contribute `void` then the resulting value type is `void`. Otherwise, the success without a payload is represented in the resulting sum as `pack<>`. Similarly, when `void` contributes to value-graded `expected`, it is represented as `pack<>`.
 
 ## 3. The computation carriers
 
@@ -479,7 +483,7 @@ auto test_conjunction_with_identity_cluster(fn::expected<int, Error> ex, fn::jus
 >
 ## 7. Sum composition with operator| (disjunction)
 
-Disjunction evaluates alternative computations, keeping the first successful result. `a | b` fails only if both operands fail: dual to conjunction, their values union into a `copack`, and their *errors* combine into a product. If both operands share the same value type, the value side is unchanged. A `void` value on either side contributes `pack<>` to the sum (`void` on both sides yields `void`).
+Disjunction evaluates alternative computations, keeping the first successful result. `a | b` fails only if both operands fail: dual to conjunction, their values union into a `copack`, and their *errors* combine into a product. If both operands share the same value type, the value side is unchanged. Otherwise, a carrier with value type `void` contributes a payload-free success, represented by `pack<>` in the sum.
 
 If either error side is graded, the product distributes over it: $(E_1 + E_2) \times F \to (E_1 \times F) + (E_2 \times F)$ (the full Cartesian product when both are graded), yielding a canonical `copack` of `pack`s.
 
@@ -1101,7 +1105,7 @@ Index:
    * The term **identity cluster** is introduced in Section 3 under the infallible carriers as a simple grouping definition: "_Together, `just`, `choice` and `expected<T, copack<>>` form the identity cluster_." It does not expand on its operations or mathematical properties here, keeping the introduction minimal.
 
 **2. Core Algebraic Foundations (Sections 2, 3, & 4)**
-   * **Section 2** establishes the core algebraic identities of types (**0**, **1**, **A + B**, **A × B**), separates Zero (`copack<>`) from Unit (`pack<>`), and defines `copack` set semantics (deduplication, flattening, sorting) and why the algebra is strictly opt-in.
+   * **Section 2** establishes the core algebraic identities of types (**0**, **1**, **A + B**, **A × B**), separates Zero (`copack<>`) from Unit (`pack<>`), and defines `copack` set semantics (deduplication, flattening, sorting) and why the algebra is strictly opt-in. It distinguishes `void` from a carrier's payload-free success and explains the composition rules for that success.
    * **Section 3** establishes the carriers, the fact that raw data lacks control flow while carriers have it, and the basics of cross-carrier recovery-path bridging.
    * **Section 4** expands on the concrete C++ payload behaviors of `pack` and `copack` (ADL `get`, structured bindings, `.append()`, singular copacks).
 
