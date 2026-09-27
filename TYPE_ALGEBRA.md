@@ -203,7 +203,7 @@ If a side is already a `copack` or `pack`, forwarding it behaves naturally witho
 
 In `libfn`, `void` is not a member of the payload type algebra - it cannot be stored in a `pack` or a `copack`. Instead it contributes *behaviour*, which can be described as "no value and no type". Hence, `just<void>` and `expected<void, E>` use it to express success without a payload.
 
-In conjunction, a payload-free success contributes no field to the product, as `pack<>` would. In disjunction, that success must remain a possible outcome - if both operands contribute `void` then the resulting value type is `void`. Otherwise, the success without a payload is represented in the resulting sum as `pack<>`. Similarly, when `void` contributes to value-graded `expected`, it is represented as `pack<>`.
+In conjunction, a payload-free success contributes no field to the product, as `pack<>` would. In disjunction, that success must remain a possible outcome - if both operands contribute `void` then the resulting value type is `void`. Otherwise, the success without a payload is represented in the resulting sum as `pack<>`. When mapping a `copack`, a `void` result contributes `pack<>`, either on the value or error side.
 
 ## 3. The computation carriers
 
@@ -377,9 +377,11 @@ Key principles of mapping:
 - `transform` preserves the carrier family; its member form never leaves its own carrier type.
 - Success and error states are preserved.
 - A bare `copack` has a member `transform` to map across alternatives, but takes no pipeline functor as it is data, not a carrier.
-- Heterogeneous results inside `transform` or `transform_error` form a normalized `copack`.
+- Heterogeneous results inside `transform` or `transform_error` form a normalized `copack` (grading, Section 9).
 - Applying `transform_error` to a carrier with no error side (such as `just` or `choice`) is ill-formed.
-- When a side is uninhabited (`copack<>`), transformation is well-formed but vacuous: neither the member nor the pipeline form is reachable, and the callback is not instantiated. This applies to `optional<copack<>>` and `expected<copack<>, E>` on the value side, and `expected<T, copack<>>` on the error side.
+- When a side is uninhabited (`copack<>`), transformation is well-formed but vacuous: neither the member nor the pipeline form is reachable, and the callback is not instantiated. This applies to all of `optional<copack<>>`, `expected<copack<>, E>` and `expected<T, copack<>>`.
+- A `void` result is represented in a `copack` as `pack<>`.
+- Mapping from `copack` never yields a plain type - even when all branches return the same type, the result remains `copack`.
 
 > [!TIP]
 >
