@@ -2,6 +2,12 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `void` recovery joins a value grade as `pack<>` — 26 September 2026
+
+`or_else` accepts a `void`-valued recovery into a copack value side, representing success as `pack<>`. For example, recovering `expected<copack<V>, E>` through `expected<void, G>` yields `expected<copack_for<V, pack<>>, G>`; this previously failed to compile. This also applies to branches over a copack error and pipeline recovery from `optional<copack<V>>`. An all-`void` join stays `void`.
+
+`void` lifts to `copack<pack<>>`, including in `same_value_kind` and pipeline recovery into `optional`. A recovery returned by reference from `optional` has its copy included in the `noexcept` specification.
+
 ## Singular copacks support the tuple protocol — 24 September 2026
 
 A `copack` with exactly one alternative supports the tuple protocol: `std::tuple_size_v<copack<T>>` is 1, `std::tuple_element_t<0, copack<T>>` is `T`, and `get<0>` returns the same reference as the index-less `get`. This supports structured bindings and generic code that uses tuple traits with ADL `get`. A structured binding over a singular copack, including a singular choice's `value()`, now binds its alternative. Previously, it bound the public `data` and `index` members.

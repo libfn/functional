@@ -621,6 +621,8 @@ TEST_CASE("graded monad", "[expected][copack][graded][and_then][or_else][copack_
     static_assert(std::is_same_v<decltype(s.or_else(fn7)), fn::expected<fn::copack_for<Xint, int, long>, Error>>);
     constexpr auto fn8 = [](int) -> fn::expected<fn::copack_for<Xint, int, long>, std::string> { throw 0; };
     static_assert(std::is_same_v<decltype(s.or_else(fn8)), fn::expected<fn::copack_for<Xint, int, long>, std::string>>);
+    constexpr auto fn9 = [](int) -> fn::expected<void, std::string> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn9)), fn::expected<fn::copack_for<fn::pack<>, int>, std::string>>);
 
     SECTION("error to value")
     {
@@ -642,6 +644,28 @@ TEST_CASE("graded monad", "[expected][copack][graded][and_then][or_else][copack_
       CHECK(std::move(s).or_else(fn).error() == "Boo");
     }
 
+    SECTION("error to payload-free value")
+    {
+      using value_t = fn::copack_for<fn::pack<>, int>;
+      constexpr auto fn = [](Error) -> fn::expected<void, std::string> { return {}; };
+      static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::expected<value_t, std::string>>);
+      CHECK(s.or_else(fn).value() == value_t{fn::pack<>{}});
+      CHECK(std::as_const(s).or_else(fn).value() == value_t{fn::pack<>{}});
+      CHECK(std::move(std::as_const(s)).or_else(fn).value() == value_t{fn::pack<>{}});
+      CHECK(std::move(s).or_else(fn).value() == value_t{fn::pack<>{}});
+    }
+
+    SECTION("error to error, payload-free")
+    {
+      constexpr auto fn = [](Error) -> fn::expected<void, std::string> { return ::fn::unexpected<std::string>("Boo"); };
+      static_assert(
+          std::is_same_v<decltype(s.or_else(fn)), fn::expected<fn::copack_for<fn::pack<>, int>, std::string>>);
+      CHECK(s.or_else(fn).error() == "Boo");
+      CHECK(std::as_const(s).or_else(fn).error() == "Boo");
+      CHECK(std::move(std::as_const(s)).or_else(fn).error() == "Boo");
+      CHECK(std::move(s).or_else(fn).error() == "Boo");
+    }
+
     SECTION("value")
     {
       fn::expected<fn::copack<int>, Error> s{fn::copack{12}};
@@ -650,6 +674,15 @@ TEST_CASE("graded monad", "[expected][copack][graded][and_then][or_else][copack_
       CHECK(s.or_else(fn).value() == fn::copack{12});
       CHECK(std::as_const(s).or_else(fn).value() == fn::copack{12});
       CHECK(std::move(std::as_const(s)).or_else(fn).value() == fn::copack{12});
+
+      constexpr auto fnVoid = [](int) -> fn::expected<void, std::string> { throw 0; };
+      static_assert(
+          std::is_same_v<decltype(s.or_else(fnVoid)), fn::expected<fn::copack_for<fn::pack<>, int>, std::string>>);
+      CHECK(s.or_else(fnVoid).value() == fn::copack{12});
+      CHECK(std::as_const(s).or_else(fnVoid).value() == fn::copack{12});
+      CHECK(std::move(std::as_const(s)).or_else(fnVoid).value() == fn::copack{12});
+      CHECK(std::move(s).or_else(fnVoid).value() == fn::copack{12});
+
       CHECK(std::move(s).or_else(fn).value() == fn::copack{12});
     }
 
@@ -851,6 +884,20 @@ TEST_CASE("graded monad constexpr and runtime", "[constexpr][and_then][or_else][
     constexpr auto r3 = T{::fn::unexpect, Error::Unknown}.or_else(fn1);
     static_assert(r3.value() == fn::copack{0});
 
+    constexpr auto fn2 = [](Error i) -> fn::expected<void, int> {
+      if (i == Error::Unknown)
+        return {};
+      return ::fn::unexpected<int>{(int)i};
+    };
+    using value_t = fn::copack_for<fn::pack<>, int>;
+    constexpr auto r4 = T{14}.or_else(fn2);
+    static_assert(std::is_same_v<decltype(r4), fn::expected<value_t, int> const>);
+    static_assert(r4.value() == value_t{14});
+    constexpr auto r5 = T{::fn::unexpect, Error::InvalidValue}.or_else(fn2);
+    static_assert(r5.error() == 1);
+    constexpr auto r6 = T{::fn::unexpect, Error::Unknown}.or_else(fn2);
+    static_assert(r6.value() == value_t{fn::pack<>{}});
+
     SUCCEED();
   }
 
@@ -871,6 +918,20 @@ TEST_CASE("graded monad constexpr and runtime", "[constexpr][and_then][or_else][
     CHECK(r2.error() == 1);
     auto const r3 = T{::fn::unexpect, Error::Unknown}.or_else(fn1);
     CHECK(r3.value() == fn::copack{0});
+
+    constexpr auto fn2 = [](Error i) -> fn::expected<void, int> {
+      if (i == Error::Unknown)
+        return {};
+      return ::fn::unexpected<int>{(int)i};
+    };
+    using value_t = fn::copack_for<fn::pack<>, int>;
+    auto const r4 = T{14}.or_else(fn2);
+    static_assert(std::is_same_v<decltype(r4), fn::expected<value_t, int> const>);
+    CHECK(r4.value() == value_t{14});
+    auto const r5 = T{::fn::unexpect, Error::InvalidValue}.or_else(fn2);
+    CHECK(r5.error() == 1);
+    auto const r6 = T{::fn::unexpect, Error::Unknown}.or_else(fn2);
+    CHECK(r6.value() == value_t{fn::pack<>{}});
   }
 }
 

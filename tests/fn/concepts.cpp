@@ -313,6 +313,10 @@ static_assert(same_value_kind<expected<copack<int>, Error>, expected<int, Error>
 // the singular lift, value side - both ways
 static_assert(same_value_kind<expected<int, Error>, expected<copack<int>, Xerror>>);
 static_assert(not same_value_kind<expected<int, Error>, expected<copack<Value>, Error>>);
+static_assert(same_value_kind<expected<void, Error>, expected<copack<pack<>>, Xerror>>);
+static_assert(same_value_kind<expected<copack<pack<>>, Error>, expected<void, Xerror>>);
+static_assert(not same_value_kind<expected<void, Error>, expected<pack<>, Error>>);
+static_assert(not same_value_kind<expected<void, Error>, expected<copack<Value>, Error>>);
 
 static_assert(same_value_kind<optional<int>, optional<int>>);
 static_assert(not same_value_kind<optional<int>, optional<Value>>);

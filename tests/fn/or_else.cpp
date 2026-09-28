@@ -735,6 +735,339 @@ TEST_CASE("or_else joins heterogeneous expected branches", "[or_else][expected][
   }
 }
 
+TEST_CASE("or_else joins a payload-free success", "[or_else][expected][copack]")
+{
+  // No default constructor: recovery must construct pack<>.
+  struct Value final {
+    int n;
+    constexpr explicit Value(int i) noexcept : n(i) {}
+    bool operator==(Value const &) const = default;
+  };
+  struct E0 final {
+    bool operator==(E0 const &) const = default;
+  };
+  struct E1 final {
+    bool operator==(E1 const &) const = default;
+  };
+  struct E2 final {
+    bool operator==(E2 const &) const = default;
+  };
+  constexpr auto which = fn::overload{[](Value const &v) { return v.n; }, [] { return -1; },
+                                      [](int i) { return 100 + i; }, [](fn::pack<>) { return -2; }};
+  constexpr auto canP = [](auto &&v, auto &&fn) { return requires { FWD(v) | fn::or_else(FWD(fn)); }; };
+
+  SECTION("plain error")
+  {
+    using In = fn::expected<fn::copack<Value>, E1>;
+    using Out = fn::expected<fn::copack_for<Value, fn::pack<>>, E1>;
+    constexpr auto fnR = [](E1) -> fn::expected<void, E1> { return {}; };
+    constexpr auto fnF = [](E1) -> fn::expected<void, E2> { return ::fn::unexpected<E2>{E2{}}; };
+    constexpr auto fnX = [](E1) -> fn::expected<void, E1> { throw 0; };
+
+    In err{fn::unexpect, E1{}};
+    static_assert(std::is_same_v<decltype(err.or_else(fnR)), Out>);
+    static_assert(std::is_same_v<decltype(err | fn::or_else(fnR)), Out>);
+    static_assert(std::is_same_v<decltype(err.or_else(fnF)), fn::expected<fn::copack_for<Value, fn::pack<>>, E2>>);
+
+    CHECK(err.or_else(fnR).value().apply(which) == -1);
+    CHECK(std::as_const(err).or_else(fnR).value().apply(which) == -1);
+    CHECK(std::move(std::as_const(err)).or_else(fnR).value().apply(which) == -1);
+    CHECK((err | fn::or_else(fnR)).value().apply(which) == -1);
+    CHECK(err.or_else(fnF).error() == E2{});
+    CHECK((err | fn::or_else(fnF)).error() == E2{});
+    CHECK(std::move(err).or_else(fnR).value().apply(which) == -1);
+
+    In val{fn::copack<Value>{Value{7}}};
+    CHECK(val.or_else(fnX).value().apply(which) == 7);
+    CHECK(std::as_const(val).or_else(fnX).value().apply(which) == 7);
+    CHECK(std::move(std::as_const(val)).or_else(fnX).value().apply(which) == 7);
+    CHECK((val | fn::or_else(fnX)).value().apply(which) == 7);
+    CHECK(std::move(val).or_else(fnX).value().apply(which) == 7);
+
+    constexpr In cerr{fn::unexpect, E1{}};
+    constexpr In cval{fn::copack<Value>{Value{7}}};
+    static_assert(cerr.or_else(fnR).value().apply(which) == -1);
+    static_assert((cerr | fn::or_else(fnR)).value().apply(which) == -1);
+    static_assert(cerr.or_else(fnF).error() == E2{});
+    static_assert(cval.or_else(fnR).value().apply(which) == 7);
+
+    using InP = fn::expected<Value, E1>;
+    static_assert(not canP(InP{Value{1}}, fnR));
+    static_assert(not fn::applicable_or_else<decltype(fnR), InP>);
+    static_assert(fn::applicable_or_else<decltype(fnR), In>);
+  }
+
+  SECTION("coproduct error, branches mixing payload-free and valued recovery")
+  {
+    using Ec = fn::copack_for<E1, E2>;
+    using In = fn::expected<fn::copack<Value>, Ec>;
+    using Out = fn::expected<fn::copack_for<Value, fn::pack<>, int>, fn::copack_for<E0, E2>>;
+    constexpr auto fnR
+        = fn::overload{[](E1) -> fn::expected<void, E0> { return {}; }, [](E2) -> fn::expected<int, E2> { return 3; }};
+    constexpr auto fnF = fn::overload{[](E1) -> fn::expected<void, E0> { return ::fn::unexpected<E0>{E0{}}; },
+                                      [](E2) -> fn::expected<int, E2> { return 3; }};
+
+    In e1{fn::unexpect, Ec{E1{}}};
+    static_assert(std::is_same_v<decltype(e1.or_else(fnR)), Out>);
+    static_assert(std::is_same_v<decltype(e1 | fn::or_else(fnR)), Out>);
+    CHECK(e1.or_else(fnR).value().apply(which) == -1);
+    CHECK(std::as_const(e1).or_else(fnR).value().apply(which) == -1);
+    CHECK(std::move(std::as_const(e1)).or_else(fnR).value().apply(which) == -1);
+    CHECK((e1 | fn::or_else(fnR)).value().apply(which) == -1);
+    CHECK(e1.or_else(fnF).error() == fn::copack_for<E0, E2>{E0{}});
+    CHECK(std::move(e1).or_else(fnR).value().apply(which) == -1);
+
+    In e2{fn::unexpect, Ec{E2{}}};
+    CHECK(e2.or_else(fnR).value().apply(which) == 103);
+    In val{fn::copack<Value>{Value{7}}};
+    CHECK(val.or_else(fnR).value().apply(which) == 7);
+    CHECK((std::move(val) | fn::or_else(fnR)).value().apply(which) == 7);
+
+    constexpr In c1{fn::unexpect, Ec{E1{}}};
+    constexpr In c2{fn::unexpect, Ec{E2{}}};
+    constexpr In cval{fn::copack<Value>{Value{7}}};
+    static_assert(c1.or_else(fnR).value().apply(which) == -1);
+    static_assert(c1.or_else(fnF).error() == fn::copack_for<E0, E2>{E0{}});
+    static_assert(c2.or_else(fnR).value().apply(which) == 103);
+    static_assert(cval.or_else(fnR).value().apply(which) == 7);
+
+    constexpr auto fnI = fn::overload{[](E1) -> fn::expected<void, fn::copack<>> { return {}; },
+                                      [](E2) -> fn::expected<int, E2> { return 3; }};
+    using OutI = fn::expected<fn::copack_for<Value, fn::pack<>, int>, fn::copack<E2>>;
+    In i1{fn::unexpect, Ec{E1{}}};
+    static_assert(std::is_same_v<decltype(i1.or_else(fnI)), OutI>);
+    static_assert(std::is_same_v<decltype(i1 | fn::or_else(fnI)), OutI>);
+    CHECK(i1.or_else(fnI).value().apply(which) == -1);
+    CHECK((i1 | fn::or_else(fnI)).value().apply(which) == -1);
+    static_assert(c1.or_else(fnI).value().apply(which) == -1);
+  }
+
+  SECTION("coproduct error, convergent payload-free branches")
+  {
+    using Ec = fn::copack_for<E1, E2>;
+    using In = fn::expected<fn::copack<Value>, Ec>;
+    constexpr auto fnR = fn::overload{[](E1) -> fn::expected<void, E0> { return {}; },
+                                      [](E2) -> fn::expected<void, E0> { return ::fn::unexpected<E0>{E0{}}; }};
+    In e1{fn::unexpect, Ec{E1{}}};
+    static_assert(std::is_same_v<decltype(e1.or_else(fnR)), fn::expected<fn::copack_for<Value, fn::pack<>>, E0>>);
+    CHECK(e1.or_else(fnR).value().apply(which) == -1);
+    CHECK((In{fn::unexpect, Ec{E2{}}} | fn::or_else(fnR)).error() == E0{});
+    CHECK(In{fn::copack<Value>{Value{7}}}.or_else(fnR).value().apply(which) == 7);
+
+    constexpr In c1{fn::unexpect, Ec{E1{}}};
+    static_assert(c1.or_else(fnR).value().apply(which) == -1);
+  }
+
+  SECTION("an existing pack<> alternative absorbs it")
+  {
+    using In = fn::expected<fn::copack_for<Value, fn::pack<>>, E1>;
+    constexpr auto fnR = [](E1) -> fn::expected<void, E1> { return {}; };
+    In err{fn::unexpect, E1{}};
+    static_assert(std::is_same_v<decltype(err.or_else(fnR)), In>);
+    CHECK(err.or_else(fnR).value().apply(which) == -1);
+    CHECK(In{Value{7}}.or_else(fnR).value().apply(which) == 7);
+    constexpr In cerr{fn::unexpect, E1{}};
+    static_assert(cerr.or_else(fnR).value().apply(which) == -1);
+  }
+
+  SECTION("the empty value grade gains pack<> alone")
+  {
+    using In = fn::expected<fn::copack<>, E1>;
+    constexpr auto fnR = [](E1) -> fn::expected<void, E1> { return {}; };
+    In err{fn::unexpect, E1{}};
+    static_assert(std::is_same_v<decltype(err.or_else(fnR)), fn::expected<fn::copack<fn::pack<>>, E1>>);
+    CHECK(err.or_else(fnR).value().apply(which) == -1);
+    CHECK((err | fn::or_else(fnR)).value().apply(which) == -1);
+    constexpr In cerr{fn::unexpect, E1{}};
+    static_assert(cerr.or_else(fnR).value().apply(which) == -1);
+  }
+
+  SECTION("all-void recovery keeps void")
+  {
+    using In = fn::expected<void, E1>;
+    constexpr auto fnR = [](E1) -> fn::expected<void, E2> { return {}; };
+    static_assert(std::is_same_v<decltype(In{}.or_else(fnR)), fn::expected<void, E2>>);
+    static_assert(std::is_same_v<decltype(In{} | fn::or_else(fnR)), fn::expected<void, E2>>);
+    CHECK(In{fn::unexpect, E1{}}.or_else(fnR).has_value());
+
+    using Ec = fn::copack_for<E1, E2>;
+    using InC = fn::expected<void, Ec>;
+    constexpr auto fnC = fn::overload{[](E1) -> fn::expected<void, E0> { return {}; },
+                                      [](E2) -> fn::expected<void, E2> { return ::fn::unexpected<E2>{E2{}}; }};
+    static_assert(std::is_same_v<decltype(InC{}.or_else(fnC)), fn::expected<void, fn::copack_for<E0, E2>>>);
+    CHECK(InC{}.or_else(fnC).has_value());
+    CHECK(InC{fn::unexpect, Ec{E1{}}}.or_else(fnC).has_value());
+    CHECK(InC{fn::unexpect, Ec{E2{}}}.or_else(fnC).error() == fn::copack_for<E0, E2>{E2{}});
+    constexpr InC c2{fn::unexpect, Ec{E2{}}};
+    static_assert(c2.or_else(fnC).error() == fn::copack_for<E0, E2>{E2{}});
+  }
+
+  SECTION("a void value lifts into copack<pack<>>")
+  {
+    using In = fn::expected<void, E1>;
+    using Out = fn::expected<fn::copack<fn::pack<>>, E1>;
+    constexpr auto fnL = [](E1) { return Out{fn::pack<>{}}; };
+    constexpr auto fnF = [](E1) { return fn::expected<fn::copack<fn::pack<>>, E2>{fn::unexpect, E2{}}; };
+
+    In ok{};
+    static_assert(std::is_same_v<decltype(ok.or_else(fnL)), Out>);
+    static_assert(std::is_same_v<decltype(ok | fn::or_else(fnL)), Out>);
+    CHECK(ok.or_else(fnL).value().apply(which) == -1);
+    CHECK(std::as_const(ok).or_else(fnL).value().apply(which) == -1);
+    CHECK(std::move(std::as_const(ok)).or_else(fnL).value().apply(which) == -1);
+    CHECK((ok | fn::or_else(fnL)).value().apply(which) == -1);
+    CHECK(std::move(ok).or_else(fnL).value().apply(which) == -1);
+    In err{fn::unexpect, E1{}};
+    CHECK(err.or_else(fnL).value().apply(which) == -1);
+    CHECK(err.or_else(fnF).error() == E2{});
+    CHECK((err | fn::or_else(fnF)).error() == E2{});
+
+    using Ec = fn::copack_for<E1, E2>;
+    using InC = fn::expected<void, Ec>;
+    constexpr auto fnM = fn::overload{[](E1) -> fn::expected<void, E0> { return {}; },
+                                      [](E2) { return fn::expected<fn::copack<fn::pack<>>, E2>{fn::unexpect, E2{}}; }};
+    static_assert(
+        std::is_same_v<decltype(InC{}.or_else(fnM)), fn::expected<fn::copack<fn::pack<>>, fn::copack_for<E0, E2>>>);
+    InC okc{}; // Mutable for runtime coverage.
+    CHECK(okc.or_else(fnM).value().apply(which) == -1);
+    CHECK(InC{fn::unexpect, Ec{E1{}}}.or_else(fnM).value().apply(which) == -1);
+    CHECK((InC{fn::unexpect, Ec{E2{}}} | fn::or_else(fnM)).error() == fn::copack_for<E0, E2>{E2{}});
+
+    constexpr In cok{};
+    constexpr In cerr{fn::unexpect, E1{}};
+    constexpr InC cc1{fn::unexpect, Ec{E1{}}};
+    static_assert(cok.or_else(fnL).value().apply(which) == -1);
+    static_assert(cerr.or_else(fnL).value().apply(which) == -1);
+    static_assert(cerr.or_else(fnF).error() == E2{});
+    static_assert(cc1.or_else(fnM).value().apply(which) == -1);
+
+    static_assert(canP(In{}, fnL));
+    static_assert(not canP(In{}, [](E1) { return fn::expected<fn::pack<>, E1>{fn::pack<>{}}; }));
+    static_assert(not canP(In{}, [](E1) { return fn::expected<fn::copack<Value>, E1>{Value{1}}; }));
+    static_assert(not canP(In{}, [](E1) { return fn::expected<int, E1>{1}; }));
+  }
+
+  SECTION("move-only value")
+  {
+    struct MoveOnly final {
+      int n;
+      constexpr explicit MoveOnly(int i) noexcept : n(i) {}
+      constexpr MoveOnly(MoveOnly &&) noexcept = default;
+      MoveOnly(MoveOnly const &) = delete;
+    };
+    using In = fn::expected<fn::copack<MoveOnly>, E1>;
+    using Out = fn::expected<fn::copack_for<MoveOnly, fn::pack<>>, E1>;
+    constexpr auto fnR = [](E1) -> fn::expected<void, E1> { return {}; };
+    constexpr auto fnX = [](E1) -> fn::expected<void, E1> { throw 0; };
+    constexpr auto get = fn::overload{[](MoveOnly const &m) { return m.n; }, [] { return -1; }};
+    constexpr auto canO = [](auto &&v, auto &&fn) { return requires { FWD(v).or_else(FWD(fn)); }; };
+
+    In val{fn::copack<MoveOnly>{MoveOnly{7}}};
+    static_assert(std::is_same_v<decltype(std::move(val).or_else(fnR)), Out>);
+    static_assert(std::is_same_v<decltype(std::move(val) | fn::or_else(fnR)), Out>);
+    static_assert(not canO(val, fnR));
+    static_assert(canO(std::move(val), fnR));
+    CHECK(std::move(val).or_else(fnX).value().apply(get) == 7);
+    In val2{fn::copack<MoveOnly>{MoveOnly{8}}};
+    CHECK((std::move(val2) | fn::or_else(fnX)).value().apply(get) == 8);
+    In err{fn::unexpect, E1{}};
+    CHECK(std::move(err).or_else(fnR).value().apply(get) == -1);
+    In err2{fn::unexpect, E1{}};
+    CHECK((std::move(err2) | fn::or_else(fnR)).value().apply(get) == -1);
+
+    static_assert([] {
+      constexpr auto fnRc = [](E1) -> fn::expected<void, E1> { return {}; };
+      constexpr auto getc = fn::overload{[](MoveOnly const &m) { return m.n; }, [] { return -1; }};
+      In v{fn::copack<MoveOnly>{MoveOnly{7}}};
+      In e{fn::unexpect, E1{}};
+      return std::move(v).or_else(fnRc).value().apply(getc) == 7
+             && std::move(e).or_else(fnRc).value().apply(getc) == -1;
+    }());
+
+    using Ec = fn::copack_for<E1, E2>;
+    using InC = fn::expected<fn::copack<Value>, Ec>;
+    constexpr auto fnK = fn::overload{
+        [](E1) noexcept -> fn::expected<void, MoveOnly> const { return fn::unexpected<MoveOnly>{MoveOnly{4}}; },
+        [](E2) noexcept -> fn::expected<int, MoveOnly> { return 3; }};
+    InC k1{fn::unexpect, Ec{E1{}}};
+    static_assert(
+        std::is_same_v<decltype(k1.or_else(fnK)), fn::expected<fn::copack_for<Value, fn::pack<>, int>, MoveOnly>>);
+    static_assert(noexcept(k1.or_else(fnK)));
+    CHECK(k1.or_else(fnK).error().n == 4);
+    CHECK((k1 | fn::or_else(fnK)).error().n == 4);
+    constexpr InC ck1{fn::unexpect, Ec{E1{}}};
+    static_assert(ck1.or_else(fnK).error().n == 4);
+  }
+
+  SECTION("noexcept from the reachable constructions")
+  {
+    struct ThrowingMove final {
+      ThrowingMove() = default;
+      ThrowingMove(ThrowingMove &&) noexcept(false) {}
+      bool operator==(ThrowingMove const &) const = default;
+    };
+    using In = fn::expected<fn::copack<Value>, E1>;
+    constexpr auto fnN = [](E1) noexcept -> fn::expected<void, E1> { return {}; };
+    constexpr auto fnT = [](E1) noexcept(false) -> fn::expected<void, E1> { return {}; };
+    static_assert(noexcept(std::declval<In &&>().or_else(fnN)));
+    static_assert(not noexcept(std::declval<In &&>().or_else(fnT)));
+    static_assert(noexcept(std::declval<In &&>() | fn::or_else(fnN)));
+    static_assert(not noexcept(std::declval<In &&>() | fn::or_else(fnT)));
+    static_assert(not noexcept(std::declval<fn::expected<fn::copack<ThrowingMove>, E1> &&>().or_else(fnN)));
+    constexpr auto fnTE = [](E1) noexcept -> fn::expected<void, ThrowingMove> { return {}; };
+    static_assert(not noexcept(std::declval<In &&>().or_else(fnTE)));
+
+    using InC = fn::expected<fn::copack<Value>, fn::copack_for<E1, E2>>;
+    constexpr auto fnC = fn::overload{[](E1) noexcept -> fn::expected<void, E0> { return {}; },
+                                      [](E2) noexcept -> fn::expected<int, E2> { return 3; }};
+    static_assert(noexcept(std::declval<InC &&>().or_else(fnC)));
+    constexpr auto fnCT = fn::overload{[](E1) noexcept -> fn::expected<void, ThrowingMove> { return {}; },
+                                       [](E2) noexcept -> fn::expected<int, E2> { return 3; }};
+    static_assert(not noexcept(std::declval<InC &&>().or_else(fnCT)));
+    constexpr auto fnCI = fn::overload{[](E1) noexcept -> fn::expected<void, fn::copack<>> { return {}; },
+                                       [](E2) noexcept -> fn::expected<int, E2> { return 3; }};
+    static_assert(noexcept(std::declval<InC &&>().or_else(fnCI)));
+
+    using V0 = fn::expected<void, E1>;
+    constexpr auto fnL = [](E1) noexcept { return fn::expected<fn::copack<fn::pack<>>, E1>{fn::pack<>{}}; };
+    constexpr auto fnLT = [](E1) noexcept(false) { return fn::expected<fn::copack<fn::pack<>>, E1>{fn::pack<>{}}; };
+    static_assert(noexcept(std::declval<V0 &>().or_else(fnL)));
+    static_assert(not noexcept(std::declval<V0 &>().or_else(fnLT)));
+    SUCCEED();
+  }
+
+  SECTION("exceptions")
+  {
+    struct Boom final {
+      int fuse;
+      constexpr explicit Boom(int f) noexcept : fuse(f) {}
+      constexpr Boom(Boom &&o) noexcept(false) : fuse(o.fuse - 1)
+      {
+        if (fuse == 0)
+          throw 0;
+      }
+    };
+    using Ec = fn::copack_for<E1, E2>;
+    using In = fn::expected<fn::copack<Value>, Ec>;
+    // fuse 2: the branch builds its error, and entering it into the joined error throws
+    constexpr auto fnArmed = fn::overload{[](E1) { return fn::expected<void, Boom>{fn::unexpect, Boom{2}}; },
+                                          [](E2) -> fn::expected<int, E0> { return 3; }};
+    In self{fn::unexpect, Ec{E1{}}};
+    CHECK_THROWS_AS(self.or_else(fnArmed), int);
+    CHECK(self.error() == Ec{E1{}});
+
+    constexpr auto fnSafe = fn::overload{[](E1) { return fn::expected<void, Boom>{fn::unexpect, Boom{99}}; },
+                                         [](E2) -> fn::expected<int, E0> { return 3; }};
+    CHECK(self.or_else(fnSafe).error().has_value(std::in_place_type<Boom>));
+    static_assert([] {
+      constexpr auto fnS = fn::overload{[](E1) { return fn::expected<void, Boom>{fn::unexpect, Boom{99}}; },
+                                        [](E2) -> fn::expected<int, E0> { return 3; }};
+      In s{fn::unexpect, Ec{E1{}}};
+      return s.or_else(fnS).error().has_value(std::in_place_type<Boom>);
+    }());
+  }
+}
+
 TEST_CASE("or_else tuple-like error payload", "[or_else][expected][tuple]")
 {
   // a lone tuple-like error exposes its elements to the recovery callback, member and functor alike
@@ -750,6 +1083,77 @@ TEST_CASE("or_else tuple-like error payload", "[or_else][expected][tuple]")
     static_assert(fn::expected<bool, TE>{fn::unexpect, TE{20, 22}}.or_else(fnR).value());
     static_assert((fn::expected<bool, TE>{fn::unexpect, TE{20, 22}} | fn::or_else(fnR)).value());
     SUCCEED();
+  }
+
+  SECTION("a coproduct alternative's elements reach the branch, past a whole-tuple overload")
+  {
+    struct E2 final {};
+    using T1 = std::tuple<int>;
+    using In = fn::expected<fn::copack<int>, fn::copack_for<T1, E2>>;
+    constexpr auto fnV = fn::overload{[](T1) { return 91; }, [](int i) noexcept -> fn::expected<int, int> { return i; },
+                                      [](E2) noexcept -> fn::expected<long, int> { return 2L; }};
+    constexpr auto fnP = fn::overload{[](T1) { return 91; },
+                                      [](int i) noexcept -> fn::expected<void, int> {
+                                        if (i == 3)
+                                          return {};
+                                        return fn::unexpected<int>{i};
+                                      },
+                                      [](E2) noexcept -> fn::expected<long, int> { return 2L; }};
+    constexpr auto which = fn::overload{[](int i) { return i; }, [](long) { return -2; }, [] { return -1; }};
+    using OutP = fn::expected<fn::copack_for<fn::pack<>, int, long>, int>;
+
+    In e3{fn::unexpect, T1{3}};
+    In e4{fn::unexpect, T1{4}};
+    static_assert(std::is_same_v<decltype(e3.or_else(fnP)), OutP>);
+    static_assert(std::is_same_v<decltype(e3 | fn::or_else(fnP)), OutP>);
+    CHECK(e3.or_else(fnV).value().apply(which) == 3);
+    CHECK((e3 | fn::or_else(fnV)).value().apply(which) == 3);
+    CHECK(e3.or_else(fnP).value().apply(which) == -1);
+    CHECK((e3 | fn::or_else(fnP)).value().apply(which) == -1);
+    CHECK(e4.or_else(fnP).error() == 4);
+
+    constexpr In c3{fn::unexpect, T1{3}};
+    constexpr In c4{fn::unexpect, T1{4}};
+    static_assert(c3.or_else(fnV).value().apply(which) == 3);
+    static_assert(c3.or_else(fnP).value().apply(which) == -1);
+    static_assert((c3 | fn::or_else(fnP)).value().apply(which) == -1);
+    static_assert(c4.or_else(fnP).error() == 4);
+  }
+
+  SECTION("the overload the join is typed from is the one invoked")
+  {
+    struct Pinned final {
+      int n;
+      constexpr explicit Pinned(int i) noexcept : n(i) {}
+      constexpr explicit Pinned(Pinned const &o) noexcept : n(o.n) {}
+      constexpr Pinned(Pinned &&) noexcept = default;
+    };
+    struct E2 final {};
+    using T1 = std::tuple<int>;
+    using In = fn::expected<fn::copack<int>, fn::copack_for<T1, E2>>;
+    constexpr auto run = [] {
+      fn::expected<Pinned, int> recovery{std::in_place, 3};
+      int elements = 0;
+      int whole = 0;
+      auto const fnR = fn::overload{[&](int) noexcept -> fn::expected<Pinned, int> & {
+                                      ++elements;
+                                      return recovery;
+                                    },
+                                    [&](T1) noexcept -> fn::expected<long, int> {
+                                      ++whole;
+                                      return 91L;
+                                    },
+                                    [](E2) noexcept -> fn::expected<long, int> { return 2L; }};
+      auto const which
+          = fn::overload{[](Pinned const &p) { return p.n; }, [](int) { return -1; }, [](long) { return -2; }};
+      In e{fn::unexpect, T1{3}};
+      static_assert(noexcept(e.or_else(fnR)));
+      static_assert(noexcept(e | fn::or_else(fnR)));
+      return e.or_else(fnR).value().apply(which) == 3 && (e | fn::or_else(fnR)).value().apply(which) == 3
+             && elements == 2 && whole == 0;
+    };
+    CHECK(run());
+    static_assert(run());
   }
 }
 
@@ -886,6 +1290,71 @@ TEST_CASE("or_else across expected and optional", "[or_else][expected][optional]
     CHECK((InG{fn::copack<A>{A{}}} | fn::or_else(fnH)).value() == fn::copack_for<A, int>{A{}});
   }
 
+  SECTION("optional to expected: a payload-free recovery joins the grade as pack<>")
+  {
+    using In = fn::optional<fn::copack<A>>;
+    using Value = fn::copack_for<A, fn::pack<>>;
+    constexpr auto fnR = []() { return fn::expected<void, E1>{}; };
+    constexpr auto fnF = []() { return fn::expected<void, E1>{fn::unexpect, E1{}}; };
+    constexpr auto fnX = []() -> fn::expected<void, E1> { throw 0; };
+    static_assert(std::is_same_v<decltype(In{} | fn::or_else(fnR)), fn::expected<Value, E1>>);
+    In mut{};
+    CHECK((mut | fn::or_else(fnR)).value() == Value{fn::pack<>{}});
+    CHECK((mut | fn::or_else(fnF)).error() == E1{});
+    In vl{fn::copack<A>{A{}}};
+    CHECK((vl | fn::or_else(fnX)).value() == Value{A{}});
+    CHECK((std::as_const(vl) | fn::or_else(fnX)).value() == Value{A{}});
+    CHECK((std::move(std::as_const(vl)) | fn::or_else(fnX)).value() == Value{A{}});
+    CHECK((std::move(vl) | fn::or_else(fnX)).value() == Value{A{}});
+    constexpr In cempty{};
+    constexpr In cv{fn::copack<A>{A{}}};
+    static_assert((cempty | fn::or_else(fnR)).value() == Value{fn::pack<>{}});
+    static_assert((cempty | fn::or_else(fnF)).error() == E1{});
+    static_assert((cv | fn::or_else(fnR)).value() == Value{A{}});
+
+    static_assert(noexcept(std::declval<In &>() | fn::or_else([]() noexcept { return fn::expected<void, E1>{}; })));
+    static_assert(not noexcept(std::declval<In &>() | fn::or_else(fnR)));
+    static_assert(can(In{}, fnR));
+    static_assert(not can(fn::optional<A>{}, fnR));
+  }
+
+  SECTION("expected to optional: a void value lifts into copack<pack<>>")
+  {
+    using In = fn::expected<void, E1>;
+    using Out = fn::optional<fn::copack<fn::pack<>>>;
+    constexpr auto fnO = [](E1) { return Out{fn::pack<>{}}; };
+    constexpr auto fnN = [](E1) { return Out{}; };
+    static_assert(std::is_same_v<decltype(In{} | fn::or_else(fnO)), Out>);
+    In ok{};
+    CHECK((ok | fn::or_else(fnN)).value() == Out::value_type{fn::pack<>{}});
+    CHECK((std::as_const(ok) | fn::or_else(fnN)).value() == Out::value_type{fn::pack<>{}});
+    CHECK((std::move(std::as_const(ok)) | fn::or_else(fnN)).value() == Out::value_type{fn::pack<>{}});
+    CHECK((std::move(ok) | fn::or_else(fnN)).value() == Out::value_type{fn::pack<>{}});
+    In err{fn::unexpect, E1{}};
+    CHECK((err | fn::or_else(fnO)).value() == Out::value_type{fn::pack<>{}});
+    CHECK(not(err | fn::or_else(fnN)).has_value());
+
+    using Ec = fn::copack_for<E1, E2>;
+    using InC = fn::expected<void, Ec>;
+    constexpr auto fnB = fn::overload{[](E1) { return Out{fn::pack<>{}}; }, [](E2) { return Out{}; }};
+    CHECK((InC{} | fn::or_else(fnB)).value() == Out::value_type{fn::pack<>{}});
+    CHECK((InC{fn::unexpect, Ec{E1{}}} | fn::or_else(fnB)).value() == Out::value_type{fn::pack<>{}});
+    CHECK(not(InC{fn::unexpect, Ec{E2{}}} | fn::or_else(fnB)).has_value());
+
+    constexpr In cok{};
+    constexpr In cerr{fn::unexpect, E1{}};
+    constexpr InC cc2{fn::unexpect, Ec{E2{}}};
+    static_assert((cok | fn::or_else(fnN)).value() == Out::value_type{fn::pack<>{}});
+    static_assert((cerr | fn::or_else(fnO)).value() == Out::value_type{fn::pack<>{}});
+    static_assert(not(cc2 | fn::or_else(fnB)).has_value());
+
+    static_assert(noexcept(std::declval<In &>() | fn::or_else([](E1) noexcept { return Out{}; })));
+    static_assert(not noexcept(std::declval<In &>() | fn::or_else(fnN)));
+    static_assert(can(In{}, fnO));
+    static_assert(not can(In{}, [](E1) { return fn::optional<int>{}; }));
+    static_assert(not can(In{}, [](E1) { return fn::optional<fn::pack<>>{}; }));
+  }
+
   SECTION("refusals answer, and their converses hold")
   {
     static_assert(can(fn::expected<int, E1>{1}, [](E1) { return fn::optional<int>{}; }));    // the converse
@@ -936,5 +1405,96 @@ TEST_CASE("or_else across expected and optional", "[or_else][expected][optional]
       return (std::move(o) | fn::or_else([]() { return fn::expected<Boom, E1>{fn::unexpect, E1{}}; })).value().fuse
              == 1;
     }());
+  }
+
+  SECTION("optional to expected: a recovery returned by reference is copied, and the copy weighs in")
+  {
+    struct Fragile final {
+      bool armed;
+      constexpr explicit Fragile(bool a) noexcept : armed(a) {}
+      constexpr Fragile(Fragile &&) noexcept = default;
+      constexpr Fragile(Fragile const &o) noexcept(false) : armed(o.armed)
+      {
+        if (armed)
+          throw 0;
+      }
+      bool operator==(Fragile const &) const = default;
+    };
+    using In = fn::optional<fn::copack<A>>;
+    fn::expected<void, Fragile> rv{fn::unexpect, Fragile{true}};
+    fn::expected<int, Fragile> ri{fn::unexpect, Fragile{true}};
+    auto const fnV = [&]() noexcept -> fn::expected<void, Fragile> & { return rv; };
+    auto const fnI = [&]() noexcept -> fn::expected<int, Fragile> & { return ri; };
+    static_assert(not noexcept(std::declval<In &>() | fn::or_else(fnV)));
+    static_assert(not noexcept(std::declval<In &>() | fn::or_else(fnI)));
+    In empty{};
+    CHECK_THROWS_AS((void)(empty | fn::or_else(fnV)), int);
+    CHECK_THROWS_AS((void)(empty | fn::or_else(fnI)), int);
+    using Same = fn::expected<fn::copack<A>, Fragile>;
+    Same rs{fn::unexpect, Fragile{true}};
+    auto const fnS = [&]() noexcept -> Same & { return rs; };
+    static_assert(std::is_same_v<decltype(empty | fn::or_else(fnS)), Same>);
+    static_assert(not noexcept(std::declval<In &>() | fn::or_else(fnS)));
+    CHECK_THROWS_AS((void)(empty | fn::or_else(fnS)), int);
+
+    fn::expected<void, Fragile> sv{fn::unexpect, Fragile{false}};
+    fn::expected<int, Fragile> si{5};
+    Same ss{fn::unexpect, Fragile{false}};
+    auto const fnSV = [&]() noexcept -> fn::expected<void, Fragile> & { return sv; };
+    auto const fnSI = [&]() noexcept -> fn::expected<int, Fragile> & { return si; };
+    auto const fnSS = [&]() noexcept -> Same & { return ss; };
+    CHECK((empty | fn::or_else(fnSV)).error() == Fragile{false});
+    CHECK((empty | fn::or_else(fnSI)).value() == fn::copack_for<A, int>{5});
+    CHECK((empty | fn::or_else(fnSS)).error() == Fragile{false});
+    static_assert([] {
+      fn::expected<void, Fragile> r{fn::unexpect, Fragile{false}};
+      In e{};
+      return (e | fn::or_else([&]() noexcept -> fn::expected<void, Fragile> & { return r; })).error() == Fragile{false};
+    }());
+
+    fn::expected<void, E1> nv{};
+    fn::expected<int, E1> ni{1};
+    fn::expected<fn::copack<A>, E1> ns{fn::unexpect, E1{}};
+    static_assert(noexcept(std::declval<In &>()
+                           | fn::or_else([&]() noexcept -> fn::expected<fn::copack<A>, E1> & { return ns; })));
+    static_assert(
+        noexcept(std::declval<In &>() | fn::or_else([&]() noexcept -> fn::expected<void, E1> & { return nv; })));
+    static_assert(
+        noexcept(std::declval<In &>() | fn::or_else([&]() noexcept -> fn::expected<int, E1> & { return ni; })));
+    // Copy elision bypasses the throwing move.
+    struct MoveMayThrow final {
+      MoveMayThrow() = default;
+      MoveMayThrow(MoveMayThrow &&) noexcept(false) {}
+    };
+    static_assert(noexcept(std::declval<In &>() | fn::or_else([]() noexcept {
+                             return fn::expected<fn::copack<A>, MoveMayThrow>{fn::unexpect};
+                           })));
+  }
+
+  SECTION("optional to expected: a const prvalue result is moved from")
+  {
+    struct MoveOnly final {
+      int n;
+      constexpr explicit MoveOnly(int i) noexcept : n(i) {}
+      constexpr MoveOnly(MoveOnly &&) noexcept = default;
+      MoveOnly(MoveOnly const &) = delete;
+    };
+    using In = fn::optional<fn::copack<A>>;
+    constexpr auto fnV
+        = []() noexcept -> fn::expected<MoveOnly, E1> const { return fn::expected<MoveOnly, E1>{std::in_place, 7}; };
+    constexpr auto fnE
+        = []() noexcept -> fn::expected<void, MoveOnly> const { return fn::unexpected<MoveOnly>{MoveOnly{8}}; };
+    constexpr auto get = fn::overload{[](A const &) { return -1; }, [](MoveOnly const &m) { return m.n; }};
+    static_assert(std::is_same_v<decltype(In{} | fn::or_else(fnV)), fn::expected<fn::copack_for<A, MoveOnly>, E1>>);
+    static_assert(
+        std::is_same_v<decltype(In{} | fn::or_else(fnE)), fn::expected<fn::copack_for<A, fn::pack<>>, MoveOnly>>);
+    static_assert(noexcept(std::declval<In &>() | fn::or_else(fnV)));
+    static_assert(noexcept(std::declval<In &>() | fn::or_else(fnE)));
+    In empty{};
+    CHECK((empty | fn::or_else(fnV)).value().apply(get) == 7);
+    CHECK((empty | fn::or_else(fnE)).error().n == 8);
+    constexpr In cempty{};
+    static_assert((cempty | fn::or_else(fnV)).value().apply(get) == 7);
+    static_assert((cempty | fn::or_else(fnE)).error().n == 8);
   }
 }
