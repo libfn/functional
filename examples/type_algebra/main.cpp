@@ -1,3 +1,4 @@
+#include <fn/algebra.hpp>
 #include <fn/and_then.hpp>
 #include <fn/concepts.hpp>
 #include <fn/copack.hpp>

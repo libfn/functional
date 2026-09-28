@@ -111,6 +111,7 @@ set(TESTS_FN_SOURCES
     fn/detail/pack_impl.cpp
     fn/detail/traits.cpp
     fn/detail/variadic_union.cpp
+    fn/algebra.cpp
     fn/and_then.cpp
     fn/concepts.cpp
     fn/copack.cpp

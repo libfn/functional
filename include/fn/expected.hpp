@@ -10,6 +10,7 @@
 #include <pfn/expected.hpp>
 #include <pfn/utility.hpp>
 
+#include <fn/algebra.hpp>
 #include <fn/copack.hpp>
 #include <fn/detail/traits.hpp>
 #include <fn/fwd.hpp>

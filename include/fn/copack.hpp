@@ -11,6 +11,7 @@
 #include <fn/detail/traits.hpp>
 #include <fn/detail/variadic_union.hpp>
 #include <fn/functional.hpp>
+#include <fn/pack.hpp>
 #include <libfn_version.hpp>
 #include <pfn/utility.hpp>
 
@@ -162,7 +163,7 @@ template <typename To, typename Fn> struct _copack_injector final {
     using result = ::std::invoke_result_t<Fn, Args...>;
     if constexpr (::std::is_void_v<result>) {
       ::std::invoke(FWD(fn), FWD(args)...);
-      return To{_sum_element_t<result>{}}; // pack<>, spelled dependently: pack.hpp includes this header
+      return To{::fn::pack<>{}};
     } else
       return static_cast<To>(::std::invoke(FWD(fn), FWD(args)...));
   }
@@ -1136,8 +1137,7 @@ struct copack<Ts...> {
    *
    * The self-flattening map: the callable is dispatched exhaustively, and the branch results -
    * heterogeneous types allowed, a copack result dissolving into the set, a `void` one entering as
-   * `pack<>` - flatten, deduplicate and sort into the `copack_for` of them all. A `void` result
-   * needs `<fn/pack.hpp>`, which defines `pack`.
+   * `pack<>` - flatten, deduplicate and sort into the `copack_for` of them all.
    *
    * @param fn Callable applied on the active alternative; `fn::overload` fuses arms into one
    * @param args Additional arguments, appended after the alternative's content
