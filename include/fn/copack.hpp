@@ -12,6 +12,7 @@
 #include <fn/detail/variadic_union.hpp>
 #include <fn/functional.hpp>
 #include <fn/pack.hpp>
+#include <fn/traits.hpp>
 #include <libfn_version.hpp>
 #include <pfn/utility.hpp>
 
@@ -42,14 +43,6 @@ concept some_copack = detail::_some_copack<T>;
  */
 template <typename T>
 concept empty_copack = some_copack<T> && (::std::remove_cvref_t<T>::size == 0);
-
-/**
- * @brief Checks if a type is a `std::in_place_type_t` tag
- *
- * @tparam T Type to check, possibly cv-ref qualified
- */
-template <typename T>
-concept some_in_place_type = detail::_some_in_place_type<T>;
 
 namespace detail {
 template <typename T>

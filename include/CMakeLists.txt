@@ -108,7 +108,6 @@ set(INCLUDE_FN_HEADERS
     fn/detail/macro_begin.hpp
     fn/detail/macro_end.hpp
     fn/detail/meta.hpp
-    fn/detail/monadic.hpp
     fn/detail/pack_impl.hpp
     fn/detail/traits.hpp
     fn/detail/variadic_union.hpp
@@ -126,11 +125,11 @@ set(INCLUDE_FN_HEADERS
     fn/inspect_error.hpp
     fn/inspect.hpp
     fn/just.hpp
-    fn/monadic.hpp
     fn/optional.hpp
     fn/or_else.hpp
     fn/pack.hpp
     fn/recover.hpp
+    fn/traits.hpp
     fn/transform_error.hpp
     fn/transform.hpp
     fn/utility.hpp

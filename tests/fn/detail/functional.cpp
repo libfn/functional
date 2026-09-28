@@ -21,8 +21,6 @@ constexpr auto sum_two = [](int i, double d) { return i + d; };
 constexpr auto sum_three = [](int i, double d, char c) { return i + d + c; };
 } // namespace
 
-// Incomplete pack/copack operands must fail compilation; the suite cannot test this.
-
 TEST_CASE("_apply_result", "[functional][apply_result]")
 {
   using fn::detail::_apply_result;
