@@ -146,8 +146,6 @@ template <typename T, typename Fn, typename ErrArg>
   requires _some_copack<::std::remove_cvref_t<ErrArg>>
 struct _or_else_dispatch<T, Fn, ErrArg> : _copack_apply_result<_joining_recovery_tag<::fn::expected, T>, Fn, ErrArg> {};
 
-// Constraining the injector by result conversion would change overload selection.
-// Keep its invocability identical to the callback; check conversion separately.
 template <typename To, typename From>
 concept _void_success_into = _is_some_expected<From &> && ::std::is_void_v<typename From::value_type>
                              && (not ::std::is_void_v<typename To::value_type>);
@@ -168,6 +166,7 @@ struct _nothrow_expected_inject<To, Fn, Args...>
     : ::std::bool_constant<noexcept(static_cast<To>(::std::invoke(::std::declval<Fn>(), ::std::declval<Args>()...)))> {
 };
 
+// Constraining result conversion here would change callback overload selection.
 template <typename To, typename Fn> struct _expected_injector final {
   Fn fn;
 
@@ -620,8 +619,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       });
   }
 
-  // transform_error, error type is a copack (delegates to copack::transform). The callback is constrained
-  // here, in the immediate context, for the reason given on optional's copack-case _transform.
+  // Constrain the call here so invalid transforms fail in the immediate context.
   template <typename Self, typename Fn>
   static constexpr auto _transform_error(Self &&self, Fn &&fn) //
       noexcept(noexcept(_pfn_base::_error(FWD(self)).transform(FWD(fn)))
@@ -630,6 +628,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
                        T, ::fn::apply_const_lvalue_t<Self, typename _pfn_base::_value_t &&>>)) // extension
     requires some_copack<E> && (not empty_copack<E>)
              && ::fn::detail::_typelist_applicable<Fn, decltype(_pfn_base::_error(FWD(self)))>
+             && requires { _pfn_base::_error(FWD(self)).transform(FWD(fn)); }
              && (::std::is_void_v<T> || ::std::is_constructible_v<T, decltype(_pfn_base::_value(FWD(self)))>)
   {
     using new_error_type = decltype(_pfn_base::_error(FWD(self)).transform(FWD(fn)));
@@ -2254,6 +2253,32 @@ public:
   }
 
   /**
+   * @brief Lifts the value side into its singular copack: `expected<void, E>` becomes
+   *        `expected<copack<pack<>>, E>`
+   *
+   * @return The graded `expected`, relocating the error
+   */
+  constexpr auto
+  copack_value() const & noexcept(::std::is_nothrow_constructible_v<error_type, error_type const &>) // extension
+      -> expected<copack<pack<>>, error_type>
+  {
+    using type = expected<copack<pack<>>, error_type>;
+    if (this->has_value())
+      return type{::std::in_place, pack<>{}};
+    else
+      return type{::fn::unexpect, this->error()};
+  }
+  constexpr auto copack_value() && noexcept(::std::is_nothrow_constructible_v<error_type, error_type>) // extension
+      -> expected<copack<pack<>>, error_type>
+  {
+    using type = expected<copack<pack<>>, error_type>;
+    if (this->has_value())
+      return type{::std::in_place, pack<>{}};
+    else
+      return type{::fn::unexpect, ::std::move(*this).error()};
+  }
+
+  /**
    * @brief Lifts the error side into its singular copack: `expected<void, E>` becomes
    *        `expected<void, copack<E>>`
    *
@@ -2350,7 +2375,7 @@ constexpr bool operator==(expected<T, Err> const &x, T2 const &v) //
  * @param src The `expected` to lift
  * @return `src.copack_value()`
  */
-[[nodiscard]] constexpr auto copack_value(some_expected_non_void auto &&src) noexcept(noexcept(FWD(src).copack_value()))
+[[nodiscard]] constexpr auto copack_value(some_expected auto &&src) noexcept(noexcept(FWD(src).copack_value()))
     -> decltype(auto)
 {
   return FWD(src).copack_value();

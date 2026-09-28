@@ -2,6 +2,14 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `transform` over a copack maps a `void` result to `pack<>` — 27 September 2026
+
+`transform` over a copack represents `void` callback results as `pack<>`. Mixed `void` and `int` results yield `copack_for<pack<>, int>`; all-`void` results yield `copack<pack<>>`. This applies through `expected`, `optional` and `choice`, and to `transform_error` over a copack error. Plain error types still reject `void` results. Mutable operands can select a `void` overload where they previously fell back to a valued `const` overload.
+
+Results are converted before spliced arguments expire, fixing a dangling reference. The `noexcept` specification includes the selected overload's explicit result conversion.
+
+`expected<void, E>::copack_value()` lifts to `expected<copack<pack<>>, E>`.
+
 ## `and_then` joins `void` and valued branches through `pack<>` — 26 September 2026
 
 `and_then` accepts branches returning both `void`-valued and valued `expected` results. For example, `A -> expected<void, E>` and `B -> expected<int, E>` join as `expected<copack_for<pack<>, int>, E>`; this previously failed to compile. An all-`void` join stays `void`.

@@ -370,18 +370,65 @@ TEST_CASE("graded monad", "[expected][copack][graded][and_then][or_else][copack_
     static_assert(noexcept(fn::copack_value(s))); // the free function propagates what the member says
   }
 
-  SECTION("copack_value absent for void value")
+  SECTION("copack_value from void value")
   {
-    // by design: a void value cannot be copack-wrapped -- the void specialization has no
-    // copack_value member and the free fn::copack_value is constrained some_expected_non_void
-    // (include/fn/expected.hpp:1020); copack_error, by contrast, serves void (asserted above)
-    constexpr auto can_member_copack_value = [](auto &&e) { return requires { e.copack_value(); }; };
-    constexpr auto can_free_copack_value = [](auto &&e) { return requires { fn::copack_value(e); }; };
-    static_assert(not can_member_copack_value(fn::expected<void, Error>{}));
-    static_assert(not can_free_copack_value(fn::expected<void, Error>{}));
-    static_assert(can_member_copack_value(fn::expected<int, Error>{1}));
-    static_assert(can_free_copack_value(fn::expected<int, Error>{1}));
-    SUCCEED();
+    using T = fn::expected<void, Error>;
+    using Out = fn::expected<fn::copack<fn::pack<>>, Error>;
+    T s{};
+    static_assert(std::is_same_v<decltype(s.copack_value()), Out>);
+    static_assert(std::is_same_v<decltype(std::as_const(s).copack_value()), Out>);
+    static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).copack_value()), Out>);
+    static_assert(std::is_same_v<decltype(std::move(s).copack_value()), Out>);
+    static_assert(noexcept(s.copack_value()));
+    static_assert(noexcept(std::move(s).copack_value()));
+    constexpr auto which = fn::overload{[] { return 1; }, [](fn::pack<>) { return 2; }};
+    SECTION("value")
+    {
+      CHECK(s.copack_value().value().apply(which) == 1);
+      CHECK(std::as_const(s).copack_value().value().apply(which) == 1);
+      CHECK(std::move(std::as_const(s)).copack_value().value().apply(which) == 1);
+      CHECK(std::move(s).copack_value().value().apply(which) == 1);
+    }
+    SECTION("error")
+    {
+      T s{::fn::unexpect, Unknown};
+      CHECK(s.copack_value().error() == Unknown);
+      CHECK(std::as_const(s).copack_value().error() == Unknown);
+      CHECK(std::move(std::as_const(s)).copack_value().error() == Unknown);
+      CHECK(std::move(s).copack_value().error() == Unknown);
+    }
+    SECTION("the error's relocation weighs, and its exception propagates")
+    {
+      struct Throwing final {
+        int v;
+        Throwing(int i) : v(i) {}
+        Throwing(Throwing const &) { throw 1; }
+        Throwing(Throwing &&) { throw 2; }
+      };
+      static_assert(not noexcept(std::declval<fn::expected<void, Throwing> &>().copack_value()));
+      static_assert(not noexcept(std::declval<fn::expected<void, Throwing> &&>().copack_value()));
+      fn::expected<void, Throwing> t{::fn::unexpect, 5};
+      CHECK_THROWS_AS(t.copack_value(), int);
+      CHECK((not t.has_value() && t.error().v == 5));
+      CHECK_THROWS_AS(std::move(t).copack_value(), int);
+      CHECK((not t.has_value() && t.error().v == 5));
+    }
+
+    static_assert(std::is_same_v<decltype(fn::copack_value(s)), Out>);
+    static_assert(noexcept(fn::copack_value(s)));
+    static_assert([] {
+      constexpr auto w = fn::overload{[] { return 1; }, [](fn::pack<>) { return 2; }};
+      fn::expected<void, Error> ok{};
+      fn::expected<void, Error> const cok{};
+      fn::expected<void, Error> err{::fn::unexpect, FileNotFound};
+      fn::expected<void, Error> const cerr{::fn::unexpect, FileNotFound};
+      return ok.copack_value().value().apply(w) == 1 && cok.copack_value().value().apply(w) == 1
+             && std::move(cok).copack_value().value().apply(w) == 1
+             && std::move(ok).copack_value().value().apply(w) == 1 && fn::copack_value(cok).value().apply(w) == 1
+             && err.copack_value().error() == FileNotFound && cerr.copack_value().error() == FileNotFound
+             && std::move(cerr).copack_value().error() == FileNotFound
+             && std::move(err).copack_value().error() == FileNotFound;
+    }());
   }
 
   SECTION("and_then")
@@ -3340,6 +3387,41 @@ TEST_CASE("expected copack support transform", "[expected][copack][transform]")
               .has_value<std::monostate>());
   }
 
+  SECTION("a void result enters as pack<>")
+  {
+    using S2 = fn::expected<fn::copack_for<int, std::string_view>, Error>;
+    constexpr auto which
+        = fn::overload{[](bool b) { return b ? 1 : 0; }, [] { return -1; }, [](fn::pack<>) { return -2; }};
+    constexpr auto fnMixed = fn::overload{[](int) {}, [](std::string_view) { return true; }};
+    constexpr auto fnVoid = [](auto &&) {};
+    using OutM = fn::expected<fn::copack_for<bool, fn::pack<>>, Error>;
+    S2 s{fn::copack{12}};
+    static_assert(std::is_same_v<decltype(s.transform(fnMixed)), OutM>);
+    static_assert(std::is_same_v<decltype(s.transform(fnVoid)), fn::expected<fn::copack<fn::pack<>>, Error>>);
+    CHECK(s.transform(fnMixed).value().apply(which) == -1);
+    CHECK(std::as_const(s).transform(fnMixed).value().apply(which) == -1);
+    CHECK(std::move(std::as_const(s)).transform(fnMixed).value().apply(which) == -1);
+    CHECK(std::move(s).transform(fnMixed).value().apply(which) == -1);
+    S2 sv{fn::copack{std::string_view{"x"}}};
+    CHECK(sv.transform(fnMixed).value().apply(which) == 1);
+    CHECK(sv.transform(fnVoid).value().apply(which) == -1);
+    S2 e{::fn::unexpect, FileNotFound};
+    CHECK(e.transform(fnMixed).error() == FileNotFound);
+    CHECK(e.transform(fnVoid).error() == FileNotFound);
+
+    constexpr auto fnNothrow = fn::overload{[](int) noexcept {}, [](std::string_view) noexcept { return true; }};
+    static_assert(noexcept(s.transform(fnNothrow)));
+    static_assert(not noexcept(s.transform(fnMixed)));
+    static_assert([] {
+      constexpr auto w
+          = fn::overload{[](bool b) { return b ? 1 : 0; }, [] { return -1; }, [](fn::pack<>) { return -2; }};
+      constexpr auto f = fn::overload{[](int) {}, [](std::string_view) { return true; }};
+      fn::expected<fn::copack_for<int, std::string_view>, Error> const c{fn::copack{12}};
+      fn::expected<fn::copack_for<int, std::string_view>, Error> const ce{::fn::unexpect, FileNotFound};
+      return c.transform(f).value().apply(w) == -1 && ce.transform(f).error() == FileNotFound;
+    }());
+  }
+
   SECTION("error")
   {
     fn::expected<fn::copack_for<int, std::string_view>, Error> s{::fn::unexpect, FileNotFound};
@@ -3427,6 +3509,70 @@ TEST_CASE("expected copack support transform_error", "[expected][copack][transfo
 
   constexpr auto can_transform_error = [](auto &&f) { return requires { std::declval<S &>().transform_error(f); }; };
   static_assert(can_transform_error(nothrow_visitor));
+
+  SECTION("a void result enters the error as pack<>")
+  {
+    constexpr auto fnVoid = fn::overload{[](int const &) {}, [](std::string_view const &) { return true; }};
+    static_assert(std::is_same_v<decltype(std::declval<S &>().transform_error(fnVoid)),
+                                 fn::expected<double, fn::copack_for<fn::pack<>, bool>>>);
+    static_assert(std::is_same_v<decltype(std::declval<S &>().transform_error([](auto &&) {})),
+                                 fn::expected<double, fn::copack<fn::pack<>>>>);
+    S s{::fn::unexpect, fn::copack{12}};
+    CHECK(s.transform_error(fnVoid).error().has_value(std::in_place_type<fn::pack<>>));
+    CHECK(S{12.5}.transform_error(fnVoid).value() == 12.5);
+    S t{::fn::unexpect, fn::copack{std::string_view{"x"}}};
+    CHECK(t.transform_error(fnVoid).error() == fn::copack{true});
+    static_assert([] {
+      using C = fn::expected<int, fn::copack_for<bool, int>>;
+      constexpr auto f = fn::overload{[](bool) {}, [](int i) { return i + 1; }};
+      return C{::fn::unexpect, fn::copack{true}}.transform_error(f).error().has_value(std::in_place_type<fn::pack<>>)
+             && C{::fn::unexpect, fn::copack{1}}.transform_error(f).error() == fn::copack{2}
+             && C{3}.transform_error(f).value() == 3;
+    }());
+  }
+
+  SECTION("a void result for the error follows overload resolution")
+  {
+    struct Handler final {
+      constexpr void operator()(int &) const noexcept {}
+      constexpr void operator()(int &&) const noexcept {}
+      constexpr int operator()(int const &n) const noexcept { return n + 1; }
+    };
+    struct Value final {
+      int n;
+      constexpr Value(int v) : n(v) {}
+      constexpr Value(Value &o) noexcept : n(o.n + 10) {}
+      constexpr Value(Value const &o) noexcept : n(o.n + 100) {}
+      constexpr Value(Value &&o) noexcept : n(o.n + 1000) {}
+      constexpr Value(Value const &&o) noexcept : n(o.n + 10000) {}
+    };
+    using E = fn::expected<Value, fn::copack<int>>;
+    using P = fn::expected<Value, fn::copack<fn::pack<>>>;
+    static_assert(std::is_same_v<decltype(std::declval<E &>().transform_error(Handler{})), P>);
+    static_assert(std::is_same_v<decltype(std::declval<E const &>().transform_error(Handler{})), E>);
+    static_assert(std::is_same_v<decltype(std::declval<E &&>().transform_error(Handler{})), P>);
+    static_assert(std::is_same_v<decltype(std::declval<E const &&>().transform_error(Handler{})), E>);
+    E v{std::in_place, 1};
+    CHECK(v.transform_error(Handler{}).value().n == 11);
+    CHECK(std::as_const(v).transform_error(Handler{}).value().n == 101);
+    CHECK(std::move(std::as_const(v)).transform_error(Handler{}).value().n == 10001);
+    CHECK(std::move(v).transform_error(Handler{}).value().n == 1001);
+    E e{::fn::unexpect, fn::copack{42}};
+    CHECK(e.transform_error(Handler{}).error().has_value(std::in_place_type<fn::pack<>>));
+    CHECK(std::as_const(e).transform_error(Handler{}).error() == fn::copack{43});
+    CHECK(std::move(std::as_const(e)).transform_error(Handler{}).error() == fn::copack{43});
+    CHECK(std::move(e).transform_error(Handler{}).error().has_value(std::in_place_type<fn::pack<>>));
+    static_assert([] {
+      E ok{std::in_place, 1};
+      E bad{::fn::unexpect, fn::copack{42}};
+      return ok.transform_error(Handler{}).value().n == 11
+             && std::move(std::as_const(ok)).transform_error(Handler{}).value().n == 10001
+             && std::move(ok).transform_error(Handler{}).value().n == 1001
+             && bad.transform_error(Handler{}).error().has_value(std::in_place_type<fn::pack<>>)
+             && std::move(std::as_const(bad)).transform_error(Handler{}).error() == fn::copack{43}
+             && std::move(bad).transform_error(Handler{}).error().has_value(std::in_place_type<fn::pack<>>);
+    }());
+  }
 
   SECTION("value")
   {

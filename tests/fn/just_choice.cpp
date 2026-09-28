@@ -1460,14 +1460,28 @@ TEST_CASE("choice transform", "[choice][transform]")
 
   SECTION("a result no choice can hold")
   {
-    // a void-returning callback must drop the caller's candidate in the immediate context: the
-    // collapsing machinery would hard-error where no requires-expression can absorb it
+    constexpr auto fnTag = [](auto &&...) { return std::in_place_type<int>; };
+    static_assert(not can_transform<fn::choice<bool, int> &, decltype(fnTag)>);
+    static_assert(not can_transform<fn::choice<bool, int> const &, decltype(fnTag)>);
+    static_assert(not can_transform<fn::choice<bool, int> &&, decltype(fnTag)>);
+    static_assert(not can_transform<fn::choice<bool, int> const &&, decltype(fnTag)>);
     constexpr auto fnVoid = [](auto &&...) {};
-    static_assert(not can_transform<fn::choice<bool, int> &, decltype(fnVoid)>);
-    static_assert(not can_transform<fn::choice<bool, int> const &, decltype(fnVoid)>);
-    static_assert(not can_transform<fn::choice<bool, int> &&, decltype(fnVoid)>);
-    static_assert(not can_transform<fn::choice<bool, int> const &&, decltype(fnVoid)>);
-    SUCCEED();
+    static_assert(can_transform<fn::choice<bool, int> &, decltype(fnVoid)>);
+    static_assert(can_transform<fn::choice<bool, int> const &&, decltype(fnVoid)>);
+    constexpr auto which = fn::overload{[](int i) { return i; }, [] { return -1; }, [](fn::pack<>) { return -2; }};
+    constexpr auto fnMixed = fn::overload{[](bool) {}, [](int i) { return i + 1; }};
+    fn::choice<bool, int> b{true};
+    static_assert(std::is_same_v<decltype(b.transform(fnMixed)), fn::just<fn::copack_for<fn::pack<>, int>>>);
+    static_assert(std::is_same_v<decltype(b.transform(fnVoid)), fn::just<fn::copack<fn::pack<>>>>);
+    CHECK(b.transform(fnMixed).value().apply(which) == -1);
+    CHECK(std::as_const(b).transform(fnMixed).value().apply(which) == -1);
+    CHECK(std::move(std::as_const(b)).transform(fnMixed).value().apply(which) == -1);
+    CHECK(std::move(b).transform(fnMixed).value().apply(which) == -1);
+    CHECK(fn::choice<bool, int>{41}.transform(fnMixed).value().apply(which) == 42);
+    // named source: VS 2022 misreads a mid-expression prvalue's empty-class union member
+    constexpr fn::choice<bool, int> cb{true};
+    static_assert(cb.transform(fnMixed).value().apply(which) == -1);
+    static_assert(cb.transform(fnVoid).value().apply(which) == -1);
   }
 }
 
