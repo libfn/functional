@@ -43,6 +43,9 @@ struct Xerror final {
 struct Poison final {
   template <typename T> constexpr void operator()(T &&) const { static_assert(sizeof(T) == 0); }
 };
+
+// Namespace scope avoids a GCC 14/15 ICE with tuple-like copack alternatives.
+struct TupleSibling final {};
 } // namespace
 
 TEST_CASE("or_else", "[or_else][expected][expected_value]")
@@ -976,10 +979,15 @@ TEST_CASE("or_else joins a payload-free success", "[or_else][expected][copack]")
     CHECK((std::move(err2) | fn::or_else(fnR)).value().apply(get) == -1);
 
     static_assert([] {
-      constexpr auto fnRc = [](E1) -> fn::expected<void, E1> { return {}; };
+      // A nonempty error avoids a VS 2022 constant-evaluation failure.
+      struct Es final {
+        int n = 0;
+      };
+      using In = fn::expected<fn::copack<MoveOnly>, Es>;
+      constexpr auto fnRc = [](Es) -> fn::expected<void, Es> { return {}; };
       constexpr auto getc = fn::overload{[](MoveOnly const &m) { return m.n; }, [] { return -1; }};
       In v{fn::copack<MoveOnly>{MoveOnly{7}}};
-      In e{fn::unexpect, E1{}};
+      In e{fn::unexpect, Es{}};
       return std::move(v).or_else(fnRc).value().apply(getc) == 7
              && std::move(e).or_else(fnRc).value().apply(getc) == -1;
     }());
@@ -1087,18 +1095,17 @@ TEST_CASE("or_else tuple-like error payload", "[or_else][expected][tuple]")
 
   SECTION("a coproduct alternative's elements reach the branch, past a whole-tuple overload")
   {
-    struct E2 final {};
     using T1 = std::tuple<int>;
-    using In = fn::expected<fn::copack<int>, fn::copack_for<T1, E2>>;
+    using In = fn::expected<fn::copack<int>, fn::copack_for<T1, TupleSibling>>;
     constexpr auto fnV = fn::overload{[](T1) { return 91; }, [](int i) noexcept -> fn::expected<int, int> { return i; },
-                                      [](E2) noexcept -> fn::expected<long, int> { return 2L; }};
+                                      [](TupleSibling) noexcept -> fn::expected<long, int> { return 2L; }};
     constexpr auto fnP = fn::overload{[](T1) { return 91; },
                                       [](int i) noexcept -> fn::expected<void, int> {
                                         if (i == 3)
                                           return {};
                                         return fn::unexpected<int>{i};
                                       },
-                                      [](E2) noexcept -> fn::expected<long, int> { return 2L; }};
+                                      [](TupleSibling) noexcept -> fn::expected<long, int> { return 2L; }};
     constexpr auto which = fn::overload{[](int i) { return i; }, [](long) { return -2; }, [] { return -1; }};
     using OutP = fn::expected<fn::copack_for<fn::pack<>, int, long>, int>;
 
@@ -1128,9 +1135,8 @@ TEST_CASE("or_else tuple-like error payload", "[or_else][expected][tuple]")
       constexpr explicit Pinned(Pinned const &o) noexcept : n(o.n) {}
       constexpr Pinned(Pinned &&) noexcept = default;
     };
-    struct E2 final {};
     using T1 = std::tuple<int>;
-    using In = fn::expected<fn::copack<int>, fn::copack_for<T1, E2>>;
+    using In = fn::expected<fn::copack<int>, fn::copack_for<T1, TupleSibling>>;
     constexpr auto run = [] {
       fn::expected<Pinned, int> recovery{std::in_place, 3};
       int elements = 0;
@@ -1143,7 +1149,7 @@ TEST_CASE("or_else tuple-like error payload", "[or_else][expected][tuple]")
                                       ++whole;
                                       return 91L;
                                     },
-                                    [](E2) noexcept -> fn::expected<long, int> { return 2L; }};
+                                    [](TupleSibling) noexcept -> fn::expected<long, int> { return 2L; }};
       auto const which
           = fn::overload{[](Pinned const &p) { return p.n; }, [](int) { return -1; }, [](long) { return -2; }};
       In e{fn::unexpect, T1{3}};
