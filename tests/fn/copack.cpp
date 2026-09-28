@@ -1817,6 +1817,7 @@ TEST_CASE("copack transform", "[copack][transform]")
     };
     constexpr auto field = [](double, Arg &&arg) noexcept -> int const & { return arg.v; };
     CHECK(a.transform(field, fn::pack<Arg>{Arg{7}}) == copack{7});
+    CHECK(std::move(a).transform(field, fn::pack<Arg>{Arg{7}}) == copack{7});
 
     SECTION("constexpr")
     {
@@ -1824,6 +1825,7 @@ TEST_CASE("copack transform", "[copack][transform]")
       static_assert(b.transform(add, 3) == copack{3.5});
       static_assert(std::move(b).transform(add, 3) == copack{3.5});
       static_assert(b.transform(field, fn::pack<Arg>{Arg{7}}) == copack{7});
+      static_assert(std::move(b).transform(field, fn::pack<Arg>{Arg{7}}) == copack{7});
       SUCCEED();
     }
   }

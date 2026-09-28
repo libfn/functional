@@ -6,7 +6,7 @@ Design history of libfn, newest first. The living documents — [README.md](READ
 
 `transform` over a copack represents `void` callback results as `pack<>`. Mixed `void` and `int` results yield `copack_for<pack<>, int>`; all-`void` results yield `copack<pack<>>`. This applies through `expected`, `optional` and `choice`, and to `transform_error` over a copack error. Plain error types still reject `void` results. Mutable operands can select a `void` overload where they previously fell back to a valued `const` overload.
 
-Results are converted before spliced arguments expire, fixing a dangling reference. The `noexcept` specification includes the selected overload's explicit result conversion.
+Results are converted before spliced arguments expire, fixing a dangling reference. The `noexcept` specification includes the selected overload's explicit result conversion. Rvalues spliced before a `pack` argument are stored by value, fixing a compilation failure.
 
 `expected<void, E>::copack_value()` lifts to `expected<copack<pack<>>, E>`.
 
