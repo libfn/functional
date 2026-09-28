@@ -596,10 +596,6 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
 
     SECTION("identity cluster operands")
     {
-      // A cluster operand always contributes its value to the product and adds no term to the
-      // error sum, so the optional operand's state decides alone. just<void> and the void identity
-      // expected are the product's unit and elide; the identity expected is the cluster's third
-      // member and composes exactly as just does.
       using O = fn::optional<int>;
       using J = fn::just<int>;
       using EIv = fn::expected<int, fn::copack<>>;
@@ -607,12 +603,14 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
 
       static_assert(std::same_as<decltype(std::declval<J>() & std::declval<O>()), fn::optional<fn::pack<int, int>>>);
       static_assert(std::same_as<decltype(std::declval<O>() & std::declval<J>()), fn::optional<fn::pack<int, int>>>);
-      static_assert(std::same_as<decltype(std::declval<fn::just<void>>() & std::declval<O>()), O>);
-      static_assert(std::same_as<decltype(std::declval<O>() & std::declval<fn::just<void>>()), O>);
+      static_assert(
+          std::same_as<decltype(std::declval<fn::just<void>>() & std::declval<O>()), fn::optional<fn::pack<int>>>);
+      static_assert(
+          std::same_as<decltype(std::declval<O>() & std::declval<fn::just<void>>()), fn::optional<fn::pack<int>>>);
       static_assert(std::same_as<decltype(std::declval<EIv>() & std::declval<O>()), fn::optional<fn::pack<int, int>>>);
       static_assert(std::same_as<decltype(std::declval<O>() & std::declval<EIv>()), fn::optional<fn::pack<int, int>>>);
-      static_assert(std::same_as<decltype(std::declval<EVI>() & std::declval<O>()), O>);
-      static_assert(std::same_as<decltype(std::declval<O>() & std::declval<EVI>()), O>);
+      static_assert(std::same_as<decltype(std::declval<EVI>() & std::declval<O>()), fn::optional<fn::pack<int>>>);
+      static_assert(std::same_as<decltype(std::declval<O>() & std::declval<EVI>()), fn::optional<fn::pack<int>>>);
       static_assert(std::same_as<decltype(std::declval<fn::choice_for<int, bool>>() & std::declval<O>()),
                                  fn::optional<fn::copack_for<fn::pack<int, int>, fn::pack<bool, int>>>>);
       // ... and the choice operand's held alternative selects the product row
@@ -628,12 +626,15 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       static_assert((J{1} & O{2}).value().apply([](int a, int b) { return a == 1 && b == 2; }));
       static_assert(not(J{1} & O{}).has_value());
       static_assert((EIv{7} & O{2}).value().apply([](int a, int b) { return a == 7 && b == 2; }));
-      static_assert((O{2} & EVI{}).value() == 2);
-      static_assert((fn::just<void>{} & O{5}).value() == 5);
+      static_assert((O{2} & EVI{}).value() == fn::pack<int>{2});
+      static_assert((fn::just<void>{} & O{5}).value() == fn::pack<int>{5});
       CHECK((J{1} & O{2}).value().apply([](int a, int b) { return a == 1 && b == 2; }));
       CHECK(not(J{1} & O{}).has_value());
+      static_assert(not(fn::just<void>{} & O{}).has_value());
+      static_assert(not(O{} & EVI{}).has_value());
+      CHECK(not(fn::just<void>{} & O{}).has_value());
+      CHECK(not(O{} & EVI{}).has_value());
 
-      // 0 x 1 = 0: the void identity elides, passing the always-empty optional through unchanged
       using DeadO = fn::optional<fn::copack<>>;
       static_assert(std::same_as<decltype(std::declval<DeadO>() & std::declval<EVI>()), DeadO>);
       static_assert(std::same_as<decltype(std::declval<J>() & std::declval<DeadO>()), DeadO>);

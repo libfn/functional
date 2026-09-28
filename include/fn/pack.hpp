@@ -89,34 +89,38 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    */
   template <typename T>
   [[nodiscard]] constexpr auto append(::std::in_place_type_t<T>, auto &&...args) & //
-      noexcept(noexcept(_impl::template _append<T>(::std::declval<pack &>(), FWD(args)...))) -> append_type<T>
-    requires requires { append_type<T>{_impl::template _append<T>(*this, FWD(args)...)}; }
+      noexcept(noexcept(_impl::template _append<T, append_type<T>>(::std::declval<pack &>(), FWD(args)...)))
+          -> append_type<T>
+    requires requires { _impl::template _append<T, append_type<T>>(*this, FWD(args)...); }
   {
-    return {_impl::template _append<T>(*this, FWD(args)...)};
+    return _impl::template _append<T, append_type<T>>(*this, FWD(args)...);
   }
 
   template <typename T>
   [[nodiscard]] constexpr auto append(::std::in_place_type_t<T>, auto &&...args) const & //
-      noexcept(noexcept(_impl::template _append<T>(::std::declval<pack const &>(), FWD(args)...))) -> append_type<T>
-    requires requires { append_type<T>{_impl::template _append<T>(*this, FWD(args)...)}; }
+      noexcept(noexcept(_impl::template _append<T, append_type<T>>(::std::declval<pack const &>(), FWD(args)...)))
+          -> append_type<T>
+    requires requires { _impl::template _append<T, append_type<T>>(*this, FWD(args)...); }
   {
-    return {_impl::template _append<T>(*this, FWD(args)...)};
+    return _impl::template _append<T, append_type<T>>(*this, FWD(args)...);
   }
 
   template <typename T>
   [[nodiscard]] constexpr auto append(::std::in_place_type_t<T>, auto &&...args) && //
-      noexcept(noexcept(_impl::template _append<T>(::std::declval<pack &&>(), FWD(args)...))) -> append_type<T>
-    requires requires { append_type<T>{_impl::template _append<T>(::std::move(*this), FWD(args)...)}; }
+      noexcept(noexcept(_impl::template _append<T, append_type<T>>(::std::declval<pack &&>(), FWD(args)...)))
+          -> append_type<T>
+    requires requires { _impl::template _append<T, append_type<T>>(::std::move(*this), FWD(args)...); }
   {
-    return {_impl::template _append<T>(::std::move(*this), FWD(args)...)};
+    return _impl::template _append<T, append_type<T>>(::std::move(*this), FWD(args)...);
   }
 
   template <typename T>
   [[nodiscard]] constexpr auto append(::std::in_place_type_t<T>, auto &&...args) const && //
-      noexcept(noexcept(_impl::template _append<T>(::std::declval<pack const &&>(), FWD(args)...))) -> append_type<T>
-    requires requires { append_type<T>{_impl::template _append<T>(::std::move(*this), FWD(args)...)}; }
+      noexcept(noexcept(_impl::template _append<T, append_type<T>>(::std::declval<pack const &&>(), FWD(args)...)))
+          -> append_type<T>
+    requires requires { _impl::template _append<T, append_type<T>>(::std::move(*this), FWD(args)...); }
   {
-    return {_impl::template _append<T>(::std::move(*this), FWD(args)...)};
+    return _impl::template _append<T, append_type<T>>(::std::move(*this), FWD(args)...);
   }
 
   /**
@@ -130,38 +134,42 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
    */
   template <typename Arg>
   [[nodiscard]] constexpr auto append(Arg &&arg) & //
-      noexcept(noexcept(_impl::template _append<Arg>(::std::declval<pack &>(), FWD(arg)))) -> append_type<Arg>
+      noexcept(noexcept(_impl::template _append<Arg, append_type<Arg>>(::std::declval<pack &>(), FWD(arg))))
+          -> append_type<Arg>
     requires(not some_in_place_type<Arg>)
-            && requires { append_type<Arg>{_impl::template _append<Arg>(*this, FWD(arg))}; }
+            && requires { _impl::template _append<Arg, append_type<Arg>>(*this, FWD(arg)); }
   {
-    return {_impl::template _append<Arg>(*this, FWD(arg))};
+    return _impl::template _append<Arg, append_type<Arg>>(*this, FWD(arg));
   }
 
   template <typename Arg>
   [[nodiscard]] constexpr auto append(Arg &&arg) const & //
-      noexcept(noexcept(_impl::template _append<Arg>(::std::declval<pack const &>(), FWD(arg)))) -> append_type<Arg>
+      noexcept(noexcept(_impl::template _append<Arg, append_type<Arg>>(::std::declval<pack const &>(), FWD(arg))))
+          -> append_type<Arg>
     requires(not some_in_place_type<Arg>)
-            && requires { append_type<Arg>{_impl::template _append<Arg>(*this, FWD(arg))}; }
+            && requires { _impl::template _append<Arg, append_type<Arg>>(*this, FWD(arg)); }
   {
-    return {_impl::template _append<Arg>(*this, FWD(arg))};
+    return _impl::template _append<Arg, append_type<Arg>>(*this, FWD(arg));
   }
 
   template <typename Arg>
   [[nodiscard]] constexpr auto append(Arg &&arg) && //
-      noexcept(noexcept(_impl::template _append<Arg>(::std::declval<pack &&>(), FWD(arg)))) -> append_type<Arg>
+      noexcept(noexcept(_impl::template _append<Arg, append_type<Arg>>(::std::declval<pack &&>(), FWD(arg))))
+          -> append_type<Arg>
     requires(not some_in_place_type<Arg>)
-            && requires { append_type<Arg>{_impl::template _append<Arg>(::std::move(*this), FWD(arg))}; }
+            && requires { _impl::template _append<Arg, append_type<Arg>>(::std::move(*this), FWD(arg)); }
   {
-    return {_impl::template _append<Arg>(::std::move(*this), FWD(arg))};
+    return _impl::template _append<Arg, append_type<Arg>>(::std::move(*this), FWD(arg));
   }
 
   template <typename Arg>
   [[nodiscard]] constexpr auto append(Arg &&arg) const && //
-      noexcept(noexcept(_impl::template _append<Arg>(::std::declval<pack const &&>(), FWD(arg)))) -> append_type<Arg>
+      noexcept(noexcept(_impl::template _append<Arg, append_type<Arg>>(::std::declval<pack const &&>(), FWD(arg))))
+          -> append_type<Arg>
     requires(not some_in_place_type<Arg>)
-            && requires { append_type<Arg>{_impl::template _append<Arg>(::std::move(*this), FWD(arg))}; }
+            && requires { _impl::template _append<Arg, append_type<Arg>>(::std::move(*this), FWD(arg)); }
   {
-    return {_impl::template _append<Arg>(::std::move(*this), FWD(arg))};
+    return _impl::template _append<Arg, append_type<Arg>>(::std::move(*this), FWD(arg));
   }
 
   /**
@@ -331,6 +339,21 @@ namespace detail {
 // the accessor spelled as a type rather than as a call which would drag its own throw in.
 template <typename Monad> using _value_of_t = decltype(::std::declval<Monad>().value());
 
+template <typename Monad>
+using _factor_t = ::std::conditional_t<::std::is_void_v<typename ::std::remove_cvref_t<Monad>::value_type>,
+                                       ::fn::pack<>, typename ::std::remove_cvref_t<Monad>::value_type>;
+template <typename Monad>
+using _factor_of_t = ::std::conditional_t<::std::is_void_v<typename ::std::remove_cvref_t<Monad>::value_type>,
+                                          ::fn::pack<>, _value_of_t<Monad>>;
+
+template <typename Monad> [[nodiscard]] constexpr auto _factor(Monad &&m) -> _factor_of_t<Monad>
+{
+  if constexpr (::std::is_void_v<typename ::std::remove_cvref_t<Monad>::value_type>)
+    return {};
+  else
+    return FWD(m).value();
+}
+
 // A product with an uninhabited factor is itself uninhabited, and copack<> has no value fold - the
 // join over such a side must not name the fold, in the declared type, the noexcept specification
 // or the body, and always resolves through `efn`.
@@ -342,9 +365,8 @@ template <bool Uninhabited, typename Lh, typename Rh> struct _joined {
   using type = copack<>;
 };
 template <typename Lh, typename Rh> struct _joined<false, Lh, Rh> {
-  using type = decltype(::fn::detail::_fold_detail::fold<typename ::std::remove_cvref_t<Lh>::value_type,
-                                                         typename ::std::remove_cvref_t<Rh>::value_type>(
-      ::std::declval<_value_of_t<Lh>>(), ::std::declval<_value_of_t<Rh>>()));
+  using type = decltype(::fn::detail::_fold_detail::fold<_factor_t<Lh>, _factor_t<Rh>>(
+      ::std::declval<_factor_of_t<Lh>>(), ::std::declval<_factor_of_t<Rh>>()));
 };
 template <typename Lh, typename Rh> using _joined_t = typename _joined<_uninhabited_join<Lh, Rh>, Lh, Rh>::type;
 
@@ -358,14 +380,12 @@ struct _nothrow_join_arm {
 };
 template <template <typename> typename Tpl, typename Lh, typename Rh, typename Efn>
 struct _nothrow_join_arm<false, Tpl, Lh, Rh, Efn> {
-  static constexpr bool value
-      = noexcept(::fn::detail::_fold_detail::fold<typename ::std::remove_cvref_t<Lh>::value_type,
-                                                  typename ::std::remove_cvref_t<Rh>::value_type>(
-            ::std::declval<_value_of_t<Lh>>(), ::std::declval<_value_of_t<Rh>>()))
-        && _nothrow_initializable<Tpl<_joined_t<Lh, Rh>>, ::std::in_place_t, _joined_t<Lh, Rh>>
-        && ::std::is_nothrow_invocable_v<Efn &, Lh> && ::std::is_nothrow_invocable_v<Efn &, Rh>
-        && _nothrow_initializable<Tpl<_joined_t<Lh, Rh>>, ::std::invoke_result_t<Efn &, Lh>>
-        && _nothrow_initializable<Tpl<_joined_t<Lh, Rh>>, ::std::invoke_result_t<Efn &, Rh>>;
+  static constexpr bool value = noexcept(::fn::detail::_fold_detail::fold<_factor_t<Lh>, _factor_t<Rh>>(
+                                    ::std::declval<_factor_of_t<Lh>>(), ::std::declval<_factor_of_t<Rh>>()))
+                                && _nothrow_initializable<Tpl<_joined_t<Lh, Rh>>, ::std::in_place_t, _joined_t<Lh, Rh>>
+                                && ::std::is_nothrow_invocable_v<Efn &, Lh> && ::std::is_nothrow_invocable_v<Efn &, Rh>
+                                && _nothrow_initializable<Tpl<_joined_t<Lh, Rh>>, ::std::invoke_result_t<Efn &, Lh>>
+                                && _nothrow_initializable<Tpl<_joined_t<Lh, Rh>>, ::std::invoke_result_t<Efn &, Rh>>;
 };
 template <template <typename> typename Tpl, typename Lh, typename Rh, typename Efn>
 constexpr inline bool _nothrow_join = _nothrow_join_arm<_uninhabited_join<Lh, Rh>, Tpl, Lh, Rh, Efn>::value;
@@ -398,10 +418,10 @@ template <template <typename> typename Tpl>
     else
       return type{efn(FWD(rh))};
   } else {
-    using Lh = ::std::remove_cvref_t<decltype(lh)>::value_type;
-    using Rh = ::std::remove_cvref_t<decltype(rh)>::value_type;
+    using Lh = _factor_t<decltype(lh)>;
+    using Rh = _factor_t<decltype(rh)>;
     if (lh.has_value() && rh.has_value())
-      return type{::std::in_place, ::fn::detail::_fold_detail::fold<Lh, Rh>(FWD(lh).value(), FWD(rh).value())};
+      return type{::std::in_place, ::fn::detail::_fold_detail::fold<Lh, Rh>(_factor(FWD(lh)), _factor(FWD(rh)))};
     else if (not lh.has_value())
       return type{efn(FWD(lh))};
     else

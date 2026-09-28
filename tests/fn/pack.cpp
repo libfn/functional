@@ -49,6 +49,13 @@ concept can_append = requires(V v, Arg arg) { FWD(v).append(FWD(arg)); };
 // must say so. Its non-const-lvalue copy is noexcept, which is what makes the promise category-wise.
 using Throwing = helper_t<prop::throw_copy | prop::throw_move>;
 
+struct Atom final {
+  int n = 0;
+  constexpr Atom() noexcept = default;
+  constexpr explicit Atom(int x) noexcept : n(x) {}
+  template <typename R> constexpr operator R() const noexcept { return R{}; }
+};
+
 template <typename... Args>
 concept can_as_pack = requires(Args &&...args) { fn::as_pack(FWD(args)...); };
 
@@ -648,6 +655,47 @@ TEST_CASE("append value categories", "[pack][append]")
     static_assert(noexcept(std::declval<pack<int> &>().append(std::in_place_type<int>, 1)));
     static_assert(noexcept(std::declval<pack<int> &>().append(1)));
     SUCCEED();
+  }
+
+  SECTION("the result is built in place")
+  {
+    struct Counted final {
+      int *moves;
+      constexpr explicit Counted(int &m) noexcept : moves(&m) {}
+      constexpr Counted(Counted const &o) noexcept : moves(o.moves) {}
+      constexpr Counted(Counted &&o) noexcept(false) : moves(o.moves) { ++*moves; }
+    };
+    constexpr auto moves = [] {
+      int count = 0;
+      pack<Counted> p{Counted{count}};
+      count = 0;
+      [[maybe_unused]] auto const copied = p.append(std::in_place_type<int>, 1);
+      [[maybe_unused]] auto const spliced = p.append(pack<int>{1});
+      [[maybe_unused]] auto const moved = std::move(p).append(1);
+      return count;
+    };
+    static_assert(moves() == 1);
+    CHECK(moves() == 1);
+    static_assert(noexcept(std::declval<pack<Counted> &>().append(std::in_place_type<int>, 1)));
+    static_assert(not noexcept(std::declval<pack<Counted> &&>().append(std::in_place_type<int>, 1)));
+  }
+
+  SECTION("an element is held as itself")
+  {
+    constexpr auto held = [] {
+      pack<Atom> const src{{{Atom{7}}}};
+      return std::array{
+          fn::get<0>(pack<>{}.append(std::in_place_type<Atom>, 7)).n,
+          fn::get<0>(pack<>{}.append(Atom{7})).n,
+          fn::get<0>(src.append(1)).n,
+          fn::get<0>(pack<>{}.append(src)).n,
+          fn::get<0>(pack<>{}.append(std::in_place_type<pack<Atom>>, src)).n,
+          fn::get<0>(src.append(std::in_place_type<pack<int>>, 9)).n,
+          fn::get<0>(src & pack{9}).n,
+      };
+    };
+    static_assert(held() == std::array{7, 7, 7, 7, 7, 7, 7});
+    CHECK(held() == std::array{7, 7, 7, 7, 7, 7, 7});
   }
 }
 

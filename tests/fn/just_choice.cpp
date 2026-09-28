@@ -690,8 +690,6 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
   SECTION("operator &")
   {
-    // The conjunction inside the cluster: the copack distributes through the value product and the
-    // result stays a choice; just<void> is the product's unit and elides
     using C = fn::choice_for<int, bool>;
     static_assert(std::is_same_v<decltype(std::declval<fn::just<int>>() & std::declval<C>()),
                                  fn::choice_for<fn::pack<int, int>, fn::pack<int, bool>>>);
@@ -700,8 +698,10 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     static_assert(std::is_same_v<
                   decltype(std::declval<C>() & std::declval<C>()),
                   fn::choice_for<fn::pack<int, int>, fn::pack<int, bool>, fn::pack<bool, int>, fn::pack<bool, bool>>>);
-    static_assert(std::is_same_v<decltype(std::declval<fn::just<void>>() & std::declval<C>()), C>);
-    static_assert(std::is_same_v<decltype(std::declval<C>() & std::declval<fn::just<void>>()), C>);
+    static_assert(std::is_same_v<decltype(std::declval<fn::just<void>>() & std::declval<C>()),
+                                 fn::choice_for<fn::pack<int>, fn::pack<bool>>>);
+    static_assert(std::is_same_v<decltype(std::declval<C>() & std::declval<fn::just<void>>()),
+                                 decltype(std::declval<C>() & std::declval<fn::just<fn::pack<>>>())>);
 
     constexpr auto count = []([[maybe_unused]] auto &&...args) { return static_cast<int>(sizeof...(args)); };
     constexpr auto probe = fn::overload{[](int a, bool b) { return a == 1 && b; }, [](auto &&...) { return false; }};

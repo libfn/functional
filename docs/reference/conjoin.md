@@ -42,38 +42,31 @@ template <some_expected Lh, typename Rh>
 constexpr auto operator&(Lh &&lh, Rh &&rh);  // (3)
 
 template <typename Lh, some_expected_void Rh>
-constexpr auto operator&(Lh &&lh, Rh &&rh) -> expected<typename std::remove_cvref_t<Lh>::value_type, typename std::remove_cvref_t<Rh>::error_type>;  // (4)
+constexpr auto operator&(Lh &&, Rh &&rh);  // (4)
 
 template <some_expected_void Lh, typename Rh>
-constexpr auto operator&(Lh &&lh, Rh &&rh) -> expected<typename std::remove_cvref_t<Rh>::value_type, typename std::remove_cvref_t<Lh>::error_type>;  // (5)
-
-template <typename Lh, some_expected Rh>
-constexpr auto operator&(Lh &&, Rh &&rh);  // (6)
-
-template <some_expected Lh, typename Rh>
-constexpr auto operator&(Lh &&lh, Rh &&);  // (7)
+constexpr auto operator&(Lh &&lh, Rh &&);  // (5)
 
 template <typename Lh, typename Rh>
-constexpr auto operator&(Lh &&lh, Rh &&rh);                             // (8)
-constexpr auto operator&(Lh &&, Rh &&rh)   -> std::remove_cvref_t<Rh>;  // (9)
-constexpr auto operator&(Lh &&lh, Rh &&)   -> std::remove_cvref_t<Lh>;  // (10)
+constexpr auto operator&(Lh &&lh, Rh &&rh);                // (6)
+constexpr auto operator&(Lh &&, Rh &&)     -> just<void>;  // (7)
 
 template <some_optional Lh, some_optional Rh>
+constexpr auto operator&(Lh &&lh, Rh &&rh);  // (8)
+
+template <typename Lh, some_optional Rh>
+constexpr auto operator&(Lh &&lh, Rh &&rh);  // (9)
+
+template <some_optional Lh, typename Rh>
+constexpr auto operator&(Lh &&lh, Rh &&rh);  // (10)
+
+template <typename Lh, some_optional Rh>
 constexpr auto operator&(Lh &&lh, Rh &&rh);  // (11)
 
-template <typename Lh, some_optional Rh>
+template <some_optional Lh, typename Rh>
 constexpr auto operator&(Lh &&lh, Rh &&rh);  // (12)
 
-template <some_optional Lh, typename Rh>
-constexpr auto operator&(Lh &&lh, Rh &&rh);  // (13)
-
-template <typename Lh, some_optional Rh>
-constexpr auto operator&(Lh &&, Rh &&rh);  // (14)
-
-template <some_optional Lh, typename Rh>
-constexpr auto operator&(Lh &&lh, Rh &&);  // (15)
-
-constexpr auto operator&(auto &&lh, auto &&rh);  // (16)
+constexpr auto operator&(auto &&lh, auto &&rh);  // (13)
 ```
 
 :include-doxygen-doc: fn::operator& { args: "Lh &&, Rh &&" }

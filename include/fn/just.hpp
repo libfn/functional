@@ -1365,47 +1365,34 @@ template <typename T, typename U>
 
 namespace detail {
 template <typename Lh, typename Rh>
-using _just_fold_t = decltype(_fold_detail::fold<typename ::std::remove_cvref_t<Lh>::value_type,
-                                                 typename ::std::remove_cvref_t<Rh>::value_type>(
-    ::std::declval<Lh>().value(), ::std::declval<Rh>().value()));
+using _just_fold_t = decltype(_fold_detail::fold<_factor_t<Lh>, _factor_t<Rh>>(::std::declval<_factor_of_t<Lh>>(),
+                                                                               ::std::declval<_factor_of_t<Rh>>()));
 template <typename Lh, typename Rh>
 constexpr inline bool _nothrow_just_fold
-    = noexcept(_fold_detail::fold<typename ::std::remove_cvref_t<Lh>::value_type,
-                                  typename ::std::remove_cvref_t<Rh>::value_type>(::std::declval<Lh>().value(),
-                                                                                  ::std::declval<Rh>().value()))
+    = noexcept(_fold_detail::fold<_factor_t<Lh>, _factor_t<Rh>>(::std::declval<_factor_of_t<Lh>>(),
+                                                                ::std::declval<_factor_of_t<Rh>>()))
       && ::std::is_nothrow_constructible_v<just<_just_fold_t<Lh, Rh>>, _just_fold_t<Lh, Rh>>;
 } // namespace detail
 
-// The conjunction inside the cluster: just & just folds the payloads and stays just, and
-// just<void> is the product's unit - it elides, whatever the other operand.
 template <typename Lh, typename Rh>
   requires detail::_some_just<Lh> && detail::_some_just<Rh>
-           && (not ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>)
-           && (not ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>)
+           && (not(::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>
+                   && ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>))
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
     noexcept(detail::_nothrow_just_fold<Lh, Rh>)
 {
-  using VL = ::std::remove_cvref_t<Lh>::value_type;
-  using VR = ::std::remove_cvref_t<Rh>::value_type;
-  return just<detail::_just_fold_t<Lh, Rh>>{::fn::detail::_fold_detail::fold<VL, VR>(FWD(lh).value(), FWD(rh).value())};
+  using VL = detail::_factor_t<Lh>;
+  using VR = detail::_factor_t<Rh>;
+  return just<detail::_just_fold_t<Lh, Rh>>{
+      ::fn::detail::_fold_detail::fold<VL, VR>(detail::_factor(FWD(lh)), detail::_factor(FWD(rh)))};
 }
 
 template <typename Lh, typename Rh>
   requires detail::_some_just<Lh> && ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>
-           && detail::_some_just<Rh>
-[[nodiscard]] constexpr auto operator&(Lh &&, Rh &&rh) //
-    noexcept(::std::is_nothrow_constructible_v<::std::remove_cvref_t<Rh>, Rh>) -> ::std::remove_cvref_t<Rh>
-{
-  return ::std::remove_cvref_t<Rh>{FWD(rh)};
-}
-
-template <typename Lh, typename Rh>
-  requires detail::_some_just<Lh> && (not ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>)
            && detail::_some_just<Rh> && ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>
-[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&) //
-    noexcept(::std::is_nothrow_constructible_v<::std::remove_cvref_t<Lh>, Lh>) -> ::std::remove_cvref_t<Lh>
+[[nodiscard]] constexpr auto operator&(Lh &&, Rh &&) noexcept -> just<void>
 {
-  return ::std::remove_cvref_t<Lh>{FWD(lh)};
+  return {};
 }
 
 namespace detail {
