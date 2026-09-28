@@ -253,15 +253,13 @@ struct _nothrow_and_then<E, Fn, ErrArg, ValArg...> {
         && _nothrow_arm<E, new_type, ::fn::unexpect_t, ErrArg>;   // widening self's error
 };
 
-// the heterogeneous join: each branch and its conversion into the announced result are weighed by
-// the rts trait; widening self's error is the one other reachable construction, dead for copack<>
 template <typename E, typename Fn, typename ErrArg, typename... ValArg>
   requires _is_hetero_join<_and_then_dispatch<E, Fn, ValArg...>>
 struct _nothrow_and_then<E, Fn, ErrArg, ValArg...> {
   using type = typename _and_then_dispatch<E, Fn, ValArg...>::type;
 
   static constexpr bool value
-      = _is_nothrow_rts_applicable<type, Fn, ValArg...>
+      = _is_nothrow_rts_applicable<type, _expected_injector<type, Fn &&>, ValArg...>
         && (empty_copack<E> || ::std::is_nothrow_constructible_v<type, ::fn::unexpect_t, ErrArg>);
 };
 
@@ -339,10 +337,8 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
     using dispatch = ::fn::detail::_and_then_dispatch<E, Fn, decltype(_pfn_base::_value(FWD(self)))>;
     using type = typename dispatch::type;
     if constexpr (::fn::detail::_is_hetero_join<dispatch>) {
-      // heterogeneous expected branches: the join announced `type`, every branch converts into it
-      // as it returns, and the error path widens self's grade the same way
       if (self.has_value())
-        return ::fn::detail::_tagged_join_apply<::fn::detail::_joining_expected_tag<::fn::expected, E>>(
+        return ::fn::detail::_join_expected_apply<::fn::detail::_joining_expected_tag<::fn::expected, E>>(
             _pfn_base::_value(FWD(self)), FWD(fn));
       else {
         if constexpr (not empty_copack<E>)
@@ -1438,7 +1434,8 @@ public:
    * the identical error type, or its singular lift `copack<E>` - the opt-in to the graded world -
    * while a graded (copack) error side unions the callback's error set into its own. A
    * copack-valued operand dispatches per alternative, exhaustively, heterogeneous branch values
-   * joining into a normalized copack. The one bind that widens an error grade.
+   * joining into a normalized copack, where a `void` one enters as `pack<>`. The one bind that
+   * widens an error grade.
    *
    * @param f Callable applied on the value, returning an `expected`
    * @return The callback's `expected`, its error side widened by the operand's grade

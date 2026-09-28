@@ -1311,8 +1311,7 @@ template <typename T0, typename... Ts>
   requires(sizeof...(Ts) > 0)
 constexpr inline bool all_same<T0, Ts...> = (... && ::std::is_same_v<T0, Ts>);
 
-// the dispatched side's join: exact convergence preserved; heterogeneous types splice through
-// copack_for (a copack-typed result flattens into it); mixed void and non-void has no answer
+// Exact convergence preserves the result type, including void.
 template <typename... Ts> struct list_join {};
 template <typename T0, typename... Ts>
   requires all_same<T0, Ts...>
@@ -1320,9 +1319,10 @@ struct list_join<T0, Ts...> {
   using type = T0;
 };
 template <typename T0, typename... Ts>
-  requires(not all_same<T0, Ts...>) && _collapsible_result<T0> && (... && _collapsible_result<Ts>)
+  requires(not all_same<T0, Ts...>)
+          && _collapsible_result<_sum_element_t<T0>> && (... && _collapsible_result<_sum_element_t<Ts>>)
 struct list_join<T0, Ts...> {
-  using type = ::fn::copack_for<T0, Ts...>;
+  using type = ::fn::copack_for<_sum_element_t<T0>, _sum_element_t<Ts>...>;
 };
 
 template <typename E, typename... Es> struct graded_join {};
