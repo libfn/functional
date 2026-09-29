@@ -300,6 +300,15 @@ template <typename Ret, typename Fn, typename Arg, typename Arg0, typename... Ar
 }
 } // namespace _apply_detail
 
+// Reject incomplete operands before a false trait result can be cached.
+template <typename A> constexpr bool _complete_operand() noexcept
+{
+  if constexpr (_some_pack<A> || _some_copack<A>)
+    return sizeof(::std::remove_cvref_t<A>) > 0; // incomplete: include <fn/pack.hpp> or <fn/copack.hpp> first
+  else
+    return true;
+}
+
 // apply_result
 template <typename Fn, typename... Args>
 constexpr auto _apply_result_result(Fn &&, Args &&...)
@@ -307,6 +316,7 @@ constexpr auto _apply_result_result(Fn &&, Args &&...)
 template <typename Fn, typename... Args> constexpr auto _apply_result_result(auto &&...) -> ::std::type_identity<void>;
 
 template <typename Fn, typename... Args> struct _apply_result {
+  static_assert((_complete_operand<Args>() && ...));
   using type = decltype(_apply_result_result<Fn, Args...>(::std::declval<Fn>(), ::std::declval<Args>()...))::type;
 };
 
@@ -318,6 +328,7 @@ constexpr auto _is_applicable_result(Fn &&, Args &&...,
 template <typename Fn, typename... Args> constexpr auto _is_applicable_result(auto &&...) -> ::std::false_type;
 
 template <typename Fn, typename... Args> struct _is_applicable {
+  static_assert((_complete_operand<Args>() && ...));
   static constexpr bool value
       = decltype(_is_applicable_result<Fn, Args...>(::std::declval<Fn>(), ::std::declval<Args>()...))::value;
 };
@@ -338,6 +349,7 @@ constexpr auto _is_applicable_r_result(
 template <typename Ret, typename Fn, typename... Args>
 constexpr auto _is_applicable_r_result(auto &&...) -> ::std::false_type;
 template <typename Ret, typename Fn, typename... Args> struct _is_applicable_r {
+  static_assert((_complete_operand<Args>() && ...));
   static constexpr bool value
       = decltype(_is_applicable_r_result<Ret, Fn, Args...>(::std::declval<Fn>(), ::std::declval<Args>()...))::value;
 };

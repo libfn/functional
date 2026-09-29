@@ -2,6 +2,10 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `apply` traits reject an incomplete `pack` or `copack` operand — 27 September 2026
+
+`apply`, `apply_r` and their traits reject incomplete `pack` or `copack` operands. Previously, trait queries could cache `false` (or `void` for `apply_result`) even after the type definition became available. Include `<fn/pack.hpp>` or `<fn/copack.hpp>` before querying. `typelist_applicable` still works from template arguments alone.
+
 ## `pack` and `copack` operations move to `<fn/algebra.hpp>` — 27 September 2026
 
 `operator&` over `pack` and `copack`, `conjoin`, and `disjoin` move to `<fn/algebra.hpp>`. Include this header when using these operations without a carrier header. The `expected`, `optional`, and `just` headers include it.
