@@ -6,7 +6,7 @@ Design history of libfn, newest first. The living documents — [README.md](READ
 
 Replace includes of `<fn/monadic.hpp>` with `<fn/traits.hpp>`; no compatibility header is provided. `some_in_place_type` moves to `<fn/traits.hpp>` and remains available through `<fn/copack.hpp>`.
 
-`monadic_invocable` requires a complete functor type. Querying a forward-declared library or user-defined functor now fails to compile. Previously, its answer could change after the definition, making the program ill-formed with no diagnostic required. Include the functor's defining header before querying.
+`monadic_invocable` requires a complete functor type and a complete nested `apply`. Querying a forward-declared library or user-defined functor, or one whose `apply` is only declared, now fails to compile. Previously, its answer could change after the definition, making the program ill-formed with no diagnostic required. Include the functor's defining header before querying.
 
 ## `apply` traits reject an incomplete `pack` or `copack` operand — 27 September 2026
 

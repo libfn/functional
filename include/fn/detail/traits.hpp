@@ -35,8 +35,8 @@ template <typename T>
 concept _some_monadic_type = _some_expected<T> || _some_optional<T> || _some_just<T>;
 
 template <typename Functor, typename V, typename... Args>
-concept _monadic_invocable
-    = _complete_class<Functor>() && _some_monadic_type<V> && ::std::invocable<typename Functor::apply, V, Args...>;
+concept _monadic_invocable = _complete_class<Functor>() && _complete_class<typename Functor::apply>()
+                             && _some_monadic_type<V> && ::std::invocable<typename Functor::apply, V, Args...>;
 
 // The storage initializes an element as `T{args...}`, so a constraint on it must ask the same
 // question: `is_constructible_v` spells parenthesized initialization, which for an aggregate

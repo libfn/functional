@@ -39,7 +39,7 @@ concept some_in_place_type = detail::_some_in_place_type<T>;
  * whether the callback is used to serve the operand: an operation over an uninhabited side consults
  * no callback at all, and so applies while no callback is applicable to it.
  *
- * User-defined verbs provide a nested `apply`. The verb type must be complete at the query.
+ * User-defined verbs provide a nested `apply`. The verb and its `apply` must be complete at the query.
  *
  * @tparam Functor The verb, such as `fn::transform_t`
  * @tparam V The carrier, possibly cv-ref qualified

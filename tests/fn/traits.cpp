@@ -15,7 +15,8 @@
 #include <concepts>
 #include <utility>
 
-// Incomplete functors must fail compilation for any operand; the suite cannot test this.
+// Incomplete functors, or functors whose `apply` is incomplete, must fail compilation for any operand;
+// the suite cannot test this.
 
 namespace {
 struct Error {};
@@ -43,6 +44,16 @@ union union_verb {
 };
 
 struct no_apply_verb final {};
+
+struct out_of_line_verb final {
+  struct apply;
+};
+struct out_of_line_verb::apply final {
+  constexpr auto operator()(fn::some_optional auto &&v, std::invocable<int> auto &&) const noexcept -> decltype(v)
+  {
+    return std::forward<decltype(v)>(v);
+  }
+};
 } // namespace
 
 TEST_CASE("some_in_place_type", "[traits][some_in_place_type]")
@@ -114,6 +125,13 @@ TEST_CASE("monadic_invocable", "[traits][monadic_invocable]")
       static_assert(monadic_invocable<union_verb, operand_t const &, callback_t>);
       static_assert(not monadic_invocable<union_verb, fn::expected<int, Error>, callback_t>);
       static_assert(not monadic_invocable<union_verb, int, callback_t>);
+      SUCCEED();
+    }
+
+    SECTION("apply defined out of line")
+    {
+      static_assert(monadic_invocable<out_of_line_verb, operand_t, callback_t>);
+      static_assert(not monadic_invocable<out_of_line_verb, int, callback_t>);
       SUCCEED();
     }
 
