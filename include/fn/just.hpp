@@ -9,6 +9,7 @@
 #include <libfn_version.hpp>
 #include <pfn/utility.hpp>
 
+#include <fn/algebra.hpp>
 #include <fn/copack.hpp>
 #include <fn/detail/functional.hpp>
 #include <fn/detail/fwd.hpp>

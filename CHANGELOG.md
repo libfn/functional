@@ -2,6 +2,12 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `pack` and `copack` operations move to `<fn/algebra.hpp>` — 27 September 2026
+
+`operator&` over `pack` and `copack`, `conjoin`, and `disjoin` move to `<fn/algebra.hpp>`. Include this header when using these operations without a carrier header. The `expected`, `optional`, and `just` headers include it.
+
+`<fn/copack.hpp>` includes `<fn/pack.hpp>`; the reverse dependency is removed. A copack transform returning `void` therefore needs only `<fn/copack.hpp>`. Code using `copack` through `<fn/pack.hpp>` must include `<fn/copack.hpp>` explicitly.
+
 ## `&` takes a `void` side as the unit factor `pack<>` — 27 September 2026
 
 `&` treats a `void` value as the unit factor `pack<>`. For example, `expected<int, E> & just<void>` yields `expected<pack<int>, E>`; previously it yielded `expected<int, E>`. This breaking change applies across carrier pairings in either order. Copack values distribute into packs, and `optional<T&> & just<void>` yields an owning `optional<pack<T>>`. Two `void` values still yield `void`.

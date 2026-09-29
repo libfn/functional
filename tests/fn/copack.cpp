@@ -4,7 +4,6 @@
 // or copy at https://opensource.org/licenses/ISC
 
 #include <fn/copack.hpp>
-#include <fn/pack.hpp>
 #include <fn/utility.hpp>
 
 #include <catch2/catch_all.hpp>

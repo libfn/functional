@@ -112,6 +112,7 @@ set(INCLUDE_FN_HEADERS
     fn/detail/pack_impl.hpp
     fn/detail/traits.hpp
     fn/detail/variadic_union.hpp
+    fn/algebra.hpp
     fn/and_then.hpp
     fn/concepts.hpp
     fn/copack.hpp

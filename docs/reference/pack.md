@@ -133,6 +133,8 @@ template <std::size_t I, some_pack P>
 constexpr auto get(P &&p) -> decltype(auto);  // (3)
 ```
 
+Overloads (1) and (2) take a `copack` and are defined in `<fn/copack.hpp>`.
+
 :include-doxygen-doc: fn::get { args: "Cp &&" }
 
 :include-doxygen-doc-params: fn::get { args: "Cp &&", title: "parameters" }

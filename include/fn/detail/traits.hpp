@@ -13,6 +13,12 @@
 
 namespace fn::inline LIBFN_VERSION::detail {
 
+template <typename T> constexpr bool _is_in_place_type = false;
+template <typename T> constexpr bool _is_in_place_type<::std::in_place_type_t<T> &> = true;
+template <typename T> constexpr bool _is_in_place_type<::std::in_place_type_t<T> const &> = true;
+template <typename T>
+concept _some_in_place_type = _is_in_place_type<T &>;
+
 // The storage initializes an element as `T{args...}`, so a constraint on it must ask the same
 // question: `is_constructible_v` spells parenthesized initialization, which for an aggregate
 // performs no brace elision (`std::array<int, 3>` is not "constructible" from 3 ints) and permits

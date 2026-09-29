@@ -10,6 +10,7 @@
 #include <pfn/optional.hpp>
 #include <pfn/utility.hpp>
 
+#include <fn/algebra.hpp>
 #include <fn/copack.hpp>
 #include <fn/detail/functional.hpp>
 #include <fn/fwd.hpp>
