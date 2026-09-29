@@ -54,19 +54,6 @@ static_assert(some_optional<optional<int> const &>);
 static_assert(some_optional<optional<int> &&>);
 static_assert(some_optional<optional<int> const &&>);
 
-static_assert(some_monadic_type<expected<int, bool>>);
-static_assert(some_monadic_type<expected<int, bool> const>);
-static_assert(some_monadic_type<expected<int, bool> &>);
-static_assert(some_monadic_type<expected<int, bool> const &>);
-static_assert(some_monadic_type<expected<int, bool> &&>);
-static_assert(some_monadic_type<expected<int, bool> const &&>);
-static_assert(some_monadic_type<optional<int>>);
-static_assert(some_monadic_type<optional<int> const>);
-static_assert(some_monadic_type<optional<int> &>);
-static_assert(some_monadic_type<optional<int> const &>);
-static_assert(some_monadic_type<optional<int> &&>);
-static_assert(some_monadic_type<optional<int> const &&>);
-
 // clang-format off
 static_assert(same_kind<optional<bool>, optional<Value>>);
 static_assert(not same_kind<optional<bool>, expected<void, bool>>);

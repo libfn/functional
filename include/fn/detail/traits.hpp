@@ -6,8 +6,10 @@
 #ifndef INCLUDE_FN_DETAIL_TRAITS
 #define INCLUDE_FN_DETAIL_TRAITS
 
+#include <fn/detail/fwd.hpp>
 #include <libfn_version.hpp>
 
+#include <concepts>
 #include <type_traits>
 #include <utility>
 
@@ -18,6 +20,23 @@ template <typename T> constexpr bool _is_in_place_type<::std::in_place_type_t<T>
 template <typename T> constexpr bool _is_in_place_type<::std::in_place_type_t<T> const &> = true;
 template <typename T>
 concept _some_in_place_type = _is_in_place_type<T &>;
+
+// Reject incomplete types before trait results or concept satisfaction can depend
+// on whether the definition has been seen.
+template <typename T> constexpr bool _complete_class() noexcept
+{
+  if constexpr (::std::is_class_v<T> || ::std::is_union_v<T>)
+    return sizeof(T) > 0; // incomplete: include the header defining this type first
+  else
+    return true;
+}
+
+template <typename T>
+concept _some_monadic_type = _some_expected<T> || _some_optional<T> || _some_just<T>;
+
+template <typename Functor, typename V, typename... Args>
+concept _monadic_invocable = _complete_class<Functor>() && _complete_class<typename Functor::apply>()
+                             && _some_monadic_type<V> && ::std::invocable<typename Functor::apply, V, Args...>;
 
 // The storage initializes an element as `T{args...}`, so a constraint on it must ask the same
 // question: `is_constructible_v` spells parenthesized initialization, which for an aggregate

@@ -8,6 +8,7 @@
 
 #include <fn/detail/fwd.hpp>
 #include <fn/detail/meta.hpp>
+#include <fn/detail/traits.hpp>
 #include <libfn_version.hpp>
 #include <pfn/functional.hpp>
 #include <pfn/tuple.hpp>
@@ -304,7 +305,7 @@ template <typename Ret, typename Fn, typename Arg, typename Arg0, typename... Ar
 template <typename A> constexpr bool _complete_operand() noexcept
 {
   if constexpr (_some_pack<A> || _some_copack<A>)
-    return sizeof(::std::remove_cvref_t<A>) > 0; // incomplete: include <fn/pack.hpp> or <fn/copack.hpp> first
+    return _complete_class<::std::remove_cvref_t<A>>();
   else
     return true;
 }

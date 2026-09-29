@@ -2,6 +2,12 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `<fn/monadic.hpp>` becomes `<fn/traits.hpp>`; `monadic_invocable` rejects an incomplete functor — 27 September 2026
+
+Replace includes of `<fn/monadic.hpp>` with `<fn/traits.hpp>`; no compatibility header is provided. `some_in_place_type` moves to `<fn/traits.hpp>` and remains available through `<fn/copack.hpp>`.
+
+`monadic_invocable` requires a complete functor type and a complete nested `apply`. Querying a forward-declared library or user-defined functor, or one whose `apply` is only declared, now fails to compile. Previously, its answer could change after the definition, making the program ill-formed with no diagnostic required. Include the functor's defining header before querying.
+
 ## `apply` traits reject an incomplete `pack` or `copack` operand — 27 September 2026
 
 `apply`, `apply_r` and their traits reject incomplete `pack` or `copack` operands. Previously, trait queries could cache `false` (or `void` for `apply_result`) even after the type definition became available. Include `<fn/pack.hpp>` or `<fn/copack.hpp>` before querying. `typelist_applicable` still works from template arguments alone.

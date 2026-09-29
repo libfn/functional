@@ -9,8 +9,8 @@
 #include <fn/copack.hpp>
 #include <fn/detail/functional.hpp>
 #include <fn/detail/traits.hpp>
-#include <fn/monadic.hpp>
 #include <fn/pack.hpp>
+#include <fn/traits.hpp>
 #include <libfn_version.hpp>
 
 #include <type_traits>

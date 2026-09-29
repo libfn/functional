@@ -9,8 +9,8 @@
 #include <fn/copack.hpp>
 #include <fn/expected.hpp>
 #include <fn/just.hpp>
-#include <fn/monadic.hpp>
 #include <fn/optional.hpp>
+#include <fn/traits.hpp>
 #include <libfn_version.hpp>
 
 #include <concepts>
