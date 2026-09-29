@@ -129,5 +129,7 @@ TEST_CASE("_complete_class", "[traits][complete_class]")
   static_assert(_complete_class<int>());
   static_assert(_complete_class<int &>());
   static_assert(_complete_class<int[]>());
-  SUCCEED();
+  // a runtime call too, so coverage sees both branches of the body
+  CHECK(_complete_class<empty_t>());
+  CHECK(_complete_class<int>());
 }
