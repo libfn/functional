@@ -680,6 +680,29 @@ TEST_CASE("append value categories", "[pack][append]")
     static_assert(not noexcept(std::declval<pack<Counted> &&>().append(std::in_place_type<int>, 1)));
   }
 
+  SECTION("a throwing relocation propagates")
+  {
+    struct CopyThrows final {
+      int n;
+      constexpr explicit CopyThrows(int i) noexcept : n(i) {}
+      CopyThrows(CopyThrows const &) noexcept(false) : n(0) { throw 1; }
+      constexpr CopyThrows(CopyThrows &&) noexcept = default;
+    };
+    pack<CopyThrows> const src{CopyThrows{1}};
+    CHECK_THROWS_AS(src.append(2), int);            // relocating an element
+    CHECK_THROWS_AS(src.append(pack<int>{2}), int); // ... before a spliced pack
+    CHECK_THROWS_AS(pack<int>{1}.append(src), int); // relocating a spliced element
+    CHECK_THROWS_AS(pack<>{}.append(std::in_place_type<CopyThrows>, fn::get<0>(src)), int); // making the new one
+
+    // moving instead of copying cannot throw
+    constexpr auto moved = [] {
+      return fn::get<0>(pack<CopyThrows>{CopyThrows{1}}.append(2)).n
+             + fn::get<1>(pack<int>{1}.append(pack<CopyThrows>{CopyThrows{3}})).n;
+    };
+    static_assert(moved() == 4);
+    CHECK(moved() == 4);
+  }
+
   SECTION("an element is held as itself")
   {
     constexpr auto held = [] {

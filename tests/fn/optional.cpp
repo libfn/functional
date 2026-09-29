@@ -630,6 +630,9 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       static_assert((fn::just<void>{} & O{5}).value() == fn::pack<int>{5});
       CHECK((J{1} & O{2}).value().apply([](int a, int b) { return a == 1 && b == 2; }));
       CHECK(not(J{1} & O{}).has_value());
+      CHECK((EIv{7} & O{2}).value().apply([](int a, int b) { return a == 7 && b == 2; }));
+      CHECK((O{2} & EVI{}).value() == fn::pack<int>{2});
+      CHECK((fn::just<void>{} & O{5}).value() == fn::pack<int>{5});
       static_assert(not(fn::just<void>{} & O{}).has_value());
       static_assert(not(O{} & EVI{}).has_value());
       CHECK(not(fn::just<void>{} & O{}).has_value());
