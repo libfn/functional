@@ -1025,6 +1025,31 @@ TEST_CASE("optional transform copack", "[optional][copack][transform]")
           == fn::copack{true});
   }
 
+  SECTION("a void result enters as pack<>")
+  {
+    constexpr auto which
+        = fn::overload{[](bool b) { return b ? 1 : 0; }, [] { return -1; }, [](fn::pack<>) { return -2; }};
+    constexpr auto fnMixed = fn::overload{[](int) {}, [](Xint) { return true; }};
+    constexpr auto fnVoid = [](auto &&) {};
+    S s{12};
+    static_assert(std::is_same_v<decltype(s.transform(fnMixed)), fn::optional<fn::copack_for<bool, fn::pack<>>>>);
+    static_assert(std::is_same_v<decltype(s.transform(fnVoid)), fn::optional<fn::copack<fn::pack<>>>>);
+    CHECK(s.transform(fnMixed).value().apply(which) == -1);
+    CHECK(std::as_const(s).transform(fnMixed).value().apply(which) == -1);
+    CHECK(std::move(std::as_const(s)).transform(fnMixed).value().apply(which) == -1);
+    CHECK(std::move(s).transform(fnMixed).value().apply(which) == -1);
+    CHECK(S{12}.transform(fnVoid).value().apply(which) == -1);
+    CHECK(not S{}.transform(fnMixed).has_value());
+    constexpr auto fnNothrow = fn::overload{[](int) noexcept {}, [](Xint) noexcept { return true; }};
+    static_assert(noexcept(s.transform(fnNothrow)));
+    static_assert(not noexcept(s.transform(fnMixed)));
+    // named sources: VS 2022 misreads a mid-expression prvalue's empty-class union member
+    constexpr S cs{12};
+    constexpr S ce{};
+    static_assert(cs.transform(fnMixed).value().apply(which) == -1);
+    static_assert(not ce.transform(fnMixed).has_value());
+  }
+
   SECTION("error")
   {
     fn::optional<fn::copack_for<Xint, int>> s{};

@@ -21,18 +21,24 @@
 namespace fn::inline LIBFN_VERSION::detail {
 
 namespace _fold_detail {
+// pack forbids rvalue references.
+template <typename T>
+using _element_t = ::std::conditional_t<::std::is_rvalue_reference_v<T>, ::std::remove_reference_t<T>, T>;
+
 // The branch the fold takes is chosen by `if constexpr`, so a single expression cannot state its
 // specification: the two untaken spellings would be ill-formed. Hence one specialization per branch.
 template <typename L, typename R, typename Lv, typename Rv>
-struct _nothrow_fold : ::std::bool_constant<noexcept(::fn::pack<L, R>{::std::declval<Lv>(), ::std::declval<Rv>()})> {};
+struct _nothrow_fold : ::std::bool_constant<noexcept(
+                           ::fn::pack<_element_t<L>, _element_t<R>>{::std::declval<Lv>(), ::std::declval<Rv>()})> {};
 template <typename L, typename R, typename Lv, typename Rv>
   requires _some_pack<L>
 struct _nothrow_fold<L, R, Lv, Rv>
     : ::std::bool_constant<noexcept(::std::declval<Lv>().append(::std::in_place_type_t<R>{}, ::std::declval<Rv>()))> {};
 template <typename L, typename R, typename Lv, typename Rv>
   requires(not _some_pack<L>) && _some_pack<R>
-struct _nothrow_fold<L, R, Lv, Rv> : ::std::bool_constant<noexcept(::fn::pack<L>{::std::declval<Lv>()}.append(
-                                         ::std::in_place_type_t<R>{}, ::std::declval<Rv>()))> {};
+struct _nothrow_fold<L, R, Lv, Rv>
+    : ::std::bool_constant<noexcept(::fn::pack<_element_t<L>>{::std::declval<Lv>()}.append(::std::in_place_type_t<R>{},
+                                                                                           ::std::declval<Rv>()))> {};
 
 template <typename L, typename R>
 [[nodiscard]] constexpr auto _fold(auto &&l, auto &&r) //
@@ -42,9 +48,9 @@ template <typename L, typename R>
     return FWD(l).append(::std::in_place_type_t<R>{}, FWD(r));
   } else {
     if constexpr (_some_pack<R>) {
-      return ::fn::pack<L>{FWD(l)}.append(::std::in_place_type_t<R>{}, FWD(r));
+      return ::fn::pack<_element_t<L>>{FWD(l)}.append(::std::in_place_type_t<R>{}, FWD(r));
     } else {
-      return ::fn::pack<L, R>{FWD(l), FWD(r)};
+      return ::fn::pack<_element_t<L>, _element_t<R>>{FWD(l), FWD(r)};
     }
   }
 }
@@ -162,9 +168,8 @@ template <typename Fn, typename Arg, typename Arg0, typename... Args>
                apply<Fn, decltype(::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0))), Args...>(
                    FWD(fn), ::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0)), FWD(args)...);
              }
-// Deduced return: a trailing return type is substituted before constraints are checked, so an
-// explicit one would instantiate `fold` for non-viable candidates and static_assert (a `pack` of
-// rvalue refs). The body's `using type` alias is inlined only to dodge MSVC's body-local-alias leak.
+// Deduced return delays fold instantiation until constraints are checked.
+// Inline the return expression to avoid MSVC's body-local alias leak.
 [[nodiscard]] constexpr auto apply(Fn &&fn, Arg &&arg, Arg0 &&arg0, Args &&...args) //
     noexcept(noexcept(apply<Fn, decltype(::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0))), Args...>(
         FWD(fn), ::fn::detail::_fold_detail::fold<Arg, Arg0>(FWD(arg), FWD(arg0)), FWD(args)...))) -> decltype(auto)
