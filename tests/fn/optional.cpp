@@ -635,8 +635,10 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       CHECK((fn::just<void>{} & O{5}).value() == fn::pack<int>{5});
       static_assert(not(fn::just<void>{} & O{}).has_value());
       static_assert(not(O{} & EVI{}).has_value());
+      static_assert(not(EIv{7} & O{}).has_value());
       CHECK(not(fn::just<void>{} & O{}).has_value());
       CHECK(not(O{} & EVI{}).has_value());
+      CHECK(not(EIv{7} & O{}).has_value());
 
       using DeadO = fn::optional<fn::copack<>>;
       static_assert(std::same_as<decltype(std::declval<DeadO>() & std::declval<EVI>()), DeadO>);
