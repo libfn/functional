@@ -370,9 +370,6 @@ struct _nothrow_join_arm<false, Tpl, Lh, Rh, Efn> {
 template <template <typename> typename Tpl, typename Lh, typename Rh, typename Efn>
 constexpr inline bool _nothrow_join = _nothrow_join_arm<_uninhabited_join<Lh, Rh>, Tpl, Lh, Rh, Efn>::value;
 
-// The disjunction's value channel: the sum of the two value types, with void spelled pack<> -
-// both are the unit, and a copack cannot hold void.
-template <typename V> using _sum_element_t = ::std::conditional_t<::std::is_void_v<V>, pack<>, V>;
 template <typename Lh, typename Rh>
 using _disjoined_t = copack_for<_sum_element_t<typename ::std::remove_cvref_t<Lh>::value_type>,
                                 _sum_element_t<typename ::std::remove_cvref_t<Rh>::value_type>>;

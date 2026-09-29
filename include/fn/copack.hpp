@@ -1284,14 +1284,11 @@ template <::std::size_t I, some_copack C>
 }
 
 namespace detail {
-// The graded joins for expected's binds over a copack side, when the exhaustive branches return
-// DIFFERENT expected types. Sets convergent in the exact result type fall back to the select
-// trait, preserving today's behaviour and diagnostics verbatim - exact, not stripped, because
-// select compares exact types and a set convergent only after removing cv/ref would reach its
-// assert; such a set engages the join like any heterogeneous all-expected one. An invalid set -
-// a non-expected result, mixed void and non-void values, or a plain fixed side some branch does
-// not retain - leaves no `type`, so asking answers instead of erroring. Tpl is the caller's own
-// two-parameter carrier, keeping this header free of the expected dependency.
+// A copack represents void success with pack<>.
+template <typename V> using _sum_element_t = ::std::conditional_t<::std::is_void_v<V>, ::fn::pack<>, V>;
+
+// Compare exact branch result types: stripping cv/ref could select a convergent path
+// whose type assertion fails. Tpl avoids a dependency on the expected header.
 template <template <typename...> typename Tpl, typename E> struct _joining_expected_tag final {};
 template <template <typename...> typename Tpl, typename T> struct _joining_recovery_tag final {};
 template <template <typename...> typename Tpl> struct _joining_optional_tag final {};
@@ -1328,26 +1325,23 @@ struct list_join<T0, Ts...> {
   using type = ::fn::copack_for<T0, Ts...>;
 };
 
-// the carried side's join, unioned with self's own grade: a copack side joins everything (an
-// empty one vanishes into the union); a plain side must be retained by every branch exactly
 template <typename E, typename... Es> struct graded_join {};
 template <typename E, typename... Es>
   requires _some_copack<E>
 struct graded_join<E, Es...> {
-  using type = ::fn::copack_for<E, Es...>;
+  using type = ::fn::copack_for<E, _sum_element_t<Es>...>;
 };
 template <typename E, typename... Es>
   requires(not _some_copack<E>) && (... && ::std::is_same_v<E, Es>)
 struct graded_join<E, Es...> {
   using type = E;
 };
-// ... or by its singular lift copack<E>, which then spells the result: grading never silently
-// drops, so one graded branch lifts the plain side and the plain branches with it
+// A singular lift in any branch preserves grading.
 template <typename E, typename... Es>
   requires(not _some_copack<E>) && (not(... && ::std::is_same_v<E, Es>))
-          && (... && (::std::is_same_v<E, Es> || ::std::is_same_v<::fn::copack<E>, Es>))
+          && (... && (::std::is_same_v<E, Es> || ::std::is_same_v<::fn::copack<_sum_element_t<E>>, Es>))
 struct graded_join<E, Es...> {
-  using type = ::fn::copack<E>;
+  using type = ::fn::copack<_sum_element_t<E>>;
 };
 } // namespace _joining_expected
 
