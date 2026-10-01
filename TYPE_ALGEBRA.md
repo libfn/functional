@@ -875,7 +875,7 @@ Eliminating computation structures yields an ordinary C++ value. This is typical
 >
 > ### Note — eliminating with heterogeneous branches
 >
-> Because `apply` leaves the algebra, it must deduce a single result type; branches that disagree are rejected. When branch types differ, specifying a target `copack` via `apply_r<copack_for<A, B, C>>` accepts branches returning `A`, `B`, or `C`, as each alternative converts implicitly into the parent `copack`.
+> Because `apply` leaves the algebra, it does not calculate a combined type for branch results. Hence the branches must return the same type, or the caller must specify the type with `apply_r<R>`. When `R` is a `copack`, as in `apply_r<copack_for<A, B, C>>`, branches may return `A`, `B`, or `C`, since each alternative converts implicitly into that `copack`.
 
 Application expands one selected level only. The call shapes are straightforward:
 
@@ -898,13 +898,13 @@ auto test_elimination(fn::expected<UserId, fn::copack<Missing>> ex) -> int
 }
 ```
 
-Exhaustiveness is statically constrained. If you omit a handler for a possible type, the compilation fails. `fn::overload` is merely a helper; final selection always relies on ordinary C++ overload resolution.
+Exhaustiveness is statically constrained. If no handler can accept a possible input, compilation fails. `fn::overload` is merely a helper; final selection always relies on ordinary C++ overload resolution.
 
 > [!WARNING]
 >
 > ### Warning — catch-all handlers defeat exhaustiveness
 >
-> Exhaustiveness is checked against the types your handlers name. An unconstrained `[](auto)` names all of them, so a `copack` that later gains an alternative still compiles — the new alternative routes into the catch-all instead of failing where its branch is missing. Where one handler should serve several alternatives, name a concept instead of `auto` — for example `[](MyConcept auto &&)` — and the check still fires for anything the concept does not admit.
+> Exhaustiveness requires a valid handler invocation for every alternative. An unconstrained `[](auto&&...)` accepts all alternatives, so a `copack` that later gains an alternative still compiles — the new alternative routes into the catch-all instead of failing where its branch is missing. Where one handler should serve several alternatives, name a concept instead of `auto` — for example `[](MyConcept auto &&)` — and the exhaustiveness check still fires for anything the concept does not match.
 
 ### Type-tagged elimination
 
@@ -915,7 +915,7 @@ Eliminating a carrier using `apply_type` passes an explicit state tag as the fir
 - **`expected`**: The success arm receives `std::in_place` and the success value (or `std::in_place` alone if `void`), while the error arm receives `fn::unexpect` and the error.
 - **`optional`**: The success arm receives `std::in_place` and the value, while the empty arm receives `std::nullopt`.
 - **`copack` & `choice`**: The active alternative arm receives `std::in_place_type<T>` and the payload.
-- **`just`**: The arm receives `std::in_place_type<T>` and the value. Symmetrically, `just<void>`'s arm receives `std::in_place_type<void>` alone, representing a nullary unit payload.
+- **`just`**: The arm receives `std::in_place_type<T>` and the value. Symmetrically, `just<void>`'s arm receives `std::in_place_type<void>` alone, representing success without a payload.
 
 > [!TIP]
 >
@@ -924,7 +924,7 @@ Eliminating a carrier using `apply_type` passes an explicit state tag as the fir
 > The two eliminations are not dual to one another — the dual of coproduct elimination is product *introduction*, pairing — and they differ in how much the category determines.
 >
 > - **Coproduct**: eliminating $A + B$ is canonical. Supplying $f : A \to C$ and $g : B \to C$ determines a *unique* mediating morphism $[f, g] : A + B \to C$ by the universal property, and in `libfn` ordinary C++ overload resolution is what computes it.
-> - **Product**: eliminating $A \times B$ invokes no universal property — a morphism out of a product is just a morphism. What `apply` supplies is the bridge between the product as *stored*, a `pack`, and the product as an argument list, which C++ keeps distinct: it uncurries.
+> - **Product**: its universal property characterizes maps **into** $A \times B$; the operation $A \times B \to C$ must be supplied by the caller. What `apply` supplies is the bridge between the product as *stored*, a `pack`, and the product as an argument list, which C++ keeps distinct.
 >
 > Carrier elimination (`apply_type`) additionally preserves the injections: the state tag — such as `std::in_place`, `fn::unexpect` or `std::in_place_type<T>` — tells the handler *which* injection morphism placed the value into the structure.
 >
@@ -942,7 +942,7 @@ A reference of `libfn` operations, organized by channel and effect:
 
 **Error/Empty Channel**
 
-- `transform_error`: Maps the error value. Stays inside the carrier, and is the one operation that can narrow a graded error set (Section 9).
+- `transform_error`: Maps the error value. Stays inside the carrier and can narrow a graded error set (Section 9).
 - `or_else`: Sequences computations based on errors. Joins recovery values.
 - `recover`: Intercepts failure and forces a transition back to a success state.
 - `inspect_error`: Observes the error value transparently.
@@ -950,7 +950,7 @@ A reference of `libfn` operations, organized by channel and effect:
 
 **Neutral**
 
-- `discard`: Unconditionally evaluates the carrier, discards the result, and returns `void` to signal that the return value is deliberately ignored.
+- `discard`: Discards the carrier and returns `void` to signal that the return value is deliberately ignored.
 
 **Elimination**
 
@@ -967,13 +967,14 @@ A reference of `libfn` operations, organized by channel and effect:
 ### Key architectural rules of the map
 
 - **`fail` and `recover` are duals**: `fail` transitions success to failure ($Success \implies Failure$), and `recover` transitions failure to success ($Failure \implies Success$). Neither operation widens a graded error set.
-- **Graded `and_then`**: Widens the error grade by introducing new error types into the pipeline.
+- **Error-graded `and_then`**: Combines input and callback error alternatives by union of types.
+- **Value-graded `or_else`**: Similarly combines input and callback value alternatives.
 - **`filter` and `fail`**: Enter an existing short-circuit state; the carrier must already support the failure state.
 - **Error-side operations** (such as `transform_error`, `or_else`, `recover`, and `inspect_error`): Require a carrier with an error or empty side. They are ill-formed on `just` and `choice`, and remain vacuously well-formed on `expected<T, copack<>>` (Section 10).
 
 ## 14. Laws as C++ equalities
 
-Where the carried types compare equal in a constant expression, the laws are checked by the compiler itself. Functor identity and monad left identity are machine-checked below; the remaining laws hold structurally, by construction of the derived types:
+When results can be compared in a constant expression, instances of the laws can be checked by the compiler. The following checks illustrate functor identity and monad left identity:
 
 <!-- sync-example-test-laws -->
 ```cpp
@@ -992,15 +993,14 @@ constexpr auto test_laws() -> void
 }
 ```
 
-Other properties hold structurally:
+Other properties hold:
 
-- **Functor composition**: `m | transform(f) | transform(g)` equals `m | transform([](auto v) { return g(f(v)); })`.
+- **Functor composition**: `m | transform(f) | transform(g)` equals `m | transform([](auto&& ... v) { return g(f(v...)); })` (for singular parameters; for packs use `apply`)
 - **Monad right identity**: `m | and_then(pure)` equals `m`.
 - **Monad associativity**: `(m | and_then(f)) | and_then(g)` equals `m | and_then([](auto v) { return f(v) | and_then(g); })`. For graded expected, both sides of the associativity derive the same normalized union grade.
 - **Product associativity**: Holds after canonical `pack` normalization.
 - **Coproduct set semantics**: Union associativity, commutativity, and idempotence apply.
 - **Coherent widening**: Upcasting an error through intermediate supersets yields the same final type as upcasting directly to the broadest superset.
-- **Identity cluster binds**: Laws hold across `just`, `choice`, and `expected<T, copack<>>` via the canonical payload-preserving state-shape correspondence.
 
 ## 15. C++ mechanics that preserve the algebra
 
@@ -1019,43 +1019,23 @@ The `copack` normal form rests on a strict total order over types, and the defau
 The library respects C++ value mechanics:
 
 - Core operations are `constexpr`.
+- `const` is propagated.
 - The algebra's own types (`pack`, `copack`, `just`, and `choice`) are structural when their elements are, so a `constexpr` value of these types may be used as a template parameter.
-- `noexcept` is conditionally computed.
-- Value categories (lvalue/rvalue) propagate strictly to callbacks, avoiding copies.
+- Value categories (lvalue/rvalue) propagate strictly to callbacks.
+- Reference collapsing rules apply to carriers and their payloads.
 - Immovable and move-only payloads are supported in place.
-- Reference-bearing `pack<T&...>` and `optional<T&>` are supported. Lifetime management of non-owning references remains with the caller.
-- `pack` compares element-wise, supporting equality and three-way comparison. For reference-bearing `pack<T&...>`, comparison applies to the referents rather than the references themselves.
-
-> [!NOTE]
->
-> ### Note — reference payloads
->
-> Raw reference payloads are disallowed on the carriers `expected`, `just` and `choice`, and as `copack` alternatives. `expected` stores its payload in a union, and C++ forbids a union member of reference type; the algebra's own types refuse them so that every alternative is dispatched the same way, whatever it holds. `optional<T&>` is the deliberate exception — the standard specifies it, and `libfn` polyfills it. If you want to propagate references inside the other carriers, wrap them in a `pack` (e.g. `expected<pack<T&>, E>`).
-
-<!-- sync-example-test-references -->
-```cpp
-auto test_references() -> void
-{
-  int x = 42;
-
-  // optional supports references directly
-  fn::optional<int &> opt{x};
-  static_assert(std::same_as<decltype(opt.value()), int &>);
-
-  // expected must wrap references inside a pack
-  fn::expected<fn::pack<int &>, Error> ex{fn::as_pack(x)};
-  static_assert(std::same_as<decltype(ex.value()), fn::pack<int &> &>);
-}
-```
+- Reference-bearing `pack<T&...>` is supported. Lifetime management of non-owning references remains with the caller.
+- `pack` compares element-wise, supporting equality and three-way comparison.
+  - For reference-bearing `pack<T&...>`, comparison applies to the referents rather than the references themselves.
 
 ### pfn and fn
 
 The library is divided into layers:
 
 - `pfn` (Polyfill fn) is the standards-facing layer. It provides `std::optional` and `std::expected` in their C++26 shape — monadic member functions, `optional<T&>`, range support — plus smaller utilities such as `std::invoke_r` and `std::unreachable`, all available to a C++20 compiler.
-- `fn` is the strict extension layer. It introduces the `pack`/`copack` algebra, multidispatch, graded errors, `choice`, `just`, the pipeline functors, and the composition operators `&` and `|`.
+- `fn` is the strict extension layer. It introduces the `pack`/`copack` algebra, multidispatch, graded monads, `choice`, `just`, the pipeline functors, and the composition operators `&` and `|`.
 
-Every `fn` type with a `pfn` counterpart is a strict superset of it: switching a valid program from `pfn` to `fn` changes neither compilation nor behaviour.
+Every `fn` type with a `pfn` counterpart is a superset of it: switching a valid program from `pfn` to `fn` is not expected to change compilation nor program behaviour.
 
 ## Functional terminology
 
@@ -1074,11 +1054,12 @@ For readers with a background in functional languages (like Haskell or OCaml), t
 
 ## Further reading
 
-For formal validation of the algebraic structures modeled in `libfn`, refer to:
+For the mathematical background to the structures modeled in `libfn`, refer to:
 
 1. Orchard and Petricek, [“Embedding effect systems in Haskell”](https://www.doc.ic.ac.uk/~dorchard/publ/haskell14-effects.pdf) (for effect sets, union, and subeffecting).
 2. Orchard, Wadler, and Eades, [“Unifying graded and parameterised monads”](https://arxiv.org/pdf/2001.10274) specifically Definition 21 (for the graded-monad interpretation).
 3. McDermott and Uustalu, [“Flexibly Graded Monads and Graded Algebras”](https://dylanm.org/flexibly-graded-monads.pdf) _Note: `libfn` does not claim to fully implement their flexibly graded construction, but the work contextualizes graded structures._
+4. Emily Riehl, ["Category Theory in Context"](https://emilyriehl.github.io/files/context.pdf) (for the categorical foundations, including universal properties, products, coproducts, and monads).
 
 <!-- document-guidelines
 

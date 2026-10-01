@@ -418,21 +418,6 @@ constexpr auto test_laws() -> void
 }
 // sync-example-test-laws
 
-// sync-example-test-references
-auto test_references() -> void
-{
-  int x = 42;
-
-  // optional supports references directly
-  fn::optional<int &> opt{x};
-  static_assert(std::same_as<decltype(opt.value()), int &>);
-
-  // expected must wrap references inside a pack
-  fn::expected<fn::pack<int &>, Error> ex{fn::as_pack(x)};
-  static_assert(std::same_as<decltype(ex.value()), fn::pack<int &> &>);
-}
-// sync-example-test-references
-
 int main()
 {
   // Touch all functions to prove compilability and execution
@@ -458,6 +443,5 @@ int main()
   test_choice_mapping({UserId{}});
   (void)test_elimination(fn::expected<UserId, fn::copack<Missing>>{UserId{}});
   test_laws();
-  test_references();
   return 0;
 }
