@@ -318,7 +318,7 @@ As a payload, a `copack` models a discriminated union of types.
 
 Evaluating a `copack` via `.apply()` passes the active alternative to the callback. Because `copack` is self-flattening, nested `copack`s do not occur. A selected alternative that is itself tuple-like—such as `pack`, `std::tuple`, or `std::array`—is unpacked one level, passing its immediate constituents as separate arguments. Since normalized shapes are sums of products, one level of unpacking is sufficient to supply the product's fields as function arguments.
 
-To explicitly lift a single scalar value into a single-alternative coproduct, use `fn::as_copack(value)`. Unlike `as_pack`, it always decays: a `copack` alternative can never be a reference. When a `copack` contains exactly one alternative, it is **singular** and supports direct value extraction via the `get` utility (resolvable via ADL), which propagates references with the same semantics as `apply`.
+To explicitly lift a single scalar value into a single-alternative coproduct, use `fn::as_copack(value)`. Unlike `as_pack`, it always decays: a `copack` alternative can never be a reference. When a `copack` contains *exactly one* alternative type, it is **singular**. It supports direct value extraction both via the index-less `get` and via the tuple protocol (including structured bindings).
 
 A `pack` can be lifted into a `copack` (including packs holding references), but a `pack` cannot contain a `copack`. There is algebraic equivalence between a hypothetical `pack` containing a `copack` (which is disallowed) and a specific shape of `copack` containing a `pack` — see Section 6 for details.
 
@@ -1016,7 +1016,7 @@ To ensure reliability, `libfn` uses compiler mechanisms to reject malformed usag
 
 ### Constraints and exhaustiveness
 
-Public concepts and `requires` clauses enforce correctness before instantiation. Operations are protected by public applicability concepts (such as `fn::applicable_transform` and `fn::applicable_and_then`) that evaluate to `false` for invalid calls rather than triggering deep compiler errors. This underpins the compile-time exhaustiveness guarantees of `apply` and monadic operations established in Sections 4 and 12.
+Public concepts and `requires` clauses constrain which calls are accepted. `fn::monadic_invocable` verifies pipeline invocation, while concepts such as `fn::applicable_transform` and `fn::applicable_and_then` express individual applicability rules. These checks enforce exhaustive handling of alternatives where a callback is invoked and require complete type definitions to be present. This underpins the compile-time exhaustiveness guarantees of `apply` and monadic operations established in Sections 4 and 12.
 
 ### One normalization order per program
 
