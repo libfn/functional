@@ -844,21 +844,23 @@ A callback returning a bare value requires `transform` rather than `and_then`; `
 
 > [!TIP]
 >
-> ### Mathematical note — why copack is not a monad, but choice is
+> ### Mathematical note — why copack always flattens, but choice does not
 >
-> Categorically, `copack<Ts...>` is an object-level **coproduct** (disjoint sum $\bigoplus T_i$), whereas `choice<Ts...>` is a **monad** representing a coproduct-bearing computation context.
+> Categorically, `copack<Ts...>` represents a **coproduct** payload (disjoint sum $\bigoplus T_i$), whereas `choice<Ts...>` places that payload in an identity-monad carrier. These two entities have different purposes, hence also different behaviour:
 >
-> 1. **`copack` is self-flattening (not a monad)**:
->    Naked sums are naturally self-flattening (e.g., $(A + B) + C \cong A + B + C$), and `libfn` enforces it syntactically: a nested `copack` is ill-formed by design. But the multiplication $\mu_A : M(M(A)) \to M(A)$ presupposes that $M \circ M$ is expressible as a type, so *join* has no domain to act on. The constraint is intentional: it allows `transform` on `copack` to collapse every branch's results into a flat, deduplicated set instead of an ever-nesting type.
+> 1. **`copack` normalizes the payload algebra**:
+>    Normalization deliberately removes grouping between sums (e.g., $(A + B) + C \cong A + B + C$): a nested `copack` is ill-formed by design. The constraint is intentional: it allows `transform` on `copack` to collapse every branch's results into a flat, deduplicated set instead of an ever-nesting type.
 >
-> 2. **`choice` is the monad (the "structural suspend button")**:
->    To restore monad laws, the monadic carrier `choice<Ts...>` wraps the sum in an "identity layer" to preserve structural depth: `choice<choice<T>>` $\ne$ `choice<T>`. That layer holds eager flattening in check.
->    Thus, `choice` acts as a lawful monad under $M(A) = \text{just}\langle A\rangle$ over coproduct objects $A = \bigoplus_{j} T_j$ — the *nominal* identity wrapper, which Haskell spells as the `Identity` newtype. Because $M(A) \cong A$ yet is a distinct C++ type, the unit and the multiplication are exactly the wrapping and unwrapping that nominal typing makes observable:
+> 2. **`choice` preserves the carrier boundary**:
+>    To distinguish mapping from monadic composition, the monadic carrier `choice<Ts...>` wraps the sum in an "identity layer" to preserve structural depth: `choice<choice<T>>` $\ne$ `choice<T>`. That layer holds eager flattening in check.
+>    Since `choice<Ts...>` is an alias for `just<copack<Ts...>>`, the underlying identity-wrapper model is $M(A) = \text{just}\langle A\rangle$, with $A$ being the coproduct payload in the case of `choice`. In this model, the unit and multiplication correspond to wrapping and unwrapping the carrier.
 >    - **Unit / return** $\eta_A : A \to M(A)$ : wraps the coproduct in the `choice` layer. Building a `choice` from a single alternative composes this with the coproduct's own injection $\iota_i : T_i \to \bigoplus_j T_j$.
->    - **Join / flatten** $\mu_A : M(M(A)) \to M(A)$ : strips one `choice` layer, letting the underlying sum deduplicate its alternatives (the codiagonal fold $[id, id]$, executed statically via `choice_for`).
+>    - **Join / flatten** $\mu_A : M(M(A)) \to M(A)$ : removes one `just` layer.
 >    - **Bind**: maps, then flattens explicitly via *join*. Making that step explicit is what grants control over *when* flattening occurs.
 >
->
+> 3. **Normalization**:
+>    When binding combines different returned `choice` types, their payload alternatives are flattened and deduplicated according to the `copack` rules. This determines the resulting payload type, separately from removing the carrier layer.
+
 ## 12. Elimination and multidispatch
 
 Eliminating computation structures yields an ordinary C++ value. This is typically achieved via `apply` or `apply_r`. Singular `copack` supports direct extraction via `get` (Section 4), and `just` supports total value extraction via `.value()`. On fallible carriers, `.value()` is partial: it yields the value if present, and otherwise throws (`bad_expected_access`, `bad_optional_access`).
