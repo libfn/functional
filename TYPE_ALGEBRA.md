@@ -90,9 +90,9 @@ With a fixed error type, an `expected<T, E>` requires inputs and outputs in `and
 
 `libfn` supports **graded monads**, which you opt into by using `copack` in a monadic carrier, such as `expected`. A *grade* is a set of alternative types, and *graded composition* combines these sets by union. For `expected`, error alternatives form the grade when chaining computations with `and_then`; value alternatives form the grade when composing recovery operations with `or_else`.
 
-The resulting type is **graded**: it expands (or narrows during recovery) to match the *exact* subset possible in the compiled path, providing strict static effect tracking (subeffecting) with zero boilerplate. When used on the error side of `expected` (e.g. `expected<T, copack<Errs...>>`), grading enables `libfn` to derive the combined error alternatives from the participating computations, without explicitly spelling out their union. The resulting types record the algebraic combinations of success and error alternatives declared by those computations. Section 9 explains grading on both sides, including recovery and widening.
+The resulting type is **graded**: it expands (or narrows during recovery) to match the alternatives declared by the participating function signatures. This provides strict static effect tracking with zero boilerplate. When used on the error side of `expected` (e.g. `expected<T, copack<Errs...>>`), grading enables `libfn` to derive the combined error alternatives from the participating computations, without explicitly spelling out their union. The resulting types record the algebraic combinations of success and error alternatives declared by those computations. Section 9 explains grading on both sides, including recovery and widening.
 
-The same type precision extends to computations combined side by side rather than in sequence. Conjunction (`operator&`) evaluates independent computations and bundles them into a single carrier holding a `pack` of the successful values over a `copack` of the exact possible errors; disjunction (`operator|`) is its dual. Sections 6 and 7 cover both.
+The same type precision extends to computations combined side by side rather than in sequence. Conjunction (`operator&`) evaluates independent computations and bundles them into a single carrier holding a product (a `pack`) of the successful values over a sum of possible error types (a `copack`); disjunction (`operator|`) is its dual. Sections 6 and 7 cover both.
 
 ### The two cooperating mechanisms
 
@@ -107,7 +107,7 @@ These derived types are the explanation of the library's design, not an internal
 
 ## 2. Types as an algebra: zero, unit, alternatives, and products
 
-To derive strict programmatic shapes, `libfn` uses an algebraic vocabulary over types.
+`libfn` uses an algebraic vocabulary over types:
 
 - `copack<>` represents **0** (Zero) - an uninhabited type.
 - `pack<>` represents **1** (Unit) - a type with exactly one state.
@@ -220,11 +220,11 @@ To model computation and manage control flow (success, failure, alternatives, an
 ### The infallible (identity) carriers
 
 - **`just<T>`**: Always contains a single successful value of type `T`.
-- **`choice<Ts...>`**: Always contains one of several selected alternatives, representing the complete state space of the computation. It is a type alias to `just<copack<Ts...>>`.
+- **`choice<Ts...>`**: Always contains one of several alternatives. It is a type alias to `just<copack<Ts...>>`.
 
 Because `choice` always holds a selected alternative, `choice<>` is incomplete and cannot be constructed: there are no alternative types, hence no active alternative.
 
-Additionally, the infallible state **`expected<T, copack<>>`** (representing $T + 0 \cong T$) can never fail because `copack<>` represents the initial zero object **0** (the uninhabited type). Lacking any possible error alternatives, it acts as an infallible, graded unit context. Since it is a specialized state of `expected` rather than a unique template, it is classified under the same computation carrier.
+Additionally, the infallible state **`expected<T, copack<>>`** (representing $T + 0 \cong T$) can never fail because `copack<>` represents the initial object **0** (the uninhabited type). Lacking any possible error alternatives, it acts as an infallible, graded unit context. Since it is a specialized state of `expected` rather than a unique template, it is classified under the same computation carrier.
 
 Together, `just`, `choice` and `expected<T, copack<>>` form the **identity cluster**.
 
@@ -234,13 +234,13 @@ These carriers constrain their payloads. While `optional<T&>` is supported as a 
 
 Raw algebraic constructs—such as `std::tuple` (product), `std::variant` (sum), or `libfn`'s own `pack` and `copack`—are passive data layouts. They contain no intrinsic control flow, no concept of short-circuiting, and no built-in notion of success versus failure.
 
-Composing computations requires wrapping these values in computation carriers. Product composition (conjunction) and sum composition (disjunction) operate on carriers, not raw data. The carrier manages success propagation and short-circuits failures.
+Composing computations requires wrapping these values in computation carriers. Product composition (conjunction) operates on both carriers and data payloads (`pack` and `copack`). When the left operand is either `pack` or `copack`, the right operand can also be a plain value. Sum composition (disjunction) operates only on carriers. The carrier manages success propagation and short-circuits failures.
 
 ### Carrier bridging: interoperable pipelines
 
-Because these carriers represent different computational contexts, pipelines often need to transition between them. `libfn` licenses explicit **cross-carrier bridging** via combinators using `operator|`.
+Because these carriers represent different computational contexts, pipelines often need to transition between them. `libfn` provides **cross-carrier bridging** via combinators using `operator|`.
 
-Standard fallible carriers can bridge to each other on their error/empty recovery paths via the `or_else` combinator (e.g., `expected` to `optional`, or vice versa). This is safe because on the success path, the successful value is preserved and bypasses the recovery callback. The transition only occurs on the handled failure branch, allowing you to gracefully convert a missing value into a concrete error, or decay a detailed error into an empty state:
+Standard fallible carriers can bridge to each other on their error/empty recovery paths via the `or_else` combinator (e.g., `expected` to `optional`, or vice versa). On success, the value is preserved by a short-circuit; on failure, the recovery callback can convert a missing value into a concrete error, or replace a detailed error with an empty state:
 
 <!-- sync-example-test-failure-bridge -->
 ```cpp
