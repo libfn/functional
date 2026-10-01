@@ -449,8 +449,8 @@ An operand from the identity cluster (Section 10) contributes a value but never 
 
 - **Unchanged Errors**: Because identity cluster operands never fail, they add no alternatives to the error channel. A `just` or `choice` operand preserves the fallible operand's error side (plain or graded). An `expected<T, copack<>>` operand contributes its empty grade to the error union: no active alternative is added, although the resulting error channel is promoted to a graded copack.
 - **Value Bundling**: The identity cluster operand's value conjoins with the fallible operand's value into a product.
-- **Unit Elision**: `just<void>` and `expected<void, copack<>>` act as the product's identity unit and are elided from the value product (e.g., `expected<T, E> & just<void>` remains `expected<T, E>`).
-- **Choice Distribution**: Conjoining a `choice` with a fallible carrier distributes the coproduct through the product, yielding a `copack` of `pack`s wrapped in the fallible carrier — subject to unit elision.
+- **Void Elision**: `just<void>` and `expected<void, copack<>>` act as the product's identity unit and are elided from the value product (e.g., `expected<int, E> & just<void>` yields `expected<pack<int>, E>`).
+- **Choice Distribution**: Conjoining a `choice` with a fallible carrier distributes the coproduct through the product, yielding a `copack` of `pack`s wrapped in the fallible carrier, subject to void elision.
 
 <!-- sync-example-conjunction-with-identity-cluster -->
 ```cpp
@@ -568,7 +568,7 @@ Because member `.and_then` cannot change carrier families (Section 3), its *Klei
 - Error-graded `expected` forms the union of heterogeneous error sets with a `copack`.
 - Copack-valued inputs join heterogeneous successful branch types into a `copack`.
 - Branch convergence preserves the exact type without duplicate union states.
-- For `expected`, all-`void` branches join to `void`; mixed void and non-void branches are ill-formed.
+- All-`void` branches join to `void`; in mixed void and non-void branches, `void` contributes `pack<>`.
 - Callback results returning bare values require `transform` rather than `and_then`.
 
 The library formalizes this "same-kind" contract via the `fn::same_kind` concept, which lets generic templates probe whether two carrier types belong to the same monadic family with compatible error sides:
@@ -631,6 +631,7 @@ During sequential composition, `libfn` derives the promoted type from the `copac
 
 - In `and_then` (success binding), a plain error type `E` is promoted to `copack<E>` if the returning **error type** of the callback is `copack<E>`.
 - In `or_else` (recovery/error binding), a plain success type `T` is promoted to `copack<T>` if the returning **success type** of the callback is `copack<T>`.
+  - For a `void` success type, the corresponding lift is `copack<pack<>>`.
 
 An ungraded computation thus enters a graded composition without manual lifting.
 
@@ -638,6 +639,7 @@ If you need to perform this promotion explicitly on the carrier itself before en
 
 - `.copack_error()` on `expected` explicitly lifts the error, transforming `expected<T, E>` to `expected<T, copack<E>>`.
 - `.copack_value()` on `expected` explicitly lifts the success value, transforming `expected<T, E>` to `expected<copack<T>, E>`.
+  - For `expected<void, E>`, the result is `expected<copack<pack<>>, E>`.
 - `.copack_value()` on `optional` symmetrically lifts the value, transforming `optional<T>` to `optional<copack<T>>`.
 
 These helper methods provide a compact, explicit alternative to the automatic promotions.
