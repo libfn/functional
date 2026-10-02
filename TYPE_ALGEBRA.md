@@ -1035,7 +1035,7 @@ The library is divided into layers:
 - `pfn` (Polyfill fn) is the standards-facing layer. It provides `std::optional` and `std::expected` in their C++26 shape — monadic member functions, `optional<T&>`, range support — plus smaller utilities such as `std::invoke_r` and `std::unreachable`, all available to a C++20 compiler.
 - `fn` is the strict extension layer. It introduces the `pack`/`copack` algebra, multidispatch, graded monads, `choice`, `just`, the pipeline functors, and the composition operators `&` and `|`.
 
-Every `fn` type with a `pfn` counterpart is a superset of it. Mixing `pfn` and `fn` within a single program is allowed, provided that types from the two namespaces do not interact. For example, storing an `fn::pack` in a `pfn::optional` is not supported, but the two may be used independently in the same program. Switching a valid program from `pfn` to `fn` is not expected to change compilation nor program behaviour.
+Every `fn` type with a `pfn` counterpart is a superset of it. Mixing `pfn` and `fn` within a single program is allowed, provided that types from the two namespaces **do not interact**. For example, storing an `fn::pack` in a `pfn::optional` is *not supported*, but the two may be used *independently* in the same program. Switching a valid program from `pfn` to `fn` is not expected to change compilation nor program behaviour.
 
 ## Functional terminology
 
