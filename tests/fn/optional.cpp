@@ -1677,3 +1677,21 @@ TEST_CASE("optional of empty copack", "[optional][copack]")
     }
   }
 }
+
+TEST_CASE("optional of reference", "[optional]")
+{
+  SECTION("referent")
+  {
+    // Pack and copack referents are refused, whatever their cv-qualification; other objects,
+    // tuple-like ones included, are not.
+    static_assert(fn::detail::_optional_referent<int>);
+    static_assert(fn::detail::_optional_referent<int const>);
+    static_assert(fn::detail::_optional_referent<std::tuple<int>>);
+    static_assert(not fn::detail::_optional_referent<fn::pack<int>>);
+    static_assert(not fn::detail::_optional_referent<fn::pack<int> const>);
+    static_assert(not fn::detail::_optional_referent<fn::copack<int>>);
+    static_assert(not fn::detail::_optional_referent<fn::copack<int> const>);
+    static_assert(not fn::detail::_optional_referent<fn::copack<>>);
+    SUCCEED();
+  }
+}
