@@ -3,6 +3,7 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
+#include <fn/copack.hpp>
 #include <fn/detail/functional.hpp>
 #include <fn/pack.hpp>
 #include <fn/utility.hpp>
@@ -11,11 +12,13 @@
 
 #include <concepts>
 #include <type_traits>
+#include <utility>
 
 namespace {
 template <typename...> struct types;
 
 constexpr auto sum_two = [](int i, double d) { return i + d; };
+constexpr auto sum_three = [](int i, double d, char c) { return i + d + c; };
 } // namespace
 
 TEST_CASE("_apply_result", "[functional][apply_result]")
@@ -40,6 +43,9 @@ TEST_CASE("_is_applicable", "[functional][is_applicable]")
   static_assert(not _is_applicable<decltype(sum_two), int, int *>::value);
   // negative: wrong arity
   static_assert(not _is_applicable<decltype(sum_two), int>::value);
+  static_assert(_is_applicable<decltype(sum_two), int &&, fn::pack<double> &&>::value);
+  static_assert(_is_applicable<decltype(sum_two), int const &&, fn::pack<double> &&>::value);
+  static_assert(_is_applicable<decltype(sum_three), int &&, double &&, fn::pack<char> &&>::value);
   SUCCEED();
 }
 
@@ -103,7 +109,15 @@ TEST_CASE("_apply", "[functional][apply]")
   // pack arg: dispatches through pack::apply
   constexpr fn::pack<int, double> p{2, 0.25};
   static_assert(_apply(sum_two, p) == 2.25);
-  SUCCEED();
+  constexpr auto spliced = [] {
+    int i = 2;
+    int j = 2;
+    double d = 0.25;
+    return _apply(sum_two, std::move(i), fn::pack<double>{0.25})
+           + _apply(sum_three, std::move(j), std::move(d), fn::pack<char>{'a'});
+  };
+  static_assert(spliced() == 2.25 + 99.25);
+  CHECK(spliced() == 2.25 + 99.25);
 }
 
 TEST_CASE("_apply_r", "[functional][apply_r]")

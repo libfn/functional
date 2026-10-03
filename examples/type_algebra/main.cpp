@@ -1,3 +1,4 @@
+#include <fn/algebra.hpp>
 #include <fn/and_then.hpp>
 #include <fn/concepts.hpp>
 #include <fn/copack.hpp>
@@ -217,9 +218,8 @@ auto test_conjunction_with_identity_cluster(fn::expected<int, Error> ex, fn::jus
   auto res1 = ex & j;
   static_assert(std::same_as<decltype(res1), fn::expected<fn::pack<int, double>, Error>>);
 
-  // Conjoining with a unit (just<void>) completely elides the unit
   auto res2 = ex & fn::just<void>{};
-  static_assert(std::same_as<decltype(res2), decltype(ex)>);
+  static_assert(std::same_as<decltype(res2), fn::expected<fn::pack<int>, Error>>);
 
   // Conjoining a choice causes distribution inside the carrier
   fn::choice<bool, double> ch = 1.5;

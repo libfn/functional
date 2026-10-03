@@ -9,8 +9,8 @@
 #include <fn/copack.hpp>
 #include <fn/expected.hpp>
 #include <fn/just.hpp>
-#include <fn/monadic.hpp>
 #include <fn/optional.hpp>
+#include <fn/traits.hpp>
 #include <libfn_version.hpp>
 
 #include <concepts>
@@ -76,9 +76,9 @@ concept same_kind
  * @brief The mirror of `same_kind`: the value side is pinned and the error side may vary
  *
  * What the error-side operations hold a callback's result to. Value sides agree when identical,
- * when both are graded (copack), or - on `expected` - when a plain non-void side meets its own
- * singular lift `copack<T>`, either way round. Any two `choice`s qualify; never two carriers of
- * different families.
+ * when both are graded (copack), or - on `expected` - when a plain side meets its own singular
+ * lift, either way round: `copack<T>`, or `copack<pack<>>` for a `void` side. Any two `choice`s
+ * qualify; never two carriers of different families.
  *
  * @tparam T Carrier type, possibly cv-ref qualified
  * @tparam U Carrier type, possibly cv-ref qualified
@@ -95,17 +95,15 @@ concept same_value_kind
       || (some_optional<T> && some_copack<typename ::std::remove_cvref_t<T>::value_type> //
           && some_optional<U> && some_copack<typename ::std::remove_cvref_t<U>::value_type>)
       || (some_expected<T>
-          && (not ::std::is_void_v<typename ::std::remove_cvref_t<T>::value_type>) // the singular lift
-          &&(not some_copack<typename ::std::remove_cvref_t<T>::value_type>)
-          && some_expected<U>
+          && (not some_copack<typename ::std::remove_cvref_t<T>::value_type>) //
+          &&some_expected<U>
           && ::std::is_same_v<typename ::std::remove_cvref_t<U>::value_type,
-                              copack<typename ::std::remove_cvref_t<T>::value_type>>)
+                              copack<detail::_sum_element_t<typename ::std::remove_cvref_t<T>::value_type>>>)
       || (some_expected<U>
-          && (not ::std::is_void_v<typename ::std::remove_cvref_t<U>::value_type>) // ... and its mirror
-          &&(not some_copack<typename ::std::remove_cvref_t<U>::value_type>)
-          && some_expected<T>
+          && (not some_copack<typename ::std::remove_cvref_t<U>::value_type>) //
+          &&some_expected<T>
           && ::std::is_same_v<typename ::std::remove_cvref_t<T>::value_type,
-                              copack<typename ::std::remove_cvref_t<U>::value_type>>)
+                              copack<detail::_sum_element_t<typename ::std::remove_cvref_t<U>::value_type>>>)
       || (some_choice<T> && some_choice<U>);
 
 /**

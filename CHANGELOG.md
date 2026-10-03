@@ -6,6 +6,48 @@ Design history of libfn, newest first. The living documents — [README.md](READ
 
 `fn::optional<T&>` no longer accepts a `pack` or `copack` referent, matching `just<T&>`. `fn::optional<copack<Ts...>&>` dispatched on its referent's active alternative, and `fn::optional<pack<Ts...>&>` expanded its referent's fields. How a reference to a product or a sum takes part in conjunction, disjunction and grading is an open question, so both are refused until the type algebra answers it; issue #434 discusses the copack case. `pfn::optional<T&>` does not reject them, but `fn` and `pfn` types are not meant to be used together.
 
+## `<fn/monadic.hpp>` becomes `<fn/traits.hpp>`; `monadic_invocable` rejects an incomplete functor — 27 September 2026
+
+Replace includes of `<fn/monadic.hpp>` with `<fn/traits.hpp>`; no compatibility header is provided. `some_in_place_type` moves to `<fn/traits.hpp>` and remains available through `<fn/copack.hpp>`.
+
+`monadic_invocable` requires a complete functor type and a complete nested `apply`. Querying a forward-declared library or user-defined functor, or one whose `apply` is only declared, now fails to compile. Previously, its answer could change after the definition, making the program ill-formed with no diagnostic required. Include the functor's defining header before querying.
+
+## `apply` traits reject an incomplete `pack` or `copack` operand — 27 September 2026
+
+`apply`, `apply_r` and their traits reject incomplete `pack` or `copack` operands. Previously, trait queries could cache `false` (or `void` for `apply_result`) even after the type definition became available. Include `<fn/pack.hpp>` or `<fn/copack.hpp>` before querying. `typelist_applicable` still works from template arguments alone.
+
+## `pack` and `copack` operations move to `<fn/algebra.hpp>` — 27 September 2026
+
+`operator&` over `pack` and `copack`, `conjoin`, and `disjoin` move to `<fn/algebra.hpp>`. Include this header when using these operations without a carrier header. The `expected`, `optional`, and `just` headers include it.
+
+`<fn/copack.hpp>` includes `<fn/pack.hpp>`; the reverse dependency is removed. A copack transform returning `void` therefore needs only `<fn/copack.hpp>`. Code using `copack` through `<fn/pack.hpp>` must include `<fn/copack.hpp>` explicitly.
+
+## `&` takes a `void` side as the unit factor `pack<>` — 27 September 2026
+
+`&` treats a `void` value as the unit factor `pack<>`. For example, `expected<int, E> & just<void>` yields `expected<pack<int>, E>`; previously it yielded `expected<int, E>`. This breaking change applies across carrier pairings in either order. Copack values distribute into packs, and `optional<T&> & just<void>` yields an owning `optional<pack<T>>`. Two `void` values still yield `void`.
+
+## `pack::append` builds its result in place — 27 September 2026
+
+`pack::append` constructs the final pack directly. Initializing its base from a temporary could otherwise relocate elements again and terminate if a move threw inside a `noexcept` call. Bracing each aggregate layer also prevents an element's conversion operator from initializing a whole layer in place of the element.
+
+## `transform` over a copack maps a `void` result to `pack<>` — 27 September 2026
+
+`transform` over a copack represents `void` callback results as `pack<>`. Mixed `void` and `int` results yield `copack_for<pack<>, int>`; all-`void` results yield `copack<pack<>>`. This applies through `expected`, `optional` and `choice`, and to `transform_error` over a copack error. Plain error types still reject `void` results. Mutable operands can select a `void` overload where they previously fell back to a valued `const` overload.
+
+Results are converted before spliced arguments expire, fixing a dangling reference. The `noexcept` specification includes the selected overload's explicit result conversion. Rvalues spliced before a `pack` argument are stored by value, fixing a compilation failure.
+
+`expected<void, E>::copack_value()` lifts to `expected<copack<pack<>>, E>`.
+
+## `and_then` joins `void` and valued branches through `pack<>` — 26 September 2026
+
+`and_then` accepts branches returning both `void`-valued and valued `expected` results. For example, `A -> expected<void, E>` and `B -> expected<int, E>` join as `expected<copack_for<pack<>, int>, E>`; this previously failed to compile. An all-`void` join stays `void`.
+
+## `void` recovery joins a value grade as `pack<>` — 26 September 2026
+
+`or_else` accepts a `void`-valued recovery into a copack value side, representing success as `pack<>`. For example, recovering `expected<copack<V>, E>` through `expected<void, G>` yields `expected<copack_for<V, pack<>>, G>`; this previously failed to compile. This also applies to branches over a copack error and pipeline recovery from `optional<copack<V>>`. An all-`void` join stays `void`.
+
+`void` lifts to `copack<pack<>>`, including in `same_value_kind` and pipeline recovery into `optional`. A recovery returned by reference from `optional` has its copy included in the `noexcept` specification.
+
 ## `just` holds lvalue references — 24 September 2026
 
 `just<T&>` now supports lvalue-reference payloads (issue #417), providing an always-engaged counterpart to `optional<T&>`. Referents must be object types other than arrays, in-place type tags, packs, or copacks. Rvalue-reference payloads remain unsupported, as in `optional` and `pack`.
@@ -18,7 +60,7 @@ Composition follows these rules:
 
 - A `transform` callback returning a supported lvalue reference `U&` produces `just<U&>`, referring to the returned object. An rvalue owning `just` rejects such a result: it may refer into the payload, which expires with the carrier. `optional<T>` accepts it, as the standard specifies; `just` deliberately diverges.
 - Member and pipeline `and_then` accept callbacks returning `just<U&>`. When every branch of a choice returns the same `just<U&>` type, the result retains that type. A join of different result types is rejected if any is a reference `just`, because references cannot be alternatives of the resulting choice. This matches the restriction on reference payloads in optional joins.
-- The products and sums that `&` and `|` build hold a copy of the referent, as they do for `optional<T&>`. Eliding the unit `just<void>` under `&` returns the other operand itself, so `just<void>{} & just<T&>{x}` is still `just<T&>`.
+- The products and sums that `&` and `|` build hold a copy of the referent, as they do for `optional<T&>`. This includes a product with the unit `just<void>`: `just<void>{} & just<T&>{x}` is `just<pack<T>>`.
 - Copack references remain unsupported. `just<copack<Ts...>&>` would dispatch on the referent's active alternative, introducing control flow based on state the carrier does not own. Issue #434 discusses the tradeoffs and open questions. `transform` also rejects copack-reference results.
 
 ## Singular copacks support the tuple protocol — 24 September 2026

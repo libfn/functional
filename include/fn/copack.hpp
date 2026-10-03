@@ -11,6 +11,8 @@
 #include <fn/detail/traits.hpp>
 #include <fn/detail/variadic_union.hpp>
 #include <fn/functional.hpp>
+#include <fn/pack.hpp>
+#include <fn/traits.hpp>
 #include <libfn_version.hpp>
 #include <pfn/utility.hpp>
 
@@ -41,14 +43,6 @@ concept some_copack = detail::_some_copack<T>;
  */
 template <typename T>
 concept empty_copack = some_copack<T> && (::std::remove_cvref_t<T>::size == 0);
-
-/**
- * @brief Checks if a type is a `std::in_place_type_t` tag
- *
- * @tparam T Type to check, possibly cv-ref qualified
- */
-template <typename T>
-concept some_in_place_type = detail::_some_in_place_type<T>;
 
 namespace detail {
 template <typename T>
@@ -104,11 +98,7 @@ template <template <typename...> typename Tpl, typename... Ts> struct normalized
 };
 } // namespace _collapsing_copack
 
-// A result no copack can hold - void above all - must drop the caller's candidate, not explode:
-// everything behind the gate (flattening, normalization, the copack they name) hard-errors OUTSIDE
-// any immediate context. The false gate has no `type`, and the collapsing traits pass that absence
-// through by inheritance, so it surfaces where a return type names `::type` - in the immediate
-// context, as a clean substitution failure.
+// Reject invalid alternatives before normalization, whose errors would escape SFINAE.
 template <bool, template <typename...> typename Tpl, typename... Rs> struct _collapsing_copack_gate {};
 template <template <typename...> typename Tpl, typename... Rs> struct _collapsing_copack_gate<true, Tpl, Rs...> {
   using type = _collapsing_copack::normalized<Tpl, _collapsing_copack::flattened<Rs...>>::type;
@@ -116,16 +106,19 @@ template <template <typename...> typename Tpl, typename... Rs> struct _collapsin
 
 template <typename R> constexpr inline bool _collapsible_result = some_copack<R> || _is_valid_copack_subtype<R>;
 
+// A copack represents void success with pack<>.
+template <typename V> using _sum_element_t = ::std::conditional_t<::std::is_void_v<V>, ::fn::pack<>, V>;
+
 template <typename Fn, typename Self, typename T, typename... Args> struct _typelist_collapsing_copack;
 template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts, typename... Args>
 struct _typelist_collapsing_copack<Fn, Self, Tpl<Ts...>, Args...>
     : _collapsing_copack_gate<
           (...
-           && _collapsible_result<::std::remove_cvref_t<
-               typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>>),
+           && _collapsible_result<_sum_element_t<::std::remove_cvref_t<
+               typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>>>),
           Tpl,
-          ::std::remove_cvref_t<
-              typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...> {};
+          _sum_element_t<::std::remove_cvref_t<
+              typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>>...> {};
 
 template <typename T, typename Fn, typename Self, typename... Args> struct _copack_apply_result final {
   using type = T;
@@ -137,6 +130,56 @@ struct _copack_apply_result<_apply_autodetect_tag, Fn, Self, Args...> final {
 template <typename Fn, typename Self, typename... Args>
 struct _copack_apply_result<_collapsing_copack_tag, Fn, Self, Args...> final
     : _typelist_collapsing_copack<Fn, Self, ::std::remove_cvref_t<Self>, Args...> {};
+
+// Convert results before spliced arguments expire. Keep callback invocability
+// unchanged so the injector preserves overload selection.
+template <typename To, typename Fn, typename... Args> struct _nothrow_copack_inject : ::std::false_type {};
+template <typename To, typename Fn, typename... Args>
+  requires ::std::is_void_v<::std::invoke_result_t<Fn, Args...>>
+struct _nothrow_copack_inject<To, Fn, Args...>
+    : ::std::bool_constant<
+          ::std::is_nothrow_invocable_v<Fn, Args...> && ::std::is_nothrow_constructible_v<To, ::fn::pack<>>> {};
+template <typename To, typename Fn, typename... Args>
+  requires(not ::std::is_void_v<::std::invoke_result_t<Fn, Args...>>)
+          && requires { static_cast<To>(::std::invoke(::std::declval<Fn>(), ::std::declval<Args>()...)); }
+struct _nothrow_copack_inject<To, Fn, Args...>
+    : ::std::bool_constant<noexcept(static_cast<To>(::std::invoke(::std::declval<Fn>(), ::std::declval<Args>()...)))> {
+};
+
+template <typename To, typename Fn> struct _copack_injector final {
+  Fn fn;
+
+  template <typename... Args>
+  constexpr auto operator()(Args &&...args) const noexcept(_nothrow_copack_inject<To, Fn, Args...>::value) -> To
+    requires ::std::is_invocable_v<Fn, Args...>
+  {
+    using result = ::std::invoke_result_t<Fn, Args...>;
+    if constexpr (::std::is_void_v<result>) {
+      ::std::invoke(FWD(fn), FWD(args)...);
+      return To{::fn::pack<>{}};
+    } else
+      return static_cast<To>(::std::invoke(FWD(fn), FWD(args)...));
+  }
+};
+
+template <typename To, typename Fn> struct _copack_admission final {
+  template <typename... Args>
+  auto operator()(Args &&...) const -> To
+    requires(::std::is_void_v<::std::invoke_result_t<Fn, Args...>> && ::std::is_constructible_v<To, ::fn::pack<>>)
+            || ((not ::std::is_void_v<::std::invoke_result_t<Fn, Args...>>) && ::std::is_invocable_r_v<To, Fn, Args...>)
+  {
+    ::pfn::unreachable(); // LCOV_EXCL_LINE
+  }
+};
+
+template <typename To, typename Data, typename Fn, typename... Args>
+  requires _typelist_applicable_r<To, _copack_admission<To, Fn &&>, Data &&, Args &&...>
+[[nodiscard]] constexpr auto _collapsing_apply(Data &&data, ::std::size_t index, Fn &&fn, Args &&...args) //
+    noexcept(_is_nothrow_rts_applicable<To, _copack_injector<To, Fn &&>, Data &&, Args &&...>) -> To
+{
+  return apply_variadic_union<To, ::std::remove_cvref_t<Data>>(FWD(data), index, _copack_injector<To, Fn &&>{FWD(fn)},
+                                                               FWD(args)...);
+}
 
 struct _joining_superset_tag final {};
 
@@ -1095,8 +1138,8 @@ struct copack<Ts...> {
    * @brief Maps the alternatives, the branch results forming a new normalized copack
    *
    * The self-flattening map: the callable is dispatched exhaustively, and the branch results -
-   * heterogeneous types allowed, a copack result dissolving into the set - flatten, deduplicate
-   * and sort into the `copack_for` of them all.
+   * heterogeneous types allowed, a copack result dissolving into the set, a `void` one entering as
+   * `pack<>` - flatten, deduplicate and sort into the `copack_for` of them all.
    *
    * @param fn Callable applied on the active alternative; `fn::overload` fuses arms into one
    * @param args Additional arguments, appended after the alternative's content
@@ -1106,48 +1149,62 @@ struct copack<Ts...> {
   [[nodiscard]] constexpr auto transform(Fn &&fn, Args &&...args) & noexcept(
       detail::_is_nothrow_rts_applicable<
           typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, copack &, Args &&...>::type,
-          Fn &&, copack &, Args &&...>) ->
+          detail::_copack_injector<
+              typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, copack &, Args &&...>::type,
+              Fn &&>,
+          copack &, Args &&...>) ->
       typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, copack &, Args &&...>::type
     requires typelist_applicable<Fn, copack &, Args &&...>
   {
     using type = detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, copack &, Args &&...>::type;
-    return detail::apply_variadic_union<type, data_t>(this->data, index, FWD(fn), FWD(args)...);
+    return detail::_collapsing_apply<type>(this->data, index, FWD(fn), FWD(args)...);
   }
 
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto transform(Fn &&fn, Args &&...args) const & noexcept(
-      detail::_is_nothrow_rts_applicable<typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&,
-                                                                               copack const &, Args &&...>::type,
-                                         Fn &&, copack const &, Args &&...>) ->
+      detail::_is_nothrow_rts_applicable<
+          typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, copack const &,
+                                                Args &&...>::type,
+          detail::_copack_injector<typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&,
+                                                                         copack const &, Args &&...>::type,
+                                   Fn &&>,
+          copack const &, Args &&...>) ->
       typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, copack const &, Args &&...>::type
     requires typelist_applicable<Fn, copack const &, Args &&...>
   {
     using type = detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, copack const &, Args &&...>::type;
-    return detail::apply_variadic_union<type, data_t>(this->data, index, FWD(fn), FWD(args)...);
+    return detail::_collapsing_apply<type>(this->data, index, FWD(fn), FWD(args)...);
   }
 
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto transform(Fn &&fn, Args &&...args) && noexcept(
       detail::_is_nothrow_rts_applicable<
           typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, copack &&, Args &&...>::type,
-          Fn &&, copack &&, Args &&...>) ->
+          detail::_copack_injector<
+              typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, copack &&, Args &&...>::type,
+              Fn &&>,
+          copack &&, Args &&...>) ->
       typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, copack &&, Args &&...>::type
     requires typelist_applicable<Fn, copack &&, Args &&...>
   {
     using type = detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, copack &&, Args &&...>::type;
-    return detail::apply_variadic_union<type, data_t>(::std::move(*this).data, index, FWD(fn), FWD(args)...);
+    return detail::_collapsing_apply<type>(::std::move(*this).data, index, FWD(fn), FWD(args)...);
   }
 
   template <typename Fn, typename... Args>
   [[nodiscard]] constexpr auto transform(Fn &&fn, Args &&...args) const && noexcept(
-      detail::_is_nothrow_rts_applicable<typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&,
-                                                                               copack const &&, Args &&...>::type,
-                                         Fn &&, copack const &&, Args &&...>) ->
+      detail::_is_nothrow_rts_applicable<
+          typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, copack const &&,
+                                                Args &&...>::type,
+          detail::_copack_injector<typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&,
+                                                                         copack const &&, Args &&...>::type,
+                                   Fn &&>,
+          copack const &&, Args &&...>) ->
       typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, copack const &&, Args &&...>::type
     requires typelist_applicable<Fn, copack const &&, Args &&...>
   {
     using type = detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, copack const &&, Args &&...>::type;
-    return detail::apply_variadic_union<type, data_t>(::std::move(*this).data, index, FWD(fn), FWD(args)...);
+    return detail::_collapsing_apply<type>(::std::move(*this).data, index, FWD(fn), FWD(args)...);
   }
 };
 
@@ -1293,14 +1350,8 @@ template <::std::size_t I, some_copack C>
 }
 
 namespace detail {
-// The graded joins for expected's binds over a copack side, when the exhaustive branches return
-// DIFFERENT expected types. Sets convergent in the exact result type fall back to the select
-// trait, preserving today's behaviour and diagnostics verbatim - exact, not stripped, because
-// select compares exact types and a set convergent only after removing cv/ref would reach its
-// assert; such a set engages the join like any heterogeneous all-expected one. An invalid set -
-// a non-expected result, mixed void and non-void values, or a plain fixed side some branch does
-// not retain - leaves no `type`, so asking answers instead of erroring. Tpl is the caller's own
-// two-parameter carrier, keeping this header free of the expected dependency.
+// Compare exact branch result types: stripping cv/ref could select a convergent path
+// whose type assertion fails. Tpl avoids a dependency on the expected header.
 template <template <typename...> typename Tpl, typename E> struct _joining_expected_tag final {};
 template <template <typename...> typename Tpl, typename T> struct _joining_recovery_tag final {};
 template <template <typename...> typename Tpl> struct _joining_optional_tag final {};
@@ -1323,8 +1374,7 @@ template <typename T0, typename... Ts>
   requires(sizeof...(Ts) > 0)
 constexpr inline bool all_same<T0, Ts...> = (... && ::std::is_same_v<T0, Ts>);
 
-// the dispatched side's join: exact convergence preserved; heterogeneous types splice through
-// copack_for (a copack-typed result flattens into it); mixed void and non-void has no answer
+// Exact convergence preserves the result type, including void.
 template <typename... Ts> struct list_join {};
 template <typename T0, typename... Ts>
   requires all_same<T0, Ts...>
@@ -1332,31 +1382,29 @@ struct list_join<T0, Ts...> {
   using type = T0;
 };
 template <typename T0, typename... Ts>
-  requires(not all_same<T0, Ts...>) && _collapsible_result<T0> && (... && _collapsible_result<Ts>)
+  requires(not all_same<T0, Ts...>)
+          && _collapsible_result<_sum_element_t<T0>> && (... && _collapsible_result<_sum_element_t<Ts>>)
 struct list_join<T0, Ts...> {
-  using type = ::fn::copack_for<T0, Ts...>;
+  using type = ::fn::copack_for<_sum_element_t<T0>, _sum_element_t<Ts>...>;
 };
 
-// the carried side's join, unioned with self's own grade: a copack side joins everything (an
-// empty one vanishes into the union); a plain side must be retained by every branch exactly
 template <typename E, typename... Es> struct graded_join {};
 template <typename E, typename... Es>
   requires _some_copack<E>
 struct graded_join<E, Es...> {
-  using type = ::fn::copack_for<E, Es...>;
+  using type = ::fn::copack_for<E, _sum_element_t<Es>...>;
 };
 template <typename E, typename... Es>
   requires(not _some_copack<E>) && (... && ::std::is_same_v<E, Es>)
 struct graded_join<E, Es...> {
   using type = E;
 };
-// ... or by its singular lift copack<E>, which then spells the result: grading never silently
-// drops, so one graded branch lifts the plain side and the plain branches with it
+// A singular lift in any branch preserves grading.
 template <typename E, typename... Es>
   requires(not _some_copack<E>) && (not(... && ::std::is_same_v<E, Es>))
-          && (... && (::std::is_same_v<E, Es> || ::std::is_same_v<::fn::copack<E>, Es>))
+          && (... && (::std::is_same_v<E, Es> || ::std::is_same_v<::fn::copack<_sum_element_t<E>>, Es>))
 struct graded_join<E, Es...> {
-  using type = ::fn::copack<E>;
+  using type = ::fn::copack<_sum_element_t<E>>;
 };
 } // namespace _joining_expected
 

@@ -655,6 +655,69 @@ TEST_CASE("append value categories", "[pack][append]")
     static_assert(noexcept(std::declval<pack<int> &>().append(1)));
     SUCCEED();
   }
+
+  SECTION("the result is built in place")
+  {
+    struct Counted final {
+      int *moves;
+      constexpr explicit Counted(int &m) noexcept : moves(&m) {}
+      constexpr Counted(Counted const &o) noexcept : moves(o.moves) {}
+      constexpr Counted(Counted &&o) noexcept(false) : moves(o.moves) { ++*moves; }
+    };
+    constexpr auto moves = [] {
+      int count = 0;
+      pack<Counted> p{Counted{count}};
+      count = 0;
+      [[maybe_unused]] auto const copied = p.append(std::in_place_type<int>, 1);
+      [[maybe_unused]] auto const spliced = p.append(pack<int>{1});
+      [[maybe_unused]] auto const moved = std::move(p).append(1);
+      return count;
+    };
+    static_assert(moves() == 1);
+    CHECK(moves() == 1);
+    static_assert(noexcept(std::declval<pack<Counted> &>().append(std::in_place_type<int>, 1)));
+    static_assert(not noexcept(std::declval<pack<Counted> &&>().append(std::in_place_type<int>, 1)));
+  }
+
+  SECTION("a throwing relocation propagates")
+  {
+    struct CopyThrows final {
+      int n;
+      constexpr explicit CopyThrows(int i) noexcept : n(i) {}
+      CopyThrows(CopyThrows const &) noexcept(false) : n(0) { throw 1; }
+      constexpr CopyThrows(CopyThrows &&) noexcept = default;
+    };
+    pack<CopyThrows> const src{CopyThrows{1}};
+    CHECK_THROWS_AS(src.append(2), int);            // relocating an element
+    CHECK_THROWS_AS(src.append(pack<int>{2}), int); // ... before a spliced pack
+    CHECK_THROWS_AS(pack<int>{1}.append(src), int); // relocating a spliced element
+    CHECK_THROWS_AS(pack<>{}.append(std::in_place_type<CopyThrows>, fn::get<0>(src)), int); // making the new one
+
+    // moving instead of copying cannot throw
+    constexpr auto moved = [] {
+      return fn::get<0>(pack<CopyThrows>{CopyThrows{1}}.append(2)).n
+             + fn::get<1>(pack<int>{1}.append(pack<CopyThrows>{CopyThrows{3}})).n;
+    };
+    static_assert(moved() == 4);
+    CHECK(moved() == 4);
+  }
+
+  SECTION("an element is held as itself")
+  {
+    constexpr auto held = [] {
+      pack<Atom> const src{{{Atom{7}}}};
+      return std::array{
+          fn::get<0>(pack<>{}.append(std::in_place_type<Atom>, 7)).n,
+          fn::get<0>(pack<>{}.append(Atom{7})).n,
+          fn::get<0>(src.append(1)).n,
+          fn::get<0>(pack<>{}.append(src)).n,
+          fn::get<0>(pack<>{}.append(std::in_place_type<pack<Atom>>, src)).n,
+          fn::get<0>(src.append(std::in_place_type<pack<int>>, 9)).n,
+      };
+    };
+    static_assert(held() == std::array{7, 7, 7, 7, 7, 7});
+    CHECK(held() == std::array{7, 7, 7, 7, 7, 7});
+  }
 }
 
 TEST_CASE("pack noexcept", "[pack][noexcept]")
@@ -788,300 +851,6 @@ TEST_CASE("pack with immovable data", "[pack][immovable]")
   static_assert(not can_invoke([](ImmovableType, auto &&...) {})); // cannot pass immovable by value
 
   CHECK(v.apply([](auto &&...args) noexcept -> int { return (0 + ... + args.value); }) == 3 + 14 + 15 + 92);
-}
-
-namespace {
-struct Alef final {
-  int value;
-};
-struct Bet final {
-  int value;
-};
-struct Gimel final {
-  int value;
-};
-struct Heh final {
-  int value;
-};
-struct Vav final {
-  int value;
-};
-struct Zayn final {
-  int value;
-};
-} // namespace
-
-namespace {
-constexpr auto join_witness = [](auto &&...v) -> int { return (0 + ... + v.value); };
-
-// One join algebra, two layers walking the same shape grid: the TEMPLATE_TEST_CASE below runs the
-// battery through each subject, in both constant and runtime evaluation.
-struct join_via_optional final { // fn::detail::_join over engaged optionals - the monads' layer
-  template <typename R, typename LH, typename RH> static constexpr auto join(LH const &lh, RH const &rh)
-  {
-    constexpr auto efn = [](auto &&...) { return std::nullopt; };
-    auto const r = fn::detail::_join<fn::optional>(fn::optional<LH>{lh}, fn::optional<RH>{rh}, efn);
-    static_assert(std::is_same_v<decltype(r), fn::optional<R> const>);
-    return r.value();
-  }
-};
-
-struct join_via_operator final { // the public operator& over bare copacks, packs and values
-  template <typename R, typename LH, typename RH> static constexpr auto join(LH const &lh, RH const &rh)
-  {
-    auto const r = lh & rh;
-    static_assert(std::is_same_v<decltype(r), R const>);
-    return r;
-  }
-};
-
-template <typename S> constexpr bool join_battery()
-{
-  using fn::copack;
-  using fn::copack_for;
-  using fn::pack;
-
-  bool ok = true;
-  { // copack of packs join copack of scalars
-    using R = copack_for<pack<Alef, Gimel, Heh>, pack<Alef, Gimel, Vav>, pack<Alef, Gimel, Zayn>, //
-                         pack<Bet, Gimel, Heh>, pack<Bet, Gimel, Vav>, pack<Bet, Gimel, Zayn>>;
-    auto const r = S::template join<R>(copack_for<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}},
-                                       copack<Heh, Vav, Zayn>{Vav{15}});
-    ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.apply(join_witness) == 3 + 14 + 15;
-  }
-  {                                                                            // copack of packs join copack of packs
-    using R = copack_for<pack<Alef, Gimel, Heh, Zayn>, pack<Alef, Gimel, Vav>, //
-                         pack<Bet, Gimel, Heh, Zayn>, pack<Bet, Gimel, Vav>>;
-    auto const r = S::template join<R>(copack_for<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}},
-                                       copack<pack<Heh, Zayn>, pack<Vav>>{pack{Vav{15}}});
-    ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.apply(join_witness) == 3 + 14 + 15;
-  }
-  { // copack of scalars join copack of scalars
-    using R = copack_for<pack<Alef, Heh>, pack<Alef, Vav>, pack<Alef, Zayn>, pack<Bet, Heh>, pack<Bet, Vav>,
-                         pack<Bet, Zayn>, pack<Gimel, Heh>, pack<Gimel, Vav>, pack<Gimel, Zayn>>;
-    auto const r = S::template join<R>(copack_for<Alef, Bet, Gimel>{Gimel{3}}, copack<Heh, Vav, Zayn>{Vav{14}});
-    ok = ok && r.template has_value<pack<Gimel, Vav>>() && r.apply(join_witness) == 3 + 14;
-  }
-  { // copack of scalars join copack of packs
-    using R = copack_for<pack<Alef, Heh, Zayn>, pack<Alef, Vav>, pack<Bet, Heh, Zayn>, //
-                         pack<Bet, Vav>, pack<Gimel, Heh, Zayn>, pack<Gimel, Vav>>;
-    auto const r = S::template join<R>(copack_for<Alef, Bet, Gimel>{Gimel{3}},
-                                       copack<pack<Heh, Zayn>, pack<Vav>>{pack{Vav{14}}});
-    ok = ok && r.template has_value<pack<Gimel, Vav>>() && r.apply(join_witness) == 3 + 14;
-  }
-  { // copack of packs join scalar
-    using R = copack_for<pack<Alef, Gimel, Vav>, pack<Bet, Gimel, Vav>>;
-    auto const r
-        = S::template join<R>(copack_for<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}}, Vav{15});
-    ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.apply(join_witness) == 3 + 14 + 15;
-  }
-  { // copack of packs join pack
-    using R = copack_for<pack<Alef, Gimel, Vav>, pack<Bet, Gimel, Vav>>;
-    auto const r = S::template join<R>(copack_for<pack<Alef, Gimel>, pack<Bet, Gimel>>{pack{Alef{3}, Gimel{14}}},
-                                       pack<Vav>{pack{Vav{15}}});
-    ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.apply(join_witness) == 3 + 14 + 15;
-  }
-  { // copack of scalars join scalar
-    using R = copack_for<pack<Alef, Vav>, pack<Bet, Vav>, pack<Gimel, Vav>>;
-    auto const r = S::template join<R>(copack_for<Alef, Bet, Gimel>{Gimel{3}}, Vav{14});
-    ok = ok && r.template has_value<pack<Gimel, Vav>>() && r.apply(join_witness) == 3 + 14;
-  }
-  { // copack of scalars join pack
-    using R = copack_for<pack<Alef, Vav>, pack<Bet, Vav>, pack<Gimel, Vav>>;
-    auto const r = S::template join<R>(copack_for<Alef, Bet, Gimel>{Gimel{3}}, pack<Vav>{pack{Vav{14}}});
-    ok = ok && r.template has_value<pack<Gimel, Vav>>() && r.apply(join_witness) == 3 + 14;
-  }
-  { // pack join copack of scalars
-    using R = copack<pack<Alef, Gimel, Heh>, pack<Alef, Gimel, Vav>, pack<Alef, Gimel, Zayn>>;
-    auto const r = S::template join<R>(pack<Alef, Gimel>{pack{Alef{3}, Gimel{14}}}, copack<Heh, Vav, Zayn>{Vav{15}});
-    ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.apply(join_witness) == 3 + 14 + 15;
-  }
-  { // pack join copack of packs
-    using R = copack<pack<Alef, Gimel, Heh, Zayn>, pack<Alef, Gimel, Vav>>;
-    auto const r = S::template join<R>(pack<Alef, Gimel>{pack{Alef{3}, Gimel{14}}},
-                                       copack<pack<Heh, Zayn>, pack<Vav>>{pack{Vav{15}}});
-    ok = ok && r.template has_value<pack<Alef, Gimel, Vav>>() && r.apply(join_witness) == 3 + 14 + 15;
-  }
-  { // pack join scalar
-    auto const r = S::template join<pack<Alef, Gimel, Vav>>(pack<Alef, Gimel>{pack{Alef{3}, Gimel{14}}}, Vav{15});
-    ok = ok && r.apply(join_witness) == 3 + 14 + 15;
-  }
-  { // pack join pack
-    auto const r = S::template join<pack<Alef, Gimel, Vav>>(pack<Alef, Gimel>{pack{Alef{3}, Gimel{14}}},
-                                                            pack<Vav>{pack{Vav{15}}});
-    ok = ok && r.apply(join_witness) == 3 + 14 + 15;
-  }
-  return ok;
-}
-
-// A bare value can sit on the LEFT of the monad-level join only - operator& has no overload for it,
-// so these four shapes belong to join_via_optional alone.
-constexpr bool join_value_lhs_battery()
-{
-  using fn::copack;
-  using fn::pack;
-  using S = join_via_optional;
-
-  bool ok = true;
-  { // scalar join copack of scalars
-    using R = copack<pack<Alef, Heh>, pack<Alef, Vav>, pack<Alef, Zayn>>;
-    auto const r = S::join<R>(Alef{3}, copack<Heh, Vav, Zayn>{Vav{14}});
-    ok = ok && r.template has_value<pack<Alef, Vav>>() && r.apply(join_witness) == 3 + 14;
-  }
-  { // scalar join copack of packs
-    using R = copack<pack<Alef, Heh, Zayn>, pack<Alef, Vav>>;
-    auto const r = S::join<R>(Alef{3}, copack<pack<Heh, Zayn>, pack<Vav>>{pack{Vav{14}}});
-    ok = ok && r.template has_value<pack<Alef, Vav>>() && r.apply(join_witness) == 3 + 14;
-  }
-  { // scalar join scalar
-    auto const r = S::join<pack<Alef, Vav>>(Alef{3}, Vav{14});
-    ok = ok && r.apply(join_witness) == 3 + 14;
-  }
-  { // scalar join pack
-    auto const r = S::join<pack<Alef, Vav>>(Alef{3}, pack<Vav>{pack{Vav{14}}});
-    ok = ok && r.apply(join_witness) == 3 + 14;
-  }
-  return ok;
-}
-} // namespace
-
-TEMPLATE_TEST_CASE("join of copacks, packs and values", "[pack][copack][detail][optional][operator_and]",
-                   join_via_optional, join_via_operator)
-{
-  static_assert(join_battery<TestType>());
-  REQUIRE(join_battery<TestType>());
-}
-
-TEST_CASE("detail::_join with value operands", "[detail][pack][copack][optional]")
-{
-  static_assert(join_value_lhs_battery());
-  REQUIRE(join_value_lhs_battery());
-}
-
-TEST_CASE("operator &", "[pack][copack][operator_and]")
-{
-  constexpr auto r1 = fn::as_copack(12) & 3 & 2.5 & fn::pack{0.5, true}
-                      & fn::copack_for<bool, int, fn::pack<double, int>>(fn::pack{1.5, 12});
-  static_assert(std::is_same_v<                                     //
-                decltype(r1),                                       //
-                fn::copack_for<                                     //
-                    fn::pack<int, int, double, double, bool, bool>, //
-                    fn::pack<int, int, double, double, bool, int>,  //
-                    fn::pack<int, int, double, double, bool, double, int>> const>);
-  static_assert(r1.apply([](auto &&...args) -> double { return (1 * ... * static_cast<double>(args)); })
-                == 12. * 3 * 2.5 * 0.5 * 1 * 1.5 * 12);
-
-  constexpr auto r2 = fn::conjoin(12, 3, 2.5, fn::pack{0.5, true},
-                                  fn::copack_for<bool, int, fn::pack<double, int>>(fn::pack{1.5, 12}));
-  static_assert(std::is_same_v<                                     //
-                decltype(r2),                                       //
-                fn::copack_for<                                     //
-                    fn::pack<int, int, double, double, bool, bool>, //
-                    fn::pack<int, int, double, double, bool, int>,  //
-                    fn::pack<int, int, double, double, bool, double, int>> const>);
-  static_assert(r2.apply([](auto &&...args) -> double { return (1 * ... * static_cast<double>(args)); })
-                == 12. * 3 * 2.5 * 0.5 * 1 * 1.5 * 12);
-
-  // a pack whose only element is tuple-like splices whole through the join
-  constexpr auto r3 = fn::as_copack(12) & fn::pack<std::tuple<int, int>>{std::tuple{1, 2}};
-  static_assert(std::is_same_v<decltype(r3), fn::copack<fn::pack<int, std::tuple<int, int>>> const>);
-  static_assert(r3.apply([](int i, std::tuple<int, int> const &t) { return i == 12 && std::get<0>(t) == 1; }));
-
-  SECTION("noexcept")
-  {
-    // This operator& builds a pack from operands it relocates, and weighs that: nothing here can
-    // throw, so it promises noexcept - as optional's and expected's joins now do.
-    static_assert(noexcept(std::declval<fn::pack<int> &>() & 2));
-    static_assert(noexcept(std::declval<fn::copack<int> &>() & 2));
-    SUCCEED();
-  }
-
-  SECTION("the data fold takes data, never a carrier")
-  {
-    // A carrier passed here would have become a pack element - the pack of the carriers, not the
-    // conjunction of what they carry - so the fold refuses it, in any position.
-    constexpr auto can = [](auto &&...args) { return requires { fn::conjoin(FWD(args)...); }; };
-    static_assert(can(12, 2.5));
-    static_assert(can(fn::pack{1, 2}, 3));
-    static_assert(can(fn::as_copack(12), 3));
-    static_assert(not can(fn::expected<int, bool>{1}, 3));
-    static_assert(not can(12, fn::expected<int, bool>{1}));
-    static_assert(not can(fn::pack{1, 2}, fn::expected<int, bool>{1}));
-    static_assert(not can(fn::as_copack(12), fn::optional<int>{1}));
-    static_assert(not can(fn::choice<int>{1}, 2));
-    // ... while a single argument is forwarded unchanged, carrier or not: nothing is packed
-    static_assert(can(fn::expected<int, bool>{1}));
-    static_assert(fn::conjoin(fn::expected<int, bool>{1}) == fn::expected<int, bool>{1});
-    SUCCEED();
-  }
-
-  SECTION("all carriers instead, and the fold is the carrier conjunction")
-  {
-    // The same spelling over carriers folds `operator &` over the carriers themselves - the
-    // conjunction, whose value side is the product - and it is the fold of that operator, exactly
-    using EA = fn::expected<int, bool>;
-    using EB = fn::expected<double, bool>;
-    static_assert(std::same_as<decltype(fn::conjoin(std::declval<EA>(), std::declval<EB>())),
-                               decltype(std::declval<EA>() & std::declval<EB>())>);
-    constexpr auto is_1_2_5 = [](int i, double d) { return i == 1 && d == 2.5; };
-    static_assert(fn::conjoin(EA{1}, EB{2.5}).value().apply(is_1_2_5));
-    static_assert(fn::conjoin(EA{fn::unexpect, true}, EB{2.5}).error() == true);
-
-    // ... and the operands' errors need not agree: the conjunction sums them, ungraded or not
-    using EC = fn::expected<double, int>;
-    static_assert(std::same_as<decltype(fn::conjoin(std::declval<EA>(), std::declval<EC>())),
-                               fn::expected<fn::pack<int, double>, fn::copack_for<bool, int>>>);
-    static_assert(fn::conjoin(EA{1}, EC{2.5}).value().apply(is_1_2_5));
-    static_assert(fn::conjoin(EA{fn::unexpect, true}, EC{2.5}).error() == fn::copack_for<bool, int>{true});
-    static_assert(fn::conjoin(EA{1}, EC{fn::unexpect, 7}).error() == fn::copack_for<bool, int>{7});
-    CHECK(fn::conjoin(EA{1}, EC{2.5}).value().apply(is_1_2_5));
-    CHECK(bool(fn::conjoin(EA{1}, EC{fn::unexpect, 7}).error() == fn::copack_for<bool, int>{7}));
-
-    // n-ary, and the product splices rather than nesting
-    constexpr auto is_1_true_2 = [](int a, bool b, int c) { return a == 1 && b && c == 2; };
-    static_assert(fn::conjoin(fn::just<int>{1}, fn::just<bool>{true}, fn::just<int>{2}).value().apply(is_1_true_2));
-    constexpr auto is_1_true = [](int i, bool b) { return i == 1 && b; };
-    static_assert(fn::conjoin(fn::optional<int>{1}, fn::optional<bool>{true}).value().apply(is_1_true));
-    CHECK(fn::conjoin(fn::optional<int>{1}, fn::optional<bool>{true}).value().apply(is_1_true));
-    static_assert(not fn::conjoin(fn::optional<int>{}, fn::optional<bool>{true}).has_value());
-
-    // the two worlds never mix: the refusals above hold in both directions
-    constexpr auto can = [](auto &&...args) { return requires { fn::conjoin(FWD(args)...); }; };
-    static_assert(can(fn::optional<int>{1}, fn::optional<bool>{true}));
-    static_assert(not can(fn::optional<int>{1}, true));
-    static_assert(not can(fn::optional<int>{1}, fn::expected<int, bool>{1})); // no mixed-kind `&`
-    SUCCEED();
-  }
-}
-
-TEST_CASE("disjoin", "[disjoin][pack][expected][just]")
-{
-  enum Error : int { FileNotFound };
-  using EA = fn::expected<int, Error>;
-  using EB = fn::expected<bool, int>;
-
-  static_assert(std::same_as<decltype(fn::disjoin(std::declval<EA>(), std::declval<EB>())),
-                             decltype(std::declval<EA>() | std::declval<EB>())>);
-  static_assert(fn::disjoin(EA{1}) == EA{1}); // unary forwards unchanged
-  static_assert(fn::disjoin(EA{::fn::unexpect, FileNotFound}, EB{true}) == fn::copack{true});
-  static_assert(
-      fn::disjoin(fn::just<void>{}, fn::just<void>{}, fn::just<int>{7}).apply([]([[maybe_unused]] auto &&...args) {
-        return sizeof...(args);
-      })
-      == 0); // left catch through the whole chain
-  CHECK(bool(fn::disjoin(EA{::fn::unexpect, FileNotFound}, EB{true})
-             == fn::copack{true})); // bool(): Catch2 decomposition re-enters the == constraint
-
-  // a non-viable fold answers instead of erroring
-  constexpr auto can = [](auto &&...args) { return requires { fn::disjoin(FWD(args)...); }; };
-  static_assert(can(EA{1}, EB{true}));
-  static_assert(not can(EA{1}, 42));
-
-  // carriers only, in every arity: `|` over anything else is the built-in operator, and the fold of
-  // two integers is 3, an answer this verb has no business giving
-  static_assert(not can(1, 2));
-  static_assert(not can(42));
-  static_assert(can(EA{1}));
 }
 
 namespace {

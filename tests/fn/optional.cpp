@@ -33,23 +33,6 @@ struct MoveNothrow {
   MoveNothrow(MoveNothrow &&) noexcept = default;
 };
 
-// The join invokes its error-continuation as an lvalue - a named parameter - whatever the value
-// category it was passed in, and its specification must ask about that call. These answer the
-// lvalue and the rvalue question differently, in both directions - and the third offers only the
-// call the body performs. Namespace scope: a local class cannot have member templates.
-struct EfnLvalueNothrow {
-  constexpr auto operator()(auto const &) & noexcept -> std::nullopt_t { return std::nullopt; }
-  auto operator()(auto const &) && noexcept(false) -> std::nullopt_t { throw 0; }
-};
-struct EfnRvalueNothrow {
-  auto operator()(auto const &) & noexcept(false) -> std::nullopt_t { throw 0; }
-  constexpr auto operator()(auto const &) && noexcept -> std::nullopt_t { return std::nullopt; }
-};
-struct EfnLvalueOnly {
-  constexpr auto operator()(auto const &) & noexcept -> std::nullopt_t { return std::nullopt; }
-  auto operator()(auto const &) && -> std::nullopt_t = delete;
-};
-
 // Copacks whose alternatives include a non-builtin (Xint/std::string_view/fn::pack — any
 // class/struct/enum) have platform-specific order (see copack.cpp); pure-builtin copacks keep copack<...>.
 } // namespace
@@ -596,10 +579,6 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
 
     SECTION("identity cluster operands")
     {
-      // A cluster operand always contributes its value to the product and adds no term to the
-      // error sum, so the optional operand's state decides alone. just<void> and the void identity
-      // expected are the product's unit and elide; the identity expected is the cluster's third
-      // member and composes exactly as just does.
       using O = fn::optional<int>;
       using J = fn::just<int>;
       using EIv = fn::expected<int, fn::copack<>>;
@@ -607,12 +586,14 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
 
       static_assert(std::same_as<decltype(std::declval<J>() & std::declval<O>()), fn::optional<fn::pack<int, int>>>);
       static_assert(std::same_as<decltype(std::declval<O>() & std::declval<J>()), fn::optional<fn::pack<int, int>>>);
-      static_assert(std::same_as<decltype(std::declval<fn::just<void>>() & std::declval<O>()), O>);
-      static_assert(std::same_as<decltype(std::declval<O>() & std::declval<fn::just<void>>()), O>);
+      static_assert(
+          std::same_as<decltype(std::declval<fn::just<void>>() & std::declval<O>()), fn::optional<fn::pack<int>>>);
+      static_assert(
+          std::same_as<decltype(std::declval<O>() & std::declval<fn::just<void>>()), fn::optional<fn::pack<int>>>);
       static_assert(std::same_as<decltype(std::declval<EIv>() & std::declval<O>()), fn::optional<fn::pack<int, int>>>);
       static_assert(std::same_as<decltype(std::declval<O>() & std::declval<EIv>()), fn::optional<fn::pack<int, int>>>);
-      static_assert(std::same_as<decltype(std::declval<EVI>() & std::declval<O>()), O>);
-      static_assert(std::same_as<decltype(std::declval<O>() & std::declval<EVI>()), O>);
+      static_assert(std::same_as<decltype(std::declval<EVI>() & std::declval<O>()), fn::optional<fn::pack<int>>>);
+      static_assert(std::same_as<decltype(std::declval<O>() & std::declval<EVI>()), fn::optional<fn::pack<int>>>);
       static_assert(std::same_as<decltype(std::declval<fn::choice_for<int, bool>>() & std::declval<O>()),
                                  fn::optional<fn::copack_for<fn::pack<int, int>, fn::pack<bool, int>>>>);
       // ... and the choice operand's held alternative selects the product row
@@ -628,12 +609,20 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       static_assert((J{1} & O{2}).value().apply([](int a, int b) { return a == 1 && b == 2; }));
       static_assert(not(J{1} & O{}).has_value());
       static_assert((EIv{7} & O{2}).value().apply([](int a, int b) { return a == 7 && b == 2; }));
-      static_assert((O{2} & EVI{}).value() == 2);
-      static_assert((fn::just<void>{} & O{5}).value() == 5);
+      static_assert((O{2} & EVI{}).value() == fn::pack<int>{2});
+      static_assert((fn::just<void>{} & O{5}).value() == fn::pack<int>{5});
       CHECK((J{1} & O{2}).value().apply([](int a, int b) { return a == 1 && b == 2; }));
       CHECK(not(J{1} & O{}).has_value());
+      CHECK((EIv{7} & O{2}).value().apply([](int a, int b) { return a == 7 && b == 2; }));
+      CHECK((O{2} & EVI{}).value() == fn::pack<int>{2});
+      CHECK((fn::just<void>{} & O{5}).value() == fn::pack<int>{5});
+      static_assert(not(fn::just<void>{} & O{}).has_value());
+      static_assert(not(O{} & EVI{}).has_value());
+      static_assert(not(EIv{7} & O{}).has_value());
+      CHECK(not(fn::just<void>{} & O{}).has_value());
+      CHECK(not(O{} & EVI{}).has_value());
+      CHECK(not(EIv{7} & O{}).has_value());
 
-      // 0 x 1 = 0: the void identity elides, passing the always-empty optional through unchanged
       using DeadO = fn::optional<fn::copack<>>;
       static_assert(std::same_as<decltype(std::declval<DeadO>() & std::declval<EVI>()), DeadO>);
       static_assert(std::same_as<decltype(std::declval<J>() & std::declval<DeadO>()), DeadO>);
@@ -736,28 +725,6 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       static_assert(not noexcept(std::declval<Sh &>() & std::declval<Rh &>()));
       static_assert(noexcept(std::declval<Sh &&>() & std::declval<Rh &&>()));
 
-      SECTION("_join")
-      {
-        // the join invokes its error-continuation as an lvalue, and its specification asks about
-        // that call - whether the callable arrives as a temporary or an lvalue
-        using fn::detail::_join;
-        static_assert(noexcept(_join<fn::optional>(std::declval<Rh &>(), std::declval<Rh &>(), EfnLvalueNothrow{})));
-        static_assert(
-            not noexcept(_join<fn::optional>(std::declval<Rh &>(), std::declval<Rh &>(), EfnRvalueNothrow{})));
-        static_assert(noexcept(_join<fn::optional>(std::declval<Rh &>(), std::declval<Rh &>(), EfnLvalueOnly{})));
-        static_assert(noexcept(
-            _join<fn::optional>(std::declval<Rh &>(), std::declval<Rh &>(), std::declval<EfnLvalueNothrow &>())));
-        static_assert(not noexcept(
-            _join<fn::optional>(std::declval<Rh &>(), std::declval<Rh &>(), std::declval<EfnRvalueNothrow &>())));
-
-        // the body performs the lvalue call: the rvalue overload throws, or does not exist
-        CHECK(not _join<fn::optional>(Rh{std::nullopt}, Rh{12}, EfnLvalueNothrow{}).has_value());
-        CHECK(not _join<fn::optional>(Rh{12}, Rh{std::nullopt}, EfnLvalueOnly{}).has_value());
-        CHECK(_join<fn::optional>(Rh{3}, Rh{4}, EfnLvalueOnly{}).has_value());
-        static_assert(not _join<fn::optional>(Rh{std::nullopt}, Rh{12}, EfnLvalueNothrow{}).has_value());
-        static_assert(not _join<fn::optional>(Rh{12}, Rh{std::nullopt}, EfnLvalueOnly{}).has_value());
-        static_assert(_join<fn::optional>(Rh{3}, Rh{4}, EfnLvalueOnly{}).has_value());
-      }
       SUCCEED();
     }
 
@@ -1023,6 +990,31 @@ TEST_CASE("optional transform copack", "[optional][copack][transform]")
                                [](Xint &&) -> bool { throw 0; }, [](Xint const &&) -> bool { throw 0; }}) //
               .value()
           == fn::copack{true});
+  }
+
+  SECTION("a void result enters as pack<>")
+  {
+    constexpr auto which
+        = fn::overload{[](bool b) { return b ? 1 : 0; }, [] { return -1; }, [](fn::pack<>) { return -2; }};
+    constexpr auto fnMixed = fn::overload{[](int) {}, [](Xint) { return true; }};
+    constexpr auto fnVoid = [](auto &&) {};
+    S s{12};
+    static_assert(std::is_same_v<decltype(s.transform(fnMixed)), fn::optional<fn::copack_for<bool, fn::pack<>>>>);
+    static_assert(std::is_same_v<decltype(s.transform(fnVoid)), fn::optional<fn::copack<fn::pack<>>>>);
+    CHECK(s.transform(fnMixed).value().apply(which) == -1);
+    CHECK(std::as_const(s).transform(fnMixed).value().apply(which) == -1);
+    CHECK(std::move(std::as_const(s)).transform(fnMixed).value().apply(which) == -1);
+    CHECK(std::move(s).transform(fnMixed).value().apply(which) == -1);
+    CHECK(S{12}.transform(fnVoid).value().apply(which) == -1);
+    CHECK(not S{}.transform(fnMixed).has_value());
+    constexpr auto fnNothrow = fn::overload{[](int) noexcept {}, [](Xint) noexcept { return true; }};
+    static_assert(noexcept(s.transform(fnNothrow)));
+    static_assert(not noexcept(s.transform(fnMixed)));
+    // named sources: VS 2022 misreads a mid-expression prvalue's empty-class union member
+    constexpr S cs{12};
+    constexpr S ce{};
+    static_assert(cs.transform(fnMixed).value().apply(which) == -1);
+    static_assert(not ce.transform(fnMixed).has_value());
   }
 
   SECTION("error")

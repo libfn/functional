@@ -158,6 +158,7 @@ Match the assertion to the tested property:
 * **Conditional Specifications**: Pair negative assertions with their positive converses (e.g., pair `static_assert(not noexcept(expr))` with a witness for which it is `noexcept`). This proves that the specification is conditional rather than unconditionally false. Apply the same positive-control discipline to negative constraint or viability probes.
 * **Substitution Contexts**: Ensure expressions in negative viability probes are dependent on a template parameter. A `requires`-expression over concrete types is not a substitution context, meaning an invalid requirement triggers a hard error rather than a SFINAE failure. Enclose the dependent probe in a generic lambda or a type-keyed concept to yield `false` on invalid substitution.
 * **Exception Fixtures**: Select exception-proving fixtures carefully. The library's `helper_t` implements a separate constructor for each value category, and its non-const-lvalue copy constructor is always `noexcept`. A `helper_t` configured to throw is therefore not throwing for every value category, which can hide incorrect `noexcept` specifications. Use a simple, local type if the test requires every relevant constructor to be potentially throwing.
+* **Expected Failures**: The suite cannot test runtime crashes or compilation failures. Record these untested cases beside their positive controls.
 
 ## Client code
 

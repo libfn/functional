@@ -10,6 +10,7 @@
 #include <pfn/expected.hpp>
 #include <pfn/utility.hpp>
 
+#include <fn/algebra.hpp>
 #include <fn/copack.hpp>
 #include <fn/detail/traits.hpp>
 #include <fn/fwd.hpp>
@@ -88,6 +89,23 @@ template <typename From, typename Type, typename... Args>
   requires empty_copack<From>
 constexpr inline bool _nothrow_arm<From, Type, Args...> = true;
 
+template <typename Type>
+constexpr inline bool _nothrow_void_success = _nothrow_initializable<Type, ::std::in_place_t, pack<>>;
+template <typename Type>
+  requires ::std::is_void_v<typename Type::value_type>
+constexpr inline bool _nothrow_void_success<Type> = _nothrow_initializable<Type, ::std::in_place_t>;
+
+template <typename Type> [[nodiscard]] constexpr auto _void_success() noexcept(_nothrow_void_success<Type>) -> Type
+{
+  if constexpr (::std::is_void_v<typename Type::value_type>)
+    return Type{::std::in_place};
+  else
+    return Type{::std::in_place, pack<>{}};
+}
+
+// Materialize prvalues as mutable objects for relocation; preserve references.
+template <typename R> using _held_t = ::std::conditional_t<::std::is_reference_v<R>, R, ::std::remove_cv_t<R>>;
+
 // Carrying the callback's value across into a widened result. An expected<void, ...> has no value to
 // carry, and `declval<void>()` is not a thing to ask about; an empty-copack value can never exist to be
 // carried, so that arm is unreachable (as in _nothrow_arm).
@@ -96,10 +114,16 @@ constexpr inline bool _nothrow_carry_value
     = _nothrow_initializable<Type, ::std::in_place_t, decltype(::std::declval<Src>().value())>;
 template <typename Type, typename Src>
   requires ::std::is_void_v<typename ::std::remove_cvref_t<Src>::value_type>
-constexpr inline bool _nothrow_carry_value<Type, Src> = _nothrow_initializable<Type, ::std::in_place_t>;
+constexpr inline bool _nothrow_carry_value<Type, Src> = _nothrow_void_success<Type>;
 template <typename Type, typename Src>
   requires empty_copack<typename ::std::remove_cvref_t<Src>::value_type>
 constexpr inline bool _nothrow_carry_value<Type, Src> = true;
+
+template <typename T, typename Type, typename ValArg>
+constexpr inline bool _nothrow_carry_self = _nothrow_arm<T, Type, ::std::in_place_t, ValArg>;
+template <typename T, typename Type, typename ValArg>
+  requires ::std::is_void_v<T>
+constexpr inline bool _nothrow_carry_self<T, Type, ValArg> = _nothrow_void_success<Type>;
 
 // `and_then` and `or_else` each have two arms - the callback's own expected is returned, or the two
 // error (value) types are widened into a copack - and `if constexpr` picks between them. A
@@ -122,6 +146,80 @@ template <typename T, typename Fn, typename ErrArg> struct _or_else_dispatch : _
 template <typename T, typename Fn, typename ErrArg>
   requires _some_copack<::std::remove_cvref_t<ErrArg>>
 struct _or_else_dispatch<T, Fn, ErrArg> : _copack_apply_result<_joining_recovery_tag<::fn::expected, T>, Fn, ErrArg> {};
+
+template <typename To, typename From>
+concept _void_success_into = _is_some_expected<From &> && ::std::is_void_v<typename From::value_type>
+                             && (not ::std::is_void_v<typename To::value_type>);
+
+template <typename To, typename Fn, typename... Args> struct _nothrow_expected_inject : ::std::false_type {};
+template <typename To, typename Fn, typename... Args>
+  requires _void_success_into<To, ::std::remove_cvref_t<::std::invoke_result_t<Fn, Args...>>>
+struct _nothrow_expected_inject<To, Fn, Args...> {
+  using held = _held_t<::std::invoke_result_t<Fn, Args...>>;
+  static constexpr bool value = ::std::is_nothrow_invocable_v<Fn, Args...> && _nothrow_void_success<To>
+                                && _nothrow_arm<typename ::std::remove_cvref_t<held>::error_type, To, ::fn::unexpect_t,
+                                                decltype(::std::declval<held>().error())>;
+};
+template <typename To, typename Fn, typename... Args>
+  requires(not _void_success_into<To, ::std::remove_cvref_t<::std::invoke_result_t<Fn, Args...>>>)
+          && requires { static_cast<To>(::std::invoke(::std::declval<Fn>(), ::std::declval<Args>()...)); }
+struct _nothrow_expected_inject<To, Fn, Args...>
+    : ::std::bool_constant<noexcept(static_cast<To>(::std::invoke(::std::declval<Fn>(), ::std::declval<Args>()...)))> {
+};
+
+// Constraining result conversion here would change callback overload selection.
+template <typename To, typename Fn> struct _expected_injector final {
+  Fn fn;
+
+  template <typename... Args>
+  constexpr auto operator()(Args &&...args) const noexcept(_nothrow_expected_inject<To, Fn, Args...>::value) -> To
+    requires ::std::is_invocable_v<Fn, Args...>
+  {
+    using from = ::std::remove_cvref_t<::std::invoke_result_t<Fn, Args...>>;
+    if constexpr (_void_success_into<To, from>) {
+      _held_t<::std::invoke_result_t<Fn, Args...>> r = ::std::invoke(FWD(fn), FWD(args)...);
+      if constexpr (not empty_copack<typename from::error_type>) {
+        if (not r.has_value())
+          return To{::fn::unexpect, FWD(r).error()};
+      }
+      return _void_success<To>();
+    } else
+      return static_cast<To>(::std::invoke(FWD(fn), FWD(args)...));
+  }
+};
+
+template <typename To, typename R>
+concept _void_success_admitted
+    = _void_success_into<To, ::std::remove_cvref_t<R>> && ::std::is_constructible_v<To, ::std::in_place_t, pack<>>
+      && (empty_copack<typename ::std::remove_cvref_t<R>::error_type>
+          || ::std::is_convertible_v<decltype(::std::declval<_held_t<R>>().error()), typename To::error_type>);
+
+template <typename To, typename Fn> struct _expected_admission final {
+  template <typename... Args>
+  auto operator()(Args &&...) const -> To
+    requires _void_success_admitted<To, ::std::invoke_result_t<Fn, Args...>>
+             || ((not _void_success_into<To, ::std::remove_cvref_t<::std::invoke_result_t<Fn, Args...>>>)
+                 && ::std::is_invocable_r_v<To, Fn, Args...>)
+  {
+    ::pfn::unreachable(); // LCOV_EXCL_LINE
+  }
+};
+
+template <typename Tag, typename Cp, typename Fn>
+  requires _some_copack<::std::remove_cvref_t<Cp>>
+           && _typelist_applicable_r<typename _copack_apply_result<Tag, Fn &&, Cp &&>::type,
+                                     _expected_admission<typename _copack_apply_result<Tag, Fn &&, Cp &&>::type, Fn &&>,
+                                     Cp &&>
+[[nodiscard]] constexpr auto _join_expected_apply(Cp &&cp, Fn &&fn) //
+    noexcept(_is_nothrow_rts_applicable<
+             typename _copack_apply_result<Tag, Fn &&, Cp &&>::type,
+             _expected_injector<typename _copack_apply_result<Tag, Fn &&, Cp &&>::type, Fn &&>, Cp &&>) ->
+    typename _copack_apply_result<Tag, Fn &&, Cp &&>::type
+{
+  using type = _copack_apply_result<Tag, Fn &&, Cp &&>::type;
+  using data_t = ::std::remove_cvref_t<Cp>::data_t;
+  return apply_variadic_union<type, data_t>(FWD(cp).data, cp.index, _expected_injector<type, Fn &&>{FWD(fn)});
+}
 
 template <typename E, typename Fn, typename ErrArg, typename... ValArg> struct _nothrow_and_then : ::std::false_type {};
 
@@ -155,15 +253,13 @@ struct _nothrow_and_then<E, Fn, ErrArg, ValArg...> {
         && _nothrow_arm<E, new_type, ::fn::unexpect_t, ErrArg>;   // widening self's error
 };
 
-// the heterogeneous join: each branch and its conversion into the announced result are weighed by
-// the rts trait; widening self's error is the one other reachable construction, dead for copack<>
 template <typename E, typename Fn, typename ErrArg, typename... ValArg>
   requires _is_hetero_join<_and_then_dispatch<E, Fn, ValArg...>>
 struct _nothrow_and_then<E, Fn, ErrArg, ValArg...> {
   using type = typename _and_then_dispatch<E, Fn, ValArg...>::type;
 
   static constexpr bool value
-      = _is_nothrow_rts_applicable<type, Fn, ValArg...>
+      = _is_nothrow_rts_applicable<type, _expected_injector<type, Fn &&>, ValArg...>
         && (empty_copack<E> || ::std::is_nothrow_constructible_v<type, ::fn::unexpect_t, ErrArg>);
 };
 
@@ -192,26 +288,24 @@ template <typename T, typename Fn, typename ErrArg, typename ValArg>
                                    T>)
 struct _nothrow_or_else<T, Fn, ErrArg, ValArg> {
   using type = ::std::remove_cvref_t<typename _or_else_dispatch<T, Fn, ErrArg>::type>;
-  using new_type = ::fn::expected<copack_for<T, typename type::value_type>, typename type::error_type>;
+  using new_type = ::fn::expected<typename _joining_expected::graded_join<T, typename type::value_type>::type,
+                                  typename type::error_type>;
 
-  static constexpr bool value                                   //
-      = _is_nothrow_applicable<Fn, ErrArg>::value               // the callback
-        && _nothrow_arm<T, new_type, ::std::in_place_t, ValArg> // widening self's value
-        && _nothrow_carry_value<new_type, type>                 // widening its value
+  static constexpr bool value                       //
+      = _is_nothrow_applicable<Fn, ErrArg>::value   // the callback
+        && _nothrow_carry_self<T, new_type, ValArg> // widening self's value
+        && _nothrow_carry_value<new_type, type>     // widening its value
         && _nothrow_initializable<new_type, ::fn::unexpect_t,
                                   decltype(::std::declval<type>().error())>; // carrying its error
 };
 
-// the heterogeneous join, mirrored: the branches and their conversions through the rts trait;
-// carrying self's value into the announced result is the other reachable construction
 template <typename T, typename Fn, typename ErrArg, typename ValArg>
   requires _is_hetero_join<_or_else_dispatch<T, Fn, ErrArg>>
 struct _nothrow_or_else<T, Fn, ErrArg, ValArg> {
   using type = typename _or_else_dispatch<T, Fn, ErrArg>::type;
 
-  static constexpr bool value
-      = _is_nothrow_rts_applicable<type, Fn, ErrArg>
-        && (::std::is_void_v<T> || empty_copack<T> || _nothrow_initializable<type, ::std::in_place_t, ValArg>);
+  static constexpr bool value = _is_nothrow_rts_applicable<type, _expected_injector<type, Fn &&>, ErrArg>
+                                && _nothrow_carry_self<T, type, ValArg>;
 };
 
 // Storage layer for ::fn::expected. Inherits the standard-conformant base from
@@ -243,10 +337,8 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
     using dispatch = ::fn::detail::_and_then_dispatch<E, Fn, decltype(_pfn_base::_value(FWD(self)))>;
     using type = typename dispatch::type;
     if constexpr (::fn::detail::_is_hetero_join<dispatch>) {
-      // heterogeneous expected branches: the join announced `type`, every branch converts into it
-      // as it returns, and the error path widens self's grade the same way
       if (self.has_value())
-        return ::fn::detail::_tagged_join_apply<::fn::detail::_joining_expected_tag<::fn::expected, E>>(
+        return ::fn::detail::_join_expected_apply<::fn::detail::_joining_expected_tag<::fn::expected, E>>(
             _pfn_base::_value(FWD(self)), FWD(fn));
       else {
         if constexpr (not empty_copack<E>)
@@ -359,22 +451,20 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
     using dispatch = ::fn::detail::_or_else_dispatch<T, Fn, decltype(_pfn_base::_error(FWD(self)))>;
     using type = typename dispatch::type;
     if constexpr (::fn::detail::_is_hetero_join<dispatch>) {
-      // heterogeneous expected branches: the join announced `type`; self's value widens into it on
-      // the value path, and each branch converts into it as it returns on the error path
       if (self.has_value()) {
         if constexpr (::std::is_void_v<T>)
-          return type{::std::in_place};
+          return ::fn::detail::_void_success<type>();
         else if constexpr (not empty_copack<T>)
           return type{::std::in_place, _pfn_base::_value(FWD(self))};
         else
           ::pfn::unreachable(); // LCOV_EXCL_LINE
       } else
-        return ::fn::detail::_tagged_join_apply<::fn::detail::_joining_recovery_tag<::fn::expected, T>>(
+        return ::fn::detail::_join_expected_apply<::fn::detail::_joining_recovery_tag<::fn::expected, T>>(
             _pfn_base::_error(FWD(self)), FWD(fn));
     } else {
       static_assert(_is_some_expected<type &>);
       static_assert(::std::is_same_v<typename type::value_type, T> || some_copack<T>
-                    || ::std::is_same_v<typename type::value_type, ::fn::copack<T>>);
+                    || ::std::is_same_v<typename type::value_type, ::fn::copack<::fn::detail::_sum_element_t<T>>>);
       if constexpr (::std::is_same_v<typename type::value_type, T>) {
         if (self.has_value())
           if constexpr (not ::std::is_void_v<T>)
@@ -386,18 +476,22 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
         else
           return ::fn::detail::_apply(FWD(fn), _pfn_base::_error(FWD(self)));
       } else {
-        static_assert(not ::std::is_void_v<typename type::value_type>);
-        using new_value_type = copack_for<T, typename type::value_type>;
+        using new_value_type =
+            typename ::fn::detail::_joining_expected::graded_join<T, typename type::value_type>::type;
         using new_type = ::fn::expected<new_value_type, typename type::error_type>;
         if (self.has_value()) {
-          if constexpr (not empty_copack<T>)
+          if constexpr (::std::is_void_v<T>)
+            return ::fn::detail::_void_success<new_type>();
+          else if constexpr (not empty_copack<T>)
             return new_type{::std::in_place, _pfn_base::_value(FWD(self))};
           else
             ::pfn::unreachable(); // LCOV_EXCL_LINE
         } else {
           auto t = ::fn::detail::_apply(FWD(fn), _pfn_base::_error(FWD(self)));
           if (t.has_value()) {
-            if constexpr (not empty_copack<typename type::value_type>)
+            if constexpr (::std::is_void_v<typename type::value_type>)
+              return ::fn::detail::_void_success<new_type>();
+            else if constexpr (not empty_copack<typename type::value_type>)
               return new_type{::std::in_place, ::std::move(t).value()};
             else
               ::pfn::unreachable(); // LCOV_EXCL_LINE
@@ -526,8 +620,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       });
   }
 
-  // transform_error, error type is a copack (delegates to copack::transform). The callback is constrained
-  // here, in the immediate context, for the reason given on optional's copack-case _transform.
+  // Constrain the call here so invalid transforms fail in the immediate context.
   template <typename Self, typename Fn>
   static constexpr auto _transform_error(Self &&self, Fn &&fn) //
       noexcept(noexcept(_pfn_base::_error(FWD(self)).transform(FWD(fn)))
@@ -536,6 +629,7 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
                        T, ::fn::apply_const_lvalue_t<Self, typename _pfn_base::_value_t &&>>)) // extension
     requires some_copack<E> && (not empty_copack<E>)
              && ::fn::detail::_typelist_applicable<Fn, decltype(_pfn_base::_error(FWD(self)))>
+             && requires { _pfn_base::_error(FWD(self)).transform(FWD(fn)); }
              && (::std::is_void_v<T> || ::std::is_constructible_v<T, decltype(_pfn_base::_value(FWD(self)))>)
   {
     using new_error_type = decltype(_pfn_base::_error(FWD(self)).transform(FWD(fn)));
@@ -1340,7 +1434,8 @@ public:
    * the identical error type, or its singular lift `copack<E>` - the opt-in to the graded world -
    * while a graded (copack) error side unions the callback's error set into its own. A
    * copack-valued operand dispatches per alternative, exhaustively, heterogeneous branch values
-   * joining into a normalized copack. The one bind that widens an error grade.
+   * joining into a normalized copack, where a `void` one enters as `pack<>`. The one bind that
+   * widens an error grade.
    *
    * @param f Callable applied on the value, returning an `expected`
    * @return The callback's `expected`, its error side widened by the operand's grade
@@ -1379,10 +1474,11 @@ public:
    *
    * The recovery bind: a successful operand passes through, and the callback maps the error - per
    * alternative when graded, exhaustively - into a new `expected`. The value sides join under the
-   * grading rules, a plain side admitting its singular lift `copack<T>`; an error alternative
-   * handled by a branch leaves the grade unless re-returned, and on a plain error side the
-   * callback's error type replaces the operand's. On the identity `expected` the operation is
-   * vacuous: nothing is asked of the handler, not even that it be callable.
+   * grading rules: a `void` recovery enters the operand's copack as `pack<>`, and a plain operand
+   * value admits its singular lift `copack<T>`. An error alternative handled by a branch leaves the
+   * grade unless re-returned, and on a plain error side the callback's error type replaces the
+   * operand's. On the identity `expected` the operation is vacuous: nothing is asked of the
+   * handler, not even that it be callable.
    *
    * @param f Callable applied on the error, returning an `expected`
    * @return The recovery's `expected`, its value side joined with the operand's
@@ -1624,7 +1720,7 @@ private:
  *
  * As the primary, with the value side the unit: success-path callbacks are invoked with no
  * arguments, the `apply` family's value arm receives the trailing arguments alone, and a
- * conjunction elides the void side from the value product.
+ * conjunction with a valued side takes the void side as the unit factor `pack<>`.
  *
  * @tparam Err Error type; a `copack` makes the carrier graded
  */
@@ -2041,13 +2137,13 @@ public:
    * @brief Binds the error through the callable, which returns an `expected`
    *
    * The recovery bind: a successful operand passes through, and the callback maps the error - per
-   * alternative when graded, exhaustively - into a new `expected`. A callback returning a value
-   * side leaves this carrier for that one; on a plain error side the callback's error type
-   * replaces the operand's. Over the uninhabited `copack<>` error side the operation is vacuous:
-   * nothing is asked of the handler, not even that it be callable.
+   * alternative when graded, exhaustively - into a new `expected`. The value side stays `void`, or
+   * lifts to `copack<pack<>>` where the callback returns that lift; on a plain error side the
+   * callback's error type replaces the operand's. Over the uninhabited `copack<>` error side the
+   * operation is vacuous: nothing is asked of the handler, not even that it be callable.
    *
    * @param f Callable applied on the error, returning an `expected`
-   * @return The callback's `expected`, or the operand unchanged where it holds success
+   * @return The recovery's `expected`, over `void` or its lift `copack<pack<>>`
    */
   template <class F>
   constexpr auto or_else(F &&f) &                        //
@@ -2158,6 +2254,32 @@ public:
   }
 
   /**
+   * @brief Lifts the value side into its singular copack: `expected<void, E>` becomes
+   *        `expected<copack<pack<>>, E>`
+   *
+   * @return The graded `expected`, relocating the error
+   */
+  constexpr auto
+  copack_value() const & noexcept(::std::is_nothrow_constructible_v<error_type, error_type const &>) // extension
+      -> expected<copack<pack<>>, error_type>
+  {
+    using type = expected<copack<pack<>>, error_type>;
+    if (this->has_value())
+      return type{::std::in_place, pack<>{}};
+    else
+      return type{::fn::unexpect, this->error()};
+  }
+  constexpr auto copack_value() && noexcept(::std::is_nothrow_constructible_v<error_type, error_type>) // extension
+      -> expected<copack<pack<>>, error_type>
+  {
+    using type = expected<copack<pack<>>, error_type>;
+    if (this->has_value())
+      return type{::std::in_place, pack<>{}};
+    else
+      return type{::fn::unexpect, ::std::move(*this).error()};
+  }
+
+  /**
    * @brief Lifts the error side into its singular copack: `expected<void, E>` becomes
    *        `expected<void, copack<E>>`
    *
@@ -2225,7 +2347,7 @@ private:
  * @brief The unit of the `expected` family: a carrier over `void` whose error side is uninhabited
  *
  * It always holds its empty value - `copack<>` offers no alternative to fail with - so it belongs to
- * the identity cluster, and `operator&` elides it from a product.
+ * the identity cluster, and `operator&` with a valued side takes it as the unit factor `pack<>`.
  */
 using expected_unit = expected<void, copack<>>;
 
@@ -2254,7 +2376,7 @@ constexpr bool operator==(expected<T, Err> const &x, T2 const &v) //
  * @param src The `expected` to lift
  * @return `src.copack_value()`
  */
-[[nodiscard]] constexpr auto copack_value(some_expected_non_void auto &&src) noexcept(noexcept(FWD(src).copack_value()))
+[[nodiscard]] constexpr auto copack_value(some_expected auto &&src) noexcept(noexcept(FWD(src).copack_value()))
     -> decltype(auto)
 {
   return FWD(src).copack_value();
@@ -2323,7 +2445,8 @@ template <typename E> struct _expected_efn final {
  * @brief The conjunction of carriers: values multiply into a `pack`, errors sum into a `copack`
  *
  * `a & b` succeeds only where both operands do, the values folding into one `pack` - a `void`
- * side elides, and a copack value distributes into a copack of packs. What the failure side
+ * side contributes the unit `pack<>`, and a copack value distributes into a copack of packs -
+ * except that two `void` sides stay `void`. What the failure side
  * carries depends on the carrier: an `expected` holds the leftmost failing operand's error, an
  * identical pair of error types staying as it is and any other pair summing into its normalized
  * `copack_for`, grading not required of the operands; an `optional` is simply empty, its unit
@@ -2336,95 +2459,106 @@ template <typename E> struct _expected_efn final {
  * @return The carrier of the folded value product, over the summed failure side
  */
 template <typename Lh, typename Rh>
-  requires some_expected_void<Lh> && (not some_expected_void<Rh>)
-           && ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type,
-                               typename ::std::remove_cvref_t<Rh>::error_type>
-[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
-    noexcept(detail::_nothrow_join_expected<
-             expected<typename ::std::remove_cvref_t<Rh>::value_type, typename ::std::remove_cvref_t<Lh>::error_type>,
-             Lh, Rh, decltype(FWD(rh).value())>)
-{
-  using error_type = ::std::remove_cvref_t<Lh>::error_type;
-  using value_type = ::std::remove_cvref_t<Rh>::value_type;
-  using type = expected<value_type, error_type>;
-  if (lh.has_value() && rh.has_value())
-    return type{::std::in_place, FWD(rh).value()};
-  else if (not lh.has_value())
-    return type{::fn::unexpect, FWD(lh).error()};
-  else
-    return type{::fn::unexpect, FWD(rh).error()};
-}
-
-template <typename Lh, typename Rh>
-  requires some_expected_void<Lh> && (not some_expected_void<Rh>)
-           && (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type,
-                                    typename ::std::remove_cvref_t<Rh>::error_type>)
-[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
-    noexcept(detail::_nothrow_join_widened<
-             expected<typename ::std::remove_cvref_t<Rh>::value_type,
-                      copack_for<typename ::std::remove_cvref_t<Lh>::error_type,
-                                 typename ::std::remove_cvref_t<Rh>::error_type>>,
-             copack_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>,
-             Lh, Rh, decltype(FWD(rh).value())>)
-{
-  using new_error_type
-      = copack_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>;
-  using value_type = ::std::remove_cvref_t<Rh>::value_type;
-  using type = expected<value_type, new_error_type>;
-  if (lh.has_value() && rh.has_value())
-    return type{::std::in_place, FWD(rh).value()};
-  else if (not lh.has_value()) {
-    if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type, copack<>>)
-      return type{::fn::unexpect, new_error_type{FWD(lh).error()}};
-    else
-      ::pfn::unreachable(); // LCOV_EXCL_LINE
-  } else {
-    if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Rh>::error_type, copack<>>)
-      return type{::fn::unexpect, new_error_type{FWD(rh).error()}};
-    else
-      ::pfn::unreachable(); // LCOV_EXCL_LINE
-  }
-}
-
-template <typename Lh, typename Rh>
-  requires(not some_expected_void<Lh>) && some_expected_void<Rh>
+  requires(not some_expected_void<Lh>) && (not some_expected_void<Rh>)
           && ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type,
                               typename ::std::remove_cvref_t<Rh>::error_type>
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
-    noexcept(detail::_nothrow_join_expected<
-             expected<typename ::std::remove_cvref_t<Lh>::value_type, typename ::std::remove_cvref_t<Lh>::error_type>,
-             Lh, Rh, decltype(FWD(lh).value())>)
+    noexcept(noexcept(::fn::detail::_join<
+                      detail::template _expected_type<typename ::std::remove_cvref_t<Lh>::error_type>::template type>(
+        FWD(lh), FWD(rh), detail::_expected_efn<typename ::std::remove_cvref_t<Lh>::error_type>{})))
 {
   using error_type = ::std::remove_cvref_t<Lh>::error_type;
-  using value_type = ::std::remove_cvref_t<Lh>::value_type;
-  using type = expected<value_type, error_type>;
-  if (lh.has_value() && rh.has_value())
-    return type{::std::in_place, FWD(lh).value()};
-  else if (not lh.has_value())
-    return type{::fn::unexpect, FWD(lh).error()};
-  else
-    return type{::fn::unexpect, FWD(rh).error()};
+  return ::fn::detail::_join<detail::template _expected_type<error_type>::template type>(
+      FWD(lh), FWD(rh), detail::_expected_efn<error_type>{});
 }
 
 template <typename Lh, typename Rh>
-  requires(not some_expected_void<Lh>) && some_expected_void<Rh>
+  requires(not some_expected_void<Lh>) && (not some_expected_void<Rh>)
           && (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type,
                                    typename ::std::remove_cvref_t<Rh>::error_type>)
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
-    noexcept(detail::_nothrow_join_widened<
-             expected<typename ::std::remove_cvref_t<Lh>::value_type,
-                      copack_for<typename ::std::remove_cvref_t<Lh>::error_type,
-                                 typename ::std::remove_cvref_t<Rh>::error_type>>,
-             copack_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>,
-             Lh, Rh, decltype(FWD(lh).value())>)
+    noexcept(noexcept(
+        ::fn::detail::_join<
+            detail::template _expected_type<copack_for<typename ::std::remove_cvref_t<Lh>::error_type,
+                                                       typename ::std::remove_cvref_t<Rh>::error_type>>::template type>(
+            FWD(lh), FWD(rh),
+            detail::_expected_efn<copack_for<typename ::std::remove_cvref_t<Lh>::error_type,
+                                             typename ::std::remove_cvref_t<Rh>::error_type>>{})))
 {
   using new_error_type
       = copack_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>;
-  using value_type = ::std::remove_cvref_t<Lh>::value_type;
-  using type = expected<value_type, new_error_type>;
-  if (lh.has_value() && rh.has_value())
-    return type{::std::in_place, FWD(lh).value()};
-  else if (not lh.has_value()) {
+  return ::fn::detail::_join<detail::template _expected_type<new_error_type>::template type>(
+      FWD(lh), FWD(rh), detail::_expected_efn<new_error_type>{});
+}
+
+namespace detail {
+// An uninhabited value cannot be folded; only error construction can throw.
+template <bool Uninhabited, typename Type, typename Lh, typename Rh> constexpr inline bool _nothrow_unit_fold = true;
+template <typename Type, typename Lh, typename Rh>
+constexpr inline bool _nothrow_unit_fold<false, Type, Lh, Rh>
+    = noexcept(::fn::detail::_fold_detail::fold<_factor_t<Lh>, _factor_t<Rh>>(::std::declval<_factor_of_t<Lh>>(),
+                                                                              ::std::declval<_factor_of_t<Rh>>()))
+      && _nothrow_initializable<Type, ::std::in_place_t, _joined_t<Lh, Rh>>;
+} // namespace detail
+
+template <typename Lh, typename Rh>
+  requires(some_expected_void<Lh> != some_expected_void<Rh>)
+          && ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type,
+                              typename ::std::remove_cvref_t<Rh>::error_type>
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
+    noexcept(detail::_nothrow_unit_fold<
+                 ::fn::detail::_uninhabited_join<Lh, Rh>,
+                 expected<::fn::detail::_joined_t<Lh, Rh>, typename ::std::remove_cvref_t<Lh>::error_type>, Lh, Rh>
+             && ::fn::detail::_nothrow_initializable<
+                 expected<::fn::detail::_joined_t<Lh, Rh>, typename ::std::remove_cvref_t<Lh>::error_type>,
+                 ::fn::unexpect_t, decltype(FWD(lh).error())>
+             && ::fn::detail::_nothrow_initializable<
+                 expected<::fn::detail::_joined_t<Lh, Rh>, typename ::std::remove_cvref_t<Lh>::error_type>,
+                 ::fn::unexpect_t, decltype(FWD(rh).error())>)
+{
+  using type = expected<::fn::detail::_joined_t<Lh, Rh>, typename ::std::remove_cvref_t<Lh>::error_type>;
+  if constexpr (not ::fn::detail::_uninhabited_join<Lh, Rh>) {
+    if (lh.has_value() && rh.has_value())
+      return type{::std::in_place,
+                  ::fn::detail::_fold_detail::fold<::fn::detail::_factor_t<Lh>, ::fn::detail::_factor_t<Rh>>(
+                      ::fn::detail::_factor(FWD(lh)), ::fn::detail::_factor(FWD(rh)))};
+  }
+  if (not lh.has_value())
+    return type{::fn::unexpect, FWD(lh).error()};
+  return type{::fn::unexpect, FWD(rh).error()};
+}
+
+template <typename Lh, typename Rh>
+  requires(some_expected_void<Lh> != some_expected_void<Rh>)
+          && (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type,
+                                   typename ::std::remove_cvref_t<Rh>::error_type>)
+[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
+    noexcept(
+        detail::_nothrow_unit_fold<
+            ::fn::detail::_uninhabited_join<Lh, Rh>,
+            expected<::fn::detail::_joined_t<Lh, Rh>, copack_for<typename ::std::remove_cvref_t<Lh>::error_type,
+                                                                 typename ::std::remove_cvref_t<Rh>::error_type>>,
+            Lh, Rh>
+        && detail::_nothrow_error_lift<Lh, copack_for<typename ::std::remove_cvref_t<Lh>::error_type,
+                                                      typename ::std::remove_cvref_t<Rh>::error_type>>
+        && detail::_nothrow_error_lift<Rh, copack_for<typename ::std::remove_cvref_t<Lh>::error_type,
+                                                      typename ::std::remove_cvref_t<Rh>::error_type>>
+        && ::fn::detail::_nothrow_initializable<
+            expected<::fn::detail::_joined_t<Lh, Rh>, copack_for<typename ::std::remove_cvref_t<Lh>::error_type,
+                                                                 typename ::std::remove_cvref_t<Rh>::error_type>>,
+            ::fn::unexpect_t,
+            copack_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>>)
+{
+  using new_error_type
+      = copack_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>;
+  using type = expected<::fn::detail::_joined_t<Lh, Rh>, new_error_type>;
+  if constexpr (not ::fn::detail::_uninhabited_join<Lh, Rh>) {
+    if (lh.has_value() && rh.has_value())
+      return type{::std::in_place,
+                  ::fn::detail::_fold_detail::fold<::fn::detail::_factor_t<Lh>, ::fn::detail::_factor_t<Rh>>(
+                      ::fn::detail::_factor(FWD(lh)), ::fn::detail::_factor(FWD(rh)))};
+  }
+  if (not lh.has_value()) {
     if constexpr (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type, copack<>>)
       return type{::fn::unexpect, new_error_type{FWD(lh).error()}};
     else
@@ -2483,41 +2617,6 @@ template <typename Lh, typename Rh>
   }
 }
 
-// Overloads when both sides are non-void, producing either of
-// expected<pack<...>, ...> or expected<copack<pack<...>, pack...>, ...>
-template <typename Lh, typename Rh>
-  requires(not some_expected_void<Lh>) && (not some_expected_void<Rh>)
-          && ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type,
-                              typename ::std::remove_cvref_t<Rh>::error_type>
-[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
-    noexcept(noexcept(::fn::detail::_join<
-                      detail::template _expected_type<typename ::std::remove_cvref_t<Lh>::error_type>::template type>(
-        FWD(lh), FWD(rh), detail::_expected_efn<typename ::std::remove_cvref_t<Lh>::error_type>{})))
-{
-  using error_type = ::std::remove_cvref_t<Lh>::error_type;
-  return ::fn::detail::_join<detail::template _expected_type<error_type>::template type>(
-      FWD(lh), FWD(rh), detail::_expected_efn<error_type>{});
-}
-
-template <typename Lh, typename Rh>
-  requires(not some_expected_void<Lh>) && (not some_expected_void<Rh>)
-          && (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::error_type,
-                                   typename ::std::remove_cvref_t<Rh>::error_type>)
-[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
-    noexcept(noexcept(
-        ::fn::detail::_join<
-            detail::template _expected_type<copack_for<typename ::std::remove_cvref_t<Lh>::error_type,
-                                                       typename ::std::remove_cvref_t<Rh>::error_type>>::template type>(
-            FWD(lh), FWD(rh),
-            detail::_expected_efn<copack_for<typename ::std::remove_cvref_t<Lh>::error_type,
-                                             typename ::std::remove_cvref_t<Rh>::error_type>>{})))
-{
-  using new_error_type
-      = copack_for<typename ::std::remove_cvref_t<Lh>::error_type, typename ::std::remove_cvref_t<Rh>::error_type>;
-  return ::fn::detail::_join<detail::template _expected_type<new_error_type>::template type>(
-      FWD(lh), FWD(rh), detail::_expected_efn<new_error_type>{});
-}
-
 namespace detail {
 // The cluster conjunction's specification: the cluster operand always contributes its value, so
 // only the expected operand's channels weigh - its error relocating unchanged into the result.
@@ -2526,21 +2625,16 @@ template <bool Uninhabited, typename Type, typename Lh, typename Rh, typename Er
 };
 template <typename Type, typename Lh, typename Rh, typename Err> struct _nothrow_amp_cluster<false, Type, Lh, Rh, Err> {
   static constexpr bool value
-      = noexcept(::fn::detail::_fold_detail::fold<typename ::std::remove_cvref_t<Lh>::value_type,
-                                                  typename ::std::remove_cvref_t<Rh>::value_type>(
-            ::std::declval<::fn::detail::_value_of_t<Lh>>(), ::std::declval<::fn::detail::_value_of_t<Rh>>()))
+      = noexcept(::fn::detail::_fold_detail::fold<::fn::detail::_factor_t<Lh>, ::fn::detail::_factor_t<Rh>>(
+            ::std::declval<::fn::detail::_factor_of_t<Lh>>(), ::std::declval<::fn::detail::_factor_of_t<Rh>>()))
         && _nothrow_initializable<Type, ::std::in_place_t, ::fn::detail::_joined_t<Lh, Rh>>
         && _nothrow_initializable<Type, ::fn::unexpect_t, Err>;
 };
 } // namespace detail
 
-// The identity cluster in the conjunction: a just or choice operand always contributes its value
-// to the product and adds no term to the error sum - the expected operand's error passes through
-// unchanged, plain or graded, and its state alone decides. just<void> is the product's unit and
-// elides.
 template <typename Lh, some_expected Rh>
-  requires(::fn::detail::_some_just<Lh>) && (not ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>)
-          && (not some_expected_void<Rh>)
+  requires(::fn::detail::_some_just<Lh>)
+          && (not(::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type> && some_expected_void<Rh>))
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
     noexcept(detail::_nothrow_amp_cluster<
              ::fn::detail::_uninhabited_join<Lh, Rh>,
@@ -2551,17 +2645,18 @@ template <typename Lh, some_expected Rh>
   if constexpr (::fn::detail::_uninhabited_join<Lh, Rh>) {
     return type{::fn::unexpect, FWD(rh).error()};
   } else {
-    using VL = ::std::remove_cvref_t<Lh>::value_type;
-    using VR = ::std::remove_cvref_t<Rh>::value_type;
+    using VL = ::fn::detail::_factor_t<Lh>;
+    using VR = ::fn::detail::_factor_t<Rh>;
     if (rh.has_value())
-      return type{::std::in_place, ::fn::detail::_fold_detail::fold<VL, VR>(FWD(lh).value(), FWD(rh).value())};
+      return type{::std::in_place, ::fn::detail::_fold_detail::fold<VL, VR>(::fn::detail::_factor(FWD(lh)),
+                                                                            ::fn::detail::_factor(FWD(rh)))};
     return type{::fn::unexpect, FWD(rh).error()};
   }
 }
 
 template <some_expected Lh, typename Rh>
-  requires(::fn::detail::_some_just<Rh>) && (not ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>)
-          && (not some_expected_void<Lh>)
+  requires(::fn::detail::_some_just<Rh>)
+          && (not(some_expected_void<Lh> && ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>))
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
     noexcept(detail::_nothrow_amp_cluster<
              ::fn::detail::_uninhabited_join<Lh, Rh>,
@@ -2572,51 +2667,16 @@ template <some_expected Lh, typename Rh>
   if constexpr (::fn::detail::_uninhabited_join<Lh, Rh>) {
     return type{::fn::unexpect, FWD(lh).error()};
   } else {
-    using VL = ::std::remove_cvref_t<Lh>::value_type;
-    using VR = ::std::remove_cvref_t<Rh>::value_type;
+    using VL = ::fn::detail::_factor_t<Lh>;
+    using VR = ::fn::detail::_factor_t<Rh>;
     if (lh.has_value())
-      return type{::std::in_place, ::fn::detail::_fold_detail::fold<VL, VR>(FWD(lh).value(), FWD(rh).value())};
+      return type{::std::in_place, ::fn::detail::_fold_detail::fold<VL, VR>(::fn::detail::_factor(FWD(lh)),
+                                                                            ::fn::detail::_factor(FWD(rh)))};
     return type{::fn::unexpect, FWD(lh).error()};
   }
 }
 
 template <typename Lh, some_expected_void Rh>
-  requires(::fn::detail::_some_just<Lh>) && (not ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>)
-[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
-    noexcept(
-        ::fn::detail::_nothrow_initializable<
-            expected<typename ::std::remove_cvref_t<Lh>::value_type, typename ::std::remove_cvref_t<Rh>::error_type>,
-            ::std::in_place_t, decltype(FWD(lh).value())>
-        && ::fn::detail::_nothrow_initializable<
-            expected<typename ::std::remove_cvref_t<Lh>::value_type, typename ::std::remove_cvref_t<Rh>::error_type>,
-            ::fn::unexpect_t, decltype(FWD(rh).error())>)
-        -> expected<typename ::std::remove_cvref_t<Lh>::value_type, typename ::std::remove_cvref_t<Rh>::error_type>
-{
-  using type = expected<typename ::std::remove_cvref_t<Lh>::value_type, typename ::std::remove_cvref_t<Rh>::error_type>;
-  if (rh.has_value())
-    return type{::std::in_place, FWD(lh).value()};
-  return type{::fn::unexpect, FWD(rh).error()};
-}
-
-template <some_expected_void Lh, typename Rh>
-  requires(::fn::detail::_some_just<Rh>) && (not ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>)
-[[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&rh) //
-    noexcept(
-        ::fn::detail::_nothrow_initializable<
-            expected<typename ::std::remove_cvref_t<Rh>::value_type, typename ::std::remove_cvref_t<Lh>::error_type>,
-            ::std::in_place_t, decltype(FWD(rh).value())>
-        && ::fn::detail::_nothrow_initializable<
-            expected<typename ::std::remove_cvref_t<Rh>::value_type, typename ::std::remove_cvref_t<Lh>::error_type>,
-            ::fn::unexpect_t, decltype(FWD(lh).error())>)
-        -> expected<typename ::std::remove_cvref_t<Rh>::value_type, typename ::std::remove_cvref_t<Lh>::error_type>
-{
-  using type = expected<typename ::std::remove_cvref_t<Rh>::value_type, typename ::std::remove_cvref_t<Lh>::error_type>;
-  if (lh.has_value())
-    return type{::std::in_place, FWD(rh).value()};
-  return type{::fn::unexpect, FWD(lh).error()};
-}
-
-template <typename Lh, some_expected Rh>
   requires ::fn::detail::_some_just<Lh> && ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>
 [[nodiscard]] constexpr auto operator&(Lh &&, Rh &&rh) //
     noexcept(::fn::detail::_nothrow_initializable<::std::remove_cvref_t<Rh>, Rh>) -> ::std::remove_cvref_t<Rh>
@@ -2624,7 +2684,7 @@ template <typename Lh, some_expected Rh>
   return ::std::remove_cvref_t<Rh>{FWD(rh)};
 }
 
-template <some_expected Lh, typename Rh>
+template <some_expected_void Lh, typename Rh>
   requires ::fn::detail::_some_just<Rh> && ::std::is_void_v<typename ::std::remove_cvref_t<Rh>::value_type>
 [[nodiscard]] constexpr auto operator&(Lh &&lh, Rh &&) //
     noexcept(::fn::detail::_nothrow_initializable<::std::remove_cvref_t<Lh>, Lh>) -> ::std::remove_cvref_t<Lh>

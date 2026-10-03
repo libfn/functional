@@ -360,17 +360,16 @@ TEST_CASE("just", "[just]")
 
   SECTION("operator &")
   {
-    // just & just folds the payloads and stays just; just<void> is the product's unit and elides
     static_assert(std::is_same_v<decltype(T{1} & T{2}), fn::just<fn::pack<int, int>>>);
-    static_assert(std::is_same_v<decltype(T{1} & fn::just<void>{}), T>);
-    static_assert(std::is_same_v<decltype(fn::just<void>{} & T{2}), T>);
+    static_assert(std::is_same_v<decltype(T{1} & fn::just<void>{}), fn::just<fn::pack<int>>>);
+    static_assert(std::is_same_v<decltype(fn::just<void>{} & T{2}), fn::just<fn::pack<int>>>);
     static_assert(std::is_same_v<decltype(fn::just<void>{} & fn::just<void>{}), fn::just<void>>);
 
     static_assert((T{1} & T{2}).value().apply([](int a, int b) { return a == 1 && b == 2; }));
-    static_assert((fn::just<void>{} & T{7}).value() == 7);
-    static_assert((T{7} & fn::just<void>{}).value() == 7);
+    static_assert((fn::just<void>{} & T{7}).value() == fn::pack<int>{7});
+    static_assert((T{7} & fn::just<void>{}).value() == fn::pack<int>{7});
     CHECK((T{1} & T{2}).value().apply([](int a, int b) { return a == 1 && b == 2; }));
-    CHECK((fn::just<void>{} & T{7}).value() == 7);
+    CHECK((fn::just<void>{} & T{7}).value() == fn::pack<int>{7});
 
     static_assert(noexcept(T{1} & T{2}));
     struct throwing_copy {
@@ -379,6 +378,32 @@ TEST_CASE("just", "[just]")
       throwing_copy(throwing_copy const &) noexcept(false) {}
     };
     static_assert(not noexcept(std::declval<fn::just<throwing_copy> &>() & std::declval<T &>())); // copies
+
+    struct Value final {
+      int id;
+      int *moves;
+      int fail;
+      constexpr Value(int i, int &m, int f) noexcept : id(i), moves(&m), fail(f) {}
+      constexpr Value(Value const &) noexcept = default;
+      constexpr Value(Value &&v) noexcept(false) : id(v.id), moves(v.moves), fail(v.fail)
+      {
+        if (++*moves == fail)
+          throw 42;
+      }
+    };
+    static_assert(not noexcept(fn::just<void>{} & std::declval<fn::just<Value> const &>()));
+    constexpr auto folded = [](int fail) {
+      int moves = 0;
+      fn::just<Value> const value{std::in_place_type<Value>, 5, moves, fail};
+      return fn::get<0>((fn::just<void>{} & value).value()).id;
+    };
+    static_assert(folded(0) == 5);
+    CHECK(folded(0) == 5);
+
+    int moves = 0;
+    fn::just<Value> const value{std::in_place_type<Value>, 5, moves, 1};
+    CHECK_THROWS_AS(fn::just<void>{} & value, int);
+    CHECK(value.value().id == 5);
   }
 }
 
@@ -738,28 +763,33 @@ TEST_CASE("just of reference", "[just]")
 
   SECTION("operators")
   {
-    // the product and the sum the operators build hold a copy of the referent
+    // the product and the sum the operators build hold a copy of the referent, a product with the
+    // unit just<void> included
     int x = 1;
     R a{x};
     auto p = a & fn::just<double>{2.0};
     static_assert(std::is_same_v<decltype(p), fn::just<fn::pack<int, double>>>);
     auto d = a | fn::just<int>{7};
     static_assert(std::is_same_v<decltype(d), fn::just<int>>);
-    // ... while eliding the unit just<void> returns the other operand itself, a reference included
-    static_assert(std::is_same_v<decltype(fn::just<void>{} & a), R>);
-    static_assert(std::is_same_v<decltype(a & fn::just<void>{}), R>);
-    CHECK(&(fn::just<void>{} & a).value() == &x);
-    CHECK(&(a & fn::just<void>{}).value() == &x);
+    auto ul = fn::just<void>{} & a;
+    auto ur = a & fn::just<void>{};
+    static_assert(std::is_same_v<decltype(ul), fn::just<fn::pack<int>>>);
+    static_assert(std::is_same_v<decltype(ur), fn::just<fn::pack<int>>>);
     x = 5;
     CHECK(p.value().apply([](int i, double) { return i; }) == 1);
     CHECK(d.value() == 1);
+    CHECK(ul.value().apply([](int i) { return i; }) == 1);
+    CHECK(ur.value().apply([](int i) { return i; }) == 1);
     static_assert([] {
       int x = 1;
       auto p = R{x} & fn::just<double>{2.0};
       auto d = R{x} | fn::just<int>{7};
+      auto ul = fn::just<void>{} & R{x};
+      auto ur = R{x} & fn::just<void>{};
       x = 5;
-      return p.value().apply([](int i, double) { return i; }) == 1 && d.value() == 1
-             && &(fn::just<void>{} & R{x}).value() == &x && &(R{x} & fn::just<void>{}).value() == &x;
+      constexpr auto first = [](int i, auto &&...) { return i; };
+      return p.value().apply(first) == 1 && d.value() == 1 && ul.value().apply(first) == 1
+             && ur.value().apply(first) == 1;
     }());
   }
 }
