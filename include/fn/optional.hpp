@@ -36,6 +36,11 @@ concept some_optional = detail::_some_optional<T>;
 
 namespace detail {
 
+// Packs and copacks are excluded as referents of optional<T&>: how a reference to a product or a
+// sum takes part in conjunction, disjunction and grading is an open question (issue #434).
+template <typename T>
+concept _optional_referent = (not _some_pack<T>) && (not _some_copack<T>);
+
 // [optional.iterators]: the implementation-defined iterator types for fn::optional. A
 // minimal wrapper over T* whose job is to keep pointer-ness out of optional interface.
 template <class T> class _optional_iterator {
@@ -1071,7 +1076,8 @@ template <class T> optional(T) -> optional<T>;
  *
  * As `std::optional<T&>` is specified for C++26 - the one carrier that holds a raw reference.
  * Lifetime responsibility for the referent stays with the caller. The extensions mirror
- * `optional<T>`'s, the callable always receiving a plain `T&`.
+ * `optional<T>`'s, the callable always receiving a plain `T&`. The referent cannot be a `pack` or
+ * a `copack`.
  *
  * @tparam T Referent type
  */
@@ -1081,6 +1087,7 @@ template <class T> optional(T) -> optional<T>;
 // there is only ever one overload of each (no ref-qualifier/const overload set).
 template <class T> class optional<T &> : private detail::_optional_base<T &> {
   static_assert(::pfn::detail::_is_valid_optional<T>);
+  static_assert(detail::_optional_referent<T>);
   using _base = detail::_optional_base<T &>;
 
   // Allow sibling _optional_base instantiations to downcast into the private base.

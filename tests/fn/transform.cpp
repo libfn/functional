@@ -760,6 +760,10 @@ TEST_CASE("transform just", "[transform][just][choice][identity]")
     static constexpr fn::copack<U> cu{U{}};
     static_assert(not probe(fn::just<int>{3}, [](int) -> fn::copack<U> const & { return cu; }));
     static_assert(not probe(fn::just<int>{3}, [](int) -> fn::copack<> const & { throw 0; }));
+    // Likewise for a pack reference result.
+    static constexpr fn::pack<int> cp{3};
+    static_assert(not probe(cj, [](int) -> fn::pack<int> const & { return cp; }));
+    static_assert(probe(cj, [](int) -> fn::pack<int> { return cp; }));
     static_assert(probe(fn::just<int>{3}, [](int) { return cu; }));
     SUCCEED();
   }

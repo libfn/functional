@@ -43,11 +43,12 @@ template <typename T>
 concept some_choice = detail::_some_choice<T>;
 
 namespace detail {
-// Supported referents for just<T&>. Copacks are excluded because dispatch would depend on
-// the referent's active alternative, state the carrier does not own (issue #434).
+// Supported referents for just<T&>. Packs and copacks are excluded: how a reference to a product
+// or a sum takes part in conjunction, disjunction and grading is an open question (issue #434).
 template <typename T>
-concept _just_referent = ::std::is_object_v<T> && (not ::std::is_array_v<T>)
-                         && (not _some_in_place_type<::std::remove_cv_t<T>>) && (not _some_copack<T>);
+concept _just_referent
+    = ::std::is_object_v<T> && (not ::std::is_array_v<T>) && (not _some_in_place_type<::std::remove_cv_t<T>>)
+      && (not _some_pack<T>) && (not _some_copack<T>);
 
 // The payload just admits - the class mandates below assert the same set, and the transform verb
 // asks this before naming just<result> anywhere, so an inadmissible result answers instead of
@@ -714,12 +715,12 @@ template <> struct just<void> {
  *
  * The always-engaged counterpart of `optional<T&>`. Copy assignment and `emplace` rebind the
  * reference without assigning to the referent. `value()` returns `T&` regardless of the carrier's
- * value category or constness. Callable operations use the same reference, expanding packs and
- * tuple-like referents as `fn::apply` does.
+ * value category or constness. Callable operations use the same reference, expanding tuple-like
+ * referents as `fn::apply` does.
  *
  * There is no default constructor. Deduction from a value produces an owning carrier; use
  * `just<T&>` or `std::in_place_type<T&>` to request a reference. Referents must be object types
- * other than arrays, in-place type tags, or copacks. The carrier is trivially copyable and a
+ * other than arrays, in-place type tags, packs, or copacks. The carrier is trivially copyable and a
  * structural type.
  *
  * The caller must keep the referent alive. As with the library's `optional<T&>`, binding to a
@@ -850,7 +851,7 @@ template <typename T> struct just<T &> {
   /**
    * @brief Eliminates the referent through the callable
    *
-   * As with `fn::apply`, packs and tuple-like referents are expanded into their elements; other
+   * As with `fn::apply`, tuple-like referents are expanded into their elements; other
    * referents are passed whole. Additional arguments follow the referent or its elements.
    *
    * @param fn Callable applied on the referent

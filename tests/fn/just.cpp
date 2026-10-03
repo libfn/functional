@@ -471,7 +471,12 @@ TEST_CASE("just of reference", "[just]")
     static_assert(not fn::detail::_just_payload<int (&)[2]>);
     static_assert(not fn::detail::_just_payload<void (&)()>);
     static_assert(not fn::detail::_just_payload<std::in_place_type_t<int> &>);
-    // never a copack: dispatch would follow the referent's active alternative (issue #434)
+    // Pack and copack referents are refused; owned packs and copacks are not.
+    static_assert(fn::detail::_just_payload<fn::pack<int>>);
+    static_assert(not fn::detail::_just_payload<fn::pack<int> &>);
+    static_assert(not fn::detail::_just_payload<fn::pack<int> const &>);
+    static_assert(not fn::detail::_just_payload<fn::pack<> &>);
+    static_assert(fn::detail::_just_payload<fn::copack<int>>);
     static_assert(not fn::detail::_just_payload<fn::copack<int> &>);
     static_assert(not fn::detail::_just_payload<fn::copack<int> const &>);
     static_assert(not fn::detail::_just_payload<fn::copack<> &>);
