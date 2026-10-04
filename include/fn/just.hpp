@@ -791,29 +791,27 @@ template <typename... Ts> struct just<copack<Ts...>> {
   template <typename T> static constexpr bool has_type = value_type::template has_type<T>;
 
   /**
-   * @brief Constructs the alternative matching the value's type after removing cv/ref qualifiers
+   * @brief Constructs the alternative the value selects, as `copack`'s converting constructor does
    *
    * Explicit exactly where the conversion to that alternative is.
    *
    * @param v Value of one alternative
    */
-  template <typename T>
-  constexpr just(T &&v) // NOSONAR cpp:S1709,S6458 implicit arm of the explicit pair; has_type excludes self
-      noexcept(::std::is_nothrow_constructible_v<value_type, ::std::in_place_type_t<::std::remove_cvref_t<T>>, T &&>)
-    requires has_type<::std::remove_cvref_t<T>>
-             && ::std::is_constructible_v<value_type, ::std::in_place_type_t<::std::remove_cvref_t<T>>, T &&>
-             && ::std::is_convertible_v<T &&, ::std::remove_cvref_t<T>>
-      : v_(::std::in_place_type<::std::remove_cvref_t<T>>, FWD(v))
+  template <typename U, typename T = detail::_selected_alternative_t<U, Ts...>>
+  constexpr just(U &&v) // NOSONAR cpp:S1709,S6458 implicit arm of the explicit pair; has_type excludes self
+      noexcept(::std::is_nothrow_constructible_v<value_type, ::std::in_place_type_t<T>, U &&>)
+    requires has_type<T> && ::std::is_constructible_v<value_type, ::std::in_place_type_t<T>, U &&>
+             && ::std::is_convertible_v<U &&, T>
+      : v_(::std::in_place_type<T>, FWD(v))
   {
   }
 
-  template <typename T>
-  constexpr explicit just(T &&v) // NOSONAR cpp:S6458 has_type excludes self
-      noexcept(::std::is_nothrow_constructible_v<value_type, ::std::in_place_type_t<::std::remove_cvref_t<T>>, T &&>)
-    requires has_type<::std::remove_cvref_t<T>>
-             && ::std::is_constructible_v<value_type, ::std::in_place_type_t<::std::remove_cvref_t<T>>, T &&>
-             && (not ::std::is_convertible_v<T &&, ::std::remove_cvref_t<T>>)
-      : v_(::std::in_place_type<::std::remove_cvref_t<T>>, FWD(v))
+  template <typename U, typename T = detail::_selected_alternative_t<U, Ts...>>
+  constexpr explicit just(U &&v) // NOSONAR cpp:S6458 has_type excludes self
+      noexcept(::std::is_nothrow_constructible_v<value_type, ::std::in_place_type_t<T>, U &&>)
+    requires has_type<T> && ::std::is_constructible_v<value_type, ::std::in_place_type_t<T>, U &&>
+             && (not ::std::is_convertible_v<U &&, T>)
+      : v_(::std::in_place_type<T>, FWD(v))
   {
   }
 
@@ -1026,21 +1024,24 @@ template <typename... Ts> struct just<copack<Ts...>> {
   }
 
   /**
-   * @brief Pointer to the alternative `T`, or `nullptr` where it is not the one held
+   * @brief Pointer to the alternative `T` - to the referent, for a reference alternative - or `nullptr`
+   *        where it is not the one held
    *
    * @tparam T The alternative to access
    * @return Pointer to the alternative, or `nullptr`
    */
   template <typename T>
     requires has_type<T>
-  [[nodiscard]] constexpr T *get_ptr(::std::in_place_type_t<T> d = ::std::in_place_type<T>) noexcept
+  [[nodiscard]] constexpr ::std::add_pointer_t<T> get_ptr(::std::in_place_type_t<T> d
+                                                          = ::std::in_place_type<T>) noexcept
   {
     return v_.get_ptr(d);
   }
 
   template <typename T>
     requires has_type<T>
-  [[nodiscard]] constexpr T const *get_ptr(::std::in_place_type_t<T> d = ::std::in_place_type<T>) const noexcept
+  [[nodiscard]] constexpr ::std::add_pointer_t<::std::remove_reference_t<T> const>
+  get_ptr(::std::in_place_type_t<T> d = ::std::in_place_type<T>) const noexcept
   {
     return v_.get_ptr(d);
   }

@@ -2,6 +2,14 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `copack` admits lvalue-reference alternatives — 4 October 2026
+
+A `copack` alternative may be an lvalue reference `T&`, held as a pointer to its referent; previously an alternative could not be a reference, and a reference had to be wrapped in a `pack`. `T`, `T&` and `T const&` are distinct alternatives. As with `optional<T&>`, assignment and `emplace` rebind, and comparison compares referents. As from a `pack<T&>`, callables, `get` and `get_ptr` reach the referent as `T&`, or as `T const&` through a `const` copack, whatever its value category. A reference to a `pack` or a `copack` remains refused, as do rvalue references and references to arrays or functions. `choice<T&>` and `expected<copack<T&>, E>` follow.
+
+The converting constructors of `copack` and `choice` and their value assignments consider only the alternatives whose decayed type is the value's own, and select among them as overload resolution selects among functions taking each. For an lvalue `int x`, `copack_for<int, int&>{x}` is ambiguous and rejected; `std::in_place_type<int&>` names the alternative. A `copack_for<int, int const&>` can be built only through `std::in_place_type` or widening, since `int` and `int const&` are ambiguous for every `int` value. `copack{std::in_place_type<int&>, x}` deduces `copack<int&>`.
+
+`and_then` over a copack whose branches return `optional<T&>` and other optionals joins the references into the result's copack, e.g. `optional<copack_for<X&, Y>>`; previously such a branch set was refused.
+
 ## `<fn/monadic.hpp>` becomes `<fn/traits.hpp>`; `monadic_invocable` rejects an incomplete functor — 27 September 2026
 
 Replace includes of `<fn/monadic.hpp>` with `<fn/traits.hpp>`; no compatibility header is provided. `some_in_place_type` moves to `<fn/traits.hpp>` and remains available through `<fn/copack.hpp>`.

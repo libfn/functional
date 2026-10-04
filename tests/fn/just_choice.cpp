@@ -396,6 +396,25 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       CHECK(b.has_value<helper>());
       CHECK(b.value().get_ptr<helper>()->v == 29 * from_rval);
     }
+
+    SECTION("reference alternative")
+    {
+      // the value selects as copack's does
+      int x = 1;
+      choice<int &> a{x};
+      CHECK(a.get_ptr<int &>() == &x);
+      static_assert(std::is_same_v<decltype(a.get_ptr<int &>()), int *>);
+      static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr<int &>()), int const *>);
+      using IR = fn::choice_for<int, int &>;
+      static_assert(not std::is_constructible_v<IR, int &>);
+      CHECK(IR{std::in_place_type<int &>, x}.get_ptr<int &>() == &x);
+      CHECK(IR{std::move(x)}.has_value<int>());
+      static_assert([] {
+        int x = 1;
+        choice<int &> const a{x};
+        return a.get_ptr<int &>() == &x;
+      }());
+    }
   }
 
   SECTION("constructor from copack")
@@ -495,6 +514,24 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       static_assert(std::is_assignable_v<C &, int>);
       SUCCEED();
     }
+
+    SECTION("reference alternative")
+    {
+      // rebinds, never assigns through
+      int x = 1;
+      int y = 2;
+      choice<int &> a{x};
+      a = y;
+      CHECK(a.get_ptr<int &>() == &y);
+      CHECK(x == 1);
+      static_assert([] {
+        int x = 1;
+        int y = 2;
+        choice<int &> a{x};
+        a = y;
+        return a.get_ptr<int &>() == &y && x == 1;
+      }());
+    }
   }
 
   SECTION("forwarding constructors (immovable)")
@@ -512,7 +549,9 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
       // Invalid alternative types make the deduction probe false without a hard instantiation error.
       static_assert(can_deduce_in_place<NonCopyable, int>);
-      static_assert(not can_deduce_in_place<int &, int &>);
+      static_assert(can_deduce_in_place<int &, int &>);
+      static_assert(not can_deduce_in_place<int &&, int>);
+      static_assert(not can_deduce_in_place<fn::pack<int> &, fn::pack<int> &>);
       static_assert(not can_deduce_in_place<int const, int>);
       static_assert(not can_deduce_in_place<void>);
       SUCCEED();

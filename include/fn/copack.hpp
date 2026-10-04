@@ -45,13 +45,47 @@ template <typename T>
 concept empty_copack = some_copack<T> && (::std::remove_cvref_t<T>::size == 0);
 
 namespace detail {
+// How a reference to a product or a sum takes part in conjunction, disjunction and grading is an open
+// question, so neither is admitted as a referent.
 template <typename T>
 static constexpr bool _is_valid_copack_subtype //
-    = (not ::std::is_same_v<void, T>)          //
-    &&(not ::std::is_reference_v<T>)           //
-    &&(not some_copack<T>)                     //
-    &&(not some_in_place_type<T>)              //
-    &&::std::is_same_v<T, ::std::remove_cv_t<T>>;
+    = (not some_copack<T>)
+      && (not some_in_place_type<T>)                            //
+      &&(::std::is_lvalue_reference_v<T>                        //
+             ? ::std::is_object_v<::std::remove_reference_t<T>> //
+                   && (not ::std::is_array_v<::std::remove_reference_t<T>>) && (not some_pack<T>)
+             : (not ::std::is_void_v<T>) && (not ::std::is_reference_v<T>)
+                   && ::std::is_same_v<T, ::std::remove_cv_t<T>>);
+
+// The alternative a value selects: overload resolution among functions taking each alternative of the
+// value's decayed type, so that a merely convertible value selects nothing; void when nothing is selected.
+// A by-value parameter ties with every viable reference binding, so the owning alternative is selected
+// exactly where no reference alternative binds - decided here without asking it to copy the value.
+template <typename V, typename A>
+constexpr inline bool _binds_alternative = ::std::is_reference_v<A> && ::std::is_convertible_v<V, A>
+                                           && ::std::is_same_v<::std::remove_cvref_t<A>, ::std::remove_cvref_t<V>>;
+template <typename V, typename A, bool = _binds_alternative<V, A>> struct _select_arm {
+  struct _never final {};
+  static void _select(_never);
+};
+template <typename V, typename A> struct _select_arm<V, A, true> {
+  static auto _select(A) -> ::std::type_identity<A>;
+};
+template <typename V, typename... As> struct _select_arms : _select_arm<V, As>... {
+  using _select_arm<V, As>::_select...;
+};
+template <typename V, typename... As> struct _selected_alternative {
+  using type
+      = ::std::conditional_t<(not(... || _binds_alternative<V, As>)) && type_one_of<::std::remove_cvref_t<V>, As...>,
+                             ::std::remove_cvref_t<V>, void>;
+};
+template <typename V, typename... As>
+  requires(not type_one_of<::std::remove_cvref_t<V>, As...>)
+          && requires { _select_arms<V, As...>::_select(::std::declval<V>()); }
+struct _selected_alternative<V, As...> {
+  using type = decltype(_select_arms<V, As...>::_select(::std::declval<V>()))::type;
+};
+template <typename V, typename... As> using _selected_alternative_t = _selected_alternative<V, As...>::type;
 
 struct _apply_autodetect_tag final {};
 
@@ -393,13 +427,16 @@ struct copack<Ts...> {
   // hand.
   static constexpr bool _copy_assignable
       = (...
-         && (::std::is_copy_assignable_v<Ts> && detail::_makeable<data_t, Ts, Ts const &>
+         && (::std::is_copy_assignable_v<detail::_union_member_t<Ts>> && detail::_makeable<data_t, Ts, Ts const &>
              && (detail::_nothrow_makeable<data_t, Ts, Ts const &> || detail::_nothrow_makeable<data_t, Ts, Ts>)));
-  static constexpr bool _nothrow_copy_assignable
-      = (... && (::std::is_nothrow_copy_assignable_v<Ts> && detail::_nothrow_makeable<data_t, Ts, Ts const &>));
+  static constexpr bool _nothrow_copy_assignable = (...
+                                                    && (::std::is_nothrow_copy_assignable_v<detail::_union_member_t<Ts>>
+                                                        && detail::_nothrow_makeable<data_t, Ts, Ts const &>));
   static constexpr bool _move_assignable
-      = (... && (::std::is_move_assignable_v<Ts> && detail::_nothrow_makeable<data_t, Ts, Ts>));
-  static constexpr bool _nothrow_move_assignable = (... && ::std::is_nothrow_move_assignable_v<Ts>);
+      = (...
+         && (::std::is_move_assignable_v<detail::_union_member_t<Ts>> && detail::_nothrow_makeable<data_t, Ts, Ts>));
+  static constexpr bool _nothrow_move_assignable
+      = (... && ::std::is_nothrow_move_assignable_v<detail::_union_member_t<Ts>>);
 
   // Each special member is trivial exactly when every alternative permits it, with the gates
   // `std::variant` uses. The trivial arm IS the compiler's defaulted member - for the assignments,
@@ -410,11 +447,13 @@ struct copack<Ts...> {
   static constexpr bool _trivially_move_constructible = (... && ::std::is_trivially_move_constructible_v<Ts>);
   static constexpr bool _trivially_copy_assignable
       = (...
-         && (::std::is_trivially_copy_constructible_v<Ts> && ::std::is_trivially_copy_assignable_v<Ts>
+         && (::std::is_trivially_copy_constructible_v<Ts>
+             && ::std::is_trivially_copy_assignable_v<detail::_union_member_t<Ts>>
              && ::std::is_trivially_destructible_v<Ts>));
   static constexpr bool _trivially_move_assignable
       = (...
-         && (::std::is_trivially_move_constructible_v<Ts> && ::std::is_trivially_move_assignable_v<Ts>
+         && (::std::is_trivially_move_constructible_v<Ts>
+             && ::std::is_trivially_move_assignable_v<detail::_union_member_t<Ts>>
              && ::std::is_trivially_destructible_v<Ts>));
 
   /**
@@ -470,31 +509,29 @@ struct copack<Ts...> {
   }
 
   /**
-   * @brief Constructs the alternative matching the value's decayed type
+   * @brief Constructs the alternative the value selects
    *
-   * Takes a value of exactly one alternative: a merely convertible non-alternative is rejected,
-   * so interconvertible alternatives never make a resolution puzzle. Explicit exactly where the
-   * conversion to that alternative is.
+   * The value selects among the alternatives of its own decayed type - such as `T`, `T&` and
+   * `T const&` - as overload resolution selects among functions taking each; an ambiguous selection
+   * is rejected. A merely convertible non-alternative is rejected too, so interconvertible
+   * alternatives never make a resolution puzzle. Explicit exactly where the conversion to that
+   * alternative is.
    *
    * @param v Value of one alternative
    */
-  template <typename T>
-  constexpr copack(T &&v) // NOSONAR cpp:S1709,S6458 implicit arm of the explicit pair; has_type excludes self
-      noexcept(detail::_nothrow_makeable<data_t, ::std::remove_cvref_t<T>, decltype(v)>)
-    requires has_type<::std::remove_cvref_t<T>> && (detail::_makeable<data_t, ::std::remove_cvref_t<T>, decltype(v)>)
-                 && (::std::is_convertible_v<decltype(v), ::std::remove_cvref_t<T>>)
-      : data(detail::make_variadic_union<::std::remove_cvref_t<T>, data_t>(FWD(v))),
-        index(detail::type_index<::std::remove_cvref_t<T>, Ts...>)
+  template <typename U, typename T = detail::_selected_alternative_t<U, Ts...>>
+  constexpr copack(U &&v) // NOSONAR cpp:S1709,S6458 implicit arm of the explicit pair; has_type excludes self
+      noexcept(detail::_nothrow_makeable<data_t, T, decltype(v)>)
+    requires has_type<T> && (detail::_makeable<data_t, T, decltype(v)>) && (::std::is_convertible_v<decltype(v), T>)
+      : data(detail::make_variadic_union<T, data_t>(FWD(v))), index(detail::type_index<T, Ts...>)
   {
   }
 
-  template <typename T>
-  constexpr explicit copack(T &&v) // NOSONAR cpp:S6458 has_type excludes self
-      noexcept(detail::_nothrow_makeable<data_t, ::std::remove_cvref_t<T>, decltype(v)>)
-    requires has_type<::std::remove_cvref_t<T>> && (detail::_makeable<data_t, ::std::remove_cvref_t<T>, decltype(v)>)
-                 && (not ::std::is_convertible_v<decltype(v), ::std::remove_cvref_t<T>>)
-      : data(detail::make_variadic_union<::std::remove_cvref_t<T>, data_t>(FWD(v))),
-        index(detail::type_index<::std::remove_cvref_t<T>, Ts...>)
+  template <typename U, typename T = detail::_selected_alternative_t<U, Ts...>>
+  constexpr explicit copack(U &&v) // NOSONAR cpp:S6458 has_type excludes self
+      noexcept(detail::_nothrow_makeable<data_t, T, decltype(v)>)
+    requires has_type<T> && (detail::_makeable<data_t, T, decltype(v)>) && (not ::std::is_convertible_v<decltype(v), T>)
+      : data(detail::make_variadic_union<T, data_t>(FWD(v))), index(detail::type_index<T, Ts...>)
   {
   }
 
@@ -526,7 +563,7 @@ struct copack<Ts...> {
     requires detail::is_superset_of<copack, copack<Tx...>> && (not ::std::is_same_v<copack, copack<Tx...>>)
                  && (... && detail::_makeable<data_t, Tx, Tx const &>) && (sizeof...(Tx) > 0)
       : data(FWD(arg).template _invoke<data_t>([]<typename T>(::std::in_place_type_t<T>, auto &&v) -> data_t {
-          return detail::make_variadic_union<T, data_t>(FWD(v));
+          return detail::make_variadic_union<T, data_t>(detail::_rebound<T>(FWD(v)));
         })),
         index(FWD(arg).template _invoke<::std::size_t>([]<typename T>(::std::in_place_type_t<T>, auto &&) { //
           return detail::type_index<T, Ts...>;
@@ -563,7 +600,7 @@ struct copack<Ts...> {
                  && detail::is_superset_of<copack, copack<Tx...>> && (sizeof...(Tx) > 0)
                  && (... && detail::_makeable<data_t, Tx, detail::_invoked_element_t<decltype(arg), Tx>>)
       : data(FWD(arg).template _invoke<data_t>([]<typename T>(::std::in_place_type_t<T>, auto &&v) -> data_t {
-          return detail::make_variadic_union<T, data_t>(FWD(v));
+          return detail::make_variadic_union<T, data_t>(detail::_rebound<T>(FWD(v)));
         })),
         index(FWD(arg).template _invoke<::std::size_t>([]<typename T>(::std::in_place_type_t<T>, auto &&) { //
           return detail::type_index<T, Ts...>;
@@ -581,10 +618,10 @@ struct copack<Ts...> {
   = default;
   constexpr copack(copack const &other) noexcept(_nothrow_copyable)
     requires(not _trivially_copy_constructible) && _copyable
-      : data(detail::invoke_type_variadic_union<data_t, data_t>(                 //
-            other.data, other.index,                                             //
-            []<typename T>(::std::in_place_type_t<T>, auto const &v) -> data_t { //
-              return detail::make_variadic_union<T, data_t>(v);
+      : data(detail::invoke_type_variadic_union<data_t, data_t>(            //
+            other.data, other.index,                                        //
+            []<typename T>(::std::in_place_type_t<T>, auto &&v) -> data_t { //
+              return detail::make_variadic_union<T, data_t>(detail::_rebound<T>(v));
             })),
         index(other.index)
   {
@@ -660,10 +697,11 @@ struct copack<Ts...> {
   // arms mirror `_reinit`'s shape, and the third is the standard's snapshot-and-restore - live here,
   // where old and new are the same type, so the constraint that admits the alternative also
   // guarantees its snapshot.
-  template <typename T, typename V> constexpr void _reassign(V &&v) noexcept(::std::is_nothrow_assignable_v<T &, V>)
+  template <typename T, typename V>
+  constexpr void _reassign(V &&v) noexcept(::std::is_nothrow_assignable_v<detail::_union_member_t<T> &, V>)
   {
-    T *held = detail::ptr_variadic_union<T, data_t>(this->data);
-    if constexpr (::std::is_nothrow_assignable_v<T &, V>) {
+    auto *held = detail::ptr_variadic_union<T, data_t>(this->data);
+    if constexpr (::std::is_nothrow_assignable_v<detail::_union_member_t<T> &, V>) {
       *held = FWD(v);
     } else if constexpr (::std::is_nothrow_assignable_v<T &, T>) {
       T tmp{FWD(v)}; // may throw, and the value in hand is untouched until it cannot
@@ -709,12 +747,14 @@ struct copack<Ts...> {
     if (this != &other) {
       if (index == other.index) {
         detail::invoke_type_variadic_union<void, data_t>( //
-            other.data, other.index,
-            [this]<typename T>(::std::in_place_type_t<T>, auto const &v) { this->template _reassign<T>(v); });
+            other.data, other.index, [this]<typename T>(::std::in_place_type_t<T>, auto &&v) {
+              this->template _reassign<T>(detail::_rebound<T>(v));
+            });
       } else {
         detail::invoke_type_variadic_union<void, data_t>( //
-            other.data, other.index,
-            [this]<typename T>(::std::in_place_type_t<T>, auto const &v) { this->template _reinit<T>(v); });
+            other.data, other.index, [this]<typename T>(::std::in_place_type_t<T>, auto &&v) {
+              this->template _reinit<T>(detail::_rebound<T>(v));
+            });
       }
     }
     return *this;
@@ -763,19 +803,22 @@ struct copack<Ts...> {
   // construction otherwise, exactly as the same-type operator= does.
   template <typename... Tx>
   constexpr copack &operator=(copack<Tx...> const &arg) //
-      noexcept((... && (::std::is_nothrow_copy_assignable_v<Tx> && detail::_nothrow_makeable<data_t, Tx, Tx const &>)))
+      noexcept((...
+                && (::std::is_nothrow_copy_assignable_v<detail::_union_member_t<Tx>>
+                    && detail::_nothrow_makeable<data_t, Tx, Tx const &>)))
     requires detail::is_superset_of<copack, copack<Tx...>> && (not ::std::is_same_v<copack, copack<Tx...>>)
              && (...
-                 && (::std::is_copy_assignable_v<Tx> && detail::_makeable<data_t, Tx, Tx const &>
+                 && (::std::is_copy_assignable_v<detail::_union_member_t<Tx>>
+                     && detail::_makeable<data_t, Tx, Tx const &>
                      && (detail::_nothrow_makeable<data_t, Tx, Tx const &>
                          || detail::_nothrow_makeable<data_t, Tx, Tx>)))
              && (sizeof...(Tx) > 0)
   {
-    arg.template _invoke<void>([this]<typename T>(::std::in_place_type_t<T>, auto const &v) {
+    arg.template _invoke<void>([this]<typename T>(::std::in_place_type_t<T>, auto &&v) {
       if (this->index == detail::type_index<T, Ts...>)
-        this->template _reassign<T>(v);
+        this->template _reassign<T>(detail::_rebound<T>(v));
       else
-        this->template _reinit<T>(v);
+        this->template _reinit<T>(detail::_rebound<T>(v));
     });
     return *this;
   }
@@ -788,9 +831,11 @@ struct copack<Ts...> {
    */
   template <typename... Tx>
   constexpr copack &operator=(copack<Tx...> &&arg) //
-      noexcept((... && ::std::is_nothrow_move_assignable_v<Tx>))
+      noexcept((... && ::std::is_nothrow_move_assignable_v<detail::_union_member_t<Tx>>))
     requires detail::is_superset_of<copack, copack<Tx...>> && (not ::std::is_same_v<copack, copack<Tx...>>)
-             && (... && (::std::is_move_assignable_v<Tx> && detail::_nothrow_makeable<data_t, Tx, Tx>))
+             && (...
+                 && (::std::is_move_assignable_v<detail::_union_member_t<Tx>>
+                     && detail::_nothrow_makeable<data_t, Tx, Tx>))
              && (sizeof...(Tx) > 0)
   {
     ::std::move(arg).template _invoke<void>([this]<typename T>(::std::in_place_type_t<T>, auto &&v) {
@@ -815,10 +860,12 @@ struct copack<Ts...> {
   // lets an uninvolved alternative forbid the assignment; this overload consults only the
   // alternative involved, assigning in place when it is the one held and replacing by
   // construction otherwise.
-  template <typename U, typename T = ::std::remove_cvref_t<U>>
+  template <typename U, typename T = detail::_selected_alternative_t<U, Ts...>>
   constexpr copack &operator=(U &&v) //
-      noexcept(::std::is_nothrow_assignable_v<T &, decltype(v)> && detail::_nothrow_makeable<data_t, T, decltype(v)>)
-    requires has_type<T> && ::std::is_assignable_v<T &, decltype(v)> && detail::_makeable<data_t, T, decltype(v)>
+      noexcept(::std::is_nothrow_assignable_v<detail::_union_member_t<T> &, decltype(v)>
+               && detail::_nothrow_makeable<data_t, T, decltype(v)>)
+    requires has_type<T> && ::std::is_assignable_v<detail::_union_member_t<T> &, decltype(v)>
+             && detail::_makeable<data_t, T, decltype(v)>
              && (detail::_nothrow_makeable<data_t, T, decltype(v)> || detail::_nothrow_makeable<data_t, T, T>)
   {
     if (index == detail::type_index<T, Ts...>)
@@ -850,7 +897,7 @@ struct copack<Ts...> {
              && (detail::_nothrow_makeable<data_t, T, decltype(args)...> || detail::_nothrow_makeable<data_t, T, T>)
   {
     this->template _reinit<T>(FWD(args)...);
-    return *detail::ptr_variadic_union<T, data_t>(this->data);
+    return detail::_held<T>(*detail::ptr_variadic_union<T, data_t>(this->data));
   }
 
   /**
@@ -869,7 +916,8 @@ struct copack<Ts...> {
   }
 
   /**
-   * @brief Pointer to the alternative `T`, or `nullptr` where it is not the one held
+   * @brief Pointer to the alternative `T` - to the referent, for a reference alternative - or `nullptr`
+   *        where it is not the one held
    *
    * The escape hatch for direct access: unlike `apply`, no dispatch and no exhaustiveness - the
    * caller names one alternative and tests the result.
@@ -879,16 +927,21 @@ struct copack<Ts...> {
    */
   template <typename T>
     requires has_type<T>
-  [[nodiscard]] constexpr T *get_ptr(::std::in_place_type_t<T> = ::std::in_place_type<T>) noexcept
+  [[nodiscard]] constexpr ::std::add_pointer_t<T> get_ptr(::std::in_place_type_t<T> = ::std::in_place_type<T>) noexcept
   {
-    return has_value(::std::in_place_type<T>) ? detail::ptr_variadic_union<T, data_t>(data) : nullptr;
+    return has_value(::std::in_place_type<T>)
+               ? ::std::addressof(detail::_held<T>(*detail::ptr_variadic_union<T, data_t>(data)))
+               : nullptr;
   }
 
   template <typename T>
     requires has_type<T>
-  [[nodiscard]] constexpr T const *get_ptr(::std::in_place_type_t<T> = ::std::in_place_type<T>) const noexcept
+  [[nodiscard]] constexpr ::std::add_pointer_t<::std::remove_reference_t<T> const>
+      get_ptr(::std::in_place_type_t<T> = ::std::in_place_type<T>) const noexcept
   {
-    return has_value(::std::in_place_type<T>) ? detail::ptr_variadic_union<T, data_t>(data) : nullptr;
+    return has_value(::std::in_place_type<T>)
+               ? ::std::addressof(detail::_held<T>(*detail::ptr_variadic_union<T, data_t>(data)))
+               : nullptr;
   }
 
   /**
@@ -1223,7 +1276,7 @@ constexpr inline bool _nothrow_copack_lift<Src>
 /**
  * @brief Lifts a value into a singular copack, decaying
  *
- * Unlike `as_pack`, always by value: a copack alternative can never be a reference.
+ * Unlike `as_pack`, always by value; the in-place overload below can name a reference alternative.
  *
  * @param src Value to lift
  * @return A `copack` over the decayed type of `src`, holding it
@@ -1315,7 +1368,7 @@ template <some_copack Cp>
 [[nodiscard]] constexpr decltype(auto) get(Cp &&c) noexcept
 {
   using type = detail::_sole_alternative<::std::remove_cvref_t<Cp>>::type;
-  if constexpr (::std::is_lvalue_reference_v<Cp>)
+  if constexpr (::std::is_lvalue_reference_v<Cp> || ::std::is_reference_v<type>)
     return (*c.get_ptr(::std::in_place_type<type>));
   else
     return ::std::move(*c.get_ptr(::std::in_place_type<type>));
@@ -1598,6 +1651,12 @@ template <typename T> struct tuple_size<::fn::copack<T>> : ::std::integral_const
 
 template <typename T> struct tuple_element<0, ::fn::copack<T>> {
   using type = T;
+};
+
+// As a const pack's, a const copack's reference alternative is const, so `tuple_element<0, copack
+// const>` must match `get` and cannot defer to the generic `tuple_element<0, const T>`.
+template <typename T> struct tuple_element<0, ::fn::copack<T> const> {
+  using type = decltype(::fn::detail::_apply_const<::fn::copack<T> const &, T>);
 };
 } // namespace std
 
