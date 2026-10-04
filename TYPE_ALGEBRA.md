@@ -265,7 +265,7 @@ Modeling complex algebraic structures—such as multi-field products or multi-al
 
 A `pack` stores multiple fields and supports the standard C++ tuple protocol (`get`, `tuple_size`, `tuple_element`, structured bindings) and an `append` mechanism. Unlike standard tuples, `libfn` packs are strictly flat: a `pack` cannot be an element of another `pack`. Appending a `pack` splices its fields into the outer pack rather than nesting it.
 
-To explicitly lift values into a `pack` (which is useful when conjoining scalars with other packs or copacks), use `fn::as_pack(...)`. When called without template parameters, `as_pack` is deduction-only and preserves the value category of its arguments: `as_pack(42)` yields `pack<int>`, whereas calling `as_pack(x)` on an lvalue `x` yields `pack<int&>` (a reference rather than a copy).
+To explicitly lift scalar values into a `pack` (which is useful when conjoining scalars with other packs or copacks), use `fn::conjoin(...)` or `pack{x} & ...` - both hold scalar arguments by value. To store a **reference** use `fn::as_pack(x)` without template parameters - in this form it is deduction-only and preserves the value category of its arguments. Hence `as_pack(x)` on an lvalue `int x` yields `pack<int&>`, while `as_pack(42)` yields `pack<int>`. With a `copack` argument, `conjoin` produces a `copack`, as explained in Section 6.
 
 Spelling the template parameters instead (e.g., `as_pack<bool, int>(x, d)`) takes deduction out of the picture: each argument is passed as the type you named, enabling implicit conversions to happen at the call boundary. A reference element becomes something you ask for explicitly — `as_pack<int const&>(x)` yields `pack<int const&>`. Note that partial template spelling is not supported; all element types must be spelled out explicitly if template parameters are specified.
 
@@ -316,9 +316,9 @@ As a payload, a `copack` models a discriminated union of types.
 
 Evaluating a `copack` via `.apply()` passes the active alternative to the callback. Because `copack` is self-flattening, nested `copack`s do not occur. A selected alternative that is itself tuple-like—such as `pack`, `std::tuple`, or `std::array`—is unpacked one level, passing its immediate constituents as separate arguments. Since normalized shapes are sums of products, one level of unpacking is sufficient to supply the product's fields as function arguments.
 
-To explicitly lift a single scalar value into a single-alternative coproduct, use `fn::as_copack(value)`. When a `copack` contains *exactly one* alternative type, it is **singular**. It supports direct value extraction both via the index-less `get` and via the tuple protocol (including structured bindings). Direct `get` extraction is **not provided** for multi-alternative `copack` types because the active alternative is a run-time property, meaning a multi-alternative `get` would have no single static return type.
+To explicitly lift a single scalar value into a single-alternative coproduct, use `copack{value}` or `as_copack(std::move(value))`; to store a **reference**, use `as_copack(value)`. When a `copack` contains *exactly one* alternative type, it is **singular**. It supports direct value extraction both via the index-less `get` and via the tuple protocol (including structured bindings). Direct `get` extraction is **not provided** for multi-alternative `copack` types because the active alternative is a run-time property, meaning a multi-alternative `get` would have no single static return type.
 
-A `pack` can be lifted into a `copack` (including packs holding references), but a `pack` cannot contain a `copack`. There is algebraic equivalence between a hypothetical `pack` containing a `copack` (which is disallowed) and a specific shape of `copack` containing a `pack` — see Section 6 for details.
+A `pack` can be lifted into a `copack` (including packs holding references), but a `pack` cannot contain a `copack`. There is algebraic equivalence between a hypothetical `pack` containing a `copack` (which is disallowed) and a specific shape of `copack` containing a `pack` — see Section 6 for details. A `copack` cannot hold a reference to `pack`; it can only hold it by value.
 
 <!-- sync-example-test-copack -->
 ```cpp
@@ -432,7 +432,7 @@ auto test_cartesian_distribution(fn::copack_for<A, B> ab, fn::copack_for<C, D> c
 }
 ```
 
-Conjunction `operator &` dispatches on the left operand. To apply it to plain types, lift the left operand e.g. as `fn::as_pack(a) & b`.
+Conjunction `operator&` dispatches on the left operand. To apply it to plain types, lift the left operand e.g. as `pack{a} & b`.
 
 The n-ary fold `fn::conjoin(...)` operates in two modes:
 
@@ -483,7 +483,7 @@ auto test_conjunction_with_identity_cluster(fn::expected<int, Error> ex, fn::jus
 >
 ## 7. Sum composition with operator| (disjunction)
 
-Disjunction evaluates alternative computations, keeping the first successful result. `a | b` fails only if both operands fail: dual to conjunction, their values union into a `copack`, and their *errors* combine into a product. If both operands share the same value type, the value side is unchanged. Otherwise, a carrier with value type `void` contributes a payload-free success, represented by `pack<>` in the sum.
+Disjunction evaluates alternative computations, keeping the first successful result. `a | b` fails only if both operands fail: dual to conjunction, their values union into a `copack`, and their *errors* combine into a product. If both operands share the same payload type, the value side is unchanged. Otherwise, a carrier with value type `void` contributes a payload-free success, represented by `pack<>` in the sum.
 
 If either error side is graded, the product distributes over it: $(E_1 + E_2) \times F \to (E_1 \times F) + (E_2 \times F)$ (the full Cartesian product when both are graded), yielding a canonical `copack` of `pack`s.
 
@@ -791,7 +791,7 @@ Monadic operations on the identity cluster:
 
 ## 11. choice: identity over a coproduct
 
-`choice<Ts...>` is an infallible carrier whose operations dispatch to the active alternative. `fn::as_choice(x)` lifts a value into the single-alternative `choice` over `x`'s decayed type, or a `choice` over its alternatives if `x` is a `copack`. Empty `choice<>` is an incomplete type.
+`choice<Ts...>` is an infallible carrier whose operations dispatch to the active alternative. `choice{x}` copies scalar value `x` into the single-alternative `choice`, or a `choice` over its alternatives if `x` is a `copack`. To store a **reference** to scalar `x`, use `fn::as_choice(x)`. Empty `choice<>` is an incomplete type.
 
 ### Mapping into a choice
 
@@ -1022,9 +1022,11 @@ The library respects C++ value mechanics:
 - Value categories (lvalue/rvalue) propagate strictly to callbacks.
 - Reference collapsing rules apply to carriers and their payloads.
 - Immovable and move-only payloads are supported in place.
-- Reference-bearing `pack<T&...>` is supported. Lifetime management of non-owning references remains with the caller.
+- Reference-bearing `pack<T&...>` and `copack<T&...>` are supported. Lifetime management of non-owning references remains with the caller.
 - `pack` compares element-wise, supporting equality and three-way comparison.
-  - For reference-bearing `pack<T&...>`, comparison applies to the referents rather than the references themselves.
+- For reference-bearing `pack<T&...>` and `copack`, comparison applies to the referents.
+- When deducing argument types, `as_pack`, `as_copack` and `as_choice` preserve scalar lvalues **as references**.
+- CTAD from scalar arguments in `pack`, `copack`, `choice` and `just` stores values, copying or moving as appropriate.
 
 ### pfn and fn
 
