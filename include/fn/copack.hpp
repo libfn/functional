@@ -54,8 +54,7 @@ static constexpr bool _is_valid_copack_subtype //
       &&(::std::is_lvalue_reference_v<T>                        //
              ? ::std::is_object_v<::std::remove_reference_t<T>> //
                    && (not ::std::is_array_v<::std::remove_reference_t<T>>) && (not some_pack<T>)
-             : (not ::std::is_void_v<T>) && (not ::std::is_reference_v<T>)
-                   && ::std::is_same_v<T, ::std::remove_cv_t<T>>);
+             : ::std::is_object_v<T> && ::std::is_same_v<T, ::std::remove_cv_t<T>>);
 
 // The alternative a value selects: overload resolution among functions taking each alternative of the
 // value's decayed type, so that a merely convertible value selects nothing; void when nothing is selected.
@@ -1288,35 +1287,39 @@ template <typename T>
   requires detail::_is_valid_copack_subtype<T>
 explicit copack(::std::in_place_type_t<T>, auto &&...) -> copack<T>;
 template <typename T>
-  requires detail::_is_valid_copack_subtype<T>
-explicit copack(T) -> copack<T>;
+  requires detail::_is_valid_copack_subtype<::std::remove_cvref_t<T>>
+explicit copack(T &&) -> copack<::std::remove_cvref_t<T>>;
 
 namespace detail {
-// The value lift builds `copack<remove_cvref_t<Src>>` - a class whose body refuses an in_place tag as
+// What a lift holds: a reference to an lvalue, the value of an rvalue
+template <typename Src>
+using _lifted_t = ::std::conditional_t<::std::is_lvalue_reference_v<Src>, Src, ::std::remove_cvref_t<Src>>;
+
+// The value lift builds `copack<_lifted_t<Src>>` - a class whose body refuses an in_place tag as
 // an alternative. MSVC (C++20 mode) compiles a candidate's noexcept-specifier once deduction
 // succeeds, BEFORE the constraint rejects the tag, so the specifier must not name that copack unless
 // the guard holds: a guarded specialization, as `_nothrow_eq_with` is, and for the same reason.
 template <typename Src> constexpr inline bool _nothrow_copack_lift = false;
 template <typename Src>
   requires(not some_in_place_type<Src>)
-constexpr inline bool _nothrow_copack_lift<Src>
-    = ::std::is_nothrow_constructible_v<copack<::std::remove_cvref_t<Src>>, Src>;
+constexpr inline bool _nothrow_copack_lift<Src> = ::std::is_nothrow_constructible_v<copack<_lifted_t<Src>>, Src>;
 } // namespace detail
 
 // Lifts
 /**
- * @brief Lifts a value into a singular copack, decaying
+ * @brief Lifts a value into a singular copack, preserving its value category
  *
- * Unlike `as_pack`, always by value; the in-place overload below can name a reference alternative.
+ * `as_copack(42)` yields `copack<int>`; an lvalue `x` yields `copack<int &>` - a reference rather
+ * than a copy - where `copack{x}` yields `copack<int>`.
  *
  * @param src Value to lift
- * @return A `copack` over the decayed type of `src`, holding it
+ * @return A `copack` holding `src`, or a reference to it
  */
 [[nodiscard]] constexpr auto as_copack(auto &&src) //
     noexcept(detail::_nothrow_copack_lift<decltype(src)>) -> decltype(auto)
   requires(not some_in_place_type<decltype(src)>)
 {
-  return copack<::std::remove_cvref_t<decltype(src)>>(FWD(src));
+  return copack<detail::_lifted_t<decltype(src)>>(FWD(src));
 }
 
 /**
