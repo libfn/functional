@@ -410,6 +410,7 @@ Key principles of mapping:
 - Success and error states are preserved.
 - A bare `copack` has a member `transform` to map across alternatives, but takes no pipeline functor as it is data, not a carrier.
 - Over a `copack` side, `transform` and `transform_error` yield a normalized `copack`, with `void` results represented as `pack<>`. Over a plain side, only `expected` and `just` accept a `void` value result.
+- Over a `copack` side, an lvalue-reference result enters as a reference alternative, as `optional`'s `transform` yields `optional<T&>`; any other reference result, including one to a `pack` or a `copack`, enters as its value. A reference result that could refer into an argument expiring with the call, such as an alternative of an rvalue `copack`, is ill-formed.
 - Applying `transform_error` to a carrier with no error side (such as `just` or `choice`) is ill-formed.
 - When a side is uninhabited (`copack<>`), transformation is well-formed but vacuous: neither the member nor the pipeline form is reachable, and the callback is not instantiated. This applies to `optional<copack<>>` and `expected<copack<>, E>` on the value side, and `expected<T, copack<>>` on the error side.
 
