@@ -197,3 +197,40 @@ TEST_CASE("variadic_union with a non-copyable alternative", "[variadic_union][ma
 
   CHECK(ptr_variadic_union<NonCopyable, T6>(a4)->v == 42);
 }
+
+TEST_CASE("variadic_union with a reference alternative", "[variadic_union][make_variadic_union][apply_variadic_union]")
+{
+  // A union member cannot be a reference: the alternative is held as a pointer, and dispatch hands
+  // out the referent as an lvalue in every value category of the union, const where the union is
+  using T = variadic_union<int &, int const &, long>;
+  static_assert(T::has_type<int &>);
+  static_assert(T::has_type<int const &>);
+  static_assert(not T::has_type<int>);
+  static_assert(std::is_trivially_copyable_v<T>);
+  static_assert(std::is_trivially_copy_assignable_v<T>); // assigning the holder of int const& rebinds it
+
+  constexpr auto addr = [](auto &&i) -> void const * { return &i; };
+  constexpr auto tagged = []<typename U>(std::in_place_type_t<U>, auto &&i) {
+    if constexpr (not std::is_same_v<U, int &>)
+      return 0;
+    else if constexpr (std::is_same_v<decltype(i), int const &>)
+      return 1;
+    else
+      return std::is_same_v<decltype(i), int &> ? 2 : 0;
+  };
+  constexpr auto battery = [addr, tagged] {
+    int x = 1;
+    T const t = make_variadic_union<int &, T>(x);
+    T u = t;
+    return apply_variadic_union<void const *, T>(t, 0, addr) == &x
+           && apply_variadic_union<void const *, T>(std::move(t), 0, addr) == &x
+           && apply_variadic_union<void const *, T>(u, 0, addr) == &x
+           && apply_variadic_union<void const *, T>(std::move(u), 0, addr) == &x
+           && invoke_type_variadic_union<int, T>(t, 0, tagged) == 1
+           && invoke_type_variadic_union<int, T>(std::move(t), 0, tagged) == 1
+           && invoke_type_variadic_union<int, T>(u, 0, tagged) == 2
+           && invoke_type_variadic_union<int, T>(std::move(u), 0, tagged) == 2;
+  };
+  CHECK(battery());
+  static_assert(battery());
+}

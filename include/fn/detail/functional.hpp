@@ -21,6 +21,17 @@
 
 namespace fn::inline LIBFN_VERSION::detail {
 
+// A reference alternative T of a const copack is handed out const, as a pack's reference element is.
+// Relocating it binds a new T to the same referent - bound as T to begin with - as relocating a pack's
+// reference element does, so only the const the view added is removed.
+template <typename T> [[nodiscard]] constexpr auto _rebound(auto &&v) noexcept -> decltype(auto)
+{
+  if constexpr (::std::is_lvalue_reference_v<T>)
+    return const_cast<T>(v); // NOSONAR cpp:S859 removes only the const its own view added
+  else
+    return FWD(v);
+}
+
 namespace _fold_detail {
 // pack forbids rvalue references.
 template <typename T>
@@ -64,9 +75,9 @@ template <typename R, typename Rv> struct _fold_rh final {
 
   template <typename L>
   [[nodiscard]] constexpr auto operator()(::std::in_place_type_t<L>, auto &&l) const
-      noexcept(noexcept(_fold<L, R>(FWD(l), ::std::declval<Rv>())))
+      noexcept(noexcept(_fold<L, R>(_rebound<L>(FWD(l)), ::std::declval<Rv>())))
   {
-    return _fold<L, R>(FWD(l), static_cast<Rv &&>(rv));
+    return _fold<L, R>(_rebound<L>(FWD(l)), static_cast<Rv &&>(rv));
   }
 };
 
@@ -75,9 +86,9 @@ template <typename L, typename Lv> struct _fold_lh final {
 
   template <typename R>
   [[nodiscard]] constexpr auto operator()(::std::in_place_type_t<R>, auto &&r) const
-      noexcept(noexcept(_fold<L, R>(::std::declval<Lv>(), FWD(r))))
+      noexcept(noexcept(_fold<L, R>(_rebound<L>(::std::declval<Lv>()), _rebound<R>(FWD(r)))))
   {
-    return _fold<L, R>(static_cast<Lv &&>(lv), FWD(r));
+    return _fold<L, R>(_rebound<L>(static_cast<Lv &&>(lv)), _rebound<R>(FWD(r)));
   }
 };
 
@@ -534,12 +545,12 @@ template <typename Fn, template <typename...> typename Tpl, typename... Ts, type
 constexpr inline bool _is_ts_applicable<Fn, Tpl<Ts...> &, Tx...> = (... && _is_applicable<Fn, Ts &, Tx...>::value);
 template <typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_ts_applicable<Fn, Tpl<Ts...> const &, Tx...>
-    = (... && _is_applicable<Fn, Ts const &, Tx...>::value);
+    = (... && _is_applicable<Fn, apply_const_lvalue_t<Tpl<Ts...> const &, Ts>, Tx...>::value);
 template <typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_ts_applicable<Fn, Tpl<Ts...> &&, Tx...> = (... && _is_applicable<Fn, Ts &&, Tx...>::value);
 template <typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_ts_applicable<Fn, Tpl<Ts...> const &&, Tx...>
-    = (... && _is_applicable<Fn, Ts const &&, Tx...>::value);
+    = (... && _is_applicable<Fn, apply_const_lvalue_t<Tpl<Ts...> const &&, Ts>, Tx...>::value);
 template <typename Fn, typename T, typename... Tx>
 concept _typelist_applicable = _is_ts_applicable<Fn, T &&, Tx...>;
 
@@ -549,13 +560,13 @@ constexpr inline bool _is_rts_applicable<R, Fn, Tpl<Ts...> &, Tx...>
     = (... && _is_applicable_r<R, Fn, Ts &, Tx...>::value);
 template <typename R, typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_rts_applicable<R, Fn, Tpl<Ts...> const &, Tx...>
-    = (... && _is_applicable_r<R, Fn, Ts const &, Tx...>::value);
+    = (... && _is_applicable_r<R, Fn, apply_const_lvalue_t<Tpl<Ts...> const &, Ts>, Tx...>::value);
 template <typename R, typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_rts_applicable<R, Fn, Tpl<Ts...> &&, Tx...>
     = (... && _is_applicable_r<R, Fn, Ts &&, Tx...>::value);
 template <typename R, typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_rts_applicable<R, Fn, Tpl<Ts...> const &&, Tx...>
-    = (... && _is_applicable_r<R, Fn, Ts const &&, Tx...>::value);
+    = (... && _is_applicable_r<R, Fn, apply_const_lvalue_t<Tpl<Ts...> const &&, Ts>, Tx...>::value);
 template <typename R, typename Fn, typename T, typename... Tx>
 concept _typelist_applicable_r = _is_rts_applicable<R, Fn, T &&, Tx...>;
 
@@ -567,13 +578,13 @@ constexpr inline bool _is_nothrow_ts_applicable<Fn, Tpl<Ts...> &, Tx...>
     = (... && _is_nothrow_applicable<Fn, Ts &, Tx...>::value);
 template <typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_nothrow_ts_applicable<Fn, Tpl<Ts...> const &, Tx...>
-    = (... && _is_nothrow_applicable<Fn, Ts const &, Tx...>::value);
+    = (... && _is_nothrow_applicable<Fn, apply_const_lvalue_t<Tpl<Ts...> const &, Ts>, Tx...>::value);
 template <typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_nothrow_ts_applicable<Fn, Tpl<Ts...> &&, Tx...>
     = (... && _is_nothrow_applicable<Fn, Ts &&, Tx...>::value);
 template <typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_nothrow_ts_applicable<Fn, Tpl<Ts...> const &&, Tx...>
-    = (... && _is_nothrow_applicable<Fn, Ts const &&, Tx...>::value);
+    = (... && _is_nothrow_applicable<Fn, apply_const_lvalue_t<Tpl<Ts...> const &&, Ts>, Tx...>::value);
 template <typename Fn, typename T, typename... Tx>
 concept _typelist_nothrow_applicable = _is_nothrow_ts_applicable<Fn, T &&, Tx...>;
 
@@ -583,13 +594,13 @@ constexpr inline bool _is_nothrow_rts_applicable<R, Fn, Tpl<Ts...> &, Tx...>
     = (... && _is_nothrow_applicable_r<R, Fn, Ts &, Tx...>::value);
 template <typename R, typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_nothrow_rts_applicable<R, Fn, Tpl<Ts...> const &, Tx...>
-    = (... && _is_nothrow_applicable_r<R, Fn, Ts const &, Tx...>::value);
+    = (... && _is_nothrow_applicable_r<R, Fn, apply_const_lvalue_t<Tpl<Ts...> const &, Ts>, Tx...>::value);
 template <typename R, typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_nothrow_rts_applicable<R, Fn, Tpl<Ts...> &&, Tx...>
     = (... && _is_nothrow_applicable_r<R, Fn, Ts &&, Tx...>::value);
 template <typename R, typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_nothrow_rts_applicable<R, Fn, Tpl<Ts...> const &&, Tx...>
-    = (... && _is_nothrow_applicable_r<R, Fn, Ts const &&, Tx...>::value);
+    = (... && _is_nothrow_applicable_r<R, Fn, apply_const_lvalue_t<Tpl<Ts...> const &&, Ts>, Tx...>::value);
 template <typename R, typename Fn, typename T, typename... Tx>
 concept _typelist_nothrow_applicable_r = _is_nothrow_rts_applicable<R, Fn, T &&, Tx...>;
 

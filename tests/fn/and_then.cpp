@@ -1720,6 +1720,25 @@ TEST_CASE("and_then joins heterogeneous optional branches", "[and_then][optional
     CHECK(rr.value() == X{});
   }
 
+  SECTION("a reference branch joins as a reference alternative")
+  {
+    constexpr auto fnRef = [](X &x) {
+      return fn::overload{[&x](A) { return fn::optional<X &>{x}; }, [](B) { return fn::optional<Y>{Y{}}; }};
+    };
+    X x{};
+    auto r = In{fn::copack_for<A, B>{A{}}}.and_then(fnRef(x));
+    static_assert(std::is_same_v<decltype(r), fn::optional<fn::copack_for<X &, Y>>>);
+    CHECK(r.value().get_ptr<X &>() == &x);
+    auto p = In{fn::copack_for<A, B>{A{}}} | fn::and_then(fnRef(x));
+    static_assert(std::is_same_v<decltype(p), fn::optional<fn::copack_for<X &, Y>>>);
+    CHECK(p.value().get_ptr<X &>() == &x);
+    static_assert([fnRef] {
+      X x{};
+      In const in{fn::copack_for<A, B>{A{}}};
+      return in.and_then(fnRef(x)).value().get_ptr<X &>() == &x;
+    }());
+  }
+
   SECTION("constraints and noexcept")
   {
     // a mixed optional-and-expected set answers, not errors
@@ -1729,11 +1748,6 @@ TEST_CASE("and_then joins heterogeneous optional branches", "[and_then][optional
     static_assert(canM(In{fn::copack_for<A, B>{A{}}}, fnJoin)); // converse
     static_assert(fn::applicable_and_then<decltype(fnJoin), In>);
     static_assert(not fn::applicable_and_then<decltype(fnMixed), In>);
-    // a reference-carrying optional leaves the join unformable rather than copying the referent
-    constexpr auto fnRef = fn::overload{[](A) -> fn::optional<X &> { throw 0; }, //
-                                        [](B) { return fn::optional<Y>{Y{}}; }};
-    static_assert(not canM(In{fn::copack_for<A, B>{A{}}}, fnRef));
-
     In v{fn::copack_for<A, B>{A{}}};
     constexpr auto fnNothrow = fn::overload{[](A) noexcept { return fn::optional<X>{X{}}; },
                                             [](B) noexcept { return fn::optional<Y>{Y{}}; }};

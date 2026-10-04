@@ -11,6 +11,7 @@
 #include <libfn_version.hpp>
 #include <pfn/utility.hpp>
 
+#include <memory>
 #include <type_traits>
 #include <utility>
 
@@ -58,13 +59,13 @@ constexpr inline bool _is_tst_invocable<Fn, Tpl<Ts...> &, Tx...>
     = (... && _is_type_invocable<Ts, Fn, Ts &, Tx...>::value);
 template <typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_tst_invocable<Fn, Tpl<Ts...> const &, Tx...>
-    = (... && _is_type_invocable<Ts, Fn, Ts const &, Tx...>::value);
+    = (... && _is_type_invocable<Ts, Fn, apply_const_lvalue_t<Tpl<Ts...> const &, Ts>, Tx...>::value);
 template <typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_tst_invocable<Fn, Tpl<Ts...> &&, Tx...>
     = (... && _is_type_invocable<Ts, Fn, Ts &&, Tx...>::value);
 template <typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_tst_invocable<Fn, Tpl<Ts...> const &&, Tx...>
-    = (... && _is_type_invocable<Ts, Fn, Ts const &&, Tx...>::value);
+    = (... && _is_type_invocable<Ts, Fn, apply_const_lvalue_t<Tpl<Ts...> const &&, Ts>, Tx...>::value);
 template <typename Fn, typename T, typename... Tx>
 concept _typelist_type_invocable = _is_tst_invocable<Fn, T &&, Tx...>;
 
@@ -94,13 +95,13 @@ constexpr inline bool _is_rtst_invocable<R, Fn, Tpl<Ts...> &, Tx...>
     = (... && _is_type_invocable_r<Ts, R, Fn, Ts &, Tx...>::value);
 template <typename R, typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_rtst_invocable<R, Fn, Tpl<Ts...> const &, Tx...>
-    = (... && _is_type_invocable_r<Ts, R, Fn, Ts const &, Tx...>::value);
+    = (... && _is_type_invocable_r<Ts, R, Fn, apply_const_lvalue_t<Tpl<Ts...> const &, Ts>, Tx...>::value);
 template <typename R, typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_rtst_invocable<R, Fn, Tpl<Ts...> &&, Tx...>
     = (... && _is_type_invocable_r<Ts, R, Fn, Ts &&, Tx...>::value);
 template <typename R, typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_rtst_invocable<R, Fn, Tpl<Ts...> const &&, Tx...>
-    = (... && _is_type_invocable_r<Ts, R, Fn, Ts const &&, Tx...>::value);
+    = (... && _is_type_invocable_r<Ts, R, Fn, apply_const_lvalue_t<Tpl<Ts...> const &&, Ts>, Tx...>::value);
 template <typename R, typename Fn, typename T, typename... Tx>
 concept _typelist_type_invocable_r = _is_rtst_invocable<R, Fn, T &&, Tx...>;
 
@@ -113,13 +114,17 @@ constexpr inline bool _is_nothrow_tst_invocable<Fn, Tpl<Ts...> &, Tx...>
     = (... && ::std::is_nothrow_invocable_v<Fn, ::std::in_place_type_t<Ts>, Ts &, Tx...>);
 template <typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_nothrow_tst_invocable<Fn, Tpl<Ts...> const &, Tx...>
-    = (... && ::std::is_nothrow_invocable_v<Fn, ::std::in_place_type_t<Ts>, Ts const &, Tx...>);
+    = (...
+       && ::std::is_nothrow_invocable_v<Fn, ::std::in_place_type_t<Ts>, apply_const_lvalue_t<Tpl<Ts...> const &, Ts>,
+                                        Tx...>);
 template <typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_nothrow_tst_invocable<Fn, Tpl<Ts...> &&, Tx...>
     = (... && ::std::is_nothrow_invocable_v<Fn, ::std::in_place_type_t<Ts>, Ts &&, Tx...>);
 template <typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_nothrow_tst_invocable<Fn, Tpl<Ts...> const &&, Tx...>
-    = (... && ::std::is_nothrow_invocable_v<Fn, ::std::in_place_type_t<Ts>, Ts const &&, Tx...>);
+    = (...
+       && ::std::is_nothrow_invocable_v<Fn, ::std::in_place_type_t<Ts>, apply_const_lvalue_t<Tpl<Ts...> const &&, Ts>,
+                                        Tx...>);
 template <typename Fn, typename T, typename... Tx>
 concept _typelist_type_nothrow_invocable = _is_nothrow_tst_invocable<Fn, T &&, Tx...>;
 
@@ -129,15 +134,40 @@ constexpr inline bool _is_nothrow_rtst_invocable<R, Fn, Tpl<Ts...> &, Tx...>
     = (... && ::std::is_nothrow_invocable_r_v<R, Fn, ::std::in_place_type_t<Ts>, Ts &, Tx...>);
 template <typename R, typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_nothrow_rtst_invocable<R, Fn, Tpl<Ts...> const &, Tx...>
-    = (... && ::std::is_nothrow_invocable_r_v<R, Fn, ::std::in_place_type_t<Ts>, Ts const &, Tx...>);
+    = (...
+       && ::std::is_nothrow_invocable_r_v<R, Fn, ::std::in_place_type_t<Ts>,
+                                          apply_const_lvalue_t<Tpl<Ts...> const &, Ts>, Tx...>);
 template <typename R, typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_nothrow_rtst_invocable<R, Fn, Tpl<Ts...> &&, Tx...>
     = (... && ::std::is_nothrow_invocable_r_v<R, Fn, ::std::in_place_type_t<Ts>, Ts &&, Tx...>);
 template <typename R, typename Fn, template <typename...> typename Tpl, typename... Ts, typename... Tx>
 constexpr inline bool _is_nothrow_rtst_invocable<R, Fn, Tpl<Ts...> const &&, Tx...>
-    = (... && ::std::is_nothrow_invocable_r_v<R, Fn, ::std::in_place_type_t<Ts>, Ts const &&, Tx...>);
+    = (...
+       && ::std::is_nothrow_invocable_r_v<R, Fn, ::std::in_place_type_t<Ts>,
+                                          apply_const_lvalue_t<Tpl<Ts...> const &&, Ts>, Tx...>);
 template <typename R, typename Fn, typename T, typename... Tx>
 concept _typelist_type_nothrow_invocable_r = _is_nothrow_rtst_invocable<R, Fn, T &&, Tx...>;
+
+// A union member cannot be a reference: an lvalue-reference alternative is held as a pointer to its
+// referent. The constructor binds as a reference initialization does, and copying or assigning the
+// holder rebinds.
+template <typename T> struct _ref_holder final {
+  T *p;
+  constexpr _ref_holder(T &r) noexcept : p(::std::addressof(r)) {} // NOSONAR cpp:S1709 binds as a reference does
+};
+
+template <typename T>
+using _union_member_t = ::std::conditional_t<::std::is_reference_v<T>, _ref_holder<::std::remove_reference_t<T>>, T>;
+
+// The alternative T held in a union member: the member itself, or the referent of a reference, const
+// where the member is, as a pack hands out a reference element
+template <typename T> [[nodiscard]] constexpr auto _held(auto &&m) noexcept -> decltype(auto)
+{
+  if constexpr (::std::is_reference_v<T>)
+    return static_cast<apply_const_lvalue_t<decltype(m), T>>(*m.p);
+  else
+    return FWD(m);
+}
 
 template <typename... Ts> union variadic_union;
 template <> union variadic_union<>; // Intentionally incomplete
@@ -152,7 +182,8 @@ concept some_variadic_union = _is_variadic_union<T &>;
 template <typename T0> union variadic_union<T0> {
   static_assert(not _some_in_place_type<T0>);
   using t0 = T0;
-  T0 v0;
+  using m0 = _union_member_t<T0>;
+  m0 v0;
 
   template <typename T>
   static constexpr bool has_type //
@@ -160,8 +191,8 @@ template <typename T0> union variadic_union<T0> {
   static constexpr ::std::size_t size = 1;
 
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
-    requires ::std::is_same_v<T, T0> && requires { T{FWD(args)...}; }
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(m0{FWD(args)...}))
+    requires ::std::is_same_v<T, T0> && requires { m0{FWD(args)...}; }
       : v0{FWD(args)...}
   {
   }
@@ -171,19 +202,19 @@ template <typename T0> union variadic_union<T0> {
   // cases need none of them - and the trivial ones make the union exactly as trivial as its
   // members, for the copack to propagate.
   constexpr variadic_union(variadic_union const &)
-    requires(::std::is_trivially_copy_constructible_v<T0>)
+    requires(::std::is_trivially_copy_constructible_v<m0>)
   = default;
   constexpr variadic_union(variadic_union &&)
-    requires(::std::is_trivially_move_constructible_v<T0>)
+    requires(::std::is_trivially_move_constructible_v<m0>)
   = default;
   constexpr variadic_union &operator=(variadic_union const &)
-    requires(::std::is_trivially_copy_assignable_v<T0>)
+    requires(::std::is_trivially_copy_assignable_v<m0>)
   = default;
   constexpr variadic_union &operator=(variadic_union &&)
-    requires(::std::is_trivially_move_assignable_v<T0>)
+    requires(::std::is_trivially_move_assignable_v<m0>)
   = default;
   constexpr ~variadic_union()
-    requires(::std::is_trivially_destructible_v<T0>)
+    requires(::std::is_trivially_destructible_v<m0>)
   = default;
   // A union destroys nothing; this exists only to not be deleted when a member's destructor is
   // non-trivial, and its constrained pair above keeps the trivial case trivial.
@@ -197,8 +228,10 @@ template <typename T0, typename T1> union variadic_union<T0, T1> {
 
   using t0 = T0;
   using t1 = T1;
-  T0 v0;
-  T1 v1;
+  using m0 = _union_member_t<T0>;
+  using m1 = _union_member_t<T1>;
+  m0 v0;
+  m1 v1;
 
   template <typename T>
   static constexpr bool has_type //
@@ -206,32 +239,32 @@ template <typename T0, typename T1> union variadic_union<T0, T1> {
   static constexpr ::std::size_t size = 2;
 
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
-    requires ::std::is_same_v<T, T0> && requires { T{FWD(args)...}; }
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(m0{FWD(args)...}))
+    requires ::std::is_same_v<T, T0> && requires { m0{FWD(args)...}; }
       : v0{FWD(args)...}
   {
   }
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
-    requires ::std::is_same_v<T, T1> && requires { T{FWD(args)...}; }
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(m1{FWD(args)...}))
+    requires ::std::is_same_v<T, T1> && requires { m1{FWD(args)...}; }
       : v1{FWD(args)...}
   {
   }
 
   constexpr variadic_union(variadic_union const &)
-    requires(::std::is_trivially_copy_constructible_v<T0> && ::std::is_trivially_copy_constructible_v<T1>)
+    requires(::std::is_trivially_copy_constructible_v<m0> && ::std::is_trivially_copy_constructible_v<m1>)
   = default;
   constexpr variadic_union(variadic_union &&)
-    requires(::std::is_trivially_move_constructible_v<T0> && ::std::is_trivially_move_constructible_v<T1>)
+    requires(::std::is_trivially_move_constructible_v<m0> && ::std::is_trivially_move_constructible_v<m1>)
   = default;
   constexpr variadic_union &operator=(variadic_union const &)
-    requires(::std::is_trivially_copy_assignable_v<T0> && ::std::is_trivially_copy_assignable_v<T1>)
+    requires(::std::is_trivially_copy_assignable_v<m0> && ::std::is_trivially_copy_assignable_v<m1>)
   = default;
   constexpr variadic_union &operator=(variadic_union &&)
-    requires(::std::is_trivially_move_assignable_v<T0> && ::std::is_trivially_move_assignable_v<T1>)
+    requires(::std::is_trivially_move_assignable_v<m0> && ::std::is_trivially_move_assignable_v<m1>)
   = default;
   constexpr ~variadic_union()
-    requires(::std::is_trivially_destructible_v<T0> && ::std::is_trivially_destructible_v<T1>)
+    requires(::std::is_trivially_destructible_v<m0> && ::std::is_trivially_destructible_v<m1>)
   = default;
   constexpr ~variadic_union() {} // NOSONAR cpp:S3490 the non-trivial pair of the constrained default
 };
@@ -247,9 +280,12 @@ template <typename T0, typename T1, typename T2> union variadic_union<T0, T1, T2
   using t0 = T0;
   using t1 = T1;
   using t2 = T2;
-  T0 v0;
-  T1 v1;
-  T2 v2;
+  using m0 = _union_member_t<T0>;
+  using m1 = _union_member_t<T1>;
+  using m2 = _union_member_t<T2>;
+  m0 v0;
+  m1 v1;
+  m2 v2;
 
   template <typename T>
   static constexpr bool has_type //
@@ -257,43 +293,43 @@ template <typename T0, typename T1, typename T2> union variadic_union<T0, T1, T2
   static constexpr ::std::size_t size = 3;
 
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
-    requires ::std::is_same_v<T, T0> && requires { T{FWD(args)...}; }
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(m0{FWD(args)...}))
+    requires ::std::is_same_v<T, T0> && requires { m0{FWD(args)...}; }
       : v0{FWD(args)...}
   {
   }
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
-    requires ::std::is_same_v<T, T1> && requires { T{FWD(args)...}; }
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(m1{FWD(args)...}))
+    requires ::std::is_same_v<T, T1> && requires { m1{FWD(args)...}; }
       : v1{FWD(args)...}
   {
   }
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
-    requires ::std::is_same_v<T, T2> && requires { T{FWD(args)...}; }
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(m2{FWD(args)...}))
+    requires ::std::is_same_v<T, T2> && requires { m2{FWD(args)...}; }
       : v2{FWD(args)...}
   {
   }
 
   constexpr variadic_union(variadic_union const &)
-    requires(::std::is_trivially_copy_constructible_v<T0> && ::std::is_trivially_copy_constructible_v<T1>
-             && ::std::is_trivially_copy_constructible_v<T2>)
+    requires(::std::is_trivially_copy_constructible_v<m0> && ::std::is_trivially_copy_constructible_v<m1>
+             && ::std::is_trivially_copy_constructible_v<m2>)
   = default;
   constexpr variadic_union(variadic_union &&)
-    requires(::std::is_trivially_move_constructible_v<T0> && ::std::is_trivially_move_constructible_v<T1>
-             && ::std::is_trivially_move_constructible_v<T2>)
+    requires(::std::is_trivially_move_constructible_v<m0> && ::std::is_trivially_move_constructible_v<m1>
+             && ::std::is_trivially_move_constructible_v<m2>)
   = default;
   constexpr variadic_union &operator=(variadic_union const &)
-    requires(::std::is_trivially_copy_assignable_v<T0> && ::std::is_trivially_copy_assignable_v<T1>
-             && ::std::is_trivially_copy_assignable_v<T2>)
+    requires(::std::is_trivially_copy_assignable_v<m0> && ::std::is_trivially_copy_assignable_v<m1>
+             && ::std::is_trivially_copy_assignable_v<m2>)
   = default;
   constexpr variadic_union &operator=(variadic_union &&)
-    requires(::std::is_trivially_move_assignable_v<T0> && ::std::is_trivially_move_assignable_v<T1>
-             && ::std::is_trivially_move_assignable_v<T2>)
+    requires(::std::is_trivially_move_assignable_v<m0> && ::std::is_trivially_move_assignable_v<m1>
+             && ::std::is_trivially_move_assignable_v<m2>)
   = default;
   constexpr ~variadic_union()
-    requires(::std::is_trivially_destructible_v<T0> && ::std::is_trivially_destructible_v<T1>
-             && ::std::is_trivially_destructible_v<T2>)
+    requires(::std::is_trivially_destructible_v<m0> && ::std::is_trivially_destructible_v<m1>
+             && ::std::is_trivially_destructible_v<m2>)
   = default;
   constexpr ~variadic_union() {} // NOSONAR cpp:S3490 the non-trivial pair of the constrained default
 };
@@ -314,10 +350,14 @@ template <typename T0, typename T1, typename T2, typename T3> union variadic_uni
   using t1 = T1;
   using t2 = T2;
   using t3 = T3;
-  T0 v0;
-  T1 v1;
-  T2 v2;
-  T3 v3;
+  using m0 = _union_member_t<T0>;
+  using m1 = _union_member_t<T1>;
+  using m2 = _union_member_t<T2>;
+  using m3 = _union_member_t<T3>;
+  m0 v0;
+  m1 v1;
+  m2 v2;
+  m3 v3;
 
   template <typename T>
   static constexpr bool has_type //
@@ -325,49 +365,49 @@ template <typename T0, typename T1, typename T2, typename T3> union variadic_uni
   static constexpr ::std::size_t size = 4;
 
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
-    requires ::std::is_same_v<T, T0> && requires { T{FWD(args)...}; }
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(m0{FWD(args)...}))
+    requires ::std::is_same_v<T, T0> && requires { m0{FWD(args)...}; }
       : v0{FWD(args)...}
   {
   }
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
-    requires ::std::is_same_v<T, T1> && requires { T{FWD(args)...}; }
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(m1{FWD(args)...}))
+    requires ::std::is_same_v<T, T1> && requires { m1{FWD(args)...}; }
       : v1{FWD(args)...}
   {
   }
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
-    requires ::std::is_same_v<T, T2> && requires { T{FWD(args)...}; }
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(m2{FWD(args)...}))
+    requires ::std::is_same_v<T, T2> && requires { m2{FWD(args)...}; }
       : v2{FWD(args)...}
   {
   }
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
-    requires ::std::is_same_v<T, T3> && requires { T{FWD(args)...}; }
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(m3{FWD(args)...}))
+    requires ::std::is_same_v<T, T3> && requires { m3{FWD(args)...}; }
       : v3{FWD(args)...}
   {
   }
 
   constexpr variadic_union(variadic_union const &)
-    requires(::std::is_trivially_copy_constructible_v<T0> && ::std::is_trivially_copy_constructible_v<T1>
-             && ::std::is_trivially_copy_constructible_v<T2> && ::std::is_trivially_copy_constructible_v<T3>)
+    requires(::std::is_trivially_copy_constructible_v<m0> && ::std::is_trivially_copy_constructible_v<m1>
+             && ::std::is_trivially_copy_constructible_v<m2> && ::std::is_trivially_copy_constructible_v<m3>)
   = default;
   constexpr variadic_union(variadic_union &&)
-    requires(::std::is_trivially_move_constructible_v<T0> && ::std::is_trivially_move_constructible_v<T1>
-             && ::std::is_trivially_move_constructible_v<T2> && ::std::is_trivially_move_constructible_v<T3>)
+    requires(::std::is_trivially_move_constructible_v<m0> && ::std::is_trivially_move_constructible_v<m1>
+             && ::std::is_trivially_move_constructible_v<m2> && ::std::is_trivially_move_constructible_v<m3>)
   = default;
   constexpr variadic_union &operator=(variadic_union const &)
-    requires(::std::is_trivially_copy_assignable_v<T0> && ::std::is_trivially_copy_assignable_v<T1>
-             && ::std::is_trivially_copy_assignable_v<T2> && ::std::is_trivially_copy_assignable_v<T3>)
+    requires(::std::is_trivially_copy_assignable_v<m0> && ::std::is_trivially_copy_assignable_v<m1>
+             && ::std::is_trivially_copy_assignable_v<m2> && ::std::is_trivially_copy_assignable_v<m3>)
   = default;
   constexpr variadic_union &operator=(variadic_union &&)
-    requires(::std::is_trivially_move_assignable_v<T0> && ::std::is_trivially_move_assignable_v<T1>
-             && ::std::is_trivially_move_assignable_v<T2> && ::std::is_trivially_move_assignable_v<T3>)
+    requires(::std::is_trivially_move_assignable_v<m0> && ::std::is_trivially_move_assignable_v<m1>
+             && ::std::is_trivially_move_assignable_v<m2> && ::std::is_trivially_move_assignable_v<m3>)
   = default;
   constexpr ~variadic_union()
-    requires(::std::is_trivially_destructible_v<T0> && ::std::is_trivially_destructible_v<T1>
-             && ::std::is_trivially_destructible_v<T2> && ::std::is_trivially_destructible_v<T3>)
+    requires(::std::is_trivially_destructible_v<m0> && ::std::is_trivially_destructible_v<m1>
+             && ::std::is_trivially_destructible_v<m2> && ::std::is_trivially_destructible_v<m3>)
   = default;
   constexpr ~variadic_union() {} // NOSONAR cpp:S3490 the non-trivial pair of the constrained default
 };
@@ -395,11 +435,15 @@ union variadic_union<T0, T1, T2, T3, Ts...> {
   using t1 = T1;
   using t2 = T2;
   using t3 = T3;
+  using m0 = _union_member_t<T0>;
+  using m1 = _union_member_t<T1>;
+  using m2 = _union_member_t<T2>;
+  using m3 = _union_member_t<T3>;
   using more_t = variadic_union<Ts...>;
-  T0 v0;
-  T1 v1;
-  T2 v2;
-  T3 v3;
+  m0 v0;
+  m1 v1;
+  m2 v2;
+  m3 v3;
   more_t more;
 
   template <typename T>
@@ -409,26 +453,26 @@ union variadic_union<T0, T1, T2, T3, Ts...> {
   static constexpr ::std::size_t size = 4 + more_t::size;
 
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
-    requires ::std::is_same_v<T, T0> && requires { T{FWD(args)...}; }
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(m0{FWD(args)...}))
+    requires ::std::is_same_v<T, T0> && requires { m0{FWD(args)...}; }
       : v0{FWD(args)...}
   {
   }
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
-    requires ::std::is_same_v<T, T1> && requires { T{FWD(args)...}; }
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(m1{FWD(args)...}))
+    requires ::std::is_same_v<T, T1> && requires { m1{FWD(args)...}; }
       : v1{FWD(args)...}
   {
   }
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
-    requires ::std::is_same_v<T, T2> && requires { T{FWD(args)...}; }
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(m2{FWD(args)...}))
+    requires ::std::is_same_v<T, T2> && requires { m2{FWD(args)...}; }
       : v2{FWD(args)...}
   {
   }
   template <typename T, typename... Args>
-  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(T{FWD(args)...}))
-    requires ::std::is_same_v<T, T3> && requires { T{FWD(args)...}; }
+  constexpr variadic_union(::std::in_place_type_t<T>, Args &&...args) noexcept(noexcept(m3{FWD(args)...}))
+    requires ::std::is_same_v<T, T3> && requires { m3{FWD(args)...}; }
       : v3{FWD(args)...}
   {
   }
@@ -441,28 +485,28 @@ union variadic_union<T0, T1, T2, T3, Ts...> {
   }
 
   constexpr variadic_union(variadic_union const &)
-    requires(::std::is_trivially_copy_constructible_v<T0> && ::std::is_trivially_copy_constructible_v<T1>
-             && ::std::is_trivially_copy_constructible_v<T2> && ::std::is_trivially_copy_constructible_v<T3>
+    requires(::std::is_trivially_copy_constructible_v<m0> && ::std::is_trivially_copy_constructible_v<m1>
+             && ::std::is_trivially_copy_constructible_v<m2> && ::std::is_trivially_copy_constructible_v<m3>
              && ::std::is_trivially_copy_constructible_v<more_t>)
   = default;
   constexpr variadic_union(variadic_union &&)
-    requires(::std::is_trivially_move_constructible_v<T0> && ::std::is_trivially_move_constructible_v<T1>
-             && ::std::is_trivially_move_constructible_v<T2> && ::std::is_trivially_move_constructible_v<T3>
+    requires(::std::is_trivially_move_constructible_v<m0> && ::std::is_trivially_move_constructible_v<m1>
+             && ::std::is_trivially_move_constructible_v<m2> && ::std::is_trivially_move_constructible_v<m3>
              && ::std::is_trivially_move_constructible_v<more_t>)
   = default;
   constexpr variadic_union &operator=(variadic_union const &)
-    requires(::std::is_trivially_copy_assignable_v<T0> && ::std::is_trivially_copy_assignable_v<T1>
-             && ::std::is_trivially_copy_assignable_v<T2> && ::std::is_trivially_copy_assignable_v<T3>
+    requires(::std::is_trivially_copy_assignable_v<m0> && ::std::is_trivially_copy_assignable_v<m1>
+             && ::std::is_trivially_copy_assignable_v<m2> && ::std::is_trivially_copy_assignable_v<m3>
              && ::std::is_trivially_copy_assignable_v<more_t>)
   = default;
   constexpr variadic_union &operator=(variadic_union &&)
-    requires(::std::is_trivially_move_assignable_v<T0> && ::std::is_trivially_move_assignable_v<T1>
-             && ::std::is_trivially_move_assignable_v<T2> && ::std::is_trivially_move_assignable_v<T3>
+    requires(::std::is_trivially_move_assignable_v<m0> && ::std::is_trivially_move_assignable_v<m1>
+             && ::std::is_trivially_move_assignable_v<m2> && ::std::is_trivially_move_assignable_v<m3>
              && ::std::is_trivially_move_assignable_v<more_t>)
   = default;
   constexpr ~variadic_union()
-    requires(::std::is_trivially_destructible_v<T0> && ::std::is_trivially_destructible_v<T1>
-             && ::std::is_trivially_destructible_v<T2> && ::std::is_trivially_destructible_v<T3>
+    requires(::std::is_trivially_destructible_v<m0> && ::std::is_trivially_destructible_v<m1>
+             && ::std::is_trivially_destructible_v<m2> && ::std::is_trivially_destructible_v<m3>
              && ::std::is_trivially_destructible_v<more_t>)
   = default;
   constexpr ~variadic_union() {} // NOSONAR cpp:S3490 the non-trivial pair of the constrained default
@@ -516,8 +560,8 @@ template <typename T, typename U>
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #endif
 template <typename T, typename U>
-[[nodiscard]] constexpr U make_variadic_union(auto &&...args) noexcept(noexcept(T{FWD(args)...}))
-  requires(U::template has_type<T>) && requires { T{FWD(args)...}; }
+[[nodiscard]] constexpr U make_variadic_union(auto &&...args) noexcept(noexcept(_union_member_t<T>{FWD(args)...}))
+  requires(U::template has_type<T>) && requires { _union_member_t<T>{FWD(args)...}; }
 {
   return U(::std::in_place_type<T>, FWD(args)...);
 }
@@ -546,7 +590,7 @@ template <typename R, typename U, typename Fn, typename... Args>
            && _typelist_applicable_r<R, Fn, decltype(v), Args &&...> //
 {
   if (index == 0)
-    return static_cast<R>(_apply(FWD(fn), FWD(v).v0, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), _held<typename U::t0>(FWD(v).v0), FWD(args)...));
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -562,7 +606,7 @@ template <typename R, typename U, typename Fn, typename... Args>
            && _typelist_type_invocable_r<R, Fn, decltype(v), Args &&...> //
 {
   if (index == 0)
-    return _invoke_type<typename U::t0>(FWD(fn), FWD(v).v0, FWD(args)...);
+    return _invoke_type<typename U::t0>(FWD(fn), _held<typename U::t0>(FWD(v).v0), FWD(args)...);
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -573,7 +617,7 @@ constexpr void apply_variadic_union(some_variadic_union auto &&v, ::std::size_t 
            && _typelist_applicable<Fn, decltype(v), Args &&...>    //
 {
   if (index == 0)
-    return (void)_apply(FWD(fn), FWD(v).v0, FWD(args)...);
+    return (void)_apply(FWD(fn), _held<typename U::t0>(FWD(v).v0), FWD(args)...);
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -584,7 +628,7 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, ::std::s
            && _typelist_type_invocable<Fn, decltype(v), Args &&...> //
 {
   if (index == 0)
-    return (void)_invoke_type<typename U::t0>(FWD(fn), FWD(v).v0, FWD(args)...);
+    return (void)_invoke_type<typename U::t0>(FWD(fn), _held<typename U::t0>(FWD(v).v0), FWD(args)...);
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -596,9 +640,9 @@ template <typename R, typename U, typename Fn, typename... Args>
            && _typelist_applicable_r<R, Fn, decltype(v), Args &&...> //
 {
   if (index == 0)
-    return static_cast<R>(_apply(FWD(fn), FWD(v).v0, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), _held<typename U::t0>(FWD(v).v0), FWD(args)...));
   else if (index == 1)
-    return static_cast<R>(_apply(FWD(fn), FWD(v).v1, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), _held<typename U::t1>(FWD(v).v1), FWD(args)...));
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -610,9 +654,9 @@ template <typename R, typename U, typename Fn, typename... Args>
            && _typelist_type_invocable_r<R, Fn, decltype(v), Args &&...> //
 {
   if (index == 0)
-    return _invoke_type<typename U::t0>(FWD(fn), FWD(v).v0, FWD(args)...);
+    return _invoke_type<typename U::t0>(FWD(fn), _held<typename U::t0>(FWD(v).v0), FWD(args)...);
   else if (index == 1)
-    return _invoke_type<typename U::t1>(FWD(fn), FWD(v).v1, FWD(args)...);
+    return _invoke_type<typename U::t1>(FWD(fn), _held<typename U::t1>(FWD(v).v1), FWD(args)...);
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -623,9 +667,9 @@ constexpr void apply_variadic_union(some_variadic_union auto &&v, ::std::size_t 
            && _typelist_applicable<Fn, decltype(v), Args &&...>    //
 {
   if (index == 0)
-    return (void)_apply(FWD(fn), FWD(v).v0, FWD(args)...);
+    return (void)_apply(FWD(fn), _held<typename U::t0>(FWD(v).v0), FWD(args)...);
   else if (index == 1)
-    return (void)_apply(FWD(fn), FWD(v).v1, FWD(args)...);
+    return (void)_apply(FWD(fn), _held<typename U::t1>(FWD(v).v1), FWD(args)...);
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -636,9 +680,9 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, ::std::s
            && _typelist_type_invocable<Fn, decltype(v), Args &&...> //
 {
   if (index == 0)
-    return (void)_invoke_type<typename U::t0>(FWD(fn), FWD(v).v0, FWD(args)...);
+    return (void)_invoke_type<typename U::t0>(FWD(fn), _held<typename U::t0>(FWD(v).v0), FWD(args)...);
   else if (index == 1)
-    return (void)_invoke_type<typename U::t1>(FWD(fn), FWD(v).v1, FWD(args)...);
+    return (void)_invoke_type<typename U::t1>(FWD(fn), _held<typename U::t1>(FWD(v).v1), FWD(args)...);
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -650,11 +694,11 @@ template <typename R, typename U, typename Fn, typename... Args>
            && _typelist_applicable_r<R, Fn, decltype(v), Args &&...> //
 {
   if (index == 0)
-    return static_cast<R>(_apply(FWD(fn), FWD(v).v0, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), _held<typename U::t0>(FWD(v).v0), FWD(args)...));
   else if (index == 1)
-    return static_cast<R>(_apply(FWD(fn), FWD(v).v1, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), _held<typename U::t1>(FWD(v).v1), FWD(args)...));
   else if (index == 2)
-    return static_cast<R>(_apply(FWD(fn), FWD(v).v2, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), _held<typename U::t2>(FWD(v).v2), FWD(args)...));
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -666,11 +710,11 @@ template <typename R, typename U, typename Fn, typename... Args>
            && _typelist_type_invocable_r<R, Fn, decltype(v), Args &&...> //
 {
   if (index == 0)
-    return _invoke_type<typename U::t0>(FWD(fn), FWD(v).v0, FWD(args)...);
+    return _invoke_type<typename U::t0>(FWD(fn), _held<typename U::t0>(FWD(v).v0), FWD(args)...);
   else if (index == 1)
-    return _invoke_type<typename U::t1>(FWD(fn), FWD(v).v1, FWD(args)...);
+    return _invoke_type<typename U::t1>(FWD(fn), _held<typename U::t1>(FWD(v).v1), FWD(args)...);
   else if (index == 2)
-    return _invoke_type<typename U::t2>(FWD(fn), FWD(v).v2, FWD(args)...);
+    return _invoke_type<typename U::t2>(FWD(fn), _held<typename U::t2>(FWD(v).v2), FWD(args)...);
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -681,11 +725,11 @@ constexpr void apply_variadic_union(some_variadic_union auto &&v, ::std::size_t 
            && _typelist_applicable<Fn, decltype(v), Args &&...>    //
 {
   if (index == 0)
-    return (void)_apply(FWD(fn), FWD(v).v0, FWD(args)...);
+    return (void)_apply(FWD(fn), _held<typename U::t0>(FWD(v).v0), FWD(args)...);
   else if (index == 1)
-    return (void)_apply(FWD(fn), FWD(v).v1, FWD(args)...);
+    return (void)_apply(FWD(fn), _held<typename U::t1>(FWD(v).v1), FWD(args)...);
   else if (index == 2)
-    return (void)_apply(FWD(fn), FWD(v).v2, FWD(args)...);
+    return (void)_apply(FWD(fn), _held<typename U::t2>(FWD(v).v2), FWD(args)...);
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -696,11 +740,11 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, ::std::s
            && _typelist_type_invocable<Fn, decltype(v), Args &&...> //
 {
   if (index == 0)
-    return (void)_invoke_type<typename U::t0>(FWD(fn), FWD(v).v0, FWD(args)...);
+    return (void)_invoke_type<typename U::t0>(FWD(fn), _held<typename U::t0>(FWD(v).v0), FWD(args)...);
   else if (index == 1)
-    return (void)_invoke_type<typename U::t1>(FWD(fn), FWD(v).v1, FWD(args)...);
+    return (void)_invoke_type<typename U::t1>(FWD(fn), _held<typename U::t1>(FWD(v).v1), FWD(args)...);
   else if (index == 2)
-    return (void)_invoke_type<typename U::t2>(FWD(fn), FWD(v).v2, FWD(args)...);
+    return (void)_invoke_type<typename U::t2>(FWD(fn), _held<typename U::t2>(FWD(v).v2), FWD(args)...);
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -712,13 +756,13 @@ template <typename R, typename U, typename Fn, typename... Args>
            && _typelist_applicable_r<R, Fn, decltype(v), Args &&...> //
 {
   if (index == 0)
-    return static_cast<R>(_apply(FWD(fn), FWD(v).v0, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), _held<typename U::t0>(FWD(v).v0), FWD(args)...));
   else if (index == 1)
-    return static_cast<R>(_apply(FWD(fn), FWD(v).v1, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), _held<typename U::t1>(FWD(v).v1), FWD(args)...));
   else if (index == 2)
-    return static_cast<R>(_apply(FWD(fn), FWD(v).v2, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), _held<typename U::t2>(FWD(v).v2), FWD(args)...));
   else if (index == 3)
-    return static_cast<R>(_apply(FWD(fn), FWD(v).v3, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), _held<typename U::t3>(FWD(v).v3), FWD(args)...));
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -730,13 +774,13 @@ template <typename R, typename U, typename Fn, typename... Args>
            && _typelist_type_invocable_r<R, Fn, decltype(v), Args &&...> //
 {
   if (index == 0)
-    return _invoke_type<typename U::t0>(FWD(fn), FWD(v).v0, FWD(args)...);
+    return _invoke_type<typename U::t0>(FWD(fn), _held<typename U::t0>(FWD(v).v0), FWD(args)...);
   else if (index == 1)
-    return _invoke_type<typename U::t1>(FWD(fn), FWD(v).v1, FWD(args)...);
+    return _invoke_type<typename U::t1>(FWD(fn), _held<typename U::t1>(FWD(v).v1), FWD(args)...);
   else if (index == 2)
-    return _invoke_type<typename U::t2>(FWD(fn), FWD(v).v2, FWD(args)...);
+    return _invoke_type<typename U::t2>(FWD(fn), _held<typename U::t2>(FWD(v).v2), FWD(args)...);
   else if (index == 3)
-    return _invoke_type<typename U::t3>(FWD(fn), FWD(v).v3, FWD(args)...);
+    return _invoke_type<typename U::t3>(FWD(fn), _held<typename U::t3>(FWD(v).v3), FWD(args)...);
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -747,13 +791,13 @@ constexpr void apply_variadic_union(some_variadic_union auto &&v, ::std::size_t 
            && _typelist_applicable<Fn, decltype(v), Args &&...>    //
 {
   if (index == 0)
-    return (void)_apply(FWD(fn), FWD(v).v0, FWD(args)...);
+    return (void)_apply(FWD(fn), _held<typename U::t0>(FWD(v).v0), FWD(args)...);
   else if (index == 1)
-    return (void)_apply(FWD(fn), FWD(v).v1, FWD(args)...);
+    return (void)_apply(FWD(fn), _held<typename U::t1>(FWD(v).v1), FWD(args)...);
   else if (index == 2)
-    return (void)_apply(FWD(fn), FWD(v).v2, FWD(args)...);
+    return (void)_apply(FWD(fn), _held<typename U::t2>(FWD(v).v2), FWD(args)...);
   else if (index == 3)
-    return (void)_apply(FWD(fn), FWD(v).v3, FWD(args)...);
+    return (void)_apply(FWD(fn), _held<typename U::t3>(FWD(v).v3), FWD(args)...);
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -764,13 +808,13 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, ::std::s
            && _typelist_type_invocable<Fn, decltype(v), Args &&...> //
 {
   if (index == 0)
-    return (void)_invoke_type<typename U::t0>(FWD(fn), FWD(v).v0, FWD(args)...);
+    return (void)_invoke_type<typename U::t0>(FWD(fn), _held<typename U::t0>(FWD(v).v0), FWD(args)...);
   else if (index == 1)
-    return (void)_invoke_type<typename U::t1>(FWD(fn), FWD(v).v1, FWD(args)...);
+    return (void)_invoke_type<typename U::t1>(FWD(fn), _held<typename U::t1>(FWD(v).v1), FWD(args)...);
   else if (index == 2)
-    return (void)_invoke_type<typename U::t2>(FWD(fn), FWD(v).v2, FWD(args)...);
+    return (void)_invoke_type<typename U::t2>(FWD(fn), _held<typename U::t2>(FWD(v).v2), FWD(args)...);
   else if (index == 3)
-    return (void)_invoke_type<typename U::t3>(FWD(fn), FWD(v).v3, FWD(args)...);
+    return (void)_invoke_type<typename U::t3>(FWD(fn), _held<typename U::t3>(FWD(v).v3), FWD(args)...);
   ::pfn::unreachable(); // LCOV_EXCL_LINE
 }
 
@@ -782,13 +826,13 @@ template <typename R, typename U, typename Fn, typename... Args>
            && _typelist_applicable_r<R, Fn, decltype(v), Args &&...> //
 {
   if (index == 0)
-    return static_cast<R>(_apply(FWD(fn), FWD(v).v0, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), _held<typename U::t0>(FWD(v).v0), FWD(args)...));
   else if (index == 1)
-    return static_cast<R>(_apply(FWD(fn), FWD(v).v1, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), _held<typename U::t1>(FWD(v).v1), FWD(args)...));
   else if (index == 2)
-    return static_cast<R>(_apply(FWD(fn), FWD(v).v2, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), _held<typename U::t2>(FWD(v).v2), FWD(args)...));
   else if (index == 3)
-    return static_cast<R>(_apply(FWD(fn), FWD(v).v3, FWD(args)...));
+    return static_cast<R>(_apply(FWD(fn), _held<typename U::t3>(FWD(v).v3), FWD(args)...));
   else
     return apply_variadic_union<R, typename U::more_t>(FWD(v).more, index - 4, FWD(fn), FWD(args)...);
 }
@@ -801,13 +845,13 @@ template <typename R, typename U, typename Fn, typename... Args>
            && _typelist_type_invocable_r<R, Fn, decltype(v), Args &&...> //
 {
   if (index == 0)
-    return _invoke_type<typename U::t0>(FWD(fn), FWD(v).v0, FWD(args)...);
+    return _invoke_type<typename U::t0>(FWD(fn), _held<typename U::t0>(FWD(v).v0), FWD(args)...);
   else if (index == 1)
-    return _invoke_type<typename U::t1>(FWD(fn), FWD(v).v1, FWD(args)...);
+    return _invoke_type<typename U::t1>(FWD(fn), _held<typename U::t1>(FWD(v).v1), FWD(args)...);
   else if (index == 2)
-    return _invoke_type<typename U::t2>(FWD(fn), FWD(v).v2, FWD(args)...);
+    return _invoke_type<typename U::t2>(FWD(fn), _held<typename U::t2>(FWD(v).v2), FWD(args)...);
   else if (index == 3)
-    return _invoke_type<typename U::t3>(FWD(fn), FWD(v).v3, FWD(args)...);
+    return _invoke_type<typename U::t3>(FWD(fn), _held<typename U::t3>(FWD(v).v3), FWD(args)...);
   else
     return invoke_type_variadic_union<R, typename U::more_t>(FWD(v).more, index - 4, FWD(fn), FWD(args)...);
 }
@@ -819,13 +863,13 @@ constexpr void apply_variadic_union(some_variadic_union auto &&v, ::std::size_t 
            && _typelist_applicable<Fn, decltype(v), Args &&...>    //
 {
   if (index == 0)
-    return (void)_apply(FWD(fn), FWD(v).v0, FWD(args)...);
+    return (void)_apply(FWD(fn), _held<typename U::t0>(FWD(v).v0), FWD(args)...);
   else if (index == 1)
-    return (void)_apply(FWD(fn), FWD(v).v1, FWD(args)...);
+    return (void)_apply(FWD(fn), _held<typename U::t1>(FWD(v).v1), FWD(args)...);
   else if (index == 2)
-    return (void)_apply(FWD(fn), FWD(v).v2, FWD(args)...);
+    return (void)_apply(FWD(fn), _held<typename U::t2>(FWD(v).v2), FWD(args)...);
   else if (index == 3)
-    return (void)_apply(FWD(fn), FWD(v).v3, FWD(args)...);
+    return (void)_apply(FWD(fn), _held<typename U::t3>(FWD(v).v3), FWD(args)...);
   else
     return apply_variadic_union<R, typename U::more_t>(FWD(v).more, index - 4, FWD(fn), FWD(args)...);
 }
@@ -837,13 +881,13 @@ constexpr void invoke_type_variadic_union(some_variadic_union auto &&v, ::std::s
            && _typelist_type_invocable<Fn, decltype(v), Args &&...> //
 {
   if (index == 0)
-    return (void)_invoke_type<typename U::t0>(FWD(fn), FWD(v).v0, FWD(args)...);
+    return (void)_invoke_type<typename U::t0>(FWD(fn), _held<typename U::t0>(FWD(v).v0), FWD(args)...);
   else if (index == 1)
-    return (void)_invoke_type<typename U::t1>(FWD(fn), FWD(v).v1, FWD(args)...);
+    return (void)_invoke_type<typename U::t1>(FWD(fn), _held<typename U::t1>(FWD(v).v1), FWD(args)...);
   else if (index == 2)
-    return (void)_invoke_type<typename U::t2>(FWD(fn), FWD(v).v2, FWD(args)...);
+    return (void)_invoke_type<typename U::t2>(FWD(fn), _held<typename U::t2>(FWD(v).v2), FWD(args)...);
   else if (index == 3)
-    return (void)_invoke_type<typename U::t3>(FWD(fn), FWD(v).v3, FWD(args)...);
+    return (void)_invoke_type<typename U::t3>(FWD(fn), _held<typename U::t3>(FWD(v).v3), FWD(args)...);
   else
     return invoke_type_variadic_union<R, typename U::more_t>(FWD(v).more, index - 4, FWD(fn), FWD(args)...);
 }
