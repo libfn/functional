@@ -258,7 +258,7 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
   }
 };
 
-template <typename... Args> pack(Args &&...args) -> pack<Args...>;
+template <typename... Args> pack(Args &&...args) -> pack<::std::remove_cvref_t<Args>...>;
 
 /**
  * @brief Tuple-protocol element access
@@ -289,7 +289,7 @@ template <::std::size_t I, some_pack P>
  * @brief Lifts values into a `pack`, deduction preserving each argument's value category
  *
  * `as_pack(42)` yields `pack<int>`; an lvalue `x` yields `pack<int &>` - a reference rather than
- * a copy.
+ * a copy - where `pack{x}` yields `pack<int>`.
  *
  * @param src First value to lift
  * @param args Further values to lift

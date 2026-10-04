@@ -245,6 +245,25 @@ TEST_CASE("operator &", "[pack][copack][operator_and]")
   static_assert(r2.apply([](auto &&...args) -> double { return (1 * ... * static_cast<double>(args)); })
                 == 12. * 3 * 2.5 * 0.5 * 1 * 1.5 * 12);
 
+  // every scalar is held by value, the leading one too; a reference enters only through a lift
+  int x = 12;
+  double d = 2.5;
+  static_assert(std::is_same_v<decltype(fn::conjoin(x, d)), fn::pack<int, double>>);
+  static_assert(std::is_same_v<decltype(fn::as_pack(x) & d), fn::pack<int &, double>>);
+  auto const held = fn::conjoin(x, d);
+  auto const lifted = fn::as_pack(x) & d;
+  x += 1;
+  CHECK(fn::get<0>(held) == 12);
+  CHECK(fn::get<0>(lifted) == 13);
+  static_assert([] {
+    int y = 12;
+    double e = 2.5;
+    auto const h = fn::conjoin(y, e);
+    auto const l = fn::as_pack(y) & e;
+    y += 1;
+    return fn::get<0>(h) == 12 && fn::get<0>(l) == 13;
+  }());
+
   constexpr auto r3 = fn::as_copack(12) & fn::pack<std::tuple<int, int>>{std::tuple{1, 2}};
   static_assert(std::is_same_v<decltype(r3), fn::copack<fn::pack<int, std::tuple<int, int>>> const>);
   static_assert(r3.apply([](int i, std::tuple<int, int> const &t) { return i == 12 && std::get<0>(t) == 1; }));

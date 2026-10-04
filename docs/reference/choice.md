@@ -304,9 +304,11 @@ using choice_for = just<copack_for<Ts...>>;  // (1)
 
 ## as_choice {style: "api"}
 
-`as_choice(x)` constructs a choice with one alternative of the decayed source type. A copack
-instead becomes the payload of a choice over its alternatives. An existing choice becomes a
-nested alternative; `choice{x}` preserves the existing choice type through copy deduction.
+`as_choice(x)` constructs a choice with one alternative: a reference to an lvalue `x`, or the
+value of an rvalue, whereas `choice{x}` always holds a value. A copack rvalue instead becomes the
+payload of a choice over its alternatives. An array, a function or an lvalue copack is refused. An
+existing choice becomes a nested alternative; `choice{x}` preserves the existing choice type
+through copy deduction.
 
 ```cpp {title: "fn::as_choice"}
 constexpr auto as_choice(auto &&src) -> decltype(auto);  // (1)

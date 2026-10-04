@@ -253,6 +253,15 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       static_assert(std::is_same_v<decltype(d), choice<bool> const>);
       static_assert(std::is_same_v<decltype(choice{fn::copack_for<bool, int>{true}}), fn::choice_for<bool, int>>);
       static_assert(std::is_same_v<decltype(fn::just{fn::copack{42}}), choice<int>>);
+
+      // deduction holds a value, whatever the argument's value category; as_choice keeps a reference
+      int const x = 3;
+      static_assert(std::is_same_v<decltype(choice{x}), choice<int>>);
+      static_assert(std::is_same_v<decltype(choice{std::move(x)}), choice<int>>);
+      static_assert(can_deduce_value<int &> && can_deduce_value<int const &>);
+      // an array or a function never becomes a pointer: no alternative is deduced for either
+      static_assert(not can_deduce_value<int (&)[2]>);
+      static_assert(not can_deduce_value<int (&)(int)>);
     }
 
     SECTION("constexpr move from rvalue")
@@ -775,17 +784,24 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     static_assert(std::same_as<decltype(fn::as_choice(fn::copack{42})), decltype(fn::just{fn::copack{42}})>);
     CHECK(fn::as_choice(fn::copack{42}) == fn::just{fn::copack{42}});
 
-    // A string literal produces a pointer alternative.
-    auto s = fn::as_choice("hi");
-    static_assert(std::same_as<decltype(s), choice<char const *>>);
-    CHECK(std::string{*s.get_ptr(std::in_place_type<char const *>)} == "hi");
+    // an lvalue is lifted as a reference, an rvalue as a value
+    int x = 1;
+    static_assert(std::same_as<decltype(fn::as_choice(x)), choice<int &>>);
+    static_assert(std::same_as<decltype(fn::as_choice(std::as_const(x))), choice<int const &>>);
+    static_assert(std::same_as<decltype(fn::as_choice(std::move(x))), choice<int>>);
+    CHECK(fn::as_choice(x).get_ptr<int &>() == &x);
+    static_assert([] {
+      int y = 1;
+      return fn::as_choice(y).get_ptr<int &>() == &y;
+    }());
 
-    // noexcept follows construction of the alternative or copack payload
+    // noexcept follows construction of the alternative or copack payload; binding cannot throw
     static_assert(noexcept(fn::as_choice(12)));
     static_assert(noexcept(fn::as_choice(std::in_place_type<long>, 12)));
     static_assert(noexcept(fn::as_choice(fn::copack{42})));
-    static_assert(not noexcept(fn::as_choice(std::declval<Throwing const &>())));
-    static_assert(not noexcept(fn::as_choice(std::declval<fn::copack<Throwing> const &>())));
+    static_assert(not noexcept(fn::as_choice(std::declval<Throwing const &&>())));
+    static_assert(noexcept(fn::as_choice(std::declval<Throwing const &>())));
+    static_assert(not noexcept(fn::as_choice(std::declval<fn::copack<Throwing> const &&>())));
 
     SECTION("CTAD")
     {
@@ -806,9 +822,9 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       static_assert(std::same_as<decltype(fn::as_choice(choice<int>{1})), choice<choice<int>>>);
       static_assert(std::same_as<decltype(choice{choice<int>{1}}), choice<int>>);
 
-      // Lifting accepts these array and function references through pointer conversions; CTAD does not.
-      static_assert(can_as_choice_value<char const(&)[3]> && not can_deduce_value<char const(&)[3]>);
-      static_assert(can_as_choice_value<int (&)(int)> && not can_deduce_value<int (&)(int)>);
+      // Neither lifting nor deduction turns an array or a function into a pointer.
+      static_assert(not can_as_choice_value<char const(&)[3]> && not can_deduce_value<char const(&)[3]>);
+      static_assert(not can_as_choice_value<int (&)(int)> && not can_deduce_value<int (&)(int)>);
       static_assert(can_as_choice_value<int> && can_deduce_value<int>);
     }
 
@@ -827,9 +843,12 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       // Invalid payloads and sources that cannot construct the payload must fail the constraint
       // probe without instantiating an invalid carrier.
       static_assert(can_as_choice_value<std::unique_ptr<int>>);
-      static_assert(not can_as_choice_value<std::unique_ptr<int> &>);
+      static_assert(can_as_choice_value<std::unique_ptr<int> &>); // a reference, not a copy
       static_assert(can_as_choice_value<fn::copack<std::unique_ptr<int>>>);
+      // a choice cannot refer to a copack, so an lvalue copack is not lifted
       static_assert(not can_as_choice_value<fn::copack<std::unique_ptr<int>> &>);
+      static_assert(not can_as_choice_value<fn::copack<int> &>);
+      static_assert(can_as_choice_value<fn::copack<int>>);
       static_assert(not can_as_choice_value<fn::copack<> &>);
       static_assert(not can_as_choice<int &>);
       static_assert(not can_as_choice<int const>);

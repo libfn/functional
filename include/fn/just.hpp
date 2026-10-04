@@ -109,6 +109,7 @@ template <typename... Ts> using choice = just<copack<Ts...>>;
 template <typename T> struct just {
   static_assert(not ::std::is_reference_v<T>);
   static_assert(not ::std::is_array_v<T>);
+  static_assert(not ::std::is_function_v<T>);
   static_assert(not detail::_some_in_place_type<T>);
   static_assert(::std::is_same_v<T, ::std::remove_cv_t<T>>);
 
@@ -1490,8 +1491,11 @@ template <typename Lh, typename Rh>
   }
 }
 
-// CTAD for just, including the deduced spelling of the void carrier: just{}
-template <typename T> just(T) -> just<T>;
+// CTAD for just, including the deduced spelling of the void carrier: just{}. A const reference
+// parameter strips reference and const without decaying an array or a function, and keeps the
+// result deducible for the choice alias: GCC 12 and Clang 19 fail deriving it from a result
+// computed by remove_cvref_t.
+template <typename T> just(T const &) -> just<T>;
 template <typename T> explicit just(::std::in_place_type_t<T>, auto &&...) -> just<T>;
 just() -> just<void>;
 explicit just(::std::in_place_t) -> just<void>;
@@ -1506,7 +1510,7 @@ constexpr inline bool _deducible_choice_alternative = sizeof...(Ts) == 1 && (_is
 // enable_if rather than a requires-clause: Clang 19 crashes deriving the alias guides from a
 // constraint on a pack.
 template <typename... Ts, ::std::enable_if_t<detail::_deducible_choice_alternative<Ts...>, int> = 0>
-explicit just(Ts...) -> just<copack<Ts...>>;
+explicit just(Ts const &...) -> just<copack<Ts...>>;
 template <typename... Ts, ::std::enable_if_t<detail::_deducible_choice_alternative<Ts...>, int> = 0>
 explicit just(::std::in_place_type_t<Ts...>, auto &&...) -> just<copack<Ts...>>;
 // Deduces what copy deduction does. GCC 12 and 13 find copy deduction through the alias
@@ -1528,13 +1532,13 @@ namespace detail {
 // Validate the alternative before naming choice<T>, which can trigger a payload static_assert.
 // Guard the noexcept helpers separately as well, following _nothrow_copack_lift for MSVC.
 template <typename Src>
-concept _choice_liftable = _is_valid_copack_subtype<::std::decay_t<Src>>;
+concept _choice_liftable = _is_valid_copack_subtype<_lifted_t<Src>>;
 
 template <typename Src> constexpr inline bool _nothrow_choice_lift = false;
 template <typename Src>
   requires _choice_liftable<Src>
 constexpr inline bool _nothrow_choice_lift<Src>
-    = ::std::is_nothrow_constructible_v<choice<::std::decay_t<Src>>, ::std::in_place_type_t<::std::decay_t<Src>>, Src>;
+    = ::std::is_nothrow_constructible_v<choice<_lifted_t<Src>>, ::std::in_place_type_t<_lifted_t<Src>>, Src>;
 
 template <typename Src> constexpr inline bool _nothrow_copack_choice_lift = false;
 template <typename Src>
@@ -1553,33 +1557,34 @@ constexpr inline bool _nothrow_choice_emplace<T, Args...>
 /**
  * @brief Constructs a single-alternative choice from a value
  *
- * The alternative is the decayed source type: cv/ref qualifiers are removed, and arrays and
- * functions become pointers. Unlike `choice{x}`, this overload constructs from arrays and
- * functions through their pointer conversions, and wraps an existing choice as an alternative.
+ * As `as_copack`, preserving the value category: an lvalue `x` yields `choice<int &>`, where
+ * `choice{x}` yields `choice<int>`. Unlike `choice{x}`, wraps an existing choice as an alternative.
  *
  * @param src Value to lift
- * @return A `choice` over the decayed type of `src`, holding the constructed alternative
+ * @return A `choice` holding `src`, or a reference to it
  */
 [[nodiscard]] constexpr auto as_choice(auto &&src) //
     noexcept(detail::_nothrow_choice_lift<decltype(src)>) -> decltype(auto)
   requires detail::_choice_liftable<decltype(src)>
-           && ::std::is_constructible_v<choice<::std::decay_t<decltype(src)>>,
-                                        ::std::in_place_type_t<::std::decay_t<decltype(src)>>, decltype(src)>
+           && ::std::is_constructible_v<choice<detail::_lifted_t<decltype(src)>>,
+                                        ::std::in_place_type_t<detail::_lifted_t<decltype(src)>>, decltype(src)>
 {
-  using type = ::std::decay_t<decltype(src)>;
+  using type = detail::_lifted_t<decltype(src)>;
   return choice<type>(::std::in_place_type<type>, FWD(src));
 }
 
 /**
  * @brief Lifts a copack into the choice over its alternatives
  *
- * The copack is the payload itself, so the choice is the one `just{copack}` deduces.
+ * The copack is the payload itself, so the choice is the one `just{copack}` deduces. A choice cannot
+ * refer to a copack, so an lvalue copack is not lifted.
  *
  * @param src Copack to lift
  * @return The `choice` over the alternatives of `src`, holding its value
  */
 template <typename Src>
-  requires some_copack<::std::remove_cvref_t<Src>> && (not ::std::is_same_v<::std::remove_cvref_t<Src>, copack<>>)
+  requires some_copack<::std::remove_cvref_t<Src>> && (not ::std::is_lvalue_reference_v<Src>)
+           && (not ::std::is_same_v<::std::remove_cvref_t<Src>, copack<>>)
            && ::std::is_constructible_v<just<::std::remove_cvref_t<Src>>, Src>
 [[nodiscard]] constexpr auto as_choice(Src &&src) //
     noexcept(detail::_nothrow_copack_choice_lift<Src>) -> decltype(auto)

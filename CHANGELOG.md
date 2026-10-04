@@ -2,6 +2,12 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## Deduction and `conjoin` hold values; `as_copack` and `as_choice` keep references — 4 October 2026
+
+Class template argument deduction for `pack`, `copack`, `just` and `choice` removes only references and cv-qualifiers from each argument. For an lvalue `int x`, `pack{x}` is `pack<int>`; previously it was `pack<int&>`, which `as_pack(x)` still yields. An array or a function is never turned into a pointer: `just{arr}` and `just{f}` fail to compile, where they deduced `just<int*>` and `just<int(*)(int)>`, and `pack{f}` fails where it deduced `pack<int(&)(int)>`. `pack{"abc"}` is `pack<char[4]>`. A function type is refused as a `pack` element and as a `copack` alternative, where it failed inside the library. `conjoin` holds a leading lvalue by value, as `&` holds every further operand: `conjoin(x, y)` is `pack<int, int>`, where it was `pack<int&, int>`; `as_pack(x) & y` keeps the reference.
+
+`as_copack` and `as_choice` preserve the value category, as `as_pack` does: for an lvalue `x`, `as_copack(x)` is `copack<int&>` and `as_choice(x)` is `choice<int&>`; previously both copied. An lvalue the lift cannot refer to is refused rather than copied: `as_copack` of an lvalue `pack` or array, and `as_choice` of an lvalue copack, array or function. `as_choice("hi")`, now refused, was `choice<char const*>`. Move the source, or use deduction, to copy.
+
 ## `transform` over a copack keeps lvalue-reference results — 4 October 2026
 
 `transform` and `transform_error` over a copack keep an lvalue-reference result as a reference alternative: an lvalue `copack_for<int, long>` mapped through `[](auto &v) -> auto & { return v; }` yields `copack_for<int&, long&>`; previously the referents were copied into `copack_for<int, long>`. Rvalue-reference results, and references to a `pack` or a `copack`, still enter as values. A reference result that could refer into an argument expiring with the call, previously copied, now fails to compile. For example, `std::move(c).transform([](auto const &v) -> auto const & { return v; })` is refused; return by value instead. `expected`, `optional` and `choice` over a copack follow.

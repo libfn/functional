@@ -61,7 +61,9 @@ concept _nothrow_relocatable_element = requires { requires noexcept(E{::std::dec
 // The algebra's own constructors are not elements: a copack must distribute over the product, and a
 // nested pack is a non-canonical spelling of the flat product with no consistent shape (apply
 // flattens it, the tuple protocol preserves it). Foreign structured types stay opaque atoms.
-template <typename T> static constexpr bool _is_valid_pack_element = (not _some_copack<T>) && (not _some_pack<T>);
+template <typename T>
+static constexpr bool _is_valid_pack_element
+    = (::std::is_object_v<T> || ::std::is_reference_v<T>) && (not _some_copack<T>) && (not _some_pack<T>);
 
 template <typename T> constexpr inline bool _spliceable_pack = false;
 template <typename... Tx>
