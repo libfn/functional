@@ -104,6 +104,9 @@ concept can_in_place = requires(Args... args) { S{std::in_place_type<T>, args...
 template <typename T, typename... Args>
 concept can_deduce_in_place = requires(Args... args) { fn::copack{std::in_place_type<T>, args...}; };
 
+template <typename T>
+concept can_deduce_value = requires(T v) { fn::copack{FWD(v)}; };
+
 template <typename S, typename T, typename... Args>
 concept can_emplace = requires(S &s, Args &&...args) { s.template emplace<T>(static_cast<Args &&>(args)...); };
 
@@ -307,10 +310,28 @@ TEST_CASE("copack basic functionality tests", "[copack]")
     static_assert(std::same_as<decltype(b), fn::copack<long> const>);
     static_assert(b == fn::copack{12l});
 
-    // both lifts weigh the alternative they construct, asking the brace initialization they perform
+    // an lvalue is lifted as a reference, an rvalue as a value; deduction holds a value either way
+    int x = 1;
+    static_assert(std::same_as<decltype(fn::as_copack(x)), fn::copack<int &>>);
+    static_assert(std::same_as<decltype(fn::as_copack(std::as_const(x))), fn::copack<int const &>>);
+    static_assert(std::same_as<decltype(fn::as_copack(std::move(x))), fn::copack<int>>);
+    static_assert(std::same_as<decltype(fn::as_copack(std::move(std::as_const(x)))), fn::copack<int>>);
+    CHECK(fn::as_copack(x).get_ptr<int &>() == &x);
+    CHECK(fn::as_copack(std::as_const(x)).get_ptr<int const &>() == &x);
+    static_assert([] {
+      int y = 1;
+      return fn::as_copack(y).get_ptr<int &>() == &y;
+    }());
+    // a reference to a pack or an array is no alternative: as_copack of such an lvalue fails its
+    // static_assert, which the suite cannot test; an rvalue is lifted as a value
+    static_assert(std::same_as<decltype(fn::as_copack(fn::pack<int>{1})), fn::copack<fn::pack<int>>>);
+
+    // both lifts weigh the alternative they construct, asking the brace initialization they perform;
+    // binding a reference cannot throw
     static_assert(noexcept(fn::as_copack(12)));
     static_assert(noexcept(fn::as_copack(std::in_place_type<long>, 12)));
-    static_assert(not noexcept(fn::as_copack(std::declval<Throwing const &>())));
+    static_assert(not noexcept(fn::as_copack(std::declval<Throwing const &&>())));
+    static_assert(noexcept(fn::as_copack(std::declval<Throwing const &>())));
 
     SECTION("constraints")
     {
@@ -392,6 +413,7 @@ TEST_CASE("copack basic functionality tests", "[copack]")
       static_assert(not _is_valid_copack_subtype<int &&>);
       static_assert(not _is_valid_copack_subtype<int (&)[2]>);
       static_assert(not _is_valid_copack_subtype<void (&)()>);
+      static_assert(not _is_valid_copack_subtype<void()>);
       static_assert(not _is_valid_copack_subtype<fn::pack<int> &>);
       static_assert(not _is_valid_copack_subtype<fn::pack<int> const &>);
       static_assert(not _is_valid_copack_subtype<copack<int> &>);
@@ -520,6 +542,16 @@ TEST_CASE("copack basic functionality tests", "[copack]")
       constexpr auto c = copack{std::array<int, 3>{3, 14, 15}};
       static_assert(std::is_same_v<decltype(c), copack<std::array<int, 3>> const>);
       static_assert(c.apply([](auto &&a) -> bool { return a.size() == 3 && a[0] == 3 && a[1] == 14 && a[2] == 15; }));
+
+      // deduction holds a value, whatever the argument's value category; as_copack keeps a reference
+      int const x = 3;
+      static_assert(std::is_same_v<decltype(copack{x}), copack<int>>);
+      static_assert(std::is_same_v<decltype(copack{std::move(x)}), copack<int>>);
+      static_assert(can_deduce_value<int &> && can_deduce_value<int const &>);
+      // an array or a function never becomes a pointer: no alternative is deduced for either
+      static_assert(not can_deduce_value<int (&)[2]>);
+      static_assert(not can_deduce_value<char const(&)[4]>);
+      static_assert(not can_deduce_value<int (&)(int)>);
     }
 
     SECTION("move from rvalue")
@@ -561,9 +593,10 @@ TEST_CASE("copack basic functionality tests", "[copack]")
         return a.get_ptr<int &>() == &x;
       }());
 
-      // deduction decays: a reference alternative is always named
+      // deduction holds a value; as_copack keeps the reference
       copack c{x};
       static_assert(std::is_same_v<decltype(c), copack<int>>);
+      CHECK(fn::as_copack(x).get_ptr<int &>() == &x);
 
       SECTION("selection")
       {
@@ -1298,7 +1331,7 @@ TEST_CASE("copack basic functionality tests", "[copack]")
   {
     using fn::pack;
     constexpr copack a{pack{"abc", 42, 12.5}};
-    static_assert(std::is_same_v<decltype(a), copack<pack<char const(&)[4], int, double>> const>);
+    static_assert(std::is_same_v<decltype(a), copack<pack<char[4], int, double>> const>);
 
     SECTION("constexpr")
     {

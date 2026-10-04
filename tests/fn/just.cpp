@@ -64,6 +64,11 @@ TEST_CASE("just", "[just]")
     static_assert(std::is_same_v<decltype(fn::just{}), fn::just<void>>);
     static_assert(std::is_same_v<decltype(fn::just(std::in_place_type<void>)), fn::just<void>>);
     static_assert(std::is_same_v<decltype(fn::just{std::in_place}), fn::just<void>>);
+    // deduction holds a value, whatever the argument's value category; an array or a function is
+    // refused by just's static_asserts, never turned into a pointer, which the suite cannot test
+    int const x = 13;
+    static_assert(std::is_same_v<decltype(fn::just{x}), fn::just<int>>);
+    static_assert(std::is_same_v<decltype(fn::just{std::move(x)}), fn::just<int>>);
 
     T a{13};
     CHECK(a.value() == 13);
