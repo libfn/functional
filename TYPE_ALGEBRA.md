@@ -90,7 +90,7 @@ With a fixed error type, an `expected<T, E>` requires inputs and outputs in `and
 
 `libfn` supports **graded monads**, which you opt into by using `copack` in a monadic carrier, such as `expected`. A *grade* is a set of alternative types, and *graded composition* combines these sets by union. For `expected`, error alternatives form the grade when chaining computations with `and_then`; value alternatives form the grade when composing recovery operations with `or_else`.
 
-The resulting type is **graded**: it expands (or narrows during recovery) to match the alternatives declared by the participating function signatures. This provides strict static effect tracking with zero boilerplate. When used on the error side of `expected` (e.g. `expected<T, copack<Errs...>>`), grading enables `libfn` to derive the combined error alternatives from the participating computations, without explicitly spelling out their union. The resulting types record the algebraic combinations of success and error alternatives declared by those computations. Section 9 explains grading on both sides, including recovery and widening.
+The resulting type is **graded**: it expands (or narrows during mapping) to match the alternatives declared by the participating function signatures. This provides strict static effect tracking with zero boilerplate. When used on the error side of `expected` (e.g. `expected<T, copack<Errs...>>`), grading enables `libfn` to derive the combined error alternatives from the participating computations, without explicitly spelling out their union. The resulting types record the algebraic combinations of success and error alternatives declared by those computations. Section 9 explains grading on both sides, including recovery and widening.
 
 The same type precision extends to computations combined side by side rather than in sequence. Conjunction (`operator&`) evaluates independent computations and bundles them into a single carrier holding a product (a `pack`) of the successful values over a sum of possible error types (a `copack`); disjunction (`operator|`) is its dual. Sections 6 and 7 cover both.
 
@@ -197,7 +197,7 @@ To invoke the algebra, you use the opt-in mechanisms provided by the library:
 - Explicit conversions via `fn::as_pack` and `fn::as_copack`.
 - Member helpers for explicit type lifting (detailed in Section 9).
 
-If a side is already a `copack` or `pack`, forwarding it behaves naturally without nesting. A `copack` on the error side of `expected` enables error-set unioning. Because monadic operations introduce no grade themselves, `and_then` widens a graded error side but rejects a differing ungraded one. Section 9 gives the exact promotion rules.
+If a side is already a `copack` or `pack`, forwarding it behaves naturally without nesting. A `copack` on the error side of `expected` enables error-set unioning (i.e. error grading). Because monadic operations introduce no grade themselves, `and_then` widens a graded error side but rejects a differing ungraded one. Section 9 explains the promotion rules.
 
 ### The role of `void`
 
@@ -228,8 +228,6 @@ Additionally, the infallible state **`expected<T, copack<>>`** (representing $T 
 
 Together, `just`, `choice` and `expected<T, copack<>>` form the **identity cluster**.
 
-These carriers constrain their payloads. While `optional<T&>` is supported as a standard-conforming exception, other carriers reject raw reference types outright; references must be wrapped inside a `pack` (detailed in Section 4).
-
 ### Carriers have control flow; raw data does not
 
 Raw algebraic constructs—such as `std::tuple` (product), `std::variant` (sum), or `libfn`'s own `pack` and `copack`—are passive data layouts. They contain no intrinsic control flow, no concept of short-circuiting, and no built-in notion of success versus failure.
@@ -240,7 +238,9 @@ Composing computations requires wrapping these values in computation carriers. P
 
 Because these carriers represent different computational contexts, pipelines often need to transition between them. `libfn` provides **cross-carrier bridging** via combinators using `operator|`.
 
-Standard fallible carriers can bridge to each other on their error/empty recovery paths via the `or_else` combinator (e.g., `expected` to `optional`, or vice versa). On success, the value is preserved by a short-circuit; on failure, the recovery callback can convert a missing value into a concrete error, or replace a detailed error with an empty state:
+Identity carriers bridge on the success path, via the `and_then` combinator. Since there is no error, the conversions between carriers can be freely performed inside the user provided callback (Kleisli functor); Section 10 covers that together with the identity cluster.
+
+Standard fallible carriers can bridge to each other on their error/empty recovery paths via the `or_else` combinator (e.g., `expected` to `optional`, or vice versa). On success, the value is preserved by a short-circuit; on failure, the user provided recovery callback can convert a missing value into a concrete error, or replace a detailed error with an empty state:
 
 <!-- sync-example-test-failure-bridge -->
 ```cpp
@@ -255,9 +255,7 @@ auto test_failure_bridge(fn::expected<int, IoError> ex, fn::optional<int> opt) -
 }
 ```
 
-Member functions `.or_else` and `.and_then` (see Sections 8 and 10) do not support cross-carrier bridging to avoid coupling between different carriers. Combinators, lying a layer above carriers, can perform these transitions without coupling.
-
-Identity carriers bridge in the other direction, on the success path; Section 10 covers that together with the identity cluster.
+Member functions `.or_else` and `.and_then` (see Sections 8 and 10) do not support cross-carrier bridging to avoid coupling between different carriers. Combinators, lying a layer above carriers, can perform these transitions without additional coupling.
 
 ## 4. The sum and product payloads: pack and copack
 
@@ -318,7 +316,7 @@ As a payload, a `copack` models a discriminated union of types.
 
 Evaluating a `copack` via `.apply()` passes the active alternative to the callback. Because `copack` is self-flattening, nested `copack`s do not occur. A selected alternative that is itself tuple-like—such as `pack`, `std::tuple`, or `std::array`—is unpacked one level, passing its immediate constituents as separate arguments. Since normalized shapes are sums of products, one level of unpacking is sufficient to supply the product's fields as function arguments.
 
-To explicitly lift a single scalar value into a single-alternative coproduct, use `fn::as_copack(value)`. Unlike `as_pack`, it always decays: a `copack` alternative can never be a reference. When a `copack` contains *exactly one* alternative type, it is **singular**. It supports direct value extraction both via the index-less `get` and via the tuple protocol (including structured bindings).
+To explicitly lift a single scalar value into a single-alternative coproduct, use `fn::as_copack(value)`. When a `copack` contains *exactly one* alternative type, it is **singular**. It supports direct value extraction both via the index-less `get` and via the tuple protocol (including structured bindings). Direct `get` extraction is **not provided** for multi-alternative `copack` types because the active alternative is a run-time property, meaning a multi-alternative `get` would have no single static return type.
 
 A `pack` can be lifted into a `copack` (including packs holding references), but a `pack` cannot contain a `copack`. There is algebraic equivalence between a hypothetical `pack` containing a `copack` (which is disallowed) and a specific shape of `copack` containing a `pack` — see Section 6 for details.
 
@@ -347,7 +345,7 @@ auto test_copack() -> void
 }
 ```
 
-A key safety guarantee of `copack` is **exhaustive matching**. Operations that evaluate a `copack` (such as `transform` and `apply`) delegate to a multidispatch implementation that enforces compile-time exhaustiveness. If the callback or overload set fails to handle any possible alternative in the `copack`, the compilation is ill-formed. Direct `get` extraction is disallowed for multi-alternative `copack` types because the active alternative is a run-time property, meaning a multi-alternative `get` has no single static return type.
+A key safety guarantee of `copack` is **exhaustive matching**. Operations that evaluate a `copack` (such as `transform` and `apply`) delegate to a multidispatch implementation that enforces compile-time exhaustiveness. If the callback or overload set fails to handle any possible alternative in the `copack`, program compilation will fail.
 
 ## 5. Mapping values and errors
 
@@ -376,7 +374,7 @@ Key principles of mapping:
 
 - `transform` preserves the carrier family.
 - Success and error states are preserved.
-- A bare `copack` has a member `transform` to map across alternatives, but takes no pipeline functor as it is data, not a carrier.
+- A bare `copack` has a member `transform` to map across alternatives, but takes no pipeline functor (it's not a carrier).
 - Heterogeneous results inside `transform` or `transform_error` form a normalized `copack` (grading, Section 9).
 - Applying `transform_error` to a carrier with no error side (such as `just` or `choice`) is ill-formed.
 - When a side is uninhabited (`copack<>`), transformation is well-formed but vacuous: the callback over `copack<>` is neither invoked nor instantiated. This applies to all of `optional<copack<>>`, `expected<copack<>, E>` and `expected<T, copack<>>`.
@@ -412,7 +410,7 @@ The runtime semantics are:
 
 ### Conjunction over data
 
-Unlike disjunction (Section 7), `operator&` applies to payload types - that is plain types, `pack` and `copack`. Conjunction — also known as product composition — combines values from both operands. When either operand is `copack`, it performs a Cartesian distribution, yielding a `copack` of `pack`s. Otherwise it produces a `pack`, concatenating data from both.
+Unlike disjunction (Section 7), `operator&` applies also to payload types - that is plain types, `pack` and `copack`. Conjunction — also known as product composition — combines values from both operands. When either operand is `copack`, it performs a Cartesian distribution, yielding a `copack` of `pack`s. Otherwise it produces a `pack`, concatenating data from both.
 
 This distribution underpins the rule in Section 4 that a `pack` cannot contain a `copack`. The disallowed nested shape—a product over a sum, (A × B) × (C + D)—is algebraically equivalent to (A × B × C) + (A × B × D), a flat `copack` of `pack`s. This sum-of-products normal form is enforced by the library — demonstrated in the second case below.
 
@@ -447,7 +445,7 @@ Mixing carriers and data in a single call is ill-formed.
 
 An operand from the identity cluster (Section 10) contributes a value but never a failure:
 
-- **Unchanged Errors**: Because identity cluster operands never fail, they add no alternatives to the error channel. A `just` or `choice` operand preserves the fallible operand's error side (plain or graded). An `expected<T, copack<>>` operand contributes its empty grade to the error union: no active alternative is added, although the resulting error channel is promoted to a graded copack.
+- **Unchanged Errors**: Because identity cluster operands never fail, they add no alternatives to the error channel. A `just` or `choice` operand preserves the fallible operand's error side (plain or graded). An `expected<T, copack<>>` operand contributes its empty grade to the error union: no active alternative is added, although the resulting error channel is promoted to a graded `copack`.
 - **Value Bundling**: The identity cluster operand's value conjoins with the fallible operand's value into a product.
 - **Void Elision**: `just<void>` and `expected<void, copack<>>` act as the product's identity unit and are elided from the value product (e.g., `expected<int, E> & just<void>` yields `expected<pack<int>, E>`).
 - **Choice Distribution**: Conjoining a `choice` with a fallible carrier distributes the coproduct through the product, yielding a `copack` of `pack`s wrapped in the fallible carrier, subject to void elision.
