@@ -266,6 +266,30 @@ TEST_CASE("operator &", "[pack][copack][operator_and]")
     CHECK(held() == 7);
   }
 
+  SECTION("a reference alternative stays a reference element")
+  {
+    // the product holds what the alternative holds, as a lifted lvalue does in as_pack; the factor is
+    // the alternative's type, so a const copack contributes the same reference
+    constexpr auto battery = [] {
+      int x = 1;
+      auto r = fn::copack<int &>{x} & fn::pack<long>{2};
+      static_assert(std::is_same_v<decltype(r), fn::copack<fn::pack<int &, long>>>);
+      auto l = fn::pack<long>{2} & fn::copack<int &>{x};
+      static_assert(std::is_same_v<decltype(l), fn::copack<fn::pack<long, int &>>>);
+      fn::copack<int &> const c{x};
+      auto rc = c & fn::pack<long>{2};
+      auto lc = fn::pack<long>{2} & c;
+      auto cc = c & c;
+      static_assert(std::is_same_v<decltype(rc), fn::copack<fn::pack<int &, long>>>);
+      static_assert(std::is_same_v<decltype(lc), fn::copack<fn::pack<long, int &>>>);
+      static_assert(std::is_same_v<decltype(cc), fn::copack<fn::pack<int &, int &>>>);
+      return &fn::get<0>(fn::get(r)) == &x && &fn::get<1>(fn::get(l)) == &x && &fn::get<0>(fn::get(rc)) == &x
+             && &fn::get<1>(fn::get(lc)) == &x && &fn::get<1>(fn::get(cc)) == &x;
+    };
+    static_assert(battery());
+    CHECK(battery());
+  }
+
   SECTION("the data fold takes data, never a carrier")
   {
     constexpr auto can = [](auto &&...args) { return requires { fn::conjoin(FWD(args)...); }; };
