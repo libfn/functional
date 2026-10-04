@@ -427,9 +427,14 @@ auto test_references() -> void
   fn::optional<int &> opt{x};
   static_assert(std::same_as<decltype(opt.value()), int &>);
 
-  // expected must wrap references inside a pack
+  // expected holds references inside a pack ...
   fn::expected<fn::pack<int &>, Error> ex{fn::as_pack(x)};
   static_assert(std::same_as<decltype(ex.value()), fn::pack<int &> &>);
+
+  // ... or hold them as copack alternatives
+  fn::expected<fn::copack<int &>, Error> ec{x};
+  using std::get;
+  static_assert(std::same_as<decltype(get(ec.value())), int &>);
 }
 // sync-example-test-references
 
