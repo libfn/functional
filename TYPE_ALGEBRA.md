@@ -423,7 +423,7 @@ Key principles of mapping:
 >
 ## 6. Product composition with operator& (conjunction)
 
-Conjunction evaluates independent computations. `a & b` succeeds only if both operands succeed: values combine into a `pack`, and errors union into a `copack`. If both operands share the same error type, the error side remains ungraded.
+Conjunction evaluates independent computations. `a & b` succeeds only if both operands succeed: values combine into a `pack`, and errors union into a `copack`. If both operands share the same error type, the error side remains ungraded. The value of an `optional<T&>` enters the product as the factor `T&`: `optional<int&> & optional<long>` is `optional<pack<int&, long>>`.
 
 <!-- sync-example-operator-and-composition -->
 ```cpp
@@ -514,7 +514,7 @@ auto test_conjunction_with_identity_cluster(fn::expected<int, Error> ex, fn::jus
 >
 ## 7. Sum composition with operator| (disjunction)
 
-Disjunction evaluates alternative computations, keeping the first successful result. `a | b` fails only if both operands fail: dual to conjunction, their values union into a `copack`, and their errors combine into a `pack`. If both operands share the same value type, the value side remains ungraded, so two `void` operands stay `void`. Otherwise a `void` operand enters the sum as `pack<>`.
+Disjunction evaluates alternative computations, keeping the first successful result. `a | b` fails only if both operands fail: dual to conjunction, their values union into a `copack`, and their errors combine into a `pack`. If both operands share the same payload, the value side remains ungraded, so two `void` operands stay `void`. Otherwise a `void` operand enters the sum as `pack<>`. The value of an `optional<T&>` enters the sum as the alternative `T&`: `optional<int&> | optional<long&>` is `optional<copack_for<int&, long&>>`.
 
 If either error side is graded, the product distributes over it: $(E_1 + E_2) \times F \to (E_1 \times F) + (E_2 \times F)$ (the full Cartesian product when both are graded), yielding a canonical `copack` of `pack`s.
 

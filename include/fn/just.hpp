@@ -1410,26 +1410,27 @@ concept _some_carrier = _some_expected<T> || _some_optional<T> || _some_just<T>;
 template <typename T>
 constexpr inline int _inject_kind
     = ::std::is_void_v<typename ::std::remove_cvref_t<T>::value_type> ? 1 : (::fn::detail::_dead_value<T> ? 0 : 2);
-template <int Kind, typename Type, typename Side> struct _nothrow_total_inject {
+template <int Kind, typename Type, typename Side, typename... Tag> struct _nothrow_total_inject {
   static constexpr bool value = true;
 };
-template <typename Type, typename Side> struct _nothrow_total_inject<1, Type, Side> {
+template <typename Type, typename Side, typename... Tag> struct _nothrow_total_inject<1, Type, Side, Tag...> {
   static constexpr bool value = ::std::is_nothrow_constructible_v<Type, pack<>>;
 };
-template <typename Type, typename Side> struct _nothrow_total_inject<2, Type, Side> {
-  static constexpr bool value = ::std::is_nothrow_constructible_v<Type, decltype(::std::declval<Side>().value())>;
+template <typename Type, typename Side, typename... Tag> struct _nothrow_total_inject<2, Type, Side, Tag...> {
+  static constexpr bool value
+      = ::std::is_nothrow_constructible_v<Type, Tag..., decltype(::std::declval<Side>().value())>;
 };
 
 // Type stays a template parameter so both branches are dependent: a non-dependent discarded
 // statement would still be checked against choices without a pack<> alternative.
 template <typename Type, typename Side>
 [[nodiscard]] constexpr auto _total_inject(Side &&side) //
-    noexcept(_nothrow_total_inject<_inject_kind<Side>, Type, Side>::value) -> Type
+    noexcept(_nothrow_total_inject<_inject_kind<Side>, Type, Side, _disj_tag_t<Side>>::value) -> Type
 {
   if constexpr (::std::is_void_v<typename ::std::remove_cvref_t<Side>::value_type>)
     return Type{pack<>{}};
   else
-    return Type{FWD(side).value()};
+    return Type{_disj_tag_t<Side>{}, FWD(side).value()};
 }
 } // namespace detail
 
@@ -1441,15 +1442,13 @@ template <typename Lh, typename Rh>
   requires(detail::_cluster_operand<Lh> || detail::_cluster_operand<Rh>) //
           && detail::_some_carrier<Lh> && detail::_some_carrier<Rh>
           && (not ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>)
-          && ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::value_type,
-                              typename ::std::remove_cvref_t<Rh>::value_type>
+          && ::std::is_same_v<::fn::detail::_payload_t<Lh>, ::fn::detail::_payload_t<Rh>>
 [[nodiscard]] constexpr auto operator|(Lh &&lh, Rh &&rh) //
-    noexcept(detail::_nothrow_total_inject<detail::_inject_kind<Lh>,
-                                           ::fn::just<typename ::std::remove_cvref_t<Lh>::value_type>, Lh>::value
-             && detail::_nothrow_total_inject<detail::_inject_kind<Rh>,
-                                              ::fn::just<typename ::std::remove_cvref_t<Lh>::value_type>, Rh>::value)
+    noexcept(
+        detail::_nothrow_total_inject<detail::_inject_kind<Lh>, ::fn::just<::fn::detail::_payload_t<Lh>>, Lh>::value
+        && detail::_nothrow_total_inject<detail::_inject_kind<Rh>, ::fn::just<::fn::detail::_payload_t<Lh>>, Rh>::value)
 {
-  using type = ::fn::just<typename ::std::remove_cvref_t<Lh>::value_type>;
+  using type = ::fn::just<::fn::detail::_payload_t<Lh>>;
   if constexpr (detail::_cluster_operand<Lh>) {
     return type{FWD(lh).value()};
   } else {
@@ -1472,13 +1471,12 @@ template <typename Lh, typename Rh>
 template <typename Lh, typename Rh>
   requires(detail::_cluster_operand<Lh> || detail::_cluster_operand<Rh>) //
           && detail::_some_carrier<Lh> && detail::_some_carrier<Rh>
-          && (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::value_type,
-                                   typename ::std::remove_cvref_t<Rh>::value_type>)
+          && (not ::std::is_same_v<::fn::detail::_payload_t<Lh>, ::fn::detail::_payload_t<Rh>>)
 [[nodiscard]] constexpr auto operator|(Lh &&lh, Rh &&rh) //
-    noexcept(detail::_nothrow_total_inject<detail::_inject_kind<Lh>, ::fn::just<::fn::detail::_disjoined_t<Lh, Rh>>,
-                                           Lh>::value
+    noexcept(detail::_nothrow_total_inject<detail::_inject_kind<Lh>, ::fn::just<::fn::detail::_disjoined_t<Lh, Rh>>, Lh,
+                                           detail::_disj_tag_t<Lh>>::value
              && detail::_nothrow_total_inject<detail::_inject_kind<Rh>, ::fn::just<::fn::detail::_disjoined_t<Lh, Rh>>,
-                                              Rh>::value)
+                                              Rh, detail::_disj_tag_t<Rh>>::value)
 {
   using type = ::fn::just<::fn::detail::_disjoined_t<Lh, Rh>>;
   if constexpr (detail::_cluster_operand<Lh>) {
