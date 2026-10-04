@@ -20,6 +20,10 @@ The same rule applies to a `pack` reference element constructed by `as_pack` wit
 
 The new `<pfn/type_traits.hpp>` provides `pfn::reference_constructs_from_temporary` and `pfn::reference_converts_from_temporary`. Where the compiler lacks the builtin (GCC 12, MSVC before Visual Studio 2026 18.6), they are emulated without false positives, but miss a temporary created by converting a class source not reference-related to the referenced type, or one bound by a reference to an array.
 
+## A single `conjoin` argument is normalized, a single `disjoin` argument returned by value — 4 October 2026
+
+`conjoin` is the fold of `&` from its unit, so a single argument meets the unit alone; previously the argument itself was returned, as a reference. Now `conjoin(x)` is `pack<int>`, `conjoin(c)` for a `copack_for<A, B>` is `copack_for<pack<A>, pack<B>>`, and `conjoin(o)` for an `optional<int>` is `optional<pack<int>>`; a `void` value stays `void`. The unit of a carrier is of its own kind: `just<void>`, `expected<void, E>`, or an engaged `optional<pack<>>`. The result's shape no longer depends on the number of arguments. `disjoin` returns a single carrier by value. Both previously returned `decltype(arg)`, so `auto &&r = fn::conjoin(42);` dangled.
+
 ## Deduction and `conjoin` hold values; `as_copack` and `as_choice` keep references — 4 October 2026
 
 Class template argument deduction for `pack`, `copack`, `just` and `choice` removes only references and cv-qualifiers from each argument. For an lvalue `int x`, `pack{x}` is `pack<int>`; previously it was `pack<int&>`, which `as_pack(x)` still yields. An array or a function is never turned into a pointer: `just{arr}` and `just{f}` fail to compile, where they deduced `just<int*>` and `just<int(*)(int)>`, and `pack{f}` fails where it deduced `pack<int(&)(int)>`. `pack{"abc"}` is `pack<char[4]>`. A function type is refused as a `pack` element and as a `copack` alternative, where it failed inside the library. `conjoin` holds a leading lvalue by value, as `&` holds every further operand: `conjoin(x, y)` is `pack<int, int>`, where it was `pack<int&, int>`; `as_pack(x) & y` keeps the reference.
