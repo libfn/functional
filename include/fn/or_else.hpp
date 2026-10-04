@@ -51,13 +51,16 @@ struct _or_else_to_optional<T, Fn, ErrArg>
 
 // the promises, computed per arm; a dead arm never weighs
 template <typename T, typename Fn, typename ValArg> struct _nothrow_or_else_to_expected {
-  using _result = ::std::remove_cvref_t<typename _apply_result<Fn>::type>;
+  using _returned = _held_t<typename _apply_result<Fn>::type>;
+  using _result = ::std::remove_cvref_t<_returned>;
   using _type = typename _or_else_to_expected<T, Fn>::type;
   static constexpr bool _convert
       = ::std::is_same_v<_result, _type>
-        || ((empty_copack<typename _result::value_type>
-             || ::std::is_nothrow_constructible_v<_type, ::std::in_place_t, typename _result::value_type &&>)
-            && ::std::is_nothrow_constructible_v<_type, ::fn::unexpect_t, typename _result::error_type &&>);
+            ? (not ::std::is_reference_v<_returned> // a prvalue is elided
+               || ::std::is_nothrow_constructible_v<_type, _returned>)
+            : (_nothrow_carry_value<_type, _returned>
+               && ::std::is_nothrow_constructible_v<_type, ::fn::unexpect_t,
+                                                    decltype(::std::declval<_returned>().error())>);
   static constexpr bool value
       = _is_nothrow_applicable<Fn>::value && _convert
         && (empty_copack<T> || ::std::is_nothrow_constructible_v<_type, ::std::in_place_t, ValArg>);
@@ -68,9 +71,7 @@ template <typename T, typename Fn, typename ErrArg, typename ValArg>
   requires _some_copack<::std::remove_cvref_t<ErrArg>>
 struct _nothrow_or_else_to_optional<T, Fn, ErrArg, ValArg> {
   using _type = typename _or_else_to_optional<T, Fn, ErrArg>::type;
-  static constexpr bool value
-      = _is_nothrow_rts_applicable<_type, Fn, ErrArg>
-        && (empty_copack<T> || ::std::is_nothrow_constructible_v<_type, ::std::in_place_t, ValArg>);
+  static constexpr bool value = _is_nothrow_rts_applicable<_type, Fn, ErrArg> && _nothrow_carry_self<T, _type, ValArg>;
 };
 template <typename T, typename Fn, typename ErrArg, typename ValArg>
   requires(not _some_copack<::std::remove_cvref_t<ErrArg>>)
@@ -82,8 +83,7 @@ struct _nothrow_or_else_to_optional<T, Fn, ErrArg, ValArg> {
         || (empty_copack<typename _result::value_type>
             || ::std::is_nothrow_constructible_v<_type, ::std::in_place_t, typename _result::value_type &&>);
   static constexpr bool value
-      = _is_nothrow_applicable<Fn, ErrArg>::value && _convert
-        && (empty_copack<T> || ::std::is_nothrow_constructible_v<_type, ::std::in_place_t, ValArg>);
+      = _is_nothrow_applicable<Fn, ErrArg>::value && _convert && _nothrow_carry_self<T, _type, ValArg>;
 };
 } // namespace detail
 /**
@@ -139,7 +139,11 @@ concept applicable_or_else_across //
        })) || (some_expected<V> && (not some_identity<V>) && (not applicable_or_else<Fn, V>) && requires(V &&v) {
         typename detail::_or_else_to_optional<typename ::std::remove_cvref_t<V>::value_type, Fn,
                                               decltype(FWD(v).error())>::type;
-      } && (empty_copack<typename ::std::remove_cvref_t<V>::value_type> || requires(V &&v) {
+      } && (empty_copack<typename ::std::remove_cvref_t<V>::value_type> || (::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type> && requires(V &&v) {
+                 requires ::std::is_constructible_v<
+                     typename detail::_or_else_to_optional<void, Fn, decltype(FWD(v).error())>::type, ::std::in_place_t,
+                     pack<>>;
+               }) || requires(V &&v) {
                  requires ::std::is_constructible_v<
                      typename detail::_or_else_to_optional<typename ::std::remove_cvref_t<V>::value_type, Fn,
                                                            decltype(FWD(v).error())>::type,
@@ -223,14 +227,16 @@ struct or_else_t::apply final {
     if constexpr (::std::is_same_v<result, type>)
       return ::fn::detail::_apply(FWD(fn));
     else {
-      auto t = ::fn::detail::_apply(FWD(fn));
+      detail::_held_t<typename detail::_apply_result<Fn &&>::type> t = ::fn::detail::_apply(FWD(fn));
       if (t.has_value()) {
-        if constexpr (not empty_copack<typename result::value_type>)
-          return type{::std::in_place, ::std::move(t).value()};
+        if constexpr (::std::is_void_v<typename result::value_type>)
+          return ::fn::detail::_void_success<type>();
+        else if constexpr (not empty_copack<typename result::value_type>)
+          return type{::std::in_place, FWD(t).value()};
         else
           ::pfn::unreachable(); // LCOV_EXCL_LINE
       } else
-        return type{::fn::unexpect, ::std::move(t).error()};
+        return type{::fn::unexpect, FWD(t).error()};
     }
   }
 
@@ -244,9 +250,13 @@ struct or_else_t::apply final {
   {
     using T = typename ::std::remove_cvref_t<V>::value_type;
     using type = typename detail::_or_else_to_optional<T, Fn &&, decltype(FWD(v).error())>::type;
-    if constexpr (not empty_copack<T>)
+    if constexpr (::std::is_void_v<T>) {
+      if (v.has_value())
+        return ::fn::detail::_void_success<type>();
+    } else if constexpr (not empty_copack<T>) {
       if (v.has_value())
         return type{::std::in_place, FWD(v).value()};
+    }
     if constexpr (detail::_some_copack<::std::remove_cvref_t<decltype(v.error())>>)
       return ::fn::detail::_tagged_join_apply<detail::_joining_optional_recovery_tag<::fn::optional, T>>(FWD(v).error(),
                                                                                                          FWD(fn));

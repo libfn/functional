@@ -781,6 +781,47 @@ TEST_CASE("transform tuple-like payload", "[transform][expected][optional][tuple
   }
 }
 
+TEST_CASE("transform maps a void result into pack<>", "[transform][expected][optional][choice][copack]")
+{
+  struct A final {};
+  struct B final {};
+  struct E final {
+    bool operator==(E const &) const = default;
+  };
+  constexpr auto which = fn::overload{[](int i) { return i; }, [] { return -1; }, [](fn::pack<>) { return -2; }};
+  constexpr auto fnMixed = fn::overload{[](A) {}, [](B) { return 5; }};
+  using Unit = fn::copack_for<fn::pack<>, int>;
+
+  using InE = fn::expected<fn::copack_for<A, B>, E>;
+  InE e{fn::copack_for<A, B>{A{}}};
+  static_assert(std::is_same_v<decltype(e | fn::transform(fnMixed)), fn::expected<Unit, E>>);
+  CHECK((e | fn::transform(fnMixed)).value().apply(which) == -1);
+  CHECK((InE{fn::copack_for<A, B>{B{}}} | fn::transform(fnMixed)).value().apply(which) == 5);
+  CHECK((InE{fn::unexpect, E{}} | fn::transform(fnMixed)).error() == E{});
+
+  using InO = fn::optional<fn::copack_for<A, B>>;
+  InO o{fn::copack_for<A, B>{A{}}};
+  static_assert(std::is_same_v<decltype(o | fn::transform(fnMixed)), fn::optional<Unit>>);
+  CHECK((o | fn::transform(fnMixed)).value().apply(which) == -1);
+  CHECK(not(InO{} | fn::transform(fnMixed)).has_value());
+
+  using InC = fn::choice_for<A, B>;
+  InC c{A{}};
+  static_assert(std::is_same_v<decltype(c | fn::transform(fnMixed)), fn::just<Unit>>);
+  CHECK((c | fn::transform(fnMixed)).value().apply(which) == -1);
+
+  // named sources: VS 2022 misreads a mid-expression prvalue's empty-class union member
+  constexpr InE ce{fn::copack_for<A, B>{A{}}};
+  constexpr InO co{fn::copack_for<A, B>{A{}}};
+  constexpr InC cc{A{}};
+  static_assert((ce | fn::transform(fnMixed)).value().apply(which) == -1);
+  static_assert((co | fn::transform(fnMixed)).value().apply(which) == -1);
+  static_assert((cc | fn::transform(fnMixed)).value().apply(which) == -1);
+
+  static_assert(not fn::applicable_transform<decltype([](int) {}), fn::optional<int>>);
+  static_assert(std::is_same_v<decltype(fn::expected<int, E>{1} | fn::transform([](int) {})), fn::expected<void, E>>);
+}
+
 TEST_CASE("transform over an uninhabited value side", "[transform][expected][optional][copack]")
 {
   // A copack<> value can never be constructed, so the callback can never be presented one: the
@@ -861,7 +902,7 @@ static_assert(applicable_transform<decltype(fn_generic<int>), optional<Value>>);
 static_assert(not applicable_transform<decltype(fn_int<void>), optional<int>>);                 // void return: no optional<void>
 static_assert(applicable_transform<decltype(fn_generic<int>), choice<int>>);
 static_assert(not applicable_transform<decltype(fn_int<int>), choice<Value>>);            // must serve every alternative
-static_assert(not applicable_transform<decltype(fn_int<void>), choice<int>>);             // a void result has no place in a choice
+static_assert(applicable_transform<decltype(fn_int<void>), choice<int>>);
 static_assert(not applicable_transform<decltype(fn_int_lvalue), expected<int, Error>>);   // cannot bind temporary to lvalue
 static_assert(applicable_transform<decltype(fn_int_lvalue), expected<int, Error> &>);
 static_assert(applicable_transform<decltype(fn_int_rvalue), expected<int, Error>>);
@@ -872,8 +913,10 @@ static_assert(applicable_transform<decltype(fn_generic<int>), expected<copack_fo
 static_assert(not applicable_transform<decltype(fn_int<int>), expected<copack_for<Value, int>, Error>>); // int alone is not exhaustive
 static_assert(applicable_transform<decltype(fn_generic<int>), optional<copack_for<Value, int>>>);
 static_assert(not applicable_transform<decltype(fn_int<int>), optional<copack_for<Value, int>>>);
-static_assert(not applicable_transform<decltype(fn_generic<void>), expected<copack_for<Value, int>, Error>>); // a void result has no place in a copack
-static_assert(not applicable_transform<decltype(fn_generic<void>), optional<copack_for<Value, int>>>);
+static_assert(applicable_transform<decltype(fn_generic<void>), expected<copack_for<Value, int>, Error>>);
+static_assert(applicable_transform<decltype(fn_generic<void>), optional<copack_for<Value, int>>>);
+static_assert(not applicable_transform<decltype(fn_generic<std::in_place_type_t<int>>), expected<copack_for<Value, int>, Error>>);
+static_assert(not applicable_transform<decltype(fn_generic<std::in_place_type_t<int>>), optional<copack_for<Value, int>>>);
 
 // An uninhabited value side has no alternative to dispatch, so the concept answers false where the rows
 // above answer true: applicability is a property of the callback, and a vacuous mapping consults none.

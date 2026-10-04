@@ -50,10 +50,8 @@ concept _makeable_element = requires { _make_element<T>(::std::declval<Args>()..
 template <typename T, typename... Args>
 concept _nothrow_makeable_element = requires { requires noexcept(_make_element<T>(::std::declval<Args>()...)); };
 
-// One element's relocation into a new pack: the copy-initialization its holder performs
-// ([dcl.init.aggr]/4.3, reached through brace elision), asked of the holder one element at a time -
-// `_element<I, T>{src}` elides into the same member copy-initialization. This excludes explicit
-// constructors, where `is_[nothrow_]constructible_v` would admit them.
+// Aggregate member copy-initialization excludes explicit constructors;
+// is_constructible would admit them.
 template <typename E, typename Src>
 concept _relocatable_element = requires { E{::std::declval<Src>()}; };
 
@@ -81,13 +79,11 @@ struct _pack_append<T, Ts...> {};
 template <typename T, typename... Ts>
   requires(not _some_pack<T>) && (not _some_copack<T>)
 struct _pack_append<T, Ts...> {
-  using impl = pack_impl<::std::index_sequence_for<Ts..., T>, Ts..., T>;
   using type = ::fn::pack<Ts..., T>;
 };
 
 template <typename T, typename... Ts> struct _pack_append_pack;
 template <typename... Tx, typename... Ts> struct _pack_append_pack<::fn::pack<Tx...>, Ts...> {
-  using impl = pack_impl<::std::index_sequence_for<Ts..., Tx...>, Ts..., Tx...>;
   using type = ::fn::pack<Ts..., Tx...>;
 };
 // A tag can NAME a pack type whose own elements are invalid without instantiating it; splicing it
@@ -99,7 +95,6 @@ struct _pack_append<T, Ts...> {};
 template <typename T, typename... Ts>
   requires _some_pack<T> && _spliceable_pack<::std::remove_cvref_t<T>>
 struct _pack_append<T, Ts...> {
-  using impl = _pack_append_pack<::std::remove_cvref_t<T>, Ts...>::impl;
   using type = _pack_append_pack<::std::remove_cvref_t<T>, Ts...>::type;
 };
 
@@ -196,43 +191,45 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
   static constexpr bool _nothrow_relocatable
       = (... && _nothrow_relocatable_element<_element<Is, Ts>, apply_const_lvalue_t<Self, Ts &&>>);
 
-  template <typename T, typename Self>
+  // Return the final pack: guaranteed elision does not apply to base subobjects.
+  // Brace each layer so element conversions cannot initialize a whole layer.
+  template <typename T, typename R = pack_impl<::std::index_sequence<Is..., size>, Ts..., T>, typename Self>
   static constexpr auto _append(Self &&self, auto &&...args) //
-      noexcept(_nothrow_relocatable<Self> && _nothrow_makeable_element<T, decltype(args)...>)
-          -> pack_impl<::std::index_sequence<Is..., size>, Ts..., T>
+      noexcept(_nothrow_relocatable<Self> && _nothrow_makeable_element<T, decltype(args)...>) -> R
     requires(not _some_copack<T>) && (not _some_pack<T>)
             && _relocatable<Self> && _makeable_element<T, decltype(args)...>
   {
-    return {static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)...,
-            _make_element<T>(FWD(args)...)};
+    if constexpr (_some_pack<R>)
+      return {{{static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)}...,
+               {_make_element<T>(FWD(args)...)}}};
+    else
+      return {{static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)}...,
+              {_make_element<T>(FWD(args)...)}};
   }
 
   // Splicing is normalization, not elimination: the appended pack's elements relocate through
   // INVOKE, so a lone tuple-like element arrives whole instead of taking std::apply's meaning
   // through the engine's tuple arm.
-  template <typename T, typename Self>
+  template <typename T, typename R, typename Self>
   static constexpr auto _append(Self &&self, auto &&other) //
       noexcept(_nothrow_relocatable<Self>
-               && ::std::remove_cvref_t<T>::_impl::template _nothrow_relocatable<decltype(other)>) -> //
-      typename _pack_append<::std::remove_cvref_t<T>, Ts...>::impl
+               && ::std::remove_cvref_t<T>::_impl::template _nothrow_relocatable<decltype(other)>) -> R
     requires _some_pack<T> && (::std::is_same_v<::std::remove_cvref_t<decltype(other)>, ::std::remove_cvref_t<T>>)
              && _relocatable<Self> && ::std::remove_cvref_t<T>::_impl::template
   _relocatable<decltype(other)>
   {
-    using type = _pack_append<::std::remove_cvref_t<T>, Ts...>::impl;
-    return FWD(other)._swap_invoke(FWD(other), [&self](auto &&...args) {
-      return type{static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., FWD(args)...};
+    return FWD(other)._swap_invoke(FWD(other), [&](auto &&...args) -> R {
+      return {{{static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)}..., {FWD(args)}...}};
     });
   }
 
   // The tag form constructs the named pack from the arguments, then splices it: appending a pack
   // means concatenation in every spelling. One relocation per element more than appending the
   // elements directly - the spelling of an append is a performance knob, never a result change.
-  template <typename T, typename Self>
+  template <typename T, typename R, typename Self>
   static constexpr auto _append(Self &&self, auto &&...args) //
       noexcept(_nothrow_relocatable<Self> && _nothrow_initializable<::std::remove_cvref_t<T>, decltype(args)...>
-               && ::std::remove_cvref_t<T>::_impl::template _nothrow_relocatable<::std::remove_cvref_t<T>>) -> //
-      typename _pack_append<::std::remove_cvref_t<T>, Ts...>::impl
+               && ::std::remove_cvref_t<T>::_impl::template _nothrow_relocatable<::std::remove_cvref_t<T>>) -> R
     requires _some_pack<T>
              && (not(sizeof...(args) == 1
                      && (... && ::std::is_same_v<::std::remove_cvref_t<decltype(args)>, ::std::remove_cvref_t<T>>)))
@@ -241,9 +238,8 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
   _relocatable<::std::remove_cvref_t<T>>
   {
     using pack_t = ::std::remove_cvref_t<T>;
-    using type = _pack_append<pack_t, Ts...>::impl;
-    return pack_t::_impl::_swap_invoke(pack_t{FWD(args)...}, [&self](auto &&...elems) {
-      return type{static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., FWD(elems)...};
+    return pack_t::_impl::_swap_invoke(pack_t{FWD(args)...}, [&](auto &&...elems) -> R {
+      return {{{static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)}..., {FWD(elems)}...}};
     });
   }
 };

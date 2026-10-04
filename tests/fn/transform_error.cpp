@@ -207,6 +207,46 @@ TEST_CASE("transform_error", "[transform_error][expected]")
 
         SUCCEED();
       }
+
+      SECTION("a void result enters the error as pack<>")
+      {
+        constexpr auto fnVoid = fn::overload{[](bool) {}, [](Error) { return 1; }};
+        static_assert(fn::applicable_transform_error<decltype(fnVoid), T>);
+        constexpr auto r1 = T{::fn::unexpect, fn::copack{true}} | fn::transform_error(fnVoid);
+        static_assert(std::is_same_v<decltype(r1), fn::expected<int, fn::copack_for<fn::pack<>, int>> const>);
+        static_assert(r1.error().has_value(std::in_place_type<fn::pack<>>));
+        constexpr auto r2 = T{::fn::unexpect, fn::copack{Error::SomethingElse}} | fn::transform_error(fnVoid);
+        static_assert(r2.error() == fn::copack{1});
+        constexpr auto r3 = T{42} | fn::transform_error(fnVoid);
+        static_assert(r3.value() == 42);
+        CHECK((T{::fn::unexpect, fn::copack{true}} | fn::transform_error(fnVoid))
+                  .error()
+                  .has_value(std::in_place_type<fn::pack<>>));
+        CHECK((T{::fn::unexpect, fn::copack{Error::SomethingElse}} | fn::transform_error(fnVoid)).error()
+              == fn::copack{1});
+
+        static_assert(not fn::applicable_transform_error<decltype([](Error) {}), fn::expected<int, Error>>);
+
+        struct Handler final {
+          constexpr void operator()(int &) const noexcept {}
+          constexpr void operator()(int &&) const noexcept {}
+          constexpr int operator()(int const &n) const noexcept { return n + 1; }
+        };
+        using U = fn::expected<int, fn::copack<int>>;
+        static_assert(fn::applicable_transform_error<Handler, U &>);
+        static_assert(fn::applicable_transform_error<Handler, U &&>);
+        static_assert(fn::applicable_transform_error<Handler, U const &&>);
+        U u{::fn::unexpect, fn::copack{42}};
+        CHECK((u | fn::transform_error(Handler{})).error().has_value(std::in_place_type<fn::pack<>>));
+        CHECK((std::move(std::as_const(u)) | fn::transform_error(Handler{})).error() == fn::copack{43});
+        CHECK((std::move(u) | fn::transform_error(Handler{})).error().has_value(std::in_place_type<fn::pack<>>));
+        static_assert([] {
+          U bad{::fn::unexpect, fn::copack{42}};
+          return (bad | fn::transform_error(Handler{})).error().has_value(std::in_place_type<fn::pack<>>)
+                 && (std::move(std::as_const(bad)) | fn::transform_error(Handler{})).error() == fn::copack{43}
+                 && (std::move(bad) | fn::transform_error(Handler{})).error().has_value(std::in_place_type<fn::pack<>>);
+        }());
+      }
     }
   }
 }
@@ -301,7 +341,7 @@ static_assert(not applicable_transform_error<decltype(fn_Error_rvalue), expected
 // A copack error dispatches through copack::transform - the callback must cover ALL alternatives.
 static_assert(applicable_transform_error<decltype(fn_generic<Xerror>), expected<int, copack_for<Error, Value>>>);
 static_assert(not applicable_transform_error<decltype(fn_Error<Xerror>), expected<int, copack_for<Error, Value>>>); // not exhaustive
-static_assert(not applicable_transform_error<decltype(fn_generic<void>), expected<int, copack_for<Error, Value>>>); // a void result has no place in a copack
+static_assert(applicable_transform_error<decltype(fn_generic<void>), expected<int, copack_for<Error, Value>>>);
 
 // at an uninhabited error side the concept stays false - the dedicated arm, not the concept, admits the operand
 static_assert(not applicable_transform_error<decltype(fn_generic<Xerror>), expected<int, copack<>>>);

@@ -13,7 +13,7 @@ concept below names the header that declares it. `<fn/concepts.hpp>` carries the
 
 ## What a type is {style: "api"}
 
-### fn::some_monadic_type {style: "api", badge: "#include <fn/monadic.hpp>"}
+### fn::some_monadic_type {style: "api", badge: "#include <fn/traits.hpp>"}
 :include-doxygen-doc: fn::some_monadic_type
 
 ### fn::some_expected {style: "api", badge: "#include <fn/expected.hpp>"}
@@ -52,7 +52,7 @@ concept below names the header that declares it. `<fn/concepts.hpp>` carries the
 ### fn::some_empty_value {style: "api", badge: "#include <fn/concepts.hpp>"}
 :include-doxygen-doc: fn::some_empty_value
 
-### fn::some_in_place_type {style: "api", badge: "#include <fn/copack.hpp>"}
+### fn::some_in_place_type {style: "api", badge: "#include <fn/traits.hpp>"}
 :include-doxygen-doc: fn::some_in_place_type
 
 ---
@@ -94,7 +94,7 @@ concept below names the header that declares it. `<fn/concepts.hpp>` carries the
 `monadic_invocable` is the constraint `operator|` itself carries; the rest are the per-verb
 constraints it dispatches to, and the ones a verb of your own would join.
 
-### fn::monadic_invocable {style: "api", badge: "#include <fn/monadic.hpp>"}
+### fn::monadic_invocable {style: "api", badge: "#include <fn/traits.hpp>"}
 :include-doxygen-doc: fn::monadic_invocable
 
 ### fn::applicable_and_then {style: "api", badge: "#include <fn/and_then.hpp>"}

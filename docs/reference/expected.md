@@ -290,6 +290,15 @@ constexpr auto copack_value() const && -> decltype(auto);                       
 
 :include-doxygen-doc-params: fn::expected::copack_value { args: "", title: "parameters" }
 
+```cpp {title: "fn::expected< void, Err >::copack_value"}
+constexpr auto copack_value() const & -> expected<copack<pack<>>, error_type>;  // (1)
+constexpr auto copack_value() &&      -> expected<copack<pack<>>, error_type>;  // (2)
+```
+
+:include-doxygen-doc: fn::expected< void, Err >::copack_value { args: "" }
+
+:include-doxygen-doc-params: fn::expected< void, Err >::copack_value { args: "", title: "parameters" }
+
 ## and_then {style: "api"}
 
 ```cpp {title: "fn::expected::and_then"}
@@ -517,10 +526,10 @@ constexpr auto copack_error(some_expected auto &&src) -> decltype(auto);  // (1)
 :include-doxygen-doc-params: fn::copack_error { args: "some_expected auto &&", title: "parameters" }
 
 ```cpp {title: "fn::copack_value"}
-constexpr auto copack_value(some_expected_non_void auto &&src) -> decltype(auto);  // (1)
-constexpr auto copack_value(some_optional auto &&src)          -> decltype(auto);  // (2)
+constexpr auto copack_value(some_expected auto &&src) -> decltype(auto);  // (1)
+constexpr auto copack_value(some_optional auto &&src) -> decltype(auto);  // (2)
 ```
 
-:include-doxygen-doc: fn::copack_value { args: "some_expected_non_void auto &&" }
+:include-doxygen-doc: fn::copack_value { args: "some_expected auto &&" }
 
-:include-doxygen-doc-params: fn::copack_value { args: "some_expected_non_void auto &&", title: "parameters" }
+:include-doxygen-doc-params: fn::copack_value { args: "some_expected auto &&", title: "parameters" }

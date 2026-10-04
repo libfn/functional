@@ -2,6 +2,58 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `<fn/monadic.hpp>` becomes `<fn/traits.hpp>`; `monadic_invocable` rejects an incomplete functor — 27 September 2026
+
+Replace includes of `<fn/monadic.hpp>` with `<fn/traits.hpp>`; no compatibility header is provided. `some_in_place_type` moves to `<fn/traits.hpp>` and remains available through `<fn/copack.hpp>`.
+
+`monadic_invocable` requires a complete functor type and a complete nested `apply`. Querying a forward-declared library or user-defined functor, or one whose `apply` is only declared, now fails to compile. Previously, its answer could change after the definition, making the program ill-formed with no diagnostic required. Include the functor's defining header before querying.
+
+## `apply` traits reject an incomplete `pack` or `copack` operand — 27 September 2026
+
+`apply`, `apply_r` and their traits reject incomplete `pack` or `copack` operands. Previously, trait queries could cache `false` (or `void` for `apply_result`) even after the type definition became available. Include `<fn/pack.hpp>` or `<fn/copack.hpp>` before querying. `typelist_applicable` still works from template arguments alone.
+
+## `pack` and `copack` operations move to `<fn/algebra.hpp>` — 27 September 2026
+
+`operator&` over `pack` and `copack`, `conjoin`, and `disjoin` move to `<fn/algebra.hpp>`. Include this header when using these operations without a carrier header. The `expected`, `optional`, and `just` headers include it.
+
+`<fn/copack.hpp>` includes `<fn/pack.hpp>`; the reverse dependency is removed. A copack transform returning `void` therefore needs only `<fn/copack.hpp>`. Code using `copack` through `<fn/pack.hpp>` must include `<fn/copack.hpp>` explicitly.
+
+## `&` takes a `void` side as the unit factor `pack<>` — 27 September 2026
+
+`&` treats a `void` value as the unit factor `pack<>`. For example, `expected<int, E> & just<void>` yields `expected<pack<int>, E>`; previously it yielded `expected<int, E>`. This breaking change applies across carrier pairings in either order. Copack values distribute into packs, and `optional<T&> & just<void>` yields an owning `optional<pack<T>>`. Two `void` values still yield `void`.
+
+## `pack::append` builds its result in place — 27 September 2026
+
+`pack::append` constructs the final pack directly. Initializing its base from a temporary could otherwise relocate elements again and terminate if a move threw inside a `noexcept` call. Bracing each aggregate layer also prevents an element's conversion operator from initializing a whole layer in place of the element.
+
+## `transform` over a copack maps a `void` result to `pack<>` — 27 September 2026
+
+`transform` over a copack represents `void` callback results as `pack<>`. Mixed `void` and `int` results yield `copack_for<pack<>, int>`; all-`void` results yield `copack<pack<>>`. This applies through `expected`, `optional` and `choice`, and to `transform_error` over a copack error. Plain error types still reject `void` results. Mutable operands can select a `void` overload where they previously fell back to a valued `const` overload.
+
+Results are converted before spliced arguments expire, fixing a dangling reference. The `noexcept` specification includes the selected overload's explicit result conversion. Rvalues spliced before a `pack` argument are stored by value, fixing a compilation failure.
+
+`expected<void, E>::copack_value()` lifts to `expected<copack<pack<>>, E>`.
+
+## `and_then` joins `void` and valued branches through `pack<>` — 26 September 2026
+
+`and_then` accepts branches returning both `void`-valued and valued `expected` results. For example, `A -> expected<void, E>` and `B -> expected<int, E>` join as `expected<copack_for<pack<>, int>, E>`; this previously failed to compile. An all-`void` join stays `void`.
+
+## `void` recovery joins a value grade as `pack<>` — 26 September 2026
+
+`or_else` accepts a `void`-valued recovery into a copack value side, representing success as `pack<>`. For example, recovering `expected<copack<V>, E>` through `expected<void, G>` yields `expected<copack_for<V, pack<>>, G>`; this previously failed to compile. This also applies to branches over a copack error and pipeline recovery from `optional<copack<V>>`. An all-`void` join stays `void`.
+
+`void` lifts to `copack<pack<>>`, including in `same_value_kind` and pipeline recovery into `optional`. A recovery returned by reference from `optional` has its copy included in the `noexcept` specification.
+
+## Singular copacks support the tuple protocol — 24 September 2026
+
+A `copack` with exactly one alternative supports the tuple protocol: `std::tuple_size_v<copack<T>>` is 1, `std::tuple_element_t<0, copack<T>>` is `T`, and `get<0>` returns the same reference as the index-less `get`. This supports structured bindings and generic code that uses tuple traits with ADL `get`. A structured binding over a singular copack, including a singular choice's `value()`, now binds its alternative. Previously, it bound the public `data` and `index` members.
+
+The protocol is limited to singular copacks. A wider copack selects among different alternative types at run time, so there is no single element type to expose. `copack<>` remains outside the protocol: it has no values, whereas the empty product `pack<>` represents the unit.
+
+For `copack<pack<A, B>>`, the tuple element is the entire `pack`. `fn::apply` still dispatches the copack and passes the pack's fields as separate arguments; `pfn::apply` does not accept copacks.
+
+Both `get` overloads exclude volatile copacks through their constraints. Previously, probing the index-less `get` with a volatile copack could produce an error in its body.
+
 ## `choice` becomes `just` over a copack — 21 September 2026
 
 `choice<Ts...>` is now an alias of `just<copack<Ts...>>`. The specialization forwards operations on alternatives to its `copack` payload. The `<fn/choice.hpp>` header is gone; `<fn/just.hpp>` declares `choice`, `choice_for` and `some_choice`.

@@ -370,18 +370,65 @@ TEST_CASE("graded monad", "[expected][copack][graded][and_then][or_else][copack_
     static_assert(noexcept(fn::copack_value(s))); // the free function propagates what the member says
   }
 
-  SECTION("copack_value absent for void value")
+  SECTION("copack_value from void value")
   {
-    // by design: a void value cannot be copack-wrapped -- the void specialization has no
-    // copack_value member and the free fn::copack_value is constrained some_expected_non_void
-    // (include/fn/expected.hpp:1020); copack_error, by contrast, serves void (asserted above)
-    constexpr auto can_member_copack_value = [](auto &&e) { return requires { e.copack_value(); }; };
-    constexpr auto can_free_copack_value = [](auto &&e) { return requires { fn::copack_value(e); }; };
-    static_assert(not can_member_copack_value(fn::expected<void, Error>{}));
-    static_assert(not can_free_copack_value(fn::expected<void, Error>{}));
-    static_assert(can_member_copack_value(fn::expected<int, Error>{1}));
-    static_assert(can_free_copack_value(fn::expected<int, Error>{1}));
-    SUCCEED();
+    using T = fn::expected<void, Error>;
+    using Out = fn::expected<fn::copack<fn::pack<>>, Error>;
+    T s{};
+    static_assert(std::is_same_v<decltype(s.copack_value()), Out>);
+    static_assert(std::is_same_v<decltype(std::as_const(s).copack_value()), Out>);
+    static_assert(std::is_same_v<decltype(std::move(std::as_const(s)).copack_value()), Out>);
+    static_assert(std::is_same_v<decltype(std::move(s).copack_value()), Out>);
+    static_assert(noexcept(s.copack_value()));
+    static_assert(noexcept(std::move(s).copack_value()));
+    constexpr auto which = fn::overload{[] { return 1; }, [](fn::pack<>) { return 2; }};
+    SECTION("value")
+    {
+      CHECK(s.copack_value().value().apply(which) == 1);
+      CHECK(std::as_const(s).copack_value().value().apply(which) == 1);
+      CHECK(std::move(std::as_const(s)).copack_value().value().apply(which) == 1);
+      CHECK(std::move(s).copack_value().value().apply(which) == 1);
+    }
+    SECTION("error")
+    {
+      T s{::fn::unexpect, Unknown};
+      CHECK(s.copack_value().error() == Unknown);
+      CHECK(std::as_const(s).copack_value().error() == Unknown);
+      CHECK(std::move(std::as_const(s)).copack_value().error() == Unknown);
+      CHECK(std::move(s).copack_value().error() == Unknown);
+    }
+    SECTION("the error's relocation weighs, and its exception propagates")
+    {
+      struct Throwing final {
+        int v;
+        Throwing(int i) : v(i) {}
+        Throwing(Throwing const &) { throw 1; }
+        Throwing(Throwing &&) { throw 2; }
+      };
+      static_assert(not noexcept(std::declval<fn::expected<void, Throwing> &>().copack_value()));
+      static_assert(not noexcept(std::declval<fn::expected<void, Throwing> &&>().copack_value()));
+      fn::expected<void, Throwing> t{::fn::unexpect, 5};
+      CHECK_THROWS_AS(t.copack_value(), int);
+      CHECK((not t.has_value() && t.error().v == 5));
+      CHECK_THROWS_AS(std::move(t).copack_value(), int);
+      CHECK((not t.has_value() && t.error().v == 5));
+    }
+
+    static_assert(std::is_same_v<decltype(fn::copack_value(s)), Out>);
+    static_assert(noexcept(fn::copack_value(s)));
+    static_assert([] {
+      constexpr auto w = fn::overload{[] { return 1; }, [](fn::pack<>) { return 2; }};
+      fn::expected<void, Error> ok{};
+      fn::expected<void, Error> const cok{};
+      fn::expected<void, Error> err{::fn::unexpect, FileNotFound};
+      fn::expected<void, Error> const cerr{::fn::unexpect, FileNotFound};
+      return ok.copack_value().value().apply(w) == 1 && cok.copack_value().value().apply(w) == 1
+             && std::move(cok).copack_value().value().apply(w) == 1
+             && std::move(ok).copack_value().value().apply(w) == 1 && fn::copack_value(cok).value().apply(w) == 1
+             && err.copack_value().error() == FileNotFound && cerr.copack_value().error() == FileNotFound
+             && std::move(cerr).copack_value().error() == FileNotFound
+             && std::move(err).copack_value().error() == FileNotFound;
+    }());
   }
 
   SECTION("and_then")
@@ -621,6 +668,8 @@ TEST_CASE("graded monad", "[expected][copack][graded][and_then][or_else][copack_
     static_assert(std::is_same_v<decltype(s.or_else(fn7)), fn::expected<fn::copack_for<Xint, int, long>, Error>>);
     constexpr auto fn8 = [](int) -> fn::expected<fn::copack_for<Xint, int, long>, std::string> { throw 0; };
     static_assert(std::is_same_v<decltype(s.or_else(fn8)), fn::expected<fn::copack_for<Xint, int, long>, std::string>>);
+    constexpr auto fn9 = [](int) -> fn::expected<void, std::string> { throw 0; };
+    static_assert(std::is_same_v<decltype(s.or_else(fn9)), fn::expected<fn::copack_for<fn::pack<>, int>, std::string>>);
 
     SECTION("error to value")
     {
@@ -642,6 +691,28 @@ TEST_CASE("graded monad", "[expected][copack][graded][and_then][or_else][copack_
       CHECK(std::move(s).or_else(fn).error() == "Boo");
     }
 
+    SECTION("error to payload-free value")
+    {
+      using value_t = fn::copack_for<fn::pack<>, int>;
+      constexpr auto fn = [](Error) -> fn::expected<void, std::string> { return {}; };
+      static_assert(std::is_same_v<decltype(s.or_else(fn)), fn::expected<value_t, std::string>>);
+      CHECK(s.or_else(fn).value() == value_t{fn::pack<>{}});
+      CHECK(std::as_const(s).or_else(fn).value() == value_t{fn::pack<>{}});
+      CHECK(std::move(std::as_const(s)).or_else(fn).value() == value_t{fn::pack<>{}});
+      CHECK(std::move(s).or_else(fn).value() == value_t{fn::pack<>{}});
+    }
+
+    SECTION("error to error, payload-free")
+    {
+      constexpr auto fn = [](Error) -> fn::expected<void, std::string> { return ::fn::unexpected<std::string>("Boo"); };
+      static_assert(
+          std::is_same_v<decltype(s.or_else(fn)), fn::expected<fn::copack_for<fn::pack<>, int>, std::string>>);
+      CHECK(s.or_else(fn).error() == "Boo");
+      CHECK(std::as_const(s).or_else(fn).error() == "Boo");
+      CHECK(std::move(std::as_const(s)).or_else(fn).error() == "Boo");
+      CHECK(std::move(s).or_else(fn).error() == "Boo");
+    }
+
     SECTION("value")
     {
       fn::expected<fn::copack<int>, Error> s{fn::copack{12}};
@@ -650,6 +721,15 @@ TEST_CASE("graded monad", "[expected][copack][graded][and_then][or_else][copack_
       CHECK(s.or_else(fn).value() == fn::copack{12});
       CHECK(std::as_const(s).or_else(fn).value() == fn::copack{12});
       CHECK(std::move(std::as_const(s)).or_else(fn).value() == fn::copack{12});
+
+      constexpr auto fnVoid = [](int) -> fn::expected<void, std::string> { throw 0; };
+      static_assert(
+          std::is_same_v<decltype(s.or_else(fnVoid)), fn::expected<fn::copack_for<fn::pack<>, int>, std::string>>);
+      CHECK(s.or_else(fnVoid).value() == fn::copack{12});
+      CHECK(std::as_const(s).or_else(fnVoid).value() == fn::copack{12});
+      CHECK(std::move(std::as_const(s)).or_else(fnVoid).value() == fn::copack{12});
+      CHECK(std::move(s).or_else(fnVoid).value() == fn::copack{12});
+
       CHECK(std::move(s).or_else(fn).value() == fn::copack{12});
     }
 
@@ -851,6 +931,20 @@ TEST_CASE("graded monad constexpr and runtime", "[constexpr][and_then][or_else][
     constexpr auto r3 = T{::fn::unexpect, Error::Unknown}.or_else(fn1);
     static_assert(r3.value() == fn::copack{0});
 
+    constexpr auto fn2 = [](Error i) -> fn::expected<void, int> {
+      if (i == Error::Unknown)
+        return {};
+      return ::fn::unexpected<int>{(int)i};
+    };
+    using value_t = fn::copack_for<fn::pack<>, int>;
+    constexpr auto r4 = T{14}.or_else(fn2);
+    static_assert(std::is_same_v<decltype(r4), fn::expected<value_t, int> const>);
+    static_assert(r4.value() == value_t{14});
+    constexpr auto r5 = T{::fn::unexpect, Error::InvalidValue}.or_else(fn2);
+    static_assert(r5.error() == 1);
+    constexpr auto r6 = T{::fn::unexpect, Error::Unknown}.or_else(fn2);
+    static_assert(r6.value() == value_t{fn::pack<>{}});
+
     SUCCEED();
   }
 
@@ -871,6 +965,20 @@ TEST_CASE("graded monad constexpr and runtime", "[constexpr][and_then][or_else][
     CHECK(r2.error() == 1);
     auto const r3 = T{::fn::unexpect, Error::Unknown}.or_else(fn1);
     CHECK(r3.value() == fn::copack{0});
+
+    constexpr auto fn2 = [](Error i) -> fn::expected<void, int> {
+      if (i == Error::Unknown)
+        return {};
+      return ::fn::unexpected<int>{(int)i};
+    };
+    using value_t = fn::copack_for<fn::pack<>, int>;
+    auto const r4 = T{14}.or_else(fn2);
+    static_assert(std::is_same_v<decltype(r4), fn::expected<value_t, int> const>);
+    CHECK(r4.value() == value_t{14});
+    auto const r5 = T{::fn::unexpect, Error::InvalidValue}.or_else(fn2);
+    CHECK(r5.error() == 1);
+    auto const r6 = T{::fn::unexpect, Error::Unknown}.or_else(fn2);
+    CHECK(r6.value() == value_t{fn::pack<>{}});
   }
 }
 
@@ -1091,18 +1199,117 @@ TEST_CASE("expected conjunction", "[expected][operator_and][graded][copack]")
   static_assert(can_amp(fn::expected<int, other_error>{1})); // mismatched non-graded error
   static_assert(not can_amp(fn::optional<int>{1}));          // ... but the kinds still have to match
 
+  SECTION("a void side is the unit factor pack<>")
+  {
+    struct A final {};
+    struct B final {};
+    using V = fn::expected<void, Error>;
+    using P = fn::expected<fn::pack<>, Error>;
+    constexpr auto as_unit = []<typename T>(std::type_identity<T>) {
+      using X = fn::expected<T, Error>;
+      return std::same_as<decltype(std::declval<X>() & std::declval<V>()),
+                          decltype(std::declval<X>() & std::declval<P>())>
+             && std::same_as<decltype(std::declval<V>() & std::declval<X>()),
+                             decltype(std::declval<P>() & std::declval<X>())>;
+    };
+    static_assert(as_unit(std::type_identity<int>{}));
+    static_assert(as_unit(std::type_identity<fn::pack<int, double>>{}));
+    static_assert(as_unit(std::type_identity<fn::copack_for<A, B>>{}));
+    static_assert(std::same_as<decltype(std::declval<fn::expected<fn::pack<int, double>, Error>>() & std::declval<V>()),
+                               fn::expected<fn::pack<int, double>, Error>>);
+    static_assert(std::same_as<decltype(std::declval<fn::expected<fn::copack_for<A, B>, Error>>() & std::declval<V>()),
+                               fn::expected<fn::copack_for<fn::pack<A>, fn::pack<B>>, Error>>);
+
+    using AB = fn::expected<fn::copack_for<A, B>, Error>;
+    constexpr auto which = fn::overload{[](A) { return 1; }, [](B) { return 2; }};
+    CHECK((AB{fn::copack_for<A, B>{B{}}} & V{}).value().apply(which) == 2);
+    CHECK((V{} & AB{fn::copack_for<A, B>{A{}}}).value().apply(which) == 1);
+    CHECK((V{::fn::unexpect, FileNotFound} & AB{fn::copack_for<A, B>{A{}}}).error() == FileNotFound);
+    CHECK((AB{fn::copack_for<A, B>{A{}}} & V{::fn::unexpect, Unknown}).error() == Unknown);
+    static_assert((AB{fn::copack_for<A, B>{B{}}} & V{}).value().apply(which) == 2);
+    static_assert((V{} & AB{fn::copack_for<A, B>{A{}}}).value().apply(which) == 1);
+    static_assert((V{::fn::unexpect, FileNotFound} & AB{fn::copack_for<A, B>{A{}}}).error() == FileNotFound);
+    static_assert((AB{fn::copack_for<A, B>{A{}}} & V{::fn::unexpect, Unknown}).error() == Unknown);
+
+    using Dead = fn::expected<fn::copack<>, Error>;
+    static_assert(std::same_as<decltype(std::declval<Dead>() & std::declval<V>()), Dead>);
+    static_assert(std::same_as<decltype(std::declval<V>() & std::declval<Dead>()), Dead>);
+    static_assert(std::same_as<decltype(std::declval<Dead>() & std::declval<fn::expected<void, int>>()),
+                               fn::expected<fn::copack<>, fn::copack_for<Error, int>>>);
+    static_assert((Dead{::fn::unexpect, FileNotFound} & V{}).error() == FileNotFound);
+    static_assert((V{::fn::unexpect, Unknown} & Dead{::fn::unexpect, FileNotFound}).error() == Unknown);
+    static_assert((V{} & Dead{::fn::unexpect, FileNotFound}).error() == FileNotFound);
+    CHECK((Dead{::fn::unexpect, FileNotFound} & V{}).error() == FileNotFound);
+    CHECK((V{::fn::unexpect, Unknown} & Dead{::fn::unexpect, FileNotFound}).error() == Unknown);
+    CHECK((V{} & Dead{::fn::unexpect, FileNotFound}).error() == FileNotFound);
+
+    static_assert(std::same_as<decltype(std::declval<fn::just<void>>() & std::declval<V>()), V>);
+    static_assert(std::same_as<decltype(std::declval<V>() & std::declval<fn::just<void>>()), V>);
+    static_assert(
+        std::same_as<decltype(std::declval<fn::expected_unit>() & std::declval<fn::just<void>>()), fn::expected_unit>);
+    static_assert((V{} & fn::just<void>{}).has_value());
+    static_assert((fn::just<void>{} & V{::fn::unexpect, FileNotFound}).error() == FileNotFound);
+    CHECK((V{} & fn::just<void>{}).has_value());
+    CHECK((fn::just<void>{} & V{::fn::unexpect, FileNotFound}).error() == FileNotFound);
+
+    struct Throwing final {
+      Throwing() = default;
+      Throwing(Throwing const &) noexcept(false) {}
+      Throwing(Throwing &&) noexcept = default;
+    };
+    using T = fn::expected<Throwing, Error>;
+    static_assert(not noexcept(std::declval<T &>() & std::declval<V &>()));
+    static_assert(not noexcept(std::declval<V &>() & std::declval<T &>()));
+    static_assert(noexcept(std::declval<T &&>() & std::declval<V &&>()));
+    static_assert(noexcept(std::declval<V &&>() & std::declval<T &&>()));
+
+    struct Counted final {
+      int *copies;
+      int *moves;
+      constexpr Counted(int &c, int &m) noexcept : copies(&c), moves(&m) {}
+      constexpr Counted(Counted const &o) noexcept : copies(o.copies), moves(o.moves) { ++*copies; }
+      constexpr Counted(Counted &&o) noexcept(false) : copies(o.copies), moves(o.moves) { ++*moves; }
+    };
+    static_assert(
+        noexcept(std::declval<fn::expected<int, Counted> &>() & std::declval<fn::expected<void, Counted> &>()));
+    static_assert(
+        noexcept(std::declval<fn::expected<void, Counted> &>() & std::declval<fn::expected<int, Counted> &>()));
+    // Counts the error's relocations inside `&` alone: each result binds to a reference, where
+    // passing it through a conditional operator could add a relocation of the compiler's own
+    constexpr auto relocations = [](bool rvalue, bool reverse) {
+      int copies = 0;
+      int moves = 0;
+      fn::expected<int, Counted> bad{::fn::unexpect, copies, moves};
+      fn::expected<void, Counted> ok{};
+      auto const tally = [&](auto const &r) { return r.has_value() ? std::pair{-1, -1} : std::pair{copies, moves}; };
+      if (rvalue)
+        return reverse ? tally(std::move(ok) & std::move(bad)) : tally(std::move(bad) & std::move(ok));
+      return reverse ? tally(ok & bad) : tally(bad & ok);
+    };
+    // lvalue operands are copied and never moved, which the noexcept specification above relies on
+    static_assert(relocations(false, false) == std::pair{1, 0});
+    static_assert(relocations(false, true) == std::pair{1, 0});
+    // rvalue operands are moved, never copied; how many moves remain is the compiler's to elide
+    static_assert(relocations(true, false).first == 0 && relocations(true, false).second >= 1);
+    static_assert(relocations(true, true).first == 0 && relocations(true, true).second >= 1);
+    CHECK(relocations(false, false) == std::pair{1, 0});
+    CHECK(relocations(false, true) == std::pair{1, 0});
+    CHECK((relocations(true, false).first == 0 && relocations(true, false).second >= 1));
+    CHECK((relocations(true, true).first == 0 && relocations(true, true).second >= 1));
+  }
+
   SECTION("same error type")
   {
-    SECTION("value & void yield value")
+    SECTION("value & void yield a pack of the value")
     {
       static_assert(
           std::same_as<decltype(std::declval<fn::expected<int, Error>>() & std::declval<fn::expected<void, Error>>()),
-                       fn::expected<int, Error>>);
+                       fn::expected<fn::pack<int>, Error>>);
 
       CHECK((fn::expected<int, Error>{42} //
              & fn::expected<void, Error>{})
                 .value()
-            == 42);
+            == fn::pack<int>{42});
       CHECK((fn::expected<int, Error>{::fn::unexpect, FileNotFound} //
              & fn::expected<void, Error>{})
                 .error()
@@ -1117,16 +1324,16 @@ TEST_CASE("expected conjunction", "[expected][operator_and][graded][copack]")
             == FileNotFound);
     }
 
-    SECTION("void & value yield value")
+    SECTION("void & value yield a pack of the value")
     {
       static_assert(
           std::same_as<decltype(std::declval<fn::expected<void, Error>>() & std::declval<fn::expected<int, Error>>()),
-                       fn::expected<int, Error>>);
+                       fn::expected<fn::pack<int>, Error>>);
 
       CHECK((fn::expected<void, Error>{} //
              & fn::expected<int, Error>{12})
                 .value()
-            == 12);
+            == fn::pack<int>{12});
       CHECK((fn::expected<void, Error>{::fn::unexpect, FileNotFound} //
              & fn::expected<int, Error>{12})
                 .error()
@@ -1481,9 +1688,9 @@ TEST_CASE("expected conjunction", "[expected][operator_and][graded][copack]")
     static_assert(
         std::same_as<decltype(std::declval<EA>() & std::declval<EB>()), fn::expected<fn::pack<int, bool>, Sum>>);
     static_assert(std::same_as<decltype(std::declval<fn::expected<void, Error>>() & std::declval<EB>()),
-                               fn::expected<bool, Sum>>);
+                               fn::expected<fn::pack<bool>, Sum>>);
     static_assert(std::same_as<decltype(std::declval<EA>() & std::declval<fn::expected<void, OtherError>>()),
-                               fn::expected<int, Sum>>);
+                               fn::expected<fn::pack<int>, Sum>>);
     static_assert(std::same_as<decltype(std::declval<fn::expected<void, Error>>()
                                         & std::declval<fn::expected<void, OtherError>>()),
                                fn::expected<void, Sum>>);
@@ -1497,8 +1704,8 @@ TEST_CASE("expected conjunction", "[expected][operator_and][graded][copack]")
     static_assert((EA{::fn::unexpect, FileNotFound} & EB{true}).error().apply(which) == 1);
     static_assert((EA{1} & EB{::fn::unexpect, Oops}).error().apply(which) == 2);
     static_assert((EA{::fn::unexpect, FileNotFound} & EB{::fn::unexpect, Oops}).error().apply(which) == 1);
-    static_assert((fn::expected<void, Error>{} & EB{true}).value());
-    static_assert((EA{1} & fn::expected<void, OtherError>{}).value() == 1);
+    static_assert((fn::expected<void, Error>{} & EB{true}).value() == fn::pack<bool>{true});
+    static_assert((EA{1} & fn::expected<void, OtherError>{}).value() == fn::pack<int>{1});
     static_assert(
         (fn::expected<void, Error>{} & fn::expected<void, OtherError>{::fn::unexpect, Oops}).error().apply(which) == 2);
 
@@ -1506,8 +1713,8 @@ TEST_CASE("expected conjunction", "[expected][operator_and][graded][copack]")
     CHECK((EA{::fn::unexpect, FileNotFound} & EB{true}).error().apply(which) == 1);
     CHECK((EA{1} & EB{::fn::unexpect, Oops}).error().apply(which) == 2);
     CHECK((EA{::fn::unexpect, FileNotFound} & EB{::fn::unexpect, Oops}).error().apply(which) == 1);
-    CHECK((fn::expected<void, Error>{} & EB{true}).value());
-    CHECK((EA{1} & fn::expected<void, OtherError>{}).value() == 1);
+    CHECK((fn::expected<void, Error>{} & EB{true}).value() == fn::pack<bool>{true});
+    CHECK((EA{1} & fn::expected<void, OtherError>{}).value() == fn::pack<int>{1});
     CHECK((fn::expected<void, Error>{} & fn::expected<void, OtherError>{::fn::unexpect, Oops}).error().apply(which)
           == 2);
 
@@ -1528,34 +1735,34 @@ TEST_CASE("expected conjunction", "[expected][operator_and][graded][copack]")
   {
     static_assert(std::same_as<decltype(std::declval<fn::expected<int, fn::copack<Error>>>()
                                         & std::declval<fn::expected<void, Error>>()),
-                               fn::expected<int, fn::copack<Error>>>);
+                               fn::expected<fn::pack<int>, fn::copack<Error>>>);
 
     static_assert(std::same_as<decltype(std::declval<fn::expected<int, fn::copack<Error>>>()
                                         & std::declval<fn::expected<void, fn::copack<Error>>>()),
-                               fn::expected<int, fn::copack<Error>>>);
+                               fn::expected<fn::pack<int>, fn::copack<Error>>>);
 
     static_assert(std::same_as<decltype(std::declval<fn::expected<int, fn::copack<Error>>>()
                                         & std::declval<fn::expected<void, fn::copack<int>>>()),
-                               fn::expected<int, fn::copack_for<Error, int>>>);
+                               fn::expected<fn::pack<int>, fn::copack_for<Error, int>>>);
 
     static_assert(std::same_as<decltype(std::declval<fn::expected<int, fn::copack<Error>>>()
                                         & std::declval<fn::expected<void, fn::copack<bool, int>>>()),
-                               fn::expected<int, fn::copack_for<Error, bool, int>>>);
+                               fn::expected<fn::pack<int>, fn::copack_for<Error, bool, int>>>);
 
     static_assert(std::same_as<decltype(std::declval<fn::expected<int, fn::copack<bool, int>>>()
                                         & std::declval<fn::expected<void, fn::copack<Error>>>()),
-                               fn::expected<int, fn::copack_for<Error, bool, int>>>);
+                               fn::expected<fn::pack<int>, fn::copack_for<Error, bool, int>>>);
 
-    SECTION("value & void yield value")
+    SECTION("value & void yield a pack of the value")
     {
       static_assert(std::same_as<decltype(std::declval<fn::expected<int, fn::copack<Error>>>()
                                           & std::declval<fn::expected<void, int>>()),
-                                 fn::expected<int, fn::copack_for<Error, int>>>);
+                                 fn::expected<fn::pack<int>, fn::copack_for<Error, int>>>);
 
       CHECK((fn::expected<int, fn::copack<Error>>{42} //
              & fn::expected<void, int>{})
                 .value()
-            == 42);
+            == fn::pack<int>{42});
       CHECK((fn::expected<int, fn::copack<Error>>{::fn::unexpect, fn::copack{FileNotFound}} //
              & fn::expected<void, int>{})
                 .error()
@@ -1570,16 +1777,16 @@ TEST_CASE("expected conjunction", "[expected][operator_and][graded][copack]")
             == fn::copack{FileNotFound});
     }
 
-    SECTION("void & value yield value")
+    SECTION("void & value yield a pack of the value")
     {
       static_assert(std::same_as<decltype(std::declval<fn::expected<void, fn::copack<Error>>>()
                                           & std::declval<fn::expected<int, int>>()),
-                                 fn::expected<int, fn::copack_for<Error, int>>>);
+                                 fn::expected<fn::pack<int>, fn::copack_for<Error, int>>>);
 
       CHECK((fn::expected<void, fn::copack<Error>>{} //
              & fn::expected<int, int>{12})
                 .value()
-            == 12);
+            == fn::pack<int>{12});
       CHECK((fn::expected<void, fn::copack<Error>>{::fn::unexpect, FileNotFound} //
              & fn::expected<int, int>{12})
                 .error()
@@ -1848,34 +2055,34 @@ TEST_CASE("expected conjunction", "[expected][operator_and][graded][copack]")
   {
     static_assert(std::same_as<decltype(std::declval<fn::expected<void, Error>>()
                                         & std::declval<fn::expected<int, fn::copack<Error>>>()),
-                               fn::expected<int, fn::copack<Error>>>);
+                               fn::expected<fn::pack<int>, fn::copack<Error>>>);
 
     static_assert(std::same_as<decltype(std::declval<fn::expected<int, fn::copack<Error>>>()
                                         & std::declval<fn::expected<void, fn::copack<Error>>>()),
-                               fn::expected<int, fn::copack<Error>>>);
+                               fn::expected<fn::pack<int>, fn::copack<Error>>>);
 
     static_assert(std::same_as<decltype(std::declval<fn::expected<void, fn::copack<int>>>()
                                         & std::declval<fn::expected<int, fn::copack<Error>>>()),
-                               fn::expected<int, fn::copack_for<Error, int>>>);
+                               fn::expected<fn::pack<int>, fn::copack_for<Error, int>>>);
 
     static_assert(std::same_as<decltype(std::declval<fn::expected<void, fn::copack<bool, int>>>()
                                         & std::declval<fn::expected<int, fn::copack<Error>>>()),
-                               fn::expected<int, fn::copack_for<Error, bool, int>>>);
+                               fn::expected<fn::pack<int>, fn::copack_for<Error, bool, int>>>);
 
     static_assert(std::same_as<decltype(std::declval<fn::expected<int, fn::copack<bool, int>>>()
                                         & std::declval<fn::expected<void, fn::copack<Error>>>()),
-                               fn::expected<int, fn::copack_for<Error, bool, int>>>);
+                               fn::expected<fn::pack<int>, fn::copack_for<Error, bool, int>>>);
 
-    SECTION("value & void & yield value")
+    SECTION("value & void yield a pack of the value")
     {
       static_assert(std::same_as<decltype(std::declval<fn::expected<int, int>>()
                                           & std::declval<fn::expected<void, fn::copack<Error>>>()),
-                                 fn::expected<int, fn::copack_for<Error, int>>>);
+                                 fn::expected<fn::pack<int>, fn::copack_for<Error, int>>>);
 
       CHECK((fn::expected<int, int>{12} //
              & fn::expected<void, fn::copack<Error>>{})
                 .value()
-            == 12);
+            == fn::pack<int>{12});
       CHECK((fn::expected<int, int>{12} //
              & fn::expected<void, fn::copack<Error>>{::fn::unexpect, FileNotFound})
                 .error()
@@ -1890,16 +2097,16 @@ TEST_CASE("expected conjunction", "[expected][operator_and][graded][copack]")
             == fn::copack{13});
     }
 
-    SECTION("void & value yield value")
+    SECTION("void & value yield a pack of the value")
     {
       static_assert(std::same_as<decltype(std::declval<fn::expected<void, int>>()
                                           & std::declval<fn::expected<int, fn::copack<Error>>>()),
-                                 fn::expected<int, fn::copack_for<Error, int>>>);
+                                 fn::expected<fn::pack<int>, fn::copack_for<Error, int>>>);
 
       CHECK((fn::expected<void, int>{} //
              & fn::expected<int, fn::copack<Error>>{42})
                 .value()
-            == 42);
+            == fn::pack<int>{42});
       CHECK((fn::expected<void, int>{} //
              & fn::expected<int, fn::copack<Error>>{::fn::unexpect, fn::copack{FileNotFound}})
                 .error()
@@ -2165,30 +2372,30 @@ TEST_CASE("expected conjunction", "[expected][operator_and][graded][copack]")
   {
     static_assert(std::same_as<decltype(std::declval<fn::expected<int, fn::copack<bool, int>>>()
                                         & std::declval<fn::expected<void, fn::copack<Error>>>()),
-                               fn::expected<int, fn::copack_for<Error, bool, int>>>);
+                               fn::expected<fn::pack<int>, fn::copack_for<Error, bool, int>>>);
 
-    SECTION("value & void & yield value")
+    SECTION("value & void yield a pack of the value")
     {
       using Lh = fn::expected<int, fn::copack<bool, int>>;
       using Rh = fn::expected<void, fn::copack<Error>>;
       static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
-                                 fn::expected<int, fn::copack_for<Error, bool, int>>>);
+                                 fn::expected<fn::pack<int>, fn::copack_for<Error, bool, int>>>);
 
-      CHECK((Lh{12} & Rh{}).value() == 12);
+      CHECK((Lh{12} & Rh{}).value() == fn::pack<int>{12});
       CHECK((Lh{12} & Rh{::fn::unexpect, fn::copack{FileNotFound}}).error() == fn::copack{FileNotFound});
       CHECK((Lh{::fn::unexpect, fn::copack{13}} & Rh{}).error() == fn::copack{13});
       CHECK((Lh{::fn::unexpect, fn::copack{13}} & Rh{::fn::unexpect, fn::copack{FileNotFound}}).error()
             == fn::copack{13});
     }
 
-    SECTION("void & value yield value")
+    SECTION("void & value yield a pack of the value")
     {
       using Lh = fn::expected<void, fn::copack<bool, int>>;
       using Rh = fn::expected<int, fn::copack<Error>>;
       static_assert(std::same_as<decltype(std::declval<Lh>() & std::declval<Rh>()),
-                                 fn::expected<int, fn::copack_for<Error, bool, int>>>);
+                                 fn::expected<fn::pack<int>, fn::copack_for<Error, bool, int>>>);
 
-      CHECK((Lh{} & Rh{42}).value() == 42);
+      CHECK((Lh{} & Rh{42}).value() == fn::pack<int>{42});
       CHECK((Lh{} & Rh{::fn::unexpect, fn::copack{FileNotFound}}).error() == fn::copack{FileNotFound});
       CHECK((Lh{::fn::unexpect, fn::copack{13}} & Rh{42}).error() == fn::copack{13});
       CHECK((Lh{::fn::unexpect, fn::copack{13}} & Rh{::fn::unexpect, fn::copack{FileNotFound}}).error()
@@ -2502,19 +2709,19 @@ TEST_CASE("expected conjunction", "[expected][operator_and][graded][copack]")
     {
       using VoidUnit = fn::expected<void, fn::copack<>>;
       using Rh = fn::expected<int, Error>;
-      static_assert(
-          std::same_as<decltype(std::declval<VoidUnit>() & std::declval<Rh>()), fn::expected<int, fn::copack<Error>>>);
-      static_assert(
-          std::same_as<decltype(std::declval<Rh>() & std::declval<VoidUnit>()), fn::expected<int, fn::copack<Error>>>);
+      static_assert(std::same_as<decltype(std::declval<VoidUnit>() & std::declval<Rh>()),
+                                 fn::expected<fn::pack<int>, fn::copack<Error>>>);
+      static_assert(std::same_as<decltype(std::declval<Rh>() & std::declval<VoidUnit>()),
+                                 fn::expected<fn::pack<int>, fn::copack<Error>>>);
 
-      static_assert((VoidUnit{} & Rh{5}).value() == 5);
+      static_assert((VoidUnit{} & Rh{5}).value() == fn::pack<int>{5});
       static_assert((VoidUnit{} & Rh{::fn::unexpect, FileNotFound}).error() == fn::copack{FileNotFound});
-      static_assert((Rh{5} & VoidUnit{}).value() == 5);
+      static_assert((Rh{5} & VoidUnit{}).value() == fn::pack<int>{5});
       static_assert((Rh{::fn::unexpect, FileNotFound} & VoidUnit{}).error() == fn::copack{FileNotFound});
 
-      CHECK((VoidUnit{} & Rh{5}).value() == 5);
+      CHECK((VoidUnit{} & Rh{5}).value() == fn::pack<int>{5});
       CHECK((VoidUnit{} & Rh{::fn::unexpect, FileNotFound}).error() == fn::copack{FileNotFound});
-      CHECK((Rh{5} & VoidUnit{}).value() == 5);
+      CHECK((Rh{5} & VoidUnit{}).value() == fn::pack<int>{5});
       CHECK((Rh{::fn::unexpect, FileNotFound} & VoidUnit{}).error() == fn::copack{FileNotFound});
     }
   }
@@ -2580,9 +2787,6 @@ TEST_CASE("expected conjunction", "[expected][operator_and][graded][copack]")
 
   SECTION("identity cluster operands")
   {
-    // A just or choice operand always contributes its value to the product and adds no term to
-    // the error sum: the expected operand's error passes through unchanged, plain or graded, and
-    // its state alone decides. just<void> is the product's unit and elides.
     using E = fn::expected<int, fn::copack<Error>>;
     using J = fn::just<int>;
 
@@ -2592,10 +2796,12 @@ TEST_CASE("expected conjunction", "[expected][operator_and][graded][copack]")
                                fn::expected<fn::pack<int, int>, fn::copack<Error>>>);
     static_assert(std::same_as<decltype(std::declval<J>() & std::declval<fn::expected<int, Error>>()),
                                fn::expected<fn::pack<int, int>, Error>>);
-    static_assert(std::same_as<decltype(std::declval<fn::just<void>>() & std::declval<E>()), E>);
-    static_assert(std::same_as<decltype(std::declval<E>() & std::declval<fn::just<void>>()), E>);
+    static_assert(std::same_as<decltype(std::declval<fn::just<void>>() & std::declval<E>()),
+                               fn::expected<fn::pack<int>, fn::copack<Error>>>);
+    static_assert(std::same_as<decltype(std::declval<E>() & std::declval<fn::just<void>>()),
+                               fn::expected<fn::pack<int>, fn::copack<Error>>>);
     static_assert(std::same_as<decltype(std::declval<J>() & std::declval<fn::expected<void, fn::copack<Error>>>()),
-                               fn::expected<int, fn::copack<Error>>>);
+                               fn::expected<fn::pack<int>, fn::copack<Error>>>);
     static_assert(
         std::same_as<decltype(std::declval<fn::choice_for<int, bool>>() & std::declval<E>()),
                      fn::expected<fn::copack_for<fn::pack<int, int>, fn::pack<bool, int>>, fn::copack<Error>>>);
@@ -2612,8 +2818,8 @@ TEST_CASE("expected conjunction", "[expected][operator_and][graded][copack]")
     static_assert((J{1} & E{2}).value().apply([](int a, int b) { return a == 1 && b == 2; }));
     static_assert((E{2} & J{1}).value().apply([](int a, int b) { return a == 2 && b == 1; }));
     static_assert((J{1} & E{::fn::unexpect, fn::copack{FileNotFound}}).error() == fn::copack{FileNotFound});
-    static_assert((fn::just<void>{} & E{5}).value() == 5);
-    static_assert((J{7} & fn::expected<void, fn::copack<Error>>{}).value() == 7);
+    static_assert((fn::just<void>{} & E{5}).value() == fn::pack<int>{5});
+    static_assert((J{7} & fn::expected<void, fn::copack<Error>>{}).value() == fn::pack<int>{7});
     CHECK((J{1} & E{2}).value().apply([](int a, int b) { return a == 1 && b == 2; }));
     CHECK((J{1} & E{::fn::unexpect, fn::copack{FileNotFound}}).error() == fn::copack{FileNotFound});
 
@@ -3279,6 +3485,41 @@ TEST_CASE("expected copack support transform", "[expected][copack][transform]")
               .has_value<std::monostate>());
   }
 
+  SECTION("a void result enters as pack<>")
+  {
+    using S2 = fn::expected<fn::copack_for<int, std::string_view>, Error>;
+    constexpr auto which
+        = fn::overload{[](bool b) { return b ? 1 : 0; }, [] { return -1; }, [](fn::pack<>) { return -2; }};
+    constexpr auto fnMixed = fn::overload{[](int) {}, [](std::string_view) { return true; }};
+    constexpr auto fnVoid = [](auto &&) {};
+    using OutM = fn::expected<fn::copack_for<bool, fn::pack<>>, Error>;
+    S2 s{fn::copack{12}};
+    static_assert(std::is_same_v<decltype(s.transform(fnMixed)), OutM>);
+    static_assert(std::is_same_v<decltype(s.transform(fnVoid)), fn::expected<fn::copack<fn::pack<>>, Error>>);
+    CHECK(s.transform(fnMixed).value().apply(which) == -1);
+    CHECK(std::as_const(s).transform(fnMixed).value().apply(which) == -1);
+    CHECK(std::move(std::as_const(s)).transform(fnMixed).value().apply(which) == -1);
+    CHECK(std::move(s).transform(fnMixed).value().apply(which) == -1);
+    S2 sv{fn::copack{std::string_view{"x"}}};
+    CHECK(sv.transform(fnMixed).value().apply(which) == 1);
+    CHECK(sv.transform(fnVoid).value().apply(which) == -1);
+    S2 e{::fn::unexpect, FileNotFound};
+    CHECK(e.transform(fnMixed).error() == FileNotFound);
+    CHECK(e.transform(fnVoid).error() == FileNotFound);
+
+    constexpr auto fnNothrow = fn::overload{[](int) noexcept {}, [](std::string_view) noexcept { return true; }};
+    static_assert(noexcept(s.transform(fnNothrow)));
+    static_assert(not noexcept(s.transform(fnMixed)));
+    static_assert([] {
+      constexpr auto w
+          = fn::overload{[](bool b) { return b ? 1 : 0; }, [] { return -1; }, [](fn::pack<>) { return -2; }};
+      constexpr auto f = fn::overload{[](int) {}, [](std::string_view) { return true; }};
+      fn::expected<fn::copack_for<int, std::string_view>, Error> const c{fn::copack{12}};
+      fn::expected<fn::copack_for<int, std::string_view>, Error> const ce{::fn::unexpect, FileNotFound};
+      return c.transform(f).value().apply(w) == -1 && ce.transform(f).error() == FileNotFound;
+    }());
+  }
+
   SECTION("error")
   {
     fn::expected<fn::copack_for<int, std::string_view>, Error> s{::fn::unexpect, FileNotFound};
@@ -3366,6 +3607,70 @@ TEST_CASE("expected copack support transform_error", "[expected][copack][transfo
 
   constexpr auto can_transform_error = [](auto &&f) { return requires { std::declval<S &>().transform_error(f); }; };
   static_assert(can_transform_error(nothrow_visitor));
+
+  SECTION("a void result enters the error as pack<>")
+  {
+    constexpr auto fnVoid = fn::overload{[](int const &) {}, [](std::string_view const &) { return true; }};
+    static_assert(std::is_same_v<decltype(std::declval<S &>().transform_error(fnVoid)),
+                                 fn::expected<double, fn::copack_for<fn::pack<>, bool>>>);
+    static_assert(std::is_same_v<decltype(std::declval<S &>().transform_error([](auto &&) {})),
+                                 fn::expected<double, fn::copack<fn::pack<>>>>);
+    S s{::fn::unexpect, fn::copack{12}};
+    CHECK(s.transform_error(fnVoid).error().has_value(std::in_place_type<fn::pack<>>));
+    CHECK(S{12.5}.transform_error(fnVoid).value() == 12.5);
+    S t{::fn::unexpect, fn::copack{std::string_view{"x"}}};
+    CHECK(t.transform_error(fnVoid).error() == fn::copack{true});
+    static_assert([] {
+      using C = fn::expected<int, fn::copack_for<bool, int>>;
+      constexpr auto f = fn::overload{[](bool) {}, [](int i) { return i + 1; }};
+      return C{::fn::unexpect, fn::copack{true}}.transform_error(f).error().has_value(std::in_place_type<fn::pack<>>)
+             && C{::fn::unexpect, fn::copack{1}}.transform_error(f).error() == fn::copack{2}
+             && C{3}.transform_error(f).value() == 3;
+    }());
+  }
+
+  SECTION("a void result for the error follows overload resolution")
+  {
+    struct Handler final {
+      constexpr void operator()(int &) const noexcept {}
+      constexpr void operator()(int &&) const noexcept {}
+      constexpr int operator()(int const &n) const noexcept { return n + 1; }
+    };
+    struct Value final {
+      int n;
+      constexpr Value(int v) : n(v) {}
+      constexpr Value(Value &o) noexcept : n(o.n + 10) {}
+      constexpr Value(Value const &o) noexcept : n(o.n + 100) {}
+      constexpr Value(Value &&o) noexcept : n(o.n + 1000) {}
+      constexpr Value(Value const &&o) noexcept : n(o.n + 10000) {}
+    };
+    using E = fn::expected<Value, fn::copack<int>>;
+    using P = fn::expected<Value, fn::copack<fn::pack<>>>;
+    static_assert(std::is_same_v<decltype(std::declval<E &>().transform_error(Handler{})), P>);
+    static_assert(std::is_same_v<decltype(std::declval<E const &>().transform_error(Handler{})), E>);
+    static_assert(std::is_same_v<decltype(std::declval<E &&>().transform_error(Handler{})), P>);
+    static_assert(std::is_same_v<decltype(std::declval<E const &&>().transform_error(Handler{})), E>);
+    E v{std::in_place, 1};
+    CHECK(v.transform_error(Handler{}).value().n == 11);
+    CHECK(std::as_const(v).transform_error(Handler{}).value().n == 101);
+    CHECK(std::move(std::as_const(v)).transform_error(Handler{}).value().n == 10001);
+    CHECK(std::move(v).transform_error(Handler{}).value().n == 1001);
+    E e{::fn::unexpect, fn::copack{42}};
+    CHECK(e.transform_error(Handler{}).error().has_value(std::in_place_type<fn::pack<>>));
+    CHECK(std::as_const(e).transform_error(Handler{}).error() == fn::copack{43});
+    CHECK(std::move(std::as_const(e)).transform_error(Handler{}).error() == fn::copack{43});
+    CHECK(std::move(e).transform_error(Handler{}).error().has_value(std::in_place_type<fn::pack<>>));
+    static_assert([] {
+      E ok{std::in_place, 1};
+      E bad{::fn::unexpect, fn::copack{42}};
+      return ok.transform_error(Handler{}).value().n == 11
+             && std::move(std::as_const(ok)).transform_error(Handler{}).value().n == 10001
+             && std::move(ok).transform_error(Handler{}).value().n == 1001
+             && bad.transform_error(Handler{}).error().has_value(std::in_place_type<fn::pack<>>)
+             && std::move(std::as_const(bad)).transform_error(Handler{}).error() == fn::copack{43}
+             && std::move(bad).transform_error(Handler{}).error().has_value(std::in_place_type<fn::pack<>>);
+    }());
+  }
 
   SECTION("value")
   {

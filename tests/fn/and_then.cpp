@@ -1355,18 +1355,132 @@ TEST_CASE("and_then joins heterogeneous expected branches", "[and_then][expected
     static_assert(ci.and_then(fnImm).value().v == 1);
   }
 
-  SECTION("all-void branches join to void; mixed void and non-void answers")
+  SECTION("all-void branches join to void")
   {
     constexpr auto fnVoid = fn::overload{[](A) { return fn::expected<void, fn::copack<E1>>{}; },
                                          [](B) { return fn::expected<void, fn::copack<E2>>{}; }};
     auto r = In{fn::copack_for<A, B>{A{}}}.and_then(fnVoid);
     static_assert(std::is_same_v<decltype(r), fn::expected<void, fn::copack_for<E0, E1, E2>>>);
     CHECK(r.has_value());
+  }
+
+  SECTION("mixed void and non-void branches join the payload-free success as pack<>")
+  {
+    // No default constructor: the void branch must construct pack<>.
+    struct Value final {
+      int n;
+      constexpr explicit Value(int i) noexcept : n(i) {}
+      bool operator==(Value const &) const = default;
+    };
+    constexpr auto which
+        = fn::overload{[](Value const &v) { return v.n; }, [] { return -1; }, [](fn::pack<>) { return -2; }};
+    using Out = fn::expected<fn::copack_for<fn::pack<>, Value>, fn::copack_for<E0, E1, E2>>;
     constexpr auto fnMixed = fn::overload{[](A) { return fn::expected<void, fn::copack<E1>>{}; },
-                                          [](B) { return fn::expected<Y, fn::copack<E2>>{Y{}}; }};
-    static_assert(not canM(In{fn::copack_for<A, B>{A{}}}, fnMixed));
-    static_assert(not fn::applicable_and_then<decltype(fnMixed), In>);
-    static_assert(fn::applicable_and_then<decltype(fnJoin), In>); // converse
+                                          [](B) { return fn::expected<Value, fn::copack<E2>>{std::in_place, 5}; }};
+    constexpr auto fnFail = fn::overload{[](A) { return fn::expected<void, fn::copack<E1>>{fn::unexpect, E1{}}; },
+                                         [](B) { return fn::expected<Value, fn::copack<E2>>{std::in_place, 5}; }};
+
+    In a{fn::copack_for<A, B>{A{}}};
+    static_assert(std::is_same_v<decltype(a.and_then(fnMixed)), Out>);
+    static_assert(std::is_same_v<decltype(a | fn::and_then(fnMixed)), Out>);
+    static_assert(fn::applicable_and_then<decltype(fnMixed), In>);
+    CHECK(a.and_then(fnMixed).value().apply(which) == -1);
+    CHECK(std::as_const(a).and_then(fnMixed).value().apply(which) == -1);
+    CHECK(std::move(std::as_const(a)).and_then(fnMixed).value().apply(which) == -1);
+    CHECK((a | fn::and_then(fnMixed)).value().apply(which) == -1);
+    CHECK(std::move(a).and_then(fnMixed).value().apply(which) == -1);
+    In b{fn::copack_for<A, B>{B{}}};
+    CHECK(b.and_then(fnMixed).value().apply(which) == 5);
+    In f{fn::copack_for<A, B>{A{}}};
+    CHECK(f.and_then(fnFail).error() == fn::copack_for<E0, E1, E2>{E1{}});
+    In e{fn::unexpect, fn::copack<E0>{E0{}}};
+    CHECK(e.and_then(fnMixed).error() == fn::copack_for<E0, E1, E2>{E0{}});
+    // named sources: the same VS 2022 misread as above
+    constexpr In ca{fn::copack_for<A, B>{A{}}};
+    constexpr In cb{fn::copack_for<A, B>{B{}}};
+    static_assert(ca.and_then(fnMixed).value().apply(which) == -1);
+    static_assert((ca | fn::and_then(fnMixed)).value().apply(which) == -1);
+    static_assert(cb.and_then(fnMixed).value().apply(which) == 5);
+    static_assert(ca.and_then(fnFail).error() == fn::copack_for<E0, E1, E2>{E1{}});
+
+    using InP = fn::expected<fn::copack_for<A, B>, E0>;
+    constexpr auto fnPlain = fn::overload{[](A) { return fn::expected<void, E0>{}; },
+                                          [](B) { return fn::expected<Value, E0>{std::in_place, 5}; }};
+    InP p{fn::copack_for<A, B>{A{}}};
+    static_assert(std::is_same_v<decltype(p.and_then(fnPlain)), fn::expected<fn::copack_for<fn::pack<>, Value>, E0>>);
+    CHECK(p.and_then(fnPlain).value().apply(which) == -1);
+    constexpr InP cp{fn::copack_for<A, B>{A{}}};
+    static_assert(cp.and_then(fnPlain).value().apply(which) == -1);
+
+    constexpr auto fnInf = fn::overload{[](A) { return fn::expected<void, fn::copack<>>{}; },
+                                        [](B) { return fn::expected<Value, fn::copack<E2>>{std::in_place, 5}; }};
+    In i{fn::copack_for<A, B>{A{}}};
+    static_assert(std::is_same_v<decltype(i.and_then(fnInf)),
+                                 fn::expected<fn::copack_for<fn::pack<>, Value>, fn::copack_for<E0, E2>>>);
+    CHECK(i.and_then(fnInf).value().apply(which) == -1);
+    static_assert(ca.and_then(fnInf).value().apply(which) == -1);
+
+    constexpr auto fnUnit = fn::overload{[](A) { return fn::expected<void, fn::copack<E1>>{}; },
+                                         [](B) { return fn::expected<fn::pack<>, fn::copack<E2>>{fn::pack<>{}}; }};
+    constexpr auto fnLift
+        = fn::overload{[](A) { return fn::expected<void, fn::copack<E1>>{}; },
+                       [](B) { return fn::expected<fn::copack<fn::pack<>>, fn::copack<E2>>{fn::pack<>{}}; }};
+    using OutU = fn::expected<fn::copack<fn::pack<>>, fn::copack_for<E0, E1, E2>>;
+    static_assert(std::is_same_v<decltype(b.and_then(fnUnit)), OutU>);
+    static_assert(std::is_same_v<decltype(b.and_then(fnLift)), OutU>);
+    CHECK(b.and_then(fnUnit).value().apply(which) == -1);
+    CHECK(b.and_then(fnLift).value().apply(which) == -1);
+    static_assert(cb.and_then(fnUnit).value().apply(which) == -1);
+    static_assert(cb.and_then(fnLift).value().apply(which) == -1);
+  }
+
+  SECTION("a payload-free branch: dispatch, const prvalue and move-only error")
+  {
+    struct Value final {
+      int n;
+      constexpr explicit Value(int i) noexcept : n(i) {}
+    };
+    constexpr auto which = fn::overload{[](Value const &v) { return v.n; }, [] { return -1; }};
+
+    using T1 = std::tuple<int>;
+    using InT = fn::expected<fn::copack_for<T1, B>, fn::copack<E0>>;
+    constexpr auto fnT = fn::overload{[](T1) { return 91; },
+                                      [](int i) {
+                                        if (i == 3)
+                                          return fn::expected<void, fn::copack<E1>>{};
+                                        return fn::expected<void, fn::copack<E1>>{fn::unexpect, E1{}};
+                                      },
+                                      [](B) { return fn::expected<Value, fn::copack<E2>>{std::in_place, 5}; }};
+    InT t3{fn::copack_for<T1, B>{T1{3}}};
+    InT t4{fn::copack_for<T1, B>{T1{4}}};
+    static_assert(std::is_same_v<decltype(t3.and_then(fnT)),
+                                 fn::expected<fn::copack_for<fn::pack<>, Value>, fn::copack_for<E0, E1, E2>>>);
+    CHECK(t3.and_then(fnT).value().apply(which) == -1);
+    CHECK((t3 | fn::and_then(fnT)).value().apply(which) == -1);
+    CHECK(t4.and_then(fnT).error() == fn::copack_for<E0, E1, E2>{E1{}});
+    constexpr InT c3{fn::copack_for<T1, B>{T1{3}}};
+    constexpr InT c4{fn::copack_for<T1, B>{T1{4}}};
+    static_assert(c3.and_then(fnT).value().apply(which) == -1);
+    static_assert(c4.and_then(fnT).error() == fn::copack_for<E0, E1, E2>{E1{}});
+
+    struct MoveOnly final {
+      int n;
+      constexpr explicit MoveOnly(int i) noexcept : n(i) {}
+      constexpr MoveOnly(MoveOnly &&) noexcept = default;
+      MoveOnly(MoveOnly const &) = delete;
+    };
+    constexpr auto fnK = fn::overload{
+        [](A) noexcept -> fn::expected<void, MoveOnly> const { return fn::unexpected<MoveOnly>{MoveOnly{4}}; },
+        [](B) noexcept -> fn::expected<int, MoveOnly> { return 3; }};
+    constexpr auto err = fn::overload{[](E0 const &) { return -1; }, [](MoveOnly const &m) { return m.n; }};
+    In k{fn::copack_for<A, B>{A{}}};
+    static_assert(std::is_same_v<decltype(k.and_then(fnK)),
+                                 fn::expected<fn::copack_for<fn::pack<>, int>, fn::copack_for<E0, MoveOnly>>>);
+    static_assert(noexcept(k.and_then(fnK)));
+    CHECK(k.and_then(fnK).error().apply(err) == 4);
+    CHECK((k | fn::and_then(fnK)).error().apply(err) == 4);
+    constexpr In ck{fn::copack_for<A, B>{A{}}};
+    static_assert(ck.and_then(fnK).error().apply(err) == 4);
   }
 
   SECTION("noexcept from the reachable constructions")
@@ -1396,6 +1510,21 @@ TEST_CASE("and_then joins heterogeneous expected branches", "[and_then][expected
     // ... while a copack<> grade has no error to lift, and the dead arm cannot weigh
     InB b{fn::copack_for<A, B>{A{}}};
     static_assert(noexcept(b.and_then(fnNothrow)));
+
+    constexpr auto fnVoid = fn::overload{[](A) noexcept { return fn::expected<void, fn::copack<E1>>{}; },
+                                         [](B) noexcept { return fn::expected<Y, fn::copack<E2>>{Y{}}; }};
+    static_assert(noexcept(v.and_then(fnVoid)));
+    static_assert(noexcept(v | fn::and_then(fnVoid)));
+    constexpr auto fnVoidThrows = fn::overload{[](A) { return fn::expected<void, fn::copack<E1>>{}; },
+                                               [](B) noexcept { return fn::expected<Y, fn::copack<E2>>{Y{}}; }};
+    static_assert(not noexcept(v.and_then(fnVoidThrows)));
+    static_assert(not noexcept(v | fn::and_then(fnVoidThrows)));
+    constexpr auto fnVoidArm = fn::overload{[](A) noexcept { return fn::expected<void, fn::copack<ThrowingMove>>{}; },
+                                            [](B) noexcept { return fn::expected<Y, fn::copack<E2>>{Y{}}; }};
+    static_assert(not noexcept(v.and_then(fnVoidArm)));
+    constexpr auto fnVoidInf = fn::overload{[](A) noexcept { return fn::expected<void, fn::copack<>>{}; },
+                                            [](B) noexcept { return fn::expected<Y, fn::copack<E2>>{Y{}}; }};
+    static_assert(noexcept(v.and_then(fnVoidInf)));
     SUCCEED();
   }
 
@@ -1434,6 +1563,50 @@ TEST_CASE("and_then joins heterogeneous expected branches", "[and_then][expected
     // named source: VS 2022 misreads a mid-expression prvalue's empty-class union member
     constexpr In cs{fn::copack_for<A, B>{A{}}};
     static_assert(cs.and_then(fnSafe).value().has_value(std::in_place_type<Boom>));
+
+    // Fuse 2 throws when the branch error enters the joined result.
+    constexpr auto fnVoidBoom = fn::overload{[](S const &) { return fn::expected<void, Boom>{fn::unexpect, Boom{2}}; },
+                                             [](B) { return fn::expected<Y, fn::copack<E2>>{Y{}}; }};
+    CHECK_THROWS_AS(self.and_then(fnVoidBoom), int);
+    CHECK(self.value() == fn::copack_for<S, B>{S{7}});
+    constexpr auto fnVoidSafe = fn::overload{[](A) { return fn::expected<void, Boom>{fn::unexpect, Boom{99}}; },
+                                             [](B) { return fn::expected<Y, fn::copack<E2>>{Y{}}; }};
+    CHECK(In{fn::copack_for<A, B>{A{}}}.and_then(fnVoidSafe).error().has_value(std::in_place_type<Boom>));
+    static_assert(cs.and_then(fnVoidSafe).error().has_value(std::in_place_type<Boom>));
+  }
+
+  SECTION("the overload the join is typed from is the one invoked")
+  {
+    struct Pinned final {
+      int n;
+      constexpr explicit Pinned(int i) noexcept : n(i) {}
+      constexpr explicit Pinned(Pinned const &o) noexcept : n(o.n) {}
+      constexpr Pinned(Pinned &&) noexcept = default;
+    };
+    using T1 = std::tuple<int>;
+    using InT = fn::expected<fn::copack_for<T1, B>, fn::copack<E0>>;
+    constexpr auto run = [] {
+      fn::expected<Pinned, fn::copack<E0>> result{std::in_place, 3};
+      int elements = 0;
+      int whole = 0;
+      auto const fnR = fn::overload{[&](int) noexcept -> fn::expected<Pinned, fn::copack<E0>> & {
+                                      ++elements;
+                                      return result;
+                                    },
+                                    [&](T1) noexcept -> fn::expected<long, fn::copack<E0>> {
+                                      ++whole;
+                                      return 91L;
+                                    },
+                                    [](B) noexcept -> fn::expected<long, fn::copack<E0>> { return 2L; }};
+      auto const which = fn::overload{[](Pinned const &p) { return p.n; }, [](long) { return -2; }};
+      InT v{fn::copack_for<T1, B>{T1{3}}};
+      static_assert(noexcept(v.and_then(fnR)));
+      static_assert(noexcept(v | fn::and_then(fnR)));
+      return v.and_then(fnR).value().apply(which) == 3 && (v | fn::and_then(fnR)).value().apply(which) == 3
+             && elements == 2 && whole == 0;
+    };
+    CHECK(run());
+    static_assert(run());
   }
 
   SECTION("a plain grade lifts into its singular copack")

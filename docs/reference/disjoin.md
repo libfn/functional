@@ -2,7 +2,7 @@
 title: "fold fn::disjoin"
 ---
 
-##### Defined in {style: "api", badge: "#include <fn/pack.hpp>"}
+##### Defined in {style: "api", badge: "#include <fn/algebra.hpp>"}
 
 ---
 

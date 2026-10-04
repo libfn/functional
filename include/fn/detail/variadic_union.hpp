@@ -7,6 +7,7 @@
 #define INCLUDE_FN_DETAIL_VARIADIC_UNION
 
 #include <fn/detail/functional.hpp>
+#include <fn/detail/traits.hpp>
 #include <libfn_version.hpp>
 #include <pfn/utility.hpp>
 
@@ -16,12 +17,6 @@
 #include <fn/detail/macro_begin.hpp>
 
 namespace fn::inline LIBFN_VERSION::detail {
-
-template <typename T> constexpr bool _is_in_place_type = false;
-template <typename T> constexpr bool _is_in_place_type<::std::in_place_type_t<T> &> = true;
-template <typename T> constexpr bool _is_in_place_type<::std::in_place_type_t<T> const &> = true;
-template <typename T>
-concept _some_in_place_type = _is_in_place_type<T &>;
 
 // Constrained so a non-viable visitor fails overload resolution here: a deduced return would
 // otherwise instantiate the body and turn the answer into a hard error.

@@ -113,3 +113,23 @@ TEST_CASE("apply_const_lvalue_t", "[traits][apply_const][apply_lvalue][apply_con
     SUCCEED();
   }
 }
+
+// Incomplete classes and unions must fail compilation; the suite cannot test this.
+
+TEST_CASE("_complete_class", "[traits][complete_class]")
+{
+  using fn::detail::_complete_class;
+  union complete_union_t {
+    int i;
+  };
+
+  static_assert(_complete_class<empty_t>());
+  static_assert(_complete_class<complete_union_t>());
+  static_assert(_complete_class<void>());
+  static_assert(_complete_class<int>());
+  static_assert(_complete_class<int &>());
+  static_assert(_complete_class<int[]>());
+  // a runtime call too, so coverage sees both branches of the body
+  CHECK(_complete_class<empty_t>());
+  CHECK(_complete_class<int>());
+}

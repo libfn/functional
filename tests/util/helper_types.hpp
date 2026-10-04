@@ -296,4 +296,11 @@ static_assert(not std::is_move_constructible_v<helper_immovable>);
 static_assert(not std::is_copy_assignable_v<helper_immovable>);
 static_assert(not std::is_move_assignable_v<helper_immovable>);
 
+struct Atom final {
+  int n = 0;
+  constexpr Atom() noexcept = default;
+  constexpr explicit Atom(int x) noexcept : n(x) {}
+  template <typename R> constexpr operator R() const noexcept { return R{}; }
+};
+
 #endif // INCLUDE_TESTS_UTIL_HELPER_TYPES

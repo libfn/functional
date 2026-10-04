@@ -308,6 +308,19 @@ TEST_CASE("apply tuple-like", "[apply][apply_r][tuple]")
     CHECK(fn::apply(arity, fn::pack{1, 2, 3}) == 3);
   }
 
+  SECTION("singular copack dispatch with a pack alternative")
+  {
+    // fn::apply passes the pack's two fields, although the tuple protocol exposes one element.
+    // pfn::apply rejects this copack and accepts a std::tuple containing the same pack type.
+    using C = fn::copack<fn::pack<int, int>>;
+    static_assert(std::tuple_size_v<C> == 1);
+    static_assert(fn::apply(arity, C{fn::pack{1, 2}}) == 2);
+    static_assert(not pfn::is_applicable_v<decltype(arity), C>);
+    static_assert(pfn::is_applicable_v<decltype(arity), std::tuple<fn::pack<int, int>>>);
+
+    CHECK(fn::apply(arity, C{fn::pack{1, 2}}) == 2);
+  }
+
   SECTION("apply_r over the elements")
   {
     static_assert(fn::apply_r<long>(add2, std::tuple{2, 3}) == 5L);
