@@ -3013,6 +3013,22 @@ TEST_CASE("expected disjunction", "[expected][operator_or][graded][copack]")
     SUCCEED();
   }
 
+  SECTION("reference alternatives")
+  {
+    // a value enters the sum named by its type: by value, an lvalue int would be ambiguous between
+    // the alternatives int and int&
+    using ER = fn::expected<fn::copack<int &>, Error>;
+    static_assert(std::is_same_v<decltype(std::declval<ER>() | std::declval<EA const &>()),
+                                 fn::expected<fn::copack_for<int, int &>, fn::pack<Error, Error>>>);
+    constexpr auto battery = [] {
+      int x = 1;
+      EA const five{5};
+      return (ER{x} | five)->get_ptr<int &>() == &x && *(ER{fn::unexpect, Unknown} | five)->get_ptr<int>() == 5;
+    };
+    CHECK(battery());
+    static_assert(battery());
+  }
+
   SECTION("constraints and noexcept")
   {
     // the disjunction stays same-kind plus cluster: the expected/optional mix is refused
