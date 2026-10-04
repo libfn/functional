@@ -27,9 +27,19 @@ namespace detail {
 // from noexcept calculations for folding and result construction.
 template <typename Monad> using _value_of_t = decltype(::std::declval<Monad>().value());
 
+// What a carrier's value side contributes to conjunction and disjunction: its value type, or the
+// reference itself for a carrier of an lvalue reference
+template <typename C> struct _payload {
+  using type = typename C::value_type;
+};
+template <template <typename> typename Tpl, typename T> struct _payload<Tpl<T &>> {
+  using type = T &;
+};
+template <typename C> using _payload_t = typename _payload<::std::remove_cvref_t<C>>::type;
+
 template <typename Monad>
 using _factor_t = ::std::conditional_t<::std::is_void_v<typename ::std::remove_cvref_t<Monad>::value_type>,
-                                       ::fn::pack<>, typename ::std::remove_cvref_t<Monad>::value_type>;
+                                       ::fn::pack<>, _payload_t<Monad>>;
 template <typename Monad>
 using _factor_of_t = ::std::conditional_t<::std::is_void_v<typename ::std::remove_cvref_t<Monad>::value_type>,
                                           ::fn::pack<>, _value_of_t<Monad>>;
@@ -77,18 +87,21 @@ template <template <typename> typename Tpl, typename Lh, typename Rh, typename E
 constexpr inline bool _nothrow_join = _nothrow_join_arm<_uninhabited_join<Lh, Rh>, Tpl, Lh, Rh, Efn>::value;
 
 template <typename Lh, typename Rh>
-using _disjoined_t = copack_for<_sum_element_t<typename ::std::remove_cvref_t<Lh>::value_type>,
-                                _sum_element_t<typename ::std::remove_cvref_t<Rh>::value_type>>;
+using _disjoined_t = copack_for<_sum_element_t<_payload_t<Lh>>, _sum_element_t<_payload_t<Rh>>>;
+
+// A side's value enters the sum as its own alternative, named by type: by value, an lvalue `int`
+// would be ambiguous between the alternatives `int` and `int&`
+template <typename Side> using _disj_tag_t = ::std::in_place_type_t<_sum_element_t<_payload_t<Side>>>;
 
 template <typename T> constexpr inline bool _dead_value = empty_copack<typename ::std::remove_cvref_t<T>::value_type>;
 
 // Uninhabited values cannot reach the injection arm.
-template <bool Dead, typename Type, typename Side> struct _nothrow_disj_inject {
+template <bool Dead, typename Type, typename Side, typename... Tag> struct _nothrow_disj_inject {
   static constexpr bool value = true;
 };
-template <typename Type, typename Side> struct _nothrow_disj_inject<false, Type, Side> {
+template <typename Type, typename Side, typename... Tag> struct _nothrow_disj_inject<false, Type, Side, Tag...> {
   static constexpr bool value
-      = _nothrow_initializable<Type, ::std::in_place_t, decltype(::std::declval<Side>().value())>;
+      = _nothrow_initializable<Type, ::std::in_place_t, Tag..., decltype(::std::declval<Side>().value())>;
 };
 
 template <template <typename> typename Tpl>

@@ -634,6 +634,45 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       static_assert(not noexcept(std::declval<fn::just<MoveNothrow> &>() & std::declval<O &>())); // copies the value
     }
 
+    SECTION("reference payloads")
+    {
+      // a reference payload is a reference factor, as in the disjunction: the referent is never
+      // copied, and a const referent stays a const reference
+      using O = fn::optional<int>;
+      using R = fn::optional<int &>;
+      using RL = fn::optional<long &>;
+      static_assert(
+          std::same_as<decltype(std::declval<R>() & std::declval<RL>()), fn::optional<fn::pack<int &, long &>>>);
+      static_assert(std::same_as<decltype(std::declval<R>() & std::declval<O>()), fn::optional<fn::pack<int &, int>>>);
+      static_assert(
+          std::same_as<decltype(std::declval<O &>() & std::declval<R>()), fn::optional<fn::pack<int, int &>>>);
+      static_assert(std::same_as<decltype(std::declval<fn::optional<int const &>>() & std::declval<RL>()),
+                                 fn::optional<fn::pack<int const &, long &>>>);
+      static_assert(std::same_as<decltype(std::declval<fn::just<int>>() & std::declval<R>()),
+                                 fn::optional<fn::pack<int, int &>>>);
+      static_assert(std::same_as<decltype(fn::conjoin(std::declval<R>(), std::declval<O>(), std::declval<RL>())),
+                                 fn::optional<fn::pack<int &, int, long &>>>);
+      // the void unit adds no factor, so the reference stays
+      static_assert(
+          std::same_as<decltype(std::declval<R>() & std::declval<fn::just<void>>()), fn::optional<fn::pack<int &>>>);
+      static_assert(
+          std::same_as<decltype(std::declval<fn::just<void>>() & std::declval<R>()), fn::optional<fn::pack<int &>>>);
+
+      constexpr auto battery = [] {
+        int x = 1;
+        long y = 2;
+        auto const r = R{x} & RL{y};
+        auto const m = R{x} & O{5};
+        auto const u = fn::just<void>{} & R{x};
+        return &fn::get<0>(r.value()) == &x && &fn::get<1>(r.value()) == &y && &fn::get<0>(m.value()) == &x
+               && fn::get<1>(m.value()) == 5 && &fn::get<0>(u.value()) == &x && not(R{} & O{5}).has_value()
+               && not(R{x} & O{}).has_value();
+      };
+      CHECK(battery());
+      static_assert(battery());
+      static_assert(noexcept(std::declval<R>() & std::declval<RL>()));
+    }
+
     SECTION("copack on left side only")
     {
       using Lh = fn::optional<fn::copack<double, int>>;
@@ -776,6 +815,37 @@ TEST_CASE("optional disjunction", "[optional][operator_or][copack]")
   static_assert(noexcept(std::declval<O>() | std::declval<OB>()));
   static_assert(not noexcept(std::declval<fn::optional<MoveNothrow> &>() | std::declval<O &>())); // copies the value
   static_assert(noexcept(std::declval<fn::optional<MoveNothrow> &&>() | std::declval<O &&>()));   // moves it
+
+  SECTION("reference payloads")
+  {
+    // a reference payload joins the sum as a reference alternative: the referent is never copied
+    using R = fn::optional<int &>;
+    using RL = fn::optional<long &>;
+    static_assert(
+        std::same_as<decltype(std::declval<R>() | std::declval<RL>()), fn::optional<fn::copack_for<int &, long &>>>);
+    static_assert(
+        std::same_as<decltype(std::declval<R>() | std::declval<O>()), fn::optional<fn::copack_for<int, int &>>>);
+    static_assert(
+        std::same_as<decltype(std::declval<O &>() | std::declval<R>()), fn::optional<fn::copack_for<int, int &>>>);
+    static_assert(std::same_as<decltype(std::declval<fn::optional<int const &>>() | std::declval<fn::optional<long>>()),
+                               fn::optional<fn::copack_for<int const &, long>>>);
+    static_assert(std::same_as<decltype(std::declval<R>() | std::declval<R>()), R>); // same payload stays bare
+    static_assert(std::same_as<decltype(fn::disjoin(std::declval<R>(), std::declval<RL>(), std::declval<R>())),
+                               fn::optional<fn::copack_for<int &, long &>>>);
+
+    constexpr auto battery = [] {
+      int x = 1;
+      long y = 2;
+      O const five{5};
+      return (R{x} | RL{y})->get_ptr<int &>() == &x && (R{} | RL{y})->get_ptr<long &>() == &y
+             && (R{x} | O{5})->get_ptr<int &>() == &x && *(R{} | O{5})->get_ptr<int>() == 5
+             && *(five | R{x})->get_ptr<int>() == 5 // the lvalue int enters as int, named by its type
+             && &(R{} | R{x}).value() == &x && not(R{} | RL{}).has_value();
+    };
+    CHECK(battery());
+    static_assert(battery());
+    static_assert(noexcept(std::declval<R>() | std::declval<O &>()));
+  }
 
   SECTION("exceptions")
   {

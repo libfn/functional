@@ -907,6 +907,24 @@ TEST_CASE("choice disjunction", "[choice][just][operator_or]")
     }());
   }
 
+  SECTION("reference payloads")
+  {
+    // a reference payload stays a reference alternative of the total sum
+    static_assert(
+        std::is_same_v<decltype(std::declval<J>() | std::declval<fn::optional<int &>>()), fn::choice_for<int, int &>>);
+    static_assert(std::is_same_v<decltype(std::declval<fn::optional<int &>>() | std::declval<J &>()),
+                                 fn::choice_for<int, int &>>);
+    constexpr auto battery = [] {
+      int x = 1;
+      J const seven{7};
+      return (fn::optional<int &>{x} | seven).get_ptr<int &>() == &x
+             && *(fn::optional<int &>{} | seven).get_ptr<int>() == 7
+             && *(seven | fn::optional<int &>{x}).get_ptr<int>() == 7;
+    };
+    CHECK(battery());
+    static_assert(battery());
+  }
+
   SECTION("the unit's round trip")
   {
     // void enters a genuine sum as pack<>, and the all-unit pair collapses back to the family's

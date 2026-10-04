@@ -2779,10 +2779,12 @@ template <typename Lh, typename Rh>
 [[nodiscard]] constexpr auto operator|(Lh &&lh, Rh &&rh) //
     noexcept(::fn::detail::_nothrow_disj_inject<
                  ::fn::detail::_dead_value<Lh>,
-                 expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, Lh>::value
+                 expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, Lh,
+                 ::fn::detail::_disj_tag_t<Lh>>::value
              && ::fn::detail::_nothrow_disj_inject<
                  ::fn::detail::_dead_value<Rh>,
-                 expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, Rh>::value
+                 expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, Rh,
+                 ::fn::detail::_disj_tag_t<Rh>>::value
              && detail::_nothrow_disj_error<
                  expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, Lh, Rh>)
 {
@@ -2791,11 +2793,11 @@ template <typename Lh, typename Rh>
   using Er = ::std::remove_cvref_t<Rh>::error_type;
   if constexpr (not ::fn::detail::_dead_value<Lh>) {
     if (lh.has_value())
-      return type{::std::in_place, FWD(lh).value()};
+      return type{::std::in_place, ::fn::detail::_disj_tag_t<Lh>{}, FWD(lh).value()};
   }
   if constexpr (not ::fn::detail::_dead_value<Rh>) {
     if (rh.has_value())
-      return type{::std::in_place, FWD(rh).value()};
+      return type{::std::in_place, ::fn::detail::_disj_tag_t<Rh>{}, FWD(rh).value()};
   }
   return type{::fn::unexpect, ::fn::detail::_fold_detail::fold<El, Er>(FWD(lh).error(), FWD(rh).error())};
 }
@@ -2810,7 +2812,8 @@ template <some_expected_void Lh, typename Rh>
             expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, ::std::in_place_t, pack<>>
         && ::fn::detail::_nothrow_disj_inject<
             ::fn::detail::_dead_value<Rh>,
-            expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, Rh>::value
+            expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, Rh,
+            ::fn::detail::_disj_tag_t<Rh>>::value
         && detail::_nothrow_disj_error<expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>,
                                        Lh, Rh>)
 {
@@ -2821,7 +2824,7 @@ template <some_expected_void Lh, typename Rh>
     return type{::std::in_place, pack<>{}};
   if constexpr (not ::fn::detail::_dead_value<Rh>) {
     if (rh.has_value())
-      return type{::std::in_place, FWD(rh).value()};
+      return type{::std::in_place, ::fn::detail::_disj_tag_t<Rh>{}, FWD(rh).value()};
   }
   return type{::fn::unexpect, ::fn::detail::_fold_detail::fold<El, Er>(FWD(lh).error(), FWD(rh).error())};
 }
@@ -2834,7 +2837,8 @@ template <typename Lh, some_expected_void Rh>
     noexcept(
         ::fn::detail::_nothrow_disj_inject<
             ::fn::detail::_dead_value<Lh>,
-            expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, Lh>::value
+            expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, Lh,
+            ::fn::detail::_disj_tag_t<Lh>>::value
         && ::fn::detail::_nothrow_initializable<
             expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, ::std::in_place_t, pack<>>
         && detail::_nothrow_disj_error<expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>,
@@ -2845,7 +2849,7 @@ template <typename Lh, some_expected_void Rh>
   using Er = ::std::remove_cvref_t<Rh>::error_type;
   if constexpr (not ::fn::detail::_dead_value<Lh>) {
     if (lh.has_value())
-      return type{::std::in_place, FWD(lh).value()};
+      return type{::std::in_place, ::fn::detail::_disj_tag_t<Lh>{}, FWD(lh).value()};
   }
   if (rh.has_value())
     return type{::std::in_place, pack<>{}};
