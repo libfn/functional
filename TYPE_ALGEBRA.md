@@ -238,7 +238,7 @@ Composing computations requires wrapping these values in computation carriers. P
 
 Because these carriers represent different computational contexts, pipelines often need to transition between them. `libfn` provides **cross-carrier bridging** via combinators using `operator|`.
 
-Identity carriers bridge on the success path, via the `and_then` combinator. Since there is no error, the conversions between carriers can be freely performed inside the user provided callback (Kleisli functor); Section 10 covers that together with the identity cluster.
+Identity carriers bridge on the success path, via the `and_then` combinator. Since there is no error, the conversions between identity carriers can be freely performed; they can also bridge to fallible carriers (one way only). Section 10 covers that together with the identity cluster.
 
 Standard fallible carriers can bridge to each other on their error/empty recovery paths via the `or_else` combinator (e.g., `expected` to `optional`, or vice versa). On success, the value is preserved by a short-circuit; on failure, the user provided recovery callback can convert a missing value into a concrete error, or replace a detailed error with an empty state:
 
@@ -504,14 +504,14 @@ The runtime semantics are:
 
 ### Disjunction over carriers only
 
-Unlike conjunction, disjunction has no data-level form. Neither `operator|` nor the n-ary fold `fn::disjoin(...)` accepts a `pack`, a `copack`, or a scalar. Therefore, built-in operations (such as bitwise `OR` on integers) are never confused with disjunction.
+Unlike conjunction, disjunction has no data-level form. Neither `operator|` nor the n-ary fold `fn::disjoin(...)` accepts a `pack`, a `copack`, or a scalar.
 
 ### Disjunction with the identity cluster
 
 When an operand belongs to the identity cluster (Section 10), the disjunction cannot fail:
 
 - **Error Annihilation**: The error side gains an uninhabited factor (`copack<>`), which annihilates the error product and collapses the channel.
-- **Infallible Folding**: The result folds into a non-failing `just` carrier, including when an operand is `expected<T, copack<>>`.
+- **Infallible Folding**: The result folds into a non-failing `just` carrier, including when an operand is `expected<T, copack<>>`. A result of type `just<copack<Ts...>>` can also be spelled `choice<Ts...>`.
 
 <!-- sync-example-test-disjoin -->
 ```cpp
@@ -610,8 +610,8 @@ auto config_pipeline() -> void
 
 Two independent joins occur during `and_then`:
 
-1. The successful branch values formed the normalized value copack.
-2. The existing outer errors (`BadSyntax`, `UnknownKey`) and the new branch errors (`OutOfRange`, `Missing`) formed the normalized error copack.
+1. The successful branch values formed the normalized value `copack`.
+2. The existing outer errors (`BadSyntax`, `UnknownKey`) and the new branch errors (`OutOfRange`, `Missing`) formed the normalized error `copack`.
 
 Unioning allows different grades of `expected` to share the same carrier family. Although ungraded `expected<T, E>` requires the identical error type `E` (or its singular lift `copack<E>`) to participate in monadic *bind* — meaning `expected<int, IoError>` and `expected<User, Missing>` are not `same_kind` — any two error-graded `expected` types are `same_kind` regardless of how their error sets differ, as the compiler can always derive their union:
 
@@ -629,7 +629,7 @@ During sequential composition, `libfn` derives the promoted type from the `copac
 
 - In `and_then` (success binding), a plain error type `E` is promoted to `copack<E>` if the returning **error type** of the callback is `copack<E>`.
 - In `or_else` (recovery/error binding), a plain success type `T` is promoted to `copack<T>` if the returning **success type** of the callback is `copack<T>`.
-  - For a `void` success type, the corresponding lift is `copack<pack<>>`.
+  - For a `void` success type in `or_else`, the corresponding lift is `copack<pack<>>`.
 
 An ungraded computation thus enters a graded composition without manual lifting.
 
@@ -763,7 +763,7 @@ All three cluster members (`just`, `choice`, and `expected<T, copack<>>`) can br
 
 Monadic operations on the identity cluster:
 
-- **Success Mapping (`transform`)**: Preserves the carrier family. A `copack` returned from a callable mapped over a `just` produces `just` of that copack, which is the `choice` over its alternatives (Section 11).
+- **Success Mapping (`transform`)**: Preserves the carrier family. A `copack` returned from a callable mapped over a `just` produces `just` of that `copack`, which is the `choice` over its alternatives (Section 11).
 - **Sequential Binding (`and_then`)**: Allows cross-carrier transitions within the identity cluster (such as `just` to `expected<U, copack<>>`) when using pipeline `fn::and_then`.
 - **Recovery & Error Mapping (`transform_error`, `or_else`, `recover`, `inspect_error`)**: Because `just` and `choice` lack an error side, these are ill-formed. On `expected<T, copack<>>`, they are vacuously well-formed but the error callback is statically unreachable.
 - **Short-Circuiting (`fail`, `filter`)**: Ill-formed for identity carriers, as no failure (error or empty state) can be constructed from an infallible context.
@@ -816,7 +816,7 @@ A callback passed to member `and_then` must return a `just`, including `just<voi
 Inside its domain, `choice` behaves differently from bare `copack`:
 
 - `copack` is self-flattening data; a `copack` returned from a branch dissolves into the result.
-- `choice` is an atomic, never-failing computation; a `choice` returned from a branch remains an alternative unless `and_then` joins it away.
+- `choice` is an atomic, never-failing computation; a `choice` returned from a branch remains an alternative unless `and_then` joins it.
 
 Consider a scenario where different branches of a switch return different `choice` types:
 
