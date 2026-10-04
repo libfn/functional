@@ -476,7 +476,7 @@ The n-ary fold `fn::conjoin(...)` operates in two modes:
 - If all arguments are computation carriers, it folds them as a monadic conjunction, equivalent to cascading `operator&`.
 - If no arguments are carriers, it conjoins them as a data-level product, every scalar held by value: `fn::conjoin(a, b)` is `pack<A, B>`.
 
-Mixing carriers and data in a single call is ill-formed.
+Mixing carriers and data in a single call is ill-formed. Being a fold from the unit, `fn::conjoin` with a single argument normalizes it into a sum of products: `fn::conjoin(a)` is `pack<A>`, a `copack_for<A, B>` becomes `copack_for<pack<A>, pack<B>>`, and an `optional<A>` becomes `optional<pack<A>>`; a `void` value stays `void`.
 
 ### Conjunction with the identity cluster
 
