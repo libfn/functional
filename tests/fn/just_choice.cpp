@@ -1515,6 +1515,29 @@ TEST_CASE("choice transform", "[choice][transform]")
     }
   }
 
+  SECTION("a reference result stays a reference")
+  {
+    using AB = fn::choice_for<int, long>;
+    constexpr auto self
+        = fn::overload{[](int &i) noexcept -> int & { return i; }, [](long &l) noexcept -> long & { return l; }};
+    constexpr auto cself = [](auto const &v) noexcept -> auto const & { return v; };
+    static_assert(std::is_same_v<decltype(std::declval<AB &>().transform(self)), fn::choice_for<int &, long &>>);
+    static_assert(std::is_same_v<decltype(std::declval<AB const &>().transform(cself)),
+                                 fn::choice_for<int const &, long const &>>);
+    // a reference into an alternative of an rvalue choice is refused at compile time, which the
+    // suite cannot test; the call stays viable, or the const & overload would bind the choice
+    static_assert(can_transform<AB &&, decltype(cself)>);
+
+    AB a{1};
+    CHECK(a.transform(self).get_ptr<int &>() == a.get_ptr<int>());
+    CHECK(std::as_const(a).transform(cself).get_ptr<int const &>() == a.get_ptr<int>());
+    static_assert([self, cself] {
+      AB x{1};
+      return x.transform(self).get_ptr<int &>() == x.get_ptr<int>()
+             && std::as_const(x).transform(cself).get_ptr<int const &>() == x.get_ptr<int>();
+    }());
+  }
+
   SECTION("a result no choice can hold")
   {
     constexpr auto fnTag = [](auto &&...) { return std::in_place_type<int>; };
