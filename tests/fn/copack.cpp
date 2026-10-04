@@ -2067,21 +2067,23 @@ TEST_CASE("copack transform", "[copack][transform]")
     CHECK(std::move(std::as_const(a)).transform(add, 3) == copack{3.5});
     CHECK(std::move(a).transform(add, 3) == copack{3.5});
 
-    // a returned reference into a spliced argument is read while that argument lives
-    struct Arg final {
-      int v;
-    };
-    constexpr auto field = [](double, Arg &&arg) noexcept -> int const & { return arg.v; };
-    CHECK(a.transform(field, fn::pack<Arg>{Arg{7}}) == copack{7});
-    CHECK(std::move(a).transform(field, fn::pack<Arg>{Arg{7}}) == copack{7});
+    // a returned reference into an lvalue argument stays a reference to it; where it could refer
+    // into an expiring one - an rvalue, the temporary pack which splicing a pack or copack builds, or
+    // the alternative of std::move(a) - it is refused at compile time, which the suite cannot test
+    constexpr auto second = [](double, int const &j) noexcept -> int const & { return j; };
+    int const j = 3;
+    static_assert(std::same_as<decltype(a.transform(second, j)), copack<int const &>>);
+    CHECK(a.transform(second, j).get_ptr<int const &>() == &j);
 
     SECTION("constexpr")
     {
       constexpr type b{std::in_place_type<double>, 0.5};
       static_assert(b.transform(add, 3) == copack{3.5});
       static_assert(std::move(b).transform(add, 3) == copack{3.5});
-      static_assert(b.transform(field, fn::pack<Arg>{Arg{7}}) == copack{7});
-      static_assert(std::move(b).transform(field, fn::pack<Arg>{Arg{7}}) == copack{7});
+      static_assert([second, b] {
+        int const k = 3;
+        return b.transform(second, k).get_ptr<int const &>() == &k;
+      }());
       SUCCEED();
     }
   }
@@ -2115,7 +2117,8 @@ TEST_CASE("copack transform", "[copack][transform]")
     };
     struct Elements final {
       X const *x;
-      constexpr auto operator()(int) const noexcept -> X const & { return *x; }
+      // an rvalue reference result decays: the explicit copy is what transform weighs
+      constexpr auto operator()(int) const noexcept -> X const && { return std::move(*x); }
       constexpr auto operator()(std::tuple<int>) const noexcept -> copack<X>
       {
         return copack<X>{std::in_place_type<X>, 0};
@@ -2200,6 +2203,99 @@ TEST_CASE("copack transform", "[copack][transform]")
     static_assert(cca.transform(fnMixed).apply(which) == -1);
     static_assert(cca.transform(fnVoid).apply(which) == -1);
     static_assert(std::move(cca).transform(fnMixed).apply(which) == -1);
+  }
+
+  SECTION("a reference result stays a reference")
+  {
+    using AB = fn::copack_for<int, long>;
+    constexpr auto self
+        = fn::overload{[](int &i) noexcept -> int & { return i; }, [](long &l) noexcept -> long & { return l; }};
+    constexpr auto cself = [](auto const &v) noexcept -> auto const & { return v; };
+
+    SECTION("lvalue")
+    {
+      static_assert(std::same_as<decltype(std::declval<AB &>().transform(self)), fn::copack_for<int &, long &>>);
+      static_assert(noexcept(std::declval<AB &>().transform(self)));
+      AB c{1};
+      CHECK(c.transform(self).get_ptr<int &>() == c.get_ptr<int>());
+      *c.transform(self).get_ptr<int &>() = 3;
+      CHECK(c == AB{3});
+      static_assert([self] {
+        AB x{1};
+        *x.transform(self).get_ptr<int &>() = 3;
+        return x.transform(self).get_ptr<int &>() == x.get_ptr<int>() && x == AB{3};
+      }());
+    }
+
+    SECTION("const lvalue")
+    {
+      static_assert(std::same_as<decltype(std::declval<AB const &>().transform(cself)),
+                                 fn::copack_for<int const &, long const &>>);
+      AB const c{2L};
+      CHECK(c.transform(cself).get_ptr<long const &>() == c.get_ptr<long>());
+      static_assert([cself] {
+        AB const x{2L};
+        return x.transform(cself).get_ptr<long const &>() == x.get_ptr<long>();
+      }());
+    }
+
+    SECTION("rvalue")
+    {
+      // a reference into an alternative of an rvalue copack is refused at compile time, which the
+      // suite cannot test; the call stays viable, or the const & overload would bind the copack
+      static_assert(can_transform<AB &&, decltype(cself)>);
+      static_assert(can_transform<AB const &&, decltype(cself)>);
+
+      // a reference alternative is no part of the expiring copack
+      using R = fn::copack_for<int &, long>;
+      constexpr auto onlyref
+          = fn::overload{[](int &i) noexcept -> int & { return i; }, [](long) noexcept { return 0; }};
+      static_assert(std::same_as<decltype(std::declval<R>().transform(onlyref)), fn::copack_for<int, int &>>);
+      int x = 2;
+      CHECK(R{x}.transform(onlyref).get_ptr<int &>() == &x);
+      CHECK(*R{2L}.transform(onlyref).get_ptr<int>() == 0);
+      static_assert([onlyref] {
+        int y = 2;
+        return R{y}.transform(onlyref).get_ptr<int &>() == &y && *R{2L}.transform(onlyref).get_ptr<int>() == 0;
+      }());
+    }
+
+    SECTION("mixed with values")
+    {
+      constexpr auto mixed = fn::overload{[](int &i) noexcept -> int & { return i; },
+                                          [](long l) noexcept -> int { return static_cast<int>(l); }};
+      static_assert(std::same_as<decltype(std::declval<AB &>().transform(mixed)), fn::copack_for<int, int &>>);
+      AB c{1};
+      AB d{2L};
+      CHECK(c.transform(mixed).get_ptr<int &>() == c.get_ptr<int>());
+      CHECK(*d.transform(mixed).get_ptr<int>() == 2);
+      static_assert([mixed] {
+        AB x{1};
+        AB y{2L};
+        return x.transform(mixed).get_ptr<int &>() == x.get_ptr<int>() && *y.transform(mixed).get_ptr<int>() == 2;
+      }());
+    }
+
+    SECTION("decays")
+    {
+      // an rvalue reference, or a reference to what no copack holds by reference, enters as a value
+      constexpr auto moved = [](auto &v) noexcept -> auto && { return std::move(v); };
+      static_assert(std::same_as<decltype(std::declval<AB &>().transform(moved)), AB>);
+      AB c{1};
+      CHECK(c.transform(moved) == AB{1});
+
+      fn::pack<int> p{5};
+      auto const whole = [&p](auto &) noexcept -> fn::pack<int> & { return p; };
+      static_assert(std::same_as<decltype(c.transform(whole)), copack<fn::pack<int>>>);
+      CHECK(c.transform(whole).get_ptr<fn::pack<int>>() != &p);
+      CHECK(c.transform(whole) == copack<fn::pack<int>>{p});
+      static_assert([moved] {
+        AB x{1};
+        fn::pack<int> q{5};
+        auto const all = [&q](auto &) noexcept -> fn::pack<int> & { return q; };
+        return x.transform(moved) == AB{1} && x.transform(all) == copack<fn::pack<int>>{q};
+      }());
+    }
   }
 }
 

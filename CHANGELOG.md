@@ -2,6 +2,10 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `transform` over a copack keeps lvalue-reference results — 4 October 2026
+
+`transform` and `transform_error` over a copack keep an lvalue-reference result as a reference alternative: an lvalue `copack_for<int, long>` mapped through `[](auto &v) -> auto & { return v; }` yields `copack_for<int&, long&>`; previously the referents were copied into `copack_for<int, long>`. Rvalue-reference results, and references to a `pack` or a `copack`, still enter as values. A reference result that could refer into an argument expiring with the call, previously copied, now fails to compile. For example, `std::move(c).transform([](auto const &v) -> auto const & { return v; })` is refused; return by value instead. `expected`, `optional` and `choice` over a copack follow.
+
 ## `|` and `&` keep lvalue-reference payloads — 4 October 2026
 
 The disjunction sums, and the conjunction multiplies, `T&` for an `optional<T&>` operand, rather than its value type `T`. `optional<int&> | optional<long&>` is `optional<copack_for<int&, long&>>`; previously the referents were copied into `optional<copack_for<int, long>>`. `optional<int&> | optional<int>` is `optional<copack_for<int, int&>>`; previously it was `optional<int&>`, bound to the right operand's value, and failed to compile for an rvalue right operand. `optional<int const&> | optional<long>` compiles, where it failed inside the operator. Identity-cluster operands follow: `just<int> | optional<int&>` is `choice_for<int, int&>`, where it was `just<int>`. `|` places each value directly into the alternative its payload names, so an lvalue `int` is never ambiguous between alternatives `int` and `int&`.

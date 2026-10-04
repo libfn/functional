@@ -143,16 +143,21 @@ template <typename R> constexpr inline bool _collapsible_result = some_copack<R>
 // A copack represents void success with pack<>.
 template <typename V> using _sum_element_t = ::std::conditional_t<::std::is_void_v<V>, ::fn::pack<>, V>;
 
+// What a callback result contributes to the collapsing copack: an lvalue reference to an admissible
+// referent stays a reference, anything else decays to its value
+template <typename R>
+using _collapsed_t = _sum_element_t<
+    ::std::conditional_t<::std::is_lvalue_reference_v<R> && _is_valid_copack_subtype<R>, R, ::std::remove_cvref_t<R>>>;
+
 template <typename Fn, typename Self, typename T, typename... Args> struct _typelist_collapsing_copack;
 template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts, typename... Args>
 struct _typelist_collapsing_copack<Fn, Self, Tpl<Ts...>, Args...>
     : _collapsing_copack_gate<
           (...
-           && _collapsible_result<_sum_element_t<::std::remove_cvref_t<
-               typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>>>),
+           && _collapsible_result<
+               _collapsed_t<typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>>),
           Tpl,
-          _sum_element_t<::std::remove_cvref_t<
-              typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>>...> {};
+          _collapsed_t<typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type>...> {};
 
 template <typename T, typename Fn, typename Self, typename... Args> struct _copack_apply_result final {
   using type = T;
@@ -174,11 +179,30 @@ struct _nothrow_copack_inject<To, Fn, Args...>
     : ::std::bool_constant<
           ::std::is_nothrow_invocable_v<Fn, Args...> && ::std::is_nothrow_constructible_v<To, ::fn::pack<>>> {};
 template <typename To, typename Fn, typename... Args>
-  requires(not ::std::is_void_v<::std::invoke_result_t<Fn, Args...>>)
-          && requires { static_cast<To>(::std::invoke(::std::declval<Fn>(), ::std::declval<Args>()...)); }
+  requires(not ::std::is_void_v<::std::invoke_result_t<Fn, Args...>>) && requires {
+    To(::std::in_place_type<_collapsed_t<::std::invoke_result_t<Fn, Args...>>>,
+       ::std::invoke(::std::declval<Fn>(), ::std::declval<Args>()...));
+  }
 struct _nothrow_copack_inject<To, Fn, Args...>
-    : ::std::bool_constant<noexcept(static_cast<To>(::std::invoke(::std::declval<Fn>(), ::std::declval<Args>()...)))> {
-};
+    : ::std::bool_constant<noexcept(To(::std::in_place_type<_collapsed_t<::std::invoke_result_t<Fn, Args...>>>,
+                                       ::std::invoke(::std::declval<Fn>(), ::std::declval<Args>()...)))> {};
+
+// A reference result must not refer into an argument which expires with the call: the alternative and
+// the extra arguments must be lvalues, and none of the latter a pack or copack, whose splicing copies
+// into a temporary pack. Asserted on the caller's categories rather than constrained on the callback's:
+// where an rvalue's && overload is not viable, its const & overload binds it instead - for transform,
+// and for pack's apply handing elements to the callback.
+template <typename R, typename Arg, typename... Args>
+constexpr inline bool _admissible_result
+    = (not ::std::is_reference_v<_collapsed_t<R>>)
+      || (::std::is_lvalue_reference_v<Arg> && ...
+          && (::std::is_lvalue_reference_v<Args> && not _some_pack<Args> && not _some_copack<Args>));
+template <typename Fn, typename Self, typename T, typename... Args> constexpr inline bool _admissible_results = false;
+template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts, typename... Args>
+constexpr inline bool _admissible_results<Fn, Self, Tpl<Ts...>, Args...>
+    = (...
+       && _admissible_result<typename ::fn::detail::_apply_result<Fn, apply_const_lvalue_t<Self, Ts>, Args...>::type,
+                             apply_const_lvalue_t<Self, Ts>, Args...>);
 
 template <typename To, typename Fn> struct _copack_injector final {
   Fn fn;
@@ -192,7 +216,7 @@ template <typename To, typename Fn> struct _copack_injector final {
       ::std::invoke(FWD(fn), FWD(args)...);
       return To{::fn::pack<>{}};
     } else
-      return static_cast<To>(::std::invoke(FWD(fn), FWD(args)...));
+      return To(::std::in_place_type<_collapsed_t<result>>, ::std::invoke(FWD(fn), FWD(args)...));
   }
 };
 
@@ -200,7 +224,10 @@ template <typename To, typename Fn> struct _copack_admission final {
   template <typename... Args>
   auto operator()(Args &&...) const -> To
     requires(::std::is_void_v<::std::invoke_result_t<Fn, Args...>> && ::std::is_constructible_v<To, ::fn::pack<>>)
-            || ((not ::std::is_void_v<::std::invoke_result_t<Fn, Args...>>) && ::std::is_invocable_r_v<To, Fn, Args...>)
+            || ((not ::std::is_void_v<::std::invoke_result_t<Fn, Args...>>)
+                && ::std::is_constructible_v<To,
+                                             ::std::in_place_type_t<_collapsed_t<::std::invoke_result_t<Fn, Args...>>>,
+                                             ::std::invoke_result_t<Fn, Args...>>)
   {
     ::pfn::unreachable(); // LCOV_EXCL_LINE
   }
@@ -211,6 +238,8 @@ template <typename To, typename Data, typename Fn, typename... Args>
 [[nodiscard]] constexpr auto _collapsing_apply(Data &&data, ::std::size_t index, Fn &&fn, Args &&...args) //
     noexcept(_is_nothrow_rts_applicable<To, _copack_injector<To, Fn &&>, Data &&, Args &&...>) -> To
 {
+  static_assert(_admissible_results<Fn &&, Data &&, ::std::remove_cvref_t<Data>, Args &&...>,
+                "a reference result must not refer into an argument which expires with the call");
   return apply_variadic_union<To, ::std::remove_cvref_t<Data>>(FWD(data), index, _copack_injector<To, Fn &&>{FWD(fn)},
                                                                FWD(args)...);
 }
@@ -1183,7 +1212,9 @@ struct copack<Ts...> {
    *
    * The self-flattening map: the callable is dispatched exhaustively, and the branch results -
    * heterogeneous types allowed, a copack result dissolving into the set, a `void` one entering as
-   * `pack<>` - flatten, deduplicate and sort into the `copack_for` of them all.
+   * `pack<>`, an lvalue reference staying one where a copack can hold it - flatten, deduplicate and
+   * sort into the `copack_for` of them all. A kept reference requires the alternative and `args` to
+   * be lvalues, none of `args` a pack or a copack.
    *
    * @param fn Callable applied on the active alternative; `fn::overload` fuses arms into one
    * @param args Additional arguments, appended after the alternative's content

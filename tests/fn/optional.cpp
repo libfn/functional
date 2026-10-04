@@ -1087,6 +1087,31 @@ TEST_CASE("optional transform copack", "[optional][copack][transform]")
     static_assert(not ce.transform(fnMixed).has_value());
   }
 
+  SECTION("a reference result stays a reference")
+  {
+    using O = fn::optional<fn::copack_for<int, long>>;
+    constexpr auto self
+        = fn::overload{[](int &i) noexcept -> int & { return i; }, [](long &l) noexcept -> long & { return l; }};
+    constexpr auto cself = [](auto const &v) noexcept -> auto const & { return v; };
+    static_assert(
+        std::is_same_v<decltype(std::declval<O &>().transform(self)), fn::optional<fn::copack_for<int &, long &>>>);
+    static_assert(std::is_same_v<decltype(std::declval<O const &>().transform(cself)),
+                                 fn::optional<fn::copack_for<int const &, long const &>>>);
+    // a reference into an alternative of an rvalue optional is refused at compile time, which the
+    // suite cannot test
+
+    O o{1};
+    CHECK(o.transform(self).value().get_ptr<int &>() == o.value().get_ptr<int>());
+    CHECK(std::as_const(o).transform(cself).value().get_ptr<int const &>() == o.value().get_ptr<int>());
+    O const e{};
+    CHECK(not e.transform(cself).has_value());
+    static_assert([self, cself] {
+      O x{1};
+      return x.transform(self).value().get_ptr<int &>() == x.value().get_ptr<int>()
+             && std::as_const(x).transform(cself).value().get_ptr<int const &>() == x.value().get_ptr<int>();
+    }());
+  }
+
   SECTION("error")
   {
     fn::optional<fn::copack_for<Xint, int>> s{};
