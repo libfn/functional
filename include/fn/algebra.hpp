@@ -164,8 +164,8 @@ concept _all_carriers = (... && some_monadic_type<Ts>);
 /**
  * @brief The n-ary fold of `operator &` above; a single argument is forwarded unchanged
  *
- * Arguments must be all carriers or all data. Data forms a product, with a leading scalar
- * lifted into a `pack`; carriers compose through their `operator &`.
+ * Arguments must be all carriers or all data. Data forms a product, a leading scalar held by
+ * value as `operator &` holds the others; carriers compose through their `operator &`.
  */
 constexpr inline struct conjoin_t {
   /**
