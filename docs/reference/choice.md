@@ -72,9 +72,9 @@ constexpr just(just const &) = default;  // (9)
 constexpr just(just &&) = default;       // (10)
 ```
 
-:include-doxygen-doc: fn::just< copack< Ts... > >::just { args: "T &&" }
+:include-doxygen-doc: fn::just< copack< Ts... > >::just { args: "U &&" }
 
-:include-doxygen-doc-params: fn::just< copack< Ts... > >::just { args: "T &&", title: "parameters" }
+:include-doxygen-doc-params: fn::just< copack< Ts... > >::just { args: "U &&", title: "parameters" }
 
 :include-doxygen-doc: fn::just< copack< Ts... > >::just { args: "::std::in_place_type_t< T >, auto &&..." }
 
