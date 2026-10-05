@@ -102,9 +102,9 @@ constexpr copack(copack &&other) = default;       // (9)
 constexpr copack(copack &&other);                 // (10)
 ```
 
-:include-doxygen-doc: fn::copack< Ts... >::copack { args: "T &&" }
+:include-doxygen-doc: fn::copack< Ts... >::copack { args: "U &&" }
 
-:include-doxygen-doc-params: fn::copack< Ts... >::copack { args: "T &&", title: "parameters" }
+:include-doxygen-doc-params: fn::copack< Ts... >::copack { args: "U &&", title: "parameters" }
 
 :include-doxygen-doc: fn::copack< Ts... >::copack { args: "::std::in_place_type_t< T >, auto &&..." }
 
