@@ -1033,16 +1033,16 @@ template <typename... Ts> struct just<copack<Ts...>> {
    */
   template <typename T>
     requires has_type<T>
-  [[nodiscard]] constexpr ::std::add_pointer_t<T> get_ptr(::std::in_place_type_t<T> d
-                                                          = ::std::in_place_type<T>) noexcept
+  [[nodiscard]] constexpr auto get_ptr(::std::in_place_type_t<T> d = ::std::in_place_type<T>) noexcept
+      -> ::std::add_pointer_t<T>
   {
     return v_.get_ptr(d);
   }
 
   template <typename T>
     requires has_type<T>
-  [[nodiscard]] constexpr ::std::add_pointer_t<::std::remove_reference_t<T> const>
-  get_ptr(::std::in_place_type_t<T> d = ::std::in_place_type<T>) const noexcept
+  [[nodiscard]] constexpr auto get_ptr(::std::in_place_type_t<T> d = ::std::in_place_type<T>) const noexcept
+      -> ::std::add_pointer_t<::std::remove_reference_t<T> const>
   {
     return v_.get_ptr(d);
   }
