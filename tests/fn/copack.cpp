@@ -1039,6 +1039,17 @@ TEST_CASE("copack basic functionality tests", "[copack]")
       static_assert(noexcept(std::declval<Q const &>() == std::declval<Q const &>()));
       static_assert(noexcept(std::declval<Q const &>() != std::declval<Q const &>()));
 
+      // a reference alternative's referents compare as const, so that comparison is the one weighed
+      struct ConstEqThrows final {
+        bool operator==(ConstEqThrows &) noexcept { return true; }
+        bool operator==(ConstEqThrows const &) const noexcept(false) { return true; }
+      };
+      using RC = copack<ConstEqThrows &>;
+      static_assert(noexcept(std::declval<ConstEqThrows &>() == std::declval<ConstEqThrows &>()));
+      static_assert(not noexcept(std::declval<RC const &>() == std::declval<RC const &>()));
+      using RQ = copack<int &>;
+      static_assert(noexcept(std::declval<RQ const &>() == std::declval<RQ const &>()));
+
       SUCCEED();
     }
 
