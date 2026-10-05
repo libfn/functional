@@ -542,9 +542,14 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
   // transform, value type is a copack (delegates to copack::transform). The callback is constrained here,
   // in the immediate context, for the reason given on optional's copack-case _transform.
   template <typename Self, typename Fn>
+  using _copack_transformed_t
+      = ::fn::expected<decltype(_pfn_base::_value(::std::declval<Self>()).transform(::std::declval<Fn>())), E>;
+
+  template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn) //
       noexcept(noexcept(_pfn_base::_value(FWD(self)).transform(FWD(fn)))
                && ::std::is_nothrow_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>) // extension
+      -> DEDUCED_RETURN(_copack_transformed_t<Self, Fn>(::fn::unexpect, _pfn_base::_error(FWD(self))))
     requires some_copack<T> && (not empty_copack<T>)
              && ::fn::detail::_typelist_applicable<Fn, decltype(_pfn_base::_value(FWD(self)))>
              && ::std::is_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
