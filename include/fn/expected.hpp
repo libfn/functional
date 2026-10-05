@@ -627,11 +627,17 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
 
   // Constrain the call here so invalid transforms fail in the immediate context.
   template <typename Self, typename Fn>
+  using _copack_error_transformed_t
+      = ::fn::expected<T, decltype(_pfn_base::_error(::std::declval<Self>()).transform(::std::declval<Fn>()))>;
+
+  template <typename Self, typename Fn>
   static constexpr auto _transform_error(Self &&self, Fn &&fn) //
       noexcept(noexcept(_pfn_base::_error(FWD(self)).transform(FWD(fn)))
                && (::std::is_void_v<T>
                    || ::std::is_nothrow_constructible_v<
                        T, ::fn::apply_const_lvalue_t<Self, typename _pfn_base::_value_t &&>>)) // extension
+      -> DEDUCED_RETURN(_copack_error_transformed_t<Self, Fn>(
+          ::fn::unexpect, ::std::declval<typename _copack_error_transformed_t<Self, Fn>::error_type>()))
     requires some_copack<E> && (not empty_copack<E>)
              && ::fn::detail::_typelist_applicable<Fn, decltype(_pfn_base::_error(FWD(self)))>
              && requires { _pfn_base::_error(FWD(self)).transform(FWD(fn)); }
