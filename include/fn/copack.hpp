@@ -716,9 +716,9 @@ struct copack<Ts...> {
       ::std::destroy_at(this);
       ::std::construct_at(this, ::std::in_place_type<T>, FWD(args)...);
     } else {
-      T tmp{FWD(args)...}; // may throw, and the storage is untouched until it cannot
+      detail::_union_member_t<T> tmp{FWD(args)...}; // may throw, and the storage is untouched until it cannot
       ::std::destroy_at(this);
-      ::std::construct_at(this, ::std::in_place_type<T>, ::std::move(tmp)); // cannot throw: see above
+      ::std::construct_at(this, ::std::in_place_type<T>, detail::_held<T>(::std::move(tmp))); // cannot throw: see above
     }
   }
 
