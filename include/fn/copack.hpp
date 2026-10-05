@@ -95,7 +95,8 @@ struct _apply_autodetect_tag final {};
 template <typename T, typename... Tx> constexpr inline bool _nothrow_eq_with = true;
 template <typename T, typename... Tx>
   requires type_one_of<T, Tx...>
-constexpr inline bool _nothrow_eq_with<T, Tx...> = noexcept(::std::declval<T const &>() == ::std::declval<T const &>());
+constexpr inline bool _nothrow_eq_with<T, Tx...> = noexcept(::std::declval<::std::remove_reference_t<T> const &>()
+                                                            == ::std::declval<::std::remove_reference_t<T> const &>());
 
 template <typename Fn, typename Self, typename T, typename... Args> struct _typelist_select_apply_result;
 template <typename Fn, typename Self, template <typename...> typename Tpl, typename... Ts, typename... Args>
