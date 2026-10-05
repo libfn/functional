@@ -52,6 +52,9 @@ using Throwing = helper_t<prop::throw_copy | prop::throw_move>;
 template <typename... Args>
 concept can_as_pack = requires(Args &&...args) { fn::as_pack(FWD(args)...); };
 
+template <typename... Args>
+concept can_deduce = requires(Args &&...args) { fn::pack{FWD(args)...}; };
+
 template <typename... Ts>
 concept can_as_pack_explicit = requires(int &i, double &d) { fn::as_pack<Ts...>(i, d); };
 
@@ -221,11 +224,17 @@ TEST_CASE("pack", "[pack]")
   static_assert(pack<>::size == 0);
 
   static_assert(std::same_as<decltype(fn::pack{}), fn::pack<>>);
+  // deduction holds values, as_pack below keeps references; an array stays an array, never a pointer
   static_assert(std::same_as<decltype(fn::pack{12}), fn::pack<int>>);
-  static_assert(std::same_as<decltype(fn::pack{a}), fn::pack<A &>>);
-  static_assert(std::same_as<decltype(fn::pack{12, a}), fn::pack<int, A &>>);
-  static_assert(std::same_as<decltype(fn::pack{12, std::as_const(a)}), fn::pack<int, A const &>>);
+  static_assert(std::same_as<decltype(fn::pack{a}), fn::pack<A>>);
+  static_assert(std::same_as<decltype(fn::pack{12, a}), fn::pack<int, A>>);
+  static_assert(std::same_as<decltype(fn::pack{12, std::as_const(a)}), fn::pack<int, A>>);
   static_assert(std::same_as<decltype(fn::pack{12, std::move(a)}), fn::pack<int, A>>);
+  static_assert(std::same_as<decltype(fn::pack{"abc"}), fn::pack<char[4]>>); // a string literal initializes it
+  static_assert(can_deduce<int &> && can_as_pack<int (&)[2]>);
+  static_assert(not can_deduce<int (&)[2]>); // pack<int[2]>, which an array lvalue cannot initialize
+  CHECK(fn::pack{"abc"}.apply([](char const(&s)[4]) { return std::string{s}; }) == "abc");
+  static_assert(fn::pack{"abc"}.apply([](char const(&s)[4]) { return s[0] == 'a' && s[3] == '\0'; }));
 
   constexpr auto c1 = fn::as_pack();
   static_assert(std::same_as<decltype(c1), fn::pack<> const>);
@@ -299,6 +308,9 @@ TEST_CASE("pack", "[pack]")
     static_assert(not fn::detail::_is_valid_pack_element<fn::pack<int>>);
     static_assert(not fn::detail::_is_valid_pack_element<fn::pack<>>);
     static_assert(not fn::detail::_is_valid_pack_element<fn::copack<int>>);
+    static_assert(fn::detail::_is_valid_pack_element<int (&)(int)>);
+    static_assert(not fn::detail::_is_valid_pack_element<int(int)>); // so pack{f} refuses with a reason
+    static_assert(not fn::detail::_is_valid_pack_element<void>);
 
     // witnesses that the permitted atoms instantiate
     static_assert(pack<std::tuple<int, int>, int>::size == 2);

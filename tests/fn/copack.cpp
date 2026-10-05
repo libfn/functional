@@ -104,6 +104,9 @@ concept can_in_place = requires(Args... args) { S{std::in_place_type<T>, args...
 template <typename T, typename... Args>
 concept can_deduce_in_place = requires(Args... args) { fn::copack{std::in_place_type<T>, args...}; };
 
+template <typename T>
+concept can_deduce_value = requires(T v) { fn::copack{FWD(v)}; };
+
 template <typename S, typename T, typename... Args>
 concept can_emplace = requires(S &s, Args &&...args) { s.template emplace<T>(static_cast<Args &&>(args)...); };
 
@@ -119,6 +122,9 @@ concept can_transform = requires(S s, Fn fn) { FWD(s).transform(fn); };
 template <typename S, typename Fn, typename... Args>
 concept can_apply_type = requires(S s, Fn fn, Args... args) { FWD(s).apply_type(FWD(fn), FWD(args)...); };
 
+template <typename S, typename Fn>
+concept can_apply = requires(S s, Fn fn) { FWD(s).apply(FWD(fn)); };
+
 template <typename S, typename R, typename Fn, typename... Args>
 concept can_apply_type_r
     = requires(S s, Fn fn, Args... args) { FWD(s).template apply_type_r<R>(FWD(fn), FWD(args)...); };
@@ -131,6 +137,9 @@ concept can_get_at = requires(S s) { fn::get<I>(FWD(s)); };
 
 template <typename T>
 concept has_tuple_size = requires { std::tuple_size<T>::value; };
+
+constexpr int nttp_referent = 3;
+constexpr int nttp_referent_twin = 3;
 } // anonymous namespace
 
 // A copack brace-initializes the alternative it stores. That is a DESIGN DIRECTION, not an
@@ -301,10 +310,28 @@ TEST_CASE("copack basic functionality tests", "[copack]")
     static_assert(std::same_as<decltype(b), fn::copack<long> const>);
     static_assert(b == fn::copack{12l});
 
-    // both lifts weigh the alternative they construct, asking the brace initialization they perform
+    // an lvalue is lifted as a reference, an rvalue as a value; deduction holds a value either way
+    int x = 1;
+    static_assert(std::same_as<decltype(fn::as_copack(x)), fn::copack<int &>>);
+    static_assert(std::same_as<decltype(fn::as_copack(std::as_const(x))), fn::copack<int const &>>);
+    static_assert(std::same_as<decltype(fn::as_copack(std::move(x))), fn::copack<int>>);
+    static_assert(std::same_as<decltype(fn::as_copack(std::move(std::as_const(x)))), fn::copack<int>>);
+    CHECK(fn::as_copack(x).get_ptr<int &>() == &x);
+    CHECK(fn::as_copack(std::as_const(x)).get_ptr<int const &>() == &x);
+    static_assert([] {
+      int y = 1;
+      return fn::as_copack(y).get_ptr<int &>() == &y;
+    }());
+    // a reference to a pack or an array is no alternative: as_copack of such an lvalue fails its
+    // static_assert, which the suite cannot test; an rvalue is lifted as a value
+    static_assert(std::same_as<decltype(fn::as_copack(fn::pack<int>{1})), fn::copack<fn::pack<int>>>);
+
+    // both lifts weigh the alternative they construct, asking the brace initialization they perform;
+    // binding a reference cannot throw
     static_assert(noexcept(fn::as_copack(12)));
     static_assert(noexcept(fn::as_copack(std::in_place_type<long>, 12)));
-    static_assert(not noexcept(fn::as_copack(std::declval<Throwing const &>())));
+    static_assert(not noexcept(fn::as_copack(std::declval<Throwing const &&>())));
+    static_assert(noexcept(fn::as_copack(std::declval<Throwing const &>())));
 
     SECTION("constraints")
     {
@@ -366,6 +393,33 @@ TEST_CASE("copack basic functionality tests", "[copack]")
     static_assert(std::same_as<fn::copack_for<fn::copack<>, fn::copack<bool, int>>, fn::copack<bool, int>>);
     static_assert(
         std::same_as<fn::copack_for<double, fn::copack<>, fn::copack<bool, int>>, fn::copack<bool, double, int>>);
+
+    SECTION("reference alternatives")
+    {
+      // T, T& and T const& are distinct alternatives, ordered and deduplicated like any other
+      static_assert(fn::copack_for<int &, int, int const &>::size == 3);
+      static_assert(std::same_as<fn::copack_for<int &, int &>, fn::copack<int &>>);
+      static_assert(std::same_as<fn::copack_for<int &, long const &>, fn::copack_for<long const &, int &>>);
+      static_assert(std::same_as<fn::copack_for<fn::copack_for<int &, long>, int &>, fn::copack_for<long, int &>>);
+
+      // The admission is a static_assert in the copack's body, which no probe can observe failing,
+      // so the trait behind it is asked directly
+      using fn::detail::_is_valid_copack_subtype;
+      static_assert(_is_valid_copack_subtype<int &>);
+      static_assert(_is_valid_copack_subtype<int const &>);
+      static_assert(_is_valid_copack_subtype<int volatile &>);
+      static_assert(_is_valid_copack_subtype<NonCopyable &>);
+      static_assert(_is_valid_copack_subtype<fn::pack<int>>);
+      static_assert(not _is_valid_copack_subtype<int &&>);
+      static_assert(not _is_valid_copack_subtype<int (&)[2]>);
+      static_assert(not _is_valid_copack_subtype<void (&)()>);
+      static_assert(not _is_valid_copack_subtype<void()>);
+      static_assert(not _is_valid_copack_subtype<fn::pack<int> &>);
+      static_assert(not _is_valid_copack_subtype<fn::pack<int> const &>);
+      static_assert(not _is_valid_copack_subtype<copack<int> &>);
+      static_assert(not _is_valid_copack_subtype<std::in_place_type_t<int> &>);
+      SUCCEED();
+    }
   }
 
   SECTION("applicable")
@@ -488,6 +542,16 @@ TEST_CASE("copack basic functionality tests", "[copack]")
       constexpr auto c = copack{std::array<int, 3>{3, 14, 15}};
       static_assert(std::is_same_v<decltype(c), copack<std::array<int, 3>> const>);
       static_assert(c.apply([](auto &&a) -> bool { return a.size() == 3 && a[0] == 3 && a[1] == 14 && a[2] == 15; }));
+
+      // deduction holds a value, whatever the argument's value category; as_copack keeps a reference
+      int const x = 3;
+      static_assert(std::is_same_v<decltype(copack{x}), copack<int>>);
+      static_assert(std::is_same_v<decltype(copack{std::move(x)}), copack<int>>);
+      static_assert(can_deduce_value<int &> && can_deduce_value<int const &>);
+      // an array or a function never becomes a pointer: no alternative is deduced for either
+      static_assert(not can_deduce_value<int (&)[2]>);
+      static_assert(not can_deduce_value<char const(&)[4]>);
+      static_assert(not can_deduce_value<int (&)(int)>);
     }
 
     SECTION("move from rvalue")
@@ -515,6 +579,76 @@ TEST_CASE("copack basic functionality tests", "[copack]")
       static_assert(std::is_same_v<decltype(b), T const>);
       static_assert(b.has_value<int>());
     }
+
+    SECTION("reference alternative")
+    {
+      int x = 1;
+      copack<int &> a{x};
+      CHECK(a.get_ptr<int &>() == &x);
+      copack<int &> b = x; // implicit, as binding a reference is
+      CHECK(b.get_ptr<int &>() == &x);
+      static_assert([] {
+        int x = 1;
+        copack<int &> const a{x};
+        return a.get_ptr<int &>() == &x;
+      }());
+
+      // deduction holds a value; as_copack keeps the reference
+      copack c{x};
+      static_assert(std::is_same_v<decltype(c), copack<int>>);
+      CHECK(fn::as_copack(x).get_ptr<int &>() == &x);
+
+      SECTION("selection")
+      {
+        // the value selects as overload resolution among f(int), f(int&) and f(int const&) would
+        using RC = fn::copack_for<int &, int const &>;
+        int const z = 3;
+        CHECK(RC{x}.has_value(std::in_place_type<int &>)); // the less cv-qualified binding wins
+        CHECK(RC{z}.get_ptr<int const &>() == &z);
+        CHECK(RC{std::as_const(x)}.get_ptr<int const &>() == &x);
+
+        using IR = fn::copack_for<int, int &>;
+        static_assert(not std::is_constructible_v<IR, int &>);      // ambiguous, as f(int) and f(int&) are
+        CHECK(IR{std::move(x)}.has_value(std::in_place_type<int>)); // int& binds no rvalue
+        CHECK(IR{std::as_const(x)}.has_value(std::in_place_type<int>));
+        CHECK(IR{std::in_place_type<int &>, x}.get_ptr<int &>() == &x);
+
+        // f(int) and f(int const&) are ambiguous for every int, so only a tag or widening builds this one
+        using ICR = fn::copack_for<int, int const &>;
+        static_assert(not std::is_constructible_v<ICR, int &>);
+        static_assert(not std::is_constructible_v<ICR, int const &>);
+        static_assert(not std::is_constructible_v<ICR, int>);
+        CHECK(ICR{std::in_place_type<int const &>, x}.get_ptr<int const &>() == &x);
+        CHECK(ICR{copack<int const &>{x}}.get_ptr<int const &>() == &x);
+
+        static_assert([] {
+          int x = 1;
+          return RC{x}.has_value(std::in_place_type<int &>) && IR{std::move(x)}.has_value(std::in_place_type<int>)
+                 && ICR{std::in_place_type<int const &>, x}.get_ptr<int const &>() == &x;
+        }());
+      }
+
+      SECTION("constraints")
+      {
+        // a merely convertible value selects nothing, as for an owning alternative
+        static_assert(not std::is_constructible_v<copack<long &>, int &>);
+        static_assert(not std::is_constructible_v<copack<long const &>, int &>);
+        static_assert(not std::is_constructible_v<copack<int &>, int>);
+        static_assert(not std::is_constructible_v<copack<int &>, int const &>);
+        struct Base {
+          int v;
+        };
+        struct Derived : Base {};
+        static_assert(not std::is_constructible_v<copack<Base &>, Derived &>);
+        static_assert(std::is_constructible_v<copack<Base &>, Base &>); // converse
+
+        // ... while the tag names the alternative, binding as a reference initialization does
+        Derived d{};
+        copack<Base &> c{std::in_place_type<Base &>, d};
+        CHECK(c.get_ptr<Base &>() == static_cast<Base *>(&d));
+        static_assert(not std::is_constructible_v<copack<Base &>, std::in_place_type_t<Base &>, Base>);
+      }
+    }
   }
 
   SECTION("forwarding constructors (immovable)")
@@ -532,7 +666,9 @@ TEST_CASE("copack basic functionality tests", "[copack]")
 
       // Invalid alternative types make the deduction probe false without a hard instantiation error.
       static_assert(can_deduce_in_place<NonCopyable, int>);
-      static_assert(not can_deduce_in_place<int &, int &>);
+      static_assert(can_deduce_in_place<int &, int &>);
+      static_assert(not can_deduce_in_place<int &&, int>);
+      static_assert(not can_deduce_in_place<fn::pack<int> &, fn::pack<int> &>);
       static_assert(not can_deduce_in_place<int const, int>);
       static_assert(not can_deduce_in_place<void>);
       static_assert(not can_deduce_in_place<copack<int>, int>);
@@ -698,6 +834,27 @@ TEST_CASE("copack basic functionality tests", "[copack]")
       CHECK_THROWS_AS(Z(tag{}, std::move(std::as_const(src))), int);
       CHECK_NOTHROW(Z(tag{}, std::move(src)));
     }
+
+    SECTION("reference alternatives")
+    {
+      int x = 1;
+      copack<int &> const a{x};
+      fn::copack_for<int, int &> b{a};
+      CHECK(b.get_ptr<int &>() == &x);
+      fn::copack_for<int, int &> c = copack<int &>{x};
+      CHECK(c.get_ptr<int &>() == &x);
+      fn::copack_for<int const &, int &> d{std::in_place_type<copack<int &>>, a};
+      CHECK(d.get_ptr<int &>() == &x);
+      static_assert([] {
+        int x = 1;
+        fn::copack_for<int, int &> const b = copack<int &>{x};
+        return b.get_ptr<int &>() == &x;
+      }());
+
+      // the alternative is kept: a reference never decays into the owning one
+      static_assert(not std::is_constructible_v<copack<int, long>, copack<int &>>);
+      static_assert(std::is_constructible_v<fn::copack_for<int &, long>, copack<int &>>); // converse
+    }
   }
 
   SECTION("has_type type mismatch")
@@ -770,6 +927,28 @@ TEST_CASE("copack basic functionality tests", "[copack]")
     constexpr auto d = fn::copack<double, int>{std::in_place_type<int>, 12};
     static_assert(d.get_ptr(std::in_place_type<double>) == nullptr);
     static_assert(*d.get_ptr(std::in_place_type<int>) == 12);
+
+    SECTION("reference alternative")
+    {
+      // the pointer is to the referent, const through a const copack, as through a const pack
+      int x = 1;
+      using R = fn::copack_for<int &, int const &>;
+      R r{x};
+      static_assert(std::is_same_v<decltype(r.get_ptr<int &>()), int *>);
+      static_assert(std::is_same_v<decltype(std::as_const(r).get_ptr<int &>()), int const *>);
+      static_assert(std::is_same_v<decltype(r.get_ptr<int const &>()), int const *>);
+      CHECK(r.get_ptr<int &>() == &x);
+      CHECK(std::as_const(r).get_ptr<int &>() == &x);
+      CHECK(r.get_ptr<int const &>() == nullptr);
+      *r.get_ptr<int &>() = 2;
+      CHECK(x == 2);
+      static_assert([] {
+        int x = 1;
+        R r{x};
+        *r.get_ptr<int &>() = 2;
+        return x == 2 && std::as_const(r).get_ptr<int &>() == &x;
+      }());
+    }
   }
 
   SECTION("equality comparison")
@@ -860,7 +1039,37 @@ TEST_CASE("copack basic functionality tests", "[copack]")
       static_assert(noexcept(std::declval<Q const &>() == std::declval<Q const &>()));
       static_assert(noexcept(std::declval<Q const &>() != std::declval<Q const &>()));
 
+      // a reference alternative's referents compare as const, so that comparison is the one weighed
+      struct ConstEqThrows final {
+        bool operator==(ConstEqThrows &) noexcept { return true; }
+        bool operator==(ConstEqThrows const &) const noexcept(false) { return true; }
+      };
+      using RC = copack<ConstEqThrows &>;
+      static_assert(noexcept(std::declval<ConstEqThrows &>() == std::declval<ConstEqThrows &>()));
+      static_assert(not noexcept(std::declval<RC const &>() == std::declval<RC const &>()));
+      using RQ = copack<int &>;
+      static_assert(noexcept(std::declval<RQ const &>() == std::declval<RQ const &>()));
+
       SUCCEED();
+    }
+
+    SECTION("reference alternatives")
+    {
+      int x = 1;
+      int y = 1;
+      int z = 2;
+      using R = copack<int &>;
+      using IR = fn::copack_for<int, int &>;
+      CHECK(R{x} == R{y}); // the referents compare
+      CHECK(R{x} != R{z});
+      CHECK(R{x} == IR{std::in_place_type<int &>, y});
+      CHECK(IR{std::in_place_type<int &>, x} != IR{1}); // distinct alternatives never compare equal
+      CHECK(R{x} != copack<int>{1});
+      static_assert([] {
+        int x = 1;
+        int y = 1;
+        return R{x} == R{y} && IR{std::in_place_type<int &>, x} != IR{1};
+      }());
     }
   }
 
@@ -980,6 +1189,33 @@ TEST_CASE("copack basic functionality tests", "[copack]")
         constexpr auto fn = [](auto &&...a) { return (0 + ... + static_cast<int>(a)); };
         static_assert(copack<bool, int>{2}.apply(fn, 3) == 5);
       }
+    }
+
+    SECTION("reference alternative")
+    {
+      // the callable receives T&, or T const& from a const copack, as from a pack - whatever the value
+      // category
+      struct Other final {};
+      int x = 1;
+      using R = fn::copack_for<int &, Other>;
+      R r{x};
+      constexpr auto addr = fn::overload{[](int &i) { return &i; }, [](Other) -> int * { return nullptr; }};
+      constexpr auto caddr
+          = fn::overload{[](int const &i) { return &i; }, [](Other) -> int const * { return nullptr; }};
+      static_assert(std::is_same_v<decltype(r.apply(addr)), int *>);
+      static_assert(std::is_same_v<decltype(std::as_const(r).apply(caddr)), int const *>);
+      static_assert(not can_apply<R const &, decltype(addr)>);
+      static_assert(not can_apply<R const &&, decltype(addr)>);
+      CHECK(r.apply(addr) == &x);
+      CHECK(R{x}.apply(addr) == &x);
+      CHECK(std::as_const(r).apply(caddr) == &x);
+      CHECK(std::move(std::as_const(r)).apply(caddr) == &x);
+      CHECK(std::as_const(r).template apply_r<void const *>(caddr) == &x);
+      static_assert([addr, caddr] {
+        int x = 1;
+        R r{x};
+        return R{x}.apply(addr) == &x && std::move(std::as_const(r)).apply(caddr) == &x;
+      }());
     }
   }
 
@@ -1106,7 +1342,7 @@ TEST_CASE("copack basic functionality tests", "[copack]")
   {
     using fn::pack;
     constexpr copack a{pack{"abc", 42, 12.5}};
-    static_assert(std::is_same_v<decltype(a), copack<pack<char const(&)[4], int, double>> const>);
+    static_assert(std::is_same_v<decltype(a), copack<pack<char[4], int, double>> const>);
 
     SECTION("constexpr")
     {
@@ -1299,6 +1535,15 @@ TEST_CASE("copack basic functionality tests", "[copack]")
     CHECK(read_nttp<a>() == 42.0);
     CHECK(read_nttp<e>() == 43.0); // the pack alternative spreads: 42 + true
     CHECK(read_nttp<i>() == 42.0);
+
+    // a reference alternative is a template argument as a reference template parameter is: by the
+    // identity of its referent, never by its value
+    constexpr copack<int const &> j{nttp_referent};
+    constexpr copack<int const &> k{nttp_referent};
+    constexpr copack<int const &> l{nttp_referent_twin};
+    static_assert(std::is_same_v<some_copack_nttp<j>, some_copack_nttp<k>>);
+    static_assert(not std::is_same_v<some_copack_nttp<j>, some_copack_nttp<l>>);
+    CHECK(read_nttp<j>() == 3.0);
   }
 }
 
@@ -1489,6 +1734,32 @@ TEST_CASE("copack apply_type", "[copack][apply_type]")
     }
   }
 
+  SECTION("reference alternative")
+  {
+    // the tag names the reference alternative, and the arm receives T&, or T const& from a const
+    // copack, whatever the value category
+    int x = 1;
+    using R = fn::copack_for<int, int &>;
+    R r{std::in_place_type<int &>, x};
+    constexpr auto arms = fn::overload{[](std::in_place_type_t<int>, auto &&) -> int { return 0; },
+                                       [](std::in_place_type_t<int &>, int &) { return 1; },
+                                       [](std::in_place_type_t<int &>, int const &) { return 2; }};
+    CHECK(r.apply_type(arms) == 1);
+    CHECK(std::as_const(r).apply_type(arms) == 2);
+    CHECK(std::move(r).apply_type(arms) == 1);
+    CHECK(std::move(std::as_const(r)).apply_type(arms) == 2);
+    CHECK(R{1}.apply_type(arms) == 0); // the rows stay apart where the values interconvert
+
+    constexpr auto owning = [](std::in_place_type_t<int>, auto &&) { return 0; };
+    static_assert(not can_apply_type<R &, decltype(owning)>); // a missing row is rejected
+    static_assert(can_apply_type<copack<int> &, decltype(owning)>);
+    static_assert([arms] {
+      int x = 1;
+      R const r{std::in_place_type<int &>, x};
+      return std::move(r).apply_type(arms) == 2 && R{std::in_place_type<int &>, x}.apply_type(arms) == 1;
+    }());
+  }
+
   SECTION("apply_type_r")
   {
     static_assert(std::is_same_v<long, decltype(a.apply_type_r<long>(arms))>);
@@ -1617,6 +1888,21 @@ TEST_CASE("copack noexcept", "[copack][noexcept]")
     static_assert(not noexcept(std::declval<fn::copack_for<Quiet, Loud> &>() = std::declval<Loud const &>()));
     SUCCEED();
   }
+
+  SECTION("reference alternatives")
+  {
+    // binding and rebinding a reference cannot throw, whatever a sibling alternative does
+    using R = fn::copack_for<int &, Throwy>;
+    static_assert(noexcept(R{std::declval<int &>()}));
+    static_assert(noexcept(R{std::in_place_type<int &>, std::declval<int &>()}));
+    static_assert(not noexcept(R{std::declval<Throwy const &>()})); // converse
+    static_assert(noexcept(std::declval<R &>() = std::declval<int &>()));
+    static_assert(
+        not noexcept(std::declval<fn::copack_for<int &, std::string> &>() = std::declval<std::string const &>()));
+    static_assert(noexcept(std::declval<R &>().template emplace<int &>(std::declval<int &>())));
+    static_assert(std::is_nothrow_copy_assignable_v<copack<int const &>>);
+    SUCCEED();
+  }
 }
 
 TEST_CASE("copack triviality", "[copack][triviality]")
@@ -1646,6 +1932,21 @@ TEST_CASE("copack triviality", "[copack][triviality]")
     static_assert(std::is_trivially_move_constructible_v<S>);
     static_assert(std::is_trivially_copy_assignable_v<S>);
     static_assert(std::is_trivially_move_assignable_v<S>);
+    SUCCEED();
+  }
+
+  SECTION("of references: a pointer to the referent")
+  {
+    using R = fn::copack_for<int &, long const &>;
+    static_assert(std::is_trivially_copyable_v<R>);
+    static_assert(std::is_trivially_destructible_v<R>);
+    static_assert(std::is_trivially_copy_constructible_v<R>);
+    static_assert(std::is_trivially_move_constructible_v<R>);
+    static_assert(std::is_trivially_copy_assignable_v<R>);
+    static_assert(std::is_trivially_move_assignable_v<R>);
+    // assignment rebinds, so a const referent, which cannot be assigned through, does not matter
+    static_assert(std::is_trivially_copy_assignable_v<copack<int const &>>);
+    static_assert(std::is_trivially_move_assignable_v<copack<int const &>>);
     SUCCEED();
   }
 
@@ -1810,21 +2111,23 @@ TEST_CASE("copack transform", "[copack][transform]")
     CHECK(std::move(std::as_const(a)).transform(add, 3) == copack{3.5});
     CHECK(std::move(a).transform(add, 3) == copack{3.5});
 
-    // a returned reference into a spliced argument is read while that argument lives
-    struct Arg final {
-      int v;
-    };
-    constexpr auto field = [](double, Arg &&arg) noexcept -> int const & { return arg.v; };
-    CHECK(a.transform(field, fn::pack<Arg>{Arg{7}}) == copack{7});
-    CHECK(std::move(a).transform(field, fn::pack<Arg>{Arg{7}}) == copack{7});
+    // a returned reference into an lvalue argument stays a reference to it; where it could refer
+    // into an expiring one - an rvalue, the temporary pack which splicing a pack or copack builds, or
+    // the alternative of std::move(a) - it is refused at compile time, which the suite cannot test
+    constexpr auto second = [](double, int const &j) noexcept -> int const & { return j; };
+    int const j = 3;
+    static_assert(std::same_as<decltype(a.transform(second, j)), copack<int const &>>);
+    CHECK(a.transform(second, j).get_ptr<int const &>() == &j);
 
     SECTION("constexpr")
     {
       constexpr type b{std::in_place_type<double>, 0.5};
       static_assert(b.transform(add, 3) == copack{3.5});
       static_assert(std::move(b).transform(add, 3) == copack{3.5});
-      static_assert(b.transform(field, fn::pack<Arg>{Arg{7}}) == copack{7});
-      static_assert(std::move(b).transform(field, fn::pack<Arg>{Arg{7}}) == copack{7});
+      static_assert([second, b] {
+        int const k = 3;
+        return b.transform(second, k).get_ptr<int const &>() == &k;
+      }());
       SUCCEED();
     }
   }
@@ -1858,7 +2161,8 @@ TEST_CASE("copack transform", "[copack][transform]")
     };
     struct Elements final {
       X const *x;
-      constexpr auto operator()(int) const noexcept -> X const & { return *x; }
+      // an rvalue reference result decays: the explicit copy is what transform weighs
+      constexpr auto operator()(int) const noexcept -> X const && { return std::move(*x); }
       constexpr auto operator()(std::tuple<int>) const noexcept -> copack<X>
       {
         return copack<X>{std::in_place_type<X>, 0};
@@ -1943,6 +2247,99 @@ TEST_CASE("copack transform", "[copack][transform]")
     static_assert(cca.transform(fnMixed).apply(which) == -1);
     static_assert(cca.transform(fnVoid).apply(which) == -1);
     static_assert(std::move(cca).transform(fnMixed).apply(which) == -1);
+  }
+
+  SECTION("a reference result stays a reference")
+  {
+    using AB = fn::copack_for<int, long>;
+    constexpr auto self
+        = fn::overload{[](int &i) noexcept -> int & { return i; }, [](long &l) noexcept -> long & { return l; }};
+    constexpr auto cself = [](auto const &v) noexcept -> auto const & { return v; };
+
+    SECTION("lvalue")
+    {
+      static_assert(std::same_as<decltype(std::declval<AB &>().transform(self)), fn::copack_for<int &, long &>>);
+      static_assert(noexcept(std::declval<AB &>().transform(self)));
+      AB c{1};
+      CHECK(c.transform(self).get_ptr<int &>() == c.get_ptr<int>());
+      *c.transform(self).get_ptr<int &>() = 3;
+      CHECK(c == AB{3});
+      static_assert([self] {
+        AB x{1};
+        *x.transform(self).get_ptr<int &>() = 3;
+        return x.transform(self).get_ptr<int &>() == x.get_ptr<int>() && x == AB{3};
+      }());
+    }
+
+    SECTION("const lvalue")
+    {
+      static_assert(std::same_as<decltype(std::declval<AB const &>().transform(cself)),
+                                 fn::copack_for<int const &, long const &>>);
+      AB const c{2L};
+      CHECK(c.transform(cself).get_ptr<long const &>() == c.get_ptr<long>());
+      static_assert([cself] {
+        AB const x{2L};
+        return x.transform(cself).get_ptr<long const &>() == x.get_ptr<long>();
+      }());
+    }
+
+    SECTION("rvalue")
+    {
+      // a reference into an alternative of an rvalue copack is refused at compile time, which the
+      // suite cannot test; the call stays viable, or the const & overload would bind the copack
+      static_assert(can_transform<AB &&, decltype(cself)>);
+      static_assert(can_transform<AB const &&, decltype(cself)>);
+
+      // a reference alternative is no part of the expiring copack
+      using R = fn::copack_for<int &, long>;
+      constexpr auto onlyref
+          = fn::overload{[](int &i) noexcept -> int & { return i; }, [](long) noexcept { return 0; }};
+      static_assert(std::same_as<decltype(std::declval<R>().transform(onlyref)), fn::copack_for<int, int &>>);
+      int x = 2;
+      CHECK(R{x}.transform(onlyref).get_ptr<int &>() == &x);
+      CHECK(*R{2L}.transform(onlyref).get_ptr<int>() == 0);
+      static_assert([onlyref] {
+        int y = 2;
+        return R{y}.transform(onlyref).get_ptr<int &>() == &y && *R{2L}.transform(onlyref).get_ptr<int>() == 0;
+      }());
+    }
+
+    SECTION("mixed with values")
+    {
+      constexpr auto mixed = fn::overload{[](int &i) noexcept -> int & { return i; },
+                                          [](long l) noexcept -> int { return static_cast<int>(l); }};
+      static_assert(std::same_as<decltype(std::declval<AB &>().transform(mixed)), fn::copack_for<int, int &>>);
+      AB c{1};
+      AB d{2L};
+      CHECK(c.transform(mixed).get_ptr<int &>() == c.get_ptr<int>());
+      CHECK(*d.transform(mixed).get_ptr<int>() == 2);
+      static_assert([mixed] {
+        AB x{1};
+        AB y{2L};
+        return x.transform(mixed).get_ptr<int &>() == x.get_ptr<int>() && *y.transform(mixed).get_ptr<int>() == 2;
+      }());
+    }
+
+    SECTION("decays")
+    {
+      // an rvalue reference, or a reference to what no copack holds by reference, enters as a value
+      constexpr auto moved = [](auto &v) noexcept -> auto && { return std::move(v); };
+      static_assert(std::same_as<decltype(std::declval<AB &>().transform(moved)), AB>);
+      AB c{1};
+      CHECK(c.transform(moved) == AB{1});
+
+      fn::pack<int> p{5};
+      auto const whole = [&p](auto &) noexcept -> fn::pack<int> & { return p; };
+      static_assert(std::same_as<decltype(c.transform(whole)), copack<fn::pack<int>>>);
+      CHECK(c.transform(whole).get_ptr<fn::pack<int>>() != &p);
+      CHECK(c.transform(whole) == copack<fn::pack<int>>{p});
+      static_assert([moved] {
+        AB x{1};
+        fn::pack<int> q{5};
+        auto const all = [&q](auto &) noexcept -> fn::pack<int> & { return q; };
+        return x.transform(moved) == AB{1} && x.transform(all) == copack<fn::pack<int>>{q};
+      }());
+    }
   }
 }
 
@@ -2210,6 +2607,29 @@ TEST_CASE("copack move and copy", "[copack][has_value][get_ptr]")
     static_assert(std::is_nothrow_copy_constructible_v<copack<int>>);
     static_assert(std::is_nothrow_move_constructible_v<copack<int>>);
     SUCCEED();
+  }
+
+  SECTION("reference alternative")
+  {
+    // copies refer to the same referent, and destroying them leaves it alive
+    int const live = Counted::live;
+    Counted c{1};
+    {
+      fn::copack_for<Counted &, std::string> a{c};
+      auto b = a;
+      auto m = std::move(a);
+      CHECK(b.get_ptr<Counted &>() == &c);
+      CHECK(m.get_ptr<Counted &>() == &c);
+      CHECK(Counted::live == live + 1);
+    }
+    CHECK(Counted::live == live + 1);
+    static_assert([] {
+      int x = 1;
+      fn::copack_for<int &, long> const a{x};
+      auto b = a;
+      auto m = std::move(b);
+      return m.get_ptr<int &>() == &x;
+    }());
   }
 }
 
@@ -2624,6 +3044,89 @@ TEST_CASE("copack assignment", "[copack][assignment]")
     SUCCEED();
   }
 
+  SECTION("rebinds a reference")
+  {
+    // never assigns through: the old referent keeps its value
+    int x = 1;
+    int y = 2;
+    using R = fn::copack_for<int &, std::string>;
+
+    SECTION("same alternative")
+    {
+      R a{x};
+      R const b{y};
+      a = b;
+      CHECK(a.get_ptr<int &>() == &y);
+      a = R{x};
+      CHECK(a.get_ptr<int &>() == &x);
+      copack<int &> t{x};
+      t = copack<int &>{y}; // the trivial arm
+      CHECK(t.get_ptr<int &>() == &y);
+      CHECK(x == 1);
+      CHECK(y == 2);
+    }
+
+    SECTION("the alternative changes")
+    {
+      R a{std::string{"abc"}};
+      a = R{x};
+      CHECK(a.get_ptr<int &>() == &x);
+      a = R{std::string{"def"}};
+      CHECK(*a.get_ptr<std::string>() == "def");
+      CHECK(x == 1);
+    }
+
+    SECTION("from a value")
+    {
+      R a{x};
+      a = y;
+      CHECK(a.get_ptr<int &>() == &y);
+      CHECK(x == 1);
+
+      // the value selects as it does in construction
+      using IR = fn::copack_for<int, int &>;
+      static_assert(not std::is_assignable_v<IR &, int &>);
+      IR b{std::in_place_type<int &>, x};
+      b = 5;
+      CHECK(b.has_value(std::in_place_type<int>));
+      CHECK(x == 1);
+    }
+
+    SECTION("widening")
+    {
+      fn::copack_for<int, int &> a{5};
+      a = copack<int &>{x};
+      CHECK(a.get_ptr<int &>() == &x);
+      copack<int &> const c{y};
+      a = c;
+      CHECK(a.get_ptr<int &>() == &y);
+      CHECK(x == 1);
+    }
+
+    SECTION("const referent")
+    {
+      fn::copack_for<int const &, std::string> a{std::as_const(x)};
+      a = fn::copack_for<int const &, std::string>{std::as_const(y)};
+      CHECK(a.get_ptr<int const &>() == &y);
+      a = std::as_const(x);
+      CHECK(a.get_ptr<int const &>() == &x);
+    }
+
+    SECTION("constexpr")
+    {
+      static_assert([] {
+        int x = 1;
+        int y = 2;
+        fn::copack_for<int &, long> a{x};
+        a = fn::copack_for<int &, long>{y};
+        a = 3L;
+        a = x;
+        return a.get_ptr<int &>() == &x && x == 1 && y == 2;
+      }());
+      SUCCEED();
+    }
+  }
+
   SECTION("strong exception guarantee")
   {
     SECTION("a throwing assignment is rolled back")
@@ -2967,6 +3470,57 @@ TEST_CASE("copack emplace", "[copack][emplace]")
     static_assert(repoint());
   }
 
+  SECTION("binds a reference")
+  {
+    using R = fn::copack_for<int &, long>;
+    int x = 1;
+    int y = 2;
+    R a{x};
+    int &r = a.emplace<int &>(y);
+    CHECK(&r == &y);
+    CHECK(a.get_ptr<int &>() == &y);
+    CHECK(x == 1);
+    static_assert(not can_emplace<R, int &, int>); // a temporary does not bind
+    static_assert(can_emplace<R, int &, int &>);
+    static_assert([] {
+      int x = 1;
+      int y = 2;
+      R a{3L};
+      return &a.emplace<int &>(x) == &x && &a.emplace<int &>(y) == &y && x == 1;
+    }());
+  }
+
+  SECTION("binds a reference through a conversion that may throw")
+  {
+    // the conversion runs before the old alternative is destroyed, so its exception leaves the
+    // copack as it was, and what is relocated is the reference itself
+    struct Proxy final {
+      int *p;
+      bool fail = false;
+      constexpr operator int &() const noexcept(false)
+      {
+        if (fail)
+          throw 0;
+        return *p;
+      }
+    };
+    using R = fn::copack_for<int &, long>;
+    static_assert(can_emplace<R, int &, Proxy>);
+    static_assert(not noexcept(std::declval<R &>().emplace<int &>(std::declval<Proxy>())));
+    int y = 2;
+    R a{3L};
+    CHECK(&a.emplace<int &>(Proxy{&y}) == &y);
+    R b{3L};
+    CHECK_THROWS_AS(b.emplace<int &>(Proxy{&y, true}), int);
+    CHECK(b.get_ptr<long>() != nullptr);
+    CHECK(*b.get_ptr<long>() == 3);
+    static_assert([] {
+      int y = 2;
+      R a{3L};
+      return &a.emplace<int &>(Proxy{&y}) == &y;
+    }());
+  }
+
   SECTION("constraints")
   {
     static_assert(can_emplace<S, Sender, int>);
@@ -3122,6 +3676,38 @@ TEST_CASE("copack get and tuple protocol", "[copack][get][tuple]")
       auto &&[cre] = std::move(std::as_const(q));
       auto [v] = std::move(q);
       return fn::get(q).v == 6 && &ce == &e && &re == &e && &cre == &e && v == A{6} && &v != &e;
+    }());
+  }
+
+  SECTION("reference alternative")
+  {
+    // every value category yields the reference itself, as apply passes it
+    int x = 1;
+    using R = fn::copack<int &>;
+    R r{x};
+    // const reaches the referent, as through a const pack<int &>
+    static_assert(std::is_same_v<decltype(fn::get(r)), int &>);
+    static_assert(std::is_same_v<decltype(fn::get(std::as_const(r))), int const &>);
+    static_assert(std::is_same_v<decltype(fn::get(std::move(r))), int &>);
+    static_assert(std::is_same_v<decltype(fn::get(std::move(std::as_const(r)))), int const &>);
+    static_assert(std::is_same_v<decltype(fn::get<0>(std::move(r))), int &>);
+    static_assert(std::is_same_v<std::tuple_element_t<0, R>, int &>);
+    static_assert(std::is_same_v<std::tuple_element_t<0, R const>, int const &>);
+    static_assert(std::is_same_v<std::tuple_element_t<0, fn::copack<int> const>, int const>);
+    CHECK(&fn::get(R{x}) == &x);
+    CHECK(&fn::get<0>(std::as_const(r)) == &x);
+
+    auto [b] = r;
+    b = 2;
+    CHECK(x == 2);
+    auto const &[c] = r;
+    static_assert(std::is_same_v<decltype(c), int const &>);
+    CHECK(&c == &x);
+    static_assert([] {
+      int x = 1;
+      auto [b] = R{x};
+      b = 2;
+      return x == 2;
     }());
   }
 

@@ -109,6 +109,7 @@ template <typename... Ts> using choice = just<copack<Ts...>>;
 template <typename T> struct just {
   static_assert(not ::std::is_reference_v<T>);
   static_assert(not ::std::is_array_v<T>);
+  static_assert(not ::std::is_function_v<T>);
   static_assert(not detail::_some_in_place_type<T>);
   static_assert(::std::is_same_v<T, ::std::remove_cv_t<T>>);
 
@@ -791,29 +792,27 @@ template <typename... Ts> struct just<copack<Ts...>> {
   template <typename T> static constexpr bool has_type = value_type::template has_type<T>;
 
   /**
-   * @brief Constructs the alternative matching the value's type after removing cv/ref qualifiers
+   * @brief Constructs the alternative the value selects, as `copack`'s converting constructor does
    *
    * Explicit exactly where the conversion to that alternative is.
    *
    * @param v Value of one alternative
    */
-  template <typename T>
-  constexpr just(T &&v) // NOSONAR cpp:S1709,S6458 implicit arm of the explicit pair; has_type excludes self
-      noexcept(::std::is_nothrow_constructible_v<value_type, ::std::in_place_type_t<::std::remove_cvref_t<T>>, T &&>)
-    requires has_type<::std::remove_cvref_t<T>>
-             && ::std::is_constructible_v<value_type, ::std::in_place_type_t<::std::remove_cvref_t<T>>, T &&>
-             && ::std::is_convertible_v<T &&, ::std::remove_cvref_t<T>>
-      : v_(::std::in_place_type<::std::remove_cvref_t<T>>, FWD(v))
+  template <typename U, typename T = detail::_selected_alternative_t<U, Ts...>>
+  constexpr just(U &&v) // NOSONAR cpp:S1709,S6458 implicit arm of the explicit pair; has_type excludes self
+      noexcept(::std::is_nothrow_constructible_v<value_type, ::std::in_place_type_t<T>, U &&>)
+    requires has_type<T> && ::std::is_constructible_v<value_type, ::std::in_place_type_t<T>, U &&>
+             && ::std::is_convertible_v<U &&, T>
+      : v_(::std::in_place_type<T>, FWD(v))
   {
   }
 
-  template <typename T>
-  constexpr explicit just(T &&v) // NOSONAR cpp:S6458 has_type excludes self
-      noexcept(::std::is_nothrow_constructible_v<value_type, ::std::in_place_type_t<::std::remove_cvref_t<T>>, T &&>)
-    requires has_type<::std::remove_cvref_t<T>>
-             && ::std::is_constructible_v<value_type, ::std::in_place_type_t<::std::remove_cvref_t<T>>, T &&>
-             && (not ::std::is_convertible_v<T &&, ::std::remove_cvref_t<T>>)
-      : v_(::std::in_place_type<::std::remove_cvref_t<T>>, FWD(v))
+  template <typename U, typename T = detail::_selected_alternative_t<U, Ts...>>
+  constexpr explicit just(U &&v) // NOSONAR cpp:S6458 has_type excludes self
+      noexcept(::std::is_nothrow_constructible_v<value_type, ::std::in_place_type_t<T>, U &&>)
+    requires has_type<T> && ::std::is_constructible_v<value_type, ::std::in_place_type_t<T>, U &&>
+             && (not ::std::is_convertible_v<U &&, T>)
+      : v_(::std::in_place_type<T>, FWD(v))
   {
   }
 
@@ -1026,21 +1025,24 @@ template <typename... Ts> struct just<copack<Ts...>> {
   }
 
   /**
-   * @brief Pointer to the alternative `T`, or `nullptr` where it is not the one held
+   * @brief Pointer to the alternative `T` - to the referent, for a reference alternative - or `nullptr`
+   *        where it is not the one held
    *
    * @tparam T The alternative to access
    * @return Pointer to the alternative, or `nullptr`
    */
   template <typename T>
     requires has_type<T>
-  [[nodiscard]] constexpr T *get_ptr(::std::in_place_type_t<T> d = ::std::in_place_type<T>) noexcept
+  [[nodiscard]] constexpr auto get_ptr(::std::in_place_type_t<T> d = ::std::in_place_type<T>) noexcept
+      -> ::std::add_pointer_t<T>
   {
     return v_.get_ptr(d);
   }
 
   template <typename T>
     requires has_type<T>
-  [[nodiscard]] constexpr T const *get_ptr(::std::in_place_type_t<T> d = ::std::in_place_type<T>) const noexcept
+  [[nodiscard]] constexpr auto get_ptr(::std::in_place_type_t<T> d = ::std::in_place_type<T>) const noexcept
+      -> ::std::add_pointer_t<::std::remove_reference_t<T> const>
   {
     return v_.get_ptr(d);
   }
@@ -1409,26 +1411,27 @@ concept _some_carrier = _some_expected<T> || _some_optional<T> || _some_just<T>;
 template <typename T>
 constexpr inline int _inject_kind
     = ::std::is_void_v<typename ::std::remove_cvref_t<T>::value_type> ? 1 : (::fn::detail::_dead_value<T> ? 0 : 2);
-template <int Kind, typename Type, typename Side> struct _nothrow_total_inject {
+template <int Kind, typename Type, typename Side, typename... Tag> struct _nothrow_total_inject {
   static constexpr bool value = true;
 };
-template <typename Type, typename Side> struct _nothrow_total_inject<1, Type, Side> {
+template <typename Type, typename Side, typename... Tag> struct _nothrow_total_inject<1, Type, Side, Tag...> {
   static constexpr bool value = ::std::is_nothrow_constructible_v<Type, pack<>>;
 };
-template <typename Type, typename Side> struct _nothrow_total_inject<2, Type, Side> {
-  static constexpr bool value = ::std::is_nothrow_constructible_v<Type, decltype(::std::declval<Side>().value())>;
+template <typename Type, typename Side, typename... Tag> struct _nothrow_total_inject<2, Type, Side, Tag...> {
+  static constexpr bool value
+      = ::std::is_nothrow_constructible_v<Type, Tag..., decltype(::std::declval<Side>().value())>;
 };
 
 // Type stays a template parameter so both branches are dependent: a non-dependent discarded
 // statement would still be checked against choices without a pack<> alternative.
 template <typename Type, typename Side>
 [[nodiscard]] constexpr auto _total_inject(Side &&side) //
-    noexcept(_nothrow_total_inject<_inject_kind<Side>, Type, Side>::value) -> Type
+    noexcept(_nothrow_total_inject<_inject_kind<Side>, Type, Side, _disj_tag_t<Side>>::value) -> Type
 {
   if constexpr (::std::is_void_v<typename ::std::remove_cvref_t<Side>::value_type>)
     return Type{pack<>{}};
   else
-    return Type{FWD(side).value()};
+    return Type{_disj_tag_t<Side>{}, FWD(side).value()};
 }
 } // namespace detail
 
@@ -1440,15 +1443,13 @@ template <typename Lh, typename Rh>
   requires(detail::_cluster_operand<Lh> || detail::_cluster_operand<Rh>) //
           && detail::_some_carrier<Lh> && detail::_some_carrier<Rh>
           && (not ::std::is_void_v<typename ::std::remove_cvref_t<Lh>::value_type>)
-          && ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::value_type,
-                              typename ::std::remove_cvref_t<Rh>::value_type>
+          && ::std::is_same_v<::fn::detail::_payload_t<Lh>, ::fn::detail::_payload_t<Rh>>
 [[nodiscard]] constexpr auto operator|(Lh &&lh, Rh &&rh) //
-    noexcept(detail::_nothrow_total_inject<detail::_inject_kind<Lh>,
-                                           ::fn::just<typename ::std::remove_cvref_t<Lh>::value_type>, Lh>::value
-             && detail::_nothrow_total_inject<detail::_inject_kind<Rh>,
-                                              ::fn::just<typename ::std::remove_cvref_t<Lh>::value_type>, Rh>::value)
+    noexcept(
+        detail::_nothrow_total_inject<detail::_inject_kind<Lh>, ::fn::just<::fn::detail::_payload_t<Lh>>, Lh>::value
+        && detail::_nothrow_total_inject<detail::_inject_kind<Rh>, ::fn::just<::fn::detail::_payload_t<Lh>>, Rh>::value)
 {
-  using type = ::fn::just<typename ::std::remove_cvref_t<Lh>::value_type>;
+  using type = ::fn::just<::fn::detail::_payload_t<Lh>>;
   if constexpr (detail::_cluster_operand<Lh>) {
     return type{FWD(lh).value()};
   } else {
@@ -1471,13 +1472,12 @@ template <typename Lh, typename Rh>
 template <typename Lh, typename Rh>
   requires(detail::_cluster_operand<Lh> || detail::_cluster_operand<Rh>) //
           && detail::_some_carrier<Lh> && detail::_some_carrier<Rh>
-          && (not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::value_type,
-                                   typename ::std::remove_cvref_t<Rh>::value_type>)
+          && (not ::std::is_same_v<::fn::detail::_payload_t<Lh>, ::fn::detail::_payload_t<Rh>>)
 [[nodiscard]] constexpr auto operator|(Lh &&lh, Rh &&rh) //
-    noexcept(detail::_nothrow_total_inject<detail::_inject_kind<Lh>, ::fn::just<::fn::detail::_disjoined_t<Lh, Rh>>,
-                                           Lh>::value
+    noexcept(detail::_nothrow_total_inject<detail::_inject_kind<Lh>, ::fn::just<::fn::detail::_disjoined_t<Lh, Rh>>, Lh,
+                                           detail::_disj_tag_t<Lh>>::value
              && detail::_nothrow_total_inject<detail::_inject_kind<Rh>, ::fn::just<::fn::detail::_disjoined_t<Lh, Rh>>,
-                                              Rh>::value)
+                                              Rh, detail::_disj_tag_t<Rh>>::value)
 {
   using type = ::fn::just<::fn::detail::_disjoined_t<Lh, Rh>>;
   if constexpr (detail::_cluster_operand<Lh>) {
@@ -1491,8 +1491,11 @@ template <typename Lh, typename Rh>
   }
 }
 
-// CTAD for just, including the deduced spelling of the void carrier: just{}
-template <typename T> just(T) -> just<T>;
+// CTAD for just, including the deduced spelling of the void carrier: just{}. A const reference
+// parameter strips reference and const without decaying an array or a function, and keeps the
+// result deducible for the choice alias: GCC 12 and Clang 19 fail deriving it from a result
+// computed by remove_cvref_t.
+template <typename T> just(T const &) -> just<T>;
 template <typename T> explicit just(::std::in_place_type_t<T>, auto &&...) -> just<T>;
 just() -> just<void>;
 explicit just(::std::in_place_t) -> just<void>;
@@ -1507,7 +1510,7 @@ constexpr inline bool _deducible_choice_alternative = sizeof...(Ts) == 1 && (_is
 // enable_if rather than a requires-clause: Clang 19 crashes deriving the alias guides from a
 // constraint on a pack.
 template <typename... Ts, ::std::enable_if_t<detail::_deducible_choice_alternative<Ts...>, int> = 0>
-explicit just(Ts...) -> just<copack<Ts...>>;
+explicit just(Ts const &...) -> just<copack<Ts...>>;
 template <typename... Ts, ::std::enable_if_t<detail::_deducible_choice_alternative<Ts...>, int> = 0>
 explicit just(::std::in_place_type_t<Ts...>, auto &&...) -> just<copack<Ts...>>;
 // Deduces what copy deduction does. GCC 12 and 13 find copy deduction through the alias
@@ -1529,13 +1532,13 @@ namespace detail {
 // Validate the alternative before naming choice<T>, which can trigger a payload static_assert.
 // Guard the noexcept helpers separately as well, following _nothrow_copack_lift for MSVC.
 template <typename Src>
-concept _choice_liftable = _is_valid_copack_subtype<::std::decay_t<Src>>;
+concept _choice_liftable = _is_valid_copack_subtype<_lifted_t<Src>>;
 
 template <typename Src> constexpr inline bool _nothrow_choice_lift = false;
 template <typename Src>
   requires _choice_liftable<Src>
 constexpr inline bool _nothrow_choice_lift<Src>
-    = ::std::is_nothrow_constructible_v<choice<::std::decay_t<Src>>, ::std::in_place_type_t<::std::decay_t<Src>>, Src>;
+    = ::std::is_nothrow_constructible_v<choice<_lifted_t<Src>>, ::std::in_place_type_t<_lifted_t<Src>>, Src>;
 
 template <typename Src> constexpr inline bool _nothrow_copack_choice_lift = false;
 template <typename Src>
@@ -1554,33 +1557,34 @@ constexpr inline bool _nothrow_choice_emplace<T, Args...>
 /**
  * @brief Constructs a single-alternative choice from a value
  *
- * The alternative is the decayed source type: cv/ref qualifiers are removed, and arrays and
- * functions become pointers. Unlike `choice{x}`, this overload constructs from arrays and
- * functions through their pointer conversions, and wraps an existing choice as an alternative.
+ * As `as_copack`, preserving the value category: an lvalue `x` yields `choice<int &>`, where
+ * `choice{x}` yields `choice<int>`. Unlike `choice{x}`, wraps an existing choice as an alternative.
  *
  * @param src Value to lift
- * @return A `choice` over the decayed type of `src`, holding the constructed alternative
+ * @return A `choice` holding `src`, or a reference to it
  */
 [[nodiscard]] constexpr auto as_choice(auto &&src) //
     noexcept(detail::_nothrow_choice_lift<decltype(src)>) -> decltype(auto)
   requires detail::_choice_liftable<decltype(src)>
-           && ::std::is_constructible_v<choice<::std::decay_t<decltype(src)>>,
-                                        ::std::in_place_type_t<::std::decay_t<decltype(src)>>, decltype(src)>
+           && ::std::is_constructible_v<choice<detail::_lifted_t<decltype(src)>>,
+                                        ::std::in_place_type_t<detail::_lifted_t<decltype(src)>>, decltype(src)>
 {
-  using type = ::std::decay_t<decltype(src)>;
+  using type = detail::_lifted_t<decltype(src)>;
   return choice<type>(::std::in_place_type<type>, FWD(src));
 }
 
 /**
  * @brief Lifts a copack into the choice over its alternatives
  *
- * The copack is the payload itself, so the choice is the one `just{copack}` deduces.
+ * The copack is the payload itself, so the choice is the one `just{copack}` deduces. A choice cannot
+ * refer to a copack, so an lvalue copack is not lifted.
  *
  * @param src Copack to lift
  * @return The `choice` over the alternatives of `src`, holding its value
  */
 template <typename Src>
-  requires some_copack<::std::remove_cvref_t<Src>> && (not ::std::is_same_v<::std::remove_cvref_t<Src>, copack<>>)
+  requires some_copack<::std::remove_cvref_t<Src>> && (not ::std::is_lvalue_reference_v<Src>)
+           && (not ::std::is_same_v<::std::remove_cvref_t<Src>, copack<>>)
            && ::std::is_constructible_v<just<::std::remove_cvref_t<Src>>, Src>
 [[nodiscard]] constexpr auto as_choice(Src &&src) //
     noexcept(detail::_nothrow_copack_choice_lift<Src>) -> decltype(auto)

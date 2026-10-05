@@ -351,8 +351,12 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
   // candidate - and would poison overload resolution, since the losing candidates form their
   // signatures too.
   template <typename Self, typename Fn>
+  using _copack_transformed_t = ::fn::optional<decltype((*::std::declval<Self>()).transform(::std::declval<Fn>()))>;
+
+  template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn)  //
       noexcept(noexcept((*FWD(self)).transform(FWD(fn)))) // extension
+      -> DEDUCED_RETURN(_copack_transformed_t<Self, Fn>(::std::nullopt))
     requires some_copack<T> && (not empty_copack<T>) && ::fn::detail::_typelist_applicable<Fn, decltype(*FWD(self))>
   {
     using new_value_type = decltype((*FWD(self)).transform(FWD(fn)));
@@ -1756,8 +1760,7 @@ template <some_optional Lh, typename Rh>
 // and the unit errors vanish in the product, so the result is empty exactly when both operands
 // are. The leftmost engaged operand wins and injects by type.
 template <some_optional Lh, some_optional Rh>
-  requires ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::value_type,
-                            typename ::std::remove_cvref_t<Rh>::value_type>
+  requires ::std::is_same_v<::fn::detail::_payload_t<Lh>, ::fn::detail::_payload_t<Rh>>
 [[nodiscard]] constexpr auto operator|(Lh &&lh, Rh &&rh) //
     noexcept(::fn::detail::_nothrow_initializable<::std::remove_cvref_t<Lh>, Lh>
              && ::fn::detail::_nothrow_initializable<::std::remove_cvref_t<Lh>, Rh>) -> ::std::remove_cvref_t<Lh>
@@ -1768,22 +1771,23 @@ template <some_optional Lh, some_optional Rh>
 }
 
 template <some_optional Lh, some_optional Rh>
-  requires(not ::std::is_same_v<typename ::std::remove_cvref_t<Lh>::value_type,
-                                typename ::std::remove_cvref_t<Rh>::value_type>)
+  requires(not ::std::is_same_v<::fn::detail::_payload_t<Lh>, ::fn::detail::_payload_t<Rh>>)
 [[nodiscard]] constexpr auto operator|(Lh &&lh, Rh &&rh) //
-    noexcept(::fn::detail::_nothrow_disj_inject<::fn::detail::_dead_value<Lh>,
-                                                optional<::fn::detail::_disjoined_t<Lh, Rh>>, Lh>::value
-             && ::fn::detail::_nothrow_disj_inject<::fn::detail::_dead_value<Rh>,
-                                                   optional<::fn::detail::_disjoined_t<Lh, Rh>>, Rh>::value)
+    noexcept(
+        ::fn::detail::_nothrow_disj_inject<::fn::detail::_dead_value<Lh>, optional<::fn::detail::_disjoined_t<Lh, Rh>>,
+                                           Lh, ::fn::detail::_disj_tag_t<Lh>>::value
+        && ::fn::detail::_nothrow_disj_inject<::fn::detail::_dead_value<Rh>,
+                                              optional<::fn::detail::_disjoined_t<Lh, Rh>>, Rh,
+                                              ::fn::detail::_disj_tag_t<Rh>>::value)
 {
   using type = optional<::fn::detail::_disjoined_t<Lh, Rh>>;
   if constexpr (not ::fn::detail::_dead_value<Lh>) {
     if (lh.has_value())
-      return type{::std::in_place, FWD(lh).value()};
+      return type{::std::in_place, ::fn::detail::_disj_tag_t<Lh>{}, FWD(lh).value()};
   }
   if constexpr (not ::fn::detail::_dead_value<Rh>) {
     if (rh.has_value())
-      return type{::std::in_place, FWD(rh).value()};
+      return type{::std::in_place, ::fn::detail::_disj_tag_t<Rh>{}, FWD(rh).value()};
   }
   return type{::std::nullopt};
 }

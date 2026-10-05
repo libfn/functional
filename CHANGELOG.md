@@ -2,6 +2,34 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## A single `conjoin` argument is normalized, a single `disjoin` argument returned by value — 4 October 2026
+
+`conjoin` is the fold of `&` from its unit, so a single argument meets the unit alone; previously the argument itself was returned, as a reference. Now `conjoin(x)` is `pack<int>`, `conjoin(c)` for a `copack_for<A, B>` is `copack_for<pack<A>, pack<B>>`, and `conjoin(o)` for an `optional<int>` is `optional<pack<int>>`; a `void` value stays `void`. The unit of a carrier is of its own kind: `just<void>`, `expected<void, E>`, or an engaged `optional<pack<>>`. The result's shape no longer depends on the number of arguments. `disjoin` returns a single carrier by value. Both previously returned `decltype(arg)`, so `auto &&r = fn::conjoin(42);` dangled.
+
+## Deduction and `conjoin` hold values; `as_copack` and `as_choice` keep references — 4 October 2026
+
+Class template argument deduction for `pack`, `copack`, `just` and `choice` removes only references and cv-qualifiers from each argument. For an lvalue `int x`, `pack{x}` is `pack<int>`; previously it was `pack<int&>`, which `as_pack(x)` still yields. An array or a function is never turned into a pointer: `just{arr}` and `just{f}` fail to compile, where they deduced `just<int*>` and `just<int(*)(int)>`, and `pack{f}` fails where it deduced `pack<int(&)(int)>`. `pack{"abc"}` is `pack<char[4]>`. A function type is refused as a `pack` element and as a `copack` alternative, where it failed inside the library. `conjoin` holds a leading lvalue by value, as `&` holds every further operand: `conjoin(x, y)` is `pack<int, int>`, where it was `pack<int&, int>`; `as_pack(x) & y` keeps the reference.
+
+`as_copack` and `as_choice` preserve the value category, as `as_pack` does: for an lvalue `x`, `as_copack(x)` is `copack<int&>` and `as_choice(x)` is `choice<int&>`; previously both copied. An lvalue the lift cannot refer to is refused rather than copied: `as_copack` of an lvalue `pack` or array, and `as_choice` of an lvalue copack, array or function. `as_choice("hi")`, now refused, was `choice<char const*>`. Move the source, or use deduction, to copy.
+
+## `transform` over a copack keeps lvalue-reference results — 4 October 2026
+
+`transform` and `transform_error` over a copack keep an lvalue-reference result as a reference alternative: an lvalue `copack_for<int, long>` mapped through `[](auto &v) -> auto & { return v; }` yields `copack_for<int&, long&>`; previously the referents were copied into `copack_for<int, long>`. Rvalue-reference results, and references to a `pack` or a `copack`, still enter as values. A reference result that could refer into an argument expiring with the call, previously copied, now fails to compile. For example, `std::move(c).transform([](auto const &v) -> auto const & { return v; })` is refused; return by value instead. `expected`, `optional` and `choice` over a copack follow.
+
+## `|` and `&` keep lvalue-reference payloads — 4 October 2026
+
+The disjunction sums, and the conjunction multiplies, `T&` for an `optional<T&>` operand, rather than its value type `T`. `optional<int&> | optional<long&>` is `optional<copack_for<int&, long&>>`; previously the referents were copied into `optional<copack_for<int, long>>`. `optional<int&> | optional<int>` is `optional<copack_for<int, int&>>`; previously it was `optional<int&>`, bound to the right operand's value, and failed to compile for an rvalue right operand. `optional<int const&> | optional<long>` compiles, where it failed inside the operator. Identity-cluster operands follow: `just<int> | optional<int&>` is `choice_for<int, int&>`, where it was `just<int>`. `|` places each value directly into the alternative its payload names, so an lvalue `int` is never ambiguous between alternatives `int` and `int&`.
+
+`optional<int&> & optional<long>` is `optional<pack<int&, long>>`; previously the referent was copied into `optional<pack<int, long>>`. `optional<int const&> & optional<long&>` is `optional<pack<int const&, long&>>`, where the referent's `const` leaked into `optional<pack<int const, long>>`. `just<int> & optional<int&>` is `optional<pack<int, int&>>`, where it was `optional<pack<int, int>>`. `optional<int&> & just<void>` is `optional<pack<int&>>`, no longer the owning `optional<pack<int>>` of the 27 September entry on `&` taking a `void` side.
+
+## `copack` admits lvalue-reference alternatives — 4 October 2026
+
+A `copack` alternative may be an lvalue reference `T&`, held as a pointer to its referent; previously an alternative could not be a reference, and a reference had to be wrapped in a `pack`. `T`, `T&` and `T const&` are distinct alternatives. As with `optional<T&>`, assignment and `emplace` rebind, and comparison compares referents. As from a `pack<T&>`, callables, `get` and `get_ptr` reach the referent as `T&`, or as `T const&` through a `const` copack, whatever its value category. A reference to a `pack` or a `copack` remains refused, as do rvalue references and references to arrays or functions. `choice<T&>` and `expected<copack<T&>, E>` follow.
+
+The converting constructors of `copack` and `choice` and their value assignments consider only the alternatives whose decayed type is the value's own, and select among them as overload resolution selects among functions taking each. For an lvalue `int x`, `copack_for<int, int&>{x}` is ambiguous and rejected; `std::in_place_type<int&>` names the alternative. A `copack_for<int, int const&>` can be built only through `std::in_place_type` or widening, since `int` and `int const&` are ambiguous for every `int` value. `copack{std::in_place_type<int&>, x}` deduces `copack<int&>`.
+
+`and_then` over a copack whose branches return `optional<T&>` and other optionals joins the references into the result's copack, e.g. `optional<copack_for<X&, Y>>`; previously such a branch set was refused.
+
 ## `<fn/monadic.hpp>` becomes `<fn/traits.hpp>`; `monadic_invocable` rejects an incomplete functor — 27 September 2026
 
 Replace includes of `<fn/monadic.hpp>` with `<fn/traits.hpp>`; no compatibility header is provided. `some_in_place_type` moves to `<fn/traits.hpp>` and remains available through `<fn/copack.hpp>`.
