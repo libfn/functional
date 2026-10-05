@@ -351,8 +351,12 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
   // candidate - and would poison overload resolution, since the losing candidates form their
   // signatures too.
   template <typename Self, typename Fn>
+  using _copack_transformed_t = ::fn::optional<decltype((*::std::declval<Self>()).transform(::std::declval<Fn>()))>;
+
+  template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn)  //
       noexcept(noexcept((*FWD(self)).transform(FWD(fn)))) // extension
+      -> DEDUCED_RETURN(_copack_transformed_t<Self, Fn>(::std::nullopt))
     requires some_copack<T> && (not empty_copack<T>) && ::fn::detail::_typelist_applicable<Fn, decltype(*FWD(self))>
   {
     using new_value_type = decltype((*FWD(self)).transform(FWD(fn)));
