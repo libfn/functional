@@ -199,7 +199,7 @@ jobs:
   windows:
     if: github.event.pull_request.draft != true
     timeout-minutes: 30
-    runs-on: ${{ matrix.vs.runner }}
+    runs-on: ${{ github.repository == 'libfn/functional' && matrix.vs.warp || matrix.vs.runner }}
     strategy:
       fail-fast: false
       matrix:
@@ -212,8 +212,10 @@ jobs:
           # Use explicit image labels to keep coverage of both Visual Studio versions.
           - generator: "Visual Studio 17 2022"
             runner: "windows-2022"
+            warp: "warp-windows-2022-x64-8x"
           - generator: "Visual Studio 18 2026"
             runner: "windows-2025-vs2026"
+            warp: "warp-windows-2025-vs2026-x64-8x"
 
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
