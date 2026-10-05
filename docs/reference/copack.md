@@ -84,9 +84,11 @@ copack(copack &&);       // (3)
 :include-doxygen-doc: fn::copack<>::copack { args: "copack &&" }
 
 ```cpp {title: "fn::copack< Ts... >::copack"}
+template <typename U, typename T>
+constexpr copack(U &&v);           // (1)
+constexpr explicit copack(U &&v);  // (2)
+
 template <typename T>
-constexpr copack(T &&v);                                             // (1)
-constexpr explicit copack(T &&v);                                    // (2)
 constexpr explicit copack(std::in_place_type_t<T>, auto &&...args);  // (3)
 
 template <typename... Tx>
@@ -284,8 +286,8 @@ constexpr auto apply_type_r(Fn &&fn, Args &&...args) const && -> Ret;  // (4)
 
 ```cpp {title: "fn::copack< Ts... >::get_ptr"}
 template <typename T>
-constexpr auto get_ptr(std::in_place_type_t<T>=std::in_place_type<T>)       -> T *;        // (1)
-constexpr auto get_ptr(std::in_place_type_t<T>=std::in_place_type<T>) const -> T const *;  // (2)
+constexpr auto get_ptr(std::in_place_type_t<T>=std::in_place_type<T>)       -> std::add_pointer_t<T>;                                // (1)
+constexpr auto get_ptr(std::in_place_type_t<T>=std::in_place_type<T>) const -> std::add_pointer_t<std::remove_reference_t<T> const>;  // (2)
 ```
 
 :include-doxygen-doc: fn::copack< Ts... >::get_ptr { args: "::std::in_place_type_t< T >" }

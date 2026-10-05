@@ -184,6 +184,22 @@ template <typename C> using _conjoin_unit_t = typename _conjoin_unit<::std::remo
  */
 constexpr inline struct conjoin_t {
   /**
+   * @brief Conjoins a single carrier with the unit of its kind
+   *
+   * The unit is `just<void>` for `just` and `choice`, `expected<void, E>` for `expected<T, E>`,
+   * and an engaged `optional<pack<>>` for `optional`.
+   *
+   * @param arg The carrier
+   * @return The carrier with its value normalized
+   */
+  template <some_monadic_type Arg>
+  [[nodiscard]] constexpr auto operator()(Arg &&arg) const //
+      noexcept(noexcept(detail::_conjoin_unit_t<Arg>{::std::in_place} & FWD(arg)))
+  {
+    return detail::_conjoin_unit_t<Arg>{::std::in_place} & FWD(arg);
+  }
+
+  /**
    * @brief Folds data into a product, or carriers into their conjunction
    *
    * @param arg The leading argument
@@ -202,22 +218,6 @@ constexpr inline struct conjoin_t {
   [[nodiscard]] constexpr auto operator()(Arg &&arg, Args &&...args) const
   {
     return ((::fn::pack<>{} & FWD(arg)) & ... & FWD(args));
-  }
-
-  /**
-   * @brief Conjoins a single carrier with the unit of its kind
-   *
-   * The unit is `just<void>` for `just` and `choice`, `expected<void, E>` for `expected<T, E>`,
-   * and an engaged `optional<pack<>>` for `optional`.
-   *
-   * @param arg The carrier
-   * @return The carrier with its value normalized
-   */
-  template <some_monadic_type Arg>
-  [[nodiscard]] constexpr auto operator()(Arg &&arg) const //
-      noexcept(noexcept(detail::_conjoin_unit_t<Arg>{::std::in_place} & FWD(arg)))
-  {
-    return detail::_conjoin_unit_t<Arg>{::std::in_place} & FWD(arg);
   }
 
   template <typename Arg, typename... Args>

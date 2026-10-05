@@ -50,9 +50,11 @@ From a value of one alternative, in place from arguments, widening from a `copac
 subset of the alternatives, or from a narrower `choice`.
 
 ```cpp {title: "fn::just< copack< Ts... > >::just"}
+template <typename U, typename T>
+constexpr just(U &&v);           // (1)
+constexpr explicit just(U &&v);  // (2)
+
 template <typename T>
-constexpr just(T &&v);                                               // (1)
-constexpr explicit just(T &&v);                                      // (2)
 constexpr explicit just(std::in_place_type_t<T> d, auto &&...args);  // (3)
 
 template <typename... Tx>
@@ -174,8 +176,8 @@ constexpr auto has_value(std::in_place_type_t<T> d=std::in_place_type<T>) const 
 
 ```cpp {title: "fn::just< copack< Ts... > >::get_ptr"}
 template <typename T>
-constexpr auto get_ptr(std::in_place_type_t<T> d=std::in_place_type<T>)       -> T *;        // (1)
-constexpr auto get_ptr(std::in_place_type_t<T> d=std::in_place_type<T>) const -> T const *;  // (2)
+constexpr auto get_ptr(std::in_place_type_t<T> d=std::in_place_type<T>)       -> std::add_pointer_t<T>;                                // (1)
+constexpr auto get_ptr(std::in_place_type_t<T> d=std::in_place_type<T>) const -> std::add_pointer_t<std::remove_reference_t<T> const>;  // (2)
 ```
 
 :include-doxygen-doc: fn::just< copack< Ts... > >::get_ptr { args: "::std::in_place_type_t< T >" }
