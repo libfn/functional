@@ -3490,6 +3490,37 @@ TEST_CASE("copack emplace", "[copack][emplace]")
     }());
   }
 
+  SECTION("binds a reference through a conversion that may throw")
+  {
+    // the conversion runs before the old alternative is destroyed, so its exception leaves the
+    // copack as it was, and what is relocated is the reference itself
+    struct Proxy final {
+      int *p;
+      bool fail = false;
+      constexpr operator int &() const noexcept(false)
+      {
+        if (fail)
+          throw 0;
+        return *p;
+      }
+    };
+    using R = fn::copack_for<int &, long>;
+    static_assert(can_emplace<R, int &, Proxy>);
+    static_assert(not noexcept(std::declval<R &>().emplace<int &>(std::declval<Proxy>())));
+    int y = 2;
+    R a{3L};
+    CHECK(&a.emplace<int &>(Proxy{&y}) == &y);
+    R b{3L};
+    CHECK_THROWS_AS(b.emplace<int &>(Proxy{&y, true}), int);
+    CHECK(b.get_ptr<long>() != nullptr);
+    CHECK(*b.get_ptr<long>() == 3);
+    static_assert([] {
+      int y = 2;
+      R a{3L};
+      return &a.emplace<int &>(Proxy{&y}) == &y;
+    }());
+  }
+
   SECTION("constraints")
   {
     static_assert(can_emplace<S, Sender, int>);
