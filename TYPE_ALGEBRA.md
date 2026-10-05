@@ -352,7 +352,7 @@ To explicitly lift a scalar value into a single-alternative coproduct (i.e. *sin
 
 An alternative may be an lvalue reference, so `copack_for<int&, long const&>` is a sum of borrowed locations. `T`, `T&` and `T const&` are distinct alternatives. A value selects among the alternatives of its own decayed type as overload resolution selects among functions taking each: for an lvalue `int x`, `copack_for<int&, int const&>{x}` binds `int&`, while `copack_for<int, int&>{x}` is ambiguous and rejected — `std::in_place_type<int&>` names the alternative instead. As with `optional<T&>`, assignment rebinds. The callback receives `T&`, or `T const&` from a `const` copack, whatever the copack's value category, as from a `pack`. A reference to a `pack` or a `copack` is not an alternative.
 
-> [!IMPORTANT]
+> [!WARNING]
 >
 > The lifts `as_pack`, `as_copack` and `as_choice` (Section 11) keep an lvalue as a reference: `as_pack(x)` refers to `x`, which must outlive it. CTAD never does: `pack{x}`, `copack{x}`, `just{x}` and `choice{x}` hold copies. Rather than copy an lvalue it cannot refer to, a lift refuses it: an array, a function or a `pack` for `as_copack`, and an array, a function or a `copack` for `as_choice`.
 
