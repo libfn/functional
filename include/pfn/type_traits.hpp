@@ -21,19 +21,28 @@ template <class U>
 constexpr inline bool _is_class_source
     = ::std::is_class_v<::std::remove_cvref_t<U>> || ::std::is_union_v<::std::remove_cvref_t<U>>;
 
+// The standard asks about VAL<U>, which for a non-reference U of non-class, non-array type is a
+// prvalue whose cv qualification is dropped: `const int` initializes as `int` does. Clang 19 and 20
+// builtins answer for the cv-qualified type, so the builtins and the emulation both ask about this one.
+template <class U>
+using _val_t = ::std::conditional_t<::std::is_reference_v<U> || _is_class_source<U> || ::std::is_array_v<U>, U,
+                                    ::std::remove_cv_t<U>>;
+
 // The answer where the compiler lacks the builtin. A temporary is reported only where the binding
 // rules make one certain, never otherwise: a false report would reject valid code on these
 // compilers alone. A class source which is not reference-related to the referent may convert
 // through a conversion function, which a library check cannot see, so it is reported as creating
-// no temporary.
-template <class T, class U, bool Converts> struct _emulated_from_temporary : ::std::false_type {};
+// no temporary; so is any binding of a reference to an array.
+template <class T, class U, bool Converts> struct _emulated_impl : ::std::false_type {};
 
 // Without conversion functions, a binding goes through a temporary exactly when a reference to
 // const volatile, which binds no rvalue, cannot make it. An xvalue binds directly, so the probe
-// asks it as an lvalue of its type.
+// asks it as an lvalue of its type. A reference to an array is left out: compilers disagree on
+// binding one to a temporary array.
 template <class T, class U, bool Converts>
-  requires ::std::is_reference_v<T> && _binding<T, U, Converts>::value && (not _is_class_source<U>)
-struct _emulated_from_temporary<T, U, Converts>
+  requires ::std::is_reference_v<T> && (not ::std::is_array_v<::std::remove_reference_t<T>>)
+           && _binding<T, U, Converts>::value && (not _is_class_source<U>)
+struct _emulated_impl<T, U, Converts>
     : ::std::bool_constant<not _binding<
           ::std::remove_reference_t<T> const volatile &,
           ::std::conditional_t<::std::is_rvalue_reference_v<U>, ::std::remove_reference_t<U> &, U>, Converts>::value> {
@@ -45,14 +54,17 @@ template <class T, class U, bool Converts>
   requires ::std::is_reference_v<T> && _binding<T, U, Converts>::value && _is_class_source<U>
            && (::std::is_same_v<::std::remove_cvref_t<U>, ::std::remove_cvref_t<T>>
                || ::std::is_base_of_v<::std::remove_cvref_t<T>, ::std::remove_cvref_t<U>>)
-struct _emulated_from_temporary<T, U, Converts> : ::std::bool_constant<not ::std::is_reference_v<U>> {};
+struct _emulated_impl<T, U, Converts> : ::std::bool_constant<not ::std::is_reference_v<U>> {};
+
+template <class T, class U, bool Converts> struct _emulated_from_temporary : _emulated_impl<T, _val_t<U>, Converts> {};
 
 // MSVC's preprocessor rejects __has_builtin, so MSVC is gated by version first: Visual Studio 2026
 // 18.6 (19.51.36246) is the earliest with both builtins.
 #if defined(_MSC_VER) && not defined(__clang__) && _MSC_FULL_VER >= 195136246
 template <class T, class U>
-constexpr inline bool _constructs_from_temporary = __reference_constructs_from_temporary(T, U);
-template <class T, class U> constexpr inline bool _converts_from_temporary = __reference_converts_from_temporary(T, U);
+constexpr inline bool _constructs_from_temporary = __reference_constructs_from_temporary(T, _val_t<U>);
+template <class T, class U>
+constexpr inline bool _converts_from_temporary = __reference_converts_from_temporary(T, _val_t<U>);
 #elif defined(_MSC_VER) && not defined(__clang__)
 template <class T, class U>
 constexpr inline bool _constructs_from_temporary = _emulated_from_temporary<T, U, false>::value;
@@ -60,8 +72,9 @@ template <class T, class U>
 constexpr inline bool _converts_from_temporary = _emulated_from_temporary<T, U, true>::value;
 #elif __has_builtin(__reference_constructs_from_temporary) && __has_builtin(__reference_converts_from_temporary)
 template <class T, class U>
-constexpr inline bool _constructs_from_temporary = __reference_constructs_from_temporary(T, U);
-template <class T, class U> constexpr inline bool _converts_from_temporary = __reference_converts_from_temporary(T, U);
+constexpr inline bool _constructs_from_temporary = __reference_constructs_from_temporary(T, _val_t<U>);
+template <class T, class U>
+constexpr inline bool _converts_from_temporary = __reference_converts_from_temporary(T, _val_t<U>);
 #else
 template <class T, class U>
 constexpr inline bool _constructs_from_temporary = _emulated_from_temporary<T, U, false>::value;
@@ -83,7 +96,8 @@ constexpr inline bool _invocable_r<R, Fn, Args...>
  * C++20 compilers. Where the compiler provides `__reference_constructs_from_temporary` the answer
  * is the standard's; elsewhere (GCC 12, MSVC before Visual Studio 2026 18.6) it is a library
  * emulation which never reports a temporary that is not created, but misses one created by
- * converting a class source not reference-related to the referent.
+ * converting a class source not reference-related to the referent, or one bound by a reference to
+ * an array.
  *
  * @tparam T Reference type to initialize; a non-reference type answers `false`
  * @tparam U Type of the initializer; a non-reference type is a prvalue

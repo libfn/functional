@@ -66,6 +66,8 @@ TEST_CASE("reference_constructs_from_temporary", "[type_traits][polyfill][refere
     {
       static_assert(reference_constructs_from_temporary_v<int const &, int>);
       static_assert(reference_constructs_from_temporary_v<int &&, int>);
+      static_assert(reference_constructs_from_temporary_v<int &&, int const>); // a prvalue's cv is dropped
+      static_assert(reference_constructs_from_temporary_v<int const &, int volatile>);
       SUCCEED();
     }
 
@@ -196,6 +198,8 @@ TEST_CASE("reference_converts_from_temporary", "[type_traits][polyfill][referenc
     {
       static_assert(reference_converts_from_temporary_v<int const &, int>);
       static_assert(reference_converts_from_temporary_v<int &&, int>);
+      static_assert(reference_converts_from_temporary_v<int &&, int const>); // a prvalue's cv is dropped
+      static_assert(reference_converts_from_temporary_v<int const &, int volatile>);
       SUCCEED();
     }
 
@@ -401,6 +405,8 @@ TEST_CASE("reference_from_temporary emulation", "[type_traits][polyfill][emulati
   {
     static_assert(emulated<int const &, int>);
     static_assert(emulated<int &&, int>);
+    static_assert(emulated<int &&, int const>);
+    static_assert(emulated<int const &, int volatile>);
     static_assert(emulated<int const &, long>);
     static_assert(emulated<Text const &, char const *>);
     static_assert(emulated<Base const &, Base>);
@@ -440,6 +446,16 @@ TEST_CASE("reference_from_temporary emulation", "[type_traits][polyfill][emulati
     static_assert(not emulated<int &, int>);
     static_assert(not emulated<int &, long &>);
     static_assert(not emulated<Derived const &, Base>);
+    SUCCEED();
+  }
+
+  SECTION("reference to array")
+  {
+    static_assert(not emulated<int const(&)[2], int[2]>); // the standard's answer is true
+    static_assert(not emulated<int (&&)[2], int[2]>);     // the standard's answer is true
+    static_assert(not emulated<int const(&)[2], long>);
+    static_assert(not emulated<int const(&)[2], short &>);
+    static_assert(not emulated<int const(&)[2], int volatile>);
     SUCCEED();
   }
 

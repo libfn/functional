@@ -12,7 +12,7 @@ The same rule applies to a `pack` reference element constructed by `as_pack` wit
 
 `fn::apply_r` and the `is_applicable_r` traits ask those traits, so a reference result that would bind a temporary is not applicable, rather than a hard error.
 
-The new `<pfn/type_traits.hpp>` provides `pfn::reference_constructs_from_temporary` and `pfn::reference_converts_from_temporary`. Where the compiler lacks the builtin (GCC 12, MSVC before Visual Studio 2026 18.6), they are emulated without false positives, but miss a temporary created by converting a class source not reference-related to the referenced type.
+The new `<pfn/type_traits.hpp>` provides `pfn::reference_constructs_from_temporary` and `pfn::reference_converts_from_temporary`. Where the compiler lacks the builtin (GCC 12, MSVC before Visual Studio 2026 18.6), they are emulated without false positives, but miss a temporary created by converting a class source not reference-related to the referenced type, or one bound by a reference to an array.
 
 ## `<fn/monadic.hpp>` becomes `<fn/traits.hpp>`; `monadic_invocable` rejects an incomplete functor — 27 September 2026
 
