@@ -66,6 +66,9 @@ concept can_as_pack_explicit_rvalue_head = requires(double &d) { fn::as_pack<Ts.
 template <typename T>
 concept can_as_pack_explicit_lvalue = requires(T &v) { fn::as_pack<T>(v); };
 
+constexpr auto overloaded(int v) -> int { return v + 1; }
+constexpr auto overloaded(double v) -> double { return v; }
+
 // Spells pack<Ts...>'s element types and passes Us... as the arguments
 template <typename P, typename... Us> constexpr bool can_as_pack_spelled = false;
 template <typename... Ts, typename... Us>
@@ -277,6 +280,13 @@ TEST_CASE("pack", "[pack]")
   static_assert(not can_as_pack_spelled<pack<int const &, long>, int, long>);
   static_assert(can_as_pack_spelled<pack<int const &, long>, int &, int>);
   static_assert(can_as_pack_spelled<pack<int>, long &>);
+  // a function reference never binds a temporary, so its element's named type still resolves an
+  // overload set
+  static_assert(overloaded(1.5) == 1.5);
+  static_assert(fn::as_pack<int (&)(int)>(overloaded).apply([](int (&f)(int)) { return f(1); }) == 2);
+  CHECK(fn::as_pack<int (&)(int)>(overloaded).apply([](int (&f)(int)) {
+    return &f == static_cast<int (*)(int)>(&overloaded);
+  }));
   auto owned = fn::as_pack<int>(k);
   k += 1;
   CHECK(owned.apply([](int v) { return v == 42; })); // an owned copy, not a view

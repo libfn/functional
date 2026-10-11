@@ -67,11 +67,17 @@ template <typename T> struct _as_pack_ref final {
   }
 };
 
-template <typename T> using _as_pack_arg_t = ::std::conditional_t<::std::is_lvalue_reference_v<T>, _as_pack_ref<T>, T>;
+// A reference to a function binds only a function lvalue, never a temporary, so it keeps the named
+// parameter type, which resolves an overload set the deduction above cannot.
+template <typename T>
+constexpr inline bool _as_pack_object_ref
+    = ::std::is_lvalue_reference_v<T> && ::std::is_object_v<::std::remove_reference_t<T>>;
+
+template <typename T> using _as_pack_arg_t = ::std::conditional_t<_as_pack_object_ref<T>, _as_pack_ref<T>, T>;
 
 template <typename T> [[nodiscard]] constexpr auto _as_pack_take(_as_pack_arg_t<T> &arg) noexcept -> T &&
 {
-  if constexpr (::std::is_lvalue_reference_v<T>)
+  if constexpr (_as_pack_object_ref<T>)
     return arg.ref;
   else
     return static_cast<T &&>(arg);
