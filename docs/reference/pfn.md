@@ -10,11 +10,12 @@ nor behaviour.
 
 `pfn` polyfills only what C++20 lacks: all of `<expected>`, the C++23 and C++26 additions to
 `std::optional` (the monadic operations, iterator support, `optional<T&>`), `std::apply` in its
-SFINAE-friendly C++26 shape together with its applicability traits, `std::invoke_r` and
-`std::unreachable`. Names C++20 already has — `std::nullopt`, `std::in_place`,
-`std::bad_optional_access` — are used directly and not mirrored.
+SFINAE-friendly C++26 shape together with its applicability traits, `std::invoke_r`,
+`std::unreachable`, and the C++23 traits detecting a reference bound to a temporary. Names C++20
+already has — `std::nullopt`, `std::in_place`, `std::bad_optional_access` — are used directly and
+not mirrored.
 
-The polyfills track the C++ working draft, deviating deliberately in three ways, each noted on
+The polyfills track the C++ working draft, deviating deliberately in four ways, each noted on
 the entity it concerns:
 
 * where the standard leaves a member's `noexcept` specification unstated, one is derived from
@@ -23,6 +24,9 @@ the entity it concerns:
   `LIBFN_ASSERT` before inclusion
 * `expected`'s comparison against a value is declared at namespace scope rather than as a
   hidden friend, keeping its constraint deducible
+* where the compiler lacks the builtin (GCC 12, MSVC), the traits detecting a reference bound to
+  a temporary are emulated: they never report a temporary which is not created, but miss one
+  created by converting a class source not reference-related to the referenced type
 
 Members are not restated here. A `pfn` type is the standard's type, member for member, so each
 one below names its standard counterpart and links to where it is specified; a second copy of
@@ -126,6 +130,18 @@ constexpr auto invoke_r(F &&f, Args &&...args);  // (1)
 
 ---
 
+## reference_constructs_from_temporary {style: "api"}
+
+##### Defined in {style: "api", badge: "#include <pfn/type_traits.hpp>"}
+
+:include-doxygen-doc: pfn::reference_constructs_from_temporary
+
+### reference_converts_from_temporary {style: "api"}
+
+:include-doxygen-doc: pfn::reference_converts_from_temporary
+
+---
+
 ## unreachable {style: "api"}
 
 ##### Defined in {style: "api", badge: "#include <pfn/utility.hpp>"}
@@ -158,6 +174,22 @@ constexpr bool is_nothrow_applicable_v = is_nothrow_applicable<Fn, Tuple>::value
 ```
 
 :include-doxygen-doc: pfn::is_nothrow_applicable_v { args: "" }
+
+## More reference binding traits {style: "api"}
+
+```cpp {title: "pfn::reference_constructs_from_temporary_v"}
+template <class T, class U>
+constexpr bool reference_constructs_from_temporary_v = reference_constructs_from_temporary<T, U>::value;  // (1)
+```
+
+:include-doxygen-doc: pfn::reference_constructs_from_temporary_v { args: "" }
+
+```cpp {title: "pfn::reference_converts_from_temporary_v"}
+template <class T, class U>
+constexpr bool reference_converts_from_temporary_v = reference_converts_from_temporary<T, U>::value;  // (1)
+```
+
+:include-doxygen-doc: pfn::reference_converts_from_temporary_v { args: "" }
 
 ## Comparison against a value {style: "api"}
 

@@ -145,7 +145,7 @@ See [examples/](examples/) and the [API reference][docs] for more. [TYPE_ALGEBRA
 
 The library has two layers:
 
-* **`pfn`** (`include/pfn`, namespace `pfn`) provides C++20 polyfills for standard-library facilities through C++26: `expected`, `optional` (including monadic operations, `optional<T&>` and range support), `invoke_r` and `unreachable`. These follow the C++ standard and accepted proposals, including `has_error()`.
+* **`pfn`** (`include/pfn`, namespace `pfn`) provides C++20 polyfills for standard-library facilities through C++26: `expected`, `optional` (including monadic operations, `optional<T&>` and range support), `invoke_r`, `unreachable`, and the `reference_constructs_from_temporary` and `reference_converts_from_temporary` traits. These follow the C++ standard and accepted proposals, including `has_error()`.
 * **`fn`** (`include/fn`, namespace `fn`) builds on those polyfills. It adds combinators such as `and_then`, `transform` and `recover`, along with the vocabulary types `pack`, `copack` and `choice`.
 
 The `fn` types extend their `pfn` counterparts: switching a valid program from `pfn` types to `fn` changes neither compilation nor program behaviour, while making the types and operations defined in `fn` available.
