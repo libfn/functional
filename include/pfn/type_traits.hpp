@@ -29,8 +29,8 @@ constexpr inline bool _is_class_source
 template <class T, class U, bool Converts> struct _emulated_from_temporary : ::std::false_type {};
 
 // Without conversion functions, a binding goes through a temporary exactly when a reference to
-// const volatile, which binds no rvalue, cannot make it. An xvalue binds directly, so it is asked
-// as an lvalue of its type.
+// const volatile, which binds no rvalue, cannot make it. An xvalue binds directly, so the probe
+// asks it as an lvalue of its type.
 template <class T, class U, bool Converts>
   requires ::std::is_reference_v<T> && _binding<T, U, Converts>::value && (not _is_class_source<U>)
 struct _emulated_from_temporary<T, U, Converts>
@@ -68,6 +68,12 @@ constexpr inline bool _constructs_from_temporary = _emulated_from_temporary<T, U
 template <class T, class U>
 constexpr inline bool _converts_from_temporary = _emulated_from_temporary<T, U, true>::value;
 #endif
+
+template <class R, class Fn, class... Args> constexpr inline bool _invocable_r = false;
+template <class R, class Fn, class... Args>
+  requires ::std::is_invocable_r_v<R, Fn, Args...>
+constexpr inline bool _invocable_r<R, Fn, Args...>
+    = not _converts_from_temporary<R, ::std::invoke_result_t<Fn, Args...>>;
 } // namespace detail
 
 /**
@@ -107,6 +113,43 @@ struct reference_converts_from_temporary : ::std::bool_constant<detail::_convert
  */
 template <class T, class U>
 constexpr inline bool reference_converts_from_temporary_v = reference_converts_from_temporary<T, U>::value;
+
+/**
+ * @brief Checks if `Fn` is invocable with `Args...`, its result converting to `R`
+ *
+ * `std::is_invocable_r` as specified for C++23 ([meta.rel]): the call is not viable where the
+ * result would bind a reference `R` to a temporary ([func.require]), which not every standard
+ * library checks. Detected through `pfn::reference_converts_from_temporary`.
+ *
+ * @tparam R Type the result converts to; `void` accepts any result
+ * @tparam Fn Callable to probe
+ * @tparam Args Argument types
+ */
+template <class R, class Fn, class... Args>
+struct is_invocable_r : ::std::bool_constant<detail::_invocable_r<R, Fn, Args...>> {};
+/**
+ * @brief Variable form of `pfn::is_invocable_r`
+ */
+template <class R, class Fn, class... Args>
+constexpr inline bool is_invocable_r_v = is_invocable_r<R, Fn, Args...>::value;
+
+/**
+ * @brief Checks if `pfn::is_invocable_r` holds and neither the call nor the conversion can throw
+ *
+ * `std::is_nothrow_invocable_r` as specified for C++23 ([meta.rel]).
+ *
+ * @tparam R Type the result converts to
+ * @tparam Fn Callable to probe
+ * @tparam Args Argument types
+ */
+template <class R, class Fn, class... Args>
+struct is_nothrow_invocable_r
+    : ::std::bool_constant<is_invocable_r_v<R, Fn, Args...> && ::std::is_nothrow_invocable_r_v<R, Fn, Args...>> {};
+/**
+ * @brief Variable form of `pfn::is_nothrow_invocable_r`
+ */
+template <class R, class Fn, class... Args>
+constexpr inline bool is_nothrow_invocable_r_v = is_nothrow_invocable_r<R, Fn, Args...>::value;
 
 } // namespace LIBFN_VERSION_BASE
 } // namespace pfn

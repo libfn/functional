@@ -200,8 +200,8 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
   template <typename Ret, typename Self, typename Fn, typename... Args>
     requires(not(... || (_some_pack<Args> || _some_copack<Args>)))
   static constexpr auto _apply_r(Self &&self, Fn &&fn, Args &&...args) //
-      noexcept(::std::is_nothrow_invocable_r_v<Ret, Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args &&...>) -> Ret
-    requires(::std::is_invocable_r<Ret, Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args && ...>::value)
+      noexcept(::pfn::is_nothrow_invocable_r_v<Ret, Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args &&...>) -> Ret
+    requires(::pfn::is_invocable_r<Ret, Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args && ...>::value)
   {
     return ::pfn::invoke_r<Ret>(
         FWD(fn), static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., FWD(args)...);

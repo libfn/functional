@@ -314,6 +314,73 @@ TEST_CASE("reference_converts_from_temporary", "[type_traits][polyfill][referenc
   }
 }
 
+namespace {
+using value_of = auto (*)() -> int;
+using lvalue_of = auto (*)() -> int &;
+using xvalue_of = auto (*)() -> int &&;
+using long_of = auto (*)() -> long &;
+using quiet_lvalue_of = auto (*)() noexcept -> int &;
+} // namespace
+
+// libc++ predates [func.require]/2 in std::is_invocable_r, so validating against it skips the rows
+// whose answer that rule decides
+#if defined(PFN_TEST_VALIDATION) && defined(_LIBCPP_VERSION)
+constexpr bool rule_checked = false;
+#else
+constexpr bool rule_checked = true;
+#endif
+
+TEST_CASE("is_invocable_r", "[type_traits][polyfill][is_invocable_r]")
+{
+  using subject::is_invocable_r;
+  using subject::is_invocable_r_v;
+
+  SECTION("reference result")
+  {
+    // [func.require]/2: a result which would bind the reference to a temporary is not viable
+    static_assert(is_invocable_r_v<int const &, lvalue_of>);
+    static_assert(is_invocable_r_v<int const &, xvalue_of>);
+    static_assert(is_invocable_r_v<int &&, xvalue_of>);
+    if constexpr (rule_checked) {
+      static_assert(not is_invocable_r_v<int const &, value_of>);
+      static_assert(not is_invocable_r_v<int const &, long_of>);
+      static_assert(not is_invocable_r_v<int &&, value_of>);
+    }
+    SUCCEED();
+  }
+
+  SECTION("value result")
+  {
+    static_assert(is_invocable_r_v<int, value_of>);
+    static_assert(is_invocable_r_v<long, lvalue_of>);
+    static_assert(is_invocable_r_v<void, value_of>);
+    static_assert(not is_invocable_r_v<int *, value_of>);
+    static_assert(not is_invocable_r_v<int, value_of, int>);
+    SUCCEED();
+  }
+
+  SECTION("class form")
+  {
+    static_assert(std::is_base_of_v<std::true_type, is_invocable_r<int, value_of>>);
+    static_assert(std::is_base_of_v<std::false_type, is_invocable_r<int *, value_of>>);
+    SUCCEED();
+  }
+}
+
+TEST_CASE("is_nothrow_invocable_r", "[type_traits][polyfill][is_nothrow_invocable_r]")
+{
+  using subject::is_nothrow_invocable_r;
+  using subject::is_nothrow_invocable_r_v;
+
+  static_assert(is_nothrow_invocable_r_v<int const &, quiet_lvalue_of>);
+  static_assert(not is_nothrow_invocable_r_v<int const &, lvalue_of>);
+  if constexpr (rule_checked)
+    static_assert(not is_nothrow_invocable_r_v<long const &, quiet_lvalue_of>); // would bind a temporary
+  static_assert(is_nothrow_invocable_r_v<long, quiet_lvalue_of>);
+  static_assert(std::is_base_of_v<std::true_type, is_nothrow_invocable_r<int, quiet_lvalue_of>>);
+  SUCCEED();
+}
+
 #ifndef PFN_TEST_VALIDATION
 
 namespace {

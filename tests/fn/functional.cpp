@@ -137,6 +137,36 @@ TEST_CASE("is_applicable_r copack", "[is_applicable_r][copack]")
   SUCCEED();
 }
 
+namespace {
+int referent = 0;
+auto value_of() -> int { return referent; }
+auto referent_of() -> int & { return referent; }
+} // namespace
+
+TEST_CASE("is_applicable_r reference result", "[is_applicable_r][apply_r]")
+{
+  // [func.require]/2: a result which would bind a reference Ret to a temporary is not applicable on
+  // any path, whatever the standard library's own is_invocable_r answers; an lvalue result binds
+  using value = decltype(&value_of);
+  using ref = decltype(&referent_of);
+  static_assert(not fn::is_applicable_r_v<int const &, value>);
+  static_assert(not fn::is_applicable_r_v<int const &, value, std::tuple<>>);
+  static_assert(not fn::is_applicable_r_v<int const &, value, fn::pack<>>);
+  static_assert(fn::is_applicable_r_v<int const &, ref>);
+  static_assert(fn::is_applicable_r_v<int const &, ref, std::tuple<>>);
+  static_assert(fn::is_applicable_r_v<int const &, ref, fn::pack<>>);
+  static_assert(fn::is_applicable_r_v<int, value, std::tuple<>>);
+  static_assert(fn::is_applicable_r_v<int, value, fn::pack<>>);
+
+  constexpr auto identity = [](int v) { return v; };
+  static_assert(not fn::is_applicable_r_v<int const &, decltype(identity), fn::copack<int>>);
+  static_assert(fn::is_applicable_r_v<int, decltype(identity), fn::copack<int>>);
+
+  CHECK(&fn::apply_r<int const &>(&referent_of, fn::pack<>{}) == &referent);
+  CHECK(&fn::apply_r<int const &>(&referent_of, std::tuple<>{}) == &referent);
+  CHECK(fn::apply_r<int>(&value_of, fn::pack<>{}) == referent);
+}
+
 TEST_CASE("apply polyfill", "[apply][polyfill]")
 {
   using fn::apply;

@@ -10,10 +10,10 @@ nor behaviour.
 
 `pfn` polyfills only what C++20 lacks: all of `<expected>`, the C++23 and C++26 additions to
 `std::optional` (the monadic operations, iterator support, `optional<T&>`), `std::apply` in its
-SFINAE-friendly C++26 shape together with its applicability traits, `std::invoke_r`,
-`std::unreachable`, and the C++23 traits detecting a reference bound to a temporary. Names C++20
-already has — `std::nullopt`, `std::in_place`, `std::bad_optional_access` — are used directly and
-not mirrored.
+SFINAE-friendly C++26 shape together with its applicability traits, `std::invoke_r` with its C++23
+invocability traits, `std::unreachable`, and the C++23 traits detecting a reference bound to a
+temporary. Names C++20 already has — `std::nullopt`, `std::in_place`, `std::bad_optional_access` —
+are used directly and not mirrored.
 
 The polyfills track the C++ working draft, deviating deliberately in four ways, each noted on
 the entity it concerns:
@@ -129,6 +129,14 @@ constexpr auto invoke_r(F &&f, Args &&...args);  // (1)
 
 :include-doxygen-doc-params: pfn::invoke_r { args: "F &&, Args &&...", title: "parameters" }
 
+### Invocability traits {style: "api"}
+The C++23 traits `invoke_r` is specified through, defined in `<pfn/type_traits.hpp>`; each also
+comes in its `_v` form.
+
+:include-doxygen-doc: pfn::is_invocable_r
+
+:include-doxygen-doc: pfn::is_nothrow_invocable_r
+
 ---
 
 ## reference_constructs_from_temporary {style: "api"}
@@ -175,6 +183,22 @@ constexpr bool is_nothrow_applicable_v = is_nothrow_applicable<Fn, Tuple>::value
 ```
 
 :include-doxygen-doc: pfn::is_nothrow_applicable_v { args: "" }
+
+## More invocability traits {style: "api"}
+
+```cpp {title: "pfn::is_invocable_r_v"}
+template <class R, class Fn, class... Args>
+constexpr bool is_invocable_r_v = is_invocable_r<R, Fn, Args...>::value;  // (1)
+```
+
+:include-doxygen-doc: pfn::is_invocable_r_v { args: "" }
+
+```cpp {title: "pfn::is_nothrow_invocable_r_v"}
+template <class R, class Fn, class... Args>
+constexpr bool is_nothrow_invocable_r_v = is_nothrow_invocable_r<R, Fn, Args...>::value;  // (1)
+```
+
+:include-doxygen-doc: pfn::is_nothrow_invocable_r_v { args: "" }
 
 ## More reference binding traits {style: "api"}
 
