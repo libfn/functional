@@ -66,6 +66,13 @@ concept can_as_pack_explicit_rvalue_head = requires(double &d) { fn::as_pack<Ts.
 template <typename T>
 concept can_as_pack_explicit_lvalue = requires(T &v) { fn::as_pack<T>(v); };
 
+struct implicit_and_explicit {
+  int a = 1;
+  int b = 2;
+  operator int &() noexcept { return a; } // NOLINT(google-explicit-constructor)
+  explicit operator int const &() noexcept(false) { return b; }
+};
+
 constexpr auto overloaded(int v) -> int { return v + 1; }
 constexpr auto overloaded(double v) -> double { return v; }
 
@@ -280,10 +287,21 @@ TEST_CASE("pack", "[pack]")
   static_assert(not can_as_pack_spelled<pack<int const &, long>, int, long>);
   static_assert(can_as_pack_spelled<pack<int const &, long>, int &, int>);
   static_assert(can_as_pack_spelled<pack<int>, long &>);
+  // a reference element binds by implicit conversion, as a parameter of its named type would: an
+  // explicit conversion function is never chosen, and noexcept follows the implicit one
+  static_assert(can_as_pack_spelled<pack<int const &>, implicit_and_explicit &>);
+  static_assert(noexcept(fn::as_pack<int const &>(std::declval<implicit_and_explicit &>())));
+  {
+    implicit_and_explicit src{};
+    CHECK(fn::as_pack<int const &>(src).apply([&src](int const &r) { return &r == &src.a; }));
+  }
   // a function reference never binds a temporary, so its element's named type still resolves an
   // overload set
   static_assert(overloaded(1.5) == 1.5);
+#ifndef _MSC_VER // MSVC's constant evaluator reads a function-reference member of an aggregate base
+                 // as uninitialized (Visual Studio 2022 and 2026 18.6 alike)
   static_assert(fn::as_pack<int (&)(int)>(overloaded).apply([](int (&f)(int)) { return f(1); }) == 2);
+#endif
   CHECK(fn::as_pack<int (&)(int)>(overloaded).apply([](int (&f)(int)) {
     return &f == static_cast<int (*)(int)>(&overloaded);
   }));
