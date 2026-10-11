@@ -59,7 +59,8 @@ template <typename T> struct _as_pack_ref final {
   T ref;
 
   template <typename U>
-    requires ::std::is_convertible_v<U, T> && (not ::pfn::reference_converts_from_temporary_v<T, U>)
+    requires(not ::std::is_same_v<::std::remove_cvref_t<U>, _as_pack_ref>)
+            && ::std::is_convertible_v<U, T> && (not ::pfn::reference_converts_from_temporary_v<T, U>)
   constexpr _as_pack_ref(U &&u) noexcept(::std::is_nothrow_convertible_v<U, T>) // NOLINT(google-explicit-constructor)
       : ref(FWD(u))
   {
