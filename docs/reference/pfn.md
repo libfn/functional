@@ -24,9 +24,10 @@ the entity it concerns:
   `LIBFN_ASSERT` before inclusion
 * `expected`'s comparison against a value is declared at namespace scope rather than as a
   hidden friend, keeping its constraint deducible
-* where the compiler lacks the builtin (GCC 12, MSVC), the traits detecting a reference bound to
-  a temporary are emulated: they never report a temporary which is not created, but miss one
-  created by converting a class source not reference-related to the referenced type
+* where the compiler lacks the builtin (GCC 12, MSVC before Visual Studio 2026 18.6), the traits
+  detecting a reference bound to a temporary are emulated: they never report a temporary which is
+  not created, but miss one created by converting a class source not reference-related to the
+  referenced type
 
 Members are not restated here. A `pfn` type is the standard's type, member for member, so each
 one below names its standard counterpart and links to where it is specified; a second copy of

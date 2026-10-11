@@ -10,7 +10,7 @@ The same rule applies to a `pack` reference element constructed by `as_pack` wit
 
 `pfn::invoke_r` is no longer viable where its result would bind a reference `R` to a temporary. With libc++ such a call previously compiled and dangled; libstdc++ already refused it.
 
-The new `<pfn/type_traits.hpp>` provides `pfn::reference_constructs_from_temporary` and `pfn::reference_converts_from_temporary`. Where the compiler lacks the builtin (GCC 12, MSVC), they are emulated without false positives, but miss a temporary created by converting a class source not reference-related to the referenced type.
+The new `<pfn/type_traits.hpp>` provides `pfn::reference_constructs_from_temporary` and `pfn::reference_converts_from_temporary`. Where the compiler lacks the builtin (GCC 12, MSVC before Visual Studio 2026 18.6), they are emulated without false positives, but miss a temporary created by converting a class source not reference-related to the referenced type.
 
 ## `<fn/monadic.hpp>` becomes `<fn/traits.hpp>`; `monadic_invocable` rejects an incomplete functor — 27 September 2026
 

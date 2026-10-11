@@ -22,8 +22,8 @@ namespace subject = pfn;
 // emulation does not see: expected wherever the answer comes from the builtin.
 #if defined(PFN_TEST_VALIDATION)
 constexpr bool exact = true;
-#elif defined(_MSC_VER)
-constexpr bool exact = false;
+#elif defined(_MSC_VER) && not defined(__clang__)
+constexpr bool exact = _MSC_FULL_VER >= 195136246;
 #elif __has_builtin(__reference_constructs_from_temporary) && __has_builtin(__reference_converts_from_temporary)
 constexpr bool exact = true;
 #else
@@ -322,8 +322,8 @@ namespace {
 // marked below: never a temporary reported where none is created.
 template <typename T, typename U>
 constexpr bool emulated = [] {
-  constexpr bool constructs = pfn::detail::_emulated_from_temporary<T, U, false>();
-  static_assert(constructs == pfn::detail::_emulated_from_temporary<T, U, true>());
+  constexpr bool constructs = pfn::detail::_emulated_from_temporary<T, U, false>::value;
+  static_assert(constructs == pfn::detail::_emulated_from_temporary<T, U, true>::value);
   return constructs;
 }();
 } // namespace
