@@ -2157,6 +2157,9 @@ struct throwing_ref_holder {
   constexpr operator int &() noexcept(false) { return v; }
 };
 
+template <typename O, typename U>
+concept can_emplace = requires(O &o, U &&u) { o.emplace(static_cast<U &&>(u)); };
+
 TEST_CASE("optional reference", "[optional_ref][polyfill]")
 {
   SECTION("type aliases")
@@ -2339,6 +2342,32 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
       }
     }
 
+    SECTION("binding a temporary")
+    {
+      // [optional.ref.ctor]: a binding to a temporary, an xvalue of the referenced type included,
+      // is rejected; an lvalue binds
+      using C = optional<int const &>;
+      static_assert(std::is_constructible_v<C, std::in_place_t, int &>);
+      static_assert(not std::is_constructible_v<C, std::in_place_t, int>);
+      static_assert(not std::is_constructible_v<C, std::in_place_t, int &&>);
+      static_assert(not std::is_constructible_v<C, std::in_place_t, long &>);
+
+      static_assert(std::is_constructible_v<C, int &>);
+      static_assert(std::is_convertible_v<int &, C>);
+      static_assert(not std::is_constructible_v<C, int>);
+      static_assert(not std::is_constructible_v<C, int &&>);
+      static_assert(not std::is_constructible_v<C, long &>);
+      static_assert(not std::is_convertible_v<int, C>);
+
+      static_assert(std::is_constructible_v<C, optional<int> &>);
+      static_assert(std::is_constructible_v<C, optional<int> const &>);
+      static_assert(not std::is_constructible_v<C, optional<int>>);
+      static_assert(not std::is_constructible_v<C, optional<int> const &&>);
+      static_assert(not std::is_constructible_v<C, optional<long> &>);
+      static_assert(not std::is_constructible_v<C, optional<long> const &>);
+      SUCCEED();
+    }
+
     SECTION("from-invoke tag ctor is private")
     {
       // is_constructible_v cannot see inaccessible ctors, so this pins the detail tag
@@ -2444,6 +2473,17 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
         return requires(T &o) { o.emplace(std::forward<decltype(args)>(args)...); };
       };
       static_assert(not fn(5));
+      SUCCEED();
+    }
+
+    SECTION("binding a temporary")
+    {
+      // [optional.ref.assign]: a binding to a temporary is rejected; an lvalue binds
+      using C = optional<int const &>;
+      static_assert(can_emplace<C, int &>);
+      static_assert(not can_emplace<C, int>);
+      static_assert(not can_emplace<C, int &&>);
+      static_assert(not can_emplace<C, long &>);
       SUCCEED();
     }
 

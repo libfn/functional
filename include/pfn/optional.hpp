@@ -7,6 +7,7 @@
 #define INCLUDE_PFN_OPTIONAL
 
 #include <libfn_version.hpp>
+#include <pfn/type_traits.hpp>
 #include <pfn/utility.hpp>
 
 #include <cassert>
@@ -739,11 +740,6 @@ template <class T, class Policy> struct _optional_base {
 // optional<T&> needs its own base: the referent is held directly as a pointer (nullptr
 // encodes the disengaged state), so there is no value union, no discriminant flag, and
 // every special member is implicitly trivial.
-//
-// TODO reference_constructs_from_temporary_v is a C++23 trait with no portable C++20
-// fallback, so the dangling-reference guards of [optional.ref.ctor] (constraints and
-// deleted overloads for binding a temporary) and of [optional.ref.assign]'s emplace are
-// deferred; until then such constructions compile and dangle.
 template <class T, class Policy> struct _optional_base<T &, Policy> {
   using _value_t = T &;
   T *v_ = nullptr;
@@ -762,6 +758,9 @@ template <class T, class Policy> struct _optional_base<T &, Policy> {
       && not ::std::is_same_v<::std::remove_cvref_t<U>, ::std::in_place_t>                //
       && ::std::is_constructible_v<T &, U>>;
 
+  // [optional.ref.ctor] and [optional.ref.assign]: a binding to a temporary is rejected
+  template <class U> static constexpr bool _from_temporary = ::pfn::reference_constructs_from_temporary_v<T &, U>;
+
   // [optional.ref.ctor], shared constraint of the converting constructors from optional<U>;
   // UF is the U flavor the overload binds from (U&, U const&, U, U const).
   template <class U, class UF>
@@ -776,7 +775,7 @@ template <class T, class Policy> struct _optional_base<T &, Policy> {
   template <class Arg>
   constexpr explicit _optional_base(::std::in_place_t /*ignored*/, Arg &&arg) //
       noexcept(::std::is_nothrow_constructible_v<T &, Arg>)                   // extension
-    requires ::std::is_constructible_v<T &, Arg>
+    requires(::std::is_constructible_v<T &, Arg> && not _from_temporary<Arg>)
   {
     _convert_ref_init_val(FWD(arg));
   }
@@ -830,7 +829,7 @@ template <class T, class Policy> struct _optional_base<T &, Policy> {
   // [optional.ref.assign]
   template <class U>
   constexpr T &emplace(U &&u) noexcept(::std::is_nothrow_constructible_v<T &, U>)
-    requires ::std::is_constructible_v<T &, U>
+    requires(::std::is_constructible_v<T &, U> && not _from_temporary<U>)
   {
     _convert_ref_init_val(FWD(u));
     return *v_;
@@ -1334,11 +1333,10 @@ template <class T> optional(T) -> optional<T>;
  *
  * Specified for C++26. Copy assignment and `emplace` rebind the reference - nothing ever assigns
  * through it - and `const` on the optional does not constify the referent; the referent's
- * lifetime stays the caller's responsibility. The `noexcept` and assertion deviations of the
- * primary template apply here equally, plus one deferral: the draft rejects a construction that
- * would bind the reference to a temporary via `reference_constructs_from_temporary_v`, a C++23
- * trait with no portable C++20 fallback - those guards are deferred, and such a construction
- * compiles and dangles.
+ * lifetime stays the caller's responsibility. A construction or `emplace` which would bind the
+ * reference to a temporary is rejected through `pfn::reference_constructs_from_temporary`,
+ * inheriting its emulation where the compiler lacks the builtin. The `noexcept` and assertion
+ * deviations of the primary template apply here equally.
  *
  *
  * Its members are the standard's, and specified where
@@ -1366,7 +1364,7 @@ public:
   template <class Arg>
   constexpr explicit optional(::std::in_place_t, Arg &&arg) //
       noexcept(::std::is_nothrow_constructible_v<T &, Arg>) // extension
-    requires ::std::is_constructible_v<T &, Arg>
+    requires(::std::is_constructible_v<T &, Arg> && not _base::template _from_temporary<Arg>)
       : _base(::std::in_place, FWD(arg))
   {
   }
@@ -1375,38 +1373,58 @@ public:
   constexpr explicit(not ::std::is_convertible_v<U, T &>)
       optional(U &&u) // NOSONAR cpp:S6458 _can_convert excludes self
       noexcept(::std::is_nothrow_constructible_v<T &, U>)
-    requires(_base::template _can_convert<U>::value)
+    requires(_base::template _can_convert<U>::value && not _base::template _from_temporary<U>)
       : _base(::std::in_place, FWD(u))
   {
   }
   template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U, T &>) optional(U &&u) // NOSONAR cpp:S6458
+    requires(_base::template _can_convert<U>::value && _base::template _from_temporary<U>)
+  = delete;
+  template <class U>
   constexpr explicit(not ::std::is_convertible_v<U &, T &>) optional(optional<U> &rhs) //
       noexcept(::std::is_nothrow_constructible_v<T &, U &>)
-    requires(_base::template _can_convert_from<U, U &>::value)
+    requires(_base::template _can_convert_from<U, U &>::value && not _base::template _from_temporary<U &>)
+      : _base(rhs)
+  {
+  }
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U &, T &>) optional(optional<U> &rhs) //
+    requires(_base::template _can_convert_from<U, U &>::value && _base::template _from_temporary<U &>)
+  = delete;
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U const &, T &>) optional(optional<U> const &rhs) //
+      noexcept(::std::is_nothrow_constructible_v<T &, U const &>)
+    requires(_base::template _can_convert_from<U, U const &>::value && not _base::template _from_temporary<U const &>)
       : _base(rhs)
   {
   }
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U const &, T &>) optional(optional<U> const &rhs) //
-      noexcept(::std::is_nothrow_constructible_v<T &, U const &>)
-    requires(_base::template _can_convert_from<U, U const &>::value)
-      : _base(rhs)
+    requires(_base::template _can_convert_from<U, U const &>::value && _base::template _from_temporary<U const &>)
+  = delete;
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U, T &>) optional(optional<U> &&rhs) //
+      noexcept(::std::is_nothrow_constructible_v<T &, U>)
+    requires(_base::template _can_convert_from<U, U>::value && not _base::template _from_temporary<U>)
+      : _base(::std::move(rhs))
   {
   }
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U, T &>) optional(optional<U> &&rhs) //
-      noexcept(::std::is_nothrow_constructible_v<T &, U>)
-    requires(_base::template _can_convert_from<U, U>::value)
+    requires(_base::template _can_convert_from<U, U>::value && _base::template _from_temporary<U>)
+  = delete;
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U const, T &>) optional(optional<U> const &&rhs) //
+      noexcept(::std::is_nothrow_constructible_v<T &, U const>)
+    requires(_base::template _can_convert_from<U, U const>::value && not _base::template _from_temporary<U const>)
       : _base(::std::move(rhs))
   {
   }
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U const, T &>) optional(optional<U> const &&rhs) //
-      noexcept(::std::is_nothrow_constructible_v<T &, U const>)
-    requires(_base::template _can_convert_from<U, U const>::value)
-      : _base(::std::move(rhs))
-  {
-  }
+    requires(_base::template _can_convert_from<U, U const>::value && _base::template _from_temporary<U const>)
+  = delete;
 
   constexpr ~optional() = default;
 
