@@ -53,6 +53,9 @@ struct Xint final {
   auto ofn4() const && noexcept -> fn::optional<int> { return {value + 4}; }
 };
 
+template <typename S, typename Fn>
+concept member_and_then = requires(S s, Fn fn) { FWD(s).and_then(fn); };
+
 template <typename R> struct Xfn final {
   auto operator()(Xint &v) const noexcept -> R { return {v.value + 1}; }
   auto operator()(Xint const &v) const noexcept -> R { return {v.value + 2}; }
@@ -1078,6 +1081,54 @@ TEST_CASE("and_then across the identity cluster", "[and_then][just][choice][expe
     static_assert(std::is_same_v<decltype(ca | fn::and_then(fnUnit)), fn::choice_for<fn::pack<>, int>>);
     static_assert((ca | fn::and_then(fnUnit)).has_value(std::in_place_type<fn::pack<>>));
     CHECK((fn::choice_for<A, B>{B{}} | fn::and_then(fnUnit)) == fn::as_choice(2));
+  }
+
+  SECTION("reference payloads join only by converging")
+  {
+    int x = 1;
+    int y = 2;
+    // Matching reference-just results preserve the referent through member and pipeline calls.
+    auto const fnRef = fn::overload{[&x](A) { return fn::just<int &>{x}; }, //
+                                    [&y](B) { return fn::just<int &>{y}; }};
+    auto r1 = fn::choice_for<A, B>{B{}} | fn::and_then(fnRef);
+    static_assert(std::is_same_v<decltype(r1), fn::just<int &>>);
+    CHECK(&r1.value() == &y);
+    CHECK(&fn::choice_for<A, B>{A{}}.and_then(fnRef).value() == &x);
+    auto r2 = fn::expected<fn::copack_for<A, B>, E0>{fn::copack_for<A, B>{A{}}} | fn::and_then(fnRef);
+    static_assert(std::is_same_v<decltype(r2), fn::just<int &>>);
+    CHECK(&r2.value() == &x);
+    static_assert([] {
+      int v = 1;
+      auto const fnView = fn::overload{[&v](A) { return fn::just<int &>{v}; }, //
+                                       [&v](B) { return fn::just<int &>{v}; }};
+      // named source: the same VS 2022 misread as above
+      constexpr fn::choice_for<A, B> cb{B{}};
+      return &cb.and_then(fnView).value() == &v;
+    }());
+
+    // Mixing reference and value payloads is rejected: references cannot be choice alternatives.
+    auto const fnMixed = fn::overload{[&x](A) { return fn::just<int &>{x}; }, //
+                                      [](B) { return fn::just<int>{2}; }};
+    static_assert(not member_and_then<fn::choice_for<A, B> &, decltype(fnMixed) const &>);
+    static_assert(not fn::applicable_and_then<decltype(fnMixed) const &, fn::choice_for<A, B> &>);
+    static_assert(
+        not fn::applicable_and_then_across<decltype(fnMixed) const &, fn::expected<fn::copack_for<A, B>, E0> &>);
+    // Owning payloads of different types still join.
+    constexpr auto fnOwned = fn::overload{[](A) { return fn::just<long>{1}; }, //
+                                          [](B) { return fn::just<int>{2}; }};
+    static_assert(member_and_then<fn::choice_for<A, B> &, decltype(fnOwned) const &>);
+    static_assert(fn::applicable_and_then_across<decltype(fnOwned) const &, fn::expected<fn::copack_for<A, B>, E0> &>);
+
+    // A pipeline callback can return an optional referring to the same object.
+    fn::just<int &> j{x};
+    auto r3 = j | fn::and_then([](int &i) { return fn::optional<int &>{i}; });
+    static_assert(std::is_same_v<decltype(r3), fn::optional<int &>>);
+    CHECK(&r3.value() == &x);
+    static_assert([] {
+      int v = 1;
+      auto o = fn::just<int &>{v} | fn::and_then([](int &i) { return fn::optional<int &>{i}; });
+      return &o.value() == &v;
+    }());
   }
 
   SECTION("just binds to a choice, and crosses to the identity expected")

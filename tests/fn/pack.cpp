@@ -299,6 +299,12 @@ TEST_CASE("pack", "[pack]")
     static_assert(not fn::detail::_is_valid_pack_element<fn::pack<int>>);
     static_assert(not fn::detail::_is_valid_pack_element<fn::pack<>>);
     static_assert(not fn::detail::_is_valid_pack_element<fn::copack<int>>);
+    // nor are references to them, while a reference to an opaque atom is an element
+    static_assert(fn::detail::_is_valid_pack_element<std::tuple<int, A> &>);
+    static_assert(not fn::detail::_is_valid_pack_element<fn::pack<int> &>);
+    static_assert(not fn::detail::_is_valid_pack_element<fn::pack<int> const &>);
+    static_assert(not fn::detail::_is_valid_pack_element<fn::copack<int> &>);
+    static_assert(not fn::detail::_is_valid_pack_element<fn::copack<int> const &>);
 
     // witnesses that the permitted atoms instantiate
     static_assert(pack<std::tuple<int, int>, int>::size == 2);
