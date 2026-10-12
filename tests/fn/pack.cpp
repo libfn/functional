@@ -69,8 +69,8 @@ concept can_as_pack_explicit_lvalue = requires(T &v) { fn::as_pack<T>(v); };
 struct implicit_and_explicit {
   int a = 1;
   int b = 2;
-  operator int &() noexcept { return a; } // NOLINT(google-explicit-constructor)
-  explicit operator int const &() noexcept(false) { return b; }
+  constexpr operator int &() noexcept { return a; } // NOLINT(google-explicit-constructor)
+  constexpr explicit operator int const &() noexcept(false) { return b; }
 };
 
 constexpr auto overloaded(int v) -> int { return v + 1; }
@@ -291,10 +291,12 @@ TEST_CASE("pack", "[pack]")
   // explicit conversion function is never chosen, and noexcept follows the implicit one
   static_assert(can_as_pack_spelled<pack<int const &>, implicit_and_explicit &>);
   static_assert(noexcept(fn::as_pack<int const &>(std::declval<implicit_and_explicit &>())));
-  {
+  constexpr auto implicit_referent = [] {
     implicit_and_explicit src{};
-    CHECK(fn::as_pack<int const &>(src).apply([&src](int const &r) { return &r == &src.a; }));
-  }
+    return fn::as_pack<int const &>(src).apply([&src](int const &r) { return &r == &src.a; });
+  };
+  static_assert(implicit_referent());
+  CHECK(implicit_referent());
   // a function reference never binds a temporary, so its element's named type still resolves an
   // overload set
   static_assert(overloaded(1.5) == 1.5);

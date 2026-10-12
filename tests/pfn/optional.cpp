@@ -2348,12 +2348,15 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
       // is rejected; an lvalue binds
       using C = optional<int const &>;
       static_assert(std::is_constructible_v<C, std::in_place_t, int &>);
+      static_assert(std::is_constructible_v<C, std::in_place_t, int const &>);
       static_assert(not std::is_constructible_v<C, std::in_place_t, int>);
       static_assert(not std::is_constructible_v<C, std::in_place_t, int &&>);
       static_assert(not std::is_constructible_v<C, std::in_place_t, long &>);
 
       static_assert(std::is_constructible_v<C, int &>);
+      static_assert(std::is_constructible_v<C, int const &>);
       static_assert(std::is_convertible_v<int &, C>);
+      static_assert(std::is_convertible_v<int const &, C>);
       static_assert(not std::is_constructible_v<C, int>);
       static_assert(not std::is_constructible_v<C, int &&>);
       static_assert(not std::is_constructible_v<C, long &>);
@@ -2481,6 +2484,7 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
       // [optional.ref.assign]: a binding to a temporary is rejected; an lvalue binds
       using C = optional<int const &>;
       static_assert(can_emplace<C, int &>);
+      static_assert(can_emplace<C, int const &>);
       static_assert(not can_emplace<C, int>);
       static_assert(not can_emplace<C, int &&>);
       static_assert(not can_emplace<C, long &>);
