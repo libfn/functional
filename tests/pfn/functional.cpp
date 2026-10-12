@@ -89,6 +89,51 @@ TEST_CASE("invoke_r void R discards", "[functional][polyfill][invoke_r]")
   CHECK(side == 7);
 }
 
+namespace {
+constexpr int value_of(S const &s) noexcept { return s.x; }
+constexpr long const &long_of(long const &l) noexcept { return l; }
+
+template <typename R, typename F, typename... Args>
+concept can_invoke_r
+    = requires(F &&f, Args &&...args) { invoke_r<R>(static_cast<F &&>(f), static_cast<Args &&>(args)...); };
+} // namespace
+
+TEST_CASE("invoke_r reference result", "[functional][polyfill][invoke_r]")
+{
+  static constexpr S s{10};
+
+  SECTION("binds the referent")
+  {
+    static_assert(&invoke_r<int const &>(&S::x, s) == &s.x);
+    CHECK(&invoke_r<int const &>(&S::x, s) == &s.x);
+    constexpr auto xvalue = [] {
+      constexpr auto binds = [](int const &&r) { return &r == &s.x; };
+      return binds(invoke_r<int const &&>(&S::x, std::move(s)));
+    };
+    static_assert(xvalue());
+    CHECK(xvalue());
+
+    static constexpr long l = 3;
+    static_assert(&invoke_r<long const &>(long_of, l) == &l);
+    CHECK(&invoke_r<long const &>(long_of, l) == &l);
+    static_assert(invoke_r<int>(value_of, s) == 10);
+    CHECK(invoke_r<int>(value_of, s) == 10);
+  }
+
+  SECTION("binding a temporary")
+  {
+    // [func.require]/2: INVOKE<R> is ill-formed where the result would bind R to a temporary
+    static_assert(can_invoke_r<int const &, decltype(&S::x), S const &>);
+    static_assert(can_invoke_r<int const &, decltype(&S::x), S const &&>);
+    static_assert(not can_invoke_r<int const &, decltype(value_of) &, S const &>);
+    static_assert(not can_invoke_r<int const &, decltype(long_of) &, long const &>);
+    static_assert(can_invoke_r<long const &, decltype(long_of) &, long const &>);
+    static_assert(can_invoke_r<int, decltype(value_of) &, S const &>);
+    static_assert(can_invoke_r<void, decltype(value_of) &, S const &>);
+    SUCCEED();
+  }
+}
+
 TEST_CASE("invoke_r SFINAE-friendly via concept", "[functional][polyfill][invoke_r]")
 {
   static_assert(std::is_invocable_r_v<int, decltype(add) &, int, int>);

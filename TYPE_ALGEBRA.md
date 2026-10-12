@@ -299,7 +299,7 @@ A `pack` stores multiple fields and supports the standard C++ tuple protocol (`g
 
 To explicitly lift values into a `pack` (which is useful when conjoining scalars with other packs or copacks), use `fn::as_pack(...)`. When called without template parameters, `as_pack` is deduction-only and preserves the value category of its arguments: `as_pack(42)` yields `pack<int>`, whereas calling `as_pack(x)` on an lvalue `x` yields `pack<int&>` (a reference rather than a copy).
 
-Spelling the template parameters instead (e.g., `as_pack<bool, int>(x, d)`) takes deduction out of the picture: each argument is passed as the type you named, enabling implicit conversions to happen at the call boundary. A reference element becomes something you ask for explicitly — `as_pack<int const&>(x)` yields `pack<int const&>`. Note that partial template spelling is not supported; all element types must be spelled out explicitly if template parameters are specified.
+Spelling the template parameters instead (e.g., `as_pack<bool, int>(x, d)`) takes deduction out of the picture: each argument is passed as the type you named, enabling implicit conversions to happen at the call boundary. A reference element becomes something you ask for explicitly — `as_pack<int const&>(x)` yields `pack<int const&>` — and it binds only where no temporary is created: `as_pack<int const&>(42)` does not compile. Note that partial template spelling is not supported; all element types must be spelled out explicitly if template parameters are specified.
 
 <!-- sync-example-test-pack -->
 ```cpp
@@ -1040,7 +1040,7 @@ The library respects C++ value mechanics:
 - `noexcept` is conditionally computed.
 - Value categories (lvalue/rvalue) propagate strictly to callbacks, avoiding copies.
 - Immovable and move-only payloads are supported in place.
-- Reference-bearing `pack<T&...>` and `optional<T&>` are supported. Lifetime management of non-owning references remains with the caller.
+- Reference-bearing `pack<T&...>` and `optional<T&>` are supported. `optional<T&>`, `as_pack` with spelled element types, and `append(std::in_place_type<T&>, ...)` refuse to bind a reference to a temporary, as C++26 `optional<T&>` does; beyond that, lifetime management of non-owning references remains with the caller.
 - `pack` compares element-wise, supporting equality and three-way comparison. For reference-bearing `pack<T&...>`, comparison applies to the referents rather than the references themselves.
 
 > [!NOTE]

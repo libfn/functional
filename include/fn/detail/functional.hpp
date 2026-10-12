@@ -180,9 +180,9 @@ template <typename Fn, typename Arg, typename Arg0, typename... Args>
 }
 
 template <typename Ret, typename Fn, typename... Args>
-  requires(not(... || (_some_pack<Args> || _some_copack<Args>))) && ::std::is_invocable_r_v<Ret, Fn, Args...>
+  requires(not(... || (_some_pack<Args> || _some_copack<Args>))) && ::pfn::is_invocable_r_v<Ret, Fn, Args...>
 [[nodiscard]] constexpr auto apply_r(Fn &&fn, Args &&...args) //
-    noexcept(::std::is_nothrow_invocable_r_v<Ret, Fn, Args...>)
+    noexcept(::pfn::is_nothrow_invocable_r_v<Ret, Fn, Args...>)
         -> DEDUCED_RETURN(::pfn::invoke_r<Ret>(FWD(fn), FWD(args)...))
 {
   return ::pfn::invoke_r<Ret>(FWD(fn), FWD(args)...);
@@ -192,7 +192,7 @@ template <typename Ret, typename Fn, typename... Args>
 // trailing arguments. Constrained so a non-viable call is a substitution failure before the
 // noexcept-specifier can instantiate.
 template <typename Ret, typename Fn, typename Tuple, ::std::size_t... Ix, typename... Args>
-  requires ::std::is_invocable_r_v<Ret, Fn, decltype(::std::get<Ix>(::std::declval<Tuple>()))..., Args...>
+  requires ::pfn::is_invocable_r_v<Ret, Fn, decltype(::std::get<Ix>(::std::declval<Tuple>()))..., Args...>
 constexpr Ret _apply_r_elems(Fn &&fn, Tuple &&t, ::std::index_sequence<Ix...>, Args &&...args) //
     noexcept(noexcept(::pfn::invoke_r<Ret>(FWD(fn), ::std::get<Ix>(FWD(t))..., FWD(args)...)))
 {
@@ -241,9 +241,9 @@ template <typename Ret, typename Fn, typename Tuple, typename Ix, typename... Ar
 template <typename Ret, typename Fn, typename Tuple, ::std::size_t... Ix, typename... Args>
 struct _elems_probe_r<Ret, Fn, Tuple, ::std::index_sequence<Ix...>, Args...> {
   static constexpr bool _invocable
-      = ::std::is_invocable_r_v<Ret, Fn, decltype(::std::get<Ix>(::std::declval<Tuple>()))..., Args...>;
+      = ::pfn::is_invocable_r_v<Ret, Fn, decltype(::std::get<Ix>(::std::declval<Tuple>()))..., Args...>;
   static constexpr bool _nothrow
-      = ::std::is_nothrow_invocable_r_v<Ret, Fn, decltype(::std::get<Ix>(::std::declval<Tuple>()))..., Args...>;
+      = ::pfn::is_nothrow_invocable_r_v<Ret, Fn, decltype(::std::get<Ix>(::std::declval<Tuple>()))..., Args...>;
 };
 
 template <bool, typename Ret, typename Fn, typename Tuple, typename... Args> struct _elems_gate_r {
@@ -478,9 +478,9 @@ template <typename Ret, typename Tag, typename Fn, typename V, typename... Args>
 
 template <typename Ret, typename Tag, typename Fn, typename V, typename... Args>
   requires(not _some_pack<V>) && (not _some_copack<V>) && (not ::pfn::detail::_tuple_like<V>)
-          && ::std::is_invocable_r_v<Ret, Fn, Tag, V, Args...>
+          && ::pfn::is_invocable_r_v<Ret, Fn, Tag, V, Args...>
 [[nodiscard]] constexpr auto _apply_tagged_r(Fn &&fn, V &&v, Args &&...args) //
-    noexcept(::std::is_nothrow_invocable_r_v<Ret, Fn, Tag, V, Args...>) -> Ret
+    noexcept(::pfn::is_nothrow_invocable_r_v<Ret, Fn, Tag, V, Args...>) -> Ret
 {
   return ::pfn::invoke_r<Ret>(FWD(fn), Tag{}, FWD(v), FWD(args)...);
 }

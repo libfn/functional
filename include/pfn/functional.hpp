@@ -7,6 +7,7 @@
 #define INCLUDE_PFN_FUNCTIONAL
 
 #include <libfn_version.hpp>
+#include <pfn/type_traits.hpp>
 
 #include <functional>
 #include <type_traits>
@@ -20,7 +21,8 @@ inline namespace LIBFN_VERSION_BASE {
  *        specified for C++23 ([func.invoke]), for C++20 compilers
  *
  * When `R` is `void` the result is discarded, so any invocable can be called for its effects
- * alone.
+ * alone. When `R` is a reference which the result would bind to a temporary, the call is not
+ * viable ([func.require]), as `pfn::is_invocable_r` answers.
  *
  * @tparam R Type the result converts to; must be spelled explicitly
  * @param f Callable to invoke
@@ -28,8 +30,8 @@ inline namespace LIBFN_VERSION_BASE {
  * @return The callable's result, converted to `R`
  */
 template <class R, class F, class... Args>
-  requires ::std::is_invocable_r_v<R, F, Args...>
-constexpr R invoke_r(F &&f, Args &&...args) noexcept(::std::is_nothrow_invocable_r_v<R, F, Args...>)
+  requires ::pfn::is_invocable_r_v<R, F, Args...>
+constexpr R invoke_r(F &&f, Args &&...args) noexcept(::pfn::is_nothrow_invocable_r_v<R, F, Args...>)
 {
   if constexpr (::std::is_void_v<R>)
     static_cast<void>(::std::invoke(static_cast<F &&>(f), static_cast<Args &&>(args)...));

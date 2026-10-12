@@ -1119,7 +1119,7 @@ public:
   template <class Arg>
   constexpr explicit optional(::std::in_place_t, Arg &&arg) //
       noexcept(::std::is_nothrow_constructible_v<T &, Arg>) // extension
-    requires ::std::is_constructible_v<T &, Arg>
+    requires(::std::is_constructible_v<T &, Arg> && not _base::template _from_temporary<Arg>)
       : _base(::std::in_place, FWD(arg))
   {
   }
@@ -1131,50 +1131,70 @@ public:
        */
       optional(U &&u) // NOSONAR cpp:S6458 _can_convert excludes self
       noexcept(::std::is_nothrow_constructible_v<T &, U>)
-    requires(_base::template _can_convert<U>::value)
+    requires(_base::template _can_convert<U>::value && not _base::template _from_temporary<U>)
       : _base(::std::in_place, FWD(u))
   {
   }
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U, T &>) optional(U &&u) // NOSONAR cpp:S6458
+    requires(_base::template _can_convert<U>::value && _base::template _from_temporary<U>)
+  = delete;
   /**
    * @brief Converting constructor from a compatible carrier
    */
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U &, T &>) optional(optional<U> &rhs) //
       noexcept(::std::is_nothrow_constructible_v<T &, U &>)
-    requires(_base::template _can_convert_from<U, U &>::value)
+    requires(_base::template _can_convert_from<U, U &>::value && not _base::template _from_temporary<U &>)
       : _base(rhs)
   {
   }
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U &, T &>) optional(optional<U> &rhs) //
+    requires(_base::template _can_convert_from<U, U &>::value && _base::template _from_temporary<U &>)
+  = delete;
   /**
    * @brief Converting constructor from a compatible carrier
    */
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U const &, T &>) optional(optional<U> const &rhs) //
       noexcept(::std::is_nothrow_constructible_v<T &, U const &>)
-    requires(_base::template _can_convert_from<U, U const &>::value)
+    requires(_base::template _can_convert_from<U, U const &>::value && not _base::template _from_temporary<U const &>)
       : _base(rhs)
   {
   }
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U const &, T &>) optional(optional<U> const &rhs) //
+    requires(_base::template _can_convert_from<U, U const &>::value && _base::template _from_temporary<U const &>)
+  = delete;
   /**
    * @brief Converting constructor from a compatible carrier
    */
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U, T &>) optional(optional<U> &&rhs) //
       noexcept(::std::is_nothrow_constructible_v<T &, U>)
-    requires(_base::template _can_convert_from<U, U>::value)
+    requires(_base::template _can_convert_from<U, U>::value && not _base::template _from_temporary<U>)
       : _base(::std::move(rhs))
   {
   }
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U, T &>) optional(optional<U> &&rhs) //
+    requires(_base::template _can_convert_from<U, U>::value && _base::template _from_temporary<U>)
+  = delete;
   /**
    * @brief Converting constructor from a compatible carrier
    */
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U const, T &>) optional(optional<U> const &&rhs) //
       noexcept(::std::is_nothrow_constructible_v<T &, U const>)
-    requires(_base::template _can_convert_from<U, U const>::value)
+    requires(_base::template _can_convert_from<U, U const>::value && not _base::template _from_temporary<U const>)
       : _base(::std::move(rhs))
   {
   }
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U const, T &>) optional(optional<U> const &&rhs) //
+    requires(_base::template _can_convert_from<U, U const>::value && _base::template _from_temporary<U const>)
+  = delete;
 
   /**
    * @brief Destructor

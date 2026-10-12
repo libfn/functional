@@ -2,6 +2,18 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## Reference holders refuse to bind a temporary — 11 October 2026
+
+`pfn::optional<T&>` and `fn::optional<T&>` reject a construction or `emplace` that would bind the reference to a temporary, as C++26 specifies through `reference_constructs_from_temporary_v`. Previously the polyfill left this guard out, so such constructions compiled and dangled. As in the standard, an xvalue of the referenced type is refused too: `optional<int const &>{std::move(x)}` no longer compiles.
+
+The same rule applies to a `pack` reference element constructed by `as_pack` with spelled element types, or by `append(std::in_place_type<T &>, ...)`. Brace initialization of a `pack` is aggregate initialization and stays outside the rule.
+
+`pfn::invoke_r` is no longer viable where its result would bind a reference `R` to a temporary; libc++ previously accepted such a call. The new `pfn::is_invocable_r` and `pfn::is_nothrow_invocable_r` give this C++23 answer on every standard library.
+
+`fn::apply_r` and the `is_applicable_r` traits ask those traits, so a reference result that would bind a temporary is not applicable, rather than a hard error.
+
+The new `<pfn/type_traits.hpp>` provides `pfn::reference_constructs_from_temporary` and `pfn::reference_converts_from_temporary`. Where the compiler lacks the builtin (GCC 12, MSVC before Visual Studio 2026 18.6), they are emulated without false positives, but miss a temporary created by converting a class source not reference-related to the referenced type, or one bound by a reference to an array.
+
 ## `<fn/monadic.hpp>` becomes `<fn/traits.hpp>`; `monadic_invocable` rejects an incomplete functor — 27 September 2026
 
 Replace includes of `<fn/monadic.hpp>` with `<fn/traits.hpp>`; no compatibility header is provided. `some_in_place_type` moves to `<fn/traits.hpp>` and remains available through `<fn/copack.hpp>`.

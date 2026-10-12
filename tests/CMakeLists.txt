@@ -51,6 +51,8 @@ set(TESTS_PFN_SOURCES
     pfn/expected_validation.cpp
     pfn/optional_validation.cpp
     pfn/tuple_validation.cpp
+    pfn/type_traits.cpp
+    pfn/type_traits_validation.cpp
     pfn/functional.cpp
     pfn/utility.cpp
 )
