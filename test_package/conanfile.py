@@ -20,6 +20,8 @@ class LibfnTestConan(ConanFile):
 
     def generate(self):
         tc = CMakeToolchain(self)
+        tc.cache_variables["LIBFN_TEST_CXX26"] = bool(self.dependencies["libfn"].options.cxx26)
+        tc.cache_variables["LIBFN_TEST_AGGREGATE"] = True
         tc.generate()
 
     def build(self):
@@ -39,7 +41,5 @@ class LibfnTestConan(ConanFile):
         if not can_run(self):
             return
         self._check_quine("main")
-        # LIBFN_TEST_CXX26 reaches CMake through this same conf, so it also selects the binaries to check
-        extra = self.conf.get("tools.cmake.cmaketoolchain:extra_variables", default={}, check_type=dict)
-        if str(extra.get("LIBFN_TEST_CXX26", "OFF")).upper() == "ON":
+        if self.dependencies["libfn"].options.cxx26:
             self._check_quine("main_cxx26")

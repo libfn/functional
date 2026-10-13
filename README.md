@@ -227,6 +227,8 @@ target_link_libraries(main PRIVATE libfn::fn)   # or libfn::pfn for the polyfill
 
 For [`LIBFN_CXX26` mode](#implementation-note), use `libfn::fn_cxx26` in place of `libfn::fn`. It supplies the same headers, defines `LIBFN_CXX26`, and selects C++26. A consumer should link exactly one of these two targets. `libfn::pfn` has no separate C++26 target.
 
+With Conan, set `cxx26=True` and select C++26 or newer through the profile's `compiler.cppstd` setting. The option defines `LIBFN_CXX26` on `libfn::fn` and makes `libfn::fn_cxx26` an alias of that target.
+
 Keep the same mode across code that exchanges `fn` types. For example, a function declared with an `fn` parameter in one mode will not link to a definition using the other mode.
 
 ### Single header
