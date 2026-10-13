@@ -163,7 +163,7 @@ The opt-in `LIBFN_CXX26` mode uses C++26's [`std::type_order`][standardized-type
 
 `libfn` is available in the [Bazel Central Registry](https://github.com/bazelbuild/bazel-central-registry/) and [vcpkg registry](https://github.com/microsoft/vcpkg/). This repository also provides packaging for [Conan](conanfile.py), [vcpkg](ports/libfn), [Nix](flake.nix) and [Bazel](MODULE.bazel), all exercised by CI. You can also use CMake's `FetchContent` or `add_subdirectory`.
 
-Conan, vcpkg, Nix, `FetchContent` and `add_subdirectory` propagate the library's compile options. With Bazel or a plain copy of `include/`, set them explicitly:
+The CMake targets supplied by vcpkg, Nix, `FetchContent` and `add_subdirectory` propagate the library's compiler options and C++20 requirement. Conan supplies the compiler options, but takes the C++ standard from the profile's `compiler.cppstd` setting. With Bazel or a plain copy of `include/`, configure the following explicitly:
 
 * Select C++20 or newer: `-std=c++20` with GCC or Clang, or `/std:c++20` with MSVC.
 * With Clang and Apple Clang, use `-Wno-missing-braces` to suppress warnings about the intentional brace elision in `fn::pack` initialization.
