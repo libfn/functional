@@ -3013,6 +3013,22 @@ TEST_CASE("expected disjunction", "[expected][operator_or][graded][copack]")
     SUCCEED();
   }
 
+  SECTION("reference alternatives")
+  {
+    // a value enters the sum named by its type: by value, an lvalue int would be ambiguous between
+    // the alternatives int and int&
+    using ER = fn::expected<fn::copack<int &>, Error>;
+    static_assert(std::is_same_v<decltype(std::declval<ER>() | std::declval<EA const &>()),
+                                 fn::expected<fn::copack_for<int, int &>, fn::pack<Error, Error>>>);
+    constexpr auto battery = [] {
+      int x = 1;
+      EA const five{5};
+      return (ER{x} | five)->get_ptr<int &>() == &x && *(ER{fn::unexpect, Unknown} | five)->get_ptr<int>() == 5;
+    };
+    CHECK(battery());
+    static_assert(battery());
+  }
+
   SECTION("constraints and noexcept")
   {
     // the disjunction stays same-kind plus cluster: the expected/optional mix is refused
@@ -3520,6 +3536,31 @@ TEST_CASE("expected copack support transform", "[expected][copack][transform]")
     }());
   }
 
+  SECTION("a reference result stays a reference")
+  {
+    using E = fn::expected<fn::copack_for<int, long>, Error>;
+    constexpr auto self
+        = fn::overload{[](int &i) noexcept -> int & { return i; }, [](long &l) noexcept -> long & { return l; }};
+    constexpr auto cself = [](auto const &v) noexcept -> auto const & { return v; };
+    static_assert(std::is_same_v<decltype(std::declval<E &>().transform(self)),
+                                 fn::expected<fn::copack_for<int &, long &>, Error>>);
+    static_assert(std::is_same_v<decltype(std::declval<E const &>().transform(cself)),
+                                 fn::expected<fn::copack_for<int const &, long const &>, Error>>);
+    // a reference into an alternative of an rvalue expected is refused at compile time, which the
+    // suite cannot test
+
+    E x{fn::copack{1}};
+    CHECK(x.transform(self).value().get_ptr<int &>() == x.value().get_ptr<int>());
+    CHECK(std::as_const(x).transform(cself).value().get_ptr<int const &>() == x.value().get_ptr<int>());
+    E const e{::fn::unexpect, FileNotFound};
+    CHECK(e.transform(cself).error() == FileNotFound);
+    static_assert([self, cself] {
+      E y{fn::copack{1}};
+      return y.transform(self).value().get_ptr<int &>() == y.value().get_ptr<int>()
+             && std::as_const(y).transform(cself).value().get_ptr<int const &>() == y.value().get_ptr<int>();
+    }());
+  }
+
   SECTION("error")
   {
     fn::expected<fn::copack_for<int, std::string_view>, Error> s{::fn::unexpect, FileNotFound};
@@ -3669,6 +3710,31 @@ TEST_CASE("expected copack support transform_error", "[expected][copack][transfo
              && bad.transform_error(Handler{}).error().has_value(std::in_place_type<fn::pack<>>)
              && std::move(std::as_const(bad)).transform_error(Handler{}).error() == fn::copack{43}
              && std::move(bad).transform_error(Handler{}).error().has_value(std::in_place_type<fn::pack<>>);
+    }());
+  }
+
+  SECTION("a reference result stays a reference")
+  {
+    using E = fn::expected<double, fn::copack_for<int, long>>;
+    constexpr auto self
+        = fn::overload{[](int &i) noexcept -> int & { return i; }, [](long &l) noexcept -> long & { return l; }};
+    constexpr auto cself = [](auto const &v) noexcept -> auto const & { return v; };
+    static_assert(std::is_same_v<decltype(std::declval<E &>().transform_error(self)),
+                                 fn::expected<double, fn::copack_for<int &, long &>>>);
+    static_assert(std::is_same_v<decltype(std::declval<E const &>().transform_error(cself)),
+                                 fn::expected<double, fn::copack_for<int const &, long const &>>>);
+    // a reference into an alternative of an rvalue expected is refused at compile time, which the
+    // suite cannot test
+
+    E x{::fn::unexpect, fn::copack{1}};
+    CHECK(x.transform_error(self).error().get_ptr<int &>() == x.error().get_ptr<int>());
+    CHECK(std::as_const(x).transform_error(cself).error().get_ptr<int const &>() == x.error().get_ptr<int>());
+    E const v{0.5};
+    CHECK(v.transform_error(cself).value() == 0.5);
+    static_assert([self, cself] {
+      E y{::fn::unexpect, fn::copack{1}};
+      return y.transform_error(self).error().get_ptr<int &>() == y.error().get_ptr<int>()
+             && std::as_const(y).transform_error(cself).error().get_ptr<int const &>() == y.error().get_ptr<int>();
     }());
   }
 

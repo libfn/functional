@@ -50,9 +50,11 @@ From a value of one alternative, in place from arguments, widening from a `copac
 subset of the alternatives, or from a narrower `choice`.
 
 ```cpp {title: "fn::just< copack< Ts... > >::just"}
+template <typename U, typename T>
+constexpr just(U &&v);           // (1)
+constexpr explicit just(U &&v);  // (2)
+
 template <typename T>
-constexpr just(T &&v);                                               // (1)
-constexpr explicit just(T &&v);                                      // (2)
 constexpr explicit just(std::in_place_type_t<T> d, auto &&...args);  // (3)
 
 template <typename... Tx>
@@ -70,9 +72,9 @@ constexpr just(just const &) = default;  // (9)
 constexpr just(just &&) = default;       // (10)
 ```
 
-:include-doxygen-doc: fn::just< copack< Ts... > >::just { args: "T &&" }
+:include-doxygen-doc: fn::just< copack< Ts... > >::just { args: "U &&" }
 
-:include-doxygen-doc-params: fn::just< copack< Ts... > >::just { args: "T &&", title: "parameters" }
+:include-doxygen-doc-params: fn::just< copack< Ts... > >::just { args: "U &&", title: "parameters" }
 
 :include-doxygen-doc: fn::just< copack< Ts... > >::just { args: "::std::in_place_type_t< T >, auto &&..." }
 
@@ -174,8 +176,8 @@ constexpr auto has_value(std::in_place_type_t<T> d=std::in_place_type<T>) const 
 
 ```cpp {title: "fn::just< copack< Ts... > >::get_ptr"}
 template <typename T>
-constexpr auto get_ptr(std::in_place_type_t<T> d=std::in_place_type<T>)       -> T *;        // (1)
-constexpr auto get_ptr(std::in_place_type_t<T> d=std::in_place_type<T>) const -> T const *;  // (2)
+constexpr auto get_ptr(std::in_place_type_t<T> d=std::in_place_type<T>)       -> std::add_pointer_t<T>;                                // (1)
+constexpr auto get_ptr(std::in_place_type_t<T> d=std::in_place_type<T>) const -> std::add_pointer_t<std::remove_reference_t<T> const>;  // (2)
 ```
 
 :include-doxygen-doc: fn::just< copack< Ts... > >::get_ptr { args: "::std::in_place_type_t< T >" }
@@ -304,9 +306,11 @@ using choice_for = just<copack_for<Ts...>>;  // (1)
 
 ## as_choice {style: "api"}
 
-`as_choice(x)` constructs a choice with one alternative of the decayed source type. A copack
-instead becomes the payload of a choice over its alternatives. An existing choice becomes a
-nested alternative; `choice{x}` preserves the existing choice type through copy deduction.
+`as_choice(x)` constructs a choice with one alternative: a reference to an lvalue `x`, or the
+value of an rvalue, whereas `choice{x}` always holds a value. A copack rvalue instead becomes the
+payload of a choice over its alternatives. An array, a function or an lvalue copack is refused. An
+existing choice becomes a nested alternative; `choice{x}` preserves the existing choice type
+through copy deduction.
 
 ```cpp {title: "fn::as_choice"}
 constexpr auto as_choice(auto &&src) -> decltype(auto);  // (1)
