@@ -2,6 +2,12 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## Conan selects the C++26 mode with an option — 13 October 2026
+
+The Conan recipe replaces its `fn_cxx26` component with a `cxx26` option, following the review of the Conan Center recipe. CMakeDeps links every component into the `libfn::libfn` aggregate, so linking that target selected `LIBFN_CXX26` and C++26 without the consumer asking. The option makes mode selection explicit; consumers that exchange `fn` types must agree on it because the modes use different ABI namespaces. The profile's `compiler.cppstd` setting now selects C++26 or newer, replacing the CMake build module that supplied that requirement. When `cxx26=True`, `libfn::fn_cxx26` is an alias of `libfn::fn`.
+
+The recipe now uses CMake's install rules to package the headers and provides the same `libfn::version` target as the CMake package.
+
 ## Reference holders refuse to bind a temporary — 11 October 2026
 
 `pfn::optional<T&>` and `fn::optional<T&>` reject a construction or `emplace` that would bind the reference to a temporary, as C++26 specifies through `reference_constructs_from_temporary_v`. Previously the polyfill left this guard out, so such constructions compiled and dangled. As in the standard, an xvalue of the referenced type is refused too: `optional<int const &>{std::move(x)}` no longer compiles.
