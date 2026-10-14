@@ -1,9 +1,11 @@
 import os
 
 from conan import ConanFile
+from conan.errors import ConanInvalidConfiguration
 from conan.tools.build import check_min_cppstd
 from conan.tools.cmake import CMake, CMakeToolchain, cmake_layout
 from conan.tools.files import copy, load, rmdir
+from conan.tools.scm import Version
 
 required_conan_version = ">=2.0.9"
 
@@ -46,6 +48,12 @@ class LibfnConan(ConanFile):
 
     def validate(self):
         check_min_cppstd(self, 26 if self.options.cxx26 else 20)
+        compilers_minimum_version = {"gcc": "12", "clang": "19", "apple-clang": "21", "msvc": "193"}
+        minimum_version = compilers_minimum_version.get(str(self.settings.compiler))
+        if minimum_version and Version(self.settings.compiler.version) < minimum_version:
+            raise ConanInvalidConfiguration(
+                f"{self.ref} requires C++20, which {self.settings.compiler} {self.settings.compiler.version} does not fully support."
+            )
 
     def generate(self):
         tc = CMakeToolchain(self)
@@ -78,20 +86,17 @@ class LibfnConan(ConanFile):
         version.set_property("cmake_target_name", "libfn::version")
         version.bindirs = []
         version.libdirs = []
-        version.includedirs = ["include"]
 
         pfn = self.cpp_info.components["pfn"]
         pfn.set_property("cmake_target_name", "libfn::pfn")
         pfn.bindirs = []
         pfn.libdirs = []
-        pfn.includedirs = ["include"]
         pfn.requires = ["version"]
 
         fn = self.cpp_info.components["fn"]
         fn.set_property("cmake_target_name", "libfn::fn")
         fn.bindirs = []
         fn.libdirs = []
-        fn.includedirs = ["include"]
         fn.requires = ["pfn", "version"]
         # Require explicit mode selection; a separate component would also enable
         # C++26 through the libfn::libfn aggregate.
