@@ -18,6 +18,7 @@ struct callback {
 
 static_assert(std::is_invocable_v<callback, int &> == bool(OPTIONAL_MONADIC_POSITIVE));
 
+#if !OPTIONAL_MONADIC_FIXTURE_ONLY
 template <class F>
 concept can_bind = requires(pfn::optional<int &> value, F f) { value.and_then(f); };
 
@@ -26,6 +27,7 @@ static_assert(can_bind<callback>);
 #else
 // Invalid invocation is a hard error even inside a dependent requires-expression.
 static_assert(!can_bind<callback>);
+#endif
 #endif
 
 #else
@@ -79,6 +81,7 @@ static_assert(std::is_invocable_v<callback, selected_arg> == bool(OPTIONAL_MONAD
 static_assert(std::is_invocable_v<callback, int const &&> == bool(OPTIONAL_MONADIC_POSITIVE));
 #endif
 
+#if !OPTIONAL_MONADIC_FIXTURE_ONLY
 // The selected overload must reject the call instead of falling back to another cv/ref category.
 void probe_optional_monadic()
 {
@@ -93,5 +96,6 @@ void probe_optional_monadic()
   (void)std::move(value).OPTIONAL_MONADIC_CALL(callback{});
 #endif
 }
+#endif
 
 #endif
