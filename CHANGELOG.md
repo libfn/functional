@@ -2,6 +2,12 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## Void expected monadic overloads follow the draft — 17 October 2026
+
+The void specialization of `pfn::expected` uses body-deduced `auto` returns for all four monadic operations. `and_then` and `transform` retain their error-construction constraints; `or_else` and `transform_error` have no constructibility constraint. Invalid callbacks cause hard errors instead of disappearing through the helper's trailing return type.
+
+Compile-failure tests cover nullary callback detection and error callback cv/ref fallback. Preservation tests cover valid copying and error transformations with an immovable original error, including all four source cv/ref categories. Conditional `noexcept` is unchanged.
+
 ## Object expected monadic overloads follow the draft — 17 October 2026
 
 The non-void `pfn::expected<T, E>` monadic members use body-deduced `auto` returns and expose the draft's constructibility constraints. Previously helper-based trailing returns also removed overloads for invalid callbacks, allowing a different cv/ref callback to run or a dependent `requires`-expression to return false. Invalid callbacks now cause hard errors after overload selection. Overloads whose unchanged side cannot be constructed still drop out, preserving valid copy fallback.

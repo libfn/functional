@@ -5932,6 +5932,37 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
   {
     SECTION("and_then")
     {
+      SECTION("constructibility constraints")
+      {
+        using O = expected<void, monadic_move_only>;
+        using F = decltype([]() -> expected<int, monadic_move_only> { return {}; });
+        static_assert(not has_and_then<O &, F>);
+        static_assert(not has_and_then<O const &, F>);
+        static_assert(not has_and_then<O const &&, F>);
+        static_assert(has_and_then<O &&, F>);
+        static_assert(not has_and_then<O &, int>);
+        SUCCEED();
+      }
+
+      SECTION("copy fallback")
+      {
+        using O = expected<void, monadic_copy_only>;
+        static_assert(std::is_constructible_v<monadic_copy_only, monadic_copy_only const &>);
+        static_assert(not std::is_constructible_v<monadic_copy_only, monadic_copy_only &&>);
+        static_assert(not std::is_constructible_v<monadic_copy_only, monadic_copy_only const &&>);
+        constexpr auto check = [] {
+          O a;
+          O e(unexpect, 9);
+          constexpr auto fn
+              = []() noexcept -> expected<int, monadic_copy_only> { return expected<int, monadic_copy_only>{7}; };
+          auto value = std::move(a).and_then(fn);
+          auto error = std::move(e).and_then(fn);
+          return value.has_value() && *value == 7 && not error.has_value() && error.error().value == 9;
+        };
+        static_assert(check());
+        CHECK(check());
+      }
+
       SECTION("value")
       {
         using T = expected<void, Error>;
@@ -6015,6 +6046,32 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
     SECTION("or_else")
     {
+      SECTION("immovable error")
+      {
+        using O = expected<void, helper_immovable>;
+        static_assert(not std::is_copy_constructible_v<helper_immovable>);
+        static_assert(not std::is_move_constructible_v<helper_immovable>);
+        constexpr auto check = []<class S> {
+          O a;
+          O e(unexpect, helper_list_t{}, 5);
+          constexpr auto fn = [](helper_immovable const &) noexcept -> expected<void, int> {
+            return expected<void, int>{unexpect, 7};
+          };
+          static_assert(not extension || noexcept(std::declval<S>().or_else(fn)));
+          auto value = static_cast<S>(a).or_else(fn);
+          auto error = static_cast<S>(e).or_else(fn);
+          return value.has_value() && not error.has_value() && error.error() == 7 && e.error().v == 5;
+        };
+        static_assert(check.template operator()<O &>());
+        static_assert(check.template operator()<O const &>());
+        static_assert(check.template operator()<O &&>());
+        static_assert(check.template operator()<O const &&>());
+        CHECK(check.template operator()<O &>());
+        CHECK(check.template operator()<O const &>());
+        CHECK(check.template operator()<O &&>());
+        CHECK(check.template operator()<O const &&>());
+      }
+
       SECTION("error")
       {
         using T = expected<void, helper>;
@@ -6111,6 +6168,36 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
     SECTION("transform")
     {
+      SECTION("constructibility constraints")
+      {
+        using O = expected<void, monadic_move_only>;
+        using F = decltype([]() -> int { return {}; });
+        static_assert(not has_transform<O &, F>);
+        static_assert(not has_transform<O const &, F>);
+        static_assert(not has_transform<O const &&, F>);
+        static_assert(has_transform<O &&, F>);
+        static_assert(not has_transform<O &, int>);
+        SUCCEED();
+      }
+
+      SECTION("copy fallback")
+      {
+        using O = expected<void, monadic_copy_only>;
+        static_assert(std::is_constructible_v<monadic_copy_only, monadic_copy_only const &>);
+        static_assert(not std::is_constructible_v<monadic_copy_only, monadic_copy_only &&>);
+        static_assert(not std::is_constructible_v<monadic_copy_only, monadic_copy_only const &&>);
+        constexpr auto check = [] {
+          O a;
+          O e(unexpect, 9);
+          constexpr auto fn = []() noexcept -> int { return int{7}; };
+          auto value = std::move(a).transform(fn);
+          auto error = std::move(e).transform(fn);
+          return value.has_value() && *value == 7 && not error.has_value() && error.error().value == 9;
+        };
+        static_assert(check());
+        CHECK(check());
+      }
+
       SECTION("value")
       {
         using T = expected<void, Error>;
@@ -6211,6 +6298,30 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
     SECTION("transform_error")
     {
+      SECTION("immovable error")
+      {
+        using O = expected<void, helper_immovable>;
+        static_assert(not std::is_copy_constructible_v<helper_immovable>);
+        static_assert(not std::is_move_constructible_v<helper_immovable>);
+        constexpr auto check = []<class S> {
+          O a;
+          O e(unexpect, helper_list_t{}, 5);
+          constexpr auto fn = [](helper_immovable const &) noexcept -> int { return 7; };
+          static_assert(not extension || noexcept(std::declval<S>().transform_error(fn)));
+          auto value = static_cast<S>(a).transform_error(fn);
+          auto error = static_cast<S>(e).transform_error(fn);
+          return value.has_value() && not error.has_value() && error.error() == 7 && e.error().v == 5;
+        };
+        static_assert(check.template operator()<O &>());
+        static_assert(check.template operator()<O const &>());
+        static_assert(check.template operator()<O &&>());
+        static_assert(check.template operator()<O const &&>());
+        CHECK(check.template operator()<O &>());
+        CHECK(check.template operator()<O const &>());
+        CHECK(check.template operator()<O &&>());
+        CHECK(check.template operator()<O const &&>());
+      }
+
       SECTION("error")
       {
         using T = expected<void, helper>;

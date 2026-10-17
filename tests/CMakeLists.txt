@@ -105,35 +105,40 @@ foreach(mode 20 23 26)
         unset(fixture_target)
     endforeach()
 
-    foreach(operation RANGE 0 3)
-        foreach(direction RANGE 0 4)
-            set(test_stem "tests_expected_monadic_object_${operation}_${direction}_cxx${mode}")
-            foreach(variant IN ITEMS reject control fixture)
-                set(target "${test_stem}_${variant}")
-                if(variant STREQUAL "reject")
-                    add_library("${target}" OBJECT EXCLUDE_FROM_ALL compile_fail/expected_monadic.cpp)
-                else()
-                    add_library("${target}" OBJECT compile_fail/expected_monadic.cpp)
-                    add_dependencies("tests" "${target}")
-                    add_dependencies("cxx${mode}" "${target}")
+    foreach(kind IN ITEMS object void)
+        foreach(operation RANGE 0 3)
+            foreach(direction RANGE 0 4)
+                if(kind STREQUAL "void" AND operation LESS 2 AND direction GREATER 0)
+                    continue()
                 endif()
-                target_link_libraries("${target}" PRIVATE include_pfn)
-                append_compilation_options("${target}" WARNINGS)
-                set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
-                target_compile_definitions("${target}" PRIVATE
-                    EXPECTED_MONADIC_VOID=0 EXPECTED_MONADIC_OP=${operation}
-                    EXPECTED_MONADIC_DIRECTION=${direction}
-                    EXPECTED_MONADIC_POSITIVE=$<STREQUAL:${variant},control>
-                    EXPECTED_MONADIC_FIXTURE_ONLY=$<STREQUAL:${variant},fixture>)
+                set(test_stem "tests_expected_monadic_${kind}_${operation}_${direction}_cxx${mode}")
+                foreach(variant IN ITEMS reject control fixture)
+                    set(target "${test_stem}_${variant}")
+                    if(variant STREQUAL "reject")
+                        add_library("${target}" OBJECT EXCLUDE_FROM_ALL compile_fail/expected_monadic.cpp)
+                    else()
+                        add_library("${target}" OBJECT compile_fail/expected_monadic.cpp)
+                        add_dependencies("tests" "${target}")
+                        add_dependencies("cxx${mode}" "${target}")
+                    endif()
+                    target_link_libraries("${target}" PRIVATE include_pfn)
+                    append_compilation_options("${target}" WARNINGS)
+                    set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
+                    target_compile_definitions("${target}" PRIVATE
+                        EXPECTED_MONADIC_VOID=$<STREQUAL:${kind},void> EXPECTED_MONADIC_OP=${operation}
+                        EXPECTED_MONADIC_DIRECTION=${direction}
+                        EXPECTED_MONADIC_POSITIVE=$<STREQUAL:${variant},control>
+                        EXPECTED_MONADIC_FIXTURE_ONLY=$<STREQUAL:${variant},fixture>)
+                endforeach()
+                add_test(NAME "${test_stem}_reject"
+                    COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}"
+                        --config "$<CONFIG>" --target "${test_stem}_reject")
+                set_tests_properties("${test_stem}_reject" PROPERTIES
+                    WILL_FAIL TRUE RUN_SERIAL TRUE
+                    LABELS "tests_pfn;cxx${mode};pfn_expected;compile_fail")
+                unset(target)
+                unset(test_stem)
             endforeach()
-            add_test(NAME "${test_stem}_reject"
-                COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}"
-                    --config "$<CONFIG>" --target "${test_stem}_reject")
-            set_tests_properties("${test_stem}_reject" PROPERTIES
-                WILL_FAIL TRUE RUN_SERIAL TRUE
-                LABELS "tests_pfn;cxx${mode};pfn_expected;compile_fail")
-            unset(target)
-            unset(test_stem)
         endforeach()
     endforeach()
 
