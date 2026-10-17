@@ -89,12 +89,15 @@ concept has_spaceship = requires(L const &l, R const &r) { l <=> r; };
 template <typename O, typename F>
 concept has_or_else = requires(O &&o, F &&f) { std::forward<O>(o).or_else(std::forward<F>(f)); };
 
+template <typename O, typename F>
+concept has_transform = requires(O &&o, F &&f) { std::forward<O>(o).transform(std::forward<F>(f)); };
+
 template <typename R> struct lvalue_callback {
   constexpr R operator()(int const &value) const noexcept { return value; }
   R operator()(int const &&) const = delete;
 };
 
-template <typename R> struct qualified_callback {
+template <typename R> struct ref_qualified_callback {
   constexpr R operator()(int value) & noexcept { return value; }
   constexpr R operator()(int value) && { return value + 1; }
 };
@@ -1560,7 +1563,7 @@ TEST_CASE("optional", "[optional][polyfill]")
         static_assert(std::is_invocable_v<F, int const &>);
         static_assert(not std::is_invocable_v<F, int &&>);
         static_assert(not std::is_invocable_v<F, int const &&>);
-        // pfn/std owning rvalue calls with F are hard errors, requiring separate compile-failure probes.
+        // pfn/std owning rvalue calls with F are hard errors, covered in compile_fail/optional_monadic.cpp.
         constexpr auto check = [] {
           optional<int> a(7);
           return a.and_then(F{}) == a && std::as_const(a).and_then(F{}) == a;
@@ -1571,11 +1574,11 @@ TEST_CASE("optional", "[optional][polyfill]")
 
       SECTION("callable qualifiers")
       {
-        using F = qualified_callback<optional<int>>;
+        using F = ref_qualified_callback<optional<int>>;
         constexpr auto check = []<typename O>() {
           static_assert(std::is_same_v<decltype(std::declval<O>().and_then(std::declval<F &>())), optional<int>>);
           static_assert(not extension || noexcept(std::declval<O>().and_then(std::declval<F &>())));
-          static_assert(not noexcept(std::declval<O>().and_then(F{})));
+          static_assert(not extension || not noexcept(std::declval<O>().and_then(F{})));
           optional<int> a(7);
           F f;
           return static_cast<O>(a).and_then(f) == *a && static_cast<O>(a).and_then(F{}) == *a + 1;
@@ -1775,7 +1778,7 @@ TEST_CASE("optional", "[optional][polyfill]")
         static_assert(std::is_invocable_v<F, int const &>);
         static_assert(not std::is_invocable_v<F, int &&>);
         static_assert(not std::is_invocable_v<F, int const &&>);
-        // pfn/std owning rvalue calls with F are hard errors, requiring separate compile-failure probes.
+        // pfn/std owning rvalue calls with F are hard errors, covered in compile_fail/optional_monadic.cpp.
         constexpr auto check = [] {
           optional<int> a(7);
           return a.transform(F{}) == a && std::as_const(a).transform(F{}) == a;
@@ -1786,11 +1789,11 @@ TEST_CASE("optional", "[optional][polyfill]")
 
       SECTION("callable qualifiers")
       {
-        using F = qualified_callback<int>;
+        using F = ref_qualified_callback<int>;
         constexpr auto check = []<typename O>() {
           static_assert(std::is_same_v<decltype(std::declval<O>().transform(std::declval<F &>())), optional<int>>);
           static_assert(not extension || noexcept(std::declval<O>().transform(std::declval<F &>())));
-          static_assert(not noexcept(std::declval<O>().transform(F{})));
+          static_assert(not extension || not noexcept(std::declval<O>().transform(F{})));
           optional<int> a(7);
           F f;
           return static_cast<O>(a).transform(f) == *a && static_cast<O>(a).transform(F{}) == *a + 1;
@@ -2941,6 +2944,20 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
       int x = 5;
       T const a(std::in_place, x);
       T const e(std::nullopt);
+
+      SECTION("substitution")
+      {
+        constexpr auto check = []<class O> {
+          static_assert(has_transform<O, decltype([](int &v) -> int & { return v; })>);
+          static_assert(not has_transform<O, decltype([](int &&) { return 0; })>);
+          static_assert(not has_transform<O, int>);
+        };
+        check.template operator()<T &>();
+        check.template operator()<T const &>();
+        check.template operator()<T &&>();
+        check.template operator()<T const &&>();
+        SUCCEED();
+      }
 
       SECTION("to value")
       {

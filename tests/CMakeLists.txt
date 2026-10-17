@@ -75,6 +75,31 @@ foreach(mode 20 23 26)
         continue()
     endif()
 
+    foreach(scenario RANGE 1 9)
+        set(rejection_target "tests_optional_monadic_reject_${scenario}_cxx${mode}")
+        set(control_target "tests_optional_monadic_control_${scenario}_cxx${mode}")
+        add_library("${rejection_target}" OBJECT EXCLUDE_FROM_ALL compile_fail/optional_monadic.cpp)
+        add_library("${control_target}" OBJECT compile_fail/optional_monadic.cpp)
+        foreach(target IN ITEMS "${rejection_target}" "${control_target}")
+            target_link_libraries("${target}" PRIVATE include_pfn)
+            append_compilation_options("${target}" WARNINGS)
+            set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
+            target_compile_definitions("${target}" PRIVATE OPTIONAL_MONADIC_CASE=${scenario})
+        endforeach()
+        target_compile_definitions("${rejection_target}" PRIVATE OPTIONAL_MONADIC_POSITIVE=0)
+        target_compile_definitions("${control_target}" PRIVATE OPTIONAL_MONADIC_POSITIVE=1)
+        add_dependencies("tests" "${control_target}")
+        add_dependencies("cxx${mode}" "${control_target}")
+        add_test(NAME "${rejection_target}"
+            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}"
+                --config "$<CONFIG>" --target "${rejection_target}")
+        set_tests_properties("${rejection_target}" PROPERTIES
+            WILL_FAIL TRUE RUN_SERIAL TRUE
+            LABELS "tests_pfn;cxx${mode};pfn_optional;compile_fail")
+        unset(rejection_target)
+        unset(control_target)
+    endforeach()
+
     foreach(source IN ITEMS ${TESTS_PFN_SOURCES})
         string(REGEX REPLACE "^(pfn)/(detail|)/?([^\.]+)\.cpp$" "\\1_\\2\\3" root_name ${source})
         set(target "tests_${root_name}_cxx${mode}")

@@ -2,6 +2,12 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## Reference optional monadic declarations match the draft — 17 October 2026
+
+`pfn::optional<T&>::and_then` uses body-deduced `auto`, so a non-invocable callback causes a hard error even in a dependent `requires`-expression. Previously its helper-based trailing return type treated that error as substitution failure. Reference `transform` retains substitution failure through the draft's explicit `optional<remove_cv_t<invoke_result_t<F, T&>>>` return type. Both specializations spell `or_else` with its fixed `optional` return type and keep its specified constraints. Valid calls retain conditional `noexcept`.
+
+Paired compile-failure tests cover reference `and_then` and owning `and_then`/`transform` cv/ref fallback. Each rejection has a normal-build positive control using the same callback fixture.
+
 ## `pfn::optional` preserves the selected monadic overload — 17 October 2026
 
 Owning `pfn::optional<T>::transform` and `and_then` reject callbacks that cannot accept the selected payload cv/ref category, as the standard requires. Previously, substitution failure could remove the selected member and allow a different cv/ref overload to run. A callback that explicitly deleted its rvalue overload could consequently borrow from a temporary optional through its lvalue overload and leave a dangling reference.
