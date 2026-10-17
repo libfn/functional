@@ -1655,7 +1655,7 @@ TEST_CASE("optional", "[optional][polyfill]")
         static_assert(std::is_invocable_v<F, int const &>);
         static_assert(not std::is_invocable_v<F, int &&>);
         static_assert(not std::is_invocable_v<F, int const &&>);
-        // pfn/std owning rvalue calls with F are hard errors, covered in compile_fail/optional_monadic.cpp.
+        // pfn/std owning rvalue calls with F are hard errors, covered in reject/optional_monadic.cpp.
         constexpr auto check = [] {
           optional<int> a(7);
           return a.and_then(F{}) == a && std::as_const(a).and_then(F{}) == a;
@@ -1925,7 +1925,7 @@ TEST_CASE("optional", "[optional][polyfill]")
         static_assert(std::is_invocable_v<F, int const &>);
         static_assert(not std::is_invocable_v<F, int &&>);
         static_assert(not std::is_invocable_v<F, int const &&>);
-        // pfn/std owning rvalue calls with F are hard errors, covered in compile_fail/optional_monadic.cpp.
+        // pfn/std owning rvalue calls with F are hard errors, covered in reject/optional_monadic.cpp.
         constexpr auto check = [] {
           optional<int> a(7);
           return a.transform(F{}) == a && std::as_const(a).transform(F{}) == a;

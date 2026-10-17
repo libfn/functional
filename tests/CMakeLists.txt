@@ -57,8 +57,62 @@ set(TESTS_PFN_SOURCES
     pfn/utility.cpp
 )
 
+set(TESTS_PFN_REJECT_SOURCES
+    pfn/reject/expected_monadic.cpp
+    pfn/reject/optional_monadic.cpp
+)
+
 include(TargetGenerator)
 include(CompilationOptions)
+
+# Generate an object target for SOURCE, which must compile, and for each
+# `#ifdef LIBFN_REJECT_<scenario>` guard in it a test building SOURCE with only that guard defined,
+# which must fail
+function(add_reject_tests)
+    set(oneValueArgs SOURCE MODE)
+    set(multiValueArgs DEPENDENCIES LABELS)
+    cmake_parse_arguments(Reject "" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+    set(path "${CMAKE_CURRENT_SOURCE_DIR}/${Reject_SOURCE}")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${path}")
+    file(STRINGS "${path}" guards REGEX "^#ifdef LIBFN_REJECT_[A-Za-z0-9_]+$")
+    file(STRINGS "${path}" directives REGEX "^[ \t]*#.*LIBFN_REJECT_")
+    if(NOT guards OR NOT guards STREQUAL directives)
+        message(FATAL_ERROR "${Reject_SOURCE}: needs at least one guard, each spelled `#ifdef LIBFN_REJECT_<scenario>`")
+    endif()
+    list(TRANSFORM guards REPLACE "^#ifdef LIBFN_REJECT_" "" OUTPUT_VARIABLE scenarios)
+
+    string(REGEX REPLACE "\\.cpp$" "" root_name "${Reject_SOURCE}")
+    string(REPLACE "/" "_" root_name "${root_name}")
+    set(control "tests_${root_name}_cxx${Reject_MODE}")
+    add_library("${control}" OBJECT "${Reject_SOURCE}")
+    add_dependencies("cxx${Reject_MODE}" "${control}")
+    add_dependencies("tests" "${control}")
+    set(targets "${control}")
+
+    foreach(scenario IN LISTS scenarios)
+        set(target "tests_${root_name}_${scenario}_cxx${Reject_MODE}")
+        add_library("${target}" OBJECT EXCLUDE_FROM_ALL "${Reject_SOURCE}")
+        target_compile_definitions("${target}" PRIVATE "LIBFN_REJECT_${scenario}")
+
+        add_test(
+            NAME "${target}"
+            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" --config "$<CONFIG>" --target "${target}"
+        )
+        # Concurrent builds in one tree would race on its build-system state
+        set_tests_properties("${target}" PROPERTIES
+            WILL_FAIL TRUE
+            RESOURCE_LOCK build_tree
+            LABELS "${Reject_LABELS};cxx${Reject_MODE};${root_name}")
+        list(APPEND targets "${target}")
+    endforeach()
+
+    foreach(target IN LISTS targets)
+        target_link_libraries("${target}" PRIVATE ${Reject_DEPENDENCIES})
+        append_compilation_options("${target}" WARNINGS)
+        set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${Reject_MODE}")
+    endforeach()
+endfunction()
 
 # Generate separate target for each individual test source
 foreach(mode 20 23 26)
@@ -74,73 +128,6 @@ foreach(mode 20 23 26)
     if(MSVC AND NOT (mode EQUAL 20))
         continue()
     endif()
-
-    foreach(scenario RANGE 1 9)
-        set(rejection_target "tests_optional_monadic_reject_${scenario}_cxx${mode}")
-        set(control_target "tests_optional_monadic_control_${scenario}_cxx${mode}")
-        set(fixture_target "tests_optional_monadic_fixture_${scenario}_cxx${mode}")
-        add_library("${rejection_target}" OBJECT EXCLUDE_FROM_ALL compile_fail/optional_monadic.cpp)
-        add_library("${control_target}" OBJECT compile_fail/optional_monadic.cpp)
-        add_library("${fixture_target}" OBJECT compile_fail/optional_monadic.cpp)
-        foreach(target IN ITEMS "${rejection_target}" "${control_target}" "${fixture_target}")
-            target_link_libraries("${target}" PRIVATE include_pfn)
-            append_compilation_options("${target}" WARNINGS)
-            set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
-            target_compile_definitions("${target}" PRIVATE OPTIONAL_MONADIC_CASE=${scenario})
-        endforeach()
-        target_compile_definitions("${rejection_target}" PRIVATE OPTIONAL_MONADIC_POSITIVE=0)
-        target_compile_definitions("${control_target}" PRIVATE OPTIONAL_MONADIC_POSITIVE=1)
-        target_compile_definitions("${fixture_target}" PRIVATE
-            OPTIONAL_MONADIC_POSITIVE=0 OPTIONAL_MONADIC_FIXTURE_ONLY=1)
-        add_dependencies("tests" "${control_target}" "${fixture_target}")
-        add_dependencies("cxx${mode}" "${control_target}" "${fixture_target}")
-        add_test(NAME "${rejection_target}"
-            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}"
-                --config "$<CONFIG>" --target "${rejection_target}")
-        set_tests_properties("${rejection_target}" PROPERTIES
-            WILL_FAIL TRUE RUN_SERIAL TRUE
-            LABELS "tests_pfn;cxx${mode};pfn_optional;compile_fail")
-        unset(rejection_target)
-        unset(control_target)
-        unset(fixture_target)
-    endforeach()
-
-    foreach(kind IN ITEMS object void)
-        foreach(operation RANGE 0 3)
-            foreach(direction RANGE 0 4)
-                if(kind STREQUAL "void" AND operation LESS 2 AND direction GREATER 0)
-                    continue()
-                endif()
-                set(test_stem "tests_expected_monadic_${kind}_${operation}_${direction}_cxx${mode}")
-                foreach(variant IN ITEMS reject control fixture)
-                    set(target "${test_stem}_${variant}")
-                    if(variant STREQUAL "reject")
-                        add_library("${target}" OBJECT EXCLUDE_FROM_ALL compile_fail/expected_monadic.cpp)
-                    else()
-                        add_library("${target}" OBJECT compile_fail/expected_monadic.cpp)
-                        add_dependencies("tests" "${target}")
-                        add_dependencies("cxx${mode}" "${target}")
-                    endif()
-                    target_link_libraries("${target}" PRIVATE include_pfn)
-                    append_compilation_options("${target}" WARNINGS)
-                    set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${mode}")
-                    target_compile_definitions("${target}" PRIVATE
-                        EXPECTED_MONADIC_VOID=$<STREQUAL:${kind},void> EXPECTED_MONADIC_OP=${operation}
-                        EXPECTED_MONADIC_DIRECTION=${direction}
-                        EXPECTED_MONADIC_POSITIVE=$<STREQUAL:${variant},control>
-                        EXPECTED_MONADIC_FIXTURE_ONLY=$<STREQUAL:${variant},fixture>)
-                endforeach()
-                add_test(NAME "${test_stem}_reject"
-                    COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}"
-                        --config "$<CONFIG>" --target "${test_stem}_reject")
-                set_tests_properties("${test_stem}_reject" PROPERTIES
-                    WILL_FAIL TRUE RUN_SERIAL TRUE
-                    LABELS "tests_pfn;cxx${mode};pfn_expected;compile_fail")
-                unset(target)
-                unset(test_stem)
-            endforeach()
-        endforeach()
-    endforeach()
 
     foreach(source IN ITEMS ${TESTS_PFN_SOURCES})
         string(REGEX REPLACE "^(pfn)/(detail|)/?([^\.]+)\.cpp$" "\\1_\\2\\3" root_name ${source})
@@ -166,6 +153,10 @@ foreach(mode 20 23 26)
 
         unset(target)
         unset(root_name)
+    endforeach()
+
+    foreach(source IN ITEMS ${TESTS_PFN_REJECT_SOURCES})
+        add_reject_tests(SOURCE "${source}" MODE "${mode}" DEPENDENCIES include_pfn LABELS tests_pfn)
     endforeach()
 endforeach()
 
