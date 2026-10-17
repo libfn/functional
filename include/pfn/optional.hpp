@@ -694,7 +694,8 @@ template <class T, class Policy> struct _optional_base {
   // through public API -- same reasoning as the _from_optional_t constructors above.
   template <typename Self, typename Fn>
   static constexpr auto _and_then(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(*FWD(self))>)
+      noexcept(::std::is_nothrow_invocable_r_v<::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(*FWD(self))>>,
+                                               Fn, decltype(*FWD(self))>)
     requires ::std::is_invocable_v<Fn, decltype(*FWD(self))>
   {
     using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(*FWD(self))>>;
@@ -724,7 +725,7 @@ template <class T, class Policy> struct _optional_base {
 
   template <typename Self, typename Fn>
   static constexpr auto _or_else(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn>
+      noexcept(::std::is_nothrow_invocable_r_v<typename Policy::template type<T>, Fn>
                && ::std::is_nothrow_constructible_v<typename Policy::template type<T>, Self>)
     requires(::std::is_invocable_v<Fn> && ::std::is_constructible_v<typename Policy::template type<T>, Self>)
   {
@@ -877,7 +878,8 @@ template <class T, class Policy> struct _optional_base<T &, Policy> {
   // T& (const on the optional does not propagate to the referent), so Self only says which
   // public overload delegated here.
   template <typename Self, typename Fn>
-  static constexpr auto _and_then(Self &&self, Fn &&fn) noexcept(::std::is_nothrow_invocable_v<Fn, T &>)
+  static constexpr auto _and_then(Self &&self, Fn &&fn) noexcept(
+      ::std::is_nothrow_invocable_r_v<::std::remove_cvref_t<::std::invoke_result_t<Fn, T &>>, Fn, T &>)
     requires ::std::is_invocable_v<Fn, T &>
   {
     using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn, T &>>;
@@ -905,7 +907,8 @@ template <class T, class Policy> struct _optional_base<T &, Policy> {
   }
 
   template <typename Self, typename Fn>
-  static constexpr auto _or_else(Self &&self, Fn &&fn) noexcept(::std::is_nothrow_invocable_v<Fn>)
+  static constexpr auto
+  _or_else(Self &&self, Fn &&fn) noexcept(::std::is_nothrow_invocable_r_v<typename Policy::template type<T &>, Fn>)
     requires ::std::is_invocable_v<Fn>
   {
     using result_t = typename Policy::template type<T &>;
