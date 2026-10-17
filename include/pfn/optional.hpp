@@ -1238,74 +1238,65 @@ public:
   using _base::value_or;
 
   // [optional.monadic], monadic operations; bodies delegate to _optional_base helpers
+  // Return deduction stays in the body so an invalid invocation cannot select another cv/ref overload.
   template <class F>
   constexpr auto and_then(F &&f) &                        //
       noexcept(noexcept(_base::_and_then(*this, FWD(f)))) // extension
-      -> decltype(_base::_and_then(*this, FWD(f)))
   {
     return _base::_and_then(*this, FWD(f));
   }
   template <class F>
   constexpr auto and_then(F &&f) &&                                    //
       noexcept(noexcept(_base::_and_then(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_and_then(::std::move(*this), FWD(f)))
   {
     return _base::_and_then(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto and_then(F &&f) const &                  //
       noexcept(noexcept(_base::_and_then(*this, FWD(f)))) // extension
-      -> decltype(_base::_and_then(*this, FWD(f)))
   {
     return _base::_and_then(*this, FWD(f));
   }
   template <class F>
   constexpr auto and_then(F &&f) const &&                              //
       noexcept(noexcept(_base::_and_then(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_and_then(::std::move(*this), FWD(f)))
   {
     return _base::_and_then(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) &                        //
       noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform(*this, FWD(f)))
   {
     return _base::_transform(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) &&                                    //
       noexcept(noexcept(_base::_transform(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform(::std::move(*this), FWD(f)))
   {
     return _base::_transform(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) const &                  //
       noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform(*this, FWD(f)))
   {
     return _base::_transform(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) const &&                              //
       noexcept(noexcept(_base::_transform(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform(::std::move(*this), FWD(f)))
   {
     return _base::_transform(::std::move(*this), FWD(f));
   }
   template <class F>
-  constexpr auto or_else(F &&f) &&                                    //
+  constexpr optional or_else(F &&f) &&                                //
       noexcept(noexcept(_base::_or_else(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_or_else(::std::move(*this), FWD(f)))
     requires(::std::invocable<F> && ::std::move_constructible<T>)
   {
     return _base::_or_else(::std::move(*this), FWD(f));
   }
   template <class F>
-  constexpr auto or_else(F &&f) const &                  //
+  constexpr optional or_else(F &&f) const &              //
       noexcept(noexcept(_base::_or_else(*this, FWD(f)))) // extension
-      -> decltype(_base::_or_else(*this, FWD(f)))
     requires(::std::invocable<F> && ::std::copy_constructible<T>)
   {
     return _base::_or_else(*this, FWD(f));
@@ -1457,21 +1448,19 @@ public:
   template <class F>
   constexpr auto and_then(F &&f) const                    //
       noexcept(noexcept(_base::_and_then(*this, FWD(f)))) // extension
-      -> decltype(_base::_and_then(*this, FWD(f)))
   {
     return _base::_and_then(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) const                    //
       noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform(*this, FWD(f)))
+      -> optional<::std::remove_cv_t<::std::invoke_result_t<F, T &>>>
   {
     return _base::_transform(*this, FWD(f));
   }
   template <class F>
-  constexpr auto or_else(F &&f) const                    //
+  constexpr optional or_else(F &&f) const                //
       noexcept(noexcept(_base::_or_else(*this, FWD(f)))) // extension
-      -> decltype(_base::_or_else(*this, FWD(f)))
     requires ::std::invocable<F>
   {
     return _base::_or_else(*this, FWD(f));

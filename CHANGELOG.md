@@ -2,6 +2,30 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## Void expected monadic overloads follow the draft — 17 October 2026
+
+The void specialization of `pfn::expected` uses body-deduced `auto` returns for all four monadic operations. `and_then` and `transform` retain their error-construction constraints; `or_else` and `transform_error` have no constructibility constraint. Invalid callbacks cause hard errors instead of disappearing through the helper's trailing return type.
+
+Compile-failure tests cover nullary callback detection and error callback cv/ref fallback. Preservation tests cover valid copying and error transformations with an immovable original error, including all four source cv/ref categories. Conditional `noexcept` is unchanged.
+
+## Object expected monadic overloads follow the draft — 17 October 2026
+
+The non-void `pfn::expected<T, E>` monadic members use body-deduced `auto` returns and expose the draft's constructibility constraints. Previously helper-based trailing returns also removed overloads for invalid callbacks, allowing a different cv/ref callback to run or a dependent `requires`-expression to return false. Invalid callbacks now cause hard errors after overload selection. Overloads whose unchanged side cannot be constructed still drop out, preserving valid copy fallback.
+
+Compile-failure tests cover all four operations and cv/ref fallback directions, with positive controls and independently checked rejection fixtures. Runtime and constant-evaluation tests preserve constructibility-based fallback. Conditional `noexcept` is unchanged.
+
+## Reference optional monadic declarations match the draft — 17 October 2026
+
+`pfn::optional<T&>::and_then` uses body-deduced `auto`, so a non-invocable callback causes a hard error even in a dependent `requires`-expression. Previously its helper-based trailing return type treated that error as substitution failure. Reference `transform` retains substitution failure through the draft's explicit `optional<remove_cv_t<invoke_result_t<F, T&>>>` return type. Both specializations spell `or_else` with its fixed `optional` return type and keep its specified constraints. Valid calls retain conditional `noexcept`.
+
+Paired compile-failure tests cover reference `and_then` and owning `and_then`/`transform` cv/ref fallback. Each rejection has a normal-build positive control using the same callback fixture.
+
+## `pfn::optional` preserves the selected monadic overload — 17 October 2026
+
+Owning `pfn::optional<T>::transform` and `and_then` reject callbacks that cannot accept the selected payload cv/ref category, as the standard requires. Previously, substitution failure could remove the selected member and allow a different cv/ref overload to run. A callback that explicitly deleted its rvalue overload could consequently borrow from a temporary optional through its lvalue overload and leave a dangling reference.
+
+The members use unconstrained `auto` return types, so invalid invocations produce hard errors rather than falling back. Valid calls retain their conditional `noexcept`, and reference optionals still pass their referents as lvalues.
+
 ## Conan selects the C++26 mode with an option — 13 October 2026
 
 The Conan recipe replaces its `fn_cxx26` component with a `cxx26` option, following the review of the Conan Center recipe. CMakeDeps links every component into the `libfn::libfn` aggregate, so linking that target selected `LIBFN_CXX26` and C++26 without the consumer asking. The option makes mode selection explicit; consumers that exchange `fn` types must agree on it because the modes use different ABI namespaces. The profile's `compiler.cppstd` setting now selects C++26 or newer, replacing the CMake build module that supplied that requirement. When `cxx26=True`, `libfn::fn_cxx26` is an alias of `libfn::fn`.
