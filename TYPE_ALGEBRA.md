@@ -1072,6 +1072,8 @@ The library is divided into layers:
 - `pfn` (Polyfill fn) is the standards-facing layer. It provides `std::optional` and `std::expected` in their C++26 shape — monadic member functions, `optional<T&>`, range support — plus smaller utilities such as `std::invoke_r` and `std::unreachable`, all available to a C++20 compiler.
 - `fn` is the strict extension layer. It introduces the `pack`/`copack` algebra, multidispatch, graded errors, `choice`, `just`, the pipeline functors, and the composition operators `&` and `|`.
 
+For an owning `pfn::optional<T>`, `transform` and `and_then` pass the payload with the source's cv/ref category. If the callback cannot accept that argument, the call is ill-formed; another cv/ref member overload is not a fallback. An `optional<T&>` passes its referent as `T&`, including through a temporary wrapper.
+
 Every `fn` type with a `pfn` counterpart is a strict superset of it: switching a valid program from `pfn` to `fn` changes neither compilation nor behaviour.
 
 ## Functional terminology

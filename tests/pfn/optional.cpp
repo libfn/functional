@@ -89,6 +89,16 @@ concept has_spaceship = requires(L const &l, R const &r) { l <=> r; };
 template <typename O, typename F>
 concept has_or_else = requires(O &&o, F &&f) { std::forward<O>(o).or_else(std::forward<F>(f)); };
 
+template <typename R> struct lvalue_callback {
+  constexpr R operator()(int const &value) const noexcept { return value; }
+  R operator()(int const &&) const = delete;
+};
+
+template <typename R> struct qualified_callback {
+  constexpr R operator()(int value) & noexcept { return value; }
+  constexpr R operator()(int value) && { return value + 1; }
+};
+
 } // namespace
 
 TEST_CASE("optional", "[optional][polyfill]")
@@ -1543,6 +1553,43 @@ TEST_CASE("optional", "[optional][polyfill]")
   {
     SECTION("and_then")
     {
+      SECTION("lvalue-only callback")
+      {
+        using F = lvalue_callback<optional<int>>;
+        static_assert(std::is_invocable_v<F, int &>);
+        static_assert(std::is_invocable_v<F, int const &>);
+        static_assert(not std::is_invocable_v<F, int &&>);
+        static_assert(not std::is_invocable_v<F, int const &&>);
+        // pfn/std owning rvalue calls with F are hard errors, requiring separate compile-failure probes.
+        constexpr auto check = [] {
+          optional<int> a(7);
+          return a.and_then(F{}) == a && std::as_const(a).and_then(F{}) == a;
+        };
+        static_assert(check());
+        CHECK(check());
+      }
+
+      SECTION("callable qualifiers")
+      {
+        using F = qualified_callback<optional<int>>;
+        constexpr auto check = []<typename O>() {
+          static_assert(std::is_same_v<decltype(std::declval<O>().and_then(std::declval<F &>())), optional<int>>);
+          static_assert(not extension || noexcept(std::declval<O>().and_then(std::declval<F &>())));
+          static_assert(not noexcept(std::declval<O>().and_then(F{})));
+          optional<int> a(7);
+          F f;
+          return static_cast<O>(a).and_then(f) == *a && static_cast<O>(a).and_then(F{}) == *a + 1;
+        };
+        static_assert(check.template operator()<optional<int> &>());
+        static_assert(check.template operator()<optional<int> const &>());
+        static_assert(check.template operator()<optional<int> &&>());
+        static_assert(check.template operator()<optional<int> const &&>());
+        CHECK(check.template operator()<optional<int> &>());
+        CHECK(check.template operator()<optional<int> const &>());
+        CHECK(check.template operator()<optional<int> &&>());
+        CHECK(check.template operator()<optional<int> const &&>());
+      }
+
       SECTION("value")
       {
         using T = optional<helper>;
@@ -1634,6 +1681,22 @@ TEST_CASE("optional", "[optional][polyfill]")
         auto res = std::move(o).and_then([](std::unique_ptr<int> p) -> optional<int> { return *p + 1; });
         CHECK(res.value() == 43);
       }
+
+#ifndef PFN_TEST_VALIDATION
+      SECTION("to reference")
+      {
+        constexpr auto check = [] {
+          optional<int> owner(7);
+          auto bound = owner.and_then(lvalue_callback<optional<int const &>>{});
+          int external = 9;
+          auto from_temporary
+              = optional<int>(1).and_then([&external](int &&) noexcept -> optional<int &> { return external; });
+          return bound && &*bound == &*owner && from_temporary && &*from_temporary == &external;
+        };
+        static_assert(check());
+        CHECK(check());
+      }
+#endif
     }
 
     SECTION("or_else")
@@ -1705,6 +1768,43 @@ TEST_CASE("optional", "[optional][polyfill]")
 
     SECTION("transform")
     {
+      SECTION("lvalue-only callback")
+      {
+        using F = lvalue_callback<int>;
+        static_assert(std::is_invocable_v<F, int &>);
+        static_assert(std::is_invocable_v<F, int const &>);
+        static_assert(not std::is_invocable_v<F, int &&>);
+        static_assert(not std::is_invocable_v<F, int const &&>);
+        // pfn/std owning rvalue calls with F are hard errors, requiring separate compile-failure probes.
+        constexpr auto check = [] {
+          optional<int> a(7);
+          return a.transform(F{}) == a && std::as_const(a).transform(F{}) == a;
+        };
+        static_assert(check());
+        CHECK(check());
+      }
+
+      SECTION("callable qualifiers")
+      {
+        using F = qualified_callback<int>;
+        constexpr auto check = []<typename O>() {
+          static_assert(std::is_same_v<decltype(std::declval<O>().transform(std::declval<F &>())), optional<int>>);
+          static_assert(not extension || noexcept(std::declval<O>().transform(std::declval<F &>())));
+          static_assert(not noexcept(std::declval<O>().transform(F{})));
+          optional<int> a(7);
+          F f;
+          return static_cast<O>(a).transform(f) == *a && static_cast<O>(a).transform(F{}) == *a + 1;
+        };
+        static_assert(check.template operator()<optional<int> &>());
+        static_assert(check.template operator()<optional<int> const &>());
+        static_assert(check.template operator()<optional<int> &&>());
+        static_assert(check.template operator()<optional<int> const &&>());
+        CHECK(check.template operator()<optional<int> &>());
+        CHECK(check.template operator()<optional<int> const &>());
+        CHECK(check.template operator()<optional<int> &&>());
+        CHECK(check.template operator()<optional<int> const &&>());
+      }
+
       SECTION("value")
       {
         using T = optional<helper>;
@@ -1765,6 +1865,16 @@ TEST_CASE("optional", "[optional][polyfill]")
         auto r = a.transform([&x](int) -> int & { return x; });
         static_assert(std::is_same_v<decltype(r), optional<int &>>);
         CHECK(&*r == &x);
+
+        constexpr auto check = [] {
+          optional<int> owner(7);
+          auto projected = owner.transform(lvalue_callback<int const &>{});
+          int external = 9;
+          auto from_temporary = optional<int>(1).transform([&external](int &&) noexcept -> int & { return external; });
+          return projected && &*projected == &*owner && from_temporary && &*from_temporary == &external;
+        };
+        static_assert(check());
+        CHECK(check());
       }
 #endif
 
@@ -2765,6 +2875,17 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
       auto same = [&x](int &v) -> optional<bool> { return &v == &x; };
       CHECK(a.and_then(same).value());
 
+      SECTION("temporary wrapper")
+      {
+        constexpr auto check = [] {
+          int value = 7;
+          auto r = T(value).and_then(lvalue_callback<optional<int const &>>{});
+          return r && &*r == &value;
+        };
+        static_assert(check());
+        CHECK(check());
+      }
+
       SECTION("constexpr")
       {
         static_assert([] {
@@ -2851,6 +2972,14 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
         static_assert(std::is_same_v<decltype(r), optional<int &>>);
         CHECK(&*r == &x);
         CHECK(not e.transform(fn).has_value());
+
+        constexpr auto check = [] {
+          int value = 7;
+          auto r = T(value).transform(lvalue_callback<int const &>{});
+          return r && &*r == &value;
+        };
+        static_assert(check());
+        CHECK(check());
       }
 
       SECTION("constexpr")

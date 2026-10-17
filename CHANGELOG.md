@@ -2,6 +2,12 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `pfn::optional` preserves the selected monadic overload — 17 October 2026
+
+Owning `pfn::optional<T>::transform` and `and_then` reject callbacks that cannot accept the selected payload cv/ref category, as the standard requires. Previously, substitution failure could remove the selected member and allow a different cv/ref overload to run. A callback that explicitly deleted its rvalue overload could consequently borrow from a temporary optional through its lvalue overload and leave a dangling reference.
+
+The members use unconstrained `auto` return types, so invalid invocations produce hard errors rather than falling back. Valid calls retain their conditional `noexcept`, and reference optionals still pass their referents as lvalues.
+
 ## Conan selects the C++26 mode with an option — 13 October 2026
 
 The Conan recipe replaces its `fn_cxx26` component with a `cxx26` option, following the review of the Conan Center recipe. CMakeDeps links every component into the `libfn::libfn` aggregate, so linking that target selected `LIBFN_CXX26` and C++26 without the consumer asking. The option makes mode selection explicit; consumers that exchange `fn` types must agree on it because the modes use different ABI namespaces. The profile's `compiler.cppstd` setting now selects C++26 or newer, replacing the CMake build module that supplied that requirement. When `cxx26=True`, `libfn::fn_cxx26` is an alias of `libfn::fn`.
