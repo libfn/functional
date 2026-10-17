@@ -141,8 +141,8 @@ template <class O, bool Recover, bool Extension> void check_monadic_result_refer
         static_assert(not Extension || noexcept(monadic_operation<Recover>(std::declval<S>(), fn)) == Nothrow);
         auto result = monadic_operation<Recover>(static_cast<S>(source), fn);
         auto unchanged = monadic_operation<Recover>(static_cast<S>(bypass), fn);
-        return result.has_value() == not Recover && read_result(result) == 7 && read_result(returned) == 7
-               && source.has_value() == not Recover && unchanged.has_value() == Recover;
+        return result.has_value() != Recover && read_result(result) == 7 && read_result(returned) == 7
+               && source.has_value() != Recover && unchanged.has_value() == Recover;
       };
       static_assert(succeeds());
       CHECK(succeeds());
@@ -152,7 +152,7 @@ template <class O, bool Recover, bool Extension> void check_monadic_result_refer
         R returned = make_monadic_result<Recover, R>(7, true);
         auto fn = [&returned](auto &&...) noexcept -> Ref { return static_cast<Ref>(returned); };
         CHECK_THROWS_AS(monadic_operation<Recover>(static_cast<S>(source), fn), monadic_result_error);
-        CHECK(source.has_value() == not Recover);
+        CHECK(source.has_value() != Recover);
         if constexpr (Recover)
           CHECK(source.error() == 5);
         else if constexpr (not std::is_void_v<typename O::value_type>)
