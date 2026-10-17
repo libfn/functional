@@ -870,7 +870,7 @@ template <class T, class E, class Policy> struct _expected_base {
 
   template <typename Self, typename Fn>
   static constexpr auto _and_then(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn>
+      noexcept(::std::is_nothrow_invocable_r_v<::std::remove_cvref_t<::std::invoke_result_t<Fn>>, Fn>
                && ::std::is_nothrow_constructible_v<E, decltype(_expected_base::_error(FWD(self)))>)
     requires(::std::is_void_v<T> && ::std::is_invocable_v<Fn>
              && ::std::is_constructible_v<E, decltype(_expected_base::_error(FWD(self)))>)
@@ -904,7 +904,9 @@ template <class T, class E, class Policy> struct _expected_base {
 
   template <typename Self, typename Fn>
   static constexpr auto _or_else(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(_expected_base::_error(FWD(self)))>)
+      noexcept(::std::is_nothrow_invocable_r_v<
+               ::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(_expected_base::_error(FWD(self)))>>, Fn,
+               decltype(_expected_base::_error(FWD(self)))>)
     requires(::std::is_void_v<T> && ::std::is_invocable_v<Fn, decltype(_expected_base::_error(FWD(self)))>)
   {
     using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(_expected_base::_error(FWD(self)))>>;

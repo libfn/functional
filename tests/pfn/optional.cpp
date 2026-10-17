@@ -128,7 +128,7 @@ template <class O, bool Extension> void check_and_then_result_references()
   auto check_source = []<class S> {
     auto check_result = []<class Ref, bool Nothrow> {
       using R = std::remove_cvref_t<Ref>;
-      static_assert(std::is_nothrow_constructible_v<R, Ref> == Nothrow);
+      static_assert(not Extension || std::is_nothrow_constructible_v<R, Ref> == Nothrow);
       constexpr auto succeeds = [] {
         int value = 1;
         O source(value);
@@ -1803,7 +1803,7 @@ TEST_CASE("optional", "[optional][polyfill]")
           using R = optional<monadic_result<CopyNoexcept, MoveNoexcept>>;
           using S = std::conditional_t<MoveSource, R &&, R const &>;
           using Ref = std::conditional_t<MoveResult, R &&, R const &>;
-          static_assert(std::is_nothrow_constructible_v<R, S>);
+          static_assert(not extension || std::is_nothrow_constructible_v<R, S>);
           static_assert(not std::is_nothrow_constructible_v<R, Ref>);
           constexpr auto succeeds = [] {
             R empty;

@@ -120,7 +120,7 @@ template <class O, bool Recover, bool Extension> void check_monadic_result_refer
   auto check_source = []<class S> {
     auto check_result = []<class Ref, bool Nothrow> {
       using R = std::remove_cvref_t<Ref>;
-      static_assert(std::is_nothrow_constructible_v<R, Ref> == Nothrow);
+      static_assert(not Extension || std::is_nothrow_constructible_v<R, Ref> == Nothrow);
       constexpr auto read_result = [](R const &result) {
         if constexpr (Recover)
           return result.error().value;
@@ -6075,6 +6075,10 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
   {
     SECTION("and_then")
     {
+#if !defined(PFN_TEST_NESTED) || defined(PFN_TEST_VALIDATION)
+      SECTION("result references") { check_monadic_result_references<expected<void, int>, false, extension>(); }
+      SECTION("immovable prvalue") { check_monadic_prvalue<expected<void, int>, false, extension>(); }
+#endif
       SECTION("constructibility constraints")
       {
         using O = expected<void, monadic_move_only>;
@@ -6189,6 +6193,10 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
     SECTION("or_else")
     {
+#if !defined(PFN_TEST_NESTED) || defined(PFN_TEST_VALIDATION)
+      SECTION("result references") { check_monadic_result_references<expected<void, int>, true, extension>(); }
+      SECTION("immovable prvalue") { check_monadic_prvalue<expected<void, int>, true, extension>(); }
+#endif
       SECTION("immovable error")
       {
         using O = expected<void, helper_immovable>;

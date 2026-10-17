@@ -2,6 +2,12 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## Void expected monadic noexcept includes callback-result construction — 17 October 2026
+
+The void specialization of `pfn::expected` includes callback-result construction in the conditional `noexcept` of `and_then` and `or_else`. `and_then` also retains its error-construction check. `or_else` has no unchanged value to construct. Throwing copies and moves of reference-returned results propagate, and immovable prvalues retain guaranteed copy elision.
+
+Tests exercise all source cv/ref categories, reference-result copies and moves, and prvalues for both operations. No `fn` wrapper is changed.
+
 ## Object expected monadic noexcept includes callback-result construction — 17 October 2026
 
 For non-void `pfn::expected<T, E>`, `and_then` and `or_else` include copying or moving a callback result returned by reference in their conditional `noexcept`. They retain the check for constructing the unchanged error or value. Throwing result construction propagates; immovable prvalue results remain supported through guaranteed copy elision. Constraints and invalid-callback diagnostics are unchanged.
