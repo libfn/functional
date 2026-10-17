@@ -102,6 +102,93 @@ template <typename R> struct ref_qualified_callback {
   constexpr R operator()(int value) && { return value + 1; }
 };
 
+// Result-construction noexcept tests exclude the fn wrappers, whose fixes are separate work (#436).
+struct monadic_result_error {};
+
+template <bool CopyNoexcept, bool MoveNoexcept> struct monadic_result {
+  int value;
+  bool fail;
+  constexpr explicit monadic_result(int v, bool throws = false) noexcept : value(v), fail(throws) {}
+  constexpr monadic_result(monadic_result const &other) noexcept(CopyNoexcept) : value(other.value), fail(other.fail)
+  {
+    if constexpr (not CopyNoexcept)
+      if (fail)
+        throw monadic_result_error{};
+  }
+  constexpr monadic_result(monadic_result &&other) noexcept(MoveNoexcept) : value(other.value), fail(other.fail)
+  {
+    if constexpr (not MoveNoexcept)
+      if (fail)
+        throw monadic_result_error{};
+  }
+};
+
+template <class O, bool Extension> void check_and_then_result_references()
+{
+  auto check_source = []<class S> {
+    auto check_result = []<class Ref, bool Nothrow> {
+      using R = std::remove_cvref_t<Ref>;
+      static_assert(not Extension || std::is_nothrow_constructible_v<R, Ref> == Nothrow);
+      constexpr auto succeeds = [] {
+        int value = 1;
+        O source(value);
+        O empty;
+        R returned(std::in_place, 7);
+        auto fn = [&returned](auto &&) noexcept -> Ref { return static_cast<Ref>(returned); };
+        static_assert(not Extension || noexcept(std::declval<S>().and_then(fn)) == Nothrow);
+        auto result = static_cast<S>(source).and_then(fn);
+        return result && result->value == 7 && source && *source == 1 && returned->value == 7
+               && not static_cast<S>(empty).and_then(fn);
+      };
+      static_assert(succeeds());
+      CHECK(succeeds());
+      if constexpr (not Nothrow) {
+        int value = 1;
+        O source(value);
+        O empty;
+        R returned(std::in_place, 7, true);
+        auto fn = [&returned](auto &&) noexcept -> Ref { return static_cast<Ref>(returned); };
+        CHECK_THROWS_AS(static_cast<S>(source).and_then(fn), monadic_result_error);
+        CHECK(source.has_value());
+        CHECK(*source == 1);
+        CHECK(returned->value == 7);
+        CHECK(not static_cast<S>(empty).and_then(fn));
+      }
+    };
+    using Copy = optional<monadic_result<false, true>>;
+    using Move = optional<monadic_result<true, false>>;
+    check_result.template operator()<Copy &, false>();
+    check_result.template operator()<Copy const &, false>();
+    check_result.template operator()<Copy &&, true>();
+    check_result.template operator()<Copy const &&, false>();
+    check_result.template operator()<Move &, true>();
+    check_result.template operator()<Move &&, false>();
+  };
+  check_source.template operator()<O &>();
+  check_source.template operator()<O const &>();
+  check_source.template operator()<O &&>();
+  check_source.template operator()<O const &&>();
+}
+
+template <class O, bool Extension> void check_and_then_prvalue()
+{
+  constexpr auto check = [] {
+    int value = 1;
+    O source(value);
+    using R = optional<helper_immovable>;
+    static_assert(not std::is_copy_constructible_v<R> && not std::is_move_constructible_v<R>);
+    auto fn = [](auto &&) noexcept -> R { return R(std::in_place, helper_list_t{}, 7); };
+    auto cfn = [](auto &&) noexcept -> R const { return R(std::in_place, helper_list_t{}, 9); };
+    static_assert(not Extension || noexcept(source.and_then(fn)));
+    static_assert(not Extension || noexcept(source.and_then(cfn)));
+    auto result = source.and_then(fn);
+    auto const_result = std::move(source).and_then(cfn);
+    return result && result->v == 7 && const_result && const_result->v == 9;
+  };
+  static_assert(check());
+  CHECK(check());
+}
+
 } // namespace
 
 TEST_CASE("optional", "[optional][polyfill]")
@@ -1556,6 +1643,11 @@ TEST_CASE("optional", "[optional][polyfill]")
   {
     SECTION("and_then")
     {
+#if !defined(PFN_TEST_NESTED) || defined(PFN_TEST_VALIDATION)
+      SECTION("result references") { check_and_then_result_references<optional<int>, extension>(); }
+      SECTION("immovable prvalue") { check_and_then_prvalue<optional<int>, extension>(); }
+
+#endif
       SECTION("lvalue-only callback")
       {
         using F = lvalue_callback<optional<int>>;
@@ -1704,6 +1796,61 @@ TEST_CASE("optional", "[optional][polyfill]")
 
     SECTION("or_else")
     {
+#if !defined(PFN_TEST_NESTED) || defined(PFN_TEST_VALIDATION)
+      SECTION("result references")
+      {
+        auto check = []<bool CopyNoexcept, bool MoveNoexcept, bool MoveSource, bool MoveResult> {
+          using R = optional<monadic_result<CopyNoexcept, MoveNoexcept>>;
+          using S = std::conditional_t<MoveSource, R &&, R const &>;
+          using Ref = std::conditional_t<MoveResult, R &&, R const &>;
+          static_assert(not extension || std::is_nothrow_constructible_v<R, S>);
+          static_assert(not std::is_nothrow_constructible_v<R, Ref>);
+          constexpr auto succeeds = [] {
+            R empty;
+            R engaged(std::in_place, 3);
+            R returned(std::in_place, 7);
+            auto fn = [&returned]() noexcept -> Ref { return static_cast<Ref>(returned); };
+            static_assert(not extension || not noexcept(std::declval<S>().or_else(fn)));
+            auto result = static_cast<S>(empty).or_else(fn);
+            auto unchanged = static_cast<S>(engaged).or_else(fn);
+            return result && result->value == 7 && unchanged && unchanged->value == 3 && not empty
+                   && returned->value == 7;
+          };
+          static_assert(succeeds());
+          CHECK(succeeds());
+          R empty;
+          R engaged(std::in_place, 3);
+          R returned(std::in_place, 7, true);
+          auto fn = [&returned]() noexcept -> Ref { return static_cast<Ref>(returned); };
+          CHECK_THROWS_AS(static_cast<S>(empty).or_else(fn), monadic_result_error);
+          CHECK(not empty);
+          CHECK(returned->value == 7);
+          CHECK(static_cast<S>(engaged).or_else(fn)->value == 3);
+        };
+        check.template operator()<false, true, true, false>();
+        check.template operator()<true, false, false, true>();
+      }
+
+      SECTION("nothrow result references")
+      {
+        constexpr auto check = []<class S, class Ref> {
+          optional<int> source;
+          optional<int> returned(7);
+          auto fn = [&returned]() noexcept -> Ref { return static_cast<Ref>(returned); };
+          static_assert(not extension || noexcept(std::declval<S>().or_else(fn)));
+          return static_cast<S>(source).or_else(fn) == 7 && not source && returned == 7;
+        };
+        static_assert(check.template operator()<optional<int> &, optional<int> &>());
+        static_assert(check.template operator()<optional<int> const &, optional<int> const &>());
+        static_assert(check.template operator()<optional<int> &&, optional<int> &&>());
+        static_assert(check.template operator()<optional<int> const &&, optional<int> const &&>());
+        CHECK(check.template operator()<optional<int> &, optional<int> &>());
+        CHECK(check.template operator()<optional<int> const &, optional<int> const &>());
+        CHECK(check.template operator()<optional<int> &&, optional<int> &&>());
+        CHECK(check.template operator()<optional<int> const &&, optional<int> const &&>());
+      }
+
+#endif
       SECTION("engaged")
       {
         using T = optional<helper>;
@@ -2859,6 +3006,11 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
 
     SECTION("and_then")
     {
+#ifndef PFN_TEST_NESTED
+      SECTION("result references") { check_and_then_result_references<T, true>(); }
+      SECTION("immovable prvalue") { check_and_then_prvalue<T, true>(); }
+
+#endif
       int x = 5;
       T const a(std::in_place, x);
       T const e(std::nullopt);
@@ -2904,6 +3056,29 @@ TEST_CASE("optional reference", "[optional_ref][polyfill]")
 
     SECTION("or_else")
     {
+#ifndef PFN_TEST_NESTED
+      SECTION("result references")
+      {
+        constexpr auto check = []<class Ref> {
+          int value = 7;
+          T source;
+          T returned(value);
+          auto fn = [&returned]() noexcept -> Ref { return static_cast<Ref>(returned); };
+          static_assert(noexcept(source.or_else(fn)));
+          auto result = source.or_else(fn);
+          return result && &*result == &value && not source && &*returned == &value;
+        };
+        static_assert(check.template operator()<T &>());
+        static_assert(check.template operator()<T const &>());
+        static_assert(check.template operator()<T &&>());
+        static_assert(check.template operator()<T const &&>());
+        CHECK(check.template operator()<T &>());
+        CHECK(check.template operator()<T const &>());
+        CHECK(check.template operator()<T &&>());
+        CHECK(check.template operator()<T const &&>());
+      }
+
+#endif
       int x = 5;
       int y = 9;
       T const a(std::in_place, x);

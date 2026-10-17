@@ -2,6 +2,24 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## Void expected monadic noexcept includes callback-result construction — 17 October 2026
+
+The void specialization of `pfn::expected` includes callback-result construction in the conditional `noexcept` of `and_then` and `or_else`. `and_then` also retains its error-construction check. `or_else` has no unchanged value to construct. Throwing copies and moves of reference-returned results propagate, and immovable prvalues retain guaranteed copy elision.
+
+Tests exercise all source cv/ref categories, reference-result copies and moves, and prvalues for both operations. No `fn` wrapper is changed.
+
+## Object expected monadic noexcept includes callback-result construction — 17 October 2026
+
+For non-void `pfn::expected<T, E>`, `and_then` and `or_else` include copying or moving a callback result returned by reference in their conditional `noexcept`. They retain the check for constructing the unchanged error or value. Throwing result construction propagates; immovable prvalue results remain supported through guaranteed copy elision. Constraints and invalid-callback diagnostics are unchanged.
+
+Tests cover result-reference and source cv/ref categories, throwing copies and moves, non-throwing controls, and immovable prvalues.
+
+## Optional monadic noexcept includes callback-result construction — 17 October 2026
+
+`pfn::optional` accounts for constructing the returned optional in the conditional `noexcept` of `and_then` and `or_else`, for owning and reference specializations. A non-throwing callback can return a reference to an optional whose copy or move throws; that exception propagates instead of terminating. The specified constraints and invalid-callback diagnostics are unchanged. Prvalue results retain guaranteed copy elision, including immovable payloads.
+
+Tests cover throwing copies and moves, non-throwing reference results, and immovable prvalues. The `fn` monadic wrappers remain separate work.
+
 ## Void expected monadic overloads follow the draft — 17 October 2026
 
 The void specialization of `pfn::expected` uses body-deduced `auto` returns for all four monadic operations. `and_then` and `transform` retain their error-construction constraints; `or_else` and `transform_error` have no constructibility constraint. Invalid callbacks cause hard errors instead of disappearing through the helper's trailing return type.
