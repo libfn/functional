@@ -70,6 +70,141 @@ concept has_transform = requires(O &&o, F &&f) { std::forward<O>(o).transform(st
 template <class O, class F>
 concept has_transform_error = requires(O &&o, F &&f) { std::forward<O>(o).transform_error(std::forward<F>(f)); };
 
+// Result-construction noexcept tests exclude the fn wrappers, whose fixes are separate work (#436).
+struct monadic_result_error {};
+
+template <bool CopyNoexcept, bool MoveNoexcept> struct monadic_result {
+  int value;
+  bool fail;
+  constexpr explicit monadic_result(int v, bool throws = false) noexcept : value(v), fail(throws) {}
+  constexpr monadic_result(monadic_result const &other) noexcept(CopyNoexcept) : value(other.value), fail(other.fail)
+  {
+    if constexpr (not CopyNoexcept)
+      if (fail)
+        throw monadic_result_error{};
+  }
+  constexpr monadic_result(monadic_result &&other) noexcept(MoveNoexcept) : value(other.value), fail(other.fail)
+  {
+    if constexpr (not MoveNoexcept)
+      if (fail)
+        throw monadic_result_error{};
+  }
+};
+
+template <bool Recover, class S, class F>
+  requires(not Recover)
+constexpr auto monadic_operation(S &&source,
+                                 F &&fn) noexcept(noexcept(std::forward<S>(source).and_then(std::forward<F>(fn))))
+{
+  return std::forward<S>(source).and_then(std::forward<F>(fn));
+}
+
+template <bool Recover, class S, class F>
+  requires Recover
+constexpr auto monadic_operation(S &&source,
+                                 F &&fn) noexcept(noexcept(std::forward<S>(source).or_else(std::forward<F>(fn))))
+{
+  return std::forward<S>(source).or_else(std::forward<F>(fn));
+}
+
+template <bool Error, class R, class... Args> constexpr R make_monadic_result(Args &&...args)
+{
+  if constexpr (Error)
+    return R(unexpect, std::forward<Args>(args)...);
+  else
+    return R(std::in_place, std::forward<Args>(args)...);
+}
+
+template <class O, bool Recover, bool Extension> void check_monadic_result_references()
+{
+  auto check_source = []<class S> {
+    auto check_result = []<class Ref, bool Nothrow> {
+      using R = std::remove_cvref_t<Ref>;
+      static_assert(std::is_nothrow_constructible_v<R, Ref> == Nothrow);
+      constexpr auto read_result = [](R const &result) {
+        if constexpr (Recover)
+          return result.error().value;
+        else
+          return result->value;
+      };
+      constexpr auto make_source = []<bool Active> {
+        if constexpr (Recover == Active)
+          return O(unexpect, 5);
+        else
+          return O();
+      };
+      constexpr auto succeeds = [=] {
+        O source = make_source.template operator()<true>();
+        O bypass = make_source.template operator()<false>();
+        R returned = make_monadic_result<Recover, R>(7);
+        auto fn = [&returned](auto &&...) noexcept -> Ref { return static_cast<Ref>(returned); };
+        static_assert(not Extension || noexcept(monadic_operation<Recover>(std::declval<S>(), fn)) == Nothrow);
+        auto result = monadic_operation<Recover>(static_cast<S>(source), fn);
+        auto unchanged = monadic_operation<Recover>(static_cast<S>(bypass), fn);
+        return result.has_value() == not Recover && read_result(result) == 7 && read_result(returned) == 7
+               && source.has_value() == not Recover && unchanged.has_value() == Recover;
+      };
+      static_assert(succeeds());
+      CHECK(succeeds());
+      if constexpr (not Nothrow) {
+        O source = make_source.template operator()<true>();
+        O bypass = make_source.template operator()<false>();
+        R returned = make_monadic_result<Recover, R>(7, true);
+        auto fn = [&returned](auto &&...) noexcept -> Ref { return static_cast<Ref>(returned); };
+        CHECK_THROWS_AS(monadic_operation<Recover>(static_cast<S>(source), fn), monadic_result_error);
+        CHECK(source.has_value() == not Recover);
+        if constexpr (Recover)
+          CHECK(source.error() == 5);
+        else if constexpr (not std::is_void_v<typename O::value_type>)
+          CHECK(*source == 0);
+        CHECK(read_result(returned) == 7);
+        CHECK(monadic_operation<Recover>(static_cast<S>(bypass), fn).has_value() == Recover);
+      }
+    };
+    using Copy = std::conditional_t<Recover, expected<typename O::value_type, monadic_result<false, true>>,
+                                    expected<monadic_result<false, true>, int>>;
+    using Move = std::conditional_t<Recover, expected<typename O::value_type, monadic_result<true, false>>,
+                                    expected<monadic_result<true, false>, int>>;
+    check_result.template operator()<Copy &, false>();
+    check_result.template operator()<Copy const &, false>();
+    check_result.template operator()<Copy &&, true>();
+    check_result.template operator()<Copy const &&, false>();
+    check_result.template operator()<Move &, true>();
+    check_result.template operator()<Move &&, false>();
+  };
+  check_source.template operator()<O &>();
+  check_source.template operator()<O const &>();
+  check_source.template operator()<O &&>();
+  check_source.template operator()<O const &&>();
+}
+
+template <class O, bool Recover, bool Extension> void check_monadic_prvalue()
+{
+  constexpr auto check = [] {
+    using R = std::conditional_t<Recover, expected<typename O::value_type, helper_immovable>,
+                                 expected<helper_immovable, int>>;
+    static_assert(not std::is_copy_constructible_v<R> && not std::is_move_constructible_v<R>);
+    O source = [] {
+      if constexpr (Recover)
+        return O(unexpect, 5);
+      else
+        return O();
+    }();
+    auto fn = [](auto &&...) noexcept -> R { return make_monadic_result<Recover, R>(helper_list_t{}, 7); };
+    auto cfn = [](auto &&...) noexcept -> R const { return make_monadic_result<Recover, R>(helper_list_t{}, 9); };
+    static_assert(not Extension || noexcept(monadic_operation<Recover>(source, fn)));
+    static_assert(not Extension || noexcept(monadic_operation<Recover>(source, cfn)));
+    auto result = monadic_operation<Recover>(source, fn);
+    auto const_result = monadic_operation<Recover>(std::move(source), cfn);
+    if constexpr (Recover)
+      return not result && result.error().v == 7 && not const_result && const_result.error().v == 9;
+    else
+      return result && result->v == 7 && const_result && const_result->v == 9;
+  };
+  static_assert(check());
+  CHECK(check());
+}
+
 } // namespace
 
 TEST_CASE("bad_expected_access", "[expected][polyfill][bad_expected_access]")
@@ -3409,6 +3544,10 @@ TEST_CASE("expected non void", "[expected][polyfill]")
   {
     SECTION("and_then")
     {
+#if !defined(PFN_TEST_NESTED) || defined(PFN_TEST_VALIDATION)
+      SECTION("result references") { check_monadic_result_references<expected<int, int>, false, extension>(); }
+      SECTION("immovable prvalue") { check_monadic_prvalue<expected<int, int>, false, extension>(); }
+#endif
       SECTION("constructibility constraints")
       {
         using O = expected<int, monadic_move_only>;
@@ -3540,6 +3679,10 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
     SECTION("or_else")
     {
+#if !defined(PFN_TEST_NESTED) || defined(PFN_TEST_VALIDATION)
+      SECTION("result references") { check_monadic_result_references<expected<int, int>, true, extension>(); }
+      SECTION("immovable prvalue") { check_monadic_prvalue<expected<int, int>, true, extension>(); }
+#endif
       SECTION("constructibility constraints")
       {
         using O = expected<monadic_move_only, int>;
