@@ -1076,6 +1076,8 @@ Every `fn` type with a `pfn` counterpart is a strict superset of it: switching a
 
 For an owning `pfn::optional<T>`, `transform` and `and_then` pass the payload with the source's cv/ref category. If the callback cannot accept that argument, the call is ill-formed; another cv/ref member overload is not a fallback. An `optional<T&>` passes its referent as `T&`, including through a temporary wrapper. Reference `and_then` also produces a hard error for an invalid invocation. Reference `transform` instead substitutes its explicit result type, so a non-invocable callback removes it from overload resolution. Both optional specializations constrain `or_else` on callback invocability; the owning specialization additionally requires copy or move construction for its respective overload. These rejection rules describe the `pfn` interface.
 
+For non-void `pfn::expected<T, E>`, the monadic members constrain construction of the unchanged side: `E` for `and_then` and `transform`, `T` for `or_else` and `transform_error`. These constraints can remove an overload and permit copying through another cv/ref overload. Once an overload is selected, an invalid callback is a hard error, including in a dependent `requires`-expression.
+
 ## Functional terminology
 
 For readers with a background in functional languages (like Haskell or OCaml), this table translates standard terminology to `libfn`'s C++ vocabulary:
