@@ -54,6 +54,12 @@ struct EfnLvalueOnly {
   constexpr auto operator()(auto const &) & noexcept -> std::nullopt_t { return std::nullopt; }
   auto operator()(auto const &) && -> std::nullopt_t = delete;
 };
+
+struct CopyThrows final {
+  CopyThrows() = default;
+  CopyThrows(CopyThrows const &) noexcept(false) {}
+  CopyThrows(CopyThrows &&) noexcept = default;
+};
 } // namespace
 
 namespace {
@@ -245,6 +251,25 @@ TEST_CASE("operator &", "[pack][copack][operator_and]")
   static_assert(r2.apply([](auto &&...args) -> double { return (1 * ... * static_cast<double>(args)); })
                 == 12. * 3 * 2.5 * 0.5 * 1 * 1.5 * 12);
 
+  // every scalar is held by value, the leading one too; a reference enters only through a lift
+  int x = 12;
+  double d = 2.5;
+  static_assert(std::is_same_v<decltype(fn::conjoin(x, d)), fn::pack<int, double>>);
+  static_assert(std::is_same_v<decltype(fn::as_pack(x) & d), fn::pack<int &, double>>);
+  auto const held = fn::conjoin(x, d);
+  auto const lifted = fn::as_pack(x) & d;
+  x += 1;
+  CHECK(fn::get<0>(held) == 12);
+  CHECK(fn::get<0>(lifted) == 13);
+  static_assert([] {
+    int y = 12;
+    double e = 2.5;
+    auto const h = fn::conjoin(y, e);
+    auto const l = fn::as_pack(y) & e;
+    y += 1;
+    return fn::get<0>(h) == 12 && fn::get<0>(l) == 13;
+  }());
+
   constexpr auto r3 = fn::as_copack(12) & fn::pack<std::tuple<int, int>>{std::tuple{1, 2}};
   static_assert(std::is_same_v<decltype(r3), fn::copack<fn::pack<int, std::tuple<int, int>>> const>);
   static_assert(r3.apply([](int i, std::tuple<int, int> const &t) { return i == 12 && std::get<0>(t) == 1; }));
@@ -266,6 +291,30 @@ TEST_CASE("operator &", "[pack][copack][operator_and]")
     CHECK(held() == 7);
   }
 
+  SECTION("a reference alternative stays a reference element")
+  {
+    // the product holds what the alternative holds, as a lifted lvalue does in as_pack; the factor is
+    // the alternative's type, so a const copack contributes the same reference
+    constexpr auto battery = [] {
+      int x = 1;
+      auto r = fn::copack<int &>{x} & fn::pack<long>{2};
+      static_assert(std::is_same_v<decltype(r), fn::copack<fn::pack<int &, long>>>);
+      auto l = fn::pack<long>{2} & fn::copack<int &>{x};
+      static_assert(std::is_same_v<decltype(l), fn::copack<fn::pack<long, int &>>>);
+      fn::copack<int &> const c{x};
+      auto rc = c & fn::pack<long>{2};
+      auto lc = fn::pack<long>{2} & c;
+      auto cc = c & c;
+      static_assert(std::is_same_v<decltype(rc), fn::copack<fn::pack<int &, long>>>);
+      static_assert(std::is_same_v<decltype(lc), fn::copack<fn::pack<long, int &>>>);
+      static_assert(std::is_same_v<decltype(cc), fn::copack<fn::pack<int &, int &>>>);
+      return &fn::get<0>(fn::get(r)) == &x && &fn::get<1>(fn::get(l)) == &x && &fn::get<0>(fn::get(rc)) == &x
+             && &fn::get<1>(fn::get(lc)) == &x && &fn::get<1>(fn::get(cc)) == &x;
+    };
+    static_assert(battery());
+    CHECK(battery());
+  }
+
   SECTION("the data fold takes data, never a carrier")
   {
     constexpr auto can = [](auto &&...args) { return requires { fn::conjoin(FWD(args)...); }; };
@@ -278,7 +327,7 @@ TEST_CASE("operator &", "[pack][copack][operator_and]")
     static_assert(not can(fn::as_copack(12), fn::optional<int>{1}));
     static_assert(not can(fn::choice<int>{1}, 2));
     static_assert(can(fn::expected<int, bool>{1}));
-    static_assert(fn::conjoin(fn::expected<int, bool>{1}) == fn::expected<int, bool>{1});
+    static_assert(fn::conjoin(fn::expected<int, bool>{1}) == fn::expected<fn::pack<int>, bool>{fn::pack{1}});
     SUCCEED();
   }
 
@@ -314,6 +363,74 @@ TEST_CASE("operator &", "[pack][copack][operator_and]")
     static_assert(not can(fn::optional<int>{1}, fn::expected<int, bool>{1}));
     SUCCEED();
   }
+
+  SECTION("a single argument meets the unit of its kind")
+  {
+    SECTION("data")
+    {
+      static_assert(std::is_same_v<decltype(fn::conjoin(std::declval<int &>())), fn::pack<int>>);
+      static_assert(std::is_same_v<decltype(fn::conjoin(std::declval<int>())), fn::pack<int>>);
+      static_assert(
+          std::is_same_v<decltype(fn::conjoin(std::declval<fn::pack<int, double> &>())), fn::pack<int, double>>);
+      static_assert(std::is_same_v<decltype(fn::conjoin(std::declval<fn::pack<> const &>())), fn::pack<>>);
+      static_assert(std::is_same_v<decltype(fn::conjoin(std::declval<fn::copack_for<Alef, Bet>>())),
+                                   fn::copack_for<fn::pack<Alef>, fn::pack<Bet>>>);
+
+      constexpr auto battery = [] {
+        // the result is a value of the shape every longer fold has, so a field is reached alike
+        constexpr auto first = [](auto &&...args) { return fn::get<0>(fn::conjoin(FWD(args)...)); };
+        int x = 12;
+        auto const held = fn::conjoin(x);
+        x += 1;
+        return fn::get<0>(held) == 12 && first(x) == 13 && first(x, 2.5) == 13
+               && fn::conjoin(fn::copack_for<Alef, Bet>{Bet{3}}).apply([](auto v) {
+                    return std::same_as<decltype(v), Bet> ? v.value : -1;
+                  }) == 3;
+      };
+      static_assert(battery());
+      CHECK(battery());
+    }
+
+    SECTION("carriers")
+    {
+      enum Error : int { Bad };
+      using O = fn::optional<int>;
+      using E = fn::expected<int, Error>;
+      using EV = fn::expected<void, Error>;
+      using C = fn::choice_for<Alef, Bet>;
+      static_assert(std::is_same_v<decltype(fn::conjoin(std::declval<O &>())), fn::optional<fn::pack<int>>>);
+      static_assert(
+          std::is_same_v<decltype(fn::conjoin(std::declval<fn::optional<int &>>())), fn::optional<fn::pack<int &>>>);
+      static_assert(std::is_same_v<decltype(fn::conjoin(std::declval<E>())), fn::expected<fn::pack<int>, Error>>);
+      static_assert(std::is_same_v<decltype(fn::conjoin(std::declval<fn::expected<int, fn::copack<>>>())),
+                                   fn::expected<fn::pack<int>, fn::copack<>>>);
+      static_assert(std::is_same_v<decltype(fn::conjoin(std::declval<EV const &>())), EV>);
+      static_assert(std::is_same_v<decltype(fn::conjoin(std::declval<fn::just<int>>())), fn::just<fn::pack<int>>>);
+      static_assert(std::is_same_v<decltype(fn::conjoin(std::declval<fn::just<void>>())), fn::just<void>>);
+      static_assert(
+          std::is_same_v<decltype(fn::conjoin(std::declval<C &>())), fn::choice_for<fn::pack<Alef>, fn::pack<Bet>>>);
+
+      constexpr auto battery = [] {
+        int x = 12;
+        auto const r = fn::conjoin(fn::optional<int &>{x});
+        return &fn::get<0>(r.value()) == &x && fn::get<0>(fn::conjoin(O{3}).value()) == 3
+               && fn::get<0>(fn::conjoin(O{3}, O{4}).value()) == 3 && not fn::conjoin(O{}).has_value()
+               && fn::conjoin(E{fn::unexpect, Bad}).error() == Bad && fn::conjoin(EV{}).has_value()
+               && fn::conjoin(C{Bet{4}}).value().apply([](auto v) {
+                    return std::same_as<decltype(v), Bet> ? v.value : -1;
+                  }) == 4;
+      };
+      static_assert(battery());
+      CHECK(battery());
+    }
+
+    SECTION("noexcept")
+    {
+      static_assert(noexcept(fn::conjoin(std::declval<fn::optional<CopyThrows>>())));
+      static_assert(not noexcept(fn::conjoin(std::declval<fn::optional<CopyThrows> &>())));
+      SUCCEED();
+    }
+  }
 }
 
 TEST_CASE("disjoin", "[disjoin][pack][expected][just]")
@@ -325,6 +442,11 @@ TEST_CASE("disjoin", "[disjoin][pack][expected][just]")
   static_assert(std::same_as<decltype(fn::disjoin(std::declval<EA>(), std::declval<EB>())),
                              decltype(std::declval<EA>() | std::declval<EB>())>);
   static_assert(fn::disjoin(EA{1}) == EA{1});
+  // a single carrier is returned by value, never as a reference to the argument
+  static_assert(std::same_as<decltype(fn::disjoin(std::declval<EA &>())), EA>);
+  static_assert(std::same_as<decltype(fn::disjoin(std::declval<EA const &&>())), EA>);
+  static_assert(noexcept(fn::disjoin(std::declval<fn::optional<CopyThrows>>())));
+  static_assert(not noexcept(fn::disjoin(std::declval<fn::optional<CopyThrows> &>())));
   static_assert(fn::disjoin(EA{::fn::unexpect, FileNotFound}, EB{true}) == fn::copack{true});
   static_assert(
       fn::disjoin(fn::just<void>{}, fn::just<void>{}, fn::just<int>{7}).apply([]([[maybe_unused]] auto &&...args) {

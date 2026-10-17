@@ -27,9 +27,19 @@ namespace detail {
 // from noexcept calculations for folding and result construction.
 template <typename Monad> using _value_of_t = decltype(::std::declval<Monad>().value());
 
+// What a carrier's value side contributes to conjunction and disjunction: its value type, or the
+// reference itself for a carrier of an lvalue reference
+template <typename C> struct _payload {
+  using type = typename C::value_type;
+};
+template <template <typename> typename Tpl, typename T> struct _payload<Tpl<T &>> {
+  using type = T &;
+};
+template <typename C> using _payload_t = typename _payload<::std::remove_cvref_t<C>>::type;
+
 template <typename Monad>
 using _factor_t = ::std::conditional_t<::std::is_void_v<typename ::std::remove_cvref_t<Monad>::value_type>,
-                                       ::fn::pack<>, typename ::std::remove_cvref_t<Monad>::value_type>;
+                                       ::fn::pack<>, _payload_t<Monad>>;
 template <typename Monad>
 using _factor_of_t = ::std::conditional_t<::std::is_void_v<typename ::std::remove_cvref_t<Monad>::value_type>,
                                           ::fn::pack<>, _value_of_t<Monad>>;
@@ -77,18 +87,21 @@ template <template <typename> typename Tpl, typename Lh, typename Rh, typename E
 constexpr inline bool _nothrow_join = _nothrow_join_arm<_uninhabited_join<Lh, Rh>, Tpl, Lh, Rh, Efn>::value;
 
 template <typename Lh, typename Rh>
-using _disjoined_t = copack_for<_sum_element_t<typename ::std::remove_cvref_t<Lh>::value_type>,
-                                _sum_element_t<typename ::std::remove_cvref_t<Rh>::value_type>>;
+using _disjoined_t = copack_for<_sum_element_t<_payload_t<Lh>>, _sum_element_t<_payload_t<Rh>>>;
+
+// A side's value enters the sum as its own alternative, named by type: by value, an lvalue `int`
+// would be ambiguous between the alternatives `int` and `int&`
+template <typename Side> using _disj_tag_t = ::std::in_place_type_t<_sum_element_t<_payload_t<Side>>>;
 
 template <typename T> constexpr inline bool _dead_value = empty_copack<typename ::std::remove_cvref_t<T>::value_type>;
 
 // Uninhabited values cannot reach the injection arm.
-template <bool Dead, typename Type, typename Side> struct _nothrow_disj_inject {
+template <bool Dead, typename Type, typename Side, typename... Tag> struct _nothrow_disj_inject {
   static constexpr bool value = true;
 };
-template <typename Type, typename Side> struct _nothrow_disj_inject<false, Type, Side> {
+template <typename Type, typename Side, typename... Tag> struct _nothrow_disj_inject<false, Type, Side, Tag...> {
   static constexpr bool value
-      = _nothrow_initializable<Type, ::std::in_place_t, decltype(::std::declval<Side>().value())>;
+      = _nothrow_initializable<Type, ::std::in_place_t, Tag..., decltype(::std::declval<Side>().value())>;
 };
 
 template <template <typename> typename Tpl>
@@ -146,21 +159,45 @@ concept _no_carrier = (... && (not some_monadic_type<Ts>));
 
 template <typename... Ts>
 concept _all_carriers = (... && some_monadic_type<Ts>);
+
+// The unit of the carrier conjunction, of the carrier's own kind, so that the carrier's header
+// completes it
+template <typename C> struct _conjoin_unit {
+  using type = ::fn::just<void>;
+};
+template <typename T> struct _conjoin_unit<::fn::optional<T>> {
+  using type = ::fn::optional<::fn::pack<>>;
+};
+template <typename T, typename E> struct _conjoin_unit<::fn::expected<T, E>> {
+  using type = ::fn::expected<void, E>;
+};
+template <typename C> using _conjoin_unit_t = typename _conjoin_unit<::std::remove_cvref_t<C>>::type;
 } // namespace detail
 
 /**
- * @brief The n-ary fold of `operator &` above; a single argument is forwarded unchanged
+ * @brief The n-ary fold of `operator &` above, starting from its unit
  *
- * Arguments must be all carriers or all data. Data forms a product, with a leading scalar
- * lifted into a `pack`; carriers compose through their `operator &`.
+ * Arguments must be all carriers or all data. Data forms a product, every scalar held by value
+ * as `operator &` holds it; carriers compose through their `operator &`. A single argument meets
+ * the unit alone, which normalizes it: a scalar becomes a `pack`, each `copack` alternative a
+ * `pack`, and a carrier's value likewise, while a `void` value stays `void`.
  */
 constexpr inline struct conjoin_t {
   /**
-   * @brief Forwards a single argument unchanged
-   * @param arg The argument
-   * @return The argument, forwarded
+   * @brief Conjoins a single carrier with the unit of its kind
+   *
+   * The unit is `just<void>` for `just` and `choice`, `expected<void, E>` for `expected<T, E>`,
+   * and an engaged `optional<pack<>>` for `optional`.
+   *
+   * @param arg The carrier
+   * @return The carrier with its value normalized
    */
-  template <typename Arg> [[nodiscard]] constexpr auto operator()(Arg &&arg) const -> decltype(arg) { return FWD(arg); }
+  template <some_monadic_type Arg>
+  [[nodiscard]] constexpr auto operator()(Arg &&arg) const //
+      noexcept(noexcept(detail::_conjoin_unit_t<Arg>{::std::in_place} & FWD(arg)))
+  {
+    return detail::_conjoin_unit_t<Arg>{::std::in_place} & FWD(arg);
+  }
 
   /**
    * @brief Folds data into a product, or carriers into their conjunction
@@ -180,7 +217,7 @@ constexpr inline struct conjoin_t {
     requires(some_copack<Arg> || some_pack<Arg>) && detail::_no_carrier<Args...>
   [[nodiscard]] constexpr auto operator()(Arg &&arg, Args &&...args) const
   {
-    return (FWD(arg) & ... & FWD(args));
+    return ((::fn::pack<>{} & FWD(arg)) & ... & FWD(args));
   }
 
   template <typename Arg, typename... Args>
@@ -195,18 +232,20 @@ constexpr inline struct conjoin_t {
 
 /**
  * @brief The n-ary fold of the disjunction `operator |` over the monadic carriers; a single
- *        argument is forwarded unchanged
+ *        carrier is returned by value
  *
  * Carriers only, in every arity - disjunction has no data-level form. An identity-cluster operand
  * makes the whole disjunction total, folding the result into `just` or `choice`.
  */
 constexpr inline struct disjoin_t {
   /**
-   * @brief Forwards a single carrier unchanged
+   * @brief Returns a single carrier by value
    * @param arg The carrier
-   * @return The carrier, forwarded
+   * @return A copy of the carrier, or the carrier moved
    */
-  template <some_monadic_type Arg> [[nodiscard]] constexpr auto operator()(Arg &&arg) const -> decltype(arg)
+  template <some_monadic_type Arg>
+  [[nodiscard]] constexpr auto operator()(Arg &&arg) const
+      noexcept(::std::is_nothrow_constructible_v<::std::remove_cvref_t<Arg>, Arg>) -> ::std::remove_cvref_t<Arg>
   {
     return FWD(arg);
   }
