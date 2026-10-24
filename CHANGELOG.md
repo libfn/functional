@@ -2,6 +2,10 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## Pipeline `transform` and `transform_error` ask the payload, not the member — 24 October 2026
+
+`fn::applicable_transform` and `fn::applicable_transform_error` decide a `choice`, a copack-valued `optional` or `expected`, and a copack error side from the payload in the operand's own cv/ref category, rather than by probing the member `transform`. The probe let the member's `const &` overload take a temporary operand: a callback refusing an rvalue answered `true` and then received an lvalue into the temporary. A reference result into a temporary operand also answered `true`, and failed only on instantiation. Both now answer `false`. A callback arm taking `auto &` no longer accepts a temporary operand's alternatives; `auto const &` does.
+
 ## Void expected monadic noexcept includes callback-result construction — 17 October 2026
 
 The void specialization of `pfn::expected` includes callback-result construction in the conditional `noexcept` of `and_then` and `or_else`. `and_then` also retains its error-construction check. `or_else` has no unchanged value to construct. Throwing copies and moves of reference-returned results propagate, and immovable prvalues retain guaranteed copy elision.

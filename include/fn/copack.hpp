@@ -244,6 +244,30 @@ template <typename To, typename Data, typename Fn, typename... Args>
                                                                FWD(args)...);
 }
 
+// The result type of copack::transform on Cp. Substitution fails cleanly for any other Cp: MSVC
+// substitutes into a candidate's return type before checking its constraints, where a non-copack
+// would instantiate _copack_apply_result with an undefined base.
+template <typename Fn, typename Cp, typename... Args> struct _copack_transform {};
+template <typename Fn, typename Cp, typename... Args>
+  requires _some_copack<::std::remove_cvref_t<Cp>>
+           && requires { typename _copack_apply_result<_collapsing_copack_tag, Fn &&, Cp &&, Args &&...>::type; }
+struct _copack_transform<Fn, Cp, Args...> {
+  using type = _copack_apply_result<_collapsing_copack_tag, Fn &&, Cp &&, Args &&...>::type;
+};
+template <typename Fn, typename Cp, typename... Args>
+using _copack_transform_t = _copack_transform<Fn, Cp, Args...>::type;
+
+// Everything copack::transform requires of a call on Cp, which it asserts rather than constrains on;
+// a pipe gate has no other overload to fall back to, so it may ask this instead of probing the member.
+// The empty copack has no transform.
+template <typename Fn, typename Cp, typename... Args>
+concept _copack_transformable
+    = (not empty_copack<Cp>)
+      && _typelist_applicable<Fn, Cp, Args &&...> && requires { typename _copack_transform_t<Fn, Cp, Args...>; }
+      && _typelist_applicable_r<_copack_transform_t<Fn, Cp, Args...>,
+                                _copack_admission<_copack_transform_t<Fn, Cp, Args...>, Fn &&>, Cp &&, Args &&...>
+      && _admissible_results<Fn &&, Cp &&, ::std::remove_cvref_t<Cp>, Args &&...>;
+
 struct _joining_superset_tag final {};
 
 // Bind joins the payloads of just results. A choice contributes its alternatives, an ordinary

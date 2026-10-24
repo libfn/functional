@@ -7,6 +7,7 @@
 #define INCLUDE_FN_TRANSFORM_ERROR
 
 #include <fn/concepts.hpp>
+#include <fn/copack.hpp>
 #include <fn/functional.hpp>
 #include <fn/functor.hpp>
 #include <libfn_version.hpp>
@@ -25,10 +26,10 @@ template <typename Fn, typename V>
 concept applicable_transform_error //
     = (some_expected<V> && (not some_copack<typename ::std::remove_cvref_t<V>::error_type>) && requires(Fn &&fn, V &&v) {
         { ::fn::apply(FWD(fn), FWD(v).error()) } -> convertible_to_unexpected;
-      }) || (some_expected<V> && some_copack<typename ::std::remove_cvref_t<V>::error_type> && requires(Fn &&fn, V &&v) {
-        {
-          FWD(v).error().transform(FWD(fn))
-        } -> convertible_to_expected<typename ::std::remove_cvref_t<decltype(v)>::error_type>;
+      }) || (some_expected<V> && some_copack<typename ::std::remove_cvref_t<V>::error_type> && requires(V &&v) {
+        requires detail::_copack_transformable<Fn, decltype(FWD(v).error())>;
+        requires convertible_to_expected<detail::_copack_transform_t<Fn, decltype(FWD(v).error())>,
+                                         typename ::std::remove_cvref_t<V>::error_type>;
       });
 
 /**
