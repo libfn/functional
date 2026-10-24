@@ -864,17 +864,20 @@ TEST_CASE("optional disjunction", "[optional][operator_or][copack]")
       }
       constexpr Boom(Boom &&) noexcept = default;
     };
-    fn::optional<Boom> lh{std::in_place, Boom{1}};
-    fn::optional<bool> rh{};
-    CHECK_THROWS_AS(lh | rh, int);
-    CHECK(lh.value().fuse == 1); // unchanged
+    fn::optional<Boom> boom{std::in_place, Boom{1}};
+    fn::optional<bool> none{};
+    CHECK_THROWS_AS(boom | none, int);
+    CHECK(boom.value().fuse == 1); // unchanged
+    CHECK_THROWS_AS(none | boom, int);
+    CHECK(boom.value().fuse == 1); // unchanged
 
     fn::optional<Boom> good{std::in_place, Boom{99}};
-    CHECK((good | rh).value().has_value(std::in_place_type<Boom>));
+    CHECK((good | none).value().has_value(std::in_place_type<Boom>));
+    CHECK((none | good).value().has_value(std::in_place_type<Boom>));
     static_assert([] {
       fn::optional<Boom> g{std::in_place, Boom{99}};
-      fn::optional<bool> r{};
-      return (g | r).value().has_value(std::in_place_type<Boom>);
+      fn::optional<bool> n{};
+      return (g | n).value().has_value(std::in_place_type<Boom>) && (n | g).value().has_value(std::in_place_type<Boom>);
     }());
   }
 }

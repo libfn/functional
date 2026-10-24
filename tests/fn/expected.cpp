@@ -3073,6 +3073,25 @@ TEST_CASE("expected disjunction", "[expected][operator_or][graded][copack]")
       EB r{::fn::unexpect, Oops};
       return (g | r).error().apply([](Boom const &b, OtherError o) { return b.fuse == 98 && o == Oops; });
     }());
+
+    // likewise for the engaged side's value, copied into the value sum from either side
+    using EV = fn::expected<Boom, Error>;
+    EV boom{std::in_place, Boom{1}};
+    EA const failed{::fn::unexpect, FileNotFound};
+    CHECK_THROWS_AS(boom | rh, int);
+    CHECK(boom.value().fuse == 1); // unchanged
+    CHECK_THROWS_AS(failed | boom, int);
+    CHECK(boom.value().fuse == 1); // unchanged
+
+    EV good_value{std::in_place, Boom{99}};
+    CHECK((good_value | rh)->get_ptr<Boom>()->fuse == 98);
+    CHECK((failed | good_value)->get_ptr<Boom>()->fuse == 98);
+    static_assert([] {
+      EV g{std::in_place, Boom{99}};
+      EB r{::fn::unexpect, Oops};
+      EA const f{::fn::unexpect, FileNotFound};
+      return (g | r)->get_ptr<Boom>()->fuse == 98 && (f | g)->get_ptr<Boom>()->fuse == 98;
+    }());
   }
 }
 
