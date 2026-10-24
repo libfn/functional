@@ -6,6 +6,8 @@
 #include <fn/copack.hpp>
 #include <fn/utility.hpp>
 
+#include <util/refusing.hpp>
+
 #include <catch2/catch_all.hpp>
 
 #include <array>
@@ -1982,6 +1984,7 @@ TEST_CASE("copack type collapsing", "[copack][transform][normalized]")
   using ::fn::overload;
   using ::fn::detail::_collapsing_copack_tag;
   using ::fn::detail::_copack_apply_result;
+  using ::fn::detail::_copack_transformable;
   using ::fn::detail::_typelist_collapsing_copack;
 
   struct copack_double_int {};
@@ -2050,11 +2053,12 @@ TEST_CASE("copack type collapsing", "[copack][transform][normalized]")
   SECTION("a result no copack can hold")
   {
     constexpr auto fnTag = [](auto &&...) { return std::in_place_type<int>; };
-    static_assert(not can_transform<copack<double, int> &, decltype(fnTag)>);
-    static_assert(not can_transform<copack<double, int> const &, decltype(fnTag)>);
-    static_assert(not can_transform<copack<double, int> &&, decltype(fnTag)>);
-    static_assert(not can_transform<copack<double, int> const &&, decltype(fnTag)>);
-    static_assert(can_transform<copack<double, int> &, PassThrough>); // the same copack, a holdable result
+    static_assert(not _copack_transformable<decltype(fnTag), copack<double, int> &>);
+    static_assert(not _copack_transformable<decltype(fnTag), copack<double, int> const &>);
+    static_assert(not _copack_transformable<decltype(fnTag), copack<double, int> &&>);
+    static_assert(not _copack_transformable<decltype(fnTag), copack<double, int> const &&>);
+    static_assert(_copack_transformable<PassThrough, copack<double, int> &>); // the same copack, a holdable result
+    static_assert(can_transform<copack<double, int> &, PassThrough>);
     constexpr auto fnVoid = [](auto &&...) {};
     static_assert(std::same_as<
                   typename _copack_apply_result<_collapsing_copack_tag, decltype(fnVoid), copack<double, int> &>::type,
@@ -2249,6 +2253,31 @@ TEST_CASE("copack transform", "[copack][transform]")
     static_assert(std::move(cca).transform(fnMixed).apply(which) == -1);
   }
 
+  SECTION("a callback refusing an rvalue")
+  {
+    // never handed an lvalue into a temporary copack instead: the member asserts rather than
+    // constrains, so the payload query answers here and tests/fn/reject/copack_transform.cpp holds
+    // the calls
+    using careful = refusing<int, int &&, int const &&>;
+    static_assert(not fn::detail::_copack_transformable<careful, copack<int> &&>);
+    static_assert(not fn::detail::_copack_transformable<careful, copack<int> const &&>);
+    static_assert(fn::detail::_copack_transformable<careful, copack<int> &>);
+    static_assert(fn::detail::_copack_transformable<careful, copack<int> const &>);
+    copack<int> c{1};
+    CHECK(c.transform(careful{}) == copack{0});
+    CHECK(std::as_const(c).transform(careful{}) == copack{0});
+
+    // a reference alternative hands its referent over as an lvalue, from a temporary copack too
+    int x = 1;
+    static_assert(fn::detail::_copack_transformable<careful, copack<int &> &&>);
+    CHECK(copack<int &>{x}.transform(careful{}) == copack{0});
+    static_assert([] {
+      copack<int> y{1};
+      int z = 1;
+      return y.transform(careful{}) == copack{0} && copack<int &>{z}.transform(careful{}) == copack{0};
+    }());
+  }
+
   SECTION("a reference result stays a reference")
   {
     using AB = fn::copack_for<int, long>;
@@ -2285,10 +2314,11 @@ TEST_CASE("copack transform", "[copack][transform]")
 
     SECTION("rvalue")
     {
-      // a reference into an alternative of an rvalue copack is refused at compile time, which the
-      // suite cannot test; the call stays viable, or the const & overload would bind the copack
-      static_assert(can_transform<AB &&, decltype(cself)>);
-      static_assert(can_transform<AB const &&, decltype(cself)>);
+      // a reference into an alternative of an rvalue copack is refused: the member asserts rather than
+      // constrains, so the payload query answers here and tests/fn/reject/copack_transform.cpp holds the call
+      static_assert(not fn::detail::_copack_transformable<decltype(cself), AB &&>);
+      static_assert(not fn::detail::_copack_transformable<decltype(cself), AB const &&>);
+      static_assert(fn::detail::_copack_transformable<decltype(cself), AB const &>);
 
       // a reference alternative is no part of the expiring copack
       using R = fn::copack_for<int &, long>;

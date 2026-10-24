@@ -190,8 +190,8 @@ struct _nothrow_copack_inject<To, Fn, Args...>
 // A reference result must not refer into an argument which expires with the call: the alternative and
 // the extra arguments must be lvalues, and none of the latter a pack or copack, whose splicing copies
 // into a temporary pack. Asserted on the caller's categories rather than constrained on the callback's:
-// where an rvalue's && overload is not viable, its const & overload binds it instead - for transform,
-// and for pack's apply handing elements to the callback.
+// where an rvalue's && overload is not viable, its const & overload binds it instead, as pack's apply
+// does when handing a pack alternative's elements to the callback.
 template <typename R, typename Arg, typename... Args>
 constexpr inline bool _admissible_result
     = (not ::std::is_reference_v<_collapsed_t<R>>)
@@ -1238,8 +1238,10 @@ struct copack<Ts...> {
    * The self-flattening map: the callable is dispatched exhaustively, and the branch results -
    * heterogeneous types allowed, a copack result dissolving into the set, a `void` one entering as
    * `pack<>`, an lvalue reference staying one where a copack can hold it - flatten, deduplicate and
-   * sort into the `copack_for` of them all. A kept reference requires the alternative and `args` to
-   * be lvalues, none of `args` a pack or a copack.
+   * sort into the `copack_for` of them all. Each alternative is handed over in `*this`'s cv/ref
+   * category, a reference alternative as its referent; where the callable does not accept one, the
+   * call is ill-formed. A kept reference requires the alternative and `args` to be lvalues, none of
+   * `args` a pack or a copack.
    *
    * @param fn Callable applied on the active alternative; `fn::overload` fuses arms into one
    * @param args Additional arguments, appended after the alternative's content
@@ -1252,10 +1254,9 @@ struct copack<Ts...> {
           detail::_copack_injector<
               typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, copack &, Args &&...>::type,
               Fn &&>,
-          copack &, Args &&...>) ->
-      typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, copack &, Args &&...>::type
-    requires typelist_applicable<Fn, copack &, Args &&...>
+          copack &, Args &&...>)
   {
+    static_assert(typelist_applicable<Fn, copack &, Args &&...>);
     using type = detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, copack &, Args &&...>::type;
     return detail::_collapsing_apply<type>(this->data, index, FWD(fn), FWD(args)...);
   }
@@ -1268,10 +1269,9 @@ struct copack<Ts...> {
           detail::_copack_injector<typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&,
                                                                          copack const &, Args &&...>::type,
                                    Fn &&>,
-          copack const &, Args &&...>) ->
-      typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, copack const &, Args &&...>::type
-    requires typelist_applicable<Fn, copack const &, Args &&...>
+          copack const &, Args &&...>)
   {
+    static_assert(typelist_applicable<Fn, copack const &, Args &&...>);
     using type = detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, copack const &, Args &&...>::type;
     return detail::_collapsing_apply<type>(this->data, index, FWD(fn), FWD(args)...);
   }
@@ -1283,10 +1283,9 @@ struct copack<Ts...> {
           detail::_copack_injector<
               typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, copack &&, Args &&...>::type,
               Fn &&>,
-          copack &&, Args &&...>) ->
-      typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, copack &&, Args &&...>::type
-    requires typelist_applicable<Fn, copack &&, Args &&...>
+          copack &&, Args &&...>)
   {
+    static_assert(typelist_applicable<Fn, copack &&, Args &&...>);
     using type = detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, copack &&, Args &&...>::type;
     return detail::_collapsing_apply<type>(::std::move(*this).data, index, FWD(fn), FWD(args)...);
   }
@@ -1299,10 +1298,9 @@ struct copack<Ts...> {
           detail::_copack_injector<typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&,
                                                                          copack const &&, Args &&...>::type,
                                    Fn &&>,
-          copack const &&, Args &&...>) ->
-      typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, copack const &&, Args &&...>::type
-    requires typelist_applicable<Fn, copack const &&, Args &&...>
+          copack const &&, Args &&...>)
   {
+    static_assert(typelist_applicable<Fn, copack const &&, Args &&...>);
     using type = detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, copack const &&, Args &&...>::type;
     return detail::_collapsing_apply<type>(::std::move(*this).data, index, FWD(fn), FWD(args)...);
   }

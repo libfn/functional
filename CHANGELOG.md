@@ -2,6 +2,12 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `copack` and `choice` monadic members never fall back to another cv/ref overload — 24 October 2026
+
+`copack::transform` and `choice`'s `transform` and `and_then` take the shape `pfn`'s monadic members took on 17 October, as `optional` and `expected` `transform` do: unconstrained cv/ref overloads with body-deduced returns, asserting what they require. A callback which does not accept an alternative in the operand's own cv/ref category makes the call ill-formed, including in a `requires`-expression. Before, the rvalue overloads dropped out of overload resolution and the `const &` overload took the call, handing the callback an lvalue into a temporary operand, so a lifetime-careful callback refusing rvalues could return a reference which dangled. Applicability is asked of `fn::applicable_transform` and `fn::applicable_and_then`, which answer from the payload.
+
+Reject tests in `tests/fn/reject/` cover each fallback the members used to take, and the reference-result and result-type rejections which a `requires`-expression could not observe while the members answered as viable.
+
 ## `optional` and `expected` `transform` never fall back to another cv/ref overload — 24 October 2026
 
 `fn::optional::transform` and `fn::expected`'s `transform` and `transform_error` drop their trailing `decltype` returns, which removed an overload whose callback did not accept the payload in the operand's own cv/ref category, so that the `const &` overload took a temporary operand. Over a copack value, `copack::transform` then received an lvalue into the temporary. `expected`'s overloads carry the draft's constraints on constructing the unchanged side as `requires`-clauses, so a copy-only error still falls through to `const &&`, as in `pfn`. `optional<T&>::transform`, with a single overload, and the void `expected`'s `transform`, whose callback takes no argument, are unchanged; so are `and_then` and `or_else`.

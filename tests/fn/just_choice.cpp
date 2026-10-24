@@ -3,13 +3,16 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
+#include <fn/and_then.hpp>
 #include <fn/expected.hpp>
 #include <fn/just.hpp>
 #include <fn/optional.hpp>
+#include <fn/transform.hpp>
 
 #include <fn/utility.hpp>
 
 #include <util/helper_types.hpp>
+#include <util/refusing.hpp>
 
 #include <catch2/catch_all.hpp>
 
@@ -1285,19 +1288,16 @@ TEST_CASE("choice and_then", "[choice][and_then]")
     CHECK_THROWS_AS(J{A{}}.and_then(fnHeldArm), int);
     CHECK(J{B{}}.and_then(fnHeldArm).has_value(std::in_place_type<U>));
 
-    // asking answers: an inapplicable callback drops and_then from the overload set; a
-    // value-returning one stays viable - its rejection is the deliberately loud static_assert
-    // on instantiation, not a constraint
+    // asking answers through the pipe concept, which queries the payload: the member asserts what it
+    // requires rather than constraining on it, and tests/fn/reject/choice_monadic.cpp holds the calls
     constexpr auto fnPartial = [](A) { return fn::choice<U>{U{}}; };
-    static_assert(not can_and_then<J &, decltype(fnPartial)>);
-    static_assert(can_and_then<fn::choice<A> &, decltype(fnPartial)>);
+    static_assert(not fn::applicable_and_then<decltype(fnPartial), J &>);
+    static_assert(fn::applicable_and_then<decltype(fnPartial), fn::choice<A> &>);
     constexpr auto fnValue = [](auto &&) { return 42; };
-    static_assert(can_and_then<J &, decltype(fnValue)>);
-    // Probing a reference result also instantiates noexcept. Leave rejection to the member's
-    // static_assert rather than requiring a payload type during the probe.
+    static_assert(not fn::applicable_and_then<decltype(fnValue), J &>);
     constexpr auto fnReference = [](auto &&) -> int const & { return fnReferenceTarget; };
-    static_assert(can_and_then<J &, decltype(fnReference)>);
-    static_assert(can_and_then<J const &&, decltype(fnReference)>);
+    static_assert(not fn::applicable_and_then<decltype(fnReference), J &>);
+    static_assert(not fn::applicable_and_then<decltype(fnReference), J const &&>);
 
     // ... and the throwing relocation at runtime: the exception propagates, self unchanged
     struct Boom final {
@@ -1328,6 +1328,30 @@ TEST_CASE("choice and_then", "[choice][and_then]")
     // named source: the same VS 2022 misread as above
     constexpr J cb2{A{}};
     static_assert(cb2.and_then(fnBoomSafe).has_value(std::in_place_type<Boom>));
+  }
+
+  SECTION("a callback refusing an rvalue")
+  {
+    // never handed an lvalue into a temporary choice instead: the pipe concept answers here, and
+    // tests/fn/reject/choice_monadic.cpp holds the calls
+    using careful = refusing<fn::just<int>, int &&, int const &&>;
+    static_assert(not fn::applicable_and_then<careful, fn::choice<int>>);
+    static_assert(not fn::applicable_and_then<careful, fn::choice<int> const>);
+    static_assert(fn::applicable_and_then<careful, fn::choice<int> &>);
+    static_assert(fn::applicable_and_then<careful, fn::choice<int> const &>);
+    fn::choice<int> c{1};
+    CHECK(c.and_then(careful{}) == fn::just{0});
+    CHECK(std::as_const(c).and_then(careful{}) == fn::just{0});
+
+    // a reference alternative hands its referent over as an lvalue, from a temporary choice too
+    int x = 1;
+    static_assert(fn::applicable_and_then<careful, fn::choice<int &>>);
+    CHECK(fn::choice<int &>{x}.and_then(careful{}) == fn::just{0});
+    static_assert([] {
+      fn::choice<int> y{1};
+      int z = 1;
+      return y.and_then(careful{}) == fn::just{0} && fn::choice<int &>{z}.and_then(careful{}) == fn::just{0};
+    }());
   }
 
   SECTION("just of any payload")
@@ -1534,6 +1558,30 @@ TEST_CASE("choice transform", "[choice][transform]")
     }
   }
 
+  SECTION("a callback refusing an rvalue")
+  {
+    // never handed an lvalue into a temporary choice instead: the pipe concept answers here, and
+    // tests/fn/reject/choice_monadic.cpp holds the calls
+    using careful = refusing<int, int &&, int const &&>;
+    static_assert(not fn::applicable_transform<careful, fn::choice<int>>);
+    static_assert(not fn::applicable_transform<careful, fn::choice<int> const>);
+    static_assert(fn::applicable_transform<careful, fn::choice<int> &>);
+    static_assert(fn::applicable_transform<careful, fn::choice<int> const &>);
+    fn::choice<int> c{1};
+    CHECK(c.transform(careful{}) == fn::choice{0});
+    CHECK(std::as_const(c).transform(careful{}) == fn::choice{0});
+
+    // a reference alternative hands its referent over as an lvalue, from a temporary choice too
+    int x = 1;
+    static_assert(fn::applicable_transform<careful, fn::choice<int &>>);
+    CHECK(fn::choice<int &>{x}.transform(careful{}) == fn::choice{0});
+    static_assert([] {
+      fn::choice<int> y{1};
+      int z = 1;
+      return y.transform(careful{}) == fn::choice{0} && fn::choice<int &>{z}.transform(careful{}) == fn::choice{0};
+    }());
+  }
+
   SECTION("a reference result stays a reference")
   {
     using AB = fn::choice_for<int, long>;
@@ -1543,9 +1591,10 @@ TEST_CASE("choice transform", "[choice][transform]")
     static_assert(std::is_same_v<decltype(std::declval<AB &>().transform(self)), fn::choice_for<int &, long &>>);
     static_assert(std::is_same_v<decltype(std::declval<AB const &>().transform(cself)),
                                  fn::choice_for<int const &, long const &>>);
-    // a reference into an alternative of an rvalue choice is refused at compile time, which the
-    // suite cannot test; the call stays viable, or the const & overload would bind the choice
-    static_assert(can_transform<AB &&, decltype(cself)>);
+    // a reference into an alternative of an rvalue choice is refused: the pipe concept answers here, and
+    // tests/fn/reject/choice_monadic.cpp holds the call
+    static_assert(not fn::applicable_transform<decltype(cself), AB>);
+    static_assert(fn::applicable_transform<decltype(cself), AB const &>);
 
     AB a{1};
     CHECK(a.transform(self).get_ptr<int &>() == a.get_ptr<int>());
@@ -1560,10 +1609,10 @@ TEST_CASE("choice transform", "[choice][transform]")
   SECTION("a result no choice can hold")
   {
     constexpr auto fnTag = [](auto &&...) { return std::in_place_type<int>; };
-    static_assert(not can_transform<fn::choice<bool, int> &, decltype(fnTag)>);
-    static_assert(not can_transform<fn::choice<bool, int> const &, decltype(fnTag)>);
-    static_assert(not can_transform<fn::choice<bool, int> &&, decltype(fnTag)>);
-    static_assert(not can_transform<fn::choice<bool, int> const &&, decltype(fnTag)>);
+    static_assert(not fn::applicable_transform<decltype(fnTag), fn::choice<bool, int> &>);
+    static_assert(not fn::applicable_transform<decltype(fnTag), fn::choice<bool, int> const &>);
+    static_assert(not fn::applicable_transform<decltype(fnTag), fn::choice<bool, int>>);
+    static_assert(not fn::applicable_transform<decltype(fnTag), fn::choice<bool, int> const>);
     constexpr auto fnVoid = [](auto &&...) {};
     static_assert(can_transform<fn::choice<bool, int> &, decltype(fnVoid)>);
     static_assert(can_transform<fn::choice<bool, int> const &&, decltype(fnVoid)>);

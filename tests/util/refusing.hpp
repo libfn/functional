@@ -11,7 +11,7 @@
 // Callback accepting its argument in every cv/ref category except the Refused ones, which select a
 // deleted overload instead of falling back to another category.
 template <class R, class... Refused> struct refusing {
-  template <class T> R operator()(T &&) const { return R{}; }
+  template <class T> constexpr R operator()(T &&) const { return R{}; }
   template <class T>
     requires(std::is_same_v<T &&, Refused> || ...)
   R operator()(T &&) const = delete;

@@ -1237,19 +1237,17 @@ template <typename... Ts> struct just<copack<Ts...>> {
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) & //
       noexcept(noexcept(v_.transform(FWD(fn))))
-          -> just<typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, value_type &>::type>
-    requires typelist_applicable<Fn, value_type &>
   {
+    static_assert(typelist_applicable<Fn, value_type &>);
     using type = detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, value_type &>::type;
     return just<type>{detail::_just_from_invoke, [&fn, this]() -> decltype(auto) { return v_.transform(FWD(fn)); }};
   }
 
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) const & //
-      noexcept(noexcept(v_.transform(FWD(fn)))) -> just<
-          typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, value_type const &>::type>
-    requires typelist_applicable<Fn, value_type const &>
+      noexcept(noexcept(v_.transform(FWD(fn))))
   {
+    static_assert(typelist_applicable<Fn, value_type const &>);
     using type = detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, value_type const &>::type;
     return just<type>{detail::_just_from_invoke, [&fn, this]() -> decltype(auto) { return v_.transform(FWD(fn)); }};
   }
@@ -1257,9 +1255,8 @@ template <typename... Ts> struct just<copack<Ts...>> {
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) && //
       noexcept(noexcept(::std::move(v_).transform(FWD(fn))))
-          -> just<typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, value_type &&>::type>
-    requires typelist_applicable<Fn, value_type &&>
   {
+    static_assert(typelist_applicable<Fn, value_type &&>);
     using type = detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, value_type &&>::type;
     return just<type>{detail::_just_from_invoke,
                       [&fn, this]() -> decltype(auto) { return ::std::move(v_).transform(FWD(fn)); }};
@@ -1267,10 +1264,9 @@ template <typename... Ts> struct just<copack<Ts...>> {
 
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) const && //
-      noexcept(noexcept(::std::move(v_).transform(FWD(fn)))) -> just<
-          typename detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, value_type const &&>::type>
-    requires typelist_applicable<Fn, value_type const &&>
+      noexcept(noexcept(::std::move(v_).transform(FWD(fn))))
   {
+    static_assert(typelist_applicable<Fn, value_type const &&>);
     using type = detail::_copack_apply_result<detail::_collapsing_copack_tag, Fn &&, value_type const &&>::type;
     return just<type>{detail::_just_from_invoke,
                       [&fn, this]() -> decltype(auto) { return ::std::move(v_).transform(FWD(fn)); }};
@@ -1282,18 +1278,17 @@ template <typename... Ts> struct just<copack<Ts...>> {
    * If branch results have the same type after cv/ref removal, the result keeps that `just` type.
    * Otherwise their payloads form a normalized choice: a returned choice contributes its
    * alternatives, an ordinary `just<T>` contributes `T`, and `just<void>` contributes `pack<>`.
-   * Use `transform` for bare results and pipeline `fn::and_then` for supported transitions to
-   * another carrier family.
+   * Each alternative is handed over as by `transform`. Use `transform` for bare results and pipeline
+   * `fn::and_then` for supported transitions to another carrier family.
    *
    * @param fn Callable applied on the active alternative; `fn::overload` fuses arms into one
    * @return The joined `just` of the branches' results
    */
   template <typename Fn>
   [[nodiscard]] constexpr auto and_then(Fn &&fn) & //
-      noexcept(noexcept(detail::_join_just_apply<detail::_joining_superset_tag>(v_, FWD(fn)))) ->
-      typename detail::_copack_apply_result<detail::_joining_superset_tag, Fn &&, value_type &>::type
-    requires typelist_applicable<Fn, value_type &>
+      noexcept(noexcept(detail::_join_just_apply<detail::_joining_superset_tag>(v_, FWD(fn))))
   {
+    static_assert(typelist_applicable<Fn, value_type &>);
     static_assert(
         some_just<typename detail::_copack_apply_result<detail::_joining_superset_tag, Fn &&, value_type &>::type>);
     return detail::_join_just_apply<detail::_joining_superset_tag>(v_, FWD(fn));
@@ -1301,10 +1296,9 @@ template <typename... Ts> struct just<copack<Ts...>> {
 
   template <typename Fn>
   [[nodiscard]] constexpr auto and_then(Fn &&fn) const & //
-      noexcept(noexcept(detail::_join_just_apply<detail::_joining_superset_tag>(v_, FWD(fn)))) ->
-      typename detail::_copack_apply_result<detail::_joining_superset_tag, Fn &&, value_type const &>::type
-    requires typelist_applicable<Fn, value_type const &>
+      noexcept(noexcept(detail::_join_just_apply<detail::_joining_superset_tag>(v_, FWD(fn))))
   {
+    static_assert(typelist_applicable<Fn, value_type const &>);
     static_assert(
         some_just<
             typename detail::_copack_apply_result<detail::_joining_superset_tag, Fn &&, value_type const &>::type>);
@@ -1313,10 +1307,9 @@ template <typename... Ts> struct just<copack<Ts...>> {
 
   template <typename Fn>
   [[nodiscard]] constexpr auto and_then(Fn &&fn) && //
-      noexcept(noexcept(detail::_join_just_apply<detail::_joining_superset_tag>(::std::move(v_), FWD(fn)))) ->
-      typename detail::_copack_apply_result<detail::_joining_superset_tag, Fn &&, value_type &&>::type
-    requires typelist_applicable<Fn, value_type &&>
+      noexcept(noexcept(detail::_join_just_apply<detail::_joining_superset_tag>(::std::move(v_), FWD(fn))))
   {
+    static_assert(typelist_applicable<Fn, value_type &&>);
     static_assert(
         some_just<typename detail::_copack_apply_result<detail::_joining_superset_tag, Fn &&, value_type &&>::type>);
     return detail::_join_just_apply<detail::_joining_superset_tag>(::std::move(v_), FWD(fn));
@@ -1324,10 +1317,9 @@ template <typename... Ts> struct just<copack<Ts...>> {
 
   template <typename Fn>
   [[nodiscard]] constexpr auto and_then(Fn &&fn) const && //
-      noexcept(noexcept(detail::_join_just_apply<detail::_joining_superset_tag>(::std::move(v_), FWD(fn)))) ->
-      typename detail::_copack_apply_result<detail::_joining_superset_tag, Fn &&, value_type const &&>::type
-    requires typelist_applicable<Fn, value_type const &&>
+      noexcept(noexcept(detail::_join_just_apply<detail::_joining_superset_tag>(::std::move(v_), FWD(fn))))
   {
+    static_assert(typelist_applicable<Fn, value_type const &&>);
     static_assert(
         some_just<
             typename detail::_copack_apply_result<detail::_joining_superset_tag, Fn &&, value_type const &&>::type>);

@@ -203,6 +203,8 @@ set(TESTS_FN_SOURCES
 )
 
 set(TESTS_FN_REJECT_SOURCES
+    fn/reject/choice_monadic.cpp
+    fn/reject/copack_transform.cpp
     fn/reject/expected_transform.cpp
     fn/reject/optional_transform.cpp
 )
