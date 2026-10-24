@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(TESTS_UTIL_HEADERS
     util/helper_types.hpp
+    util/refusing.hpp
     util/static_check.hpp
 )
 
@@ -42,25 +43,7 @@ foreach(source IN ITEMS ${TESTS_UTIL_HEADERS})
     unset(root_name)
 endforeach()
 
-### tests/pfn
-
-set(TESTS_PFN_SOURCES
-    pfn/expected.cpp
-    pfn/optional.cpp
-    pfn/tuple.cpp
-    pfn/expected_validation.cpp
-    pfn/optional_validation.cpp
-    pfn/tuple_validation.cpp
-    pfn/type_traits.cpp
-    pfn/type_traits_validation.cpp
-    pfn/functional.cpp
-    pfn/utility.cpp
-)
-
-set(TESTS_PFN_REJECT_SOURCES
-    pfn/reject/expected_monadic.cpp
-    pfn/reject/optional_monadic.cpp
-)
+### reject tests
 
 include(TargetGenerator)
 include(CompilationOptions)
@@ -114,6 +97,26 @@ function(add_reject_tests)
     endforeach()
 endfunction()
 
+### tests/pfn
+
+set(TESTS_PFN_SOURCES
+    pfn/expected.cpp
+    pfn/optional.cpp
+    pfn/tuple.cpp
+    pfn/expected_validation.cpp
+    pfn/optional_validation.cpp
+    pfn/tuple_validation.cpp
+    pfn/type_traits.cpp
+    pfn/type_traits_validation.cpp
+    pfn/functional.cpp
+    pfn/utility.cpp
+)
+
+set(TESTS_PFN_REJECT_SOURCES
+    pfn/reject/expected_monadic.cpp
+    pfn/reject/optional_monadic.cpp
+)
+
 # Generate separate target for each individual test source
 foreach(mode 20 23 26)
     if (NOT VALIDATE_CXX23 AND mode EQUAL 23)
@@ -156,7 +159,7 @@ foreach(mode 20 23 26)
     endforeach()
 
     foreach(source IN ITEMS ${TESTS_PFN_REJECT_SOURCES})
-        add_reject_tests(SOURCE "${source}" MODE "${mode}" DEPENDENCIES include_pfn LABELS tests_pfn)
+        add_reject_tests(SOURCE "${source}" MODE "${mode}" DEPENDENCIES include_pfn tests_util LABELS tests_pfn)
     endforeach()
 endforeach()
 

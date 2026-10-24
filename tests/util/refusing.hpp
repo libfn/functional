@@ -3,8 +3,8 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
-#ifndef TESTS_PFN_REJECT_REFUSING
-#define TESTS_PFN_REJECT_REFUSING
+#ifndef INCLUDE_TESTS_UTIL_REFUSING
+#define INCLUDE_TESTS_UTIL_REFUSING
 
 #include <type_traits>
 
@@ -32,4 +32,4 @@ static_assert(std::is_invocable_v<refusing<int, int &&, int const &&>, int const
 static_assert(not std::is_invocable_v<refusing<int, int const &&>, int const &&>);
 static_assert(std::is_invocable_v<refusing<int, int const &&>, int const &>);
 
-#endif // TESTS_PFN_REJECT_REFUSING
+#endif // INCLUDE_TESTS_UTIL_REFUSING
