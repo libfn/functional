@@ -6,6 +6,7 @@
 #include <fn/expected.hpp>
 #include <fn/just.hpp>
 #include <fn/optional.hpp>
+#include <fn/transform.hpp>
 #include <fn/utility.hpp>
 
 #include <catch2/catch_all.hpp>
@@ -351,8 +352,10 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
 
     constexpr auto can_transform = [](auto &&f) { return requires { std::declval<P &>().transform(f); }; };
     static_assert(can_transform(nothrow_two));
-    static_assert(not can_transform([](int &) -> bool { return true; })); // wrong arity
-    static_assert(not can_transform(42));
+    // the member asserts what it requires; the pipe concept answers
+    constexpr auto wrong_arity = [](int &) -> bool { return true; };
+    static_assert(not fn::applicable_transform<decltype(wrong_arity), P &>);
+    static_assert(not fn::applicable_transform<int, P &>);
 
     SECTION("value")
     {
@@ -1149,18 +1152,18 @@ TEST_CASE("optional transform copack", "[optional][copack][transform]")
 
   SECTION("constraints")
   {
-    constexpr auto can_transform_clval = [](auto &&f) { return requires { std::declval<S const &>().transform(f); }; };
+    // a callback no alternative can take makes the member ill-formed; the pipe concept answers
+    constexpr auto no_alternative = [](std::string_view) -> bool { throw 0; };
+    constexpr auto not_exhaustive = [](int &) -> bool { throw 0; }; // Xint is unhandled
+    static_assert(not fn::applicable_transform<decltype(no_alternative), S &>);
+    static_assert(not fn::applicable_transform<decltype(not_exhaustive), S &>);
 
-    // a callback no alternative can take drops the candidate, rather than failing inside the body
-    static_assert(not can_transform([](std::string_view) -> bool { throw 0; }));
-    static_assert(not can_transform([](int &) -> bool { throw 0; })); // Xint is unhandled
-
-    // a visitor need only serve the value category the call actually selects: the losing const&
-    // candidate is dropped by its own constraint rather than forming its signature and poisoning
-    // the call. The four-category visitors above are a spelling choice, not a requirement.
+    // a visitor need only serve the value category the call actually selects: the losing candidates
+    // never instantiate their bodies. The four-category visitors above are a spelling choice, not a
+    // requirement.
     constexpr auto lval_only = fn::overload{[](int &i) -> bool { return i == 12; }, [](Xint &) -> bool { throw 0; }};
     static_assert(can_transform(lval_only));
-    static_assert(not can_transform_clval(lval_only));
+    static_assert(not fn::applicable_transform<decltype(lval_only), S const &>);
 
     S s{12};
     CHECK(s.transform(lval_only).value() == fn::copack{true});

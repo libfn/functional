@@ -2,6 +2,12 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `optional` and `expected` `transform` never fall back to another cv/ref overload — 24 October 2026
+
+`fn::optional::transform` and `fn::expected`'s `transform` and `transform_error` drop their trailing `decltype` returns, which removed an overload whose callback did not accept the payload in the operand's own cv/ref category, so that the `const &` overload took a temporary operand. Over a copack value, `copack::transform` then received an lvalue into the temporary. `expected`'s overloads carry the draft's constraints on constructing the unchanged side as `requires`-clauses, so a copy-only error still falls through to `const &&`, as in `pfn`. `optional<T&>::transform`, with a single overload, and the void `expected`'s `transform`, whose callback takes no argument, are unchanged; so are `and_then` and `or_else`.
+
+Reject tests cover each fallback, the copack case, the copy-only fall-through, and the hard error in a `requires`-expression.
+
 ## Pipeline `transform` and `transform_error` ask the payload, not the member — 24 October 2026
 
 `fn::applicable_transform` and `fn::applicable_transform_error` decide a `choice`, a copack-valued `optional` or `expected`, and a copack error side from the payload in the operand's own cv/ref category, rather than by probing the member `transform`. The probe let the member's `const &` overload take a temporary operand: a callback refusing an rvalue answered `true` and then received an lvalue into the temporary. A reference result into a temporary operand also answered `true`, and failed only on instantiation. Both now answer `false`. A callback arm taking `auto &` no longer accepts a temporary operand's alternatives; `auto const &` does.

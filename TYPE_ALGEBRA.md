@@ -1034,6 +1034,8 @@ To ensure reliability, `libfn` uses compiler mechanisms to reject malformed usag
 
 Public concepts and `requires` clauses enforce correctness before instantiation. Operations are protected by public applicability concepts (such as `fn::applicable_transform` and `fn::applicable_and_then`) that evaluate to `false` for invalid calls rather than triggering deep compiler errors. This underpins the compile-time exhaustiveness guarantees of `apply` and monadic operations established in Sections 4 and 12.
 
+Ask the concepts, not the member functions. The `transform` and `transform_error` of `optional` and `expected` hand the payload to the callback in the operand's own cv/ref category, and assert rather than constrain: a callback which does not accept it there is a compile error, even inside a `requires`-expression. A constraint would let overload resolution pick another cv/ref overload instead, handing the payload of a temporary operand to the callback as an lvalue, which a reference result would outlive. As in the standard, `expected`'s overloads remain constrained on constructing the side they leave unchanged.
+
 ### One normalization order per program
 
 The `copack` normal form rests on a strict total order over types, and the default and `LIBFN_CXX26` modes may derive different orders (Section 2). Each mode therefore places `fn` in its own ABI namespace: the mode becomes part of every `fn` symbol, so the two modes never link as one, and `copack`s whose layouts disagree cannot merge unnoticed. (`pfn` carries no such split — it has no normal form to protect.)

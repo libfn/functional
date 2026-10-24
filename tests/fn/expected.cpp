@@ -7,6 +7,8 @@
 #include <fn/expected.hpp>
 #include <fn/just.hpp>
 #include <fn/optional.hpp>
+#include <fn/transform.hpp>
+#include <fn/transform_error.hpp>
 #include <fn/utility.hpp>
 
 #include <catch2/catch_all.hpp>
@@ -1089,8 +1091,10 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][graded
 
     constexpr auto can_transform = [](auto &&f) { return requires { std::declval<S &>().transform(f); }; };
     static_assert(can_transform(nothrow_two));
-    static_assert(not can_transform([](int &) -> bool { throw 0; })); // wrong arity
-    static_assert(not can_transform(42));
+    // the member asserts what it requires; the pipe concept answers
+    constexpr auto wrong_arity = [](int &) -> bool { throw 0; };
+    static_assert(not fn::applicable_transform<decltype(wrong_arity), S &>);
+    static_assert(not fn::applicable_transform<int, S &>);
 
     SECTION("value")
     {
@@ -3603,17 +3607,17 @@ TEST_CASE("expected copack support transform", "[expected][copack][transform]")
 
   SECTION("constraints")
   {
-    constexpr auto can_transform_clval = [](auto &&f) { return requires { std::declval<S const &>().transform(f); }; };
-
-    // a callback no alternative can take drops the candidate, rather than failing inside the body
-    static_assert(not can_transform([](double) -> bool { throw 0; }));
-    static_assert(not can_transform([](int &) -> bool { throw 0; })); // string_view is unhandled
+    // a callback no alternative can take makes the member ill-formed; the pipe concept answers
+    constexpr auto no_alternative = [](double) -> bool { throw 0; };
+    constexpr auto not_exhaustive = [](int &) -> bool { throw 0; }; // string_view is unhandled
+    static_assert(not fn::applicable_transform<decltype(no_alternative), S &>);
+    static_assert(not fn::applicable_transform<decltype(not_exhaustive), S &>);
 
     // a visitor need only serve the value category the call actually selects
     constexpr auto lval_only
         = fn::overload{[](int &i) -> bool { return i == 12; }, [](std::string_view &) -> bool { throw 0; }};
     static_assert(can_transform(lval_only));
-    static_assert(not can_transform_clval(lval_only));
+    static_assert(not fn::applicable_transform<decltype(lval_only), S const &>);
 
     S s{fn::copack{12}};
     CHECK(s.transform(lval_only).value() == fn::copack{true});
@@ -3902,18 +3906,17 @@ TEST_CASE("expected copack support transform_error", "[expected][copack][transfo
 
   SECTION("constraints")
   {
-    constexpr auto can_transform_error_clval
-        = [](auto &&f) { return requires { std::declval<S const &>().transform_error(f); }; };
-
-    // a callback no alternative can take drops the candidate, rather than failing inside the body
-    static_assert(not can_transform_error([](double) -> bool { throw 0; }));
-    static_assert(not can_transform_error([](int &) -> bool { throw 0; })); // string_view is unhandled
+    // a callback no alternative can take makes the member ill-formed; the pipe concept answers
+    constexpr auto no_alternative = [](double) -> bool { throw 0; };
+    constexpr auto not_exhaustive = [](int &) -> bool { throw 0; }; // string_view is unhandled
+    static_assert(not fn::applicable_transform_error<decltype(no_alternative), S &>);
+    static_assert(not fn::applicable_transform_error<decltype(not_exhaustive), S &>);
 
     // a visitor need only serve the value category the call actually selects
     constexpr auto lval_only
         = fn::overload{[](int &i) -> bool { return i == 12; }, [](std::string_view &) -> bool { throw 0; }};
     static_assert(can_transform_error(lval_only));
-    static_assert(not can_transform_error_clval(lval_only));
+    static_assert(not fn::applicable_transform_error<decltype(lval_only), S const &>);
 
     S s{::fn::unexpect, fn::copack{12}};
     CHECK(s.transform_error(lval_only).error() == fn::copack{true});
@@ -4062,13 +4065,14 @@ TEST_CASE("expected pack support transform_error", "[expected][transform_error][
   constexpr auto nothrow_generic = [](auto &&...) noexcept -> bool { return true; };
   static_assert(noexcept(std::declval<S &>().transform_error(nothrow_generic)));
 
-  // constraints (:283-284): pack-apply invocability, and the untouched value's copy
+  // applicability: pack-apply invocability in the operand's own category. The member asserts what it
+  // requires; the pipe concept answers
   constexpr auto can_te_lval = [](auto &&f) { return requires { std::declval<S &>().transform_error(f); }; };
-  constexpr auto can_te_rval = [](auto &&f) { return requires { std::declval<S &&>().transform_error(f); }; };
   static_assert(can_te_lval(nothrow_two));
-  static_assert(not can_te_rval(nothrow_two));                      // lvalue-only visitor
-  static_assert(not can_te_lval([](Error &) -> bool { throw 0; })); // wrong arity
-  static_assert(not can_te_lval(42));
+  static_assert(not fn::applicable_transform_error<decltype(nothrow_two), S>); // lvalue-only visitor
+  constexpr auto wrong_arity = [](Error &) -> bool { throw 0; };
+  static_assert(not fn::applicable_transform_error<decltype(wrong_arity), S &>);
+  static_assert(not fn::applicable_transform_error<int, S &>);
 
   SECTION("value")
   {

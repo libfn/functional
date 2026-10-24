@@ -539,11 +539,11 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       return type(::fn::unexpect, _pfn_base::_error(FWD(self)));
   }
 
-  // transform, value type is a copack (delegates to copack::transform). The callback is constrained here,
-  // in the immediate context, for the reason given on optional's copack-case _transform.
+  // transform, value type is a copack (delegates to copack::transform), spelled as optional's
+  // copack-case _transform
   template <typename Self, typename Fn>
   using _copack_transformed_t
-      = ::fn::expected<decltype(_pfn_base::_value(::std::declval<Self>()).transform(::std::declval<Fn>())), E>;
+      = ::fn::expected<::fn::detail::_copack_transform_t<Fn, decltype(_pfn_base::_value(::std::declval<Self>()))>, E>;
 
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn) //
@@ -625,10 +625,11 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       });
   }
 
-  // Constrain the call here so invalid transforms fail in the immediate context.
+  // transform_error, error type is a copack (delegates to copack::transform), spelled as optional's
+  // copack-case _transform
   template <typename Self, typename Fn>
   using _copack_error_transformed_t
-      = ::fn::expected<T, decltype(_pfn_base::_error(::std::declval<Self>()).transform(::std::declval<Fn>()))>;
+      = ::fn::expected<T, ::fn::detail::_copack_transform_t<Fn, decltype(_pfn_base::_error(::std::declval<Self>()))>>;
 
   template <typename Self, typename Fn>
   static constexpr auto _transform_error(Self &&self, Fn &&fn) //
@@ -640,7 +641,6 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
           ::fn::unexpect, ::std::declval<typename _copack_error_transformed_t<Self, Fn>::error_type>()))
     requires some_copack<E> && (not empty_copack<E>)
              && ::fn::detail::_typelist_applicable<Fn, decltype(_pfn_base::_error(FWD(self)))>
-             && requires { _pfn_base::_error(FWD(self)).transform(FWD(fn)); }
              && (::std::is_void_v<T> || ::std::is_constructible_v<T, decltype(_pfn_base::_value(FWD(self)))>)
   {
     using new_error_type = decltype(_pfn_base::_error(FWD(self)).transform(FWD(fn)));
@@ -1537,28 +1537,28 @@ public:
   template <class F>
   constexpr auto transform(F &&f) &                        //
       noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform(*this, FWD(f)))
+    requires ::std::is_constructible_v<Err, Err &>
   {
     return _base::_transform(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) &&                                    //
       noexcept(noexcept(_base::_transform(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform(::std::move(*this), FWD(f)))
+    requires ::std::is_constructible_v<Err, Err &&>
   {
     return _base::_transform(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) const &                  //
       noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform(*this, FWD(f)))
+    requires ::std::is_constructible_v<Err, Err const &>
   {
     return _base::_transform(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) const &&                              //
       noexcept(noexcept(_base::_transform(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform(::std::move(*this), FWD(f)))
+    requires ::std::is_constructible_v<Err, Err const &&>
   {
     return _base::_transform(::std::move(*this), FWD(f));
   }
@@ -1577,28 +1577,28 @@ public:
   template <class F>
   constexpr auto transform_error(F &&f) &                        //
       noexcept(noexcept(_base::_transform_error(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform_error(*this, FWD(f)))
+    requires ::std::is_constructible_v<T, T &>
   {
     return _base::_transform_error(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform_error(F &&f) &&                                    //
       noexcept(noexcept(_base::_transform_error(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform_error(::std::move(*this), FWD(f)))
+    requires ::std::is_constructible_v<T, T &&>
   {
     return _base::_transform_error(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto transform_error(F &&f) const &                  //
       noexcept(noexcept(_base::_transform_error(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform_error(*this, FWD(f)))
+    requires ::std::is_constructible_v<T, T const &>
   {
     return _base::_transform_error(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform_error(F &&f) const &&                              //
       noexcept(noexcept(_base::_transform_error(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform_error(::std::move(*this), FWD(f)))
+    requires ::std::is_constructible_v<T, T const &&>
   {
     return _base::_transform_error(::std::move(*this), FWD(f));
   }
@@ -2238,28 +2238,24 @@ public:
   template <class F>
   constexpr auto transform_error(F &&f) &                        //
       noexcept(noexcept(_base::_transform_error(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform_error(*this, FWD(f)))
   {
     return _base::_transform_error(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform_error(F &&f) &&                                    //
       noexcept(noexcept(_base::_transform_error(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform_error(::std::move(*this), FWD(f)))
   {
     return _base::_transform_error(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto transform_error(F &&f) const &                  //
       noexcept(noexcept(_base::_transform_error(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform_error(*this, FWD(f)))
   {
     return _base::_transform_error(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform_error(F &&f) const &&                              //
       noexcept(noexcept(_base::_transform_error(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform_error(::std::move(*this), FWD(f)))
   {
     return _base::_transform_error(::std::move(*this), FWD(f));
   }

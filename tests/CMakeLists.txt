@@ -202,6 +202,11 @@ set(TESTS_FN_SOURCES
     fn/value_or.cpp
 )
 
+set(TESTS_FN_REJECT_SOURCES
+    fn/reject/expected_transform.cpp
+    fn/reject/optional_transform.cpp
+)
+
 # Generate separate target for each individual test source
 foreach(mode 20 23 26)
     if (NOT VALIDATE_CXX23 AND mode EQUAL 23)
@@ -247,6 +252,10 @@ foreach(mode 20 23 26)
 
         unset(target)
         unset(root_name)
+    endforeach()
+
+    foreach(source IN ITEMS ${TESTS_FN_REJECT_SOURCES})
+        add_reject_tests(SOURCE "${source}" MODE "${mode}" DEPENDENCIES "${entry_point}" tests_util LABELS tests_fn)
     endforeach()
 
     unset(entry_point)

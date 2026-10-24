@@ -345,13 +345,11 @@ template <typename T> struct _optional_base : ::pfn::detail::_optional_base<T, o
       return type(::std::nullopt);
   }
 
-  // transform, value type is a copack (delegates to copack::transform). The callback is constrained here,
-  // in the immediate context: the deduced return type instantiates the body, so leaving it to
-  // copack::transform's own constraint would make a bad callback a hard error instead of dropping the
-  // candidate - and would poison overload resolution, since the losing candidates form their
-  // signatures too.
+  // transform, value type is a copack (delegates to copack::transform). The result type is spelled
+  // through the trait, which names it without instantiating copack::transform.
   template <typename Self, typename Fn>
-  using _copack_transformed_t = ::fn::optional<decltype((*::std::declval<Self>()).transform(::std::declval<Fn>()))>;
+  using _copack_transformed_t
+      = ::fn::optional<::fn::detail::_copack_transform_t<Fn, decltype(*::std::declval<Self>())>>;
 
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn)  //
@@ -977,28 +975,24 @@ public:
   template <class F>
   constexpr auto transform(F &&f) &                        //
       noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform(*this, FWD(f)))
   {
     return _base::_transform(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) &&                                    //
       noexcept(noexcept(_base::_transform(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform(::std::move(*this), FWD(f)))
   {
     return _base::_transform(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) const &                  //
       noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform(*this, FWD(f)))
   {
     return _base::_transform(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) const &&                              //
       noexcept(noexcept(_base::_transform(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform(::std::move(*this), FWD(f)))
   {
     return _base::_transform(::std::move(*this), FWD(f));
   }
