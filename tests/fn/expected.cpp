@@ -3569,8 +3569,8 @@ TEST_CASE("expected copack support transform", "[expected][copack][transform]")
                                  fn::expected<fn::copack_for<int &, long &>, Error>>);
     static_assert(std::is_same_v<decltype(std::declval<E const &>().transform(cself)),
                                  fn::expected<fn::copack_for<int const &, long const &>, Error>>);
-    // a reference into an alternative of an rvalue expected is refused at compile time, which the
-    // suite cannot test
+    // a reference into an alternative of an rvalue expected is refused at compile time:
+    // tests/fn/reject/expected_transform.cpp
 
     E x{fn::copack{1}};
     CHECK(x.transform(self).value().get_ptr<int &>() == x.value().get_ptr<int>());
@@ -3746,8 +3746,8 @@ TEST_CASE("expected copack support transform_error", "[expected][copack][transfo
                                  fn::expected<double, fn::copack_for<int &, long &>>>);
     static_assert(std::is_same_v<decltype(std::declval<E const &>().transform_error(cself)),
                                  fn::expected<double, fn::copack_for<int const &, long const &>>>);
-    // a reference into an alternative of an rvalue expected is refused at compile time, which the
-    // suite cannot test
+    // a reference into an alternative of an rvalue expected is refused at compile time:
+    // tests/fn/reject/expected_transform.cpp
 
     E x{::fn::unexpect, fn::copack{1}};
     CHECK(x.transform_error(self).error().get_ptr<int &>() == x.error().get_ptr<int>());

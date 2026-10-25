@@ -2153,7 +2153,7 @@ TEST_CASE("copack transform", "[copack][transform]")
 
     // a returned reference into an lvalue argument stays a reference to it; where it could refer
     // into an expiring one - an rvalue, the temporary pack which splicing a pack or copack builds, or
-    // the alternative of std::move(a) - it is refused at compile time, which the suite cannot test
+    // the alternative of std::move(a) - it is refused at compile time: tests/fn/reject/copack_transform.cpp
     constexpr auto second = [](double, int const &j) noexcept -> int const & { return j; };
     int const j = 3;
     static_assert(std::same_as<decltype(a.transform(second, j)), copack<int const &>>);

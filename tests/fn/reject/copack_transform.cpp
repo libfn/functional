@@ -6,6 +6,7 @@
 #include <util/refusing.hpp>
 
 #include <fn/copack.hpp>
+#include <fn/pack.hpp>
 
 #include <utility>
 
@@ -51,6 +52,27 @@ void transform_reference_result()
   (void)c.transform(cref);
 #ifdef LIBFN_REJECT_transform_crvalue_reference_result
   (void)std::move(c).transform(cref);
+#endif
+}
+
+// ... nor into an extra argument which expires with the call: an rvalue, or the temporary pack which
+// splicing a pack argument builds.
+void transform_argument_reference_result()
+{
+  constexpr auto second = [](int, int const &j) -> int const & { return j; };
+  constexpr auto second_value = [](int, int const &j) -> int { return j; };
+  fn::copack<int> o{1};
+  int const j = 2;
+  fn::pack<int> const p{2};
+
+  (void)o.transform(second, j);
+#ifdef LIBFN_REJECT_transform_rvalue_argument_reference_result
+  (void)o.transform(second, 2);
+#endif
+
+  (void)o.transform(second_value, p);
+#ifdef LIBFN_REJECT_transform_spliced_argument_reference_result
+  (void)o.transform(second, p);
 #endif
 }
 

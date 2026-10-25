@@ -65,6 +65,18 @@ void transform_copack()
 #endif
 }
 
+// A reference result must not refer into an alternative of a temporary expected's copack.
+void transform_copack_reference_result()
+{
+  constexpr auto cref = [](int const &i) -> int const & { return i; };
+  fn::expected<fn::copack<int>, Error> o{fn::copack<int>{1}};
+
+  (void)o.transform(cref);
+#ifdef LIBFN_REJECT_transform_copack_rvalue_reference_result
+  (void)std::move(o).transform(cref);
+#endif
+}
+
 void transform_error()
 {
   fn::expected<int, Error> o{fn::unexpect};
@@ -96,6 +108,18 @@ void transform_error_copack()
   (void)std::move(o).transform_error(refusing<int>{});
 #ifdef LIBFN_REJECT_transform_error_copack_rvalue_to_clvalue
   (void)std::move(o).transform_error(refusing<int, Error &&, Error const &&>{});
+#endif
+}
+
+// ... nor into an alternative of a temporary expected's copack error.
+void transform_error_copack_reference_result()
+{
+  constexpr auto cref = [](Error const &e) -> Error const & { return e; };
+  fn::expected<int, fn::copack<Error>> o{fn::unexpect, fn::copack<Error>{Error{}}};
+
+  (void)o.transform_error(cref);
+#ifdef LIBFN_REJECT_transform_error_copack_rvalue_reference_result
+  (void)std::move(o).transform_error(cref);
 #endif
 }
 

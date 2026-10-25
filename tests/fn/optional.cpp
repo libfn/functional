@@ -1103,8 +1103,8 @@ TEST_CASE("optional transform copack", "[optional][copack][transform]")
         std::is_same_v<decltype(std::declval<O &>().transform(self)), fn::optional<fn::copack_for<int &, long &>>>);
     static_assert(std::is_same_v<decltype(std::declval<O const &>().transform(cself)),
                                  fn::optional<fn::copack_for<int const &, long const &>>>);
-    // a reference into an alternative of an rvalue optional is refused at compile time, which the
-    // suite cannot test
+    // a reference into an alternative of an rvalue optional is refused at compile time:
+    // tests/fn/reject/optional_transform.cpp
 
     O o{1};
     CHECK(o.transform(self).value().get_ptr<int &>() == o.value().get_ptr<int>());
