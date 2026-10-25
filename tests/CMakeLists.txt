@@ -114,14 +114,14 @@ foreach(mode 20 23 26)
             COMMAND "${target}" -r console
             WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
         )
-        set_property(TEST "${target}" PROPERTY LABELS tests_pfn "cxx${mode}" "${root_name}")
+        set_property(TEST "${target}" PROPERTY LABELS tests_pfn pfn_run "cxx${mode}" "${root_name}")
 
         unset(target)
         unset(root_name)
     endforeach()
 
     foreach(source IN ITEMS ${TESTS_PFN_REJECT_SOURCES})
-        add_reject_tests(SOURCE "${source}" MODE "${mode}" DEPENDENCIES include_pfn tests_util LABELS tests_pfn)
+        add_reject_tests(SOURCE "${source}" MODE "${mode}" DEPENDENCIES include_pfn tests_util LABELS tests_pfn pfn_reject)
     endforeach()
 endforeach()
 
@@ -216,14 +216,14 @@ foreach(mode 20 23 26)
             COMMAND "${target}" -r console
             WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
         )
-        set_property(TEST "${target}" PROPERTY LABELS tests_fn "cxx${mode}" "${root_name}")
+        set_property(TEST "${target}" PROPERTY LABELS tests_fn fn_run "cxx${mode}" "${root_name}")
 
         unset(target)
         unset(root_name)
     endforeach()
 
     foreach(source IN ITEMS ${TESTS_FN_REJECT_SOURCES})
-        add_reject_tests(SOURCE "${source}" MODE "${mode}" DEPENDENCIES "${entry_point}" tests_util LABELS tests_fn)
+        add_reject_tests(SOURCE "${source}" MODE "${mode}" DEPENDENCIES "${entry_point}" tests_util LABELS tests_fn fn_reject)
     endforeach()
 
     unset(entry_point)
