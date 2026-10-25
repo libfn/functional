@@ -7,7 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 ### tests/util
 
 set(TESTS_UTIL_HEADERS
+    util/allow_deprecated.hpp
     util/helper_types.hpp
+    util/refusing.hpp
     util/static_check.hpp
 )
 
@@ -42,25 +44,7 @@ foreach(source IN ITEMS ${TESTS_UTIL_HEADERS})
     unset(root_name)
 endforeach()
 
-### tests/pfn
-
-set(TESTS_PFN_SOURCES
-    pfn/expected.cpp
-    pfn/optional.cpp
-    pfn/tuple.cpp
-    pfn/expected_validation.cpp
-    pfn/optional_validation.cpp
-    pfn/tuple_validation.cpp
-    pfn/type_traits.cpp
-    pfn/type_traits_validation.cpp
-    pfn/functional.cpp
-    pfn/utility.cpp
-)
-
-set(TESTS_PFN_REJECT_SOURCES
-    pfn/reject/expected_monadic.cpp
-    pfn/reject/optional_monadic.cpp
-)
+### reject tests
 
 include(TargetGenerator)
 include(CompilationOptions)
@@ -114,6 +98,26 @@ function(add_reject_tests)
     endforeach()
 endfunction()
 
+### tests/pfn
+
+set(TESTS_PFN_SOURCES
+    pfn/expected.cpp
+    pfn/optional.cpp
+    pfn/tuple.cpp
+    pfn/expected_validation.cpp
+    pfn/optional_validation.cpp
+    pfn/tuple_validation.cpp
+    pfn/type_traits.cpp
+    pfn/type_traits_validation.cpp
+    pfn/functional.cpp
+    pfn/utility.cpp
+)
+
+set(TESTS_PFN_REJECT_SOURCES
+    pfn/reject/expected_monadic.cpp
+    pfn/reject/optional_monadic.cpp
+)
+
 # Generate separate target for each individual test source
 foreach(mode 20 23 26)
     if (NOT VALIDATE_CXX23 AND mode EQUAL 23)
@@ -156,7 +160,7 @@ foreach(mode 20 23 26)
     endforeach()
 
     foreach(source IN ITEMS ${TESTS_PFN_REJECT_SOURCES})
-        add_reject_tests(SOURCE "${source}" MODE "${mode}" DEPENDENCIES include_pfn LABELS tests_pfn)
+        add_reject_tests(SOURCE "${source}" MODE "${mode}" DEPENDENCIES include_pfn tests_util LABELS tests_pfn)
     endforeach()
 endforeach()
 
@@ -197,6 +201,17 @@ set(TESTS_FN_SOURCES
     fn/transform.cpp
     fn/utility.cpp
     fn/value_or.cpp
+)
+
+set(TESTS_FN_REJECT_SOURCES
+    fn/reject/choice_monadic.cpp
+    fn/reject/copack_lift.cpp
+    fn/reject/copack_structural.cpp
+    fn/reject/copack_transform.cpp
+    fn/reject/expected_transform.cpp
+    fn/reject/just_deduction.cpp
+    fn/reject/optional_transform.cpp
+    fn/reject/pack_deduction.cpp
 )
 
 # Generate separate target for each individual test source
@@ -244,6 +259,10 @@ foreach(mode 20 23 26)
 
         unset(target)
         unset(root_name)
+    endforeach()
+
+    foreach(source IN ITEMS ${TESTS_FN_REJECT_SOURCES})
+        add_reject_tests(SOURCE "${source}" MODE "${mode}" DEPENDENCIES "${entry_point}" tests_util LABELS tests_fn)
     endforeach()
 
     unset(entry_point)

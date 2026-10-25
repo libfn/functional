@@ -6,6 +6,7 @@
 #include <fn/expected.hpp>
 #include <fn/just.hpp>
 #include <fn/optional.hpp>
+#include <fn/transform.hpp>
 #include <fn/utility.hpp>
 
 #include <catch2/catch_all.hpp>
@@ -351,8 +352,10 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
 
     constexpr auto can_transform = [](auto &&f) { return requires { std::declval<P &>().transform(f); }; };
     static_assert(can_transform(nothrow_two));
-    static_assert(not can_transform([](int &) -> bool { return true; })); // wrong arity
-    static_assert(not can_transform(42));
+    // the member asserts what it requires; the pipe concept answers
+    constexpr auto wrong_arity = [](int &) -> bool { return true; };
+    static_assert(not fn::applicable_transform<decltype(wrong_arity), P &>);
+    static_assert(not fn::applicable_transform<int, P &>);
 
     SECTION("value")
     {
@@ -634,6 +637,45 @@ TEST_CASE("optional pack support", "[optional][pack][and_then][transform][operat
       static_assert(not noexcept(std::declval<fn::just<MoveNothrow> &>() & std::declval<O &>())); // copies the value
     }
 
+    SECTION("reference payloads")
+    {
+      // a reference payload is a reference factor, as in the disjunction: the referent is never
+      // copied, and a const referent stays a const reference
+      using O = fn::optional<int>;
+      using R = fn::optional<int &>;
+      using RL = fn::optional<long &>;
+      static_assert(
+          std::same_as<decltype(std::declval<R>() & std::declval<RL>()), fn::optional<fn::pack<int &, long &>>>);
+      static_assert(std::same_as<decltype(std::declval<R>() & std::declval<O>()), fn::optional<fn::pack<int &, int>>>);
+      static_assert(
+          std::same_as<decltype(std::declval<O &>() & std::declval<R>()), fn::optional<fn::pack<int, int &>>>);
+      static_assert(std::same_as<decltype(std::declval<fn::optional<int const &>>() & std::declval<RL>()),
+                                 fn::optional<fn::pack<int const &, long &>>>);
+      static_assert(std::same_as<decltype(std::declval<fn::just<int>>() & std::declval<R>()),
+                                 fn::optional<fn::pack<int, int &>>>);
+      static_assert(std::same_as<decltype(fn::conjoin(std::declval<R>(), std::declval<O>(), std::declval<RL>())),
+                                 fn::optional<fn::pack<int &, int, long &>>>);
+      // the void unit adds no factor, so the reference stays
+      static_assert(
+          std::same_as<decltype(std::declval<R>() & std::declval<fn::just<void>>()), fn::optional<fn::pack<int &>>>);
+      static_assert(
+          std::same_as<decltype(std::declval<fn::just<void>>() & std::declval<R>()), fn::optional<fn::pack<int &>>>);
+
+      constexpr auto battery = [] {
+        int x = 1;
+        long y = 2;
+        auto const r = R{x} & RL{y};
+        auto const m = R{x} & O{5};
+        auto const u = fn::just<void>{} & R{x};
+        return &fn::get<0>(r.value()) == &x && &fn::get<1>(r.value()) == &y && &fn::get<0>(m.value()) == &x
+               && fn::get<1>(m.value()) == 5 && &fn::get<0>(u.value()) == &x && not(R{} & O{5}).has_value()
+               && not(R{x} & O{}).has_value();
+      };
+      CHECK(battery());
+      static_assert(battery());
+      static_assert(noexcept(std::declval<R>() & std::declval<RL>()));
+    }
+
     SECTION("copack on left side only")
     {
       using Lh = fn::optional<fn::copack<double, int>>;
@@ -761,6 +803,9 @@ TEST_CASE("optional disjunction", "[optional][operator_or][copack]")
   // the empty copack adds nothing to the union, but keeps the result graded
   static_assert(std::same_as<decltype(std::declval<OI>() | std::declval<O>()), fn::optional<fn::copack<int>>>);
   static_assert(std::same_as<decltype(std::declval<O>() | std::declval<OI>()), fn::optional<fn::copack<int>>>);
+  // a cv-qualified value type enters unqualified, as a transform result does
+  static_assert(std::same_as<decltype(std::declval<fn::optional<int const>>() | std::declval<OB>()),
+                             fn::optional<fn::copack_for<int, bool>>>);
 
   static_assert((O{1} | OB{}) == fn::copack{1});
   static_assert((O{} | OB{true}) == fn::copack{true});
@@ -777,6 +822,62 @@ TEST_CASE("optional disjunction", "[optional][operator_or][copack]")
   static_assert(not noexcept(std::declval<fn::optional<MoveNothrow> &>() | std::declval<O &>())); // copies the value
   static_assert(noexcept(std::declval<fn::optional<MoveNothrow> &&>() | std::declval<O &&>()));   // moves it
 
+  SECTION("reference payloads")
+  {
+    // a reference payload joins the sum as a reference alternative: the referent is never copied
+    using R = fn::optional<int &>;
+    using RL = fn::optional<long &>;
+    static_assert(
+        std::same_as<decltype(std::declval<R>() | std::declval<RL>()), fn::optional<fn::copack_for<int &, long &>>>);
+    static_assert(
+        std::same_as<decltype(std::declval<R>() | std::declval<O>()), fn::optional<fn::copack_for<int, int &>>>);
+    static_assert(
+        std::same_as<decltype(std::declval<O &>() | std::declval<R>()), fn::optional<fn::copack_for<int, int &>>>);
+    static_assert(std::same_as<decltype(std::declval<fn::optional<int const &>>() | std::declval<fn::optional<long>>()),
+                               fn::optional<fn::copack_for<int const &, long>>>);
+    static_assert(std::same_as<decltype(std::declval<R>() | std::declval<R>()), R>); // same payload stays bare
+    static_assert(std::same_as<decltype(fn::disjoin(std::declval<R>(), std::declval<RL>(), std::declval<R>())),
+                               fn::optional<fn::copack_for<int &, long &>>>);
+
+    constexpr auto battery = [] {
+      int x = 1;
+      long y = 2;
+      O const five{5};
+      return (R{x} | RL{y})->get_ptr<int &>() == &x && (R{} | RL{y})->get_ptr<long &>() == &y
+             && (R{x} | O{5})->get_ptr<int &>() == &x && *(R{} | O{5})->get_ptr<int>() == 5
+             && *(five | R{x})->get_ptr<int>() == 5 // the lvalue int enters as int, named by its type
+             && &(R{} | R{x}).value() == &x && not(R{} | RL{}).has_value();
+    };
+    CHECK(battery());
+    static_assert(battery());
+    static_assert(noexcept(std::declval<R>() | std::declval<O &>()));
+
+    // a reference to a pack or a copack is no alternative: it enters as its value, as a transform
+    // result does, and the references it holds stay references
+    using CP = fn::copack_for<int &, bool>;
+    using PP = fn::pack<int &>;
+    using OL = fn::optional<long>;
+    static_assert(std::same_as<decltype(std::declval<fn::optional<CP &>>() | std::declval<OL>()),
+                               fn::optional<fn::copack_for<int &, bool, long>>>);
+    static_assert(std::same_as<decltype(std::declval<OL>() | std::declval<fn::optional<PP &>>()),
+                               fn::optional<fn::copack_for<long, PP>>>);
+    static_assert(std::same_as<decltype(std::declval<fn::optional<CP const &>>() | std::declval<fn::optional<CP>>()),
+                               fn::optional<CP>>);
+    static_assert(std::same_as<decltype(std::declval<fn::optional<CP &>>() | std::declval<fn::optional<CP &>>()),
+                               fn::optional<CP &>>); // same payload stays bare
+
+    constexpr auto referents = [] {
+      int x = 1;
+      CP c{x};
+      PP p{x};
+      return (fn::optional<CP &>{c} | OL{})->get_ptr<int &>() == &x
+             && &fn::get<0>(*(OL{} | fn::optional<PP &>{p})->get_ptr<PP>()) == &x
+             && (fn::optional<CP const &>{} | fn::optional<CP>{c})->get_ptr<int &>() == &x;
+    };
+    CHECK(referents());
+    static_assert(referents());
+  }
+
   SECTION("exceptions")
   {
     // the engaged side's value is copied into the graded result; a throwing copy propagates and
@@ -791,17 +892,20 @@ TEST_CASE("optional disjunction", "[optional][operator_or][copack]")
       }
       constexpr Boom(Boom &&) noexcept = default;
     };
-    fn::optional<Boom> lh{std::in_place, Boom{1}};
-    fn::optional<bool> rh{};
-    CHECK_THROWS_AS(lh | rh, int);
-    CHECK(lh.value().fuse == 1); // unchanged
+    fn::optional<Boom> boom{std::in_place, Boom{1}};
+    fn::optional<bool> none{};
+    CHECK_THROWS_AS(boom | none, int);
+    CHECK(boom.value().fuse == 1); // unchanged
+    CHECK_THROWS_AS(none | boom, int);
+    CHECK(boom.value().fuse == 1); // unchanged
 
     fn::optional<Boom> good{std::in_place, Boom{99}};
-    CHECK((good | rh).value().has_value(std::in_place_type<Boom>));
+    CHECK((good | none).value().has_value(std::in_place_type<Boom>));
+    CHECK((none | good).value().has_value(std::in_place_type<Boom>));
     static_assert([] {
       fn::optional<Boom> g{std::in_place, Boom{99}};
-      fn::optional<bool> r{};
-      return (g | r).value().has_value(std::in_place_type<Boom>);
+      fn::optional<bool> n{};
+      return (g | n).value().has_value(std::in_place_type<Boom>) && (n | g).value().has_value(std::in_place_type<Boom>);
     }());
   }
 }
@@ -1017,6 +1121,31 @@ TEST_CASE("optional transform copack", "[optional][copack][transform]")
     static_assert(not ce.transform(fnMixed).has_value());
   }
 
+  SECTION("a reference result stays a reference")
+  {
+    using O = fn::optional<fn::copack_for<int, long>>;
+    constexpr auto self
+        = fn::overload{[](int &i) noexcept -> int & { return i; }, [](long &l) noexcept -> long & { return l; }};
+    constexpr auto cself = [](auto const &v) noexcept -> auto const & { return v; };
+    static_assert(
+        std::is_same_v<decltype(std::declval<O &>().transform(self)), fn::optional<fn::copack_for<int &, long &>>>);
+    static_assert(std::is_same_v<decltype(std::declval<O const &>().transform(cself)),
+                                 fn::optional<fn::copack_for<int const &, long const &>>>);
+    // a reference into an alternative of an rvalue optional is refused at compile time:
+    // tests/fn/reject/optional_transform.cpp
+
+    O o{1};
+    CHECK(o.transform(self).value().get_ptr<int &>() == o.value().get_ptr<int>());
+    CHECK(std::as_const(o).transform(cself).value().get_ptr<int const &>() == o.value().get_ptr<int>());
+    O const e{};
+    CHECK(not e.transform(cself).has_value());
+    static_assert([self, cself] {
+      O x{1};
+      return x.transform(self).value().get_ptr<int &>() == x.value().get_ptr<int>()
+             && std::as_const(x).transform(cself).value().get_ptr<int const &>() == x.value().get_ptr<int>();
+    }());
+  }
+
   SECTION("error")
   {
     fn::optional<fn::copack_for<Xint, int>> s{};
@@ -1054,18 +1183,18 @@ TEST_CASE("optional transform copack", "[optional][copack][transform]")
 
   SECTION("constraints")
   {
-    constexpr auto can_transform_clval = [](auto &&f) { return requires { std::declval<S const &>().transform(f); }; };
+    // a callback no alternative can take makes the member ill-formed; the pipe concept answers
+    constexpr auto no_alternative = [](std::string_view) -> bool { throw 0; };
+    constexpr auto not_exhaustive = [](int &) -> bool { throw 0; }; // Xint is unhandled
+    static_assert(not fn::applicable_transform<decltype(no_alternative), S &>);
+    static_assert(not fn::applicable_transform<decltype(not_exhaustive), S &>);
 
-    // a callback no alternative can take drops the candidate, rather than failing inside the body
-    static_assert(not can_transform([](std::string_view) -> bool { throw 0; }));
-    static_assert(not can_transform([](int &) -> bool { throw 0; })); // Xint is unhandled
-
-    // a visitor need only serve the value category the call actually selects: the losing const&
-    // candidate is dropped by its own constraint rather than forming its signature and poisoning
-    // the call. The four-category visitors above are a spelling choice, not a requirement.
+    // a visitor need only serve the value category the call actually selects: the losing candidates
+    // never instantiate their bodies. The four-category visitors above are a spelling choice, not a
+    // requirement.
     constexpr auto lval_only = fn::overload{[](int &i) -> bool { return i == 12; }, [](Xint &) -> bool { throw 0; }};
     static_assert(can_transform(lval_only));
-    static_assert(not can_transform_clval(lval_only));
+    static_assert(not fn::applicable_transform<decltype(lval_only), S const &>);
 
     S s{12};
     CHECK(s.transform(lval_only).value() == fn::copack{true});

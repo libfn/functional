@@ -157,11 +157,11 @@ auto test_copack() -> void
   static_assert(value == 1);
 
   // Storing a pack inside a copack is allowed, including a pack holding a reference:
-  auto cpr = fn::as_copack(fn::as_pack<int const &>(value));
+  auto cpr = fn::copack{fn::as_pack<int const &>(value)};
   static_assert(std::same_as<decltype(cpr), fn::copack<fn::pack<int const &>>>);
 
-  // Singular lift and direct value extraction (only allowed for singular copacks):
-  auto cp = fn::as_copack(42);
+  // Direct value extraction (only allowed for singular copacks):
+  auto cp = fn::copack{42};
   using std::get;
   static_assert(std::same_as<decltype(get(cp)), int &>);
 }
@@ -381,8 +381,8 @@ auto test_identity_transformation(fn::just<UserId> j) -> void
 // sync-example-test-choice-mapping
 auto test_choice_mapping(fn::choice<User, UserId> ch) -> void
 {
-  constexpr auto mapper = fn::overload{[](UserId) { return fn::as_choice(Missing{}); },
-                                       [](User) { return fn::as_choice(FilePath{}); }};
+  constexpr auto mapper = fn::overload{[](UserId) { return fn::choice{Missing{}}; }, //
+                                       [](User) { return fn::choice{FilePath{}}; }};
 
   // transform nests the returned choice as a mapped value
   auto mapped = ch | fn::transform(mapper);
@@ -427,9 +427,14 @@ auto test_references() -> void
   fn::optional<int &> opt{x};
   static_assert(std::same_as<decltype(opt.value()), int &>);
 
-  // expected must wrap references inside a pack
+  // expected holds references inside a pack ...
   fn::expected<fn::pack<int &>, Error> ex{fn::as_pack(x)};
   static_assert(std::same_as<decltype(ex.value()), fn::pack<int &> &>);
+
+  // ... or hold them as copack alternatives
+  fn::expected<fn::copack<int &>, Error> ec{x};
+  using std::get;
+  static_assert(std::same_as<decltype(get(ec.value())), int &>);
 }
 // sync-example-test-references
 

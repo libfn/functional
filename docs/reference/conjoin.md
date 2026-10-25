@@ -82,8 +82,8 @@ constexpr auto operator&(Lh &&lh, Rh &&rh);  // (13)
 ## Call signatures {style: "api"}
 
 ```cpp {title: "fn::conjoin_t::operator()"}
-template <typename Arg>
-constexpr auto operator()(Arg &&arg) const -> decltype(arg);  // (1)
+template <some_monadic_type Arg>
+constexpr auto operator()(Arg &&arg) const;  // (1)
 
 template <typename Arg, typename... Args>
 constexpr auto operator()(Arg &&arg, Args &&...args) const;  // (2)

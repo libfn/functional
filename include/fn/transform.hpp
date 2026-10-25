@@ -34,10 +34,10 @@ concept applicable_transform //
         {
           ::fn::apply(FWD(fn), FWD(v).value())
         } -> convertible_to_expected<typename ::std::remove_cvref_t<decltype(v)>::error_type>;
-      }) || (some_expected<V> && some_copack<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
-        {
-          FWD(v).value().transform(FWD(fn))
-        } -> convertible_to_expected<typename ::std::remove_cvref_t<decltype(v)>::error_type>;
+      }) || (some_expected<V> && some_copack<typename ::std::remove_cvref_t<V>::value_type> && requires(V &&v) {
+        requires detail::_copack_transformable<Fn, decltype(FWD(v).value())>;
+        requires convertible_to_expected<detail::_copack_transform_t<Fn, decltype(FWD(v).value())>,
+                                         typename ::std::remove_cvref_t<V>::error_type>;
       }) || (some_expected_void<V> && requires(Fn &&fn, V &&v) {
         {
           ::fn::apply(FWD(fn))
@@ -47,15 +47,14 @@ concept applicable_transform //
         {
           ::fn::apply(FWD(fn), FWD(v).value())
         } -> convertible_to_optional;
-      }) || (some_optional<V> && some_copack<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
-        {
-          FWD(v).value().transform(FWD(fn))
-        } -> convertible_to_optional;
-      }) || (some_just<V> && requires(Fn &&fn, V &&v) {
+      }) || (some_optional<V> && some_copack<typename ::std::remove_cvref_t<V>::value_type> && requires(V &&v) {
+        requires detail::_copack_transformable<Fn, decltype(FWD(v).value())>;
+        requires convertible_to_optional<detail::_copack_transform_t<Fn, decltype(FWD(v).value())>>;
+      }) || (some_just<V> && (not some_choice<V>) && requires(Fn &&fn, V &&v) {
         {
           FWD(v).transform(FWD(fn))
         } -> same_kind<V>;
-      });
+      }) || (some_choice<V> && requires(V &&v) { requires detail::_copack_transformable<Fn, decltype(FWD(v).value())>; });
 
 /**
  * @brief Map the value of the monadic type, keeping the carrier's shape

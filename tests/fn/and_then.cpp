@@ -1069,15 +1069,15 @@ TEST_CASE("and_then across the identity cluster", "[and_then][just][choice][expe
     constexpr auto fnMixed = fn::overload{[](A) { return fn::just<int>{1}; }, //
                                           [](B) { return fn::choice_for<U, V>{V{}}; }};
     static_assert(std::is_same_v<decltype(ca | fn::and_then(fnMixed)), fn::choice_for<int, U, V>>);
-    static_assert((ca | fn::and_then(fnMixed)) == fn::as_choice(1));
-    CHECK((fn::choice_for<A, B>{B{}} | fn::and_then(fnMixed)) == fn::as_choice(V{}));
+    static_assert((ca | fn::and_then(fnMixed)) == fn::choice<int>{1});
+    CHECK((fn::choice_for<A, B>{B{}} | fn::and_then(fnMixed)) == fn::choice<V>{V{}});
     static_assert(fn::applicable_and_then<decltype(fnMixed) &, fn::choice_for<A, B> const &>);
     static_assert(not fn::applicable_and_then_across<decltype(fnMixed) &, fn::choice_for<A, B> const &>);
     constexpr auto fnUnit = fn::overload{[](A) { return fn::just<void>{}; }, //
                                          [](B) { return fn::just<int>{2}; }};
     static_assert(std::is_same_v<decltype(ca | fn::and_then(fnUnit)), fn::choice_for<fn::pack<>, int>>);
     static_assert((ca | fn::and_then(fnUnit)).has_value(std::in_place_type<fn::pack<>>));
-    CHECK((fn::choice_for<A, B>{B{}} | fn::and_then(fnUnit)) == fn::as_choice(2));
+    CHECK((fn::choice_for<A, B>{B{}} | fn::and_then(fnUnit)) == fn::choice<int>{2});
   }
 
   SECTION("just binds to a choice, and crosses to the identity expected")
@@ -1108,9 +1108,9 @@ TEST_CASE("and_then across the identity cluster", "[and_then][just][choice][expe
     constexpr auto fnBoxed = fn::overload{[](A) { return fn::just<int>{1}; }, //
                                           [](B) { return fn::just<fn::just<int>>{fn::just<int>{2}}; }};
     static_assert(std::is_same_v<decltype(ea | fn::and_then(fnBoxed)), fn::choice_for<int, fn::just<int>>>);
-    static_assert((ea | fn::and_then(fnBoxed)) == fn::as_choice(1));
+    static_assert((ea | fn::and_then(fnBoxed)) == fn::choice<int>{1});
     CHECK((fn::expected<fn::copack_for<A, B>, E0>{fn::copack_for<A, B>{B{}}} | fn::and_then(fnBoxed))
-          == fn::as_choice(fn::just<int>{2}));
+          == fn::choice<fn::just<int>>{fn::just<int>{2}});
   }
 
   SECTION("identity expected, single and void payloads; the void just")
@@ -1720,6 +1720,25 @@ TEST_CASE("and_then joins heterogeneous optional branches", "[and_then][optional
     CHECK(rr.value() == X{});
   }
 
+  SECTION("a reference branch joins as a reference alternative")
+  {
+    constexpr auto fnRef = [](X &x) {
+      return fn::overload{[&x](A) { return fn::optional<X &>{x}; }, [](B) { return fn::optional<Y>{Y{}}; }};
+    };
+    X x{};
+    auto r = In{fn::copack_for<A, B>{A{}}}.and_then(fnRef(x));
+    static_assert(std::is_same_v<decltype(r), fn::optional<fn::copack_for<X &, Y>>>);
+    CHECK(r.value().get_ptr<X &>() == &x);
+    auto p = In{fn::copack_for<A, B>{A{}}} | fn::and_then(fnRef(x));
+    static_assert(std::is_same_v<decltype(p), fn::optional<fn::copack_for<X &, Y>>>);
+    CHECK(p.value().get_ptr<X &>() == &x);
+    static_assert([fnRef] {
+      X x{};
+      In const in{fn::copack_for<A, B>{A{}}};
+      return in.and_then(fnRef(x)).value().get_ptr<X &>() == &x;
+    }());
+  }
+
   SECTION("constraints and noexcept")
   {
     // a mixed optional-and-expected set answers, not errors
@@ -1729,11 +1748,6 @@ TEST_CASE("and_then joins heterogeneous optional branches", "[and_then][optional
     static_assert(canM(In{fn::copack_for<A, B>{A{}}}, fnJoin)); // converse
     static_assert(fn::applicable_and_then<decltype(fnJoin), In>);
     static_assert(not fn::applicable_and_then<decltype(fnMixed), In>);
-    // a reference-carrying optional leaves the join unformable rather than copying the referent
-    constexpr auto fnRef = fn::overload{[](A) -> fn::optional<X &> { throw 0; }, //
-                                        [](B) { return fn::optional<Y>{Y{}}; }};
-    static_assert(not canM(In{fn::copack_for<A, B>{A{}}}, fnRef));
-
     In v{fn::copack_for<A, B>{A{}}};
     constexpr auto fnNothrow = fn::overload{[](A) noexcept { return fn::optional<X>{X{}}; },
                                             [](B) noexcept { return fn::optional<Y>{Y{}}; }};

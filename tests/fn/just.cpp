@@ -50,6 +50,7 @@ template <typename T>
 concept implicitly_default_constructible = requires(void (&sink)(T)) { sink({}); };
 template <typename T>
 concept complete = requires { sizeof(T); };
+template <fn::some_just auto S> struct just_nttp final {};
 
 } // namespace
 
@@ -64,6 +65,11 @@ TEST_CASE("just", "[just]")
     static_assert(std::is_same_v<decltype(fn::just{}), fn::just<void>>);
     static_assert(std::is_same_v<decltype(fn::just(std::in_place_type<void>)), fn::just<void>>);
     static_assert(std::is_same_v<decltype(fn::just{std::in_place}), fn::just<void>>);
+    // deduction holds a value, whatever the argument's value category; an array or a function is
+    // refused by just's static_asserts, never turned into a pointer (tests/fn/reject/just_deduction.cpp)
+    int const x = 13;
+    static_assert(std::is_same_v<decltype(fn::just{x}), fn::just<int>>);
+    static_assert(std::is_same_v<decltype(fn::just{std::move(x)}), fn::just<int>>);
 
     T a{13};
     CHECK(a.value() == 13);
@@ -259,13 +265,13 @@ TEST_CASE("just", "[just]")
     constexpr auto fnChoice
         = [](int i) { return i > 0 ? fn::choice_for<bool, int>{i} : fn::choice_for<bool, int>{false}; };
     static_assert(std::is_same_v<decltype(a.and_then(fnChoice)), fn::choice_for<bool, int>>);
-    CHECK(a.and_then(fnChoice) == fn::as_choice(3));
+    CHECK(a.and_then(fnChoice) == fn::choice<int>{3});
     static_assert(std::is_same_v<decltype(a.and_then([](int) { return fn::just<void>{}; })), fn::just<void>>);
 
     SECTION("constexpr")
     {
       static_assert(T{3}.and_then([](int i) { return fn::just<bool>{i != 0}; }).value());
-      static_assert(T{3}.and_then(fnChoice) == fn::as_choice(3));
+      static_assert(T{3}.and_then(fnChoice) == fn::choice<int>{3});
       SUCCEED();
     }
   }
@@ -365,6 +371,16 @@ TEST_CASE("just", "[just]")
     CHECK_THROWS_AS(fn::just<void>{} & value, int);
     CHECK(value.value().id == 5);
   }
+
+  SECTION("structural type")
+  {
+    constexpr T a{42};
+    constexpr T b{42};
+    constexpr T c{17};
+    static_assert(std::is_same_v<just_nttp<a>, just_nttp<b>>);
+    static_assert(not std::is_same_v<just_nttp<a>, just_nttp<c>>);
+    SUCCEED();
+  }
 }
 
 TEST_CASE("just of void", "[just]")
@@ -396,7 +412,7 @@ TEST_CASE("just of void", "[just]")
     static_assert(std::is_same_v<decltype(v.transform([] {})), V>);
     static_assert(v.transform([] { return fn::copack<int>{9}; }) == fn::choice<int>{9});
     static_assert(v.and_then([] { return fn::just<int>{9}; }) == fn::just<int>{9});
-    static_assert(v.and_then([] { return fn::choice<int>{9}; }) == fn::as_choice(9));
+    static_assert(v.and_then([] { return fn::choice<int>{9}; }) == fn::choice<int>{9});
     CHECK(v.transform([] { return 5; }).value() == 5);
 
     static_assert(noexcept(v.transform([]() noexcept { return 1; })));

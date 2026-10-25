@@ -7,6 +7,8 @@
 #include <fn/expected.hpp>
 #include <fn/just.hpp>
 #include <fn/optional.hpp>
+#include <fn/transform.hpp>
+#include <fn/transform_error.hpp>
 #include <fn/utility.hpp>
 
 #include <catch2/catch_all.hpp>
@@ -1089,8 +1091,10 @@ TEST_CASE("expected pack support", "[expected][pack][and_then][transform][graded
 
     constexpr auto can_transform = [](auto &&f) { return requires { std::declval<S &>().transform(f); }; };
     static_assert(can_transform(nothrow_two));
-    static_assert(not can_transform([](int &) -> bool { throw 0; })); // wrong arity
-    static_assert(not can_transform(42));
+    // the member asserts what it requires; the pipe concept answers
+    constexpr auto wrong_arity = [](int &) -> bool { throw 0; };
+    static_assert(not fn::applicable_transform<decltype(wrong_arity), S &>);
+    static_assert(not fn::applicable_transform<int, S &>);
 
     SECTION("value")
     {
@@ -3013,6 +3017,22 @@ TEST_CASE("expected disjunction", "[expected][operator_or][graded][copack]")
     SUCCEED();
   }
 
+  SECTION("reference alternatives")
+  {
+    // a value enters the sum named by its type: by value, an lvalue int would be ambiguous between
+    // the alternatives int and int&
+    using ER = fn::expected<fn::copack<int &>, Error>;
+    static_assert(std::is_same_v<decltype(std::declval<ER>() | std::declval<EA const &>()),
+                                 fn::expected<fn::copack_for<int, int &>, fn::pack<Error, Error>>>);
+    constexpr auto battery = [] {
+      int x = 1;
+      EA const five{5};
+      return (ER{x} | five)->get_ptr<int &>() == &x && *(ER{fn::unexpect, Unknown} | five)->get_ptr<int>() == 5;
+    };
+    CHECK(battery());
+    static_assert(battery());
+  }
+
   SECTION("constraints and noexcept")
   {
     // the disjunction stays same-kind plus cluster: the expected/optional mix is refused
@@ -3052,6 +3072,25 @@ TEST_CASE("expected disjunction", "[expected][operator_or][graded][copack]")
       EL g{fn::unexpect, Boom{99}};
       EB r{::fn::unexpect, Oops};
       return (g | r).error().apply([](Boom const &b, OtherError o) { return b.fuse == 98 && o == Oops; });
+    }());
+
+    // likewise for the engaged side's value, copied into the value sum from either side
+    using EV = fn::expected<Boom, Error>;
+    EV boom{std::in_place, Boom{1}};
+    EA const failed{::fn::unexpect, FileNotFound};
+    CHECK_THROWS_AS(boom | rh, int);
+    CHECK(boom.value().fuse == 1); // unchanged
+    CHECK_THROWS_AS(failed | boom, int);
+    CHECK(boom.value().fuse == 1); // unchanged
+
+    EV good_value{std::in_place, Boom{99}};
+    CHECK((good_value | rh)->get_ptr<Boom>()->fuse == 98);
+    CHECK((failed | good_value)->get_ptr<Boom>()->fuse == 98);
+    static_assert([] {
+      EV g{std::in_place, Boom{99}};
+      EB r{::fn::unexpect, Oops};
+      EA const f{::fn::unexpect, FileNotFound};
+      return (g | r)->get_ptr<Boom>()->fuse == 98 && (f | g)->get_ptr<Boom>()->fuse == 98;
     }());
   }
 }
@@ -3520,6 +3559,31 @@ TEST_CASE("expected copack support transform", "[expected][copack][transform]")
     }());
   }
 
+  SECTION("a reference result stays a reference")
+  {
+    using E = fn::expected<fn::copack_for<int, long>, Error>;
+    constexpr auto self
+        = fn::overload{[](int &i) noexcept -> int & { return i; }, [](long &l) noexcept -> long & { return l; }};
+    constexpr auto cself = [](auto const &v) noexcept -> auto const & { return v; };
+    static_assert(std::is_same_v<decltype(std::declval<E &>().transform(self)),
+                                 fn::expected<fn::copack_for<int &, long &>, Error>>);
+    static_assert(std::is_same_v<decltype(std::declval<E const &>().transform(cself)),
+                                 fn::expected<fn::copack_for<int const &, long const &>, Error>>);
+    // a reference into an alternative of an rvalue expected is refused at compile time:
+    // tests/fn/reject/expected_transform.cpp
+
+    E x{fn::copack{1}};
+    CHECK(x.transform(self).value().get_ptr<int &>() == x.value().get_ptr<int>());
+    CHECK(std::as_const(x).transform(cself).value().get_ptr<int const &>() == x.value().get_ptr<int>());
+    E const e{::fn::unexpect, FileNotFound};
+    CHECK(e.transform(cself).error() == FileNotFound);
+    static_assert([self, cself] {
+      E y{fn::copack{1}};
+      return y.transform(self).value().get_ptr<int &>() == y.value().get_ptr<int>()
+             && std::as_const(y).transform(cself).value().get_ptr<int const &>() == y.value().get_ptr<int>();
+    }());
+  }
+
   SECTION("error")
   {
     fn::expected<fn::copack_for<int, std::string_view>, Error> s{::fn::unexpect, FileNotFound};
@@ -3562,17 +3626,17 @@ TEST_CASE("expected copack support transform", "[expected][copack][transform]")
 
   SECTION("constraints")
   {
-    constexpr auto can_transform_clval = [](auto &&f) { return requires { std::declval<S const &>().transform(f); }; };
-
-    // a callback no alternative can take drops the candidate, rather than failing inside the body
-    static_assert(not can_transform([](double) -> bool { throw 0; }));
-    static_assert(not can_transform([](int &) -> bool { throw 0; })); // string_view is unhandled
+    // a callback no alternative can take makes the member ill-formed; the pipe concept answers
+    constexpr auto no_alternative = [](double) -> bool { throw 0; };
+    constexpr auto not_exhaustive = [](int &) -> bool { throw 0; }; // string_view is unhandled
+    static_assert(not fn::applicable_transform<decltype(no_alternative), S &>);
+    static_assert(not fn::applicable_transform<decltype(not_exhaustive), S &>);
 
     // a visitor need only serve the value category the call actually selects
     constexpr auto lval_only
         = fn::overload{[](int &i) -> bool { return i == 12; }, [](std::string_view &) -> bool { throw 0; }};
     static_assert(can_transform(lval_only));
-    static_assert(not can_transform_clval(lval_only));
+    static_assert(not fn::applicable_transform<decltype(lval_only), S const &>);
 
     S s{fn::copack{12}};
     CHECK(s.transform(lval_only).value() == fn::copack{true});
@@ -3669,6 +3733,31 @@ TEST_CASE("expected copack support transform_error", "[expected][copack][transfo
              && bad.transform_error(Handler{}).error().has_value(std::in_place_type<fn::pack<>>)
              && std::move(std::as_const(bad)).transform_error(Handler{}).error() == fn::copack{43}
              && std::move(bad).transform_error(Handler{}).error().has_value(std::in_place_type<fn::pack<>>);
+    }());
+  }
+
+  SECTION("a reference result stays a reference")
+  {
+    using E = fn::expected<double, fn::copack_for<int, long>>;
+    constexpr auto self
+        = fn::overload{[](int &i) noexcept -> int & { return i; }, [](long &l) noexcept -> long & { return l; }};
+    constexpr auto cself = [](auto const &v) noexcept -> auto const & { return v; };
+    static_assert(std::is_same_v<decltype(std::declval<E &>().transform_error(self)),
+                                 fn::expected<double, fn::copack_for<int &, long &>>>);
+    static_assert(std::is_same_v<decltype(std::declval<E const &>().transform_error(cself)),
+                                 fn::expected<double, fn::copack_for<int const &, long const &>>>);
+    // a reference into an alternative of an rvalue expected is refused at compile time:
+    // tests/fn/reject/expected_transform.cpp
+
+    E x{::fn::unexpect, fn::copack{1}};
+    CHECK(x.transform_error(self).error().get_ptr<int &>() == x.error().get_ptr<int>());
+    CHECK(std::as_const(x).transform_error(cself).error().get_ptr<int const &>() == x.error().get_ptr<int>());
+    E const v{0.5};
+    CHECK(v.transform_error(cself).value() == 0.5);
+    static_assert([self, cself] {
+      E y{::fn::unexpect, fn::copack{1}};
+      return y.transform_error(self).error().get_ptr<int &>() == y.error().get_ptr<int>()
+             && std::as_const(y).transform_error(cself).error().get_ptr<int const &>() == y.error().get_ptr<int>();
     }());
   }
 
@@ -3836,18 +3925,17 @@ TEST_CASE("expected copack support transform_error", "[expected][copack][transfo
 
   SECTION("constraints")
   {
-    constexpr auto can_transform_error_clval
-        = [](auto &&f) { return requires { std::declval<S const &>().transform_error(f); }; };
-
-    // a callback no alternative can take drops the candidate, rather than failing inside the body
-    static_assert(not can_transform_error([](double) -> bool { throw 0; }));
-    static_assert(not can_transform_error([](int &) -> bool { throw 0; })); // string_view is unhandled
+    // a callback no alternative can take makes the member ill-formed; the pipe concept answers
+    constexpr auto no_alternative = [](double) -> bool { throw 0; };
+    constexpr auto not_exhaustive = [](int &) -> bool { throw 0; }; // string_view is unhandled
+    static_assert(not fn::applicable_transform_error<decltype(no_alternative), S &>);
+    static_assert(not fn::applicable_transform_error<decltype(not_exhaustive), S &>);
 
     // a visitor need only serve the value category the call actually selects
     constexpr auto lval_only
         = fn::overload{[](int &i) -> bool { return i == 12; }, [](std::string_view &) -> bool { throw 0; }};
     static_assert(can_transform_error(lval_only));
-    static_assert(not can_transform_error_clval(lval_only));
+    static_assert(not fn::applicable_transform_error<decltype(lval_only), S const &>);
 
     S s{::fn::unexpect, fn::copack{12}};
     CHECK(s.transform_error(lval_only).error() == fn::copack{true});
@@ -3996,13 +4084,14 @@ TEST_CASE("expected pack support transform_error", "[expected][transform_error][
   constexpr auto nothrow_generic = [](auto &&...) noexcept -> bool { return true; };
   static_assert(noexcept(std::declval<S &>().transform_error(nothrow_generic)));
 
-  // constraints (:283-284): pack-apply invocability, and the untouched value's copy
+  // applicability: pack-apply invocability in the operand's own category. The member asserts what it
+  // requires; the pipe concept answers
   constexpr auto can_te_lval = [](auto &&f) { return requires { std::declval<S &>().transform_error(f); }; };
-  constexpr auto can_te_rval = [](auto &&f) { return requires { std::declval<S &&>().transform_error(f); }; };
   static_assert(can_te_lval(nothrow_two));
-  static_assert(not can_te_rval(nothrow_two));                      // lvalue-only visitor
-  static_assert(not can_te_lval([](Error &) -> bool { throw 0; })); // wrong arity
-  static_assert(not can_te_lval(42));
+  static_assert(not fn::applicable_transform_error<decltype(nothrow_two), S>); // lvalue-only visitor
+  constexpr auto wrong_arity = [](Error &) -> bool { throw 0; };
+  static_assert(not fn::applicable_transform_error<decltype(wrong_arity), S &>);
+  static_assert(not fn::applicable_transform_error<int, S &>);
 
   SECTION("value")
   {

@@ -539,12 +539,17 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       return type(::fn::unexpect, _pfn_base::_error(FWD(self)));
   }
 
-  // transform, value type is a copack (delegates to copack::transform). The callback is constrained here,
-  // in the immediate context, for the reason given on optional's copack-case _transform.
+  // transform, value type is a copack (delegates to copack::transform), spelled as optional's
+  // copack-case _transform
+  template <typename Self, typename Fn>
+  using _copack_transformed_t
+      = ::fn::expected<::fn::detail::_copack_transform_t<Fn, decltype(_pfn_base::_value(::std::declval<Self>()))>, E>;
+
   template <typename Self, typename Fn>
   static constexpr auto _transform(Self &&self, Fn &&fn) //
       noexcept(noexcept(_pfn_base::_value(FWD(self)).transform(FWD(fn)))
                && ::std::is_nothrow_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>) // extension
+      -> DEDUCED_RETURN(_copack_transformed_t<Self, Fn>(::fn::unexpect, _pfn_base::_error(FWD(self))))
     requires some_copack<T> && (not empty_copack<T>)
              && ::fn::detail::_typelist_applicable<Fn, decltype(_pfn_base::_value(FWD(self)))>
              && ::std::is_constructible_v<E, decltype(_pfn_base::_error(FWD(self)))>
@@ -620,16 +625,22 @@ template <typename T, typename E> struct _expected_base : ::pfn::detail::_expect
       });
   }
 
-  // Constrain the call here so invalid transforms fail in the immediate context.
+  // transform_error, error type is a copack (delegates to copack::transform), spelled as optional's
+  // copack-case _transform
+  template <typename Self, typename Fn>
+  using _copack_error_transformed_t
+      = ::fn::expected<T, ::fn::detail::_copack_transform_t<Fn, decltype(_pfn_base::_error(::std::declval<Self>()))>>;
+
   template <typename Self, typename Fn>
   static constexpr auto _transform_error(Self &&self, Fn &&fn) //
       noexcept(noexcept(_pfn_base::_error(FWD(self)).transform(FWD(fn)))
                && (::std::is_void_v<T>
                    || ::std::is_nothrow_constructible_v<
                        T, ::fn::apply_const_lvalue_t<Self, typename _pfn_base::_value_t &&>>)) // extension
+      -> DEDUCED_RETURN(_copack_error_transformed_t<Self, Fn>(
+          ::fn::unexpect, ::std::declval<typename _copack_error_transformed_t<Self, Fn>::error_type>()))
     requires some_copack<E> && (not empty_copack<E>)
              && ::fn::detail::_typelist_applicable<Fn, decltype(_pfn_base::_error(FWD(self)))>
-             && requires { _pfn_base::_error(FWD(self)).transform(FWD(fn)); }
              && (::std::is_void_v<T> || ::std::is_constructible_v<T, decltype(_pfn_base::_value(FWD(self)))>)
   {
     using new_error_type = decltype(_pfn_base::_error(FWD(self)).transform(FWD(fn)));
@@ -1526,28 +1537,28 @@ public:
   template <class F>
   constexpr auto transform(F &&f) &                        //
       noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform(*this, FWD(f)))
+    requires ::std::is_constructible_v<Err, Err &>
   {
     return _base::_transform(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) &&                                    //
       noexcept(noexcept(_base::_transform(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform(::std::move(*this), FWD(f)))
+    requires ::std::is_constructible_v<Err, Err &&>
   {
     return _base::_transform(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) const &                  //
       noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform(*this, FWD(f)))
+    requires ::std::is_constructible_v<Err, Err const &>
   {
     return _base::_transform(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) const &&                              //
       noexcept(noexcept(_base::_transform(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform(::std::move(*this), FWD(f)))
+    requires ::std::is_constructible_v<Err, Err const &&>
   {
     return _base::_transform(::std::move(*this), FWD(f));
   }
@@ -1566,28 +1577,28 @@ public:
   template <class F>
   constexpr auto transform_error(F &&f) &                        //
       noexcept(noexcept(_base::_transform_error(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform_error(*this, FWD(f)))
+    requires ::std::is_constructible_v<T, T &>
   {
     return _base::_transform_error(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform_error(F &&f) &&                                    //
       noexcept(noexcept(_base::_transform_error(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform_error(::std::move(*this), FWD(f)))
+    requires ::std::is_constructible_v<T, T &&>
   {
     return _base::_transform_error(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto transform_error(F &&f) const &                  //
       noexcept(noexcept(_base::_transform_error(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform_error(*this, FWD(f)))
+    requires ::std::is_constructible_v<T, T const &>
   {
     return _base::_transform_error(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform_error(F &&f) const &&                              //
       noexcept(noexcept(_base::_transform_error(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform_error(::std::move(*this), FWD(f)))
+    requires ::std::is_constructible_v<T, T const &&>
   {
     return _base::_transform_error(::std::move(*this), FWD(f));
   }
@@ -2227,28 +2238,24 @@ public:
   template <class F>
   constexpr auto transform_error(F &&f) &                        //
       noexcept(noexcept(_base::_transform_error(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform_error(*this, FWD(f)))
   {
     return _base::_transform_error(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform_error(F &&f) &&                                    //
       noexcept(noexcept(_base::_transform_error(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform_error(::std::move(*this), FWD(f)))
   {
     return _base::_transform_error(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto transform_error(F &&f) const &                  //
       noexcept(noexcept(_base::_transform_error(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform_error(*this, FWD(f)))
   {
     return _base::_transform_error(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform_error(F &&f) const &&                              //
       noexcept(noexcept(_base::_transform_error(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform_error(::std::move(*this), FWD(f)))
   {
     return _base::_transform_error(::std::move(*this), FWD(f));
   }
@@ -2779,10 +2786,12 @@ template <typename Lh, typename Rh>
 [[nodiscard]] constexpr auto operator|(Lh &&lh, Rh &&rh) //
     noexcept(::fn::detail::_nothrow_disj_inject<
                  ::fn::detail::_dead_value<Lh>,
-                 expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, Lh>::value
+                 expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, Lh,
+                 ::fn::detail::_disj_tag_t<Lh>>::value
              && ::fn::detail::_nothrow_disj_inject<
                  ::fn::detail::_dead_value<Rh>,
-                 expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, Rh>::value
+                 expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, Rh,
+                 ::fn::detail::_disj_tag_t<Rh>>::value
              && detail::_nothrow_disj_error<
                  expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, Lh, Rh>)
 {
@@ -2791,11 +2800,11 @@ template <typename Lh, typename Rh>
   using Er = ::std::remove_cvref_t<Rh>::error_type;
   if constexpr (not ::fn::detail::_dead_value<Lh>) {
     if (lh.has_value())
-      return type{::std::in_place, FWD(lh).value()};
+      return type{::std::in_place, ::fn::detail::_disj_tag_t<Lh>{}, FWD(lh).value()};
   }
   if constexpr (not ::fn::detail::_dead_value<Rh>) {
     if (rh.has_value())
-      return type{::std::in_place, FWD(rh).value()};
+      return type{::std::in_place, ::fn::detail::_disj_tag_t<Rh>{}, FWD(rh).value()};
   }
   return type{::fn::unexpect, ::fn::detail::_fold_detail::fold<El, Er>(FWD(lh).error(), FWD(rh).error())};
 }
@@ -2810,7 +2819,8 @@ template <some_expected_void Lh, typename Rh>
             expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, ::std::in_place_t, pack<>>
         && ::fn::detail::_nothrow_disj_inject<
             ::fn::detail::_dead_value<Rh>,
-            expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, Rh>::value
+            expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, Rh,
+            ::fn::detail::_disj_tag_t<Rh>>::value
         && detail::_nothrow_disj_error<expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>,
                                        Lh, Rh>)
 {
@@ -2821,7 +2831,7 @@ template <some_expected_void Lh, typename Rh>
     return type{::std::in_place, pack<>{}};
   if constexpr (not ::fn::detail::_dead_value<Rh>) {
     if (rh.has_value())
-      return type{::std::in_place, FWD(rh).value()};
+      return type{::std::in_place, ::fn::detail::_disj_tag_t<Rh>{}, FWD(rh).value()};
   }
   return type{::fn::unexpect, ::fn::detail::_fold_detail::fold<El, Er>(FWD(lh).error(), FWD(rh).error())};
 }
@@ -2834,7 +2844,8 @@ template <typename Lh, some_expected_void Rh>
     noexcept(
         ::fn::detail::_nothrow_disj_inject<
             ::fn::detail::_dead_value<Lh>,
-            expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, Lh>::value
+            expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, Lh,
+            ::fn::detail::_disj_tag_t<Lh>>::value
         && ::fn::detail::_nothrow_initializable<
             expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>, ::std::in_place_t, pack<>>
         && detail::_nothrow_disj_error<expected<::fn::detail::_disjoined_t<Lh, Rh>, detail::_error_product_t<Lh, Rh>>,
@@ -2845,7 +2856,7 @@ template <typename Lh, some_expected_void Rh>
   using Er = ::std::remove_cvref_t<Rh>::error_type;
   if constexpr (not ::fn::detail::_dead_value<Lh>) {
     if (lh.has_value())
-      return type{::std::in_place, FWD(lh).value()};
+      return type{::std::in_place, ::fn::detail::_disj_tag_t<Lh>{}, FWD(lh).value()};
   }
   if (rh.has_value())
     return type{::std::in_place, pack<>{}};
