@@ -2,6 +2,10 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `copack` and `choice` reference alternatives never bind to a temporary — 25 October 2026
+
+A reference alternative refuses a binding to a temporary, which would dangle at once, as `optional<T&>` does (#454, the C++26 rule). The converting constructors of `copack` and `choice` are deleted where the alternative the value selects would bind to a temporary; the `in_place_type` constructors, assignment from a value, `emplace` and the `as_copack`/`as_choice` lifts are constrained. `copack<int const&>{42}`, `copack<int const&>{std::move(x)}` and `choice<int const&>{42}` no longer compile; neither do `optional` or `expected` constructions which would build such a copack. The binding is judged by `pfn::reference_converts_from_temporary`, which inherits its emulation where the compiler lacks the builtin (GCC 12, MSVC before Visual Studio 2026 18.6).
+
 ## `copack` and `choice` monadic members never fall back to another cv/ref overload — 24 October 2026
 
 `copack::transform` and `choice`'s `transform` and `and_then` take the shape `pfn`'s monadic members took on 17 October, as `optional` and `expected` `transform` do: unconstrained cv/ref overloads with body-deduced returns, asserting what they require. A callback which does not accept an alternative in the operand's own cv/ref category makes the call ill-formed, including in a `requires`-expression. Before, the rvalue overloads dropped out of overload resolution and the `const &` overload took the call, handing the callback an lvalue into a temporary operand, so a lifetime-careful callback refusing rvalues could return a reference which dangled. Applicability is asked of `fn::applicable_transform` and `fn::applicable_and_then`, which answer from the payload.

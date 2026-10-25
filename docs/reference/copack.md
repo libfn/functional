@@ -85,21 +85,22 @@ copack(copack &&);       // (3)
 
 ```cpp {title: "fn::copack< Ts... >::copack"}
 template <typename U, typename T>
-constexpr copack(U &&v);           // (1)
-constexpr explicit copack(U &&v);  // (2)
+constexpr copack(U &&v);                    // (1)
+constexpr explicit copack(U &&v);           // (2)
+constexpr explicit copack(U &&v) = delete;  // (3)
 
 template <typename T>
-constexpr explicit copack(std::in_place_type_t<T>, auto &&...args);  // (3)
+constexpr explicit copack(std::in_place_type_t<T>, auto &&...args);  // (4)
 
 template <typename... Tx>
-constexpr copack(copack<Tx...> const &arg);                                     // (4)
-constexpr copack(copack<Tx...> &&arg);                                          // (5)
-constexpr copack(std::in_place_type_t<copack<Tx...>>, some_copack auto &&arg);  // (6)
+constexpr copack(copack<Tx...> const &arg);                                     // (5)
+constexpr copack(copack<Tx...> &&arg);                                          // (6)
+constexpr copack(std::in_place_type_t<copack<Tx...>>, some_copack auto &&arg);  // (7)
 
-constexpr copack(copack const &other) = default;  // (7)
-constexpr copack(copack const &other);            // (8)
-constexpr copack(copack &&other) = default;       // (9)
-constexpr copack(copack &&other);                 // (10)
+constexpr copack(copack const &other) = default;  // (8)
+constexpr copack(copack const &other);            // (9)
+constexpr copack(copack &&other) = default;       // (10)
+constexpr copack(copack &&other);                 // (11)
 ```
 
 :include-doxygen-doc: fn::copack< Ts... >::copack { args: "U &&" }

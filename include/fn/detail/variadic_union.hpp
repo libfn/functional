@@ -9,6 +9,7 @@
 #include <fn/detail/functional.hpp>
 #include <fn/detail/traits.hpp>
 #include <libfn_version.hpp>
+#include <pfn/type_traits.hpp>
 #include <pfn/utility.hpp>
 
 #include <memory>
@@ -149,11 +150,21 @@ template <typename R, typename Fn, typename T, typename... Tx>
 concept _typelist_type_nothrow_invocable_r = _is_nothrow_rtst_invocable<R, Fn, T &&, Tx...>;
 
 // A union member cannot be a reference: an lvalue-reference alternative is held as a pointer to its
-// referent. The constructor binds as a reference initialization does, and copying or assigning the
-// holder rebinds.
+// referent. The constructor binds as copy-initializing a reference does, except that it refuses a
+// binding to a temporary, which would dangle at once; copying or assigning the holder rebinds.
 template <typename T> struct _ref_holder final {
   T *p;
-  constexpr _ref_holder(T &r) noexcept : p(::std::addressof(r)) {} // NOSONAR cpp:S1709 binds as a reference does
+
+  static constexpr auto _bind(T &r) noexcept -> T * { return ::std::addressof(r); }
+
+  template <typename U>
+    requires(not ::std::is_same_v<::std::remove_cvref_t<U>, _ref_holder>)
+            && ::std::is_convertible_v<U, T &> && (not ::pfn::reference_converts_from_temporary_v<T &, U>)
+  constexpr _ref_holder(U &&u) // NOSONAR cpp:S1709,S6458 binds as a reference does; excludes self
+      noexcept(::std::is_nothrow_convertible_v<U, T &>)
+      : p(_bind(FWD(u)))
+  {
+  }
 };
 
 template <typename T>

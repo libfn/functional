@@ -7,6 +7,7 @@
 #define INCLUDE_FN_JUST
 
 #include <libfn_version.hpp>
+#include <pfn/type_traits.hpp>
 #include <pfn/utility.hpp>
 
 #include <fn/algebra.hpp>
@@ -794,7 +795,8 @@ template <typename... Ts> struct just<copack<Ts...>> {
   /**
    * @brief Constructs the alternative the value selects, as `copack`'s converting constructor does
    *
-   * Explicit exactly where the conversion to that alternative is.
+   * Explicit exactly where the conversion to that alternative is, and deleted where `copack`'s
+   * is: where a reference alternative would bind to a temporary.
    *
    * @param v Value of one alternative
    */
@@ -815,6 +817,11 @@ template <typename... Ts> struct just<copack<Ts...>> {
       : v_(::std::in_place_type<T>, FWD(v))
   {
   }
+
+  template <typename U, typename T = detail::_selected_alternative_t<U, Ts...>>
+  constexpr explicit(not ::std::is_convertible_v<U &&, T>) just(U &&v) // NOSONAR cpp:S6458 has_type excludes self
+    requires ::std::is_reference_v<T> && ::pfn::reference_converts_from_temporary_v<T, U>
+  = delete;
 
   /**
    * @brief Constructs the alternative `T` in place from the arguments

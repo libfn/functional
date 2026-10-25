@@ -75,7 +75,15 @@ template <typename S, typename Fn, typename... Args>
 concept can_apply = requires(S s, Fn fn, Args... args) { FWD(s).apply(FWD(fn), FWD(args)...); };
 
 template <typename T, typename... Args>
-concept can_as_choice = requires(Args... args) { fn::as_choice(std::in_place_type<T>, args...); };
+concept can_as_choice
+    = requires(Args &&...args) { fn::as_choice(std::in_place_type<T>, static_cast<Args &&>(args)...); };
+
+// Overload resolution reaches (...) only where the choice is not constructible at all; a deleted
+// constructor is chosen and refuses the call instead
+constexpr int pick_ref(fn::choice<int const &>) { return 1; }
+constexpr int pick_ref(...) { return 2; }
+template <typename U>
+concept can_pick_ref = requires(U &&u) { pick_ref(static_cast<U &&>(u)); };
 
 template <typename T>
 concept can_as_choice_value = requires(T v) { fn::as_choice(FWD(v)); };
@@ -426,6 +434,21 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
         choice<int &> const a{x};
         return a.get_ptr<int &>() == &x;
       }());
+
+      // a temporary never binds: the converting constructor is deleted for it, as copack's is
+      using CR = choice<int const &>;
+      static_assert(not std::is_constructible_v<CR, int>);
+      static_assert(not std::is_constructible_v<CR, int &&>);
+      static_assert(not std::is_constructible_v<CR, std::in_place_type_t<int const &>, int>);
+      static_assert(std::is_constructible_v<CR, int &>); // converse
+      static_assert(std::is_constructible_v<CR, std::in_place_type_t<int const &>, int &>);
+      static_assert(not can_pick_ref<int>); // deleted, not constrained away
+      static_assert(can_pick_ref<int const &>);
+      static_assert(can_pick_ref<long>); // selects no alternative, so (...) is reached
+      static_assert([] {
+        int x = 1;
+        return pick_ref(x) == 1 && pick_ref(1L) == 2;
+      }());
     }
   }
 
@@ -543,6 +566,11 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
         a = y;
         return a.get_ptr<int &>() == &y && x == 1;
       }());
+
+      // never to a temporary, as in construction
+      static_assert(not std::is_assignable_v<choice<int const &> &, int>);
+      static_assert(not std::is_assignable_v<choice<int const &> &, int &&>);
+      static_assert(std::is_assignable_v<choice<int const &> &, int &>); // converse
     }
   }
 
@@ -837,6 +865,8 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       static_assert(can_as_choice<NonCopyable, int>);
       static_assert(not can_as_choice<NonCopyable>);               // no default constructor
       static_assert(not can_as_choice<NonCopyable, char const *>); // not constructible from it
+      static_assert(not can_as_choice<int const &, int>);          // a temporary does not bind
+      static_assert(can_as_choice<int const &, int &>);
 
       // the tag selects the alternative, it is never itself one: with nothing to construct there is
       // no viable lift at all, rather than a choice whose alternative is the tag
@@ -1684,7 +1714,9 @@ TEST_CASE("choice emplace", "[choice][emplace]")
   static_assert(not std::is_copy_assignable_v<C>);
   static_assert(not std::is_move_assignable_v<C>);
   static_assert(can_emplace<C, Sender, int>);
-  static_assert(not can_emplace<C, double, double>); // not an alternative
+  static_assert(not can_emplace<C, double, double>);                     // not an alternative
+  static_assert(not can_emplace<choice<int const &>, int const &, int>); // a temporary does not bind
+  static_assert(can_emplace<choice<int const &>, int const &, int &>);
   static_assert(std::same_as<decltype(std::declval<C &>().emplace<int>(1)), int &>);
   static_assert(noexcept(std::declval<C &>().emplace<int>(1)));
 

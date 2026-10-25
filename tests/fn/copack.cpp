@@ -113,10 +113,18 @@ template <typename S, typename T, typename... Args>
 concept can_emplace = requires(S &s, Args &&...args) { s.template emplace<T>(static_cast<Args &&>(args)...); };
 
 template <typename T, typename... Args>
-concept can_as_copack = requires(Args... args) { fn::as_copack(std::in_place_type<T>, args...); };
+concept can_as_copack
+    = requires(Args &&...args) { fn::as_copack(std::in_place_type<T>, static_cast<Args &&>(args)...); };
 
 template <typename T>
 concept can_as_copack_value = requires(T v) { fn::as_copack(FWD(v)); };
+
+// Overload resolution reaches (...) only where the copack is not constructible at all; a deleted
+// constructor is chosen and refuses the call instead
+constexpr int pick_ref(fn::copack<int const &>) { return 1; }
+constexpr int pick_ref(...) { return 2; }
+template <typename U>
+concept can_pick_ref = requires(U &&u) { pick_ref(static_cast<U &&>(u)); };
 
 template <typename S, typename Fn>
 concept can_transform = requires(S s, Fn fn) { FWD(s).transform(fn); };
@@ -341,6 +349,8 @@ TEST_CASE("copack basic functionality tests", "[copack]")
       static_assert(can_as_copack<std::array<int, 3>, int, int, int>); // an aggregate, brace-initialized
       static_assert(not can_as_copack<NonCopyable>);                   // no default constructor
       static_assert(not can_as_copack<NonCopyable, char const *>);     // not constructible from it
+      static_assert(not can_as_copack<int const &, int>);              // a temporary does not bind
+      static_assert(can_as_copack<int const &, int &>);
 
       // the tag selects the alternative, it is never itself one: with nothing to construct there is
       // no viable lift at all, rather than a copack whose alternative is the tag
@@ -649,6 +659,32 @@ TEST_CASE("copack basic functionality tests", "[copack]")
         copack<Base &> c{std::in_place_type<Base &>, d};
         CHECK(c.get_ptr<Base &>() == static_cast<Base *>(&d));
         static_assert(not std::is_constructible_v<copack<Base &>, std::in_place_type_t<Base &>, Base>);
+      }
+
+      SECTION("temporaries")
+      {
+        // a binding to a temporary would dangle at once: as for optional<T&>, the converting
+        // constructor is deleted for it, and the tag's constructor is constrained away
+        using CR = copack<int const &>;
+        static_assert(not std::is_constructible_v<CR, int>);
+        static_assert(not std::is_constructible_v<CR, int &&>);
+        static_assert(not std::is_constructible_v<CR, int const &&>);
+        static_assert(not std::is_constructible_v<fn::copack_for<int const &, long>, int>);
+        static_assert(not std::is_constructible_v<fn::copack_for<int &, int const &>, int>);
+        static_assert(not std::is_constructible_v<CR, std::in_place_type_t<int const &>, int>);
+        static_assert(not std::is_constructible_v<CR, std::in_place_type_t<int const &>, int &&>);
+        static_assert(std::is_constructible_v<CR, int &>); // converse
+        static_assert(std::is_constructible_v<CR, std::in_place_type_t<int const &>, int const &>);
+
+        // deleted, not constrained away: the call does not fall through to another overload
+        static_assert(not can_pick_ref<int>);
+        static_assert(can_pick_ref<int const &>);
+        static_assert(can_pick_ref<long>); // selects no alternative, so (...) is reached
+        static_assert([] {
+          int x = 1;
+          return pick_ref(x) == 1 && pick_ref(1L) == 2;
+        }());
+        SUCCEED();
       }
     }
   }
@@ -3140,6 +3176,11 @@ TEST_CASE("copack assignment", "[copack][assignment]")
       CHECK(a.get_ptr<int const &>() == &y);
       a = std::as_const(x);
       CHECK(a.get_ptr<int const &>() == &x);
+
+      // never to a temporary, as in construction
+      static_assert(not std::is_assignable_v<decltype(a) &, int>);
+      static_assert(not std::is_assignable_v<decltype(a) &, int &&>);
+      static_assert(std::is_assignable_v<decltype(a) &, int &>); // converse
     }
 
     SECTION("constexpr")
@@ -3512,6 +3553,9 @@ TEST_CASE("copack emplace", "[copack][emplace]")
     CHECK(x == 1);
     static_assert(not can_emplace<R, int &, int>); // a temporary does not bind
     static_assert(can_emplace<R, int &, int &>);
+    static_assert(not can_emplace<copack<int const &>, int const &, int>); // ... nor to a const one
+    static_assert(not can_emplace<copack<int const &>, int const &, int &&>);
+    static_assert(can_emplace<copack<int const &>, int const &, int &>);
     static_assert([] {
       int x = 1;
       int y = 2;

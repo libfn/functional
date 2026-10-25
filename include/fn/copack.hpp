@@ -14,6 +14,7 @@
 #include <fn/pack.hpp>
 #include <fn/traits.hpp>
 #include <libfn_version.hpp>
+#include <pfn/type_traits.hpp>
 #include <pfn/utility.hpp>
 
 #include <memory>
@@ -568,7 +569,10 @@ struct copack<Ts...> {
    * `T const&` - as overload resolution selects among functions taking each; an ambiguous selection
    * is rejected. A merely convertible non-alternative is rejected too, so interconvertible
    * alternatives never make a resolution puzzle. Explicit exactly where the conversion to that
-   * alternative is.
+   * alternative is. Deleted where a reference alternative would bind to a temporary, as
+   * `optional<T&>`'s converting constructor is; the binding is judged by
+   * `pfn::reference_converts_from_temporary`, inheriting its emulation where the compiler lacks the
+   * builtin.
    *
    * @param v Value of one alternative
    */
@@ -587,6 +591,11 @@ struct copack<Ts...> {
       : data(detail::make_variadic_union<T, data_t>(FWD(v))), index(detail::type_index<T, Ts...>)
   {
   }
+
+  template <typename U, typename T = detail::_selected_alternative_t<U, Ts...>>
+  constexpr explicit(not ::std::is_convertible_v<U &&, T>) copack(U &&v) // NOSONAR cpp:S6458 has_type excludes self
+    requires ::std::is_reference_v<T> && ::pfn::reference_converts_from_temporary_v<T, U>
+  = delete;
 
   /**
    * @brief Constructs the alternative `T` in place from the arguments

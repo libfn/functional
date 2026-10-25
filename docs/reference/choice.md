@@ -51,25 +51,26 @@ subset of the alternatives, or from a narrower `choice`.
 
 ```cpp {title: "fn::just< copack< Ts... > >::just"}
 template <typename U, typename T>
-constexpr just(U &&v);           // (1)
-constexpr explicit just(U &&v);  // (2)
+constexpr just(U &&v);                    // (1)
+constexpr explicit just(U &&v);           // (2)
+constexpr explicit just(U &&v) = delete;  // (3)
 
 template <typename T>
-constexpr explicit just(std::in_place_type_t<T> d, auto &&...args);  // (3)
+constexpr explicit just(std::in_place_type_t<T> d, auto &&...args);  // (4)
 
 template <typename... Tx>
-constexpr just(copack<Tx...> const &v);  // (4)
-constexpr just(copack<Tx...> &&v);       // (5)
+constexpr just(copack<Tx...> const &v);  // (5)
+constexpr just(copack<Tx...> &&v);       // (6)
 
 template <typename... Tx, some_copack V>
-constexpr just(std::in_place_type_t<copack<Tx...>> d, V &&v);  // (6)
+constexpr just(std::in_place_type_t<copack<Tx...>> d, V &&v);  // (7)
 
 template <typename... Tx>
-constexpr just(just<copack<Tx...>> const &other);  // (7)
-constexpr just(just<copack<Tx...>> &&other);       // (8)
+constexpr just(just<copack<Tx...>> const &other);  // (8)
+constexpr just(just<copack<Tx...>> &&other);       // (9)
 
-constexpr just(just const &) = default;  // (9)
-constexpr just(just &&) = default;       // (10)
+constexpr just(just const &) = default;  // (10)
+constexpr just(just &&) = default;       // (11)
 ```
 
 :include-doxygen-doc: fn::just< copack< Ts... > >::just { args: "U &&" }

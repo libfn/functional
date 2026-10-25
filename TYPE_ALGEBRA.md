@@ -350,7 +350,7 @@ Evaluating a `copack` via `.apply()` passes the active alternative to the callba
 
 To explicitly lift a scalar value into a single-alternative coproduct (i.e. *singular* `copack`), use `fn::as_copack(value)`. A singular `copack` supports the standard C++ tuple protocol (`get<0>`, `tuple_size` returning 1, `tuple_element<0, copack<...>>`, structured bindings) and additionally provides index-less `get`.
 
-An alternative may be an lvalue reference, so `copack_for<int&, long const&>` is a sum of borrowed locations. `T`, `T&` and `T const&` are distinct alternatives. A value selects among the alternatives of its own decayed type as overload resolution selects among functions taking each: for an lvalue `int x`, `copack_for<int&, int const&>{x}` binds `int&`, while `copack_for<int, int&>{x}` is ambiguous and rejected — `std::in_place_type<int&>` names the alternative instead. As with `optional<T&>`, assignment rebinds. The callback receives `T&`, or `T const&` from a `const` copack, whatever the copack's value category, as from a `pack`. A reference to a `pack` or a `copack` is not an alternative.
+An alternative may be an lvalue reference, so `copack_for<int&, long const&>` is a sum of borrowed locations. `T`, `T&` and `T const&` are distinct alternatives. A value selects among the alternatives of its own decayed type as overload resolution selects among functions taking each: for an lvalue `int x`, `copack_for<int&, int const&>{x}` binds `int&`, while `copack_for<int, int&>{x}` is ambiguous and rejected — `std::in_place_type<int&>` names the alternative instead. As with `optional<T&>`, assignment rebinds, and a binding to a temporary is refused: `copack<int const&>{42}` is ill-formed. The callback receives `T&`, or `T const&` from a `const` copack, whatever the copack's value category, as from a `pack`. A reference to a `pack` or a `copack` is not an alternative.
 
 > [!WARNING]
 >
@@ -1049,7 +1049,7 @@ The library respects C++ value mechanics:
 - `noexcept` is conditionally computed.
 - Value categories (lvalue/rvalue) propagate strictly to callbacks, avoiding copies.
 - Immovable and move-only payloads are supported in place.
-- Reference-bearing `pack<T&...>`, `copack<T&...>` and `optional<T&>` are supported. `optional<T&>`, `as_pack` with spelled element types, and `append(std::in_place_type<T&>, ...)` refuse to bind a reference to a temporary, as C++26 `optional<T&>` does; beyond that, lifetime management of non-owning references remains with the caller.
+- Reference-bearing `pack<T&...>`, `copack<T&...>` and `optional<T&>` are supported. `optional<T&>`, the reference alternatives of `copack` and `choice`, `as_pack` with spelled element types, and `append(std::in_place_type<T&>, ...)` refuse to bind a reference to a temporary, as C++26 `optional<T&>` does; beyond that, lifetime management of non-owning references remains with the caller.
 - `pack` compares element-wise, supporting equality and three-way comparison. For references in a `pack` or a `copack`, comparison applies to the referents rather than the references themselves.
 
 > [!NOTE]
