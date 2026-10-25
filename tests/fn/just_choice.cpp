@@ -117,6 +117,8 @@ template <typename... Ts> consteval bool special_members_follow_copack()
 }
 
 constexpr int fnReferenceTarget = 42;
+constexpr int fnReferenceTwin = 42;
+template <fn::some_choice auto S> struct choice_nttp final {};
 
 } // anonymous namespace
 
@@ -798,6 +800,24 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     SUCCEED();
   }
 
+  SECTION("structural type")
+  {
+    // as for copack: the active alternative and its value, or its referent, decide equivalence
+    constexpr fn::choice_for<bool, int> a{42};
+    constexpr fn::choice_for<bool, int> b{42};
+    constexpr fn::choice_for<bool, int> c{true};
+    static_assert(std::is_same_v<choice_nttp<a>, choice_nttp<b>>);
+    static_assert(not std::is_same_v<choice_nttp<a>, choice_nttp<c>>);
+
+    constexpr choice<int const &> d{fnReferenceTarget};
+    constexpr choice<int const &> e{fnReferenceTarget};
+    constexpr choice<int const &> f{fnReferenceTwin};
+    static_assert(std::is_same_v<choice_nttp<d>, choice_nttp<e>>);
+    static_assert(not std::is_same_v<choice_nttp<d>, choice_nttp<f>>);
+    SUCCEED();
+  }
+
+  ALLOW_DEPRECATED_BEGIN
   SECTION("as_choice")
   {
     constexpr auto a = fn::as_choice(12);

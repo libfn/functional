@@ -151,6 +151,13 @@ concept has_tuple_size = requires { std::tuple_size<T>::value; };
 
 constexpr int nttp_referent = 3;
 constexpr int nttp_referent_twin = 3;
+int nttp_mutable_referent = 3;
+struct NttpSubobjects final {
+  int x;
+  int y;
+  std::array<int, 2> z;
+};
+constexpr NttpSubobjects nttp_subobjects{3, 3, {3, 3}};
 } // anonymous namespace
 
 // A copack brace-initializes the alternative it stores. That is a DESIGN DIRECTION, not an
@@ -1584,6 +1591,42 @@ TEST_CASE("copack basic functionality tests", "[copack]")
     static_assert(std::is_same_v<some_copack_nttp<j>, some_copack_nttp<k>>);
     static_assert(not std::is_same_v<some_copack_nttp<j>, some_copack_nttp<l>>);
     CHECK(read_nttp<j>() == 3.0);
+
+    // any referent of static storage duration will do, mutable or a subobject; one of automatic
+    // storage duration is refused (tests/fn/reject/copack_structural.cpp)
+    constexpr copack<int &> m{nttp_mutable_referent};
+    constexpr copack<int &> n{nttp_mutable_referent};
+    static_assert(std::is_same_v<some_copack_nttp<m>, some_copack_nttp<n>>);
+    CHECK(read_nttp<m>() == 3.0);
+
+    constexpr copack<int const &> o{nttp_subobjects.x};
+    constexpr copack<int const &> p{nttp_subobjects.x};
+    constexpr copack<int const &> q{nttp_subobjects.y};
+    static_assert(std::is_same_v<some_copack_nttp<o>, some_copack_nttp<p>>);
+    static_assert(not std::is_same_v<some_copack_nttp<o>, some_copack_nttp<q>>);
+    constexpr copack<int const &> r{nttp_subobjects.z[0]};
+    constexpr copack<int const &> s{nttp_subobjects.z[0]};
+    constexpr copack<int const &> t{nttp_subobjects.z[1]};
+    static_assert(std::is_same_v<some_copack_nttp<r>, some_copack_nttp<s>>);
+    static_assert(not std::is_same_v<some_copack_nttp<r>, some_copack_nttp<t>>);
+    CHECK(read_nttp<t>() == 3.0);
+
+    // the active alternative tells a value from a reference to an equal one
+    using M = fn::copack_for<int, int const &>;
+    constexpr M u{std::in_place_type<int>, 3};
+    constexpr M v{std::in_place_type<int const &>, nttp_referent};
+    constexpr M w{std::in_place_type<int const &>, nttp_referent};
+    static_assert(not std::is_same_v<some_copack_nttp<u>, some_copack_nttp<v>>);
+    static_assert(std::is_same_v<some_copack_nttp<v>, some_copack_nttp<w>>);
+
+    // a reference element of a pack alternative is compared by its referent, too
+    using P = copack<pack<int const &>>;
+    constexpr P x{pack<int const &>{nttp_referent}};
+    constexpr P y{pack<int const &>{nttp_referent}};
+    constexpr P z{pack<int const &>{nttp_referent_twin}};
+    static_assert(std::is_same_v<some_copack_nttp<x>, some_copack_nttp<y>>);
+    static_assert(not std::is_same_v<some_copack_nttp<x>, some_copack_nttp<z>>);
+    CHECK(read_nttp<x>() == 3.0);
   }
 }
 

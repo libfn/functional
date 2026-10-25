@@ -50,6 +50,7 @@ template <typename T>
 concept implicitly_default_constructible = requires(void (&sink)(T)) { sink({}); };
 template <typename T>
 concept complete = requires { sizeof(T); };
+template <fn::some_just auto S> struct just_nttp final {};
 
 } // namespace
 
@@ -369,6 +370,16 @@ TEST_CASE("just", "[just]")
     fn::just<Value> const value{std::in_place_type<Value>, 5, moves, 1};
     CHECK_THROWS_AS(fn::just<void>{} & value, int);
     CHECK(value.value().id == 5);
+  }
+
+  SECTION("structural type")
+  {
+    constexpr T a{42};
+    constexpr T b{42};
+    constexpr T c{17};
+    static_assert(std::is_same_v<just_nttp<a>, just_nttp<b>>);
+    static_assert(not std::is_same_v<just_nttp<a>, just_nttp<c>>);
+    SUCCEED();
   }
 }
 
