@@ -216,7 +216,7 @@ The library relies on explicit consent. It does not silently reinterpret arbitra
 To invoke the algebra, you use the opt-in mechanisms provided by the library:
 
 - Direct construction of `pack` and `copack_for`.
-- Explicit conversions via `fn::as_pack` and `fn::as_copack`.
+- Explicit conversions via `fn::as_pack`.
 - Member helpers for explicit type lifting (detailed in Section 9).
 
 If a side is already a `copack` or `pack`, forwarding it behaves naturally without nesting. A `copack` on the error side of `expected` enables error-set unioning. Because monadic operations introduce no grade themselves, `and_then` widens a graded error side but rejects a differing ungraded one. Section 9 gives the exact promotion rules.
@@ -348,13 +348,13 @@ As a payload, a `copack` models a discriminated union of types.
 
 Evaluating a `copack` via `.apply()` passes the active alternative to the callback. Because `copack` is self-flattening, nested `copack`s do not occur. A selected alternative that is itself tuple-like—such as `pack`, `std::tuple`, or `std::array`—is unpacked one level, passing its immediate constituents as separate arguments. Since normalized shapes are sums of products, one level of unpacking is sufficient to supply the product's fields as function arguments.
 
-To explicitly lift a scalar value into a single-alternative coproduct (i.e. *singular* `copack`), use `fn::as_copack(value)`. A singular `copack` supports the standard C++ tuple protocol (`get<0>`, `tuple_size` returning 1, `tuple_element<0, copack<...>>`, structured bindings) and additionally provides index-less `get`.
+A single-alternative coproduct, such as `copack{42}`, is a *singular* `copack`. It supports the standard C++ tuple protocol (`get<0>`, `tuple_size` returning 1, `tuple_element<0, copack<...>>`, structured bindings) and additionally provides index-less `get`.
 
 An alternative may be an lvalue reference, so `copack_for<int&, long const&>` is a sum of borrowed locations. `T`, `T&` and `T const&` are distinct alternatives. A value selects among the alternatives of its own decayed type as overload resolution selects among functions taking each: for an lvalue `int x`, `copack_for<int&, int const&>{x}` binds `int&`, while `copack_for<int, int&>{x}` is ambiguous and rejected — `std::in_place_type<int&>` names the alternative instead. As with `optional<T&>`, assignment rebinds, and a binding to a temporary is refused: `copack<int const&>{42}` is ill-formed. The callback receives `T&`, or `T const&` from a `const` copack, whatever the copack's value category, as from a `pack`. A reference to a `pack` or a `copack` is not an alternative.
 
 > [!WARNING]
 >
-> The lifts `as_pack`, `as_copack` and `as_choice` (Section 11) keep an lvalue as a reference: `as_pack(x)` refers to `x`, which must outlive it. CTAD never does: `pack{x}`, `copack{x}`, `just{x}` and `choice{x}` hold copies. Rather than copy an lvalue it cannot refer to, a lift refuses it: an array, a function or a `pack` for `as_copack`, and an array, a function or a `copack` for `as_choice`.
+> `as_pack` keeps an lvalue as a reference: `as_pack(x)` refers to `x`, which must outlive it, and it refuses an lvalue `pack` or `copack` rather than copy it. CTAD never refers: `pack{x}`, `copack{x}`, `just{x}` and `choice{x}` hold copies. To refer, name the reference in the type, as in `copack<int&>{x}`.
 
 A `pack` can be a `copack` alternative (including packs holding references), but a `pack` cannot contain a `copack`. There is algebraic equivalence between a hypothetical `pack` containing a `copack` (which is disallowed) and a specific shape of `copack` containing a `pack` — see Section 6 for details.
 
@@ -373,11 +373,11 @@ auto test_copack() -> void
   static_assert(value == 1);
 
   // Storing a pack inside a copack is allowed, including a pack holding a reference:
-  auto cpr = fn::as_copack(fn::as_pack<int const &>(value));
+  auto cpr = fn::copack{fn::as_pack<int const &>(value)};
   static_assert(std::same_as<decltype(cpr), fn::copack<fn::pack<int const &>>>);
 
-  // Singular lift and direct value extraction (only allowed for singular copacks):
-  auto cp = fn::as_copack(42);
+  // Direct value extraction (only allowed for singular copacks):
+  auto cp = fn::copack{42};
   using std::get;
   static_assert(std::same_as<decltype(get(cp)), int &>);
 }
@@ -819,7 +819,7 @@ Monadic operations on the identity cluster:
 >
 ## 11. choice: identity over a coproduct
 
-`choice<Ts...>` represents a computation that always succeeds by selecting one of several alternatives. It is `just<copack<Ts...>>` (Section 3): the identity carrier over the coproduct payload, dispatching branch-wise where `just<T>` maps the one value. `fn::as_choice(x)` lifts a value into a single-alternative choice, as `as_copack` does, and wraps a copack rvalue in the choice over its alternatives.
+`choice<Ts...>` represents a computation that always succeeds by selecting one of several alternatives. It is `just<copack<Ts...>>` (Section 3): the identity carrier over the coproduct payload, dispatching branch-wise where `just<T>` maps the one value. `choice{42}` deduces a single-alternative choice, and `just{c}` the choice over the alternatives of a copack `c`.
 
 ### Mapping into a choice
 
@@ -852,8 +852,8 @@ Consider a scenario where different branches of a switch return different `choic
 ```cpp
 auto test_choice_mapping(fn::choice<User, UserId> ch) -> void
 {
-  constexpr auto mapper = fn::overload{[](UserId) { return fn::as_choice(Missing{}); },
-                                       [](User) { return fn::as_choice(FilePath{}); }};
+  constexpr auto mapper = fn::overload{[](UserId) { return fn::choice{Missing{}}; }, //
+                                       [](User) { return fn::choice{FilePath{}}; }};
 
   // transform nests the returned choice as a mapped value
   auto mapped = ch | fn::transform(mapper);
@@ -1103,7 +1103,7 @@ For readers with a background in functional languages (like Haskell or OCaml), t
 | `fmap` / `map` | `transform` / `transform_error` |
 | `bind` / `>>=` | `and_then` |
 | `pure` / `return` | `just<T>{v}` / `expected<T, copack<>>{v}` — a carrier constructor |
-| Lift / inject | `fn::as_pack` / `fn::as_copack` / `fn::as_choice` |
+| Lift / inject | `fn::as_pack`, or construction, as in `copack{v}` / `choice{v}` |
 | Kleisli arrow | The callable passed to `and_then` |
 | Product type | `pack` / `std::tuple` |
 | Coproduct / Sum | `copack` (the sum itself) / `choice` (the never-failing carrier over a sum) |

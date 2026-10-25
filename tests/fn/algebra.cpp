@@ -229,7 +229,7 @@ TEST_CASE("detail::_join with an error continuation", "[detail][optional][noexce
 
 TEST_CASE("operator &", "[pack][copack][operator_and]")
 {
-  constexpr auto r1 = fn::as_copack(12) & 3 & 2.5 & fn::pack{0.5, true}
+  constexpr auto r1 = fn::copack<int>{12} & 3 & 2.5 & fn::pack{0.5, true}
                       & fn::copack_for<bool, int, fn::pack<double, int>>(fn::pack{1.5, 12});
   static_assert(std::is_same_v<                                     //
                 decltype(r1),                                       //
@@ -270,7 +270,7 @@ TEST_CASE("operator &", "[pack][copack][operator_and]")
     return fn::get<0>(h) == 12 && fn::get<0>(l) == 13;
   }());
 
-  constexpr auto r3 = fn::as_copack(12) & fn::pack<std::tuple<int, int>>{std::tuple{1, 2}};
+  constexpr auto r3 = fn::copack<int>{12} & fn::pack<std::tuple<int, int>>{std::tuple{1, 2}};
   static_assert(std::is_same_v<decltype(r3), fn::copack<fn::pack<int, std::tuple<int, int>>> const>);
   static_assert(r3.apply([](int i, std::tuple<int, int> const &t) { return i == 12 && std::get<0>(t) == 1; }));
 
@@ -320,11 +320,11 @@ TEST_CASE("operator &", "[pack][copack][operator_and]")
     constexpr auto can = [](auto &&...args) { return requires { fn::conjoin(FWD(args)...); }; };
     static_assert(can(12, 2.5));
     static_assert(can(fn::pack{1, 2}, 3));
-    static_assert(can(fn::as_copack(12), 3));
+    static_assert(can(fn::copack<int>{12}, 3));
     static_assert(not can(fn::expected<int, bool>{1}, 3));
     static_assert(not can(12, fn::expected<int, bool>{1}));
     static_assert(not can(fn::pack{1, 2}, fn::expected<int, bool>{1}));
-    static_assert(not can(fn::as_copack(12), fn::optional<int>{1}));
+    static_assert(not can(fn::copack<int>{12}, fn::optional<int>{1}));
     static_assert(not can(fn::choice<int>{1}, 2));
     static_assert(can(fn::expected<int, bool>{1}));
     static_assert(fn::conjoin(fn::expected<int, bool>{1}) == fn::expected<fn::pack<int>, bool>{fn::pack{1}});

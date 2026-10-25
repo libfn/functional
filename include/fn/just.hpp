@@ -1559,10 +1559,14 @@ constexpr inline bool _nothrow_choice_emplace<T, Args...>
  * As `as_copack`, preserving the value category: an lvalue `x` yields `choice<int &>`, where
  * `choice{x}` yields `choice<int>`. Unlike `choice{x}`, wraps an existing choice as an alternative.
  *
+ * @deprecated Name the type instead: `choice<int &>{x}` refers to `x`, deduction, as in
+ * `choice{x}`, copies, and `choice<C>{std::in_place_type<C>, c}` wraps a choice `c` of type `C`.
+ *
  * @param src Value to lift
  * @return A `choice` holding `src`, or a reference to it
  */
-[[nodiscard]] constexpr auto as_choice(auto &&src) //
+[[nodiscard, deprecated("name the type: fn::choice<T &>{x} refers, fn::choice{x} copies")]] constexpr auto
+as_choice(auto &&src) //
     noexcept(detail::_nothrow_choice_lift<decltype(src)>) -> decltype(auto)
   requires detail::_choice_liftable<decltype(src)>
            && ::std::is_constructible_v<choice<detail::_lifted_t<decltype(src)>>,
@@ -1578,6 +1582,8 @@ constexpr inline bool _nothrow_choice_emplace<T, Args...>
  * The copack is the payload itself, so the choice is the one `just{copack}` deduces. A choice cannot
  * refer to a copack, so an lvalue copack is not lifted.
  *
+ * @deprecated Deduce the choice instead: `just{std::move(c)}`.
+ *
  * @param src Copack to lift
  * @return The `choice` over the alternatives of `src`, holding its value
  */
@@ -1585,7 +1591,7 @@ template <typename Src>
   requires some_copack<::std::remove_cvref_t<Src>> && (not ::std::is_lvalue_reference_v<Src>)
            && (not ::std::is_same_v<::std::remove_cvref_t<Src>, copack<>>)
            && ::std::is_constructible_v<just<::std::remove_cvref_t<Src>>, Src>
-[[nodiscard]] constexpr auto as_choice(Src &&src) //
+[[nodiscard, deprecated("deduce the choice: fn::just{std::move(c)}")]] constexpr auto as_choice(Src &&src) //
     noexcept(detail::_nothrow_copack_choice_lift<Src>) -> decltype(auto)
 {
   return just<::std::remove_cvref_t<Src>>(FWD(src));
@@ -1594,12 +1600,15 @@ template <typename Src>
 /**
  * @brief Lifts arguments into a singular choice of `T`, constructed in place
  *
+ * @deprecated Construct the choice instead: `choice<T>{std::in_place_type<T>, args...}`.
+ *
  * @tparam T The sole alternative
  * @param args Arguments to construct the alternative from
  * @return `choice<T>` holding the alternative
  */
 template <typename T>
-[[nodiscard]] constexpr auto as_choice(::std::in_place_type_t<T>, auto &&...args) //
+[[nodiscard, deprecated("construct fn::choice<T>{std::in_place_type<T>, args...}")]] constexpr auto
+as_choice(::std::in_place_type_t<T>, auto &&...args) //
     noexcept(detail::_nothrow_choice_emplace<T, decltype(args)...>) -> decltype(auto)
   requires detail::_is_valid_copack_subtype<T>
            && ::std::is_constructible_v<choice<T>, ::std::in_place_type_t<T>, decltype(args)...>

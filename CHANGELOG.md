@@ -2,6 +2,10 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `as_copack` and `as_choice` are deprecated — 25 October 2026
+
+`as_copack` and `as_choice` are deprecated in favour of naming the type: `copack<int&>{x}` and `choice<int&>{x}` refer to `x`, `copack{x}` and `choice{x}` copy it, and `just{c}` deduces the choice over the alternatives of a copack `c`. The lifts choose between a reference and a copy by the argument's value category, which the call site does not show; the named type shows it, and its constructors refuse a temporary for a reference alternative, as the lifts do. `as_pack` is not deprecated: a `pack`'s braces still bind a reference element to a temporary, which `as_pack` with a spelled reference element refuses, so naming the type would be the less safe spelling until `pack` refuses it too (#463).
+
 ## `copack` and `choice` reference alternatives never bind to a temporary — 25 October 2026
 
 A reference alternative refuses a binding to a temporary, which would dangle at once, as `optional<T&>` does (#454, the C++26 rule). The converting constructors of `copack` and `choice` are deleted where the alternative the value selects would bind to a temporary; the `in_place_type` constructors, assignment from a value, `emplace` and the `as_copack`/`as_choice` lifts are constrained. `copack<int const&>{42}`, `copack<int const&>{std::move(x)}` and `choice<int const&>{42}` no longer compile; neither do `optional` or `expected` constructions which would build such a copack. The binding is judged by `pfn::reference_converts_from_temporary`, which inherits its emulation where the compiler lacks the builtin (GCC 12, MSVC before Visual Studio 2026 18.6).

@@ -1347,10 +1347,14 @@ constexpr inline bool _nothrow_copack_lift<Src> = ::std::is_nothrow_constructibl
  * `as_copack(42)` yields `copack<int>`; an lvalue `x` yields `copack<int &>` - a reference rather
  * than a copy - where `copack{x}` yields `copack<int>`.
  *
+ * @deprecated Name the type instead: `copack<int &>{x}` refers to `x`, and deduction, as in
+ * `copack{x}`, copies.
+ *
  * @param src Value to lift
  * @return A `copack` holding `src`, or a reference to it
  */
-[[nodiscard]] constexpr auto as_copack(auto &&src) //
+[[nodiscard, deprecated("name the type: fn::copack<T &>{x} refers, fn::copack{x} copies")]] constexpr auto
+as_copack(auto &&src) //
     noexcept(detail::_nothrow_copack_lift<decltype(src)>) -> decltype(auto)
   requires(not some_in_place_type<decltype(src)>)
 {
@@ -1360,12 +1364,15 @@ constexpr inline bool _nothrow_copack_lift<Src> = ::std::is_nothrow_constructibl
 /**
  * @brief Lifts arguments into a singular copack of `T`, constructed in place
  *
+ * @deprecated Construct the copack instead: `copack<T>{std::in_place_type<T>, args...}`.
+ *
  * @tparam T The sole alternative
  * @param args Arguments to construct the alternative from
  * @return `copack<T>` holding the alternative
  */
 template <typename T>
-[[nodiscard]] constexpr auto as_copack(::std::in_place_type_t<T>, auto &&...args) //
+[[nodiscard, deprecated("construct fn::copack<T>{std::in_place_type<T>, args...}")]] constexpr auto
+as_copack(::std::in_place_type_t<T>, auto &&...args) //
     noexcept(::std::is_nothrow_constructible_v<copack<T>, ::std::in_place_type_t<T>, decltype(args)...>)
         -> decltype(auto)
   requires ::std::is_constructible_v<copack<T>, ::std::in_place_type_t<T>, decltype(args)...>

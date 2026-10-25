@@ -264,13 +264,13 @@ TEST_CASE("just", "[just]")
     constexpr auto fnChoice
         = [](int i) { return i > 0 ? fn::choice_for<bool, int>{i} : fn::choice_for<bool, int>{false}; };
     static_assert(std::is_same_v<decltype(a.and_then(fnChoice)), fn::choice_for<bool, int>>);
-    CHECK(a.and_then(fnChoice) == fn::as_choice(3));
+    CHECK(a.and_then(fnChoice) == fn::choice<int>{3});
     static_assert(std::is_same_v<decltype(a.and_then([](int) { return fn::just<void>{}; })), fn::just<void>>);
 
     SECTION("constexpr")
     {
       static_assert(T{3}.and_then([](int i) { return fn::just<bool>{i != 0}; }).value());
-      static_assert(T{3}.and_then(fnChoice) == fn::as_choice(3));
+      static_assert(T{3}.and_then(fnChoice) == fn::choice<int>{3});
       SUCCEED();
     }
   }
@@ -401,7 +401,7 @@ TEST_CASE("just of void", "[just]")
     static_assert(std::is_same_v<decltype(v.transform([] {})), V>);
     static_assert(v.transform([] { return fn::copack<int>{9}; }) == fn::choice<int>{9});
     static_assert(v.and_then([] { return fn::just<int>{9}; }) == fn::just<int>{9});
-    static_assert(v.and_then([] { return fn::choice<int>{9}; }) == fn::as_choice(9));
+    static_assert(v.and_then([] { return fn::choice<int>{9}; }) == fn::choice<int>{9});
     CHECK(v.transform([] { return 5; }).value() == 5);
 
     static_assert(noexcept(v.transform([]() noexcept { return 1; })));

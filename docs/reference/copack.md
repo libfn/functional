@@ -312,6 +312,9 @@ constexpr auto has_value(std::in_place_type_t<T>=std::in_place_type<T>) const ->
 
 ## as_copack {style: "api"}
 
+Deprecated: name the type instead, as in `copack<int &>{x}`, which refers to `x`, or `copack{x}`,
+which copies it.
+
 ```cpp {title: "fn::as_copack"}
 constexpr auto as_copack(auto &&src) -> decltype(auto);  // (1)
 

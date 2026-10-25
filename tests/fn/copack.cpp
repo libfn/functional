@@ -6,6 +6,7 @@
 #include <fn/copack.hpp>
 #include <fn/utility.hpp>
 
+#include <util/allow_deprecated.hpp>
 #include <util/refusing.hpp>
 
 #include <catch2/catch_all.hpp>
@@ -310,6 +311,7 @@ TEST_CASE("copack basic functionality tests", "[copack]")
     CHECK(through());
   }
 
+  ALLOW_DEPRECATED_BEGIN
   SECTION("as_copack")
   {
     constexpr auto a = fn::as_copack(12);
@@ -359,6 +361,7 @@ TEST_CASE("copack basic functionality tests", "[copack]")
       SUCCEED();
     }
   }
+  ALLOW_DEPRECATED_END
 
   SECTION("copack_for")
   {
@@ -605,10 +608,9 @@ TEST_CASE("copack basic functionality tests", "[copack]")
         return a.get_ptr<int &>() == &x;
       }());
 
-      // deduction holds a value; as_copack keeps the reference
+      // deduction holds a value
       copack c{x};
       static_assert(std::is_same_v<decltype(c), copack<int>>);
-      CHECK(fn::as_copack(x).get_ptr<int &>() == &x);
 
       SECTION("selection")
       {
@@ -1847,7 +1849,6 @@ TEST_CASE("copack noexcept", "[copack][noexcept]")
   {
     static_assert(noexcept(copack<int>{42}));
     static_assert(noexcept(copack<int>{std::in_place_type<int>, 42}));
-    static_assert(noexcept(fn::as_copack(42)));
     static_assert(not noexcept(copack<Throwy>{std::declval<Throwy const &>()}));
 
     static_assert(std::is_nothrow_copy_constructible_v<copack<int>>);

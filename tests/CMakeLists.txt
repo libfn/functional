@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 ### tests/util
 
 set(TESTS_UTIL_HEADERS
+    util/allow_deprecated.hpp
     util/helper_types.hpp
     util/refusing.hpp
     util/static_check.hpp

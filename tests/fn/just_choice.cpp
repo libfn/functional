@@ -3,6 +3,8 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
+#include <util/allow_deprecated.hpp>
+
 #include <fn/and_then.hpp>
 #include <fn/expected.hpp>
 #include <fn/just.hpp>
@@ -156,12 +158,12 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     {
       // A reference binding to the sole payload alternative can modify the choice.
       static_assert(std::tuple_size_v<choice<int>::value_type> == std::tuple_size_v<fn::pack<int>>);
-      auto c = fn::as_choice(12);
+      choice<int> c{12};
       auto &[i] = c.value();
       i = 42;
       CHECK(c == choice<int>{42});
       static_assert([] {
-        auto d = fn::as_choice(12);
+        choice<int> d{12};
         auto &[j] = d.value();
         j = 42;
         return d == choice<int>{42};
@@ -889,6 +891,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       SUCCEED();
     }
   }
+  ALLOW_DEPRECATED_END
 }
 
 TEST_CASE("choice disjunction", "[choice][just][operator_or]")
@@ -1404,20 +1407,20 @@ TEST_CASE("choice and_then", "[choice][and_then]")
     constexpr auto fnMixed = fn::overload{[](bool b) { return fn::just<long>{b ? 1L : 0L}; }, //
                                           [](int i) { return fn::just<int>{i + 1}; }};
     static_assert(std::is_same_v<decltype(a.and_then(fnMixed)), fn::choice_for<int, long>>);
-    static_assert(a.and_then(fnMixed) == fn::as_choice(43));
-    CHECK(s.and_then(fnMixed) == fn::as_choice(13));
-    CHECK(type{true}.and_then(fnMixed) == fn::as_choice(1L));
+    static_assert(a.and_then(fnMixed) == fn::choice<int>{43});
+    CHECK(s.and_then(fnMixed) == fn::choice<int>{13});
+    CHECK(type{true}.and_then(fnMixed) == fn::choice<long>{1L});
     constexpr auto fnSplice = fn::overload{[](bool) { return fn::just<long>{1L}; }, //
                                            [](int) { return fn::choice_for<int, double>{2.5}; }};
     static_assert(std::is_same_v<decltype(a.and_then(fnSplice)), fn::choice_for<double, int, long>>);
-    static_assert(a.and_then(fnSplice) == fn::as_choice(2.5));
-    CHECK(s.and_then(fnSplice) == fn::as_choice(2.5));
+    static_assert(a.and_then(fnSplice) == fn::choice<double>{2.5});
+    CHECK(s.and_then(fnSplice) == fn::choice<double>{2.5});
     constexpr auto fnUnit = fn::overload{[](bool) { return fn::just<void>{}; }, //
                                          [](int i) { return fn::just<int>{i}; }};
     static_assert(std::is_same_v<decltype(a.and_then(fnUnit)), fn::choice_for<fn::pack<>, int>>);
-    static_assert(a.and_then(fnUnit) == fn::as_choice(42));
+    static_assert(a.and_then(fnUnit) == fn::choice<int>{42});
     static_assert(type{true}.and_then(fnUnit).has_value(std::in_place_type<fn::pack<>>));
-    CHECK(type{true}.and_then(fnUnit) == fn::as_choice(fn::pack<>{}));
+    CHECK(type{true}.and_then(fnUnit) == fn::choice<fn::pack<>>{fn::pack<>{}});
 
     // Unwrap one carrier layer: just<int> selects int, just<just<int>> selects just<int>,
     // and just<void> selects pack<> even when just<void> is another result alternative.
@@ -1425,16 +1428,16 @@ TEST_CASE("choice and_then", "[choice][and_then]")
                                           [](int i) { return fn::just<fn::just<int>>{fn::just<int>{i}}; }};
     static_assert(std::is_same_v<decltype(a.and_then(fnBoxed)), fn::choice_for<int, fn::just<int>>>);
     static_assert(a.and_then(fnBoxed).has_value(std::in_place_type<fn::just<int>>));
-    static_assert(a.and_then(fnBoxed) == fn::as_choice(fn::just<int>{42}));
+    static_assert(a.and_then(fnBoxed) == fn::choice<fn::just<int>>{fn::just<int>{42}});
     static_assert(type{true}.and_then(fnBoxed).has_value(std::in_place_type<int>));
-    static_assert(type{true}.and_then(fnBoxed) == fn::as_choice(1));
-    CHECK(s.and_then(fnBoxed) == fn::as_choice(fn::just<int>{12}));
+    static_assert(type{true}.and_then(fnBoxed) == fn::choice<int>{1});
+    CHECK(s.and_then(fnBoxed) == fn::choice<fn::just<int>>{fn::just<int>{12}});
     constexpr auto fnBoxedUnit = fn::overload{[](bool) { return fn::just<void>{}; }, //
                                               [](int) { return fn::just<fn::just<void>>{}; }};
     static_assert(std::is_same_v<decltype(a.and_then(fnBoxedUnit)), fn::choice_for<fn::pack<>, fn::just<void>>>);
     static_assert(a.and_then(fnBoxedUnit).has_value(std::in_place_type<fn::just<void>>));
     static_assert(type{true}.and_then(fnBoxedUnit).has_value(std::in_place_type<fn::pack<>>));
-    CHECK(s.and_then(fnBoxedUnit) == fn::as_choice(fn::just<void>{}));
+    CHECK(s.and_then(fnBoxedUnit) == fn::choice<fn::just<void>>{fn::just<void>{}});
 
     // noexcept includes both callback invocation and construction from its payload.
     static_assert(noexcept(a.and_then(fn::overload{[](bool) noexcept { return fn::just<long>{1L}; },
