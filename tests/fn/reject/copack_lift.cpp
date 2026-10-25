@@ -12,7 +12,12 @@
 
 ALLOW_DEPRECATED_BEGIN
 
-// A reference to a pack is no alternative, so the lift refuses an lvalue pack rather than copy it.
+namespace {
+auto f(int i) -> int { return i; }
+} // namespace
+
+// A reference to a pack, an array or a function is no alternative, so the lift refuses such an
+// lvalue rather than copy it.
 void as_copack_lvalue_pack()
 {
   fn::pack<int> p{1};
@@ -20,6 +25,24 @@ void as_copack_lvalue_pack()
   (void)fn::as_copack(std::move(p));
 #ifdef LIBFN_REJECT_as_copack_lvalue_pack
   (void)fn::as_copack(p);
+#endif
+}
+
+void as_copack_lvalue_array()
+{
+  int x = 1;
+  (void)fn::as_copack(x);
+#ifdef LIBFN_REJECT_as_copack_lvalue_array
+  int arr[2] = {1, 2};
+  (void)fn::as_copack(arr);
+#endif
+}
+
+void as_copack_lvalue_function()
+{
+  (void)fn::as_copack(&f);
+#ifdef LIBFN_REJECT_as_copack_lvalue_function
+  (void)fn::as_copack(f);
 #endif
 }
 

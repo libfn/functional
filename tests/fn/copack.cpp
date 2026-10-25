@@ -341,8 +341,9 @@ TEST_CASE("copack basic functionality tests", "[copack]")
       int y = 1;
       return fn::as_copack(y).get_ptr<int &>() == &y;
     }());
-    // a reference to a pack or an array is no alternative: as_copack of such an lvalue fails its
-    // static_assert (tests/fn/reject/copack_lift.cpp); an rvalue is lifted as a value
+    // a reference to a pack, an array or a function is no alternative: as_copack of such an
+    // lvalue fails its static_assert (tests/fn/reject/copack_lift.cpp); an rvalue pack is lifted as
+    // a value
     static_assert(std::same_as<decltype(fn::as_copack(fn::pack<int>{1})), fn::copack<fn::pack<int>>>);
 
     // both lifts weigh the alternative they construct, asking the brace initialization they perform;
