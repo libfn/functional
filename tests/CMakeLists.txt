@@ -209,7 +209,9 @@ set(TESTS_FN_REJECT_SOURCES
     fn/reject/copack_structural.cpp
     fn/reject/copack_transform.cpp
     fn/reject/expected_transform.cpp
+    fn/reject/just_deduction.cpp
     fn/reject/optional_transform.cpp
+    fn/reject/pack_deduction.cpp
 )
 
 # Generate separate target for each individual test source

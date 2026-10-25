@@ -360,7 +360,8 @@ TEST_CASE("pack", "[pack]")
     static_assert(not fn::detail::_is_valid_pack_element<fn::pack<>>);
     static_assert(not fn::detail::_is_valid_pack_element<fn::copack<int>>);
     static_assert(fn::detail::_is_valid_pack_element<int (&)(int)>);
-    static_assert(not fn::detail::_is_valid_pack_element<int(int)>); // so pack{f} refuses with a reason
+    // so pack{f} refuses with a reason (tests/fn/reject/pack_deduction.cpp)
+    static_assert(not fn::detail::_is_valid_pack_element<int(int)>);
     static_assert(not fn::detail::_is_valid_pack_element<void>);
 
     // witnesses that the permitted atoms instantiate
