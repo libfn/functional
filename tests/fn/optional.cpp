@@ -803,6 +803,9 @@ TEST_CASE("optional disjunction", "[optional][operator_or][copack]")
   // the empty copack adds nothing to the union, but keeps the result graded
   static_assert(std::same_as<decltype(std::declval<OI>() | std::declval<O>()), fn::optional<fn::copack<int>>>);
   static_assert(std::same_as<decltype(std::declval<O>() | std::declval<OI>()), fn::optional<fn::copack<int>>>);
+  // a cv-qualified value type enters unqualified, as a transform result does
+  static_assert(std::same_as<decltype(std::declval<fn::optional<int const>>() | std::declval<OB>()),
+                             fn::optional<fn::copack_for<int, bool>>>);
 
   static_assert((O{1} | OB{}) == fn::copack{1});
   static_assert((O{} | OB{true}) == fn::copack{true});
@@ -848,6 +851,31 @@ TEST_CASE("optional disjunction", "[optional][operator_or][copack]")
     CHECK(battery());
     static_assert(battery());
     static_assert(noexcept(std::declval<R>() | std::declval<O &>()));
+
+    // a reference to a pack or a copack is no alternative: it enters as its value, as a transform
+    // result does, and the references it holds stay references
+    using CP = fn::copack_for<int &, bool>;
+    using PP = fn::pack<int &>;
+    using OL = fn::optional<long>;
+    static_assert(std::same_as<decltype(std::declval<fn::optional<CP &>>() | std::declval<OL>()),
+                               fn::optional<fn::copack_for<int &, bool, long>>>);
+    static_assert(std::same_as<decltype(std::declval<OL>() | std::declval<fn::optional<PP &>>()),
+                               fn::optional<fn::copack_for<long, PP>>>);
+    static_assert(std::same_as<decltype(std::declval<fn::optional<CP const &>>() | std::declval<fn::optional<CP>>()),
+                               fn::optional<CP>>);
+    static_assert(std::same_as<decltype(std::declval<fn::optional<CP &>>() | std::declval<fn::optional<CP &>>()),
+                               fn::optional<CP &>>); // same payload stays bare
+
+    constexpr auto referents = [] {
+      int x = 1;
+      CP c{x};
+      PP p{x};
+      return (fn::optional<CP &>{c} | OL{})->get_ptr<int &>() == &x
+             && &fn::get<0>(*(OL{} | fn::optional<PP &>{p})->get_ptr<PP>()) == &x
+             && (fn::optional<CP const &>{} | fn::optional<CP>{c})->get_ptr<int &>() == &x;
+    };
+    CHECK(referents());
+    static_assert(referents());
   }
 
   SECTION("exceptions")

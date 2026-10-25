@@ -519,7 +519,7 @@ auto test_conjunction_with_identity_cluster(fn::expected<int, Error> ex, fn::jus
 >
 ## 7. Sum composition with operator| (disjunction)
 
-Disjunction evaluates alternative computations, keeping the first successful result. `a | b` fails only if both operands fail: dual to conjunction, their values union into a `copack`, and their errors combine into a `pack`. If both operands share the same payload, the value side remains ungraded, so two `void` operands stay `void`. Otherwise a `void` operand enters the sum as `pack<>`. The value of an `optional<T&>` enters the sum as the alternative `T&`: `optional<int&> | optional<long&>` is `optional<copack_for<int&, long&>>`.
+Disjunction evaluates alternative computations, keeping the first successful result. `a | b` fails only if both operands fail: dual to conjunction, their values union into a `copack`, and their errors combine into a `pack`. If both operands share the same payload, the value side remains ungraded, so two `void` operands stay `void`. Otherwise a `void` operand enters the sum as `pack<>`. The value of an `optional<T&>` enters the sum as the alternative `T&`: `optional<int&> | optional<long&>` is `optional<copack_for<int&, long&>>`. A reference to a `pack` or a `copack`, which is no alternative, enters as its value, as a `transform` result does.
 
 If either error side is graded, the product distributes over it: $(E_1 + E_2) \times F \to (E_1 \times F) + (E_2 \times F)$ (the full Cartesian product when both are graded), yielding a canonical `copack` of `pack`s.
 

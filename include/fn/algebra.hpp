@@ -86,12 +86,14 @@ struct _nothrow_join_arm<false, Tpl, Lh, Rh, Efn> {
 template <template <typename> typename Tpl, typename Lh, typename Rh, typename Efn>
 constexpr inline bool _nothrow_join = _nothrow_join_arm<_uninhabited_join<Lh, Rh>, Tpl, Lh, Rh, Efn>::value;
 
+// A payload enters the sum as a transform result does: a reference to a pack or a copack, which is
+// no alternative, as its value
 template <typename Lh, typename Rh>
-using _disjoined_t = copack_for<_sum_element_t<_payload_t<Lh>>, _sum_element_t<_payload_t<Rh>>>;
+using _disjoined_t = copack_for<_collapsed_t<_payload_t<Lh>>, _collapsed_t<_payload_t<Rh>>>;
 
 // A side's value enters the sum as its own alternative, named by type: by value, an lvalue `int`
 // would be ambiguous between the alternatives `int` and `int&`
-template <typename Side> using _disj_tag_t = ::std::in_place_type_t<_sum_element_t<_payload_t<Side>>>;
+template <typename Side> using _disj_tag_t = ::std::in_place_type_t<_collapsed_t<_payload_t<Side>>>;
 
 template <typename T> constexpr inline bool _dead_value = empty_copack<typename ::std::remove_cvref_t<T>::value_type>;
 
