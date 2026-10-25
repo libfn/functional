@@ -192,7 +192,9 @@ struct _nothrow_copack_inject<To, Fn, Args...>
 // the extra arguments must be lvalues, and none of the latter a pack or copack, whose splicing copies
 // into a temporary pack. Asserted on the caller's categories rather than constrained on the callback's:
 // where an rvalue's && overload is not viable, its const & overload binds it instead, as pack's apply
-// does when handing a pack alternative's elements to the callback.
+// does when handing a pack alternative's elements to the callback. The callable is not checked, as
+// optional's transform does not check it: no type tells a reference into its own state from one
+// through a captured reference.
 template <typename R, typename Arg, typename... Args>
 constexpr inline bool _admissible_result
     = (not ::std::is_reference_v<_collapsed_t<R>>)
