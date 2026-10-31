@@ -779,29 +779,28 @@ TEST_CASE("just of reference", "[just]")
 
   SECTION("operators")
   {
-    // the product and the sum the operators build hold a copy of the referent
-    int x = 1;
-    R a{x};
-    auto p = a & fn::just<double>{2.0};
-    static_assert(std::is_same_v<decltype(p), fn::just<fn::pack<int, double>>>);
-    auto d = a | fn::just<int>{7};
-    static_assert(std::is_same_v<decltype(d), fn::just<int>>);
-    // ... while eliding the unit just<void> returns the other operand itself, a reference included
-    static_assert(std::is_same_v<decltype(fn::just<void>{} & a), R>);
-    static_assert(std::is_same_v<decltype(a & fn::just<void>{}), R>);
-    CHECK(&(fn::just<void>{} & a).value() == &x);
-    CHECK(&(a & fn::just<void>{}).value() == &x);
-    x = 5;
-    CHECK(p.value().apply([](int i, double) { return i; }) == 1);
-    CHECK(d.value() == 1);
-    static_assert([] {
+    // the product and the sum the operators build keep the reference, as for optional<T&>
+    static_assert(std::is_same_v<decltype(std::declval<R>() & std::declval<fn::just<double>>()),
+                                 fn::just<fn::pack<int &, double>>>);
+    static_assert(
+        std::is_same_v<decltype(std::declval<R>() | std::declval<fn::just<int>>()), fn::choice_for<int, int &>>);
+    // the void unit adds no factor, so the reference stays
+    static_assert(
+        std::is_same_v<decltype(std::declval<fn::just<void>>() & std::declval<R>()), fn::just<fn::pack<int &>>>);
+    static_assert(
+        std::is_same_v<decltype(std::declval<R>() & std::declval<fn::just<void>>()), fn::just<fn::pack<int &>>>);
+
+    constexpr auto battery = [] {
       int x = 1;
-      auto p = R{x} & fn::just<double>{2.0};
-      auto d = R{x} | fn::just<int>{7};
-      x = 5;
-      return p.value().apply([](int i, double) { return i; }) == 1 && d.value() == 1
-             && &(fn::just<void>{} & R{x}).value() == &x && &(R{x} & fn::just<void>{}).value() == &x;
-    }());
+      auto const p = R{x} & fn::just<double>{2.0};
+      auto const d = R{x} | fn::just<int>{7};
+      auto const ul = fn::just<void>{} & R{x};
+      auto const ur = R{x} & fn::just<void>{};
+      return &fn::get<0>(p.value()) == &x && fn::get<1>(p.value()) == 2.0 && d.get_ptr<int &>() == &x
+             && &fn::get<0>(ul.value()) == &x && &fn::get<0>(ur.value()) == &x;
+    };
+    CHECK(battery());
+    static_assert(battery());
   }
 }
 
