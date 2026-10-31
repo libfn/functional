@@ -490,7 +490,7 @@ auto test_conjunction_with_identity_cluster(fn::expected<int, Error> ex, fn::jus
 >
 ## 7. Sum composition with operator| (disjunction)
 
-Disjunction evaluates alternative computations, keeping the first successful result. `a | b` fails only if both operands fail: dual to conjunction, their values union into a `copack`, and their *errors* combine into a product. If both operands share the same payload type, the value side is unchanged. Otherwise, a carrier with value type `void` contributes a payload-free success, represented by `pack<>` in the sum. The value of an `optional<T&>` enters the sum as the alternative `T&`: `optional<int&> | optional<long&>` is `optional<copack_for<int&, long&>>`. A reference to a `pack` or a `copack`, which is no alternative, enters as its value, as a `transform` result does.
+Disjunction evaluates alternative computations, keeping the first successful result. `a | b` fails only if both operands fail: dual to conjunction, their values union into a `copack`, and their *errors* combine into a product. If both operands share the same payload type, the value side is unchanged. Otherwise, a carrier with value type `void` contributes a payload-free success, represented by `pack<>` in the sum. The value of an `optional<T&>` enters the sum as the alternative `T&`: `optional<int&> | optional<long&>` is `optional<copack_for<int&, long&>>`.
 
 If either error side is graded, the product distributes over it: $(E_1 + E_2) \times F \to (E_1 \times F) + (E_2 \times F)$ (the full Cartesian product when both are graded), yielding a canonical `copack` of `pack`s.
 
@@ -1015,7 +1015,7 @@ To ensure reliability, `libfn` uses compiler mechanisms to reject malformed usag
 
 Public concepts and `requires` clauses constrain which calls are accepted. `fn::monadic_invocable` verifies pipeline invocation, while concepts such as `fn::applicable_transform` and `fn::applicable_and_then` express individual applicability rules. These checks enforce exhaustive handling of alternatives where a callback is invoked and require complete type definitions to be present. This underpins the compile-time exhaustiveness guarantees of `apply` and monadic operations established in Sections 4 and 12.
 
-Ask the concepts, not the member functions. `copack::transform`, `choice`'s `transform` and `and_then`, and the `transform` and `transform_error` of `optional` and `expected` hand the payload — each alternative of a copack — to the callback in the operand's own cv/ref category, and assert rather than constrain: a callback which does not accept it there is a compile error, even inside a `requires`-expression. A constraint would let overload resolution pick another cv/ref overload instead, handing the payload of a temporary operand to the callback as an lvalue, which a reference result would outlive. As in the standard, `expected`'s overloads remain constrained on constructing the side they leave unchanged.
+Use the applicability concepts to check whether an operation accepts a callback. Some member functions, such as `copack::transform`, diagnose an invalid invocation in their bodies, so probing them in a `requires`-expression can cause a compilation error. This prevents an unsuitable cv/ref overload from being discarded in favour of one that passes an lvalue from a temporary operand, potentially leaving a dangling reference.
 
 ### One normalization order per program
 
@@ -1031,7 +1031,7 @@ The library respects C++ value mechanics:
 - Value categories (lvalue/rvalue) propagate strictly to callbacks.
 - Reference collapsing rules apply to carriers and their payloads.
 - Immovable and move-only payloads are supported in place.
-- Reference-bearing `pack<T&...>`, `copack<T&...>` and `optional<T&>` are supported. `optional<T&>`, the reference alternatives of `copack` and `choice`, `as_pack` with spelled element types, and `append(std::in_place_type<T&>, ...)` refuse to bind a reference to a temporary, as C++26 `optional<T&>` does; beyond that, lifetime management of non-owning references remains with the caller.
+- Reference-bearing `pack<T&...>`, `copack<T&...>`, `optional<T&>` and `just<T&>` are supported. `optional<T&>`, `just<T&>`, the reference alternatives of `copack` and `choice`, `as_pack` with spelled element types, and `append(std::in_place_type<T&>, ...)` refuse to bind a reference to a temporary, as C++26 `optional<T&>` does; beyond that, lifetime management of non-owning references remains with the caller.
 - `pack` compares element-wise, supporting equality and three-way comparison.
 - For reference-bearing `pack<T&...>` and `copack`, comparison applies to the referents.
 - When deducing argument types, `as_pack` preserves scalar lvalues **as references**.

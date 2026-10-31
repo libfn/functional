@@ -2,6 +2,31 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `just` monadic members never fall back to another cv/ref overload — 31 October 2026
+
+`just<T>::transform` and `and_then` take the shape `choice`'s took on 24 October: unconstrained cv/ref overloads with body-deduced returns, asserting what they require. A callback which does not accept the payload in the operand's own cv/ref category makes the call ill-formed, including in a `requires`-expression. Before, the rvalue overloads dropped out of overload resolution and the `const &` overload took the call, handing the callback an lvalue into a temporary operand, so a lifetime-careful callback refusing rvalues could return a reference which dangled. Pipeline `transform` asks `fn::applicable_transform`, which now answers for a `just` from the payload rather than by probing the member.
+
+Reject tests in `tests/fn/reject/just_monadic.cpp` cover each fallback the members used to take, and the reference-result and result-type rejections which a `requires`-expression could not observe while the members answered as viable.
+
+## `optional<T&>` refuses pack and copack referents — 31 October 2026
+
+`fn::optional<T&>` no longer accepts a `pack` or `copack` referent, matching `just<T&>`. `fn::optional<copack<Ts...>&>` dispatched on its referent's active alternative, and `fn::optional<pack<Ts...>&>` expanded its referent's fields. How a reference to a product or a sum takes part in conjunction, disjunction and grading is an open question, so both are refused until the type algebra answers it; issue #434 discusses the copack case. `pfn::optional<T&>` does not reject them, but `fn` and `pfn` types are not meant to be used together.
+
+## `just` holds lvalue references — 31 October 2026
+
+`just<T&>` now supports lvalue-reference payloads (issue #417), providing an always-engaged counterpart to `optional<T&>`. Referents must be object types other than arrays, in-place type tags, packs, or copacks. Rvalue-reference payloads remain unsupported, as in `optional` and `pack`.
+
+`just<T&>` follows `optional<T&>`: copy assignment and `emplace` rebind, comparisons compare the referents, and `value_type` is `T`. `value()` returns `T&` regardless of the carrier's value category or constness. Callable operations use that same reference, expanding tuple-like referents as `fn::apply` does. `apply_type` tags the payload with `std::in_place_type<T&>`.
+
+There is no default constructor. For an `int x`, `just{x}` still deduces `just<int>`; the explicit type tag in `just(std::in_place_type<int&>, x)` instead deduces `just<int&>`. As for `optional<T&>`, construction and `emplace` refuse a binding to a temporary, an xvalue of the referent type included: `just<int const&>{42}` does not compile.
+
+Composition follows these rules:
+
+- A `transform` callback returning a supported lvalue reference `U&` produces `just<U&>`, referring to the returned object. An rvalue owning `just` rejects such a result: it may refer into the payload, which expires with the carrier. `optional<T>` accepts it, as the standard specifies; `just` deliberately diverges.
+- Member and pipeline `and_then` accept callbacks returning `just<U&>`. When every branch of a choice returns the same `just<U&>` type, the result retains that type. Otherwise a `just<U&>` branch joins as the reference alternative `U&`, as an `optional<U&>` branch joins an optional: `{just<int&>, just<long>}` joins to `choice_for<int&, long>`, and `{just<int&>, just<int>}` to `choice_for<int, int&>`.
+- The products and sums that `&` and `|` build keep the reference, as they do for `optional<T&>`: `just<int&> & just<double>` is `just<pack<int&, double>>`, `just<int&> | just<int>` is `choice_for<int, int&>`, and `just<void>{} & just<int&>{x}` is `just<pack<int&>>`.
+- Copack references remain unsupported. `just<copack<Ts...>&>` would dispatch on the referent's active alternative, introducing control flow based on state the carrier does not own. Issue #434 discusses the tradeoffs and open questions. `transform` also rejects copack-reference results.
+
 ## `as_copack` and `as_choice` are deprecated — 25 October 2026
 
 `as_copack` and `as_choice` are deprecated in favour of naming the type: `copack<int&>{x}` and `choice<int&>{x}` refer to `x`, `copack{x}` and `choice{x}` copy it, and `just{c}` deduces the choice over the alternatives of a copack `c`. The lifts choose between a reference and a copy by the argument's value category, which the call site does not show; the named type shows it, and its constructors refuse a temporary for a reference alternative, as the lifts do. `as_pack` is not deprecated: a `pack`'s braces still bind a reference element to a temporary, which `as_pack` with a spelled reference element refuses, so naming the type would be the less safe spelling until `pack` refuses it too (#463).

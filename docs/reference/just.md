@@ -8,6 +8,8 @@ title: "monad fn::just"
 
 :include-doxygen-doc: fn::just
 
+:include-doxygen-doc: fn::just< T & >
+
 ## Member types {style: "api"}
 
 ```cpp {title: "fn::just::value_type"}
@@ -27,6 +29,18 @@ using value_type = void;  // (1)
 ```
 
 :include-doxygen-doc: fn::just< void >::value_type { args: "" }
+
+```cpp {title: "fn::just< T & >::value_type"}
+using value_type = T;  // (1)
+```
+
+:include-doxygen-doc: fn::just< T & >::value_type { args: "" }
+
+```cpp {title: "fn::just< T & >::p_"}
+T * p_;  // (1)
+```
+
+:include-doxygen-doc: fn::just< T & >::p_ { args: "" }
 
 ## Construction {style: "api"}
 
@@ -69,6 +83,27 @@ constexpr explicit just(std::in_place_type_t<T>, Args &&...args);  // (6)
 
 :include-doxygen-doc-params: fn::just::just { args: "::std::in_place_type_t< T >, Args &&...", title: "parameters" }
 
+```cpp {title: "fn::just< T & >::just"}
+constexpr just(just const &) = default;  // (1)
+
+template <typename U>
+constexpr explicit just(U &&u);                             // (2)
+constexpr explicit just(U &&u) = delete;                    // (3)
+constexpr explicit just(std::in_place_type_t<T &>, U &&u);  // (4)
+```
+
+The deleted overload is selected where the reference would bind to a temporary.
+
+:include-doxygen-doc: fn::just< T & >::just { args: "just const &" }
+
+:include-doxygen-doc: fn::just< T & >::just { args: "U &&" }
+
+:include-doxygen-doc-params: fn::just< T & >::just { args: "U &&", title: "parameters" }
+
+:include-doxygen-doc: fn::just< T & >::just { args: "::std::in_place_type_t< T & >, U &&" }
+
+:include-doxygen-doc-params: fn::just< T & >::just { args: "::std::in_place_type_t< T & >, U &&", title: "parameters" }
+
 ## Destructor {style: "api"}
 
 ```cpp {title: "fn::just::~just"}
@@ -76,6 +111,12 @@ constexpr ~just() = default;  // (1)
 ```
 
 :include-doxygen-doc: fn::just::~just { args: "" }
+
+```cpp {title: "fn::just< T & >::~just"}
+constexpr ~just() = default;  // (1)
+```
+
+:include-doxygen-doc: fn::just< T & >::~just { args: "" }
 
 ## emplace {style: "api"}
 
@@ -86,6 +127,15 @@ constexpr auto emplace(auto &&...args) -> T &;  // (1)
 :include-doxygen-doc: fn::just::emplace { args: "auto &&..." }
 
 :include-doxygen-doc-params: fn::just::emplace { args: "auto &&...", title: "parameters" }
+
+```cpp {title: "fn::just< T & >::emplace"}
+template <typename U>
+constexpr auto emplace(U &&u) -> T &;  // (1)
+```
+
+:include-doxygen-doc: fn::just< T & >::emplace { args: "U &&" }
+
+:include-doxygen-doc-params: fn::just< T & >::emplace { args: "U &&", title: "parameters" }
 
 ## Assignment {style: "api"}
 
@@ -104,6 +154,12 @@ constexpr auto operator=(U &&v) -> just &;  // (3)
 :include-doxygen-doc: fn::just::operator= { args: "U &&" }
 
 :include-doxygen-doc-params: fn::just::operator= { args: "U &&", title: "parameters" }
+
+```cpp {title: "fn::just< T & >::operator="}
+constexpr auto operator=(just const &) = default -> just &;  // (1)
+```
+
+:include-doxygen-doc: fn::just< T & >::operator= { args: "just const &" }
 
 ## operator== {style: "api"}
 
@@ -134,6 +190,14 @@ constexpr auto value() const -> void;  // (1)
 
 :include-doxygen-doc: fn::just< void >::value { args: "" }
 
+```cpp {title: "fn::just< T & >::value"}
+constexpr auto value() const -> T &;  // (1)
+```
+
+:include-doxygen-doc: fn::just< T & >::value { args: "" }
+
+:include-doxygen-doc-params: fn::just< T & >::value { args: "", title: "parameters" }
+
 ## transform {style: "api"}
 
 ```cpp {title: "fn::just::transform"}
@@ -156,6 +220,15 @@ constexpr auto transform(Fn &&fn) const;  // (1)
 :include-doxygen-doc: fn::just< void >::transform { args: "Fn &&" }
 
 :include-doxygen-doc-params: fn::just< void >::transform { args: "Fn &&", title: "parameters" }
+
+```cpp {title: "fn::just< T & >::transform"}
+template <typename Fn>
+constexpr auto transform(Fn &&fn) const;  // (1)
+```
+
+:include-doxygen-doc: fn::just< T & >::transform { args: "Fn &&" }
+
+:include-doxygen-doc-params: fn::just< T & >::transform { args: "Fn &&", title: "parameters" }
 
 ## and_then {style: "api"}
 
@@ -180,6 +253,15 @@ constexpr auto and_then(Fn &&fn) const;  // (1)
 
 :include-doxygen-doc-params: fn::just< void >::and_then { args: "Fn &&", title: "parameters" }
 
+```cpp {title: "fn::just< T & >::and_then"}
+template <typename Fn>
+constexpr auto and_then(Fn &&fn) const;  // (1)
+```
+
+:include-doxygen-doc: fn::just< T & >::and_then { args: "Fn &&" }
+
+:include-doxygen-doc-params: fn::just< T & >::and_then { args: "Fn &&", title: "parameters" }
+
 ## apply {style: "api"}
 
 ```cpp {title: "fn::just::apply"}
@@ -202,6 +284,15 @@ constexpr auto apply(Fn &&fn, Args &&...args) const -> decltype(auto);  // (1)
 :include-doxygen-doc: fn::just< void >::apply { args: "Fn &&, Args &&..." }
 
 :include-doxygen-doc-params: fn::just< void >::apply { args: "Fn &&, Args &&...", title: "parameters" }
+
+```cpp {title: "fn::just< T & >::apply"}
+template <typename Fn, typename... Args>
+constexpr auto apply(Fn &&fn, Args &&...args) const -> decltype(auto);  // (1)
+```
+
+:include-doxygen-doc: fn::just< T & >::apply { args: "Fn &&, Args &&..." }
+
+:include-doxygen-doc-params: fn::just< T & >::apply { args: "Fn &&, Args &&...", title: "parameters" }
 
 ## apply_r {style: "api"}
 
@@ -230,6 +321,17 @@ constexpr auto apply_r(Fn &&fn, Args &&...args) const -> Ret;  // (1)
 
 :include-doxygen-doc-params: fn::just< void >::apply_r { args: "Fn &&, Args &&...", title: "parameters" }
 
+```cpp {title: "fn::just< T & >::apply_r"}
+template <typename Ret, typename Fn, typename... Args>
+constexpr auto apply_r(Fn &&fn, Args &&...args) const -> Ret;  // (1)
+```
+
+:include-doxygen-doc: fn::just< T & >::apply_r { args: "Fn &&, Args &&..." }
+
+:include-doxygen-doc-params: fn::just< T & >::apply_r { args: "Fn &&, Args &&...", type: "template", title: "template parameters" }
+
+:include-doxygen-doc-params: fn::just< T & >::apply_r { args: "Fn &&, Args &&...", title: "parameters" }
+
 ## apply_type {style: "api"}
 
 ```cpp {title: "fn::just::apply_type"}
@@ -252,6 +354,15 @@ constexpr auto apply_type(Fn &&fn, Args &&...args) const -> decltype(auto);  // 
 :include-doxygen-doc: fn::just< void >::apply_type { args: "Fn &&, Args &&..." }
 
 :include-doxygen-doc-params: fn::just< void >::apply_type { args: "Fn &&, Args &&...", title: "parameters" }
+
+```cpp {title: "fn::just< T & >::apply_type"}
+template <typename Fn, typename... Args>
+constexpr auto apply_type(Fn &&fn, Args &&...args) const -> decltype(auto);  // (1)
+```
+
+:include-doxygen-doc: fn::just< T & >::apply_type { args: "Fn &&, Args &&..." }
+
+:include-doxygen-doc-params: fn::just< T & >::apply_type { args: "Fn &&, Args &&...", title: "parameters" }
 
 ## apply_type_r {style: "api"}
 
@@ -279,3 +390,14 @@ constexpr auto apply_type_r(Fn &&fn, Args &&...args) const -> Ret;  // (1)
 :include-doxygen-doc-params: fn::just< void >::apply_type_r { args: "Fn &&, Args &&...", type: "template", title: "template parameters" }
 
 :include-doxygen-doc-params: fn::just< void >::apply_type_r { args: "Fn &&, Args &&...", title: "parameters" }
+
+```cpp {title: "fn::just< T & >::apply_type_r"}
+template <typename Ret, typename Fn, typename... Args>
+constexpr auto apply_type_r(Fn &&fn, Args &&...args) const -> Ret;  // (1)
+```
+
+:include-doxygen-doc: fn::just< T & >::apply_type_r { args: "Fn &&, Args &&..." }
+
+:include-doxygen-doc-params: fn::just< T & >::apply_type_r { args: "Fn &&, Args &&...", type: "template", title: "template parameters" }
+
+:include-doxygen-doc-params: fn::just< T & >::apply_type_r { args: "Fn &&, Args &&...", title: "parameters" }
