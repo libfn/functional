@@ -1049,14 +1049,14 @@ The library respects C++ value mechanics:
 - `noexcept` is conditionally computed.
 - Value categories (lvalue/rvalue) propagate strictly to callbacks, avoiding copies.
 - Immovable and move-only payloads are supported in place.
-- Reference-bearing `pack<T&...>`, `copack<T&...>` and `optional<T&>` are supported. `optional<T&>`, the reference alternatives of `copack` and `choice`, `as_pack` with spelled element types, and `append(std::in_place_type<T&>, ...)` refuse to bind a reference to a temporary, as C++26 `optional<T&>` does; beyond that, lifetime management of non-owning references remains with the caller.
+- Reference-bearing `pack<T&...>`, `copack<T&...>`, `optional<T&>` and `just<T&>` are supported. `optional<T&>`, the reference alternatives of `copack` and `choice`, `as_pack` with spelled element types, and `append(std::in_place_type<T&>, ...)` refuse to bind a reference to a temporary, as C++26 `optional<T&>` does; beyond that, lifetime management of non-owning references remains with the caller.
 - `pack` compares element-wise, supporting equality and three-way comparison. For references in a `pack` or a `copack`, comparison applies to the referents rather than the references themselves.
 
 > [!NOTE]
 >
 > ### Note — reference payloads
 >
-> Raw reference payloads are disallowed on the carriers `expected` and `just`: `expected` stores its payload in a union, and C++ forbids a union member of reference type. `optional<T&>` is the deliberate exception — the standard specifies it, and `libfn` polyfills it. To propagate references inside the other carriers, wrap them in a `pack` (e.g. `expected<pack<T&>, E>`) or make them `copack` alternatives (e.g. `expected<copack<T&>, E>` or `choice<T&>`), which hold a pointer to the referent.
+> A raw reference payload is disallowed on the carrier `expected`: it stores its payload in a union, and C++ forbids a union member of reference type. `optional<T&>` and its always-engaged counterpart, `just<T&>`, support lvalue-reference payloads; `libfn` polyfills the standard's `optional<T&>`. Assignment rebinds the reference. Callable operations use `T&` regardless of the carrier's value category or constness, expanding tuple-like referents as `fn::apply` does. Both exclude references to packs and copacks: how a reference to a product or a sum would take part in conjunction, disjunction and grading is an open question. An owning `just` whose `transform` callable returns an lvalue reference produces a reference `just` only if the carrier is an lvalue; an rvalue carrier rejects it, as the reference may refer into the payload that expires with the carrier. `optional<T>` accepts it, as the standard specifies. To propagate references inside `expected`, wrap them in a `pack` (e.g. `expected<pack<T&>, E>`) or make them `copack` alternatives (e.g. `expected<copack<T&>, E>`), which hold a pointer to the referent.
 
 <!-- sync-example-test-references -->
 ```cpp
