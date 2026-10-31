@@ -247,13 +247,10 @@ TEST_CASE("just", "[just]")
     auto r4 = a.transform([](int &i) -> int & { return i; });
     static_assert(std::is_same_v<decltype(r4), fn::just<int &>>);
     CHECK(&r4.value() == &a.value());
-    // ... but not from an rvalue carrier, whose payload expires with it: the member stays
-    // viable-but-loud and yields no just to compose
+    // ... but not from an rvalue carrier, whose payload expires with it: that call is ill-formed
+    // (tests/fn/reject/just_monadic.cpp)
     constexpr auto fnView = [](int const &i) -> int const & { return i; };
-    static_assert(can_transform<T &&, decltype(fnView)>);
-    static_assert(not fn::some_just<decltype(std::move(a).transform(fnView))>);
-    static_assert(not fn::some_just<decltype(std::move(std::as_const(a)).transform(fnView))>);
-    static_assert(fn::some_just<decltype(std::as_const(a).transform(fnView))>);
+    static_assert(std::is_same_v<decltype(std::as_const(a).transform(fnView)), fn::just<int const &>>);
 
     // a copack result lands on the choice over its alternatives - the same carrier family
     constexpr auto fnCopack
@@ -261,10 +258,8 @@ TEST_CASE("just", "[just]")
     static_assert(std::is_same_v<decltype(a.transform(fnCopack)), fn::choice_for<bool, int>>);
     CHECK(a.transform(fnCopack) == fn::choice<bool>{true});
     CHECK(T{-1}.transform(fnCopack) == fn::choice<int>{-1});
-    // ... and the empty copack keeps the member viable-but-loud, like the family's other
-    // inadmissible results - the body's static_assert names the requirement on use
-    constexpr auto fnEmpty = [](int) -> fn::copack<> { throw 0; };
-    static_assert(can_transform<T &, decltype(fnEmpty)>);
+    // ... while an empty copack result, with no alternative to hold, is ill-formed
+    // (tests/fn/reject/just_monadic.cpp)
 
     // noexcept from the callback's applicability
     static_assert(noexcept(a.transform([](int) noexcept { return 1; })));
@@ -292,13 +287,10 @@ TEST_CASE("just", "[just]")
     CHECK(r1.value());
     CHECK(std::move(a).and_then([](int &&i) { return fn::just<long>{i + 1}; }).value() == 4L);
 
-    // an inapplicable callback drops and_then; a value-returning one stays viable - its rejection
-    // is the deliberately loud static_assert on instantiation, not a constraint
+    // an inapplicable or a value-returning callback makes the call ill-formed rather than drop it
+    // (tests/fn/reject/just_monadic.cpp)
     constexpr auto fnString = [](std::string const &) { return fn::just<int>{1}; };
-    static_assert(not can_and_then<T &, decltype(fnString)>);
     static_assert(can_and_then<fn::just<std::string> &, decltype(fnString)>);
-    constexpr auto fnValue = [](int i) { return i; };
-    static_assert(can_and_then<T &, decltype(fnValue)>);
 
     static_assert(noexcept(a.and_then([](int) noexcept { return fn::just<int>{1}; })));
     static_assert(not noexcept(a.and_then([](int) { return fn::just<int>{1}; })));

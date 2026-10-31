@@ -86,6 +86,11 @@ struct _just_transform_result<Fn, V...> {
   using type = ::fn::just<typename _apply_result<Fn, V...>::type>;
 };
 
+// What the transform member requires of the callable, for the pipeline gate to ask of the payload:
+// naming the member would deduce its return type and fire its static_asserts
+template <typename Fn, typename V>
+concept _just_transformable = _is_applicable<Fn, V>::value && _just_admissible_result<Fn, V>;
+
 // transform's result is direct-non-list-initialized from the thunk's invocation: no extra move,
 // and immovable result types work (the pattern of pfn's _expected_from_invoke)
 constexpr inline struct _just_from_invoke_t {
@@ -268,18 +273,19 @@ template <typename T> struct just {
   /**
    * @brief Maps the payload through the callable, wrapping the result
    *
-   * A callable returning an lvalue reference makes a `just` of that reference, but only from an
-   * lvalue carrier: an rvalue carrier rejects it, as the reference may refer into its expiring
-   * payload.
+   * The payload is handed over in `*this`'s cv/ref category; where the callable does not accept
+   * it, the call is ill-formed. A callable returning an lvalue reference makes a `just` of that
+   * reference, but only from an lvalue carrier: an rvalue carrier rejects it, as the reference may
+   * refer into its expiring payload.
    *
    * @param fn Callable applied on the payload
    * @return `just` of the callable's result; `just<void>` for a void result
    */
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) & //
-      noexcept(detail::_is_nothrow_applicable<Fn, T &>::value) -> typename detail::_just_transform_result<Fn, T &>::type
-    requires detail::_is_applicable<Fn, T &>::value
+      noexcept(detail::_is_nothrow_applicable<Fn, T &>::value)
   {
+    static_assert(detail::_is_applicable<Fn, T &>::value);
     using type = detail::_apply_result<Fn, T &>::type;
     static_assert(detail::_just_admissible_result<Fn, T &>);
     if constexpr (::std::is_void_v<type>) {
@@ -294,10 +300,9 @@ template <typename T> struct just {
 
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) const & //
-      noexcept(detail::_is_nothrow_applicable<Fn, T const &>::value) ->
-      typename detail::_just_transform_result<Fn, T const &>::type
-    requires detail::_is_applicable<Fn, T const &>::value
+      noexcept(detail::_is_nothrow_applicable<Fn, T const &>::value)
   {
+    static_assert(detail::_is_applicable<Fn, T const &>::value);
     using type = detail::_apply_result<Fn, T const &>::type;
     static_assert(detail::_just_admissible_result<Fn, T const &>);
     if constexpr (::std::is_void_v<type>) {
@@ -312,10 +317,9 @@ template <typename T> struct just {
 
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) && //
-      noexcept(detail::_is_nothrow_applicable<Fn, T &&>::value) ->
-      typename detail::_just_transform_result<Fn, T &&>::type
-    requires detail::_is_applicable<Fn, T &&>::value
+      noexcept(detail::_is_nothrow_applicable<Fn, T &&>::value)
   {
+    static_assert(detail::_is_applicable<Fn, T &&>::value);
     using type = detail::_apply_result<Fn, T &&>::type;
     static_assert(detail::_just_admissible_result<Fn, T &&>);
     if constexpr (::std::is_void_v<type>) {
@@ -330,10 +334,9 @@ template <typename T> struct just {
 
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) const && //
-      noexcept(detail::_is_nothrow_applicable<Fn, T const &&>::value) ->
-      typename detail::_just_transform_result<Fn, T const &&>::type
-    requires detail::_is_applicable<Fn, T const &&>::value
+      noexcept(detail::_is_nothrow_applicable<Fn, T const &&>::value)
   {
+    static_assert(detail::_is_applicable<Fn, T const &&>::value);
     using type = detail::_apply_result<Fn, T const &&>::type;
     static_assert(detail::_just_admissible_result<Fn, T const &&>);
     if constexpr (::std::is_void_v<type>) {
@@ -349,15 +352,17 @@ template <typename T> struct just {
   /**
    * @brief Binds the payload through the callable, which returns a `just` of any payload
    *
+   * The payload is handed over in `*this`'s cv/ref category; where the callable does not accept
+   * it, the call is ill-formed.
+   *
    * @param fn Callable applied on the payload
    * @return The callable's own `just`
    */
   template <typename Fn>
   [[nodiscard]] constexpr auto and_then(Fn &&fn) & //
       noexcept(detail::_is_nothrow_applicable<Fn, T &>::value)
-          -> ::std::remove_cvref_t<typename detail::_apply_result<Fn, T &>::type>
-    requires detail::_is_applicable<Fn, T &>::value
   {
+    static_assert(detail::_is_applicable<Fn, T &>::value);
     // the member is the carrier's own bind; the cross-carrier bind lives in the and_then functor
     static_assert(some_just<typename detail::_apply_result<Fn, T &>::type>);
     return detail::_apply(FWD(fn), v_);
@@ -366,9 +371,8 @@ template <typename T> struct just {
   template <typename Fn>
   [[nodiscard]] constexpr auto and_then(Fn &&fn) const & //
       noexcept(detail::_is_nothrow_applicable<Fn, T const &>::value)
-          -> ::std::remove_cvref_t<typename detail::_apply_result<Fn, T const &>::type>
-    requires detail::_is_applicable<Fn, T const &>::value
   {
+    static_assert(detail::_is_applicable<Fn, T const &>::value);
     static_assert(some_just<typename detail::_apply_result<Fn, T const &>::type>);
     return detail::_apply(FWD(fn), v_);
   }
@@ -376,9 +380,8 @@ template <typename T> struct just {
   template <typename Fn>
   [[nodiscard]] constexpr auto and_then(Fn &&fn) && //
       noexcept(detail::_is_nothrow_applicable<Fn, T &&>::value)
-          -> ::std::remove_cvref_t<typename detail::_apply_result<Fn, T &&>::type>
-    requires detail::_is_applicable<Fn, T &&>::value
   {
+    static_assert(detail::_is_applicable<Fn, T &&>::value);
     static_assert(some_just<typename detail::_apply_result<Fn, T &&>::type>);
     return detail::_apply(FWD(fn), ::std::move(v_));
   }
@@ -386,9 +389,8 @@ template <typename T> struct just {
   template <typename Fn>
   [[nodiscard]] constexpr auto and_then(Fn &&fn) const && //
       noexcept(detail::_is_nothrow_applicable<Fn, T const &&>::value)
-          -> ::std::remove_cvref_t<typename detail::_apply_result<Fn, T const &&>::type>
-    requires detail::_is_applicable<Fn, T const &&>::value
   {
+    static_assert(detail::_is_applicable<Fn, T const &&>::value);
     static_assert(some_just<typename detail::_apply_result<Fn, T const &&>::type>);
     return detail::_apply(FWD(fn), ::std::move(v_));
   }

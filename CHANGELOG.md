@@ -2,6 +2,12 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `just` monadic members never fall back to another cv/ref overload — 31 October 2026
+
+`just<T>::transform` and `and_then` take the shape `choice`'s took on 24 October: unconstrained cv/ref overloads with body-deduced returns, asserting what they require. A callback which does not accept the payload in the operand's own cv/ref category makes the call ill-formed, including in a `requires`-expression. Before, the rvalue overloads dropped out of overload resolution and the `const &` overload took the call, handing the callback an lvalue into a temporary operand, so a lifetime-careful callback refusing rvalues could return a reference which dangled. Pipeline `transform` asks `fn::applicable_transform`, which now answers for a `just` from the payload rather than by probing the member.
+
+Reject tests in `tests/fn/reject/just_monadic.cpp` cover each fallback the members used to take, and the reference-result and result-type rejections which a `requires`-expression could not observe while the members answered as viable.
+
 ## `optional<T&>` refuses pack and copack referents — 3 October 2026
 
 `fn::optional<T&>` no longer accepts a `pack` or `copack` referent, matching `just<T&>`. `fn::optional<copack<Ts...>&>` dispatched on its referent's active alternative, and `fn::optional<pack<Ts...>&>` expanded its referent's fields. How a reference to a product or a sum takes part in conjunction, disjunction and grading is an open question, so both are refused until the type algebra answers it; issue #434 discusses the copack case. `pfn::optional<T&>` does not reject them, but `fn` and `pfn` types are not meant to be used together.

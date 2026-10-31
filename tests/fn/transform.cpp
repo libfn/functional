@@ -947,6 +947,13 @@ static_assert(applicable_transform<refusing<int>, expected<copack<int>, Error>>)
 static_assert(not applicable_transform<refusing<int, int &&, int const &&>, choice<int>>);
 static_assert(applicable_transform<refusing<int, int &&, int const &&>, choice<int> &>);
 static_assert(applicable_transform<refusing<int>, choice<int>>);
+static_assert(not applicable_transform<refusing<int, int &&, int const &&>, just<int>>);
+static_assert(applicable_transform<refusing<int, int &&, int const &&>, just<int> &>);
+static_assert(applicable_transform<refusing<int, int &&, int const &&>, just<int> const &>);
+static_assert(not applicable_transform<refusing<int, int const &&>, just<int> const>);
+static_assert(applicable_transform<refusing<int>, just<int>>);
+static_assert(not applicable_transform<decltype(fn_int_cref), just<int>>);
+static_assert(applicable_transform<decltype(fn_int_cref), just<int> &>);
 static_assert(not applicable_transform<decltype(fn_int_cref), optional<copack<int>>>);
 static_assert(applicable_transform<decltype(fn_int_cref), optional<copack<int>> &>);
 static_assert(not applicable_transform<decltype(fn_int_cref), expected<copack<int>, Error>>);
