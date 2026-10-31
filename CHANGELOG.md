@@ -8,11 +8,11 @@ Design history of libfn, newest first. The living documents — [README.md](READ
 
 Reject tests in `tests/fn/reject/just_monadic.cpp` cover each fallback the members used to take, and the reference-result and result-type rejections which a `requires`-expression could not observe while the members answered as viable.
 
-## `optional<T&>` refuses pack and copack referents — 3 October 2026
+## `optional<T&>` refuses pack and copack referents — 31 October 2026
 
 `fn::optional<T&>` no longer accepts a `pack` or `copack` referent, matching `just<T&>`. `fn::optional<copack<Ts...>&>` dispatched on its referent's active alternative, and `fn::optional<pack<Ts...>&>` expanded its referent's fields. How a reference to a product or a sum takes part in conjunction, disjunction and grading is an open question, so both are refused until the type algebra answers it; issue #434 discusses the copack case. `pfn::optional<T&>` does not reject them, but `fn` and `pfn` types are not meant to be used together.
 
-## `just` holds lvalue references — 24 September 2026
+## `just` holds lvalue references — 31 October 2026
 
 `just<T&>` now supports lvalue-reference payloads (issue #417), providing an always-engaged counterpart to `optional<T&>`. Referents must be object types other than arrays, in-place type tags, packs, or copacks. Rvalue-reference payloads remain unsupported, as in `optional` and `pack`.
 
