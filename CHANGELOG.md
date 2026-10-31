@@ -12,7 +12,7 @@ Design history of libfn, newest first. The living documents — [README.md](READ
 
 `just<T&>` follows `optional<T&>`: copy assignment and `emplace` rebind, comparisons compare the referents, and `value_type` is `T`. `value()` returns `T&` regardless of the carrier's value category or constness. Callable operations use that same reference, expanding tuple-like referents as `fn::apply` does. `apply_type` tags the payload with `std::in_place_type<T&>`.
 
-There is no default constructor. For an `int x`, `just{x}` still deduces `just<int>`; the explicit type tag in `just(std::in_place_type<int&>, x)` instead deduces `just<int&>`. As with the library's `optional<T&>`, binding to a temporary is not yet rejected and can leave a dangling reference.
+There is no default constructor. For an `int x`, `just{x}` still deduces `just<int>`; the explicit type tag in `just(std::in_place_type<int&>, x)` instead deduces `just<int&>`. As for `optional<T&>`, construction and `emplace` refuse a binding to a temporary, an xvalue of the referent type included: `just<int const&>{42}` does not compile.
 
 Composition follows these rules:
 

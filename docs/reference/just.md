@@ -88,8 +88,11 @@ constexpr just(just const &) = default;  // (1)
 
 template <typename U>
 constexpr explicit just(U &&u);                             // (2)
-constexpr explicit just(std::in_place_type_t<T &>, U &&u);  // (3)
+constexpr explicit just(U &&u) = delete;                    // (3)
+constexpr explicit just(std::in_place_type_t<T &>, U &&u);  // (4)
 ```
+
+The deleted overload is selected where the reference would bind to a temporary.
 
 :include-doxygen-doc: fn::just< T & >::just { args: "just const &" }
 

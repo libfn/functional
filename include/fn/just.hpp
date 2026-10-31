@@ -726,9 +726,8 @@ template <> struct just<void> {
  * other than arrays, in-place type tags, packs, or copacks. The carrier is trivially copyable and a
  * structural type.
  *
- * The caller must keep the referent alive. As with the library's `optional<T&>`, binding to a
- * temporary is not rejected and can leave a dangling reference. Detecting such bindings requires
- * the C++23 trait `std::reference_constructs_from_temporary`.
+ * The caller must keep the referent alive. As for `optional<T&>`, construction and `emplace` refuse
+ * a binding to a temporary, judged by `pfn::reference_constructs_from_temporary`.
  *
  * @tparam T Referent type
  */
@@ -767,12 +766,18 @@ template <typename T> struct just<T &> {
    */
   template <typename U>
     requires(not ::std::is_same_v<::std::remove_cvref_t<U>, just>)
-            && (not detail::_some_in_place_type<::std::remove_cvref_t<U>>) && ::std::is_constructible_v<T &, U>
+            && (not detail::_some_in_place_type<::std::remove_cvref_t<U>>)
+            && ::std::is_constructible_v<T &, U> && (not ::pfn::reference_constructs_from_temporary_v<T &, U>)
   constexpr explicit(not ::std::is_convertible_v<U, T &>) just(U &&u) // NOSONAR cpp:S6458 the constraint excludes self
       noexcept(::std::is_nothrow_constructible_v<T &, U>)
       : p_(_address(FWD(u)))
   {
   }
+  template <typename U>
+    requires(not ::std::is_same_v<::std::remove_cvref_t<U>, just>)
+                && (not detail::_some_in_place_type<::std::remove_cvref_t<U>>)
+                && ::std::is_constructible_v<T &, U> && ::pfn::reference_constructs_from_temporary_v<T &, U>
+  constexpr explicit(not ::std::is_convertible_v<U, T &>) just(U &&u) = delete; // NOSONAR cpp:S6458
 
   /**
    * @brief Binds the reference to the argument
@@ -780,7 +785,7 @@ template <typename T> struct just<T &> {
    * @param u The referent, or a value whose conversion yields it
    */
   template <typename U>
-    requires ::std::is_constructible_v<T &, U>
+    requires ::std::is_constructible_v<T &, U> && (not ::pfn::reference_constructs_from_temporary_v<T &, U>)
   constexpr explicit just(::std::in_place_type_t<T &>, U &&u) //
       noexcept(::std::is_nothrow_constructible_v<T &, U>)
       : p_(_address(FWD(u)))
@@ -795,7 +800,7 @@ template <typename T> struct just<T &> {
    */
   template <typename U>
   constexpr T &emplace(U &&u) noexcept(::std::is_nothrow_constructible_v<T &, U>)
-    requires ::std::is_constructible_v<T &, U>
+    requires ::std::is_constructible_v<T &, U> && (not ::pfn::reference_constructs_from_temporary_v<T &, U>)
   {
     p_ = _address(FWD(u));
     return *p_;

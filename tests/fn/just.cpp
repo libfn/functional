@@ -70,6 +70,8 @@ template <typename S, typename Ret, typename Fn>
 concept can_apply_r = requires(S s, Fn fn) { FWD(s).template apply_r<Ret>(fn); };
 template <typename S, typename Ret, typename Fn>
 concept can_apply_type_r = requires(S s, Fn fn) { FWD(s).template apply_type_r<Ret>(fn); };
+template <typename S, typename U>
+concept can_emplace = requires(S &s, U &&u) { s.emplace(FWD(u)); };
 template <typename T>
 concept implicitly_default_constructible = requires(void (&sink)(T)) { sink({}); };
 template <typename T>
@@ -471,6 +473,35 @@ TEST_CASE("just of reference", "[just]")
       ImplicitRef bad{3, true};
       CHECK_THROWS_AS(R{bad}, int);
       CHECK_THROWS_AS(R(std::in_place_type<int &>, bad), int);
+    }
+
+    SECTION("binding a temporary")
+    {
+      // as for optional<T&>, a binding to a temporary, an xvalue of the referent type included, is
+      // refused; an lvalue binds
+      static_assert(std::is_constructible_v<C, int &>);
+      static_assert(std::is_constructible_v<C, int const &>);
+      static_assert(std::is_convertible_v<int &, C>);
+      static_assert(not std::is_constructible_v<C, int>);
+      static_assert(not std::is_constructible_v<C, int &&>);
+      static_assert(not std::is_constructible_v<C, long &>);
+      static_assert(not std::is_convertible_v<int, C>);
+
+      static_assert(std::is_constructible_v<C, std::in_place_type_t<int const &>, int &>);
+      static_assert(not std::is_constructible_v<C, std::in_place_type_t<int const &>, int>);
+      static_assert(not std::is_constructible_v<C, std::in_place_type_t<int const &>, int &&>);
+      static_assert(not std::is_constructible_v<C, std::in_place_type_t<int const &>, long &>);
+
+      static_assert(can_emplace<C, int &>);
+      static_assert(can_emplace<C, int const &>);
+      static_assert(not can_emplace<C, int>);
+      static_assert(not can_emplace<C, int &&>);
+      static_assert(not can_emplace<C, long &>);
+
+      // a conversion yielding a referent outside the source binds, as it creates no temporary
+      static_assert(std::is_constructible_v<R, ExplicitRef &>);
+      static_assert(std::is_convertible_v<ImplicitRef &, R>);
+      SUCCEED();
     }
 
     SECTION("constexpr")

@@ -1049,7 +1049,7 @@ The library respects C++ value mechanics:
 - `noexcept` is conditionally computed.
 - Value categories (lvalue/rvalue) propagate strictly to callbacks, avoiding copies.
 - Immovable and move-only payloads are supported in place.
-- Reference-bearing `pack<T&...>`, `copack<T&...>`, `optional<T&>` and `just<T&>` are supported. `optional<T&>`, the reference alternatives of `copack` and `choice`, `as_pack` with spelled element types, and `append(std::in_place_type<T&>, ...)` refuse to bind a reference to a temporary, as C++26 `optional<T&>` does; beyond that, lifetime management of non-owning references remains with the caller.
+- Reference-bearing `pack<T&...>`, `copack<T&...>`, `optional<T&>` and `just<T&>` are supported. `optional<T&>`, `just<T&>`, the reference alternatives of `copack` and `choice`, `as_pack` with spelled element types, and `append(std::in_place_type<T&>, ...)` refuse to bind a reference to a temporary, as C++26 `optional<T&>` does; beyond that, lifetime management of non-owning references remains with the caller.
 - `pack` compares element-wise, supporting equality and three-way comparison. For references in a `pack` or a `copack`, comparison applies to the referents rather than the references themselves.
 
 > [!NOTE]
