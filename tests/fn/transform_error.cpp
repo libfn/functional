@@ -3,6 +3,7 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
+#include "util/refusing.hpp"
 #include "util/static_check.hpp"
 
 #include <fn/functor.hpp>
@@ -322,6 +323,7 @@ template <typename T> constexpr auto fn_Error = [](Error) -> T { throw 0; };
 template <typename T> constexpr auto fn_generic = [](auto &&...) -> T { throw 0; };
 constexpr auto fn_Error_lvalue = [](Error &) -> Xerror { throw 0; };
 constexpr auto fn_Error_rvalue = [](Error &&) -> Xerror { throw 0; };
+constexpr auto fn_Error_cref = [](Error const &e) -> Error const & { return e; };
 } // namespace
 
 // clang-format off
@@ -342,6 +344,15 @@ static_assert(not applicable_transform_error<decltype(fn_Error_rvalue), expected
 static_assert(applicable_transform_error<decltype(fn_generic<Xerror>), expected<int, copack_for<Error, Value>>>);
 static_assert(not applicable_transform_error<decltype(fn_Error<Xerror>), expected<int, copack_for<Error, Value>>>); // not exhaustive
 static_assert(applicable_transform_error<decltype(fn_generic<void>), expected<int, copack_for<Error, Value>>>);
+
+// The callback receives each alternative in the operand's own category: one refusing an rvalue is not
+// applicable to a temporary operand, and is never handed an lvalue into it instead. A reference result
+// must not refer into a temporary operand.
+static_assert(not applicable_transform_error<refusing<Xerror, Error &&, Error const &&>, expected<int, copack<Error>>>);
+static_assert(applicable_transform_error<refusing<Xerror, Error &&, Error const &&>, expected<int, copack<Error>> &>);
+static_assert(applicable_transform_error<refusing<Xerror>, expected<int, copack<Error>>>);
+static_assert(not applicable_transform_error<decltype(fn_Error_cref), expected<int, copack<Error>>>);
+static_assert(applicable_transform_error<decltype(fn_Error_cref), expected<int, copack<Error>> &>);
 
 // at an uninhabited error side the concept stays false - the dedicated arm, not the concept, admits the operand
 static_assert(not applicable_transform_error<decltype(fn_generic<Xerror>), expected<int, copack<>>>);

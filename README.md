@@ -119,7 +119,7 @@ The example combines several library features:
 * **Monadic sequences** — `operator|` connects a result to a combinator such as `fn::and_then(f)`, which calls `f` on success and propagates errors otherwise.
 * **Graded errors** — parsing and arithmetic can fail in different ways. The library combines their error types into a `copack`; here, the result uses `copack_for<DivByZero, NotANumber, Overflow>`. Callers do not need to combine the error types by hand.
 * **Composing values** — `operator&` combines successful operands into a `pack`, preserving their order. A `pack` holds values of different types and passes them as separate arguments to the next call. For example, `parse` returns a `pack<int, int>` that `and_then` passes to the two-argument overload of `make`.
-* **Composing alternatives** — a `copack` holds one of several types, identified by type rather than by position (as in `std::variant`). When a value side is a `copack`, `&` pairs each alternative with the other operand. Two copacks produce all combinations of alternatives; the library flattens, deduplicates and sorts the resulting alternative types.
+* **Composing alternatives** — a `copack` holds a value of one of several types, with the active alternative identified by type. When a successful operand contains a `copack`, `&` pairs its active alternative with the other operand. If both contain copacks, the result type includes every possible pairing of their alternatives; `copack_for<Ts...>` is a type alias to `copack` that flattens nested copacks, removes duplicates and sorts the alternative types.
 * **Multidispatch** — `fn::overload` selects an arithmetic operation for the active alternative of `op`. Each handler receives the operands as separate arguments. Every possible alternative needs a matching handler, or compilation fails.
 * **Identity carrier** — `expected<T, copack<>>` cannot hold a failure state. The example starts with `fn::expected_unit`, an alias for `expected<void, copack<>>`, and uses its `.transform` member to supply `op` as the value without adding a failure mode.
 
@@ -129,8 +129,7 @@ The library also provides:
 
 * Combinators for transforming, inspecting and recovering results, including `transform`, `inspect`, `or_else` and `recover`.
 * Pipelines over `optional`.
-* The `choice` identity carrier for applying monadic operations to a `copack`.
-* The `just` identity carrier.
+* Identity carriers with no error or empty state: `just<T>` holds a value of `T`, while `choice<Ts...>` is an alias for `just<copack<Ts...>>` that applies monadic operations to the active alternative.
 * Simultaneous disjunction: `operator|` selects a successful operand or combines the errors.
 * `fn::disjoin` and `fn::conjoin` fold disjunction and conjunction over multiple operands.
 * Tuple access for `pack`, including `get<I>(p)` and structured bindings.
@@ -145,7 +144,7 @@ See [examples/](examples/) and the [API reference][docs] for more. [TYPE_ALGEBRA
 
 The library has two layers:
 
-* **`pfn`** (`include/pfn`, namespace `pfn`) provides C++20 polyfills for standard-library facilities through C++26: `expected`, `optional` (including monadic operations, `optional<T&>` and range support), `invoke_r` and `unreachable`. These follow the C++ standard and accepted proposals, including `has_error()`.
+* **`pfn`** (`include/pfn`, namespace `pfn`) provides C++20 polyfills for standard-library facilities through C++26: `expected`, `optional` (including monadic operations, `optional<T&>` and range support), `invoke_r`, `unreachable`, and the `reference_constructs_from_temporary` and `reference_converts_from_temporary` traits. These follow the C++ standard and accepted proposals, including `has_error()`.
 * **`fn`** (`include/fn`, namespace `fn`) builds on those polyfills. It adds combinators such as `and_then`, `transform` and `recover`, along with the vocabulary types `pack`, `copack` and `choice`.
 
 The `fn` types extend their `pfn` counterparts: switching a valid program from `pfn` types to `fn` changes neither compilation nor program behaviour, while making the types and operations defined in `fn` available.
@@ -156,7 +155,7 @@ The default mode requires C++20. Supported compilers are [GCC 12][gcc-standard-s
 
 The library needs a total ordering of types to normalize `copack` alternatives. Its default implementation does not support unnamed types or types without linkage, such as local types and lambdas. The ordering can also differ between GCC and Clang.
 
-The opt-in `LIBFN_CXX26` mode uses C++26's [`std::type_order`][standardized-type-ordering] and requires a compiler that implements it, such as GCC 16. Because the modes can order alternatives differently, each gives `fn` types a distinct ABI namespace. `pfn` is independent of this setting. See [CONTRIBUTING.md](CONTRIBUTING.md) for the mode's requirements.
+The opt-in `LIBFN_CXX26` mode uses C++26's [`std::type_order`][standardized-type-ordering] and requires a compiler that implements it, such as GCC 16. If `std::type_order` is unavailable, compilation fails with a diagnostic naming the requirement. The two modes use distinct ABI namespaces for `fn` types because they can order alternatives differently. `pfn` is independent of this setting. See [CONTRIBUTING.md](CONTRIBUTING.md#c23-and-c26) for compiler selection and instructions for building the C++26 tests and examples.
 
 ## Using the library
 
@@ -164,13 +163,13 @@ The opt-in `LIBFN_CXX26` mode uses C++26's [`std::type_order`][standardized-type
 
 `libfn` is available in the [Bazel Central Registry](https://github.com/bazelbuild/bazel-central-registry/) and [vcpkg registry](https://github.com/microsoft/vcpkg/). This repository also provides packaging for [Conan](conanfile.py), [vcpkg](ports/libfn), [Nix](flake.nix) and [Bazel](MODULE.bazel), all exercised by CI. You can also use CMake's `FetchContent` or `add_subdirectory`.
 
-Every packaging route above except Bazel propagates the library's compile options. With Bazel or a plain copy of `include/`, set them explicitly:
+The CMake targets supplied by vcpkg, Nix, `FetchContent` and `add_subdirectory` propagate the library's compiler options and C++20 requirement. Conan supplies the compiler options, but takes the C++ standard from the profile's `compiler.cppstd` setting. With Bazel or a plain copy of `include/`, configure the following explicitly:
 
-* Select C++20 or newer: `-std=c++20` with GCC or Clang, or `/std:c++20` with MSVC. In Bazel, pass compiler options through `--cxxopt`, for example `--cxxopt=-std=c++20`.
+* Select C++20 or newer: `-std=c++20` with GCC or Clang, or `/std:c++20` with MSVC.
 * With Clang and Apple Clang, use `-Wno-missing-braces` to suppress warnings about the intentional brace elision in `fn::pack` initialization.
 * With MSVC, use `/permissive-` and `/D_HAS_CXX23=1` (see the [compatibility note](#msvc-compatibility-note) below).
 
-The authoritative set is the `INTERFACE` options in [cmake/CompilationOptions.cmake](cmake/CompilationOptions.cmake).
+In Bazel, pass compiler options through `--cxxopt`, for example `--cxxopt=-std=c++20`. The shared compiler options are defined in [cmake/CompilationOptions.cmake](cmake/CompilationOptions.cmake).
 
 #### MSVC compatibility note
 
@@ -189,7 +188,7 @@ int main() {
 To suppress the legacy declaration, use one of these options:
 
 * Select `/std:c++latest` or, where supported, [`/std:c++23preview`](https://learn.microsoft.com/en-us/cpp/build/reference/std-specify-language-standard-version). With CMake, use `-DCMAKE_CXX_STANDARD=23` to select C++23 mode.
-* To keep C++20 mode, define `_HAS_CXX23=1` for the project. The exported CMake targets provide this definition automatically.
+* To keep C++20 mode, define `_HAS_CXX23=1` for the project. The CMake targets and Conan recipe provide this definition automatically.
 
 ### Local install
 
@@ -200,9 +199,9 @@ cmake -B .build -DLIBFN_TESTS=OFF
 cmake --install .build
 ```
 
-`-DLIBFN_TESTS=OFF` avoids fetching test dependencies. The header-only package needs no build step. On Linux and macOS, the *default install prefix* is `/usr/local`, so installation may need `sudo`.
+`-DLIBFN_TESTS=OFF` avoids fetching test dependencies. The header-only package needs no build step. On Linux and macOS, the default install prefix is `/usr/local`, so installation may need `sudo`.
 
-To install under your home directory, choose the *custom prefix* at install time:
+To install under your home directory, choose a prefix at install time:
 
 ```sh
 cmake --install .build --prefix "$HOME/.local"
@@ -215,7 +214,7 @@ cmake -B .build -DLIBFN_TESTS=OFF -DCMAKE_INSTALL_PREFIX="$HOME/.local"
 cmake --install .build
 ```
 
-The installed package supports `find_package(libfn CONFIG REQUIRED)`. For a *custom prefix*, pass `-DCMAKE_PREFIX_PATH="$HOME/.local"` (or your chosen prefix) when configuring the consuming project.
+The installed package supports `find_package(libfn CONFIG REQUIRED)`. For a custom prefix, pass `-DCMAKE_PREFIX_PATH="$HOME/.local"` (or your chosen prefix) when configuring the consuming project.
 
 ### Exported targets
 
@@ -228,7 +227,9 @@ target_link_libraries(main PRIVATE libfn::fn)   # or libfn::pfn for the polyfill
 
 For [`LIBFN_CXX26` mode](#implementation-note), use `libfn::fn_cxx26` in place of `libfn::fn`. It supplies the same headers, defines `LIBFN_CXX26`, and selects C++26. A consumer should link exactly one of these two targets. `libfn::pfn` has no separate C++26 target.
 
-If the compiler lacks `std::type_order`, a header diagnostic names the missing feature. Keep the same mode across code that exchanges `fn` types: their ABI namespaces differ. For example, a function declared with an `fn` parameter in one mode will not link to a definition using the other mode.
+With Conan, set `cxx26=True` and select C++26 or newer through the profile's `compiler.cppstd` setting. The option defines `LIBFN_CXX26` on `libfn::fn` and makes `libfn::fn_cxx26` an alias of that target.
+
+Keep the same mode across code that exchanges `fn` types. For example, a function declared with an `fn` parameter in one mode will not link to a definition using the other mode.
 
 ### Single header
 
@@ -244,18 +245,14 @@ Choose a download according to whether you need a fixed version:
 
 Replace `<x.y.z>` with a released version, such as `0.1.0`. The [compile options](#packaging) also apply to the single header. To select C++26 mode, define `LIBFN_CXX26` and compile as C++26.
 
-## Backwards compatibility
-
-Facilities in `include/fn` that track a C++ proposal may change names or semantics as the proposal evolves. Breaking changes increase the minor version (`y` in `0.y.z`), so pin that version when adopting the library.
-
 ## Versioning and ABI
 
-Releases numbered `0.y.z` (including 0.1.0) are *mature releases*, not alpha versions or prereleases. Releases are expected to remain below 1.0.0 for the foreseeable future because C++ standardization may continue to reshape the API. Within [SemVer](https://semver.org/)’s `0.y.z` series, `libfn` uses the following compatibility policy:
+Facilities in `include/fn` that track C++ proposals may change names or semantics as those proposals evolve. The `0.y.z` numbering reflects these ongoing API changes. It does not mark releases as alpha versions or prereleases. Releases are expected to remain below 1.0.0 for the foreseeable future. Within [SemVer](https://semver.org/)'s `0.y.z` series, `libfn` uses the following compatibility policy:
 
-* A change to **`y`** marks an API or ABI break.
-* A change to **`z`** contains fixes or additions and is **expected** to preserve compatibility.
+* A change to `y` marks an API or ABI break; pin the minor version when adopting the library.
+* A change to `z` contains fixes or additions intended to preserve API and ABI compatibility.
 
-Use a single `libfn` version per binary to minimize compatibility risks, including One Definition Rule (ODR) violations. Patch releases are **intended, but not guaranteed**, to **preserve API and ABI compatibility**. We cannot test every valid use of the library, so users remain responsible for ensuring that their dependencies use a consistent version.
+Use one `libfn` version throughout a binary, including its dependencies, to avoid compatibility problems such as One Definition Rule (ODR) violations. Patch compatibility is an intention rather than a guarantee: the tests cannot cover every valid use of the library.
 
 ## Contributing
 

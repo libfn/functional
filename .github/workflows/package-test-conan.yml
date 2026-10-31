@@ -7,6 +7,8 @@ on:
     paths:
       - '.github/workflows/package-test-conan.yml'
       - 'conanfile.py'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
       - 'test_package/**'
       - 'include/**'
       - 'VERSION'
@@ -22,6 +24,8 @@ on:
     paths:
       - '.github/workflows/package-test-conan.yml'
       - 'conanfile.py'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
       - 'test_package/**'
       - 'include/**'
       - 'VERSION'
@@ -45,24 +49,24 @@ jobs:
       run: |
         conan profile detect
         echo "tools.cmake.cmaketoolchain:generator=Ninja" >> ~/.conan2/global.conf
+        # Use the image's CMake to satisfy the recipe's tool requirement.
+        printf '[platform_tool_requires]\ncmake/%s\n' "$(cmake --version | head -n1 | cut -d' ' -f3)" \
+          >> "$(conan profile path default)"
 
     - name: Test packaging
       if: matrix.mode == 'cxx20'
       run: |
         conan create . --build=missing -s "compiler.cppstd=20"
 
-    # The C++26 mode: extra_variables turns on the test_package's second executable,
-    # and the test_package conanfile reads the same conf to quine-check it. cppstd
-    # stays 20: C++26 build option must arrive from the libfn::fn_cxx26 dependency.
+    # The test package reads cxx26 to enable the second executable and check its output.
     - name: Test packaging (C++26 mode)
       if: matrix.mode == 'cxx26'
       run: |
-        conan create . --build=missing -s "compiler.cppstd=20" \
-          -c "tools.cmake.cmaketoolchain:extra_variables={'LIBFN_TEST_CXX26': 'ON'}"
+        conan create . --build=missing -s "compiler.cppstd=26" -o "&:cxx26=True"
 
   test_conan_windows:
     if: github.event.pull_request.draft != true
-    runs-on: windows-2025-vs2026
+    runs-on: ${{ github.repository == 'libfn/functional' && 'warp-windows-2025-vs2026-x64-8x' || 'windows-2025-vs2026' }}
 
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

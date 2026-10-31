@@ -103,7 +103,7 @@ template <typename... Explicit, typename T, typename... Args>
 constexpr auto as_pack(T &&src, Args &&...args) -> pack<T, Args...>;  // (2)
 
 template <typename T, typename... Args>
-constexpr auto as_pack(std::type_identity_t<T> src, std::type_identity_t<Args>... args) -> pack<T, Args...>;  // (3)
+constexpr auto as_pack(detail::_as_pack_arg_t<T> src, detail::_as_pack_arg_t<Args>... args) -> pack<T, Args...>;  // (3)
 ```
 
 :include-doxygen-doc: fn::as_pack { args: "" }
@@ -114,11 +114,11 @@ constexpr auto as_pack(std::type_identity_t<T> src, std::type_identity_t<Args>..
 
 :include-doxygen-doc-params: fn::as_pack { args: "T &&, Args &&...", title: "parameters" }
 
-:include-doxygen-doc: fn::as_pack { args: "::std::type_identity_t< T >, ::std::type_identity_t< Args >..." }
+:include-doxygen-doc: fn::as_pack { args: "detail::_as_pack_arg_t< T >, detail::_as_pack_arg_t< Args >..." }
 
-:include-doxygen-doc-params: fn::as_pack { args: "::std::type_identity_t< T >, ::std::type_identity_t< Args >...", type: "template", title: "template parameters" }
+:include-doxygen-doc-params: fn::as_pack { args: "detail::_as_pack_arg_t< T >, detail::_as_pack_arg_t< Args >...", type: "template", title: "template parameters" }
 
-:include-doxygen-doc-params: fn::as_pack { args: "::std::type_identity_t< T >, ::std::type_identity_t< Args >...", title: "parameters" }
+:include-doxygen-doc-params: fn::as_pack { args: "detail::_as_pack_arg_t< T >, detail::_as_pack_arg_t< Args >...", title: "parameters" }
 
 ## get {style: "api"}
 

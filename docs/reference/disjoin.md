@@ -67,7 +67,7 @@ constexpr auto operator|(Lh &&lh, Rh &&rh);  // (9)
 
 ```cpp {title: "fn::disjoin_t::operator()"}
 template <some_monadic_type Arg>
-constexpr auto operator()(Arg &&arg) const -> decltype(arg);  // (1)
+constexpr auto operator()(Arg &&arg) const -> std::remove_cvref_t<Arg>;  // (1)
 
 template <typename Arg, typename... Args>
 constexpr auto operator()(Arg &&arg, Args &&...args) const;  // (2)

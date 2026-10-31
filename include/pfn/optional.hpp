@@ -7,6 +7,7 @@
 #define INCLUDE_PFN_OPTIONAL
 
 #include <libfn_version.hpp>
+#include <pfn/type_traits.hpp>
 #include <pfn/utility.hpp>
 
 #include <cassert>
@@ -693,7 +694,8 @@ template <class T, class Policy> struct _optional_base {
   // through public API -- same reasoning as the _from_optional_t constructors above.
   template <typename Self, typename Fn>
   static constexpr auto _and_then(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(*FWD(self))>)
+      noexcept(::std::is_nothrow_invocable_r_v<::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(*FWD(self))>>,
+                                               Fn, decltype(*FWD(self))>)
     requires ::std::is_invocable_v<Fn, decltype(*FWD(self))>
   {
     using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(*FWD(self))>>;
@@ -723,7 +725,7 @@ template <class T, class Policy> struct _optional_base {
 
   template <typename Self, typename Fn>
   static constexpr auto _or_else(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn>
+      noexcept(::std::is_nothrow_invocable_r_v<typename Policy::template type<T>, Fn>
                && ::std::is_nothrow_constructible_v<typename Policy::template type<T>, Self>)
     requires(::std::is_invocable_v<Fn> && ::std::is_constructible_v<typename Policy::template type<T>, Self>)
   {
@@ -739,11 +741,6 @@ template <class T, class Policy> struct _optional_base {
 // optional<T&> needs its own base: the referent is held directly as a pointer (nullptr
 // encodes the disengaged state), so there is no value union, no discriminant flag, and
 // every special member is implicitly trivial.
-//
-// TODO reference_constructs_from_temporary_v is a C++23 trait with no portable C++20
-// fallback, so the dangling-reference guards of [optional.ref.ctor] (constraints and
-// deleted overloads for binding a temporary) and of [optional.ref.assign]'s emplace are
-// deferred; until then such constructions compile and dangle.
 template <class T, class Policy> struct _optional_base<T &, Policy> {
   using _value_t = T &;
   T *v_ = nullptr;
@@ -762,6 +759,9 @@ template <class T, class Policy> struct _optional_base<T &, Policy> {
       && not ::std::is_same_v<::std::remove_cvref_t<U>, ::std::in_place_t>                //
       && ::std::is_constructible_v<T &, U>>;
 
+  // [optional.ref.ctor] and [optional.ref.assign]: a binding to a temporary is rejected
+  template <class U> static constexpr bool _from_temporary = ::pfn::reference_constructs_from_temporary_v<T &, U>;
+
   // [optional.ref.ctor], shared constraint of the converting constructors from optional<U>;
   // UF is the U flavor the overload binds from (U&, U const&, U, U const).
   template <class U, class UF>
@@ -776,7 +776,7 @@ template <class T, class Policy> struct _optional_base<T &, Policy> {
   template <class Arg>
   constexpr explicit _optional_base(::std::in_place_t /*ignored*/, Arg &&arg) //
       noexcept(::std::is_nothrow_constructible_v<T &, Arg>)                   // extension
-    requires ::std::is_constructible_v<T &, Arg>
+    requires(::std::is_constructible_v<T &, Arg> && not _from_temporary<Arg>)
   {
     _convert_ref_init_val(FWD(arg));
   }
@@ -830,7 +830,7 @@ template <class T, class Policy> struct _optional_base<T &, Policy> {
   // [optional.ref.assign]
   template <class U>
   constexpr T &emplace(U &&u) noexcept(::std::is_nothrow_constructible_v<T &, U>)
-    requires ::std::is_constructible_v<T &, U>
+    requires(::std::is_constructible_v<T &, U> && not _from_temporary<U>)
   {
     _convert_ref_init_val(FWD(u));
     return *v_;
@@ -878,7 +878,8 @@ template <class T, class Policy> struct _optional_base<T &, Policy> {
   // T& (const on the optional does not propagate to the referent), so Self only says which
   // public overload delegated here.
   template <typename Self, typename Fn>
-  static constexpr auto _and_then(Self &&self, Fn &&fn) noexcept(::std::is_nothrow_invocable_v<Fn, T &>)
+  static constexpr auto _and_then(Self &&self, Fn &&fn) noexcept(
+      ::std::is_nothrow_invocable_r_v<::std::remove_cvref_t<::std::invoke_result_t<Fn, T &>>, Fn, T &>)
     requires ::std::is_invocable_v<Fn, T &>
   {
     using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn, T &>>;
@@ -906,7 +907,8 @@ template <class T, class Policy> struct _optional_base<T &, Policy> {
   }
 
   template <typename Self, typename Fn>
-  static constexpr auto _or_else(Self &&self, Fn &&fn) noexcept(::std::is_nothrow_invocable_v<Fn>)
+  static constexpr auto
+  _or_else(Self &&self, Fn &&fn) noexcept(::std::is_nothrow_invocable_r_v<typename Policy::template type<T &>, Fn>)
     requires ::std::is_invocable_v<Fn>
   {
     using result_t = typename Policy::template type<T &>;
@@ -1239,74 +1241,65 @@ public:
   using _base::value_or;
 
   // [optional.monadic], monadic operations; bodies delegate to _optional_base helpers
+  // Return deduction stays in the body so an invalid invocation cannot select another cv/ref overload.
   template <class F>
   constexpr auto and_then(F &&f) &                        //
       noexcept(noexcept(_base::_and_then(*this, FWD(f)))) // extension
-      -> decltype(_base::_and_then(*this, FWD(f)))
   {
     return _base::_and_then(*this, FWD(f));
   }
   template <class F>
   constexpr auto and_then(F &&f) &&                                    //
       noexcept(noexcept(_base::_and_then(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_and_then(::std::move(*this), FWD(f)))
   {
     return _base::_and_then(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto and_then(F &&f) const &                  //
       noexcept(noexcept(_base::_and_then(*this, FWD(f)))) // extension
-      -> decltype(_base::_and_then(*this, FWD(f)))
   {
     return _base::_and_then(*this, FWD(f));
   }
   template <class F>
   constexpr auto and_then(F &&f) const &&                              //
       noexcept(noexcept(_base::_and_then(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_and_then(::std::move(*this), FWD(f)))
   {
     return _base::_and_then(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) &                        //
       noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform(*this, FWD(f)))
   {
     return _base::_transform(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) &&                                    //
       noexcept(noexcept(_base::_transform(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform(::std::move(*this), FWD(f)))
   {
     return _base::_transform(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) const &                  //
       noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform(*this, FWD(f)))
   {
     return _base::_transform(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) const &&                              //
       noexcept(noexcept(_base::_transform(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform(::std::move(*this), FWD(f)))
   {
     return _base::_transform(::std::move(*this), FWD(f));
   }
   template <class F>
-  constexpr auto or_else(F &&f) &&                                    //
+  constexpr optional or_else(F &&f) &&                                //
       noexcept(noexcept(_base::_or_else(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_or_else(::std::move(*this), FWD(f)))
     requires(::std::invocable<F> && ::std::move_constructible<T>)
   {
     return _base::_or_else(::std::move(*this), FWD(f));
   }
   template <class F>
-  constexpr auto or_else(F &&f) const &                  //
+  constexpr optional or_else(F &&f) const &              //
       noexcept(noexcept(_base::_or_else(*this, FWD(f)))) // extension
-      -> decltype(_base::_or_else(*this, FWD(f)))
     requires(::std::invocable<F> && ::std::copy_constructible<T>)
   {
     return _base::_or_else(*this, FWD(f));
@@ -1334,11 +1327,10 @@ template <class T> optional(T) -> optional<T>;
  *
  * Specified for C++26. Copy assignment and `emplace` rebind the reference - nothing ever assigns
  * through it - and `const` on the optional does not constify the referent; the referent's
- * lifetime stays the caller's responsibility. The `noexcept` and assertion deviations of the
- * primary template apply here equally, plus one deferral: the draft rejects a construction that
- * would bind the reference to a temporary via `reference_constructs_from_temporary_v`, a C++23
- * trait with no portable C++20 fallback - those guards are deferred, and such a construction
- * compiles and dangles.
+ * lifetime stays the caller's responsibility. A construction or `emplace` which would bind the
+ * reference to a temporary is rejected through `pfn::reference_constructs_from_temporary`,
+ * inheriting its emulation where the compiler lacks the builtin. The `noexcept` and assertion
+ * deviations of the primary template apply here equally.
  *
  *
  * Its members are the standard's, and specified where
@@ -1366,7 +1358,7 @@ public:
   template <class Arg>
   constexpr explicit optional(::std::in_place_t, Arg &&arg) //
       noexcept(::std::is_nothrow_constructible_v<T &, Arg>) // extension
-    requires ::std::is_constructible_v<T &, Arg>
+    requires(::std::is_constructible_v<T &, Arg> && not _base::template _from_temporary<Arg>)
       : _base(::std::in_place, FWD(arg))
   {
   }
@@ -1375,38 +1367,58 @@ public:
   constexpr explicit(not ::std::is_convertible_v<U, T &>)
       optional(U &&u) // NOSONAR cpp:S6458 _can_convert excludes self
       noexcept(::std::is_nothrow_constructible_v<T &, U>)
-    requires(_base::template _can_convert<U>::value)
+    requires(_base::template _can_convert<U>::value && not _base::template _from_temporary<U>)
       : _base(::std::in_place, FWD(u))
   {
   }
   template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U, T &>) optional(U &&u) // NOSONAR cpp:S6458
+    requires(_base::template _can_convert<U>::value && _base::template _from_temporary<U>)
+  = delete;
+  template <class U>
   constexpr explicit(not ::std::is_convertible_v<U &, T &>) optional(optional<U> &rhs) //
       noexcept(::std::is_nothrow_constructible_v<T &, U &>)
-    requires(_base::template _can_convert_from<U, U &>::value)
+    requires(_base::template _can_convert_from<U, U &>::value && not _base::template _from_temporary<U &>)
+      : _base(rhs)
+  {
+  }
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U &, T &>) optional(optional<U> &rhs) //
+    requires(_base::template _can_convert_from<U, U &>::value && _base::template _from_temporary<U &>)
+  = delete;
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U const &, T &>) optional(optional<U> const &rhs) //
+      noexcept(::std::is_nothrow_constructible_v<T &, U const &>)
+    requires(_base::template _can_convert_from<U, U const &>::value && not _base::template _from_temporary<U const &>)
       : _base(rhs)
   {
   }
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U const &, T &>) optional(optional<U> const &rhs) //
-      noexcept(::std::is_nothrow_constructible_v<T &, U const &>)
-    requires(_base::template _can_convert_from<U, U const &>::value)
-      : _base(rhs)
+    requires(_base::template _can_convert_from<U, U const &>::value && _base::template _from_temporary<U const &>)
+  = delete;
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U, T &>) optional(optional<U> &&rhs) //
+      noexcept(::std::is_nothrow_constructible_v<T &, U>)
+    requires(_base::template _can_convert_from<U, U>::value && not _base::template _from_temporary<U>)
+      : _base(::std::move(rhs))
   {
   }
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U, T &>) optional(optional<U> &&rhs) //
-      noexcept(::std::is_nothrow_constructible_v<T &, U>)
-    requires(_base::template _can_convert_from<U, U>::value)
+    requires(_base::template _can_convert_from<U, U>::value && _base::template _from_temporary<U>)
+  = delete;
+  template <class U>
+  constexpr explicit(not ::std::is_convertible_v<U const, T &>) optional(optional<U> const &&rhs) //
+      noexcept(::std::is_nothrow_constructible_v<T &, U const>)
+    requires(_base::template _can_convert_from<U, U const>::value && not _base::template _from_temporary<U const>)
       : _base(::std::move(rhs))
   {
   }
   template <class U>
   constexpr explicit(not ::std::is_convertible_v<U const, T &>) optional(optional<U> const &&rhs) //
-      noexcept(::std::is_nothrow_constructible_v<T &, U const>)
-    requires(_base::template _can_convert_from<U, U const>::value)
-      : _base(::std::move(rhs))
-  {
-  }
+    requires(_base::template _can_convert_from<U, U const>::value && _base::template _from_temporary<U const>)
+  = delete;
 
   constexpr ~optional() = default;
 
@@ -1439,21 +1451,19 @@ public:
   template <class F>
   constexpr auto and_then(F &&f) const                    //
       noexcept(noexcept(_base::_and_then(*this, FWD(f)))) // extension
-      -> decltype(_base::_and_then(*this, FWD(f)))
   {
     return _base::_and_then(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) const                    //
       noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform(*this, FWD(f)))
+      -> optional<::std::remove_cv_t<::std::invoke_result_t<F, T &>>>
   {
     return _base::_transform(*this, FWD(f));
   }
   template <class F>
-  constexpr auto or_else(F &&f) const                    //
+  constexpr optional or_else(F &&f) const                //
       noexcept(noexcept(_base::_or_else(*this, FWD(f)))) // extension
-      -> decltype(_base::_or_else(*this, FWD(f)))
     requires ::std::invocable<F>
   {
     return _base::_or_else(*this, FWD(f));

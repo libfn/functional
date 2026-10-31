@@ -852,7 +852,9 @@ template <class T, class E, class Policy> struct _expected_base {
 
   template <typename Self, typename Fn>
   static constexpr auto _and_then(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(_expected_base::_value(FWD(self)))>
+      noexcept(::std::is_nothrow_invocable_r_v<
+                   ::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(_expected_base::_value(FWD(self)))>>, Fn,
+                   decltype(_expected_base::_value(FWD(self)))>
                && ::std::is_nothrow_constructible_v<E, decltype(_expected_base::_error(FWD(self)))>)
     requires(not ::std::is_void_v<T> && ::std::is_invocable_v<Fn, decltype(_expected_base::_value(FWD(self)))>
              && ::std::is_constructible_v<E, decltype(_expected_base::_error(FWD(self)))>)
@@ -868,7 +870,7 @@ template <class T, class E, class Policy> struct _expected_base {
 
   template <typename Self, typename Fn>
   static constexpr auto _and_then(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn>
+      noexcept(::std::is_nothrow_invocable_r_v<::std::remove_cvref_t<::std::invoke_result_t<Fn>>, Fn>
                && ::std::is_nothrow_constructible_v<E, decltype(_expected_base::_error(FWD(self)))>)
     requires(::std::is_void_v<T> && ::std::is_invocable_v<Fn>
              && ::std::is_constructible_v<E, decltype(_expected_base::_error(FWD(self)))>)
@@ -884,7 +886,9 @@ template <class T, class E, class Policy> struct _expected_base {
 
   template <typename Self, typename Fn>
   static constexpr auto _or_else(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(_expected_base::_error(FWD(self)))>
+      noexcept(::std::is_nothrow_invocable_r_v<
+                   ::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(_expected_base::_error(FWD(self)))>>, Fn,
+                   decltype(_expected_base::_error(FWD(self)))>
                && ::std::is_nothrow_constructible_v<T, decltype(_expected_base::_value(FWD(self)))>)
     requires(not ::std::is_void_v<T> && ::std::is_invocable_v<Fn, decltype(_expected_base::_error(FWD(self)))>
              && ::std::is_constructible_v<T, decltype(_expected_base::_value(FWD(self)))>)
@@ -900,7 +904,9 @@ template <class T, class E, class Policy> struct _expected_base {
 
   template <typename Self, typename Fn>
   static constexpr auto _or_else(Self &&self, Fn &&fn) //
-      noexcept(::std::is_nothrow_invocable_v<Fn, decltype(_expected_base::_error(FWD(self)))>)
+      noexcept(::std::is_nothrow_invocable_r_v<
+               ::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(_expected_base::_error(FWD(self)))>>, Fn,
+               decltype(_expected_base::_error(FWD(self)))>)
     requires(::std::is_void_v<T> && ::std::is_invocable_v<Fn, decltype(_expected_base::_error(FWD(self)))>)
   {
     using result_t = ::std::remove_cvref_t<::std::invoke_result_t<Fn, decltype(_expected_base::_error(FWD(self)))>>;
@@ -1415,31 +1421,32 @@ public:
   using _base::value_or;
 
   // [expected.object.monadic], monadic operations
+  // Only the unchanged side constrains participation; callback errors must not select another cv/ref overload.
   template <class F>
   constexpr auto and_then(F &&f) &                        //
       noexcept(noexcept(_base::_and_then(*this, FWD(f)))) // extension
-      -> decltype(_base::_and_then(*this, FWD(f)))
+    requires ::std::is_constructible_v<E, E &>
   {
     return _base::_and_then(*this, FWD(f));
   }
   template <class F>
   constexpr auto and_then(F &&f) &&                                    //
       noexcept(noexcept(_base::_and_then(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_and_then(::std::move(*this), FWD(f)))
+    requires ::std::is_constructible_v<E, E &&>
   {
     return _base::_and_then(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto and_then(F &&f) const &                  //
       noexcept(noexcept(_base::_and_then(*this, FWD(f)))) // extension
-      -> decltype(_base::_and_then(*this, FWD(f)))
+    requires ::std::is_constructible_v<E, E const &>
   {
     return _base::_and_then(*this, FWD(f));
   }
   template <class F>
   constexpr auto and_then(F &&f) const &&                              //
       noexcept(noexcept(_base::_and_then(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_and_then(::std::move(*this), FWD(f)))
+    requires ::std::is_constructible_v<E, E const &&>
   {
     return _base::_and_then(::std::move(*this), FWD(f));
   }
@@ -1447,28 +1454,28 @@ public:
   template <class F>
   constexpr auto or_else(F &&f) &                        //
       noexcept(noexcept(_base::_or_else(*this, FWD(f)))) // extension
-      -> decltype(_base::_or_else(*this, FWD(f)))
+    requires ::std::is_constructible_v<T, T &>
   {
     return _base::_or_else(*this, FWD(f));
   }
   template <class F>
   constexpr auto or_else(F &&f) &&                                    //
       noexcept(noexcept(_base::_or_else(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_or_else(::std::move(*this), FWD(f)))
+    requires ::std::is_constructible_v<T, T &&>
   {
     return _base::_or_else(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto or_else(F &&f) const &                  //
       noexcept(noexcept(_base::_or_else(*this, FWD(f)))) // extension
-      -> decltype(_base::_or_else(*this, FWD(f)))
+    requires ::std::is_constructible_v<T, T const &>
   {
     return _base::_or_else(*this, FWD(f));
   }
   template <class F>
   constexpr auto or_else(F &&f) const &&                              //
       noexcept(noexcept(_base::_or_else(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_or_else(::std::move(*this), FWD(f)))
+    requires ::std::is_constructible_v<T, T const &&>
   {
     return _base::_or_else(::std::move(*this), FWD(f));
   }
@@ -1476,28 +1483,28 @@ public:
   template <class F>
   constexpr auto transform(F &&f) &                        //
       noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform(*this, FWD(f)))
+    requires ::std::is_constructible_v<E, E &>
   {
     return _base::_transform(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) &&                                    //
       noexcept(noexcept(_base::_transform(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform(::std::move(*this), FWD(f)))
+    requires ::std::is_constructible_v<E, E &&>
   {
     return _base::_transform(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) const &                  //
       noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform(*this, FWD(f)))
+    requires ::std::is_constructible_v<E, E const &>
   {
     return _base::_transform(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) const &&                              //
       noexcept(noexcept(_base::_transform(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform(::std::move(*this), FWD(f)))
+    requires ::std::is_constructible_v<E, E const &&>
   {
     return _base::_transform(::std::move(*this), FWD(f));
   }
@@ -1505,28 +1512,28 @@ public:
   template <class F>
   constexpr auto transform_error(F &&f) &                        //
       noexcept(noexcept(_base::_transform_error(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform_error(*this, FWD(f)))
+    requires ::std::is_constructible_v<T, T &>
   {
     return _base::_transform_error(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform_error(F &&f) &&                                    //
       noexcept(noexcept(_base::_transform_error(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform_error(::std::move(*this), FWD(f)))
+    requires ::std::is_constructible_v<T, T &&>
   {
     return _base::_transform_error(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto transform_error(F &&f) const &                  //
       noexcept(noexcept(_base::_transform_error(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform_error(*this, FWD(f)))
+    requires ::std::is_constructible_v<T, T const &>
   {
     return _base::_transform_error(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform_error(F &&f) const &&                              //
       noexcept(noexcept(_base::_transform_error(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform_error(::std::move(*this), FWD(f)))
+    requires ::std::is_constructible_v<T, T const &&>
   {
     return _base::_transform_error(::std::move(*this), FWD(f));
   }
@@ -1718,31 +1725,32 @@ public:
   using _base::value;
 
   // [expected.void.monadic], monadic operations
+  // Keep callback errors in return deduction, separate from the specified error-construction constraints.
   template <class F>
   constexpr auto and_then(F &&f) &                        //
       noexcept(noexcept(_base::_and_then(*this, FWD(f)))) // extension
-      -> decltype(_base::_and_then(*this, FWD(f)))
+    requires ::std::is_constructible_v<E, E &>
   {
     return _base::_and_then(*this, FWD(f));
   }
   template <class F>
   constexpr auto and_then(F &&f) &&                                    //
       noexcept(noexcept(_base::_and_then(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_and_then(::std::move(*this), FWD(f)))
+    requires ::std::is_constructible_v<E, E &&>
   {
     return _base::_and_then(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto and_then(F &&f) const &                  //
       noexcept(noexcept(_base::_and_then(*this, FWD(f)))) // extension
-      -> decltype(_base::_and_then(*this, FWD(f)))
+    requires ::std::is_constructible_v<E, E const &>
   {
     return _base::_and_then(*this, FWD(f));
   }
   template <class F>
   constexpr auto and_then(F &&f) const &&                              //
       noexcept(noexcept(_base::_and_then(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_and_then(::std::move(*this), FWD(f)))
+    requires ::std::is_constructible_v<E, E const &&>
   {
     return _base::_and_then(::std::move(*this), FWD(f));
   }
@@ -1750,28 +1758,24 @@ public:
   template <class F>
   constexpr auto or_else(F &&f) &                        //
       noexcept(noexcept(_base::_or_else(*this, FWD(f)))) // extension
-      -> decltype(_base::_or_else(*this, FWD(f)))
   {
     return _base::_or_else(*this, FWD(f));
   }
   template <class F>
   constexpr auto or_else(F &&f) &&                                    //
       noexcept(noexcept(_base::_or_else(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_or_else(::std::move(*this), FWD(f)))
   {
     return _base::_or_else(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto or_else(F &&f) const &                  //
       noexcept(noexcept(_base::_or_else(*this, FWD(f)))) // extension
-      -> decltype(_base::_or_else(*this, FWD(f)))
   {
     return _base::_or_else(*this, FWD(f));
   }
   template <class F>
   constexpr auto or_else(F &&f) const &&                              //
       noexcept(noexcept(_base::_or_else(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_or_else(::std::move(*this), FWD(f)))
   {
     return _base::_or_else(::std::move(*this), FWD(f));
   }
@@ -1779,28 +1783,28 @@ public:
   template <class F>
   constexpr auto transform(F &&f) &                        //
       noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform(*this, FWD(f)))
+    requires ::std::is_constructible_v<E, E &>
   {
     return _base::_transform(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) &&                                    //
       noexcept(noexcept(_base::_transform(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform(::std::move(*this), FWD(f)))
+    requires ::std::is_constructible_v<E, E &&>
   {
     return _base::_transform(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) const &                  //
       noexcept(noexcept(_base::_transform(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform(*this, FWD(f)))
+    requires ::std::is_constructible_v<E, E const &>
   {
     return _base::_transform(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform(F &&f) const &&                              //
       noexcept(noexcept(_base::_transform(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform(::std::move(*this), FWD(f)))
+    requires ::std::is_constructible_v<E, E const &&>
   {
     return _base::_transform(::std::move(*this), FWD(f));
   }
@@ -1808,28 +1812,24 @@ public:
   template <class F>
   constexpr auto transform_error(F &&f) &                        //
       noexcept(noexcept(_base::_transform_error(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform_error(*this, FWD(f)))
   {
     return _base::_transform_error(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform_error(F &&f) &&                                    //
       noexcept(noexcept(_base::_transform_error(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform_error(::std::move(*this), FWD(f)))
   {
     return _base::_transform_error(::std::move(*this), FWD(f));
   }
   template <class F>
   constexpr auto transform_error(F &&f) const &                  //
       noexcept(noexcept(_base::_transform_error(*this, FWD(f)))) // extension
-      -> decltype(_base::_transform_error(*this, FWD(f)))
   {
     return _base::_transform_error(*this, FWD(f));
   }
   template <class F>
   constexpr auto transform_error(F &&f) const &&                              //
       noexcept(noexcept(_base::_transform_error(::std::move(*this), FWD(f)))) // extension
-      -> decltype(_base::_transform_error(::std::move(*this), FWD(f)))
   {
     return _base::_transform_error(::std::move(*this), FWD(f));
   }

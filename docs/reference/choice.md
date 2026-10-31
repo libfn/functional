@@ -50,29 +50,32 @@ From a value of one alternative, in place from arguments, widening from a `copac
 subset of the alternatives, or from a narrower `choice`.
 
 ```cpp {title: "fn::just< copack< Ts... > >::just"}
+template <typename U, typename T>
+constexpr just(U &&v);                    // (1)
+constexpr explicit just(U &&v);           // (2)
+constexpr explicit just(U &&v) = delete;  // (3)
+
 template <typename T>
-constexpr just(T &&v);                                               // (1)
-constexpr explicit just(T &&v);                                      // (2)
-constexpr explicit just(std::in_place_type_t<T> d, auto &&...args);  // (3)
+constexpr explicit just(std::in_place_type_t<T> d, auto &&...args);  // (4)
 
 template <typename... Tx>
-constexpr just(copack<Tx...> const &v);  // (4)
-constexpr just(copack<Tx...> &&v);       // (5)
+constexpr just(copack<Tx...> const &v);  // (5)
+constexpr just(copack<Tx...> &&v);       // (6)
 
 template <typename... Tx, some_copack V>
-constexpr just(std::in_place_type_t<copack<Tx...>> d, V &&v);  // (6)
+constexpr just(std::in_place_type_t<copack<Tx...>> d, V &&v);  // (7)
 
 template <typename... Tx>
-constexpr just(just<copack<Tx...>> const &other);  // (7)
-constexpr just(just<copack<Tx...>> &&other);       // (8)
+constexpr just(just<copack<Tx...>> const &other);  // (8)
+constexpr just(just<copack<Tx...>> &&other);       // (9)
 
-constexpr just(just const &) = default;  // (9)
-constexpr just(just &&) = default;       // (10)
+constexpr just(just const &) = default;  // (10)
+constexpr just(just &&) = default;       // (11)
 ```
 
-:include-doxygen-doc: fn::just< copack< Ts... > >::just { args: "T &&" }
+:include-doxygen-doc: fn::just< copack< Ts... > >::just { args: "U &&" }
 
-:include-doxygen-doc-params: fn::just< copack< Ts... > >::just { args: "T &&", title: "parameters" }
+:include-doxygen-doc-params: fn::just< copack< Ts... > >::just { args: "U &&", title: "parameters" }
 
 :include-doxygen-doc: fn::just< copack< Ts... > >::just { args: "::std::in_place_type_t< T >, auto &&..." }
 
@@ -174,8 +177,8 @@ constexpr auto has_value(std::in_place_type_t<T> d=std::in_place_type<T>) const 
 
 ```cpp {title: "fn::just< copack< Ts... > >::get_ptr"}
 template <typename T>
-constexpr auto get_ptr(std::in_place_type_t<T> d=std::in_place_type<T>)       -> T *;        // (1)
-constexpr auto get_ptr(std::in_place_type_t<T> d=std::in_place_type<T>) const -> T const *;  // (2)
+constexpr auto get_ptr(std::in_place_type_t<T> d=std::in_place_type<T>)       -> std::add_pointer_t<T>;                                // (1)
+constexpr auto get_ptr(std::in_place_type_t<T> d=std::in_place_type<T>) const -> std::add_pointer_t<std::remove_reference_t<T> const>;  // (2)
 ```
 
 :include-doxygen-doc: fn::just< copack< Ts... > >::get_ptr { args: "::std::in_place_type_t< T >" }
@@ -304,9 +307,8 @@ using choice_for = just<copack_for<Ts...>>;  // (1)
 
 ## as_choice {style: "api"}
 
-`as_choice(x)` constructs a choice with one alternative of the decayed source type. A copack
-instead becomes the payload of a choice over its alternatives. An existing choice becomes a
-nested alternative; `choice{x}` preserves the existing choice type through copy deduction.
+Deprecated: name the type instead, as in `choice<int &>{x}`, which refers to `x`, or `choice{x}`,
+which copies it; `just{c}` deduces the choice over the alternatives of a copack `c`.
 
 ```cpp {title: "fn::as_choice"}
 constexpr auto as_choice(auto &&src) -> decltype(auto);  // (1)

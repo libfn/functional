@@ -258,7 +258,7 @@ template <typename... Ts> struct pack : detail::pack_impl<::std::index_sequence_
   }
 };
 
-template <typename... Args> pack(Args &&...args) -> pack<Args...>;
+template <typename... Args> pack(Args &&...args) -> pack<::std::remove_cvref_t<Args>...>;
 
 /**
  * @brief Tuple-protocol element access
@@ -289,7 +289,7 @@ template <::std::size_t I, some_pack P>
  * @brief Lifts values into a `pack`, deduction preserving each argument's value category
  *
  * `as_pack(42)` yields `pack<int>`; an lvalue `x` yields `pack<int &>` - a reference rather than
- * a copy.
+ * a copy - where `pack{x}` yields `pack<int>`.
  *
  * @param src First value to lift
  * @param args Further values to lift
@@ -311,7 +311,8 @@ template <typename... Explicit, typename T, typename... Args>
  *
  * `as_pack<bool, int>(x, d)` converts each argument at the call boundary; every element type must
  * be spelled - a partial spelling is not viable - and a reference element is what you ask for, as
- * in `as_pack<int const &>(x)`.
+ * in `as_pack<int const &>(x)`. A reference element never binds to a temporary: `as_pack<int const
+ * &>(42)` is not viable.
  *
  * @tparam T First element type, as spelled
  * @tparam Args Further element types, as spelled
@@ -324,10 +325,10 @@ template <typename... Explicit, typename T, typename... Args>
 // (narrowing included) while still relocating rvalue arguments
 template <typename T, typename... Args>
   requires(not detail::_some_in_place_type<T>) && detail::_initializable<pack<T, Args...>, T, Args...>
-[[nodiscard]] constexpr auto as_pack(::std::type_identity_t<T> src, ::std::type_identity_t<Args>... args) //
+[[nodiscard]] constexpr auto as_pack(detail::_as_pack_arg_t<T> src, detail::_as_pack_arg_t<Args>... args) //
     noexcept(detail::_nothrow_initializable<pack<T, Args...>, T, Args...>) -> pack<T, Args...>
 {
-  return pack<T, Args...>{FWD(src), FWD(args)...};
+  return pack<T, Args...>{detail::_as_pack_take<T>(src), detail::_as_pack_take<Args>(args)...};
 }
 
 } // namespace LIBFN_VERSION

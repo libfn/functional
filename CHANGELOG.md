@@ -2,6 +2,118 @@
 
 Design history of libfn, newest first. The living documents — [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/](docs/) — describe only the present state of the design; when a decision makes an earlier idea obsolete, this file is where the transition is recorded and explained.
 
+## `as_copack` and `as_choice` are deprecated — 25 October 2026
+
+`as_copack` and `as_choice` are deprecated in favour of naming the type: `copack<int&>{x}` and `choice<int&>{x}` refer to `x`, `copack{x}` and `choice{x}` copy it, and `just{c}` deduces the choice over the alternatives of a copack `c`. The lifts choose between a reference and a copy by the argument's value category, which the call site does not show; the named type shows it, and its constructors refuse a temporary for a reference alternative, as the lifts do. `as_pack` is not deprecated: a `pack`'s braces still bind a reference element to a temporary, which `as_pack` with a spelled reference element refuses, so naming the type would be the less safe spelling until `pack` refuses it too (#463).
+
+## `copack` and `choice` reference alternatives never bind to a temporary — 25 October 2026
+
+A reference alternative refuses a binding to a temporary, which would dangle at once, as `optional<T&>` does (#454, the C++26 rule). The converting constructors of `copack` and `choice` are deleted where the alternative the value selects would bind to a temporary; the `in_place_type` constructors, assignment from a value, `emplace` and the `as_copack`/`as_choice` lifts are constrained. `copack<int const&>{42}`, `copack<int const&>{std::move(x)}` and `choice<int const&>{42}` no longer compile; neither do `optional` or `expected` constructions which would build such a copack. The binding is judged by `pfn::reference_converts_from_temporary`, which inherits its emulation where the compiler lacks the builtin (GCC 12, MSVC before Visual Studio 2026 18.6).
+
+## `copack` and `choice` monadic members never fall back to another cv/ref overload — 24 October 2026
+
+`copack::transform` and `choice`'s `transform` and `and_then` take the shape `pfn`'s monadic members took on 17 October, as `optional` and `expected` `transform` do: unconstrained cv/ref overloads with body-deduced returns, asserting what they require. A callback which does not accept an alternative in the operand's own cv/ref category makes the call ill-formed, including in a `requires`-expression. Before, the rvalue overloads dropped out of overload resolution and the `const &` overload took the call, handing the callback an lvalue into a temporary operand, so a lifetime-careful callback refusing rvalues could return a reference which dangled. Applicability is asked of `fn::applicable_transform` and `fn::applicable_and_then`, which answer from the payload.
+
+Reject tests in `tests/fn/reject/` cover each fallback the members used to take, and the reference-result and result-type rejections which a `requires`-expression could not observe while the members answered as viable.
+
+## `optional` and `expected` `transform` never fall back to another cv/ref overload — 24 October 2026
+
+`fn::optional::transform` and `fn::expected`'s `transform` and `transform_error` drop their trailing `decltype` returns, which removed an overload whose callback did not accept the payload in the operand's own cv/ref category, so that the `const &` overload took a temporary operand. Over a copack value, `copack::transform` then received an lvalue into the temporary. `expected`'s overloads carry the draft's constraints on constructing the unchanged side as `requires`-clauses, so a copy-only error still falls through to `const &&`, as in `pfn`. `optional<T&>::transform`, with a single overload, and the void `expected`'s `transform`, whose callback takes no argument, are unchanged; so are `and_then` and `or_else`.
+
+Reject tests cover each fallback, the copack case, the copy-only fall-through, and the hard error in a `requires`-expression.
+
+## Pipeline `transform` and `transform_error` ask the payload, not the member — 24 October 2026
+
+`fn::applicable_transform` and `fn::applicable_transform_error` decide a `choice`, a copack-valued `optional` or `expected`, and a copack error side from the payload in the operand's own cv/ref category, rather than by probing the member `transform`. The probe let the member's `const &` overload take a temporary operand: a callback refusing an rvalue answered `true` and then received an lvalue into the temporary. A reference result into a temporary operand also answered `true`, and failed only on instantiation. Both now answer `false`. A callback arm taking `auto &` no longer accepts a temporary operand's alternatives; `auto const &` does.
+
+## Void expected monadic noexcept includes callback-result construction — 17 October 2026
+
+The void specialization of `pfn::expected` includes callback-result construction in the conditional `noexcept` of `and_then` and `or_else`. `and_then` also retains its error-construction check. `or_else` has no unchanged value to construct. Throwing copies and moves of reference-returned results propagate, and immovable prvalues retain guaranteed copy elision.
+
+Tests exercise all source cv/ref categories, reference-result copies and moves, and prvalues for both operations. No `fn` wrapper is changed.
+
+## Object expected monadic noexcept includes callback-result construction — 17 October 2026
+
+For non-void `pfn::expected<T, E>`, `and_then` and `or_else` include copying or moving a callback result returned by reference in their conditional `noexcept`. They retain the check for constructing the unchanged error or value. Throwing result construction propagates; immovable prvalue results remain supported through guaranteed copy elision. Constraints and invalid-callback diagnostics are unchanged.
+
+Tests cover result-reference and source cv/ref categories, throwing copies and moves, non-throwing controls, and immovable prvalues.
+
+## Optional monadic noexcept includes callback-result construction — 17 October 2026
+
+`pfn::optional` accounts for constructing the returned optional in the conditional `noexcept` of `and_then` and `or_else`, for owning and reference specializations. A non-throwing callback can return a reference to an optional whose copy or move throws; that exception propagates instead of terminating. The specified constraints and invalid-callback diagnostics are unchanged. Prvalue results retain guaranteed copy elision, including immovable payloads.
+
+Tests cover throwing copies and moves, non-throwing reference results, and immovable prvalues. The `fn` monadic wrappers remain separate work.
+
+## Void expected monadic overloads follow the draft — 17 October 2026
+
+The void specialization of `pfn::expected` uses body-deduced `auto` returns for all four monadic operations. `and_then` and `transform` retain their error-construction constraints; `or_else` and `transform_error` have no constructibility constraint. Invalid callbacks cause hard errors instead of disappearing through the helper's trailing return type.
+
+Compile-failure tests cover nullary callback detection and error callback cv/ref fallback. Preservation tests cover valid copying and error transformations with an immovable original error, including all four source cv/ref categories. Conditional `noexcept` is unchanged.
+
+## Object expected monadic overloads follow the draft — 17 October 2026
+
+The non-void `pfn::expected<T, E>` monadic members use body-deduced `auto` returns and expose the draft's constructibility constraints. Previously helper-based trailing returns also removed overloads for invalid callbacks, allowing a different cv/ref callback to run or a dependent `requires`-expression to return false. Invalid callbacks now cause hard errors after overload selection. Overloads whose unchanged side cannot be constructed still drop out, preserving valid copy fallback.
+
+Compile-failure tests cover all four operations and cv/ref fallback directions, with positive controls and independently checked rejection fixtures. Runtime and constant-evaluation tests preserve constructibility-based fallback. Conditional `noexcept` is unchanged.
+
+## Reference optional monadic declarations match the draft — 17 October 2026
+
+`pfn::optional<T&>::and_then` uses body-deduced `auto`, so a non-invocable callback causes a hard error even in a dependent `requires`-expression. Previously its helper-based trailing return type treated that error as substitution failure. Reference `transform` retains substitution failure through the draft's explicit `optional<remove_cv_t<invoke_result_t<F, T&>>>` return type. Both specializations spell `or_else` with its fixed `optional` return type and keep its specified constraints. Valid calls retain conditional `noexcept`.
+
+Paired compile-failure tests cover reference `and_then` and owning `and_then`/`transform` cv/ref fallback. Each rejection has a normal-build positive control using the same callback fixture.
+
+## `pfn::optional` preserves the selected monadic overload — 17 October 2026
+
+Owning `pfn::optional<T>::transform` and `and_then` reject callbacks that cannot accept the selected payload cv/ref category, as the standard requires. Previously, substitution failure could remove the selected member and allow a different cv/ref overload to run. A callback that explicitly deleted its rvalue overload could consequently borrow from a temporary optional through its lvalue overload and leave a dangling reference.
+
+The members use unconstrained `auto` return types, so invalid invocations produce hard errors rather than falling back. Valid calls retain their conditional `noexcept`, and reference optionals still pass their referents as lvalues.
+
+## Conan selects the C++26 mode with an option — 13 October 2026
+
+The Conan recipe replaces its `fn_cxx26` component with a `cxx26` option, following the review of the Conan Center recipe. CMakeDeps links every component into the `libfn::libfn` aggregate, so linking that target selected `LIBFN_CXX26` and C++26 without the consumer asking. The option makes mode selection explicit; consumers that exchange `fn` types must agree on it because the modes use different ABI namespaces. The profile's `compiler.cppstd` setting now selects C++26 or newer, replacing the CMake build module that supplied that requirement. When `cxx26=True`, `libfn::fn_cxx26` is an alias of `libfn::fn`.
+
+The recipe now uses CMake's install rules to package the headers and provides the same `libfn::version` target as the CMake package.
+
+## Reference holders refuse to bind a temporary — 11 October 2026
+
+`pfn::optional<T&>` and `fn::optional<T&>` reject a construction or `emplace` that would bind the reference to a temporary, as C++26 specifies through `reference_constructs_from_temporary_v`. Previously the polyfill left this guard out, so such constructions compiled and dangled. As in the standard, an xvalue of the referenced type is refused too: `optional<int const &>{std::move(x)}` no longer compiles.
+
+The same rule applies to a `pack` reference element constructed by `as_pack` with spelled element types, or by `append(std::in_place_type<T &>, ...)`. Brace initialization of a `pack` is aggregate initialization and stays outside the rule.
+
+`pfn::invoke_r` is no longer viable where its result would bind a reference `R` to a temporary; libc++ previously accepted such a call. The new `pfn::is_invocable_r` and `pfn::is_nothrow_invocable_r` give this C++23 answer on every standard library.
+
+`fn::apply_r` and the `is_applicable_r` traits ask those traits, so a reference result that would bind a temporary is not applicable, rather than a hard error.
+
+The new `<pfn/type_traits.hpp>` provides `pfn::reference_constructs_from_temporary` and `pfn::reference_converts_from_temporary`. Where the compiler lacks the builtin (GCC 12, MSVC before Visual Studio 2026 18.6), they are emulated without false positives, but miss a temporary created by converting a class source not reference-related to the referenced type, or one bound by a reference to an array.
+
+## A single `conjoin` argument is normalized, a single `disjoin` argument returned by value — 4 October 2026
+
+`conjoin` is the fold of `&` from its unit, so a single argument meets the unit alone; previously the argument itself was returned, as a reference. Now `conjoin(x)` is `pack<int>`, `conjoin(c)` for a `copack_for<A, B>` is `copack_for<pack<A>, pack<B>>`, and `conjoin(o)` for an `optional<int>` is `optional<pack<int>>`; a `void` value stays `void`. The unit of a carrier is of its own kind: `just<void>`, `expected<void, E>`, or an engaged `optional<pack<>>`. The result's shape no longer depends on the number of arguments. `disjoin` returns a single carrier by value. Both previously returned `decltype(arg)`, so `auto &&r = fn::conjoin(42);` dangled.
+
+## Deduction and `conjoin` hold values; `as_copack` and `as_choice` keep references — 4 October 2026
+
+Class template argument deduction for `pack`, `copack`, `just` and `choice` removes only references and cv-qualifiers from each argument. For an lvalue `int x`, `pack{x}` is `pack<int>`; previously it was `pack<int&>`, which `as_pack(x)` still yields. An array or a function is never turned into a pointer: `just{arr}` and `just{f}` fail to compile, where they deduced `just<int*>` and `just<int(*)(int)>`, and `pack{f}` fails where it deduced `pack<int(&)(int)>`. `pack{"abc"}` is `pack<char[4]>`. A function type is refused as a `pack` element and as a `copack` alternative, where it failed inside the library. `conjoin` holds a leading lvalue by value, as `&` holds every further operand: `conjoin(x, y)` is `pack<int, int>`, where it was `pack<int&, int>`; `as_pack(x) & y` keeps the reference.
+
+`as_copack` and `as_choice` preserve the value category, as `as_pack` does: for an lvalue `x`, `as_copack(x)` is `copack<int&>` and `as_choice(x)` is `choice<int&>`; previously both copied. An lvalue the lift cannot refer to is refused rather than copied: `as_copack` of an lvalue `pack` or array, and `as_choice` of an lvalue copack, array or function. `as_choice("hi")`, now refused, was `choice<char const*>`. Move the source, or use deduction, to copy.
+
+## `transform` over a copack keeps lvalue-reference results — 4 October 2026
+
+`transform` and `transform_error` over a copack keep an lvalue-reference result as a reference alternative: an lvalue `copack_for<int, long>` mapped through `[](auto &v) -> auto & { return v; }` yields `copack_for<int&, long&>`; previously the referents were copied into `copack_for<int, long>`. Rvalue-reference results, and references to a `pack` or a `copack`, still enter as values. A reference result that could refer into an argument expiring with the call, previously copied, now fails to compile. For example, `std::move(c).transform([](auto const &v) -> auto const & { return v; })` is refused; return by value instead. `expected`, `optional` and `choice` over a copack follow.
+
+## `|` and `&` keep lvalue-reference payloads — 4 October 2026
+
+The disjunction sums, and the conjunction multiplies, `T&` for an `optional<T&>` operand, rather than its value type `T`. A reference to a `pack` or a `copack`, which is no alternative, still enters the sum as its value, as a `transform` result does. `optional<int&> | optional<long&>` is `optional<copack_for<int&, long&>>`; previously the referents were copied into `optional<copack_for<int, long>>`. `optional<int&> | optional<int>` is `optional<copack_for<int, int&>>`; previously it was `optional<int&>`, bound to the right operand's value, and failed to compile for an rvalue right operand. `optional<int const&> | optional<long>` and `optional<int const> | optional<long>` compile, where they failed inside the operator. Identity-cluster operands follow: `just<int> | optional<int&>` is `choice_for<int, int&>`, where it was `just<int>`. `|` places each value directly into the alternative its payload names, so an lvalue `int` is never ambiguous between alternatives `int` and `int&`.
+
+`optional<int&> & optional<long>` is `optional<pack<int&, long>>`; previously the referent was copied into `optional<pack<int, long>>`. `optional<int const&> & optional<long&>` is `optional<pack<int const&, long&>>`, where the referent's `const` leaked into `optional<pack<int const, long>>`. `just<int> & optional<int&>` is `optional<pack<int, int&>>`, where it was `optional<pack<int, int>>`. `optional<int&> & just<void>` is `optional<pack<int&>>`, no longer the owning `optional<pack<int>>` of the 27 September entry on `&` taking a `void` side.
+
+## `copack` admits lvalue-reference alternatives — 4 October 2026
+
+A `copack` alternative may be an lvalue reference `T&`, held as a pointer to its referent; previously an alternative could not be a reference, and a reference had to be wrapped in a `pack`. `T`, `T&` and `T const&` are distinct alternatives. As with `optional<T&>`, assignment and `emplace` rebind, and comparison compares referents. As from a `pack<T&>`, callables, `get` and `get_ptr` reach the referent as `T&`, or as `T const&` through a `const` copack, whatever its value category. A reference to a `pack` or a `copack` remains refused, as do rvalue references and references to arrays or functions. `choice<T&>` and `expected<copack<T&>, E>` follow.
+
+The converting constructors of `copack` and `choice` and their value assignments consider only the alternatives whose decayed type is the value's own, and select among them as overload resolution selects among functions taking each. For an lvalue `int x`, `copack_for<int, int&>{x}` is ambiguous and rejected; `std::in_place_type<int&>` names the alternative. A `copack_for<int, int const&>` can be built only through `std::in_place_type` or widening, since `int` and `int const&` are ambiguous for every `int` value. `copack{std::in_place_type<int&>, x}` deduces `copack<int&>`.
+
+`and_then` over a copack whose branches return `optional<T&>` and other optionals joins the references into the result's copack, e.g. `optional<copack_for<X&, Y>>`; previously such a branch set was refused.
+
 ## `<fn/monadic.hpp>` becomes `<fn/traits.hpp>`; `monadic_invocable` rejects an incomplete functor — 27 September 2026
 
 Replace includes of `<fn/monadic.hpp>` with `<fn/traits.hpp>`; no compatibility header is provided. `some_in_place_type` moves to `<fn/traits.hpp>` and remains available through `<fn/copack.hpp>`.

@@ -40,6 +40,173 @@ struct greedy_t {
   template <class U> constexpr greedy_t(U &&) noexcept {}
 };
 
+namespace {
+
+struct monadic_copy_only {
+  int value;
+  constexpr explicit monadic_copy_only(int v = 0) noexcept : value(v) {}
+  constexpr monadic_copy_only(monadic_copy_only const &) noexcept = default;
+  monadic_copy_only(monadic_copy_only &&) = delete;
+  monadic_copy_only(monadic_copy_only const &&) = delete;
+};
+
+struct monadic_move_only {
+  monadic_move_only() = default;
+  monadic_move_only(monadic_move_only const &) = delete;
+  monadic_move_only(monadic_move_only &&) = default;
+};
+
+template <class R> struct monadic_lvalue_callback {
+  constexpr R operator()(int const &) const noexcept { return R{}; }
+  R operator()(int const &&) const = delete;
+};
+
+template <class O, class F>
+concept has_and_then = requires(O &&o, F &&f) { std::forward<O>(o).and_then(std::forward<F>(f)); };
+template <class O, class F>
+concept has_or_else = requires(O &&o, F &&f) { std::forward<O>(o).or_else(std::forward<F>(f)); };
+template <class O, class F>
+concept has_transform = requires(O &&o, F &&f) { std::forward<O>(o).transform(std::forward<F>(f)); };
+template <class O, class F>
+concept has_transform_error = requires(O &&o, F &&f) { std::forward<O>(o).transform_error(std::forward<F>(f)); };
+
+// Result-construction noexcept tests exclude the fn wrappers, whose fixes are separate work (#436).
+struct monadic_result_error {};
+
+template <bool CopyNoexcept, bool MoveNoexcept> struct monadic_result {
+  int value;
+  bool fail;
+  constexpr explicit monadic_result(int v, bool throws = false) noexcept : value(v), fail(throws) {}
+  constexpr monadic_result(monadic_result const &other) noexcept(CopyNoexcept) : value(other.value), fail(other.fail)
+  {
+    if constexpr (not CopyNoexcept)
+      if (fail)
+        throw monadic_result_error{};
+  }
+  constexpr monadic_result(monadic_result &&other) noexcept(MoveNoexcept) : value(other.value), fail(other.fail)
+  {
+    if constexpr (not MoveNoexcept)
+      if (fail)
+        throw monadic_result_error{};
+  }
+};
+
+template <bool Recover, class S, class F>
+  requires(not Recover)
+constexpr auto monadic_operation(S &&source,
+                                 F &&fn) noexcept(noexcept(std::forward<S>(source).and_then(std::forward<F>(fn))))
+{
+  return std::forward<S>(source).and_then(std::forward<F>(fn));
+}
+
+template <bool Recover, class S, class F>
+  requires Recover
+constexpr auto monadic_operation(S &&source,
+                                 F &&fn) noexcept(noexcept(std::forward<S>(source).or_else(std::forward<F>(fn))))
+{
+  return std::forward<S>(source).or_else(std::forward<F>(fn));
+}
+
+template <bool Error, class R, class... Args> constexpr R make_monadic_result(Args &&...args)
+{
+  if constexpr (Error)
+    return R(unexpect, std::forward<Args>(args)...);
+  else
+    return R(std::in_place, std::forward<Args>(args)...);
+}
+
+template <class O, bool Recover, bool Extension> void check_monadic_result_references()
+{
+  auto check_source = []<class S> {
+    auto check_result = []<class Ref, bool Nothrow> {
+      using R = std::remove_cvref_t<Ref>;
+      static_assert(not Extension || std::is_nothrow_constructible_v<R, Ref> == Nothrow);
+      constexpr auto read_result = [](R const &result) {
+        if constexpr (Recover)
+          return result.error().value;
+        else
+          return result->value;
+      };
+      constexpr auto make_source = []<bool Active> {
+        if constexpr (Recover == Active)
+          return O(unexpect, 5);
+        else
+          return O();
+      };
+      constexpr auto succeeds = [=] {
+        O source = make_source.template operator()<true>();
+        O bypass = make_source.template operator()<false>();
+        R returned = make_monadic_result<Recover, R>(7);
+        auto fn = [&returned](auto &&...) noexcept -> Ref { return static_cast<Ref>(returned); };
+        static_assert(not Extension || noexcept(monadic_operation<Recover>(std::declval<S>(), fn)) == Nothrow);
+        auto result = monadic_operation<Recover>(static_cast<S>(source), fn);
+        auto unchanged = monadic_operation<Recover>(static_cast<S>(bypass), fn);
+        return result.has_value() != Recover && read_result(result) == 7 && read_result(returned) == 7
+               && source.has_value() != Recover && unchanged.has_value() == Recover;
+      };
+      static_assert(succeeds());
+      CHECK(succeeds());
+      if constexpr (not Nothrow) {
+        O source = make_source.template operator()<true>();
+        O bypass = make_source.template operator()<false>();
+        R returned = make_monadic_result<Recover, R>(7, true);
+        auto fn = [&returned](auto &&...) noexcept -> Ref { return static_cast<Ref>(returned); };
+        CHECK_THROWS_AS(monadic_operation<Recover>(static_cast<S>(source), fn), monadic_result_error);
+        CHECK(source.has_value() != Recover);
+        if constexpr (Recover)
+          CHECK(source.error() == 5);
+        else if constexpr (not std::is_void_v<typename O::value_type>)
+          CHECK(*source == 0);
+        CHECK(read_result(returned) == 7);
+        CHECK(monadic_operation<Recover>(static_cast<S>(bypass), fn).has_value() == Recover);
+      }
+    };
+    using Copy = std::conditional_t<Recover, expected<typename O::value_type, monadic_result<false, true>>,
+                                    expected<monadic_result<false, true>, int>>;
+    using Move = std::conditional_t<Recover, expected<typename O::value_type, monadic_result<true, false>>,
+                                    expected<monadic_result<true, false>, int>>;
+    check_result.template operator()<Copy &, false>();
+    check_result.template operator()<Copy const &, false>();
+    check_result.template operator()<Copy &&, true>();
+    check_result.template operator()<Copy const &&, false>();
+    check_result.template operator()<Move &, true>();
+    check_result.template operator()<Move &&, false>();
+  };
+  check_source.template operator()<O &>();
+  check_source.template operator()<O const &>();
+  check_source.template operator()<O &&>();
+  check_source.template operator()<O const &&>();
+}
+
+template <class O, bool Recover, bool Extension> void check_monadic_prvalue()
+{
+  constexpr auto check = [] {
+    using R = std::conditional_t<Recover, expected<typename O::value_type, helper_immovable>,
+                                 expected<helper_immovable, int>>;
+    static_assert(not std::is_copy_constructible_v<R> && not std::is_move_constructible_v<R>);
+    O source = [] {
+      if constexpr (Recover)
+        return O(unexpect, 5);
+      else
+        return O();
+    }();
+    auto fn = [](auto &&...) noexcept -> R { return make_monadic_result<Recover, R>(helper_list_t{}, 7); };
+    auto cfn = [](auto &&...) noexcept -> R const { return make_monadic_result<Recover, R>(helper_list_t{}, 9); };
+    static_assert(not Extension || noexcept(monadic_operation<Recover>(source, fn)));
+    static_assert(not Extension || noexcept(monadic_operation<Recover>(source, cfn)));
+    auto result = monadic_operation<Recover>(source, fn);
+    auto const_result = monadic_operation<Recover>(std::move(source), cfn);
+    if constexpr (Recover)
+      return not result && result.error().v == 7 && not const_result && const_result.error().v == 9;
+    else
+      return result && result->v == 7 && const_result && const_result->v == 9;
+  };
+  static_assert(check());
+  CHECK(check());
+}
+
+} // namespace
+
 TEST_CASE("bad_expected_access", "[expected][polyfill][bad_expected_access]")
 {
 #ifndef PFN_TEST_VALIDATION
@@ -3377,6 +3544,43 @@ TEST_CASE("expected non void", "[expected][polyfill]")
   {
     SECTION("and_then")
     {
+#if !defined(PFN_TEST_NESTED) || defined(PFN_TEST_VALIDATION)
+      SECTION("result references") { check_monadic_result_references<expected<int, int>, false, extension>(); }
+      SECTION("immovable prvalue") { check_monadic_prvalue<expected<int, int>, false, extension>(); }
+#endif
+      SECTION("constructibility constraints")
+      {
+        using O = expected<int, monadic_move_only>;
+        using F = decltype([](int) -> expected<int, monadic_move_only> { return {}; });
+        static_assert(not has_and_then<O &, F>);
+        static_assert(not has_and_then<O const &, F>);
+        static_assert(not has_and_then<O const &&, F>);
+        static_assert(has_and_then<O &&, F>);
+        static_assert(not has_and_then<O &, int>);
+        SUCCEED();
+      }
+
+      SECTION("copy fallback")
+      {
+        using O = expected<int, monadic_copy_only>;
+        using F = monadic_lvalue_callback<expected<int, monadic_copy_only>>;
+        static_assert(std::is_constructible_v<monadic_copy_only, monadic_copy_only const &>);
+        static_assert(not std::is_constructible_v<monadic_copy_only, monadic_copy_only &&>);
+        static_assert(not std::is_constructible_v<monadic_copy_only, monadic_copy_only const &&>);
+        static_assert(std::is_invocable_v<F, int const &>);
+        static_assert(not std::is_invocable_v<F, int &&>);
+        static_assert(not std::is_invocable_v<F, int const &&>);
+        constexpr auto check = [] {
+          O a(7);
+          O e(unexpect, 9);
+          auto value = std::move(a).and_then(F{});
+          auto error = std::move(e).and_then(F{});
+          return value.has_value() && not error.has_value() && *value == 0 && error.error().value == 9;
+        };
+        static_assert(check());
+        CHECK(check());
+      }
+
       SECTION("value")
       {
         using T = expected<helper, Error>;
@@ -3475,6 +3679,43 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
     SECTION("or_else")
     {
+#if !defined(PFN_TEST_NESTED) || defined(PFN_TEST_VALIDATION)
+      SECTION("result references") { check_monadic_result_references<expected<int, int>, true, extension>(); }
+      SECTION("immovable prvalue") { check_monadic_prvalue<expected<int, int>, true, extension>(); }
+#endif
+      SECTION("constructibility constraints")
+      {
+        using O = expected<monadic_move_only, int>;
+        using F = decltype([](int) -> expected<monadic_move_only, int> { return {}; });
+        static_assert(not has_or_else<O &, F>);
+        static_assert(not has_or_else<O const &, F>);
+        static_assert(not has_or_else<O const &&, F>);
+        static_assert(has_or_else<O &&, F>);
+        static_assert(not has_or_else<O &, int>);
+        SUCCEED();
+      }
+
+      SECTION("copy fallback")
+      {
+        using O = expected<monadic_copy_only, int>;
+        using F = monadic_lvalue_callback<expected<monadic_copy_only, int>>;
+        static_assert(std::is_constructible_v<monadic_copy_only, monadic_copy_only const &>);
+        static_assert(not std::is_constructible_v<monadic_copy_only, monadic_copy_only &&>);
+        static_assert(not std::is_constructible_v<monadic_copy_only, monadic_copy_only const &&>);
+        static_assert(std::is_invocable_v<F, int const &>);
+        static_assert(not std::is_invocable_v<F, int &&>);
+        static_assert(not std::is_invocable_v<F, int const &&>);
+        constexpr auto check = [] {
+          O a(std::in_place, 7);
+          O e(unexpect, 9);
+          auto value = std::move(a).or_else(F{});
+          auto error = std::move(e).or_else(F{});
+          return value.has_value() && error.has_value() && value->value == 7 && error->value == 0;
+        };
+        static_assert(check());
+        CHECK(check());
+      }
+
       SECTION("error")
       {
         using T = expected<bool, helper>;
@@ -3581,6 +3822,39 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
     SECTION("transform")
     {
+      SECTION("constructibility constraints")
+      {
+        using O = expected<int, monadic_move_only>;
+        using F = decltype([](int) -> int { return {}; });
+        static_assert(not has_transform<O &, F>);
+        static_assert(not has_transform<O const &, F>);
+        static_assert(not has_transform<O const &&, F>);
+        static_assert(has_transform<O &&, F>);
+        static_assert(not has_transform<O &, int>);
+        SUCCEED();
+      }
+
+      SECTION("copy fallback")
+      {
+        using O = expected<int, monadic_copy_only>;
+        using F = monadic_lvalue_callback<int>;
+        static_assert(std::is_constructible_v<monadic_copy_only, monadic_copy_only const &>);
+        static_assert(not std::is_constructible_v<monadic_copy_only, monadic_copy_only &&>);
+        static_assert(not std::is_constructible_v<monadic_copy_only, monadic_copy_only const &&>);
+        static_assert(std::is_invocable_v<F, int const &>);
+        static_assert(not std::is_invocable_v<F, int &&>);
+        static_assert(not std::is_invocable_v<F, int const &&>);
+        constexpr auto check = [] {
+          O a(7);
+          O e(unexpect, 9);
+          auto value = std::move(a).transform(F{});
+          auto error = std::move(e).transform(F{});
+          return value.has_value() && not error.has_value() && *value == 0 && error.error().value == 9;
+        };
+        static_assert(check());
+        CHECK(check());
+      }
+
       SECTION("value")
       {
         using T = expected<helper, Error>;
@@ -3698,6 +3972,39 @@ TEST_CASE("expected non void", "[expected][polyfill]")
 
     SECTION("transform_error")
     {
+      SECTION("constructibility constraints")
+      {
+        using O = expected<monadic_move_only, int>;
+        using F = decltype([](int) -> int { return {}; });
+        static_assert(not has_transform_error<O &, F>);
+        static_assert(not has_transform_error<O const &, F>);
+        static_assert(not has_transform_error<O const &&, F>);
+        static_assert(has_transform_error<O &&, F>);
+        static_assert(not has_transform_error<O &, int>);
+        SUCCEED();
+      }
+
+      SECTION("copy fallback")
+      {
+        using O = expected<monadic_copy_only, int>;
+        using F = monadic_lvalue_callback<int>;
+        static_assert(std::is_constructible_v<monadic_copy_only, monadic_copy_only const &>);
+        static_assert(not std::is_constructible_v<monadic_copy_only, monadic_copy_only &&>);
+        static_assert(not std::is_constructible_v<monadic_copy_only, monadic_copy_only const &&>);
+        static_assert(std::is_invocable_v<F, int const &>);
+        static_assert(not std::is_invocable_v<F, int &&>);
+        static_assert(not std::is_invocable_v<F, int const &&>);
+        constexpr auto check = [] {
+          O a(std::in_place, 7);
+          O e(unexpect, 9);
+          auto value = std::move(a).transform_error(F{});
+          auto error = std::move(e).transform_error(F{});
+          return value.has_value() && not error.has_value() && value->value == 7 && error.error() == 0;
+        };
+        static_assert(check());
+        CHECK(check());
+      }
+
       SECTION("error")
       {
         using T = expected<bool, helper>;
@@ -5768,6 +6075,41 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
   {
     SECTION("and_then")
     {
+#if !defined(PFN_TEST_NESTED) || defined(PFN_TEST_VALIDATION)
+      SECTION("result references") { check_monadic_result_references<expected<void, int>, false, extension>(); }
+      SECTION("immovable prvalue") { check_monadic_prvalue<expected<void, int>, false, extension>(); }
+#endif
+      SECTION("constructibility constraints")
+      {
+        using O = expected<void, monadic_move_only>;
+        using F = decltype([]() -> expected<int, monadic_move_only> { return {}; });
+        static_assert(not has_and_then<O &, F>);
+        static_assert(not has_and_then<O const &, F>);
+        static_assert(not has_and_then<O const &&, F>);
+        static_assert(has_and_then<O &&, F>);
+        static_assert(not has_and_then<O &, int>);
+        SUCCEED();
+      }
+
+      SECTION("copy fallback")
+      {
+        using O = expected<void, monadic_copy_only>;
+        static_assert(std::is_constructible_v<monadic_copy_only, monadic_copy_only const &>);
+        static_assert(not std::is_constructible_v<monadic_copy_only, monadic_copy_only &&>);
+        static_assert(not std::is_constructible_v<monadic_copy_only, monadic_copy_only const &&>);
+        constexpr auto check = [] {
+          O a;
+          O e(unexpect, 9);
+          constexpr auto fn
+              = []() noexcept -> expected<int, monadic_copy_only> { return expected<int, monadic_copy_only>{7}; };
+          auto value = std::move(a).and_then(fn);
+          auto error = std::move(e).and_then(fn);
+          return value.has_value() && *value == 7 && not error.has_value() && error.error().value == 9;
+        };
+        static_assert(check());
+        CHECK(check());
+      }
+
       SECTION("value")
       {
         using T = expected<void, Error>;
@@ -5851,6 +6193,36 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
     SECTION("or_else")
     {
+#if !defined(PFN_TEST_NESTED) || defined(PFN_TEST_VALIDATION)
+      SECTION("result references") { check_monadic_result_references<expected<void, int>, true, extension>(); }
+      SECTION("immovable prvalue") { check_monadic_prvalue<expected<void, int>, true, extension>(); }
+#endif
+      SECTION("immovable error")
+      {
+        using O = expected<void, helper_immovable>;
+        static_assert(not std::is_copy_constructible_v<helper_immovable>);
+        static_assert(not std::is_move_constructible_v<helper_immovable>);
+        constexpr auto check = []<class S> {
+          O a;
+          O e(unexpect, helper_list_t{}, 5);
+          constexpr auto fn = [](helper_immovable const &) noexcept -> expected<void, int> {
+            return expected<void, int>{unexpect, 7};
+          };
+          static_assert(not extension || noexcept(std::declval<S>().or_else(fn)));
+          auto value = static_cast<S>(a).or_else(fn);
+          auto error = static_cast<S>(e).or_else(fn);
+          return value.has_value() && not error.has_value() && error.error() == 7 && e.error().v == 5;
+        };
+        static_assert(check.template operator()<O &>());
+        static_assert(check.template operator()<O const &>());
+        static_assert(check.template operator()<O &&>());
+        static_assert(check.template operator()<O const &&>());
+        CHECK(check.template operator()<O &>());
+        CHECK(check.template operator()<O const &>());
+        CHECK(check.template operator()<O &&>());
+        CHECK(check.template operator()<O const &&>());
+      }
+
       SECTION("error")
       {
         using T = expected<void, helper>;
@@ -5947,6 +6319,36 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
     SECTION("transform")
     {
+      SECTION("constructibility constraints")
+      {
+        using O = expected<void, monadic_move_only>;
+        using F = decltype([]() -> int { return {}; });
+        static_assert(not has_transform<O &, F>);
+        static_assert(not has_transform<O const &, F>);
+        static_assert(not has_transform<O const &&, F>);
+        static_assert(has_transform<O &&, F>);
+        static_assert(not has_transform<O &, int>);
+        SUCCEED();
+      }
+
+      SECTION("copy fallback")
+      {
+        using O = expected<void, monadic_copy_only>;
+        static_assert(std::is_constructible_v<monadic_copy_only, monadic_copy_only const &>);
+        static_assert(not std::is_constructible_v<monadic_copy_only, monadic_copy_only &&>);
+        static_assert(not std::is_constructible_v<monadic_copy_only, monadic_copy_only const &&>);
+        constexpr auto check = [] {
+          O a;
+          O e(unexpect, 9);
+          constexpr auto fn = []() noexcept -> int { return int{7}; };
+          auto value = std::move(a).transform(fn);
+          auto error = std::move(e).transform(fn);
+          return value.has_value() && *value == 7 && not error.has_value() && error.error().value == 9;
+        };
+        static_assert(check());
+        CHECK(check());
+      }
+
       SECTION("value")
       {
         using T = expected<void, Error>;
@@ -6047,6 +6449,30 @@ TEST_CASE("expected void", "[expected_void][polyfill]")
 
     SECTION("transform_error")
     {
+      SECTION("immovable error")
+      {
+        using O = expected<void, helper_immovable>;
+        static_assert(not std::is_copy_constructible_v<helper_immovable>);
+        static_assert(not std::is_move_constructible_v<helper_immovable>);
+        constexpr auto check = []<class S> {
+          O a;
+          O e(unexpect, helper_list_t{}, 5);
+          constexpr auto fn = [](helper_immovable const &) noexcept -> int { return 7; };
+          static_assert(not extension || noexcept(std::declval<S>().transform_error(fn)));
+          auto value = static_cast<S>(a).transform_error(fn);
+          auto error = static_cast<S>(e).transform_error(fn);
+          return value.has_value() && not error.has_value() && error.error() == 7 && e.error().v == 5;
+        };
+        static_assert(check.template operator()<O &>());
+        static_assert(check.template operator()<O const &>());
+        static_assert(check.template operator()<O &&>());
+        static_assert(check.template operator()<O const &&>());
+        CHECK(check.template operator()<O &>());
+        CHECK(check.template operator()<O const &>());
+        CHECK(check.template operator()<O &&>());
+        CHECK(check.template operator()<O const &&>());
+      }
+
       SECTION("error")
       {
         using T = expected<void, helper>;

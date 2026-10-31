@@ -91,12 +91,19 @@ template <class Arg>
 constexpr explicit optional(std::in_place_t, Arg &&arg);  // (4)
 
 template <class U>
-constexpr explicit optional(U &&u);                    // (5)
-constexpr explicit optional(optional<U> &rhs);         // (6)
-constexpr explicit optional(optional<U> const &rhs);   // (7)
-constexpr explicit optional(optional<U> &&rhs);        // (8)
-constexpr explicit optional(optional<U> const &&rhs);  // (9)
+constexpr explicit optional(U &&u);                             // (5)
+constexpr explicit optional(U &&u) = delete;                    // (6)
+constexpr explicit optional(optional<U> &rhs);                  // (7)
+constexpr explicit optional(optional<U> &rhs) = delete;         // (8)
+constexpr explicit optional(optional<U> const &rhs);            // (9)
+constexpr explicit optional(optional<U> const &rhs) = delete;   // (10)
+constexpr explicit optional(optional<U> &&rhs);                 // (11)
+constexpr explicit optional(optional<U> &&rhs) = delete;        // (12)
+constexpr explicit optional(optional<U> const &&rhs);           // (13)
+constexpr explicit optional(optional<U> const &&rhs) = delete;  // (14)
 ```
+
+Each deleted overload is selected where the reference would bind to a temporary.
 
 :include-doxygen-doc: fn::optional< T & >::optional { args: "" }
 

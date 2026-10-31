@@ -45,12 +45,20 @@ concept can_append_in_place = requires(V v, Args... args) { FWD(v).append(std::i
 template <typename V, typename Arg>
 concept can_append = requires(V v, Arg arg) { FWD(v).append(FWD(arg)); };
 
+// As can_append_in_place, but each argument keeps the value category its type spells
+template <typename V, typename T, typename... Args>
+concept can_append_in_place_fwd
+    = requires(V v, Args &&...args) { FWD(v).append(std::in_place_type<T>, static_cast<Args &&>(args)...); };
+
 // A pack element whose const-lvalue copy and rvalue move can both throw, so the member relocating it
 // must say so. Its non-const-lvalue copy is noexcept, which is what makes the promise category-wise.
 using Throwing = helper_t<prop::throw_copy | prop::throw_move>;
 
 template <typename... Args>
 concept can_as_pack = requires(Args &&...args) { fn::as_pack(FWD(args)...); };
+
+template <typename... Args>
+concept can_deduce = requires(Args &&...args) { fn::pack{FWD(args)...}; };
 
 template <typename... Ts>
 concept can_as_pack_explicit = requires(int &i, double &d) { fn::as_pack<Ts...>(i, d); };
@@ -60,6 +68,22 @@ concept can_as_pack_explicit_rvalue_head = requires(double &d) { fn::as_pack<Ts.
 
 template <typename T>
 concept can_as_pack_explicit_lvalue = requires(T &v) { fn::as_pack<T>(v); };
+
+struct implicit_and_explicit {
+  int a = 1;
+  int b = 2;
+  constexpr operator int &() noexcept { return a; } // NOLINT(google-explicit-constructor)
+  constexpr explicit operator int const &() noexcept(false) { return b; }
+};
+
+constexpr auto overloaded(int v) -> int { return v + 1; }
+constexpr auto overloaded(double v) -> double { return v; }
+
+// Spells pack<Ts...>'s element types and passes Us... as the arguments
+template <typename P, typename... Us> constexpr bool can_as_pack_spelled = false;
+template <typename... Ts, typename... Us>
+constexpr bool can_as_pack_spelled<fn::pack<Ts...>, Us...>
+    = requires(Us &&...us) { fn::as_pack<Ts...>(static_cast<Us &&>(us)...); };
 
 // pack declares no special member, so each one is implicit - composed from the _element bases which
 // hold the data. Ask the elements, not the element types: a holder of a reference or of a const
@@ -221,11 +245,17 @@ TEST_CASE("pack", "[pack]")
   static_assert(pack<>::size == 0);
 
   static_assert(std::same_as<decltype(fn::pack{}), fn::pack<>>);
+  // deduction holds values, as_pack below keeps references; an array stays an array, never a pointer
   static_assert(std::same_as<decltype(fn::pack{12}), fn::pack<int>>);
-  static_assert(std::same_as<decltype(fn::pack{a}), fn::pack<A &>>);
-  static_assert(std::same_as<decltype(fn::pack{12, a}), fn::pack<int, A &>>);
-  static_assert(std::same_as<decltype(fn::pack{12, std::as_const(a)}), fn::pack<int, A const &>>);
+  static_assert(std::same_as<decltype(fn::pack{a}), fn::pack<A>>);
+  static_assert(std::same_as<decltype(fn::pack{12, a}), fn::pack<int, A>>);
+  static_assert(std::same_as<decltype(fn::pack{12, std::as_const(a)}), fn::pack<int, A>>);
   static_assert(std::same_as<decltype(fn::pack{12, std::move(a)}), fn::pack<int, A>>);
+  static_assert(std::same_as<decltype(fn::pack{"abc"}), fn::pack<char[4]>>); // a string literal initializes it
+  static_assert(can_deduce<int &> && can_as_pack<int (&)[2]>);
+  static_assert(not can_deduce<int (&)[2]>); // pack<int[2]>, which an array lvalue cannot initialize
+  CHECK(fn::pack{"abc"}.apply([](char const(&s)[4]) { return std::string{s}; }) == "abc");
+  static_assert(fn::pack{"abc"}.apply([](char const(&s)[4]) { return s[0] == 'a' && s[3] == '\0'; }));
 
   constexpr auto c1 = fn::as_pack();
   static_assert(std::same_as<decltype(c1), fn::pack<> const>);
@@ -256,6 +286,36 @@ TEST_CASE("pack", "[pack]")
   static_assert(not can_as_pack_explicit<int, char *>);       // no conversion admits the argument
   static_assert(not can_as_pack_explicit_rvalue_head<int>);   // an rvalue head cannot smuggle a partial
                                                               // spelling through the deduced overload
+  // a reference element never binds to a temporary: an lvalue binds, while a prvalue, an xvalue (as
+  // optional<T&> refuses it) and a converted lvalue are not viable; a value element still converts
+  static_assert(can_as_pack_spelled<pack<int const &>, int &>);
+  static_assert(can_as_pack_spelled<pack<int const &>, int const &>);
+  static_assert(not can_as_pack_spelled<pack<int const &>, int>);
+  static_assert(not can_as_pack_spelled<pack<int const &>, int &&>);
+  static_assert(not can_as_pack_spelled<pack<int const &>, long &>);
+  static_assert(not can_as_pack_spelled<pack<int const &, long>, int, long>);
+  static_assert(can_as_pack_spelled<pack<int const &, long>, int &, int>);
+  static_assert(can_as_pack_spelled<pack<int>, long &>);
+  // a reference element binds by implicit conversion, as a parameter of its named type would: an
+  // explicit conversion function is never chosen, and noexcept follows the implicit one
+  static_assert(can_as_pack_spelled<pack<int const &>, implicit_and_explicit &>);
+  static_assert(noexcept(fn::as_pack<int const &>(std::declval<implicit_and_explicit &>())));
+  constexpr auto implicit_referent = [] {
+    implicit_and_explicit src{};
+    return fn::as_pack<int const &>(src).apply([&src](int const &r) { return &r == &src.a; });
+  };
+  static_assert(implicit_referent());
+  CHECK(implicit_referent());
+  // a function reference never binds a temporary, so its element's named type still resolves an
+  // overload set
+  static_assert(overloaded(1.5) == 1.5);
+#ifndef _MSC_VER // MSVC's constant evaluator reads a function-reference member of an aggregate base
+                 // as uninitialized (Visual Studio 2022 and 2026 18.6 alike)
+  static_assert(fn::as_pack<int (&)(int)>(overloaded).apply([](int (&f)(int)) { return f(1); }) == 2);
+#endif
+  CHECK(fn::as_pack<int (&)(int)>(overloaded).apply([](int (&f)(int)) {
+    return &f == static_cast<int (*)(int)>(&overloaded);
+  }));
   auto owned = fn::as_pack<int>(k);
   k += 1;
   CHECK(owned.apply([](int v) { return v == 42; })); // an owned copy, not a view
@@ -299,6 +359,10 @@ TEST_CASE("pack", "[pack]")
     static_assert(not fn::detail::_is_valid_pack_element<fn::pack<int>>);
     static_assert(not fn::detail::_is_valid_pack_element<fn::pack<>>);
     static_assert(not fn::detail::_is_valid_pack_element<fn::copack<int>>);
+    static_assert(fn::detail::_is_valid_pack_element<int (&)(int)>);
+    // so pack{f} refuses with a reason (tests/fn/reject/pack_deduction.cpp)
+    static_assert(not fn::detail::_is_valid_pack_element<int(int)>);
+    static_assert(not fn::detail::_is_valid_pack_element<void>);
 
     // witnesses that the permitted atoms instantiate
     static_assert(pack<std::tuple<int, int>, int>::size == 2);
@@ -621,6 +685,12 @@ TEST_CASE("append value categories", "[pack][append]")
     // pack's non-const reference element - the same pack, non-const, can
     static_assert(can_append_in_place<pack<int &> &, int, int>);
     static_assert(not can_append_in_place<pack<int &> const &, int, int>);
+    // a reference element never binds to a temporary: an lvalue binds, while a prvalue, an xvalue
+    // (refused alongside, as optional<T&> refuses it) and a converted lvalue are not viable
+    static_assert(can_append_in_place_fwd<T &, int const &, int &>);
+    static_assert(not can_append_in_place_fwd<T &, int const &, int>);
+    static_assert(not can_append_in_place_fwd<T &, int const &, int &&>);
+    static_assert(not can_append_in_place_fwd<T &, int const &, long &>);
 
     SUCCEED();
   }

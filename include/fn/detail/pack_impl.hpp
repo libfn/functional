@@ -12,6 +12,7 @@
 #include <libfn_version.hpp>
 
 #include <pfn/functional.hpp>
+#include <pfn/type_traits.hpp>
 
 #include <functional>
 #include <type_traits>
@@ -25,6 +26,15 @@ template <::std::size_t I, typename T> struct _element {
   T v; // NOSONAR cpp:S6226 MSVC ignores the attribute
 };
 
+// Whether initializing an element binds a reference to a temporary, which would dangle at once.
+// An rvalue argument is asked as the non-reference type a forwarding parameter deduces for it, so
+// an xvalue is refused alongside a prvalue, as optional<T&> refuses both.
+template <typename T, typename... Args> constexpr inline bool _binds_temporary = false;
+template <typename T, typename Arg>
+  requires ::std::is_reference_v<T>
+constexpr inline bool _binds_temporary<T, Arg> = ::pfn::reference_constructs_from_temporary_v<
+    T, ::std::conditional_t<::std::is_rvalue_reference_v<Arg>, ::std::remove_reference_t<Arg>, Arg>>;
+
 // Initializes one element. A reference element is spelled as a cast rather than `T{arg}`: the two
 // are the same thing ([expr.type.conv]/1.3 defines the latter as direct-initializing an invented
 // variable of type T, and [dcl.init.list]/3.9 initializes a reference from a single element whose
@@ -33,12 +43,49 @@ template <::std::size_t I, typename T> struct _element {
 // compilers on the binding path.
 template <typename T>
 [[nodiscard]] constexpr auto _make_element(auto &&...args) noexcept(_nothrow_initializable<T, decltype(args)...>) -> T
-  requires _initializable<T, decltype(args)...>
+  requires _initializable<T, decltype(args)...> && (not _binds_temporary<T, decltype(args)...>)
 {
   if constexpr (::std::is_reference_v<T>)
     return T(FWD(args)...); // a single argument, so this is a cast expression: it binds
   else
     return T{FWD(args)...};
+}
+
+// `as_pack` with spelled element types converts each argument at the call boundary, so its
+// parameter type is fixed before the argument is seen. A reference element's parameter instead
+// deduces the argument in its own constructor, as optional<T&>'s converting constructor does,
+// which lets it refuse a binding to a temporary while every element type stays as spelled.
+template <typename T> struct _as_pack_ref final {
+  T ref;
+
+  // Copy-initialization, as the named parameter type performed: unlike `ref(FWD(u))`, it never
+  // considers an explicit conversion function, so the binding is the one the constraint and the
+  // noexcept-specifier ask about.
+  static constexpr auto _bind(T r) noexcept -> T { return r; }
+
+  template <typename U>
+    requires(not ::std::is_same_v<::std::remove_cvref_t<U>, _as_pack_ref>)
+            && ::std::is_convertible_v<U, T> && (not ::pfn::reference_converts_from_temporary_v<T, U>)
+  constexpr _as_pack_ref(U &&u) noexcept(::std::is_nothrow_convertible_v<U, T>) // NOLINT(google-explicit-constructor)
+      : ref(_bind(FWD(u)))
+  {
+  }
+};
+
+// A reference to a function binds only a function lvalue, never a temporary, so it keeps the named
+// parameter type, which resolves an overload set the deduction above cannot.
+template <typename T>
+constexpr inline bool _as_pack_object_ref
+    = ::std::is_lvalue_reference_v<T> && ::std::is_object_v<::std::remove_reference_t<T>>;
+
+template <typename T> using _as_pack_arg_t = ::std::conditional_t<_as_pack_object_ref<T>, _as_pack_ref<T>, T>;
+
+template <typename T> [[nodiscard]] constexpr auto _as_pack_take(_as_pack_arg_t<T> &arg) noexcept -> T &&
+{
+  if constexpr (_as_pack_object_ref<T>)
+    return arg.ref;
+  else
+    return static_cast<T &&>(arg);
 }
 
 // The two questions anyone above may ask about constructing an element, asked OF the function that
@@ -61,7 +108,9 @@ concept _nothrow_relocatable_element = requires { requires noexcept(E{::std::dec
 // The algebra's own constructors are not elements: a copack must distribute over the product, and a
 // nested pack is a non-canonical spelling of the flat product with no consistent shape (apply
 // flattens it, the tuple protocol preserves it). Foreign structured types stay opaque atoms.
-template <typename T> static constexpr bool _is_valid_pack_element = (not _some_copack<T>) && (not _some_pack<T>);
+template <typename T>
+static constexpr bool _is_valid_pack_element
+    = (::std::is_object_v<T> || ::std::is_reference_v<T>) && (not _some_copack<T>) && (not _some_pack<T>);
 
 template <typename T> constexpr inline bool _spliceable_pack = false;
 template <typename... Tx>
@@ -164,8 +213,8 @@ struct pack_impl<::std::index_sequence<Is...>, Ts...> : _element<Is, Ts>... {
   template <typename Ret, typename Self, typename Fn, typename... Args>
     requires(not(... || (_some_pack<Args> || _some_copack<Args>)))
   static constexpr auto _apply_r(Self &&self, Fn &&fn, Args &&...args) //
-      noexcept(::std::is_nothrow_invocable_r_v<Ret, Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args &&...>) -> Ret
-    requires(::std::is_invocable_r<Ret, Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args && ...>::value)
+      noexcept(::pfn::is_nothrow_invocable_r_v<Ret, Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args &&...>) -> Ret
+    requires(::pfn::is_invocable_r<Ret, Fn &&, apply_const_lvalue_t<Self, Ts &&>..., Args && ...>::value)
   {
     return ::pfn::invoke_r<Ret>(
         FWD(fn), static_cast<apply_const_lvalue_t<Self, Ts &&>>(FWD(self)._element<Is, Ts>::v)..., FWD(args)...);

@@ -3,13 +3,18 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
+#include <util/allow_deprecated.hpp>
+
+#include <fn/and_then.hpp>
 #include <fn/expected.hpp>
 #include <fn/just.hpp>
 #include <fn/optional.hpp>
+#include <fn/transform.hpp>
 
 #include <fn/utility.hpp>
 
 #include <util/helper_types.hpp>
+#include <util/refusing.hpp>
 
 #include <catch2/catch_all.hpp>
 
@@ -72,7 +77,15 @@ template <typename S, typename Fn, typename... Args>
 concept can_apply = requires(S s, Fn fn, Args... args) { FWD(s).apply(FWD(fn), FWD(args)...); };
 
 template <typename T, typename... Args>
-concept can_as_choice = requires(Args... args) { fn::as_choice(std::in_place_type<T>, args...); };
+concept can_as_choice
+    = requires(Args &&...args) { fn::as_choice(std::in_place_type<T>, static_cast<Args &&>(args)...); };
+
+// Overload resolution reaches (...) only where the choice is not constructible at all; a deleted
+// constructor is chosen and refuses the call instead
+constexpr int pick_ref(fn::choice<int const &>) { return 1; }
+constexpr int pick_ref(...) { return 2; }
+template <typename U>
+concept can_pick_ref = requires(U &&u) { pick_ref(static_cast<U &&>(u)); };
 
 template <typename T>
 concept can_as_choice_value = requires(T v) { fn::as_choice(FWD(v)); };
@@ -104,6 +117,8 @@ template <typename... Ts> consteval bool special_members_follow_copack()
 }
 
 constexpr int fnReferenceTarget = 42;
+constexpr int fnReferenceTwin = 42;
+template <fn::some_choice auto S> struct choice_nttp final {};
 
 } // anonymous namespace
 
@@ -145,12 +160,12 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     {
       // A reference binding to the sole payload alternative can modify the choice.
       static_assert(std::tuple_size_v<choice<int>::value_type> == std::tuple_size_v<fn::pack<int>>);
-      auto c = fn::as_choice(12);
+      choice<int> c{12};
       auto &[i] = c.value();
       i = 42;
       CHECK(c == choice<int>{42});
       static_assert([] {
-        auto d = fn::as_choice(12);
+        choice<int> d{12};
         auto &[j] = d.value();
         j = 42;
         return d == choice<int>{42};
@@ -253,6 +268,15 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       static_assert(std::is_same_v<decltype(d), choice<bool> const>);
       static_assert(std::is_same_v<decltype(choice{fn::copack_for<bool, int>{true}}), fn::choice_for<bool, int>>);
       static_assert(std::is_same_v<decltype(fn::just{fn::copack{42}}), choice<int>>);
+
+      // deduction holds a value, whatever the argument's value category; as_choice keeps a reference
+      int const x = 3;
+      static_assert(std::is_same_v<decltype(choice{x}), choice<int>>);
+      static_assert(std::is_same_v<decltype(choice{std::move(x)}), choice<int>>);
+      static_assert(can_deduce_value<int &> && can_deduce_value<int const &>);
+      // an array or a function never becomes a pointer: no alternative is deduced for either
+      static_assert(not can_deduce_value<int (&)[2]>);
+      static_assert(not can_deduce_value<int (&)(int)>);
     }
 
     SECTION("constexpr move from rvalue")
@@ -396,6 +420,40 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       CHECK(b.has_value<helper>());
       CHECK(b.value().get_ptr<helper>()->v == 29 * from_rval);
     }
+
+    SECTION("reference alternative")
+    {
+      // the value selects as copack's does
+      int x = 1;
+      choice<int &> a{x};
+      CHECK(a.get_ptr<int &>() == &x);
+      static_assert(std::is_same_v<decltype(a.get_ptr<int &>()), int *>);
+      static_assert(std::is_same_v<decltype(std::as_const(a).get_ptr<int &>()), int const *>);
+      using IR = fn::choice_for<int, int &>;
+      static_assert(not std::is_constructible_v<IR, int &>);
+      CHECK(IR{std::in_place_type<int &>, x}.get_ptr<int &>() == &x);
+      CHECK(IR{std::move(x)}.has_value<int>());
+      static_assert([] {
+        int x = 1;
+        choice<int &> const a{x};
+        return a.get_ptr<int &>() == &x;
+      }());
+
+      // a temporary never binds: the converting constructor is deleted for it, as copack's is
+      using CR = choice<int const &>;
+      static_assert(not std::is_constructible_v<CR, int>);
+      static_assert(not std::is_constructible_v<CR, int &&>);
+      static_assert(not std::is_constructible_v<CR, std::in_place_type_t<int const &>, int>);
+      static_assert(std::is_constructible_v<CR, int &>); // converse
+      static_assert(std::is_constructible_v<CR, std::in_place_type_t<int const &>, int &>);
+      static_assert(not can_pick_ref<int>); // deleted, not constrained away
+      static_assert(can_pick_ref<int const &>);
+      static_assert(can_pick_ref<long>); // selects no alternative, so (...) is reached
+      static_assert([] {
+        int x = 1;
+        return pick_ref(x) == 1 && pick_ref(1L) == 2;
+      }());
+    }
   }
 
   SECTION("constructor from copack")
@@ -495,6 +553,29 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       static_assert(std::is_assignable_v<C &, int>);
       SUCCEED();
     }
+
+    SECTION("reference alternative")
+    {
+      // rebinds, never assigns through
+      int x = 1;
+      int y = 2;
+      choice<int &> a{x};
+      a = y;
+      CHECK(a.get_ptr<int &>() == &y);
+      CHECK(x == 1);
+      static_assert([] {
+        int x = 1;
+        int y = 2;
+        choice<int &> a{x};
+        a = y;
+        return a.get_ptr<int &>() == &y && x == 1;
+      }());
+
+      // never to a temporary, as in construction
+      static_assert(not std::is_assignable_v<choice<int const &> &, int>);
+      static_assert(not std::is_assignable_v<choice<int const &> &, int &&>);
+      static_assert(std::is_assignable_v<choice<int const &> &, int &>); // converse
+    }
   }
 
   SECTION("forwarding constructors (immovable)")
@@ -512,7 +593,9 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
 
       // Invalid alternative types make the deduction probe false without a hard instantiation error.
       static_assert(can_deduce_in_place<NonCopyable, int>);
-      static_assert(not can_deduce_in_place<int &, int &>);
+      static_assert(can_deduce_in_place<int &, int &>);
+      static_assert(not can_deduce_in_place<int &&, int>);
+      static_assert(not can_deduce_in_place<fn::pack<int> &, fn::pack<int> &>);
       static_assert(not can_deduce_in_place<int const, int>);
       static_assert(not can_deduce_in_place<void>);
       SUCCEED();
@@ -717,6 +800,24 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     SUCCEED();
   }
 
+  SECTION("structural type")
+  {
+    // as for copack: the active alternative and its value, or its referent, decide equivalence
+    constexpr fn::choice_for<bool, int> a{42};
+    constexpr fn::choice_for<bool, int> b{42};
+    constexpr fn::choice_for<bool, int> c{true};
+    static_assert(std::is_same_v<choice_nttp<a>, choice_nttp<b>>);
+    static_assert(not std::is_same_v<choice_nttp<a>, choice_nttp<c>>);
+
+    constexpr choice<int const &> d{fnReferenceTarget};
+    constexpr choice<int const &> e{fnReferenceTarget};
+    constexpr choice<int const &> f{fnReferenceTwin};
+    static_assert(std::is_same_v<choice_nttp<d>, choice_nttp<e>>);
+    static_assert(not std::is_same_v<choice_nttp<d>, choice_nttp<f>>);
+    SUCCEED();
+  }
+
+  ALLOW_DEPRECATED_BEGIN
   SECTION("as_choice")
   {
     constexpr auto a = fn::as_choice(12);
@@ -736,17 +837,24 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
     static_assert(std::same_as<decltype(fn::as_choice(fn::copack{42})), decltype(fn::just{fn::copack{42}})>);
     CHECK(fn::as_choice(fn::copack{42}) == fn::just{fn::copack{42}});
 
-    // A string literal produces a pointer alternative.
-    auto s = fn::as_choice("hi");
-    static_assert(std::same_as<decltype(s), choice<char const *>>);
-    CHECK(std::string{*s.get_ptr(std::in_place_type<char const *>)} == "hi");
+    // an lvalue is lifted as a reference, an rvalue as a value
+    int x = 1;
+    static_assert(std::same_as<decltype(fn::as_choice(x)), choice<int &>>);
+    static_assert(std::same_as<decltype(fn::as_choice(std::as_const(x))), choice<int const &>>);
+    static_assert(std::same_as<decltype(fn::as_choice(std::move(x))), choice<int>>);
+    CHECK(fn::as_choice(x).get_ptr<int &>() == &x);
+    static_assert([] {
+      int y = 1;
+      return fn::as_choice(y).get_ptr<int &>() == &y;
+    }());
 
-    // noexcept follows construction of the alternative or copack payload
+    // noexcept follows construction of the alternative or copack payload; binding cannot throw
     static_assert(noexcept(fn::as_choice(12)));
     static_assert(noexcept(fn::as_choice(std::in_place_type<long>, 12)));
     static_assert(noexcept(fn::as_choice(fn::copack{42})));
-    static_assert(not noexcept(fn::as_choice(std::declval<Throwing const &>())));
-    static_assert(not noexcept(fn::as_choice(std::declval<fn::copack<Throwing> const &>())));
+    static_assert(not noexcept(fn::as_choice(std::declval<Throwing const &&>())));
+    static_assert(noexcept(fn::as_choice(std::declval<Throwing const &>())));
+    static_assert(not noexcept(fn::as_choice(std::declval<fn::copack<Throwing> const &&>())));
 
     SECTION("CTAD")
     {
@@ -767,9 +875,9 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       static_assert(std::same_as<decltype(fn::as_choice(choice<int>{1})), choice<choice<int>>>);
       static_assert(std::same_as<decltype(choice{choice<int>{1}}), choice<int>>);
 
-      // Lifting accepts these array and function references through pointer conversions; CTAD does not.
-      static_assert(can_as_choice_value<char const(&)[3]> && not can_deduce_value<char const(&)[3]>);
-      static_assert(can_as_choice_value<int (&)(int)> && not can_deduce_value<int (&)(int)>);
+      // Neither lifting nor deduction turns an array or a function into a pointer.
+      static_assert(not can_as_choice_value<char const(&)[3]> && not can_deduce_value<char const(&)[3]>);
+      static_assert(not can_as_choice_value<int (&)(int)> && not can_deduce_value<int (&)(int)>);
       static_assert(can_as_choice_value<int> && can_deduce_value<int>);
     }
 
@@ -779,6 +887,8 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       static_assert(can_as_choice<NonCopyable, int>);
       static_assert(not can_as_choice<NonCopyable>);               // no default constructor
       static_assert(not can_as_choice<NonCopyable, char const *>); // not constructible from it
+      static_assert(not can_as_choice<int const &, int>);          // a temporary does not bind
+      static_assert(can_as_choice<int const &, int &>);
 
       // the tag selects the alternative, it is never itself one: with nothing to construct there is
       // no viable lift at all, rather than a choice whose alternative is the tag
@@ -788,9 +898,12 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       // Invalid payloads and sources that cannot construct the payload must fail the constraint
       // probe without instantiating an invalid carrier.
       static_assert(can_as_choice_value<std::unique_ptr<int>>);
-      static_assert(not can_as_choice_value<std::unique_ptr<int> &>);
+      static_assert(can_as_choice_value<std::unique_ptr<int> &>); // a reference, not a copy
       static_assert(can_as_choice_value<fn::copack<std::unique_ptr<int>>>);
+      // a choice cannot refer to a copack, so an lvalue copack is not lifted
       static_assert(not can_as_choice_value<fn::copack<std::unique_ptr<int>> &>);
+      static_assert(not can_as_choice_value<fn::copack<int> &>);
+      static_assert(can_as_choice_value<fn::copack<int>>);
       static_assert(not can_as_choice_value<fn::copack<> &>);
       static_assert(not can_as_choice<int &>);
       static_assert(not can_as_choice<int const>);
@@ -798,6 +911,7 @@ TEST_CASE("choice non-monadic functionality", "[choice]")
       SUCCEED();
     }
   }
+  ALLOW_DEPRECATED_END
 }
 
 TEST_CASE("choice disjunction", "[choice][just][operator_or]")
@@ -866,6 +980,30 @@ TEST_CASE("choice disjunction", "[choice][just][operator_or]")
       return (fn::expected<bool, int>{::fn::unexpect, 3} | fn::just(std::in_place_type<Boom>, Boom{99}))
           .has_value(std::in_place_type<Boom>);
     }());
+  }
+
+  SECTION("reference payloads")
+  {
+    // a reference payload stays a reference alternative of the total sum
+    static_assert(
+        std::is_same_v<decltype(std::declval<J>() | std::declval<fn::optional<int &>>()), fn::choice_for<int, int &>>);
+    static_assert(std::is_same_v<decltype(std::declval<fn::optional<int &>>() | std::declval<J &>()),
+                                 fn::choice_for<int, int &>>);
+    // a reference to a copack enters as its value, keeping its reference alternatives
+    using CP = fn::copack_for<int &, bool>;
+    static_assert(std::is_same_v<decltype(std::declval<J>() | std::declval<fn::optional<CP &>>()),
+                                 fn::choice_for<int, int &, bool>>);
+    constexpr auto battery = [] {
+      int x = 1;
+      J const seven{7};
+      CP c{x};
+      return (fn::optional<int &>{x} | seven).get_ptr<int &>() == &x
+             && *(fn::optional<int &>{} | seven).get_ptr<int>() == 7
+             && *(seven | fn::optional<int &>{x}).get_ptr<int>() == 7
+             && (fn::optional<CP &>{c} | seven).get_ptr<int &>() == &x;
+    };
+    CHECK(battery());
+    static_assert(battery());
   }
 
   SECTION("the unit's round trip")
@@ -1209,19 +1347,16 @@ TEST_CASE("choice and_then", "[choice][and_then]")
     CHECK_THROWS_AS(J{A{}}.and_then(fnHeldArm), int);
     CHECK(J{B{}}.and_then(fnHeldArm).has_value(std::in_place_type<U>));
 
-    // asking answers: an inapplicable callback drops and_then from the overload set; a
-    // value-returning one stays viable - its rejection is the deliberately loud static_assert
-    // on instantiation, not a constraint
+    // asking answers through the pipe concept, which queries the payload: the member asserts what it
+    // requires rather than constraining on it, and tests/fn/reject/choice_monadic.cpp holds the calls
     constexpr auto fnPartial = [](A) { return fn::choice<U>{U{}}; };
-    static_assert(not can_and_then<J &, decltype(fnPartial)>);
-    static_assert(can_and_then<fn::choice<A> &, decltype(fnPartial)>);
+    static_assert(not fn::applicable_and_then<decltype(fnPartial), J &>);
+    static_assert(fn::applicable_and_then<decltype(fnPartial), fn::choice<A> &>);
     constexpr auto fnValue = [](auto &&) { return 42; };
-    static_assert(can_and_then<J &, decltype(fnValue)>);
-    // Probing a reference result also instantiates noexcept. Leave rejection to the member's
-    // static_assert rather than requiring a payload type during the probe.
+    static_assert(not fn::applicable_and_then<decltype(fnValue), J &>);
     constexpr auto fnReference = [](auto &&) -> int const & { return fnReferenceTarget; };
-    static_assert(can_and_then<J &, decltype(fnReference)>);
-    static_assert(can_and_then<J const &&, decltype(fnReference)>);
+    static_assert(not fn::applicable_and_then<decltype(fnReference), J &>);
+    static_assert(not fn::applicable_and_then<decltype(fnReference), J const &&>);
 
     // ... and the throwing relocation at runtime: the exception propagates, self unchanged
     struct Boom final {
@@ -1254,6 +1389,30 @@ TEST_CASE("choice and_then", "[choice][and_then]")
     static_assert(cb2.and_then(fnBoomSafe).has_value(std::in_place_type<Boom>));
   }
 
+  SECTION("a callback refusing an rvalue")
+  {
+    // never handed an lvalue into a temporary choice instead: the pipe concept answers here, and
+    // tests/fn/reject/choice_monadic.cpp holds the calls
+    using careful = refusing<fn::just<int>, int &&, int const &&>;
+    static_assert(not fn::applicable_and_then<careful, fn::choice<int>>);
+    static_assert(not fn::applicable_and_then<careful, fn::choice<int> const>);
+    static_assert(fn::applicable_and_then<careful, fn::choice<int> &>);
+    static_assert(fn::applicable_and_then<careful, fn::choice<int> const &>);
+    fn::choice<int> c{1};
+    CHECK(c.and_then(careful{}) == fn::just{0});
+    CHECK(std::as_const(c).and_then(careful{}) == fn::just{0});
+
+    // a reference alternative hands its referent over as an lvalue, from a temporary choice too
+    int x = 1;
+    static_assert(fn::applicable_and_then<careful, fn::choice<int &>>);
+    CHECK(fn::choice<int &>{x}.and_then(careful{}) == fn::just{0});
+    static_assert([] {
+      fn::choice<int> y{1};
+      int z = 1;
+      return y.and_then(careful{}) == fn::just{0} && fn::choice<int &>{z}.and_then(careful{}) == fn::just{0};
+    }());
+  }
+
   SECTION("just of any payload")
   {
     // branches all returning one just answer it - a choice is a just, so this is the member's own
@@ -1274,20 +1433,20 @@ TEST_CASE("choice and_then", "[choice][and_then]")
     constexpr auto fnMixed = fn::overload{[](bool b) { return fn::just<long>{b ? 1L : 0L}; }, //
                                           [](int i) { return fn::just<int>{i + 1}; }};
     static_assert(std::is_same_v<decltype(a.and_then(fnMixed)), fn::choice_for<int, long>>);
-    static_assert(a.and_then(fnMixed) == fn::as_choice(43));
-    CHECK(s.and_then(fnMixed) == fn::as_choice(13));
-    CHECK(type{true}.and_then(fnMixed) == fn::as_choice(1L));
+    static_assert(a.and_then(fnMixed) == fn::choice<int>{43});
+    CHECK(s.and_then(fnMixed) == fn::choice<int>{13});
+    CHECK(type{true}.and_then(fnMixed) == fn::choice<long>{1L});
     constexpr auto fnSplice = fn::overload{[](bool) { return fn::just<long>{1L}; }, //
                                            [](int) { return fn::choice_for<int, double>{2.5}; }};
     static_assert(std::is_same_v<decltype(a.and_then(fnSplice)), fn::choice_for<double, int, long>>);
-    static_assert(a.and_then(fnSplice) == fn::as_choice(2.5));
-    CHECK(s.and_then(fnSplice) == fn::as_choice(2.5));
+    static_assert(a.and_then(fnSplice) == fn::choice<double>{2.5});
+    CHECK(s.and_then(fnSplice) == fn::choice<double>{2.5});
     constexpr auto fnUnit = fn::overload{[](bool) { return fn::just<void>{}; }, //
                                          [](int i) { return fn::just<int>{i}; }};
     static_assert(std::is_same_v<decltype(a.and_then(fnUnit)), fn::choice_for<fn::pack<>, int>>);
-    static_assert(a.and_then(fnUnit) == fn::as_choice(42));
+    static_assert(a.and_then(fnUnit) == fn::choice<int>{42});
     static_assert(type{true}.and_then(fnUnit).has_value(std::in_place_type<fn::pack<>>));
-    CHECK(type{true}.and_then(fnUnit) == fn::as_choice(fn::pack<>{}));
+    CHECK(type{true}.and_then(fnUnit) == fn::choice<fn::pack<>>{fn::pack<>{}});
 
     // Unwrap one carrier layer: just<int> selects int, just<just<int>> selects just<int>,
     // and just<void> selects pack<> even when just<void> is another result alternative.
@@ -1295,16 +1454,16 @@ TEST_CASE("choice and_then", "[choice][and_then]")
                                           [](int i) { return fn::just<fn::just<int>>{fn::just<int>{i}}; }};
     static_assert(std::is_same_v<decltype(a.and_then(fnBoxed)), fn::choice_for<int, fn::just<int>>>);
     static_assert(a.and_then(fnBoxed).has_value(std::in_place_type<fn::just<int>>));
-    static_assert(a.and_then(fnBoxed) == fn::as_choice(fn::just<int>{42}));
+    static_assert(a.and_then(fnBoxed) == fn::choice<fn::just<int>>{fn::just<int>{42}});
     static_assert(type{true}.and_then(fnBoxed).has_value(std::in_place_type<int>));
-    static_assert(type{true}.and_then(fnBoxed) == fn::as_choice(1));
-    CHECK(s.and_then(fnBoxed) == fn::as_choice(fn::just<int>{12}));
+    static_assert(type{true}.and_then(fnBoxed) == fn::choice<int>{1});
+    CHECK(s.and_then(fnBoxed) == fn::choice<fn::just<int>>{fn::just<int>{12}});
     constexpr auto fnBoxedUnit = fn::overload{[](bool) { return fn::just<void>{}; }, //
                                               [](int) { return fn::just<fn::just<void>>{}; }};
     static_assert(std::is_same_v<decltype(a.and_then(fnBoxedUnit)), fn::choice_for<fn::pack<>, fn::just<void>>>);
     static_assert(a.and_then(fnBoxedUnit).has_value(std::in_place_type<fn::just<void>>));
     static_assert(type{true}.and_then(fnBoxedUnit).has_value(std::in_place_type<fn::pack<>>));
-    CHECK(s.and_then(fnBoxedUnit) == fn::as_choice(fn::just<void>{}));
+    CHECK(s.and_then(fnBoxedUnit) == fn::choice<fn::just<void>>{fn::just<void>{}});
 
     // noexcept includes both callback invocation and construction from its payload.
     static_assert(noexcept(a.and_then(fn::overload{[](bool) noexcept { return fn::just<long>{1L}; },
@@ -1458,13 +1617,61 @@ TEST_CASE("choice transform", "[choice][transform]")
     }
   }
 
+  SECTION("a callback refusing an rvalue")
+  {
+    // never handed an lvalue into a temporary choice instead: the pipe concept answers here, and
+    // tests/fn/reject/choice_monadic.cpp holds the calls
+    using careful = refusing<int, int &&, int const &&>;
+    static_assert(not fn::applicable_transform<careful, fn::choice<int>>);
+    static_assert(not fn::applicable_transform<careful, fn::choice<int> const>);
+    static_assert(fn::applicable_transform<careful, fn::choice<int> &>);
+    static_assert(fn::applicable_transform<careful, fn::choice<int> const &>);
+    fn::choice<int> c{1};
+    CHECK(c.transform(careful{}) == fn::choice{0});
+    CHECK(std::as_const(c).transform(careful{}) == fn::choice{0});
+
+    // a reference alternative hands its referent over as an lvalue, from a temporary choice too
+    int x = 1;
+    static_assert(fn::applicable_transform<careful, fn::choice<int &>>);
+    CHECK(fn::choice<int &>{x}.transform(careful{}) == fn::choice{0});
+    static_assert([] {
+      fn::choice<int> y{1};
+      int z = 1;
+      return y.transform(careful{}) == fn::choice{0} && fn::choice<int &>{z}.transform(careful{}) == fn::choice{0};
+    }());
+  }
+
+  SECTION("a reference result stays a reference")
+  {
+    using AB = fn::choice_for<int, long>;
+    constexpr auto self
+        = fn::overload{[](int &i) noexcept -> int & { return i; }, [](long &l) noexcept -> long & { return l; }};
+    constexpr auto cself = [](auto const &v) noexcept -> auto const & { return v; };
+    static_assert(std::is_same_v<decltype(std::declval<AB &>().transform(self)), fn::choice_for<int &, long &>>);
+    static_assert(std::is_same_v<decltype(std::declval<AB const &>().transform(cself)),
+                                 fn::choice_for<int const &, long const &>>);
+    // a reference into an alternative of an rvalue choice is refused: the pipe concept answers here, and
+    // tests/fn/reject/choice_monadic.cpp holds the call
+    static_assert(not fn::applicable_transform<decltype(cself), AB>);
+    static_assert(fn::applicable_transform<decltype(cself), AB const &>);
+
+    AB a{1};
+    CHECK(a.transform(self).get_ptr<int &>() == a.get_ptr<int>());
+    CHECK(std::as_const(a).transform(cself).get_ptr<int const &>() == a.get_ptr<int>());
+    static_assert([self, cself] {
+      AB x{1};
+      return x.transform(self).get_ptr<int &>() == x.get_ptr<int>()
+             && std::as_const(x).transform(cself).get_ptr<int const &>() == x.get_ptr<int>();
+    }());
+  }
+
   SECTION("a result no choice can hold")
   {
     constexpr auto fnTag = [](auto &&...) { return std::in_place_type<int>; };
-    static_assert(not can_transform<fn::choice<bool, int> &, decltype(fnTag)>);
-    static_assert(not can_transform<fn::choice<bool, int> const &, decltype(fnTag)>);
-    static_assert(not can_transform<fn::choice<bool, int> &&, decltype(fnTag)>);
-    static_assert(not can_transform<fn::choice<bool, int> const &&, decltype(fnTag)>);
+    static_assert(not fn::applicable_transform<decltype(fnTag), fn::choice<bool, int> &>);
+    static_assert(not fn::applicable_transform<decltype(fnTag), fn::choice<bool, int> const &>);
+    static_assert(not fn::applicable_transform<decltype(fnTag), fn::choice<bool, int>>);
+    static_assert(not fn::applicable_transform<decltype(fnTag), fn::choice<bool, int> const>);
     constexpr auto fnVoid = [](auto &&...) {};
     static_assert(can_transform<fn::choice<bool, int> &, decltype(fnVoid)>);
     static_assert(can_transform<fn::choice<bool, int> const &&, decltype(fnVoid)>);
@@ -1536,7 +1743,9 @@ TEST_CASE("choice emplace", "[choice][emplace]")
   static_assert(not std::is_copy_assignable_v<C>);
   static_assert(not std::is_move_assignable_v<C>);
   static_assert(can_emplace<C, Sender, int>);
-  static_assert(not can_emplace<C, double, double>); // not an alternative
+  static_assert(not can_emplace<C, double, double>);                     // not an alternative
+  static_assert(not can_emplace<choice<int const &>, int const &, int>); // a temporary does not bind
+  static_assert(can_emplace<choice<int const &>, int const &, int &>);
   static_assert(std::same_as<decltype(std::declval<C &>().emplace<int>(1)), int &>);
   static_assert(noexcept(std::declval<C &>().emplace<int>(1)));
 

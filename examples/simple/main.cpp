@@ -458,7 +458,7 @@ TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform
            | fn::transform(fn::overload{[](long const &i) -> double { return static_cast<double>(i); },
                                         [](double const &i) -> double { return static_cast<double>(i); },
                                         [](std::nullopt_t const &) { return nullptr; }, //
-                                        [](auto &i) { return FWD(i); }})
+                                        [](auto const &i) { return i; }})
            // ... and add a new type
            | fn::transform(fn::overload{[](double v) -> fn::copack<double, int> {
                                           if (std::ceil(v) == v && v >= -2e9 && v <= 2e9) {
@@ -466,7 +466,7 @@ TEST_CASE("Demo choice and graded monad", "[choice][and_then][inspect][transform
                                           }
                                           return {FWD(v)};
                                         },
-                                        [](auto &i) -> auto { return FWD(i); }})
+                                        [](auto const &i) -> auto { return i; }})
            | fn::inspect(fn::overload{[&](std::nullptr_t const &) { ss << "nullptr" << ','; }, //
                                       [&](bool const &v) { ss << v << ','; },                  //
                                       [&](int const &v) { ss << v << ','; },                   //

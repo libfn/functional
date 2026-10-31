@@ -56,6 +56,7 @@ set(INCLUDE_PFN_HEADERS
     pfn/functional.hpp
     pfn/optional.hpp
     pfn/tuple.hpp
+    pfn/type_traits.hpp
     pfn/utility.hpp
 )
 

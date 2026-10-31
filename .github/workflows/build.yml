@@ -199,7 +199,7 @@ jobs:
   windows:
     if: github.event.pull_request.draft != true
     timeout-minutes: 30
-    runs-on: ${{ matrix.vs.runner }}
+    runs-on: ${{ github.repository == 'libfn/functional' && matrix.vs.warp || matrix.vs.runner }}
     strategy:
       fail-fast: false
       matrix:
@@ -212,8 +212,10 @@ jobs:
           # Use explicit image labels to keep coverage of both Visual Studio versions.
           - generator: "Visual Studio 17 2022"
             runner: "windows-2022"
+            warp: "warp-windows-2022-x64-8x"
           - generator: "Visual Studio 18 2026"
             runner: "windows-2025-vs2026"
+            warp: "warp-windows-2025-vs2026-x64-8x"
 
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -251,7 +253,7 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     - name: Install Nix
-      uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+      uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
       with:
         extra_nix_config: |
           access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}

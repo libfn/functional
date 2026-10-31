@@ -7,7 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 ### tests/util
 
 set(TESTS_UTIL_HEADERS
+    util/allow_deprecated.hpp
     util/helper_types.hpp
+    util/refusing.hpp
     util/static_check.hpp
 )
 
@@ -42,6 +44,60 @@ foreach(source IN ITEMS ${TESTS_UTIL_HEADERS})
     unset(root_name)
 endforeach()
 
+### reject tests
+
+include(TargetGenerator)
+include(CompilationOptions)
+
+# Generate an object target for SOURCE, which must compile, and for each
+# `#ifdef LIBFN_REJECT_<scenario>` guard in it a test building SOURCE with only that guard defined,
+# which must fail
+function(add_reject_tests)
+    set(oneValueArgs SOURCE MODE)
+    set(multiValueArgs DEPENDENCIES LABELS)
+    cmake_parse_arguments(Reject "" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+    set(path "${CMAKE_CURRENT_SOURCE_DIR}/${Reject_SOURCE}")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${path}")
+    file(STRINGS "${path}" guards REGEX "^#ifdef LIBFN_REJECT_[A-Za-z0-9_]+$")
+    file(STRINGS "${path}" directives REGEX "^[ \t]*#.*LIBFN_REJECT_")
+    if(NOT guards OR NOT guards STREQUAL directives)
+        message(FATAL_ERROR "${Reject_SOURCE}: needs at least one guard, each spelled `#ifdef LIBFN_REJECT_<scenario>`")
+    endif()
+    list(TRANSFORM guards REPLACE "^#ifdef LIBFN_REJECT_" "" OUTPUT_VARIABLE scenarios)
+
+    string(REGEX REPLACE "\\.cpp$" "" root_name "${Reject_SOURCE}")
+    string(REPLACE "/" "_" root_name "${root_name}")
+    set(control "tests_${root_name}_cxx${Reject_MODE}")
+    add_library("${control}" OBJECT "${Reject_SOURCE}")
+    add_dependencies("cxx${Reject_MODE}" "${control}")
+    add_dependencies("tests" "${control}")
+    set(targets "${control}")
+
+    foreach(scenario IN LISTS scenarios)
+        set(target "tests_${root_name}_${scenario}_cxx${Reject_MODE}")
+        add_library("${target}" OBJECT EXCLUDE_FROM_ALL "${Reject_SOURCE}")
+        target_compile_definitions("${target}" PRIVATE "LIBFN_REJECT_${scenario}")
+
+        add_test(
+            NAME "${target}"
+            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" --config "$<CONFIG>" --target "${target}"
+        )
+        # Concurrent builds in one tree would race on its build-system state
+        set_tests_properties("${target}" PROPERTIES
+            WILL_FAIL TRUE
+            RESOURCE_LOCK build_tree
+            LABELS "${Reject_LABELS};cxx${Reject_MODE};${root_name}")
+        list(APPEND targets "${target}")
+    endforeach()
+
+    foreach(target IN LISTS targets)
+        target_link_libraries("${target}" PRIVATE ${Reject_DEPENDENCIES})
+        append_compilation_options("${target}" WARNINGS)
+        set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${Reject_MODE}")
+    endforeach()
+endfunction()
+
 ### tests/pfn
 
 set(TESTS_PFN_SOURCES
@@ -51,12 +107,16 @@ set(TESTS_PFN_SOURCES
     pfn/expected_validation.cpp
     pfn/optional_validation.cpp
     pfn/tuple_validation.cpp
+    pfn/type_traits.cpp
+    pfn/type_traits_validation.cpp
     pfn/functional.cpp
     pfn/utility.cpp
 )
 
-include(TargetGenerator)
-include(CompilationOptions)
+set(TESTS_PFN_REJECT_SOURCES
+    pfn/reject/expected_monadic.cpp
+    pfn/reject/optional_monadic.cpp
+)
 
 # Generate separate target for each individual test source
 foreach(mode 20 23 26)
@@ -98,6 +158,10 @@ foreach(mode 20 23 26)
         unset(target)
         unset(root_name)
     endforeach()
+
+    foreach(source IN ITEMS ${TESTS_PFN_REJECT_SOURCES})
+        add_reject_tests(SOURCE "${source}" MODE "${mode}" DEPENDENCIES include_pfn tests_util LABELS tests_pfn)
+    endforeach()
 endforeach()
 
 ### tests/fn
@@ -137,6 +201,17 @@ set(TESTS_FN_SOURCES
     fn/transform.cpp
     fn/utility.cpp
     fn/value_or.cpp
+)
+
+set(TESTS_FN_REJECT_SOURCES
+    fn/reject/choice_monadic.cpp
+    fn/reject/copack_lift.cpp
+    fn/reject/copack_structural.cpp
+    fn/reject/copack_transform.cpp
+    fn/reject/expected_transform.cpp
+    fn/reject/just_deduction.cpp
+    fn/reject/optional_transform.cpp
+    fn/reject/pack_deduction.cpp
 )
 
 # Generate separate target for each individual test source
@@ -184,6 +259,10 @@ foreach(mode 20 23 26)
 
         unset(target)
         unset(root_name)
+    endforeach()
+
+    foreach(source IN ITEMS ${TESTS_FN_REJECT_SOURCES})
+        add_reject_tests(SOURCE "${source}" MODE "${mode}" DEPENDENCIES "${entry_point}" tests_util LABELS tests_fn)
     endforeach()
 
     unset(entry_point)

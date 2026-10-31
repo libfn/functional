@@ -3,6 +3,7 @@
 // Distributed under the ISC License. See accompanying file LICENSE.md
 // or copy at https://opensource.org/licenses/ISC
 
+#include "util/refusing.hpp"
 #include "util/static_check.hpp"
 
 #include <fn/functor.hpp>
@@ -884,6 +885,7 @@ template <typename T> constexpr auto fn_int = [](int) -> T { throw 0; };
 template <typename T> constexpr auto fn_generic = [](auto &&...) -> T { throw 0; };
 constexpr auto fn_int_lvalue = [](int &) -> int { throw 0; };
 constexpr auto fn_int_rvalue = [](int &&) -> int { throw 0; };
+constexpr auto fn_int_cref = [](int const &i) -> int const & { return i; };
 } // namespace
 
 // clang-format off
@@ -917,6 +919,25 @@ static_assert(applicable_transform<decltype(fn_generic<void>), expected<copack_f
 static_assert(applicable_transform<decltype(fn_generic<void>), optional<copack_for<Value, int>>>);
 static_assert(not applicable_transform<decltype(fn_generic<std::in_place_type_t<int>>), expected<copack_for<Value, int>, Error>>);
 static_assert(not applicable_transform<decltype(fn_generic<std::in_place_type_t<int>>), optional<copack_for<Value, int>>>);
+
+// The callback receives each alternative in the operand's own category: one refusing an rvalue is not
+// applicable to a temporary operand, and is never handed an lvalue into it instead. A reference result
+// must not refer into a temporary operand.
+static_assert(not applicable_transform<refusing<int, int &&, int const &&>, optional<copack<int>>>);
+static_assert(applicable_transform<refusing<int, int &&, int const &&>, optional<copack<int>> &>);
+static_assert(applicable_transform<refusing<int>, optional<copack<int>>>);
+static_assert(not applicable_transform<refusing<int, int &&, int const &&>, expected<copack<int>, Error>>);
+static_assert(applicable_transform<refusing<int, int &&, int const &&>, expected<copack<int>, Error> &>);
+static_assert(applicable_transform<refusing<int>, expected<copack<int>, Error>>);
+static_assert(not applicable_transform<refusing<int, int &&, int const &&>, choice<int>>);
+static_assert(applicable_transform<refusing<int, int &&, int const &&>, choice<int> &>);
+static_assert(applicable_transform<refusing<int>, choice<int>>);
+static_assert(not applicable_transform<decltype(fn_int_cref), optional<copack<int>>>);
+static_assert(applicable_transform<decltype(fn_int_cref), optional<copack<int>> &>);
+static_assert(not applicable_transform<decltype(fn_int_cref), expected<copack<int>, Error>>);
+static_assert(applicable_transform<decltype(fn_int_cref), expected<copack<int>, Error> &>);
+static_assert(not applicable_transform<decltype(fn_int_cref), choice<int>>);
+static_assert(applicable_transform<decltype(fn_int_cref), choice<int> &>);
 
 // An uninhabited value side has no alternative to dispatch, so the concept answers false where the rows
 // above answer true: applicability is a property of the callback, and a vacuous mapping consults none.
