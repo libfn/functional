@@ -956,6 +956,9 @@ struct _nothrow_just_inject<To, Fn, Args...> {
     else if constexpr (::std::is_void_v<typename from::value_type>)
       return ::std::is_nothrow_invocable_v<Fn, Args...>
              && ::std::is_nothrow_constructible_v<To, ::std::in_place_type_t<pack<>>>;
+    else if constexpr (::std::is_reference_v<_payload_t<from>>)
+      return ::std::is_nothrow_invocable_v<Fn, Args...>
+             && ::std::is_nothrow_constructible_v<To, ::std::in_place_type_t<_payload_t<from>>, _payload_t<from>>;
     else
       return ::std::is_nothrow_invocable_v<Fn, Args...>
              && ::std::is_nothrow_constructible_v<To, ::std::in_place_type_t<typename from::value_type>,
@@ -976,7 +979,9 @@ template <typename To, typename Fn> struct _just_injector final {
     else if constexpr (::std::is_void_v<typename from::value_type>) {
       static_cast<void>(::std::invoke(FWD(fn), FWD(args)...));
       return To{::std::in_place_type<pack<>>};
-    } else
+    } else if constexpr (::std::is_reference_v<_payload_t<from>>)
+      return To{::std::in_place_type<_payload_t<from>>, ::std::invoke(FWD(fn), FWD(args)...).value()};
+    else
       return To{::std::in_place_type<typename from::value_type>, ::std::invoke(FWD(fn), FWD(args)...).v_};
   }
 };

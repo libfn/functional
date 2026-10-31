@@ -1083,7 +1083,7 @@ TEST_CASE("and_then across the identity cluster", "[and_then][just][choice][expe
     CHECK((fn::choice_for<A, B>{B{}} | fn::and_then(fnUnit)) == fn::choice<int>{2});
   }
 
-  SECTION("reference payloads join only by converging")
+  SECTION("reference payloads")
   {
     int x = 1;
     int y = 2;
@@ -1106,14 +1106,35 @@ TEST_CASE("and_then across the identity cluster", "[and_then][just][choice][expe
       return &cb.and_then(fnView).value() == &v;
     }());
 
-    // Mixing reference and value payloads is rejected: references cannot be choice alternatives.
+    // Divergent results join a reference payload as a reference alternative, as optional joins do.
     auto const fnMixed = fn::overload{[&x](A) { return fn::just<int &>{x}; }, //
-                                      [](B) { return fn::just<int>{2}; }};
-    static_assert(not member_and_then<fn::choice_for<A, B> &, decltype(fnMixed) const &>);
-    static_assert(not fn::applicable_and_then<decltype(fnMixed) const &, fn::choice_for<A, B> &>);
-    static_assert(
-        not fn::applicable_and_then_across<decltype(fnMixed) const &, fn::expected<fn::copack_for<A, B>, E0> &>);
-    // Owning payloads of different types still join.
+                                      [](B) { return fn::just<long>{2}; }};
+    auto m1 = fn::choice_for<A, B>{A{}}.and_then(fnMixed);
+    static_assert(std::is_same_v<decltype(m1), fn::choice_for<int &, long>>);
+    CHECK(m1.get_ptr<int &>() == &x);
+    auto m2 = fn::choice_for<A, B>{B{}} | fn::and_then(fnMixed);
+    static_assert(std::is_same_v<decltype(m2), fn::choice_for<int &, long>>);
+    CHECK(*m2.get_ptr<long>() == 2);
+    auto m3 = fn::expected<fn::copack_for<A, B>, E0>{fn::copack_for<A, B>{A{}}} | fn::and_then(fnMixed);
+    static_assert(std::is_same_v<decltype(m3), fn::choice_for<int &, long>>);
+    CHECK(m3.get_ptr<int &>() == &x);
+    // ... and a value of the referent's own type stays a separate alternative
+    auto const fnSame = fn::overload{[&x](A) { return fn::just<int &>{x}; }, //
+                                     [](B) { return fn::just<int>{2}; }};
+    auto s1 = fn::choice_for<A, B>{A{}}.and_then(fnSame);
+    static_assert(std::is_same_v<decltype(s1), fn::choice_for<int, int &>>);
+    CHECK(s1.get_ptr<int &>() == &x);
+    CHECK(*(fn::choice_for<A, B>{B{}} | fn::and_then(fnSame)).get_ptr<int>() == 2);
+    static_assert([] {
+      int v = 1;
+      auto const fnView = fn::overload{[&v](A) { return fn::just<int &>{v}; }, //
+                                       [](B) { return fn::just<int>{2}; }};
+      // named sources: the same VS 2022 misread as above
+      constexpr fn::choice_for<A, B> ca{A{}};
+      constexpr fn::choice_for<A, B> cb{B{}};
+      return ca.and_then(fnView).get_ptr<int &>() == &v && *cb.and_then(fnView).get_ptr<int>() == 2;
+    }());
+    // Owning payloads of different types join too.
     constexpr auto fnOwned = fn::overload{[](A) { return fn::just<long>{1}; }, //
                                           [](B) { return fn::just<int>{2}; }};
     static_assert(member_and_then<fn::choice_for<A, B> &, decltype(fnOwned) const &>);
