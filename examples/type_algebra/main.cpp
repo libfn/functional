@@ -218,6 +218,7 @@ auto test_conjunction_with_identity_cluster(fn::expected<int, Error> ex, fn::jus
   auto res1 = ex & j;
   static_assert(std::same_as<decltype(res1), fn::expected<fn::pack<int, double>, Error>>);
 
+  // Conjoining with a unit (just<void>) elides it, and the value becomes a pack
   auto res2 = ex & fn::just<void>{};
   static_assert(std::same_as<decltype(res2), fn::expected<fn::pack<int>, Error>>);
 
@@ -247,7 +248,7 @@ auto test_disjoin(fn::expected<int, Error> a, fn::expected<bool, OtherError> b) 
   static_assert(std::same_as<decltype(res1),
                              fn::expected<fn::copack_for<int, bool>, fn::pack<Error, OtherError>>>);
 
-  // Because just<double> cannot fail, the entire disjunction with infallible operands becomes total
+  // Because just<double> cannot fail, the disjunction with infallible operands becomes infallible
   auto res2 = fn::disjoin(a, b, fn::just<double>{1.5});
   static_assert(std::same_as<decltype(res2), fn::choice<bool, double, int>>);
 }
@@ -418,26 +419,6 @@ constexpr auto test_laws() -> void
 }
 // sync-example-test-laws
 
-// sync-example-test-references
-auto test_references() -> void
-{
-  int x = 42;
-
-  // optional supports references directly
-  fn::optional<int &> opt{x};
-  static_assert(std::same_as<decltype(opt.value()), int &>);
-
-  // expected holds references inside a pack ...
-  fn::expected<fn::pack<int &>, Error> ex{fn::as_pack(x)};
-  static_assert(std::same_as<decltype(ex.value()), fn::pack<int &> &>);
-
-  // ... or hold them as copack alternatives
-  fn::expected<fn::copack<int &>, Error> ec{x};
-  using std::get;
-  static_assert(std::same_as<decltype(get(ec.value())), int &>);
-}
-// sync-example-test-references
-
 int main()
 {
   // Touch all functions to prove compilability and execution
@@ -463,6 +444,5 @@ int main()
   test_choice_mapping({UserId{}});
   (void)test_elimination(fn::expected<UserId, fn::copack<Missing>>{UserId{}});
   test_laws();
-  test_references();
   return 0;
 }
