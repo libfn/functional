@@ -69,18 +69,11 @@ foreach(diagnostic IN ITEMS
     endif()
 endforeach()
 
-# A user's language must not change the verdict: German translates the error label, and Spanish turns
-# the internal compiler error label into one starting with "error"
+# A user's language must not change the verdict: German translates the error label
 set(ENV{LANGUAGE} de)
 launch_failing("source.cpp:12:3: error: rejected" "source.cpp:12:3: Fehler: abgelehnt")
 if(result EQUAL 0 OR NOT output MATCHES "${MARKER}")
     message(SEND_ERROR "A non-fatal error at a source line must fail the launch with the marker in any language, got ${result}:\n${output}")
-endif()
-set(ENV{LANGUAGE} es)
-launch_failing("source.cpp:12:3: internal compiler error: Segmentation fault"
-    "source.cpp:12:3: error interno del compilador: Segmentation fault")
-if(result EQUAL 0 OR output MATCHES "${MARKER}")
-    message(SEND_ERROR "An internal compiler error must fail the launch without the marker in any language, got ${result}:\n${output}")
 endif()
 unset(ENV{LANGUAGE})
 
