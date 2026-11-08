@@ -5,7 +5,7 @@
 
 # Compiler launcher for reject tests: runs the compile command following `--` and fails whenever it
 # fails, printing the marker a reject test requires, "The compiler rejected the source", only if the
-# compiler reported an error at a source line.
+# compiler reported a non-fatal error at a source line.
 # Usage: cmake -P RejectLauncher.cmake -- <compiler> [<argument>...]
 
 cmake_minimum_required(VERSION 3.25)
@@ -40,14 +40,13 @@ elseif(result EQUAL 0)
     return()
 endif()
 
-# A diagnosed error names its source line, as `file:line[:column]: error` (GCC, Clang) or
-# `file(line[,column]): error` (MSVC, clang-cl). A failing driver, such as GCC reporting its killed
-# front end, names no line. Lines reporting an internal compiler error are dropped first, since they
-# name a source line too, and MSVC's would otherwise match.
+# A diagnosed error names its source line, as `file:line[:column]: error:` (GCC, Clang) or
+# `file(line[,column]): error[ <code>]:` (MSVC, clang-cl). A failing driver, such as GCC reporting its killed
+# front end, names no line. A fatal or internal compiler error names one too but does not count: it
+# reports a broken build, a compiler limit or a compiler failure, not the rejection a scenario tests.
 string(ASCII 27 escape)
 string(REGEX REPLACE "${escape}\\[[0-9;]*[A-Za-z]" "" output "${output}")
-string(REGEX REPLACE "[^\n]*[Ii]nternal (compiler )?error[^\n]*" "" output "${output}")
-if(output MATCHES "(^|\n)[^\n]+(:[0-9]+(:[0-9]+)?: |\\([0-9]+(,[0-9]+)?\\) ?: )(fatal )?error[: ]")
+if(output MATCHES "(^|\n)[^\n]+(:[0-9]+(:[0-9]+)?: |\\([0-9]+(,[0-9]+)?\\) ?: )error( C[0-9]+)?:")
     message(FATAL_ERROR "The compiler rejected the source")
 endif()
-message(FATAL_ERROR "The compiler failed without reporting an error at a source line")
+message(FATAL_ERROR "The compiler failed without reporting a non-fatal error at a source line")

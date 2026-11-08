@@ -41,14 +41,13 @@ string(ASCII 27 escape)
 foreach(diagnostic IN ITEMS
         "source.cpp:12:3: error: rejected"
         "source.cpp:12: error: rejected"
-        "source.cpp:3:10: fatal error: missing.hpp: No such file or directory"
         "source.cpp(12): error C2672: rejected"
         "source.cpp(12,3): error: rejected"
         "source.cpp:12:3: error: rejected\nsource.cpp:20:1: internal compiler error: Segmentation fault"
         "${escape}[01m${escape}[Ksource.cpp:12:3:${escape}[m${escape}[K ${escape}[01;31m${escape}[Kerror: ${escape}[m${escape}[Krejected")
     launch_failing("${diagnostic}")
     if(result EQUAL 0 OR NOT output MATCHES "${MARKER}")
-        message(SEND_ERROR "An error at a source line must fail the launch with the marker, got ${result}:\n${output}")
+        message(SEND_ERROR "A non-fatal error at a source line must fail the launch with the marker, got ${result}:\n${output}")
     endif()
 endforeach()
 
@@ -57,11 +56,16 @@ foreach(diagnostic IN ITEMS
         "source.cpp:12:3: internal compiler error: Segmentation fault"
         "source.cpp(61,1): fatal error C1001: Internal compiler error.\n(compiler file 'msc1.cpp', line 1589)"
         "source.cpp(12): fatal error C1001: An internal error has occurred in the compiler."
+        "source.cpp:3:10: fatal error: missing.hpp: No such file or directory"
+        "source.cpp:3:10: error fatal: missing.hpp: No existe el fichero o el directorio"
+        "source.cpp:1:53: fatal error: recursive template instantiation exceeded maximum depth of 1024"
+        "source.cpp(12,3): fatal error C1060: compiler is out of heap space"
+        "source.cpp(3): fatal error C1083: Cannot open include file: 'missing.hpp': No such file or directory"
         "cc1plus: error: unrecognized command-line option '-fnone'"
         "source.cpp:12:3: warning: unused variable 'error'")
     launch_failing("${diagnostic}")
     if(result EQUAL 0 OR output MATCHES "${MARKER}")
-        message(SEND_ERROR "A failure without an error at a source line must fail the launch without the marker, got ${result}:\n${output}")
+        message(SEND_ERROR "A failure without a non-fatal error at a source line must fail the launch without the marker, got ${result}:\n${output}")
     endif()
 endforeach()
 
@@ -70,7 +74,7 @@ endforeach()
 set(ENV{LANGUAGE} de)
 launch_failing("source.cpp:12:3: error: rejected" "source.cpp:12:3: Fehler: abgelehnt")
 if(result EQUAL 0 OR NOT output MATCHES "${MARKER}")
-    message(SEND_ERROR "An error at a source line must fail the launch with the marker in any language, got ${result}:\n${output}")
+    message(SEND_ERROR "A non-fatal error at a source line must fail the launch with the marker in any language, got ${result}:\n${output}")
 endif()
 set(ENV{LANGUAGE} es)
 launch_failing("source.cpp:12:3: internal compiler error: Segmentation fault"
