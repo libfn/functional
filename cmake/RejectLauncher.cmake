@@ -28,6 +28,10 @@ foreach(index RANGE ${last})
     endif()
 endforeach()
 
+# The matching below reads English diagnostics. GCC translates them, its error and internal compiler
+# error labels included, through gettext, which reads LANGUAGE ahead of LC_ALL and LANG.
+set(ENV{LANGUAGE} en)
+
 cmake_language(EVAL CODE "execute_process(COMMAND ${command} RESULT_VARIABLE result
     OUTPUT_VARIABLE output ERROR_VARIABLE output ECHO_OUTPUT_VARIABLE ECHO_ERROR_VARIABLE)")
 if(NOT result MATCHES "^[0-9]+$")
