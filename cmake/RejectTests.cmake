@@ -7,7 +7,7 @@ include(CompilationOptions)
 
 set(REJECT_LAUNCHER "${CMAKE_CURRENT_LIST_DIR}/RejectLauncher.cmake")
 # Only Makefile and Ninja generators run compiler launchers. Targets using this one replace any
-# global launcher, such as ccache, whose own failure would pass as a rejection.
+# global launcher, such as ccache.
 if(CMAKE_GENERATOR MATCHES "Makefiles|Ninja")
     set(REJECT_LAUNCH "${CMAKE_COMMAND}" -P "${REJECT_LAUNCHER}" --)
 endif()
@@ -86,6 +86,7 @@ function(add_reject_tests)
             set_tests_properties("${target}" PROPERTIES WILL_FAIL TRUE RESOURCE_LOCK build_tree)
         endif()
         list(APPEND targets "${target}")
+        list(APPEND scenario_targets "${target}")
 
         unset(target)
     endforeach()
@@ -94,5 +95,10 @@ function(add_reject_tests)
         target_link_libraries("${target}" PRIVATE ${Reject_DEPENDENCIES})
         append_compilation_options("${target}" WARNINGS)
         set_property(TARGET "${target}" PROPERTY CXX_STANDARD "${Reject_MODE}")
+    endforeach()
+
+    # Undo -Werror: a warning it promotes to an error would pass a reject test
+    foreach(target IN LISTS scenario_targets)
+        target_compile_options("${target}" PRIVATE $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wno-error>)
     endforeach()
 endfunction()
