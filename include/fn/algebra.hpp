@@ -86,8 +86,8 @@ struct _nothrow_join_arm<false, Tpl, Lh, Rh, Efn> {
 template <template <typename> typename Tpl, typename Lh, typename Rh, typename Efn>
 constexpr inline bool _nothrow_join = _nothrow_join_arm<_uninhabited_join<Lh, Rh>, Tpl, Lh, Rh, Efn>::value;
 
-// A payload enters the sum as a transform result does: a reference to a pack or a copack, which is
-// no alternative, as its value
+// A payload enters the sum as a transform result does: an lvalue reference as a reference
+// alternative, anything else as its decayed value
 template <typename Lh, typename Rh>
 using _disjoined_t = copack_for<_collapsed_t<_payload_t<Lh>>, _collapsed_t<_payload_t<Rh>>>;
 

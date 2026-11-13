@@ -50,7 +50,9 @@ concept applicable_transform //
       }) || (some_optional<V> && some_copack<typename ::std::remove_cvref_t<V>::value_type> && requires(V &&v) {
         requires detail::_copack_transformable<Fn, decltype(FWD(v).value())>;
         requires convertible_to_optional<detail::_copack_transform_t<Fn, decltype(FWD(v).value())>>;
-      }) || (some_just<V> && (not some_choice<V>) && requires(Fn &&fn, V &&v) {
+      }) || (some_just<V> && (not some_choice<V>) && (not ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type>) && requires(V &&v) {
+        requires detail::_just_transformable<Fn, decltype(FWD(v).value())>;
+      }) || (some_just<V> && ::std::is_void_v<typename ::std::remove_cvref_t<V>::value_type> && requires(Fn &&fn, V &&v) {
         {
           FWD(v).transform(FWD(fn))
         } -> same_kind<V>;
