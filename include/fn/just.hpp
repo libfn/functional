@@ -45,19 +45,30 @@ template <typename T>
 concept some_choice = detail::_some_choice<T>;
 
 namespace detail {
+// Supported referents for just<T&>. Packs and copacks are excluded: how a reference to a product
+// or a sum takes part in conjunction, disjunction and grading is an open question (issue #434).
+template <typename T>
+concept _just_referent
+    = ::std::is_object_v<T> && (not ::std::is_array_v<T>) && (not _some_in_place_type<::std::remove_cv_t<T>>)
+      && (not _some_pack<T>) && (not _some_copack<T>);
+
 // The payload just admits - the class mandates below assert the same set, and the transform verb
 // asks this before naming just<result> anywhere, so an inadmissible result answers instead of
 // firing a mandate inside the probe. The empty copack is out: just<copack<>> is incomplete.
 template <typename T>
 concept _just_payload
-    = (not ::std::is_same_v<T, copack<>>) && (not ::std::is_reference_v<T>) && (not ::std::is_array_v<T>)
-      && (not _some_in_place_type<T>) && ::std::is_same_v<T, ::std::remove_cv_t<T>>;
+    = (::std::is_lvalue_reference_v<T> && _just_referent<::std::remove_reference_t<T>>)
+      || ((not ::std::is_same_v<T, copack<>>) && (not ::std::is_reference_v<T>) && (not ::std::is_array_v<T>)
+          && (not _some_in_place_type<T>) && ::std::is_same_v<T, ::std::remove_cv_t<T>>);
 
 // What the callback's result may become: void and admissible payloads make a just; anything else
-// keeps the member viable-but-loud below
+// keeps the member viable-but-loud below. A reference result from an rvalue payload is out: it may
+// refer into the payload, which expires with the carrier.
 template <typename Fn, typename... V>
-concept _just_admissible_result
-    = ::std::is_void_v<typename _apply_result<Fn, V...>::type> || _just_payload<typename _apply_result<Fn, V...>::type>;
+concept _just_admissible_result = ::std::is_void_v<typename _apply_result<Fn, V...>::type>
+                                  || (_just_payload<typename _apply_result<Fn, V...>::type>
+                                      && not(::std::is_reference_v<typename _apply_result<Fn, V...>::type>
+                                             && (... || ::std::is_rvalue_reference_v<V>)));
 
 // For an admissible result, transform returns just<result>. Otherwise expose the raw result
 // type (including empty copacks, references and arrays) so probing does not instantiate an
@@ -75,6 +86,11 @@ struct _just_transform_result<Fn, V...> {
   using type = ::fn::just<typename _apply_result<Fn, V...>::type>;
 };
 
+// What the transform member requires of the callable, for the pipeline gate to ask of the payload:
+// naming the member would deduce its return type and fire its static_asserts
+template <typename Fn, typename V>
+concept _just_transformable = _is_applicable<Fn, V>::value && _just_admissible_result<Fn, V>;
+
 // transform's result is direct-non-list-initialized from the thunk's invocation: no extra move,
 // and immovable result types work (the pattern of pfn's _expected_from_invoke)
 constexpr inline struct _just_from_invoke_t {
@@ -85,6 +101,7 @@ constexpr inline struct _just_from_invoke_t {
 // Declare the specializations before the primary can instantiate them through transform.
 // just<copack<>> remains incomplete because there is no alternative to hold; just<void> is the unit.
 template <typename T> struct just;
+template <typename T> struct just<T &>;
 template <> struct just<void>;
 template <typename... Ts> struct just<copack<Ts...>>;
 template <> struct just<copack<>>;
@@ -256,14 +273,19 @@ template <typename T> struct just {
   /**
    * @brief Maps the payload through the callable, wrapping the result
    *
+   * The payload is handed over in `*this`'s cv/ref category; where the callable does not accept
+   * it, the call is ill-formed. A callable returning an lvalue reference makes a `just` of that
+   * reference, but only from an lvalue carrier: an rvalue carrier rejects it, as the reference may
+   * refer into its expiring payload.
+   *
    * @param fn Callable applied on the payload
    * @return `just` of the callable's result; `just<void>` for a void result
    */
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) & //
-      noexcept(detail::_is_nothrow_applicable<Fn, T &>::value) -> typename detail::_just_transform_result<Fn, T &>::type
-    requires detail::_is_applicable<Fn, T &>::value
+      noexcept(detail::_is_nothrow_applicable<Fn, T &>::value)
   {
+    static_assert(detail::_is_applicable<Fn, T &>::value);
     using type = detail::_apply_result<Fn, T &>::type;
     static_assert(detail::_just_admissible_result<Fn, T &>);
     if constexpr (::std::is_void_v<type>) {
@@ -278,10 +300,9 @@ template <typename T> struct just {
 
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) const & //
-      noexcept(detail::_is_nothrow_applicable<Fn, T const &>::value) ->
-      typename detail::_just_transform_result<Fn, T const &>::type
-    requires detail::_is_applicable<Fn, T const &>::value
+      noexcept(detail::_is_nothrow_applicable<Fn, T const &>::value)
   {
+    static_assert(detail::_is_applicable<Fn, T const &>::value);
     using type = detail::_apply_result<Fn, T const &>::type;
     static_assert(detail::_just_admissible_result<Fn, T const &>);
     if constexpr (::std::is_void_v<type>) {
@@ -296,10 +317,9 @@ template <typename T> struct just {
 
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) && //
-      noexcept(detail::_is_nothrow_applicable<Fn, T &&>::value) ->
-      typename detail::_just_transform_result<Fn, T &&>::type
-    requires detail::_is_applicable<Fn, T &&>::value
+      noexcept(detail::_is_nothrow_applicable<Fn, T &&>::value)
   {
+    static_assert(detail::_is_applicable<Fn, T &&>::value);
     using type = detail::_apply_result<Fn, T &&>::type;
     static_assert(detail::_just_admissible_result<Fn, T &&>);
     if constexpr (::std::is_void_v<type>) {
@@ -314,10 +334,9 @@ template <typename T> struct just {
 
   template <typename Fn>
   [[nodiscard]] constexpr auto transform(Fn &&fn) const && //
-      noexcept(detail::_is_nothrow_applicable<Fn, T const &&>::value) ->
-      typename detail::_just_transform_result<Fn, T const &&>::type
-    requires detail::_is_applicable<Fn, T const &&>::value
+      noexcept(detail::_is_nothrow_applicable<Fn, T const &&>::value)
   {
+    static_assert(detail::_is_applicable<Fn, T const &&>::value);
     using type = detail::_apply_result<Fn, T const &&>::type;
     static_assert(detail::_just_admissible_result<Fn, T const &&>);
     if constexpr (::std::is_void_v<type>) {
@@ -333,15 +352,17 @@ template <typename T> struct just {
   /**
    * @brief Binds the payload through the callable, which returns a `just` of any payload
    *
+   * The payload is handed over in `*this`'s cv/ref category; where the callable does not accept
+   * it, the call is ill-formed.
+   *
    * @param fn Callable applied on the payload
    * @return The callable's own `just`
    */
   template <typename Fn>
   [[nodiscard]] constexpr auto and_then(Fn &&fn) & //
       noexcept(detail::_is_nothrow_applicable<Fn, T &>::value)
-          -> ::std::remove_cvref_t<typename detail::_apply_result<Fn, T &>::type>
-    requires detail::_is_applicable<Fn, T &>::value
   {
+    static_assert(detail::_is_applicable<Fn, T &>::value);
     // the member is the carrier's own bind; the cross-carrier bind lives in the and_then functor
     static_assert(some_just<typename detail::_apply_result<Fn, T &>::type>);
     return detail::_apply(FWD(fn), v_);
@@ -350,9 +371,8 @@ template <typename T> struct just {
   template <typename Fn>
   [[nodiscard]] constexpr auto and_then(Fn &&fn) const & //
       noexcept(detail::_is_nothrow_applicable<Fn, T const &>::value)
-          -> ::std::remove_cvref_t<typename detail::_apply_result<Fn, T const &>::type>
-    requires detail::_is_applicable<Fn, T const &>::value
   {
+    static_assert(detail::_is_applicable<Fn, T const &>::value);
     static_assert(some_just<typename detail::_apply_result<Fn, T const &>::type>);
     return detail::_apply(FWD(fn), v_);
   }
@@ -360,9 +380,8 @@ template <typename T> struct just {
   template <typename Fn>
   [[nodiscard]] constexpr auto and_then(Fn &&fn) && //
       noexcept(detail::_is_nothrow_applicable<Fn, T &&>::value)
-          -> ::std::remove_cvref_t<typename detail::_apply_result<Fn, T &&>::type>
-    requires detail::_is_applicable<Fn, T &&>::value
   {
+    static_assert(detail::_is_applicable<Fn, T &&>::value);
     static_assert(some_just<typename detail::_apply_result<Fn, T &&>::type>);
     return detail::_apply(FWD(fn), ::std::move(v_));
   }
@@ -370,9 +389,8 @@ template <typename T> struct just {
   template <typename Fn>
   [[nodiscard]] constexpr auto and_then(Fn &&fn) const && //
       noexcept(detail::_is_nothrow_applicable<Fn, T const &&>::value)
-          -> ::std::remove_cvref_t<typename detail::_apply_result<Fn, T const &&>::type>
-    requires detail::_is_applicable<Fn, T const &&>::value
   {
+    static_assert(detail::_is_applicable<Fn, T const &&>::value);
     static_assert(some_just<typename detail::_apply_result<Fn, T const &&>::type>);
     return detail::_apply(FWD(fn), ::std::move(v_));
   }
@@ -697,6 +715,231 @@ template <> struct just<void> {
   }
 };
 
+/**
+ * @brief The identity carrier over an lvalue reference: always bound to one `T`
+ *
+ * The always-engaged counterpart of `optional<T&>`. Copy assignment and `emplace` rebind the
+ * reference without assigning to the referent. `value()` returns `T&` regardless of the carrier's
+ * value category or constness. Callable operations use the same reference, expanding tuple-like
+ * referents as `fn::apply` does.
+ *
+ * There is no default constructor. Deduction from a value produces an owning carrier; use
+ * `just<T&>` or `std::in_place_type<T&>` to request a reference. Referents must be object types
+ * other than arrays, in-place type tags, packs, or copacks. The carrier is trivially copyable and a
+ * structural type.
+ *
+ * The caller must keep the referent alive. As for `optional<T&>`, construction and `emplace` refuse
+ * a binding to a temporary, judged by `pfn::reference_constructs_from_temporary`.
+ *
+ * @tparam T Referent type
+ */
+template <typename T> struct just<T &> {
+  static_assert(detail::_just_referent<T>);
+
+  /**
+   * @brief The referent type, including any cv-qualification
+   */
+  using value_type = T;
+
+  /**
+   * @brief The referent's address
+   */
+  T *p_;
+
+  /**
+   * @brief Copy constructor; binds the same referent
+   */
+  constexpr just(just const &) = default;
+  /**
+   * @brief Copy assignment; rebinds to the other's referent
+   */
+  constexpr just &operator=(just const &) = default;
+  /**
+   * @brief Destructor
+   */
+  constexpr ~just() = default;
+
+  /**
+   * @brief Binds the reference to the argument
+   *
+   * Explicit unless the argument is implicitly convertible to `T&`.
+   *
+   * @param u The referent, or a value whose conversion yields it
+   */
+  template <typename U>
+    requires(not ::std::is_same_v<::std::remove_cvref_t<U>, just>)
+            && (not detail::_some_in_place_type<::std::remove_cvref_t<U>>)
+            && ::std::is_constructible_v<T &, U> && (not ::pfn::reference_constructs_from_temporary_v<T &, U>)
+  constexpr explicit(not ::std::is_convertible_v<U, T &>) just(U &&u) // NOSONAR cpp:S6458 the constraint excludes self
+      noexcept(::std::is_nothrow_constructible_v<T &, U>)
+      : p_(_address(FWD(u)))
+  {
+  }
+  template <typename U>
+    requires(not ::std::is_same_v<::std::remove_cvref_t<U>, just>)
+                && (not detail::_some_in_place_type<::std::remove_cvref_t<U>>)
+                && ::std::is_constructible_v<T &, U> && ::pfn::reference_constructs_from_temporary_v<T &, U>
+  constexpr explicit(not ::std::is_convertible_v<U, T &>) just(U &&u) = delete; // NOSONAR cpp:S6458
+
+  /**
+   * @brief Binds the reference to the argument
+   *
+   * @param u The referent, or a value whose conversion yields it
+   */
+  template <typename U>
+    requires ::std::is_constructible_v<T &, U> && (not ::pfn::reference_constructs_from_temporary_v<T &, U>)
+  constexpr explicit just(::std::in_place_type_t<T &>, U &&u) //
+      noexcept(::std::is_nothrow_constructible_v<T &, U>)
+      : p_(_address(FWD(u)))
+  {
+  }
+
+  /**
+   * @brief Rebinds the reference to the argument
+   *
+   * @param u The new referent, or a value whose conversion yields it
+   * @return Reference to the new referent
+   */
+  template <typename U>
+  constexpr T &emplace(U &&u) noexcept(::std::is_nothrow_constructible_v<T &, U>)
+    requires ::std::is_constructible_v<T &, U> && (not ::pfn::reference_constructs_from_temporary_v<T &, U>)
+  {
+    p_ = _address(FWD(u));
+    return *p_;
+  }
+
+  /**
+   * @brief Accesses the referent
+   *
+   * @return The referent, whatever the value category of `*this`
+   */
+  [[nodiscard]] constexpr T &value() const noexcept { return *p_; }
+
+  /**
+   * @brief Maps the referent through the callable, wrapping the result
+   *
+   * A supported lvalue-reference result produces a non-owning `just<U&>`; a value result
+   * produces an owning carrier.
+   *
+   * @param fn Callable applied on the referent
+   * @return `just` of the callable's result; `just<void>` for a void result
+   */
+  template <typename Fn>
+  [[nodiscard]] constexpr auto transform(Fn &&fn) const //
+      noexcept(detail::_is_nothrow_applicable<Fn, T &>::value) -> typename detail::_just_transform_result<Fn, T &>::type
+    requires detail::_is_applicable<Fn, T &>::value
+  {
+    using type = detail::_apply_result<Fn, T &>::type;
+    static_assert(detail::_just_admissible_result<Fn, T &>);
+    if constexpr (::std::is_void_v<type>) {
+      detail::_apply(FWD(fn), *p_);
+      return just<type>{};
+    } else if constexpr (detail::_just_payload<type>)
+      return just<type>{detail::_just_from_invoke,
+                        [&fn, this]() -> decltype(auto) { return detail::_apply(FWD(fn), *p_); }};
+    else
+      ::pfn::unreachable(); // LCOV_EXCL_LINE - rejected by the static_assert above
+  }
+
+  /**
+   * @brief Binds the referent through the callable, which returns a `just` of any payload
+   *
+   * @param fn Callable applied on the referent
+   * @return The callable's `just` result, returned by value
+   */
+  template <typename Fn>
+  [[nodiscard]] constexpr auto and_then(Fn &&fn) const //
+      noexcept(detail::_is_nothrow_applicable<Fn, T &>::value)
+          -> ::std::remove_cvref_t<typename detail::_apply_result<Fn, T &>::type>
+    requires detail::_is_applicable<Fn, T &>::value
+  {
+    // the member is the carrier's own bind; the cross-carrier bind lives in the and_then functor
+    static_assert(some_just<typename detail::_apply_result<Fn, T &>::type>);
+    return detail::_apply(FWD(fn), *p_);
+  }
+
+  /**
+   * @brief Eliminates the referent through the callable
+   *
+   * As with `fn::apply`, tuple-like referents are expanded into their elements; other
+   * referents are passed whole. Additional arguments follow the referent or its elements.
+   *
+   * @param fn Callable applied on the referent
+   * @param args Additional arguments, appended after the referent's content
+   * @return The callable's result
+   */
+  template <typename Fn, typename... Args>
+  [[nodiscard]] constexpr auto apply(Fn &&fn, Args &&...args) const //
+      noexcept(detail::_is_nothrow_applicable<Fn, T &, Args...>::value) -> decltype(auto)
+    requires detail::_is_applicable<Fn, T &, Args...>::value
+  {
+    return detail::_apply(FWD(fn), *p_, FWD(args)...);
+  }
+
+  /**
+   * @brief Eliminates the referent through the callable, converting the result to `Ret`
+   *
+   * @tparam Ret Type the result converts to
+   * @param fn Callable applied on the referent
+   * @param args Additional arguments, appended after the referent's content
+   * @return The callable's result, converted to `Ret`
+   */
+  template <typename Ret, typename Fn, typename... Args>
+  [[nodiscard]] constexpr auto apply_r(Fn &&fn, Args &&...args) const //
+      noexcept(detail::_is_nothrow_applicable_r<Ret, Fn, T &, Args...>::value) -> Ret
+    requires detail::_is_applicable_r<Ret, Fn, T &, Args...>::value
+  {
+    return detail::_apply_r<Ret>(FWD(fn), *p_, FWD(args)...);
+  }
+
+  /**
+   * @brief Eliminates the referent through the callable, keyed by the payload's type
+   *
+   * The callable receives `std::in_place_type<T&>`, then the referent or its elements as in
+   * `apply`, then any additional arguments.
+   *
+   * @param fn Callable applied on the tag and the referent
+   * @param args Additional arguments, appended after the referent's content
+   * @return The callable's result
+   */
+  template <typename Fn, typename... Args>
+  [[nodiscard]] constexpr auto apply_type(Fn &&fn, Args &&...args) const //
+      noexcept(noexcept(detail::_apply_tagged<::std::in_place_type_t<T &>>(FWD(fn), *p_, FWD(args)...)))
+          -> decltype(auto)
+    requires requires { detail::_apply_tagged<::std::in_place_type_t<T &>>(FWD(fn), *p_, FWD(args)...); }
+  {
+    return detail::_apply_tagged<::std::in_place_type_t<T &>>(FWD(fn), *p_, FWD(args)...);
+  }
+
+  /**
+   * @brief Eliminates the referent through the callable, keyed by the payload's type, converting
+   *        the result to `Ret`
+   *
+   * @tparam Ret Type the result converts to
+   * @param fn Callable applied on the tag and the referent
+   * @param args Additional arguments, appended after the referent's content
+   * @return The callable's result, converted to `Ret`
+   */
+  template <typename Ret, typename Fn, typename... Args>
+  [[nodiscard]] constexpr auto apply_type_r(Fn &&fn, Args &&...args) const //
+      noexcept(noexcept(detail::_apply_tagged_r<Ret, ::std::in_place_type_t<T &>>(FWD(fn), *p_, FWD(args)...))) -> Ret
+    requires requires { detail::_apply_tagged_r<Ret, ::std::in_place_type_t<T &>>(FWD(fn), *p_, FWD(args)...); }
+  {
+    return detail::_apply_tagged_r<Ret, ::std::in_place_type_t<T &>>(FWD(fn), *p_, FWD(args)...);
+  }
+
+private:
+  template <typename> friend struct just;
+
+  // Same semantics as `T &r(FWD(u));`, spelled as a cast for MSVC (error C2440)
+  template <typename U> static constexpr T *_address(U &&u) noexcept(::std::is_nothrow_constructible_v<T &, U>)
+  {
+    return ::std::addressof(static_cast<T &>(FWD(u)));
+  }
+
+  template <typename Fn> constexpr explicit just(detail::_just_from_invoke_t, Fn &&make) : p_(_address(FWD(make)())) {}
+};
+
 namespace detail {
 // Inject each branch's payload into the joined choice: a choice contributes its copack,
 // an ordinary just contributes its value, and just<void> contributes pack<>. Constructing from
@@ -715,6 +958,9 @@ struct _nothrow_just_inject<To, Fn, Args...> {
     else if constexpr (::std::is_void_v<typename from::value_type>)
       return ::std::is_nothrow_invocable_v<Fn, Args...>
              && ::std::is_nothrow_constructible_v<To, ::std::in_place_type_t<pack<>>>;
+    else if constexpr (::std::is_reference_v<_payload_t<from>>)
+      return ::std::is_nothrow_invocable_v<Fn, Args...>
+             && ::std::is_nothrow_constructible_v<To, ::std::in_place_type_t<_payload_t<from>>, _payload_t<from>>;
     else
       return ::std::is_nothrow_invocable_v<Fn, Args...>
              && ::std::is_nothrow_constructible_v<To, ::std::in_place_type_t<typename from::value_type>,
@@ -735,7 +981,9 @@ template <typename To, typename Fn> struct _just_injector final {
     else if constexpr (::std::is_void_v<typename from::value_type>) {
       static_cast<void>(::std::invoke(FWD(fn), FWD(args)...));
       return To{::std::in_place_type<pack<>>};
-    } else
+    } else if constexpr (::std::is_reference_v<_payload_t<from>>)
+      return To{::std::in_place_type<_payload_t<from>>, ::std::invoke(FWD(fn), FWD(args)...).value()};
+    else
       return To{::std::in_place_type<typename from::value_type>, ::std::invoke(FWD(fn), FWD(args)...).v_};
   }
 };
